@@ -333,6 +333,7 @@ abstract final class ApiErrorCodes {
   static const firmAlreadyMember = 'FIRM_ALREADY_MEMBER';
   static const firmFull = 'FIRM_FULL';
   static const firmOwnerMustTransfer = 'FIRM_OWNER_MUST_TRANSFER';
+  static const firmBidExists = 'FIRM_BID_EXISTS';
   static const caseLimitReached = 'CASE_LIMIT_REACHED';
   static const planNotAvailable = 'PLAN_NOT_AVAILABLE';
   static const planCodeExists = 'PLAN_CODE_EXISTS';
@@ -604,6 +605,7 @@ abstract final class ApiErrorCodes {
     firmAlreadyMember,
     firmFull,
     firmOwnerMustTransfer,
+    firmBidExists,
     caseLimitReached,
     planNotAvailable,
     planCodeExists,

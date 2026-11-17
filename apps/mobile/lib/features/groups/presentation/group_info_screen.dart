@@ -820,6 +820,8 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
         ),
       if (d.canCall &&
           ref.watch(groupCallsProvider) &&
+          // Row 183: «Звонки в группах».
+          ref.watch(groupChatCallsEnabledProvider) &&
           ref.watch(groupCallPortProvider) != null) ...[
         action(
           key: const ValueKey('group-action-audio'),

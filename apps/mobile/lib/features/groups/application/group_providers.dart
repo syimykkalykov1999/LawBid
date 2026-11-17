@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/cache/chat_media_providers.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/media/stable_network_image.dart'
     show stableImageCacheKey;
 import 'package:lawbid/core/network/api_error.dart';
@@ -25,6 +26,24 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 Duration? _noRetry(int retryCount, Object error) => null;
+
+/// Owner 2026-11-16 (row 183): the admin switch «Группы в чатах» (flag
+/// `groups`, on by default, independent of `channelsEnabledProvider`; the
+/// same pattern). Off = no
+/// group anywhere: the lists below are empty without a request, the saved
+/// copy is not shown, the group routes show nothing (GroupsGate).
+final groupsEnabledProvider = Provider<bool>(
+  (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('groups'),
+);
+
+/// Owner 2026-11-16 18:25 CT (row 183): «Звонки в группах» (flag
+/// `groups_calls`, on by default): off = no call button in group chats.
+/// 1:1 calls and channel calls read their own switches.
+final groupChatCallsEnabledProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(groupsEnabledProvider) &&
+      ref.watch(featureFlagsControllerProvider).isEnabled('groups_calls'),
+);
 
 final groupRepositoryProvider = Provider<GroupRepository>(
   (ref) => GroupRepository(
@@ -83,6 +102,10 @@ class GroupsNotifier extends SyncedListNotifier<api.GroupDto> {
 
   @override
   Future<PaginatedList<api.GroupDto>> build() {
+    // Row 183: «Группы» off = no groups, no request, no saved copy.
+    if (!ref.watch(groupsEnabledProvider)) {
+      return Future.value(const PaginatedList<api.GroupDto>(items: []));
+    }
     // Owner 2026-10-21: remember which groups have their calls muted.
     listenSelf((_, AsyncValue<PaginatedList<api.GroupDto>> next) {
       for (final g in next.value?.items ?? const <api.GroupDto>[]) {
@@ -143,10 +166,16 @@ class GroupsNotifier extends SyncedListNotifier<api.GroupDto> {
   // and catches up with `updatedSince` (SyncedListNotifier).
   @override
   Future<CursorPage<api.GroupDto>?> cachedFirstPage() =>
-      archived ? Future.value() : ref.read(groupListCacheProvider).read();
+      archived || !ref.read(groupsEnabledProvider)
+          ? Future.value()
+          : ref.read(groupListCacheProvider).read();
 
   @override
   Future<CursorPage<api.GroupDto>> fetchPage(String? cursor) async {
+    // Row 183: a refresh / catch-up while «Группы» is off asks nothing.
+    if (!ref.read(groupsEnabledProvider)) {
+      return const CursorPage<api.GroupDto>(items: []);
+    }
     final page = await ref
         .read(groupRepositoryProvider)
         .groups(cursor: cursor, archived: archived);
@@ -169,9 +198,12 @@ class GroupsNotifier extends SyncedListNotifier<api.GroupDto> {
   }
 
   @override
-  Future<SyncedPage<api.GroupDto>> fetchChanged(DateTime since) => ref
-      .read(groupRepositoryProvider)
-      .groupsChangedSince(since, archived: archived);
+  Future<SyncedPage<api.GroupDto>> fetchChanged(DateTime since) =>
+      ref.read(groupsEnabledProvider)
+          ? ref
+              .read(groupRepositoryProvider)
+              .groupsChangedSince(since, archived: archived)
+          : Future.value(const SyncedPage<api.GroupDto>(items: []));
 
   @override
   Object idOf(api.GroupDto item) => item.id;
@@ -280,6 +312,17 @@ final archivedGroupsProvider = AsyncNotifierProvider.autoDispose<
 class RecommendedGroupsNotifier
     extends PagedNotifier<api.GroupInvitePreviewDto> {
   @override
+  Future<PaginatedList<api.GroupInvitePreviewDto>> build() {
+    // Row 183: «Группы» off = nothing to recommend, no request.
+    if (!ref.watch(groupsEnabledProvider)) {
+      return Future.value(
+        const PaginatedList<api.GroupInvitePreviewDto>(items: []),
+      );
+    }
+    return super.build();
+  }
+
+  @override
   Future<CursorPage<api.GroupInvitePreviewDto>> fetch(String? cursor) =>
       ref.read(groupRepositoryProvider).discover(cursor: cursor);
 
@@ -299,6 +342,8 @@ final recommendedGroupsProvider = AsyncNotifierProvider.autoDispose<
 final groupInvitesProvider =
     FutureProvider.autoDispose<List<api.GroupInviteDto>>(
   (ref) {
+    // Row 183: «Группы» off = no invitations shown, no request.
+    if (!ref.watch(groupsEnabledProvider)) return const [];
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'group:invite' ||
           e.name == 'badge:update' ||
