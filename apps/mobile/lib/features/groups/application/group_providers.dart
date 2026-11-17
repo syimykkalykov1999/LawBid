@@ -19,10 +19,8 @@ import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/core/uploads/upload_queue_database.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/chat_thread_memory.dart'
-    show ThreadMemory;
+    show CachedMessageStore, ThreadMemory;
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
-import 'package:lawbid/features/chat/data/message_store.dart'
-    show CachedMessageStore;
 import 'package:lawbid/features/chat/domain/chat_models.dart' show VoiceNote;
 import 'package:lawbid/features/groups/application/group_media_outbox.dart';
 import 'package:lawbid/features/groups/data/group_list_cache.dart';

@@ -7,6 +7,11 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 
+// Group threads keep their copy on the phone the same way (groups goes
+// through this layer, test/architecture/feature_boundaries_test.dart).
+export 'package:lawbid/features/chat/data/message_store.dart'
+    show CachedMessageStore;
+
 /// R-404 (c) (owner 2026-11-04, iPhone recording: the message list came a
 /// few frames after the chat screen): the newest page of the chats opened
 /// or listed recently, in memory. A chat whose page is here draws its
