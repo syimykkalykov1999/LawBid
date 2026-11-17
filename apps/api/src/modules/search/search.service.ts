@@ -497,12 +497,44 @@ export class SearchService {
     // Type-ahead, same for everyone: a short shared cache (like suggest).
     const key = `search:tags:${createHash('sha256').update(prefix).digest('base64url')}`;
     const hit = await this.cache.get(key);
-    if (hit) return JSON.parse(hit) as TagDto[];
-    return singleFlight(key, async () => {
-      const out = await this.tagsUncached(prefix);
-      await this.cache.set(key, JSON.stringify(out), 'EX', jitterTtl(60));
-      return out;
+    const list = hit
+      ? (JSON.parse(hit) as TagDto[])
+      : await singleFlight(key, async () => {
+          const out = await this.tagsUncached(prefix);
+          await this.cache.set(key, JSON.stringify(out), 'EX', jitterTtl(60));
+          return out;
+        });
+    return this.hideBlockedCovers(user, list);
+  }
+
+  /**
+   * Verify 17.11: covers are picked once for everyone (shared cache); a
+   * cover from the post of someone blocked either way is dropped per viewer
+   * (one primary-key read of the shown cover posts).
+   */
+  private async hideBlockedCovers(
+    user: RequestUser | undefined,
+    list: TagDto[],
+  ): Promise<TagDto[]> {
+    const ids = [
+      ...new Set(list.flatMap((t) => (t.coverPostId ? [t.coverPostId] : []))),
+    ];
+    if (!user?.sub || ids.length === 0) return list;
+    const hidden = await this.blocks.hiddenIds(user.sub);
+    if (hidden.size === 0) return list;
+    const posts = await this.prisma.post.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, author_id: true },
     });
+    const blocked = new Set(
+      posts.filter((p) => hidden.has(p.author_id)).map((p) => p.id),
+    );
+    if (blocked.size === 0) return list;
+    return list.map((t) =>
+      t.coverPostId && blocked.has(t.coverPostId)
+        ? { ...t, coverUrl: null, coverPostId: null }
+        : t,
+    );
   }
 
   private async tagsUncached(prefix: string): Promise<TagDto[]> {
@@ -649,9 +681,12 @@ export class SearchService {
   }
 
   /** §7.2 "Популярные темы": written by TrendingTagsJob. */
-  async trending(): Promise<TagDto[]> {
+  async trending(user?: RequestUser): Promise<TagDto[]> {
     const raw = await this.redis.get(TRENDING_TAGS_KEY);
-    return this.withCovers(raw ? (JSON.parse(raw) as TagDto[]) : []);
+    return this.hideBlockedCovers(
+      user,
+      await this.withCovers(raw ? (JSON.parse(raw) as TagDto[]) : []),
+    );
   }
 
   /** GET /tags/:tag/posts — "Топ" by the §2.2.2 score, "Новые" by date. */

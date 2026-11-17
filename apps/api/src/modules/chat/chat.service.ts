@@ -820,16 +820,12 @@ export class ChatService {
                 OR: [
                   { edited_at: { gt: anchor.created_at } },
                   { revoked_at: { gt: anchor.created_at } },
-                  // Verify 17.11: «voice played» and new / changed reactions
-                  // too (they never reached a phone that was offline). Not
-                  // updated_at alone: the key re-encryption job touches every
-                  // row and would make every catch-up a 409.
+                  // Verify 17.11: «voice played» and reactions added, changed
+                  // or removed (they never reached a phone that was
+                  // offline). Not updated_at alone: the key re-encryption
+                  // job touches every row and would make every catch-up 409.
                   { listened_at: { gt: anchor.created_at } },
-                  {
-                    reactions: {
-                      some: { created_at: { gt: anchor.created_at } },
-                    },
-                  },
+                  { reactions_changed_at: { gt: anchor.created_at } },
                 ],
               },
             ],

@@ -953,6 +953,7 @@ erDiagram
     String sent_by_membership_id "nullable"
     String sent_by_name "nullable"
     DateTime listened_at "nullable"
+    DateTime reactions_changed_at "nullable"
     String sticker_id FK "nullable"
     String gift_send_id FK "nullable"
     DateTime deleted_at "nullable"

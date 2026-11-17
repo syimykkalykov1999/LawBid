@@ -69,6 +69,18 @@ export class ChatActionsService {
     return this.cipher?.seal(text, messageId) ?? text;
   }
 
+  /** Verify 17.11: the message's reactions changed (added, changed or
+   * removed) — what the offline catch-up looks at. */
+  private async reactionsChanged(
+    messageId: string,
+    conversationId: string,
+  ): Promise<void> {
+    await this.prisma.message.updateMany({
+      where: { id: messageId, conversation_id: conversationId },
+      data: { reactions_changed_at: new Date() },
+    });
+  }
+
   private async own(user: RequestUser, id: string, messageId: string) {
     const conv = await this.chat.load(user, id);
     const m = await this.prisma.message.findFirst({
@@ -352,9 +364,11 @@ export class ChatActionsService {
       });
     }
     if (!emoji) {
-      await this.prisma.messageReaction.deleteMany({
+      const { count } = await this.prisma.messageReaction.deleteMany({
         where: { message_id: m.id, user_id: user.sub },
       });
+      // Verify 17.11: a removal reaches the offline catch-up too.
+      if (count > 0) await this.reactionsChanged(m.id, m.conversation_id);
     } else {
       if (!isSingleEmoji(emoji)) {
         throw new BadRequestException({
@@ -382,6 +396,7 @@ export class ChatActionsService {
           update: { emoji: clean, created_at: new Date() },
         });
       });
+      await this.reactionsChanged(m.id, m.conversation_id);
       // Only the author of the message hears about a reaction.
       if (m.sender_id && m.sender_id !== user.sub) {
         await this.notify(m.sender_id, conv.id, m.id, {

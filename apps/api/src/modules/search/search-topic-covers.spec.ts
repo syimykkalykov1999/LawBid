@@ -5,7 +5,7 @@ import { SearchService } from './search.service';
 
 type Priv = {
   withCovers(list: TagDto[]): Promise<TagDto[]>;
-  trending(): Promise<TagDto[]>;
+  trending(user?: unknown): Promise<TagDto[]>;
 };
 
 /** Owner 2026-11-04 (R-406): GET /search/trending-tags and /search/tags
@@ -14,8 +14,9 @@ type Priv = {
 describe('SearchService topic covers', () => {
   function make(opts: {
     snapshot?: Record<string, { postId: string }>;
-    posts?: { id: string; url: string | null }[];
+    posts?: { id: string; url: string | null; author?: string }[];
     trending?: TagDto[];
+    hidden?: string[];
   }) {
     const main = new Map<string, string>();
     if (opts.snapshot)
@@ -35,7 +36,7 @@ describe('SearchService topic covers', () => {
       Promise.resolve(
         (opts.posts ?? [])
           .filter((p) => where.id.in.includes(p.id))
-          .map((p) => ({ id: p.id })),
+          .map((p) => ({ id: p.id, author_id: p.author ?? 'a0' })),
       ),
     );
     const present = jest.fn((rows: { id: string }[], viewer: string) =>
@@ -57,6 +58,9 @@ describe('SearchService topic covers', () => {
       cacheRedis: cache,
       prisma: { post: { findMany } },
       posts: { present },
+      blocks: {
+        hiddenIds: jest.fn(() => Promise.resolve(new Set(opts.hidden ?? []))),
+      },
     });
     return { svc: svc as unknown as Priv, cache, findMany, present };
   }
@@ -137,6 +141,23 @@ describe('SearchService topic covers', () => {
     expect(out.map((t) => [t.tag, t.coverUrl])).toEqual([
       ['alimony', 'https://cdn/p1_320.jpg'],
       ['plain', null],
+    ]);
+  });
+
+  it('verify 17.11: a cover from the post of someone blocked either way is dropped for that viewer', async () => {
+    const { svc } = make({
+      snapshot: { alimony: { postId: 'p1' }, custody: { postId: 'p2' } },
+      posts: [
+        { id: 'p1', url: 'https://cdn/p1_320.jpg', author: 'blocked-att' },
+        { id: 'p2', url: 'https://cdn/p2_320.jpg', author: 'other-att' },
+      ],
+      trending: tags('alimony', 'custody'),
+      hidden: ['blocked-att'],
+    });
+    const out = await svc.trending({ sub: 'viewer' });
+    expect(out.map((t) => [t.tag, t.coverPostId ?? null])).toEqual([
+      ['alimony', null],
+      ['custody', 'p2'],
     ]);
   });
 });
