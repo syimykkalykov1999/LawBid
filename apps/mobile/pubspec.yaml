@@ -32,7 +32,7 @@ dependencies:
   # app_page_transitions.dart; the tab roots use MaterialPage as 17 did), the
   # unknown-URL page is ours (app_router.dart), and the Hero widgets carry
   # Material's arc tween themselves: the look and swipe-back stay as on 17.
-  go_router: 18.1.3
+  go_router: 18.1.4
 
   # Models (stage 1.5 doesn't define any yet; locked in now so stage 1.7+ doesn't fight
   # version skew across the monorepo)
@@ -118,8 +118,8 @@ dependencies:
   # Row 149 (14.11): 11 -> 13.3.2 (the federated rewrite: a list instead of
   # FilePickerResult, PlatformFile.readAsBytes/lengthSync instead of
   # bytes/size); file_picker_web for its web options (core/files).
-  file_picker: 13.3.2
-  file_picker_web: 4.2.0
+  file_picker: 13.4.0
+  file_picker_web: 4.2.1
   share_plus: ^13.3.1
   socket_io_client: ^3.1.6
   cached_network_image: ^4.0.6
@@ -134,7 +134,8 @@ dependencies:
   sentry_flutter: ^10.3.0
   app_badge_plus: ^1.4.0
   flutter_timezone: ^5.1.1
-  flutter_stripe: ^14.2.0
+  flutter_stripe: ^15.0.0
+  material_ui: ^1.10.0
   record: ^7.1.2
   just_audio: ^0.10.6
   path_provider: ^2.1.6
@@ -169,19 +170,19 @@ dependencies:
   # picture to the phone's gallery.
   qr: ^4.0.1
   mobile_scanner: ^7.5.0
-  gal: ^2.3.3
+  gal: ^3.0.1
   # Owner 2026-10-20: «Перевести» on the phone instead of paid Google
   # Translate. Free, offline after a one-time ~30 MB language download.
   # Android + iOS only (iOS 15.5+); the web says «in the app».
-  google_mlkit_translation: ^0.15.1
-  google_mlkit_language_id: ^0.15.1
+  google_mlkit_translation: ^1.0.3
+  google_mlkit_language_id: ^1.0.3
   # Owner 2026-10-28 (ID selfie camera, docs/architecture/
   # ID_SELFIE_CAPTURE_2026-10-28.md): free on-device face detection (one
   # face in the oval + blink / head-turn liveness) and text recognition
   # (a soft "ID card is in the frame" hint). Same ML Kit release train as
   # translation (google_mlkit_commons ^0.13.0); nothing leaves the phone.
-  google_mlkit_face_detection: ^0.15.1
-  google_mlkit_text_recognition: ^0.17.1
+  google_mlkit_face_detection: ^1.0.3
+  google_mlkit_text_recognition: ^1.0.3
   # Owner 2026-10-22 (audit #4 §3): the persistent media queue hands each
   # S3 POST to the OS (Android WorkManager, iOS background URLSession), so
   # an upload continues while the app is closed (core/uploads/

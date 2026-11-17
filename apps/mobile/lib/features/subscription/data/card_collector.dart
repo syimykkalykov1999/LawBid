@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
+// flutter_stripe 15 takes ThemeMode from the Material package that left the
+// Flutter SDK (material_ui, official, BSD-3).
+import 'package:material_ui/material_ui.dart' as mui;
 
 /// What the PaymentSheet needs (docs/06 §1.4 step 2).
 @immutable
@@ -68,7 +71,7 @@ class StripeCardCollector implements CardCollector {
           setupIntentClientSecret: request.clientSecret,
           customerId: request.customerId,
           merchantDisplayName: 'LawBid',
-          style: request.dark ? ThemeMode.dark : ThemeMode.light,
+          style: request.dark ? mui.ThemeMode.dark : mui.ThemeMode.light,
           appearance: PaymentSheetAppearance(
             colors: PaymentSheetAppearanceColors(primary: request.primaryColor),
           ),
