@@ -296,14 +296,21 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('chat-search-close')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('chats-new-chat')), findsOneWidget);
-    // Owner 2026-10-21 (п.22b): ⋮ keeps «Select chats»; «New group» and
-    // «Find groups» live on the Channels screen («+» and the magnifier).
+    // Owner 16.11 (row 183 plan, step 1): ⋮ starts with «New group» (the
+    // switch «Группы в чатах» is on by default), then «Select chats»;
+    // «Find groups» stays on the Channels screen.
     await tester.tap(find.byKey(const ValueKey('chats-menu')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('chats-menu-select')), findsOneWidget);
-    expect(find.byKey(const ValueKey('menu-new-group')), findsNothing);
+    final newGroup = find.byKey(const ValueKey('chats-menu-new-group'));
+    final select = find.byKey(const ValueKey('chats-menu-select'));
+    expect(newGroup, findsOneWidget);
+    expect(select, findsOneWidget);
+    expect(find.text('New group'), findsOneWidget);
+    expect(
+      tester.getTopLeft(newGroup).dy,
+      lessThan(tester.getTopLeft(select).dy),
+    );
     expect(find.byKey(const ValueKey('menu-find-groups')), findsNothing);
-    expect(find.text('New group'), findsNothing);
     expect(find.text('Find groups'), findsNothing);
     expect(
       find.descendant(
@@ -312,6 +319,37 @@ void main() {
       ),
       findsNothing,
     );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 5));
+  });
+
+  testWidgets('⋮ has no «New group» while «Группы в чатах» is off (row 183)',
+      (tester) async {
+    tester.view.physicalSize = const Size(1000, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      uxApp(
+        const InboxScreen(),
+        size: const Size(1000, 2000),
+        theme: AppTheme.light(),
+        disableAnimations: true,
+        overrides: uxOverrides(
+          extra: [
+            chatRepositoryProvider.overrideWithValue(_Chats()),
+            groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
+            groupsEnabledProvider.overrideWithValue(false),
+            currentUserIdProvider.overrideWithValue('me'),
+            realtimeClientProvider.overrideWithValue(null),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('chats-menu')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chats-menu-new-group')), findsNothing);
+    expect(find.byKey(const ValueKey('chats-menu-select')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 5));
   });
