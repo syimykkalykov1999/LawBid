@@ -1260,6 +1260,21 @@ export class GroupTopicDto {
   createdAt!: Date;
 }
 
+/** Groups WhatsApp parity («Данные» of my message): who has read it. */
+export class GroupMessageReadersDto {
+  @ApiProperty({
+    type: () => [GroupPersonDto],
+    description: 'Members whose read mark is at or past the message.',
+  })
+  readers!: GroupPersonDto[];
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Current members besides the author (who could read it).',
+  })
+  recipients!: number;
+}
+
 export class GroupReadResultDto {
   @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
   lastReadMessageId!: string | null;

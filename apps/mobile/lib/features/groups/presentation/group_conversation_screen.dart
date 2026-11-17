@@ -43,6 +43,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.da
 import 'package:lawbid/features/groups/presentation/widgets/group_message_bubble.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_message_menu.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_pin_banner.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_readers_sheet.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_selection_bar.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_system_line.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_topic_list.dart';
@@ -538,6 +539,7 @@ class _GroupConversationScreenState
       canPin: detail.canPinMessages,
       pinned: pinned,
       canDelete: m.mine || detail.canDeleteOthers,
+      canSeeReaders: m.mine && !m.deleted && !m.isSystem,
       // Groups WhatsApp parity: the 1:1 quick reactions (not on a message
       // that is still sending or deleted).
       myReaction: m.myReaction,
@@ -547,6 +549,8 @@ class _GroupConversationScreenState
     );
     if (action == null || !mounted) return;
     switch (action) {
+      case GroupMessageAction.readers:
+        await showGroupReadersSheet(context, groupId: detail.id, message: m);
       case GroupMessageAction.reply:
         setState(() {
           _replyTo = m;

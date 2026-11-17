@@ -10,6 +10,8 @@ import 'package:lawbid/features/chat/presentation/message_context_menu.dart'
 /// (Telegram): forward, select, and — in a group that restricts saving
 /// content — share the group's link instead.
 enum GroupMessageAction {
+  /// Groups WhatsApp parity: «Данные» of my message — who has read it.
+  readers,
   reply,
   copy,
   forward,
@@ -39,6 +41,7 @@ Future<GroupMessageAction?> showGroupMessageMenu(
   bool canForward = false,
   bool canShareLink = false,
   bool canSelect = false,
+  bool canSeeReaders = false,
   String? myReaction,
   ValueChanged<String>? onReact,
 }) =>
@@ -86,6 +89,13 @@ Future<GroupMessageAction?> showGroupMessageMenu(
                           ),
                       ],
                     ),
+                  ),
+                // The 1:1 menu's «Seen» row (msg-read-at), opening the list.
+                if (canSeeReaders)
+                  row(
+                    GroupMessageAction.readers,
+                    AppIcons.doneAllRounded,
+                    'chat.seen',
                   ),
                 if (canReply)
                   row(

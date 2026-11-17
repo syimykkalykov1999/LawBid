@@ -274,6 +274,16 @@ class GroupRepository {
   ) async =>
       (await guardApiCall(() => _c.sendGroupMessage(id: id, body: body))).data;
 
+  /// Groups WhatsApp parity («Данные»): who has read my message.
+  Future<api.GroupMessageReadersDto> readers(
+    String id,
+    String messageId,
+  ) async =>
+      (await guardApiCall(
+        () => _c.groupMessageReaders(id: id, messageId: messageId),
+      ))
+          .data;
+
   /// Groups WhatsApp parity: one emoji of mine on a message (the 1:1
   /// chat's PUT …/reaction); null takes it away.
   Future<api.GroupMessageDto> react(
