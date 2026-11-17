@@ -37,6 +37,7 @@ import {
   CLIENT_BADGE_DOCUMENTS_SETTING,
   clientBadgeActive,
 } from './client-badge.util';
+import { nonBlank } from '../../config/non-blank';
 
 export const CLIENT_BADGE_CHECKOUT_KIND = 'client_badge';
 const CURRENCY = 'usd';
@@ -316,7 +317,7 @@ export class ClientBadgeService {
     // Owner 2026-10-03: the price set in the admin (Billing → Prices).
     const priceId = this.pricing
       ? await this.pricing.priceId('client_badge')
-      : (this.config.get<string>('STRIPE_PRICE_VERIFIED_ID') ??
+      : (nonBlank(this.config.get<string>('STRIPE_PRICE_VERIFIED_ID')) ??
         (provider?.name === 'fake' ? 'price_fake_badge' : undefined));
     if (!provider || !priceId) {
       throw new ServiceUnavailableException({

@@ -6,6 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { nonBlank } from '../../config/non-blank';
 import type { PlanPrice } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { maxAssistantSeats, getAssistantLimit } from './seat-limit';
@@ -441,8 +442,9 @@ export class PricingService {
     const f: Record<string, string | undefined> =
       (await this.secrets?.get('stripe'))?.fields ?? {};
     return (
-      (l.field ? f[l.field] : undefined) ??
-      this.config.get<string>(l.env) ??
+      // A blank secret field or `STRIPE_PRICE_ID=` is not a price (CMV P17).
+      nonBlank(l.field ? f[l.field] : undefined) ??
+      nonBlank(this.config.get<string>(l.env)) ??
       (this.provider.name === 'fake' ? l.fake : undefined)
     );
   }
