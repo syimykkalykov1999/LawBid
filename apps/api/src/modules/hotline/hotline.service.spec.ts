@@ -50,6 +50,16 @@ describe('hotline use cases (real Valkey)', () => {
     }
   >;
   let bridgeLog: string[];
+  /** hotline_calls rows (the bridge writes them; the call-back reads). */
+  let hotlineCalls: {
+    client_id: string;
+    attorney_id: string;
+    ended_at: Date;
+    state_code: string;
+    practice_area: string;
+  }[];
+  /** Slows the fake bridge's open (the double «Взять» race). */
+  let openDelayMs: number;
 
   const attorney = (id: string): RequestUser =>
     ({ sub: id, role: 'attorney' }) as RequestUser;
@@ -86,6 +96,8 @@ describe('hotline use cases (real Valkey)', () => {
     blocks = [];
     users = {};
     entitlementValues = {};
+    hotlineCalls = [];
+    openDelayMs = 0;
     k = new HotlineKeys(`hltest:{hls${process.pid}x${n}}`);
     const prisma = {
       attorneyLicense: {
@@ -95,6 +107,27 @@ describe('hotline use cases (real Valkey)', () => {
       user: {
         findUnique: ({ where }: { where: { id: string } }) =>
           Promise.resolve(users[where.id] ?? null),
+      },
+      hotlineCall: {
+        findFirst: ({
+          where,
+        }: {
+          where: {
+            client_id: string;
+            attorney_id: string;
+            ended_at: { gte?: Date };
+          };
+        }) =>
+          Promise.resolve(
+            hotlineCalls
+              .filter(
+                (h) =>
+                  h.client_id === where.client_id &&
+                  h.attorney_id === where.attorney_id &&
+                  (!where.ended_at.gte || h.ended_at >= where.ended_at.gte),
+              )
+              .at(-1) ?? null,
+          ),
       },
       practiceArea: {
         findMany: () =>
@@ -164,8 +197,9 @@ describe('hotline use cases (real Valkey)', () => {
 
   /** A bridge with the 1:1 calls faked in memory (the real one: e2e). */
   const fakeBridge = (): HotlineCallBridge => ({
-    open: (i) => {
-      const id = `call-${i.requestId.slice(0, 8)}`;
+    open: async (i) => {
+      if (openDelayMs) await new Promise((ok) => setTimeout(ok, openDelayMs));
+      const id = `call-${i.requestId.slice(0, 8)}-${calls.size}`;
       calls.set(id, {
         req: i.requestId,
         status: 'active',
@@ -174,7 +208,7 @@ describe('hotline use cases (real Valkey)', () => {
         end: null,
       });
       bridgeLog.push(`open ${i.clientId}->${i.attorneyId} at ${i.answeredAt}`);
-      return Promise.resolve({ callId: id });
+      return { callId: id };
     },
     hangUp: (id, by, reason) => {
       const c = calls.get(id);
@@ -209,6 +243,13 @@ describe('hotline use cases (real Valkey)', () => {
       ),
     finish: (i) => {
       bridgeLog.push(`finish ${i.reason} ${i.durationSec}`);
+      hotlineCalls.push({
+        client_id: i.clientId,
+        attorney_id: i.attorneyId,
+        ended_at: new Date(i.endedAt),
+        state_code: 'CA',
+        practice_area: 'family',
+      });
       return Promise.resolve({ conversationId: `conv-${i.clientId}` });
     },
   });
@@ -329,7 +370,7 @@ describe('hotline use cases (real Valkey)', () => {
     });
   });
 
-  it('UC 4: client, no attorney on the line → waits; the disclosure shows the FIRST time only', async () => {
+  it('UC 4: client, no attorney on the line → waits; the disclosure shows until he taps «Понятно» (audit #11)', async () => {
     if (!up) return;
     const v = await ask('C1');
     expect(v.status).toBe('queued');
@@ -341,8 +382,17 @@ describe('hotline use cases (real Valkey)', () => {
     });
     expect(v.disclosure?.ru).toContain('Звонки не записываются');
     await svc.cancelRequest(client('C1'), v.id);
+    // the answer was delivered, but nobody tapped «Понятно»: shown again
+    const shown = await ask('C1');
+    expect(shown.disclosure).toMatchObject({ kind: 'full' });
+    await svc.cancelRequest(client('C1'), shown.id);
+    expect(
+      await svc.ackDisclosure(client('C1'), v.disclosure!.version),
+    ).toMatchObject({ key: null, kind: null });
     const again = await ask('C1');
     expect(again.disclosure).toMatchObject({ key: null, kind: null });
+    // TTLs on every key (audit #12): the «seen» mark expires too
+    expect(await redis.ttl(k.ack('C1'))).toBeGreaterThan(300 * 86_400);
     // the owner edits the text and bumps the version → shown once more
     cfg['hotline.disclosure_version'] = 2;
     expect(
@@ -380,9 +430,24 @@ describe('hotline use cases (real Valkey)', () => {
     });
     // the client still sees «searching» (an attorney is being asked)
     expect((await svc.getRequest(client('C1'), a.id)).status).toBe('searching');
-    // the next offer to the same attorney: no disclosure
+    // not opened / not confirmed: the next offer shows it again (audit #11)
     await svc.decline(attorney('L1'), a.id);
-    expect(offersTo('L1')[1].data.disclosure).toMatchObject({ key: null });
+    expect(offersTo('L1')[1].data.disclosure).toMatchObject({ kind: 'full' });
+    // «Понятно» of an OLDER text version does not count
+    await svc.ackDisclosure(attorney('L1'), 99);
+    await svc.decline(
+      attorney('L1'),
+      offersTo('L1')[1].data.requestId as string,
+    );
+    await ask('C3', ['en'], 'Wills');
+    expect(offersTo('L1')[2].data.disclosure).toMatchObject({ kind: 'full' });
+    await svc.ackDisclosure(attorney('L1'), 1);
+    await svc.decline(
+      attorney('L1'),
+      offersTo('L1')[2].data.requestId as string,
+    );
+    await ask('C4', ['en'], 'Lease');
+    expect(offersTo('L1')[3].data.disclosure).toMatchObject({ key: null });
   });
 
   it('UC 6: «Взять» → connected (billing starts here); end → seconds; attorney takes the next waiting client', async () => {
@@ -502,14 +567,53 @@ describe('hotline use cases (real Valkey)', () => {
     expect((await svc.lineView('L2', null)).online).toBe(true);
   });
 
-  it('UC 12: the line socket closes (network gone) → off at once; another socket does not', async () => {
+  it('UC 12 (audit #3, P8): a socket drop / deploy is NOT off at once — presence_ttl_sec to come back; after it his choice is kept for resume', async () => {
     if (!up) return;
-    await goLine('L1');
+    await goLine('L1', ['en', 'es']);
     await svc.heartbeat('L1', 'sock-1');
     await svc.lineSocketClosed('L1', 'sock-other');
     expect((await svc.lineView('L1', null)).online).toBe(true);
+    // the deploy closes his socket: still on the line
+    now += 20_000;
     await svc.lineSocketClosed('L1', 'sock-1');
+    expect((await svc.lineView('L1', null)).online).toBe(true);
+    // a client calls within the window → he still gets it
+    const a = await ask('C1');
+    expect(offersTo('L1')[0].data.requestId).toBe(a.id);
+    await svc.decline(attorney('L1'), a.id);
+    // the new socket's heartbeat within the window keeps him
+    now += 50_000;
+    await tick();
+    expect((await svc.lineView('L1', null)).online).toBe(true);
+    await svc.heartbeat('L1', 'sock-2');
+    // the app is killed: no socket, no heartbeat → off after the window …
+    await svc.lineSocketClosed('L1', 'sock-2');
+    await tick(61_000);
     expect((await svc.lineView('L1', null)).online).toBe(false);
+    expect(
+      events.filter((e) => e.event === 'hotline:line').at(-1)?.data,
+    ).toMatchObject({ online: false, reason: 'lost', resumable: true });
+    // … but his choice is kept: the next heartbeat says «resumable», and
+    // one call puts him back with the same states / areas / languages
+    expect(await svc.heartbeat('L1', 'sock-3')).toMatchObject({
+      line: false,
+      resumable: true,
+    });
+    expect(await redis.ttl(k.saved('L1'))).toBeGreaterThan(0);
+    const back = await svc.resumeLine(attorney('L1'), 'sock-3');
+    expect(back).toMatchObject({
+      online: true,
+      states: ['CA'],
+      languages: ['en', 'es'],
+    });
+    // «Выключить линию» forgets it: resume does nothing
+    await svc.goOfflineByUser(attorney('L1'));
+    expect((await svc.resumeLine(attorney('L1'))).online).toBe(false);
+    // leaving the section (`hotline:away`) is off at once, nothing kept
+    await goLine('L2');
+    await svc.goOffline('L2', 'away');
+    expect((await svc.lineView('L2', null)).online).toBe(false);
+    expect((await svc.resumeLine(attorney('L2'))).online).toBe(false);
   });
 
   it('UC 13: client cancels during an offer → the attorney is freed and gets the next', async () => {
@@ -959,5 +1063,327 @@ describe('hotline use cases (real Valkey)', () => {
     });
     await tick(2001);
     expect(await redis.hget(k.lawyer('L1'), 'misses')).toBe('0');
+  });
+
+  // ── audit 17.11 (docs/dev/HOTLINE_AUDIT_2026-11-17.md): each failed
+  // before its fix ────────────────────────────────────────────────────────
+
+  it('audit #2 (P1): a LOST call is billed to its last sign of life — talked 30 s, both gone → 30 s, not 30 + the 60 s window', async () => {
+    if (!up) return;
+    const a = await ask('C1');
+    await goLine('L1');
+    await svc.accept(attorney('L1'), a.id);
+    now += 30_000;
+    await svc.heartbeat('C1'); // the last beat: 30 s into the call
+    await tick(61_000);
+    const v = await svc.getRequest(client('C1'), a.id);
+    expect(v).toMatchObject({ status: 'ended', endReason: 'lost' });
+    expect(await redis.hget(k.request(a.id), 'seconds')).toBe('30');
+    expect(await redis.hget(k.trial('L1'), 'seconds')).toBe('30');
+    expect(events.find((e) => e.event === 'hotline:ended')?.data.seconds).toBe(
+      30,
+    );
+  });
+
+  it('audit #2 (P2): the switch off for an hour, the call hung up at 30 s meanwhile → after «on» the sweeper syncs FIRST: 30 s, not 3630 s', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    const a = await ask('C1');
+    await goLine('L1');
+    const { callId } = (await svc.accept(attorney('L1'), a.id)) as {
+      callId: string;
+    };
+    flagOn = false;
+    expect(await sweeper.tick()).toBe(false); // the sweeper sees «off»
+    // hung up on the call screen 30 s in; the hotline heard nothing
+    Object.assign(calls.get(callId)!, {
+      status: 'ended',
+      dur: 30,
+      end: 'hangup',
+      beat: now + 30_000,
+    });
+    now += 3_600_000;
+    flagOn = true;
+    await redis.del(k.tick);
+    expect(await sweeper.tick()).toBe(true);
+    const v = await svc.getRequest(client('C1'), a.id);
+    expect(v).toMatchObject({ status: 'ended', endReason: 'ended' });
+    expect(await redis.hget(k.request(a.id), 'seconds')).toBe('30');
+    expect(bridgeLog).toContain('finish ended 30');
+  });
+
+  it('audit #2: after «on» a call that is still up is NOT closed as lost (its phones get one window to beat again)', async () => {
+    if (!up) return;
+    const a = await ask('C1');
+    await goLine('L1');
+    await svc.accept(attorney('L1'), a.id);
+    flagOn = false;
+    await sweeper.tick();
+    now += 3_600_000; // heartbeats refused while off
+    flagOn = true;
+    await redis.del(k.tick);
+    await sweeper.tick();
+    expect((await svc.getRequest(client('C1'), a.id)).status).toBe('connected');
+    now += 20_000;
+    await svc.heartbeat('L1'); // the phone beats again: the call goes on
+    await redis.del(k.tick);
+    now += 50_000;
+    await sweeper.tick();
+    expect((await svc.getRequest(client('C1'), a.id)).status).toBe('connected');
+  });
+
+  it('audit #4 (P3, P9, licence): access is re-checked after each call and every N heartbeats — lost → off the line with the reason', async () => {
+    if (!up) return;
+    cfg['hotline.access_check_beats'] = 3;
+    // «Выкл для всех» while he waits (P9)
+    await goLine('L1');
+    cfg['hotline.mode'] = 'off_for_all';
+    for (let i = 0; i < 3; i++) {
+      now += 1000;
+      await svc.heartbeat('L1');
+    }
+    expect((await svc.lineView('L1', null)).online).toBe(false);
+    expect(
+      events.filter((e) => e.event === 'hotline:line').at(-1)?.data,
+    ).toMatchObject({ online: false, reason: 'access', detail: 'off_for_all' });
+    await ask('C9');
+    expect(offersTo('L1')).toHaveLength(0);
+    // the trial ran out during a call (P3): off right after it
+    cfg['hotline.mode'] = 'by_subscription';
+    cfg['hotline.trial_minutes'] = 1;
+    await svc.cancelRequest(client('C9'), (await ask('C9')).id);
+    await goLine('L2');
+    const a = await ask('C1');
+    await svc.accept(attorney('L2'), a.id);
+    now += 180_000;
+    await svc.endCall(a.id, 'ended', 'C1');
+    expect((await svc.lineView('L2', null)).online).toBe(false);
+    expect(
+      events.filter((e) => e.event === 'hotline:line').at(-1)?.data,
+    ).toMatchObject({ reason: 'access', detail: 'not_in_plan' });
+    await ask('C2');
+    expect(offersTo('L2')).toHaveLength(1);
+    // the licence was revoked while he waits
+    cfg['hotline.mode'] = 'on_for_all';
+    await goLine('L3');
+    licences.L3 = [];
+    for (let i = 0; i < 3; i++) {
+      now += 1000;
+      await svc.heartbeat('L3');
+    }
+    expect((await svc.lineView('L3', null)).online).toBe(false);
+    expect(
+      events.filter((e) => e.event === 'hotline:line').at(-1)?.data,
+    ).toMatchObject({ reason: 'access', detail: 'licence' });
+  });
+
+  it('audit #5 (P7): two «Взять» in the same instant open exactly ONE call; both get its id', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    openDelayMs = 80; // the database is slow: the race window is wide open
+    const a = await ask('C1');
+    await goLine('L1');
+    const [x, y] = await Promise.all([
+      svc.accept(attorney('L1'), a.id),
+      svc.accept(attorney('L1'), a.id),
+    ]);
+    expect(bridgeLog.filter((l) => l.startsWith('open'))).toHaveLength(1);
+    expect(calls.size).toBe(1);
+    expect((x as { callId: string }).callId).toBe(
+      (y as { callId: string }).callId,
+    );
+    expect(await redis.exists(k.callLock(a.id))).toBe(0);
+  });
+
+  it('audit #6: only the CLIENT calls back — through the hotline, to that same attorney, within hotline.callback_window_hours', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    await goLine('L1');
+    const a = await ask('C1');
+    expect(offersTo('L1')[0].data.requestId).toBe(a.id);
+    await svc.accept(attorney('L1'), a.id);
+    now += 30_000;
+    await svc.heartbeat('L1');
+    await svc.endCall(a.id, 'ended', 'C1');
+    // L1 is busy with somebody else now; L2 idle — the call-back still
+    // waits for L1 only
+    const other = await ask('C2');
+    expect(offersTo('L1').at(-1)?.data.requestId).toBe(other.id);
+    await svc.accept(attorney('L1'), other.id);
+    await goLine('L2'); // another attorney, idle, same filters
+    const back = await svc.callBack(client('C1'), {
+      attorneyId: 'L1',
+      languages: ['en'],
+      topic: 'One more question',
+    });
+    expect(back.status).toBe('queued');
+    expect(offersTo('L2').some((e) => e.data.requestId === back.id)).toBe(
+      false,
+    );
+    now += 30_000;
+    await svc.heartbeat('C1');
+    await svc.endCall(other.id, 'ended', 'L1');
+    expect(offersTo('L1').at(-1)?.data).toMatchObject({
+      requestId: back.id,
+      topic: 'One more question',
+      state: 'CA',
+    });
+    // nobody else can «call back» an attorney he never talked to
+    await expect(
+      svc.callBack(client('C3'), {
+        attorneyId: 'L1',
+        languages: ['en'],
+        topic: 'x',
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    // the window closes
+    cfg['hotline.callback_window_hours'] = 1;
+    now += 2 * 3_600_000;
+    await expect(
+      svc.callBack(client('C2'), {
+        attorneyId: 'L1',
+        languages: ['en'],
+        topic: 'x',
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    // an attorney has no such door at all (assertClient)
+    await expect(
+      svc.callBack(attorney('L1'), {
+        attorneyId: 'L1',
+        languages: ['en'],
+        topic: 'x',
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('audit #7 (P5a): zone unknown (phone and account) → the zone of the request’s state; nothing known → the widest US night', async () => {
+    if (!up) return;
+    // now = 08:00 UTC = 00:00 in California (night 21–8)
+    const night = await ask('O1');
+    await svc.notifyMe(client('O1'), night.id, undefined, false);
+    await goLine('L1');
+    await tick();
+    expect(events.filter((e) => e.event === 'hotline:notify')).toHaveLength(0);
+    expect(await redis.hget(k.nq, night.id)).toMatch(/^-4[28]0,1260,480$/);
+    // 16:00 UTC = 08:00 in California: the morning notice goes out
+    now += 8 * 3_600_000;
+    await goLine('L1');
+    await tick();
+    expect(
+      events
+        .filter((e) => e.event === 'hotline:notify')
+        .map((e) => e.data.requestId),
+    ).toEqual([night.id]);
+  });
+
+  it('audit #8 (P4): hotline.queue_max_wait_sec is used — an online waiter is closed «queue_timeout»; «Сообщите мне» is not', async () => {
+    if (!up) return;
+    cfg['hotline.queue_max_wait_sec'] = 60;
+    const a = await ask('C1');
+    const off = await ask('O1');
+    await svc.notifyMe(client('O1'), off.id, 'UTC', true);
+    for (let i = 0; i < 3; i++) {
+      now += 25_000;
+      await svc.heartbeat('C1');
+      await tick();
+    }
+    expect(await svc.getRequest(client('C1'), a.id)).toMatchObject({
+      status: 'cancelled',
+      endReason: 'queue_timeout',
+    });
+    expect((await svc.getRequest(client('O1'), off.id)).status).toBe('offline');
+  });
+
+  it('audit #8: the place / wait / «Ещё звонят» steps, the «Пропустить» memory, the key life and the batch come from the admin', async () => {
+    if (!up) return;
+    cfg['hotline.position_bands'] = [3];
+    cfg['hotline.wait_band_minutes'] = [100];
+    cfg['hotline.key_ttl_hours'] = 100;
+    const a = await ask('C1');
+    expect(a).toMatchObject({ positionBand: '1-3', waitBand: 'lt100' });
+    expect(await redis.ttl(k.request(a.id))).toBeGreaterThan(99 * 3600);
+    expect(await redis.ttl(k.client('C1'))).toBeGreaterThan(99 * 3600);
+    cfg['hotline.waiting_more_bands'] = [1, 1000];
+    now += 1; // C1 is the older one
+    await ask('C2');
+    await goLine('L1');
+    expect(offersTo('L1')[0].data.waitingMore).toBe('1');
+    expect(await redis.ttl(k.lawyer('L1'))).toBeGreaterThan(99 * 3600);
+    cfg['hotline.skip_memory_sec'] = 120;
+    await svc.decline(attorney('L1'), a.id);
+    const skipped = await redis.zscore(k.rqd, `${a.id}|L1`);
+    expect(Number(skipped)).toBe(now + 120_000);
+  });
+
+  it('audit #9: the sweeper lock is held (renewed) for the whole pass — a pass longer than the lease never overlaps another instance', async () => {
+    if (!up) return;
+    cfg['hotline.sweep_interval_ms'] = 200;
+    const other = new HotlineSweeper(
+      svc,
+      { toRoom: () => 0 } as never,
+      { setContext: () => undefined, warn: () => undefined } as never,
+    );
+    let release!: () => void;
+    jest
+      .spyOn(sweeper, 'sweep')
+      .mockImplementation(() => new Promise<void>((ok) => (release = ok)));
+    // the first tick reads the interval; the lease is 1000 ms
+    const first = sweeper.tick();
+    await new Promise((ok) => setTimeout(ok, 1500)); // > the lease
+    expect(await other.tick()).toBe(false); // still held: renewed
+    release();
+    expect(await first).toBe(true);
+    // after the pass the lock lives only what is left of the interval
+    expect(await redis.pttl(k.tick)).toBeLessThanOrEqual(200);
+  });
+
+  it('audit #10 (P6): a tap on an OLDER notice of the same request works; another request’s token does not', async () => {
+    if (!up) return;
+    const off = await ask('O1');
+    await svc.notifyMe(client('O1'), off.id, 'UTC', true);
+    await svc.notify(off.id, 60);
+    const firstToken = events.at(-1)!.data.token as string;
+    await svc.notify(off.id, 60);
+    expect(events.at(-1)!.data.token).not.toBe(firstToken);
+    expect((await svc.claim(client('O1'), off.id, firstToken)).status).toBe(
+      'queued',
+    );
+    expect(await redis.ttl(k.tokens(off.id))).toBeGreaterThan(0);
+    const other = await ask('O2');
+    await expect(
+      svc.claim(client('O2'), other.id, firstToken),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('audit #12: TTLs on every per-person key (trial, kept line, tokens) and counters nobody watches are dropped', async () => {
+    if (!up) return;
+    await goLine('L1');
+    expect(await redis.ttl(k.trial('L1'))).toBeGreaterThan(399 * 86_400);
+    await redis.zadd(k.watch, now - 1, 'b:CA~family~en');
+    await redis.hset(k.cnt, 'b:CA~family~en', '1|0');
+    await sweeper.pushCounters(redis, now, [1, 10]);
+    expect(await redis.hexists(k.cnt, 'b:CA~family~en')).toBe(0);
+  });
+
+  it('audit P12: the ETag of GET /hotline/requests/:id is built without the whole view, and changes exactly with it', async () => {
+    if (!up) return;
+    const a = await ask('C1');
+    const viewSpy = jest.spyOn(svc, 'view');
+    const t1 = await svc.requestTag(client('C1'), a.id);
+    expect(viewSpy).not.toHaveBeenCalled();
+    expect(await svc.requestTag(client('C1'), a.id)).toBe(t1);
+    // a second waiter ahead? no — behind: the place stays «1»
+    now += 1;
+    await ask('C2');
+    expect(await svc.requestTag(client('C1'), a.id)).toBe(t1);
+    // «Понятно» hides the disclosure: the view changed, so the tag did
+    await svc.ackDisclosure(client('C1'));
+    const t2 = await svc.requestTag(client('C1'), a.id);
+    expect(t2).not.toBe(t1);
+    await goLine('L1');
+    await svc.accept(attorney('L1'), a.id);
+    expect(await svc.requestTag(client('C1'), a.id)).not.toBe(t2);
+    expect(await svc.requestTag(client('C2'), a.id)).toBeNull();
+    viewSpy.mockRestore();
   });
 });

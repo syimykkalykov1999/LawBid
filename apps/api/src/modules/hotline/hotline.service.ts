@@ -14,9 +14,12 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   bandOf,
+  hotlineBandsFrom,
   hotlineCounterBandsFrom,
   hotlineModeFrom,
   hotlineSettingsFrom,
+  minutesBand,
+  placeBand,
   type HotlineSettings,
 } from '../../common/app-settings/hotline-settings';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -31,6 +34,7 @@ import {
   hotlineAddonActive,
 } from '../plans/entitlements.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import { STATE_TIMEZONES } from '../outreach/state-timezones';
 import {
   assertHotlineOn,
   decideHotlineAccess,
@@ -45,7 +49,12 @@ import {
   type HotlineRole,
 } from './hotline-disclosures';
 import { HotlineConflictService } from './hotline-conflict.service';
-import { bucketOf, HotlineKeys, HotlineStore } from './hotline.store';
+import {
+  bucketOf,
+  callbackBucket,
+  HotlineKeys,
+  HotlineStore,
+} from './hotline.store';
 import {
   HOTLINE_CLOCK,
   HOTLINE_KEYS,
@@ -63,6 +72,19 @@ const CODE = /^[a-z0-9][a-z0-9_.-]{0,63}$/i;
 const STATE = /^[A-Z]{2}$/;
 const DAY_SEC = 24 * 3600;
 const FAR = 8.64e15;
+/** Line-off reasons after which the attorney's choice is kept for
+ * `POST /hotline/line/resume` (audit 17.11 #3): the network, not him. */
+const RESUMABLE = new Set(['disconnected', 'lost']);
+/** How long a second «Взять» waits for the first one's call, ms. */
+const CALL_LOCK_MS = 10_000;
+const CALL_WAIT_STEP_MS = 25;
+/** The widest US night (audit 17.11 #7): an unknown zone is read on the
+ * Eastern clock with the window stretched to Hawaii's morning (+6 h), so
+ * a notice never lands at night anywhere in the 50 states. */
+const UNKNOWN_ZONE = 'America/New_York';
+const UNKNOWN_ZONE_STRETCH_MIN = 6 * 60;
+const UNLOCK_LUA =
+  "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end return 0";
 /** How deep one event may chain re-offers (a conflict, then the next…). */
 const MAX_CHAIN = 25;
 
@@ -117,20 +139,30 @@ export interface RequestView {
   conversationId: string | null;
 }
 
-/** «Ещё звонят: N» and the counters: bands, never exact. */
-export function positionBand(rank0: number): string {
-  const p = rank0 + 1;
-  if (p <= 1) return '1';
-  if (p <= 5) return '2-5';
-  if (p <= 20) return '6-20';
-  return '20+';
+/** The client's rough place: bands, never exact (`hotline.position_bands`). */
+export function positionBand(
+  rank0: number,
+  ends: readonly number[] = [1, 5, 20],
+): string {
+  return placeBand(rank0, ends);
 }
 
-export function waitBand(minutes: number): string {
-  if (minutes < 5) return 'lt5';
-  if (minutes < 15) return '5to15';
-  if (minutes < 30) return '15to30';
-  return 'gt30';
+/** The rough wait (`hotline.wait_band_minutes`). */
+export function waitBand(
+  minutes: number,
+  ends: readonly number[] = [5, 15, 30],
+): string {
+  return minutesBand(minutes, ends);
+}
+
+/** How long one request's / attorney's keys live: the admin's
+ * `hotline.key_ttl_hours`, never shorter than the waits they serve. */
+export function hotlineKeyTtlSec(s: HotlineSettings): number {
+  return Math.max(
+    s['hotline.key_ttl_hours'] * 3600,
+    s['hotline.queue_max_wait_sec'] + 3600,
+    s['hotline.notify_max_wait_sec'] + 3600,
+  );
 }
 
 /** Whether the voice of an ended 1:1 call ever came up. The calls API
@@ -237,21 +269,24 @@ export class HotlineService {
       notifyClaimSec: s['hotline.notify_claim_sec'],
       reviewEnabled: raw['hotline.review_enabled'] !== false,
       clientStepsEnabled: raw['hotline.client_steps_enabled'] !== false,
-      disclosure: await this.disclosure(user.sub, role, false),
+      disclosure: await this.disclosure(user.sub, role),
     };
   }
 
-  /** The one-time disclosure for this person and role; [ack] marks it seen. */
+  /** The one-time disclosure for this person and role. It counts as seen
+   * only after the person tapped «Понятно» (`ackDisclosure`, audit 17.11
+   * #11) — a lost answer or an offer never opened shows it again. */
   async disclosure(
     userId: string,
     role: HotlineRole,
-    ack: boolean,
   ): Promise<HotlineDisclosure> {
     const { s, raw } = await this.cfg();
     const version = s['hotline.disclosure_version'];
-    const field = ackField(userId, role, version);
-    const seen = (await this.redis.hexists(this.ackKey(), field)) === 1;
-    if (ack && !seen) await this.redis.hset(this.ackKey(), field, this.now());
+    const seen =
+      (await this.redis.hexists(
+        this.k.ack(userId),
+        ackField(userId, role, version),
+      )) === 1;
     return disclosureFor(
       role,
       seen,
@@ -260,8 +295,26 @@ export class HotlineService {
     );
   }
 
-  private ackKey() {
-    return `${this.k.p}:ack`;
+  /** POST /hotline/disclosure/ack — the person tapped «Понятно» under the
+   * disclosure of this text version (idempotent). */
+  async ackDisclosure(
+    user: RequestUser,
+    version?: number,
+  ): Promise<HotlineDisclosure> {
+    const role: HotlineRole = user.role === 'attorney' ? 'attorney' : 'client';
+    const { s } = await this.cfg();
+    const current = s['hotline.disclosure_version'];
+    // an older text's «Понятно» (the app had a stale config) is not this one
+    if (version === undefined || version === current) {
+      const key = this.k.ack(user.sub);
+      await this.redis.hset(
+        key,
+        ackField(user.sub, role, current),
+        String(this.now()),
+      );
+      await this.redis.expire(key, s['hotline.ack_ttl_days'] * DAY_SEC);
+    }
+    return this.disclosure(user.sub, role);
   }
 
   // ── validation helpers ─────────────────────────────────────────────
@@ -386,8 +439,11 @@ export class HotlineService {
         max: s['hotline.max_buckets_per_attorney'],
       });
     }
+    // his own queue: a client's «Перезвонить» reaches only him (audit #6)
+    buckets.push(callbackBucket(lw));
     const via = await this.access(lw, s, raw);
     const now = this.now();
+    const ttl = hotlineKeyTtlSec(s);
     const accepting = input.accepting !== false;
     const prev = await this.lawyerDetail(lw);
     const me = await this.prisma.user.findUnique({
@@ -407,8 +463,13 @@ export class HotlineService {
       leaving: '0',
       misses: prev?.misses ?? '0',
     });
-    await this.redis.expire(dk, 2 * DAY_SEC);
+    await this.redis.expire(dk, ttl);
     await this.redis.hsetnx(this.k.trial(lw), 'first', String(now));
+    await this.redis.expire(
+      this.k.trial(lw),
+      s['hotline.trial_memory_days'] * DAY_SEC,
+    );
+    await this.redis.del(this.k.saved(lw));
     const state = await this.store.lawyerOn(
       lw,
       now + s['hotline.presence_ttl_sec'] * 1000,
@@ -439,6 +500,22 @@ export class HotlineService {
     s: HotlineSettings,
     raw: Readonly<Record<string, unknown>>,
   ): Promise<'free' | 'plan' | 'addon' | 'trial'> {
+    const decision = await this.accessDecision(lw, s, raw);
+    if (!decision.allowed) {
+      throw new ForbiddenException({
+        code: ErrorCode.ENTITLEMENT_REQUIRED,
+        message: 'The hotline is not part of your plan.',
+        details: { entitlement: HOTLINE_ENTITLEMENT, reason: decision.reason },
+      });
+    }
+    return decision.via;
+  }
+
+  private async accessDecision(
+    lw: string,
+    s: HotlineSettings,
+    raw: Readonly<Record<string, unknown>>,
+  ) {
     const trial = await this.redis.hgetall(this.k.trial(lw));
     let included = false;
     let addonPrice: number | null = null;
@@ -464,21 +541,59 @@ export class HotlineService {
       minutesUsed: Math.floor(Number(trial.seconds ?? 0) / 60),
       now: this.now(),
     });
-    if (!decision.allowed) {
-      throw new ForbiddenException({
-        code: ErrorCode.ENTITLEMENT_REQUIRED,
-        message: 'The hotline is not part of your plan.',
-        details: { entitlement: HOTLINE_ENTITLEMENT, reason: decision.reason },
-      });
-    }
-    return decision.via;
+    return decision;
   }
 
-  /** DELETE /hotline/line, `hotline:away`, a closed line socket, a missed
-   * heartbeat: off the line AT ONCE (owner 16.11 ~18:20). */
-  async goOffline(lw: string, reason: string): Promise<void> {
+  /** Audit 17.11 #4 (TaskRouter re-checks a worker's attributes at every
+   * reservation): is the attorney on the line still allowed there — the
+   * switch, the mode, his plan / add-on / trial, the licences of his
+   * states? Not allowed → off the line with the reason. Called after each
+   * call and every `hotline.access_check_beats` heartbeats. */
+  async recheckAccess(lw: string): Promise<boolean> {
+    const d = await this.lawyerDetail(lw);
+    if (!d) return true;
+    let reason: string | null = null;
+    if (!(await this.enabled())) reason = 'switched_off';
+    if (!reason) {
+      const { s, raw } = await this.cfg();
+      const decision = await this.accessDecision(lw, s, raw);
+      if (!decision.allowed) reason = decision.reason;
+    }
+    if (!reason) {
+      const states = d.states ? d.states.split(',') : [];
+      const licences = await this.prisma.attorneyLicense.findMany({
+        where: { attorney_id: lw, license_status: 'verified' },
+        select: { state_code: true },
+      });
+      const ok = new Set(licences.map((l) => l.state_code));
+      if (states.some((st) => !ok.has(st))) reason = 'licence';
+    }
+    if (!reason) return true;
+    await this.goOffline(lw, 'access', reason);
+    return false;
+  }
+
+  /** DELETE /hotline/line, `hotline:away`, missed offers, lost access: off
+   * the line AT ONCE (owner 16.11 ~18:20). A lost heartbeat (`lost`) keeps
+   * his choice for `POST /hotline/line/resume` (audit 17.11 #3). */
+  async goOffline(lw: string, reason: string, detail?: string): Promise<void> {
     const [kind, req] = await this.store.lawyerOff(lw);
     const d = await this.lawyerDetail(lw);
+    const { s } = await this.cfg();
+    const keep = s['hotline.line_resume_sec'];
+    if (d && RESUMABLE.has(reason) && keep > 0) {
+      await this.redis.hset(this.k.saved(lw), {
+        states: d.states ?? '',
+        practices: d.practices ?? '',
+        langs: d.langs ?? '',
+        accepting: d.accepting ?? '1',
+        reason,
+        at: String(this.now()),
+      });
+      await this.redis.expire(this.k.saved(lw), keep);
+    } else if (!RESUMABLE.has(reason)) {
+      await this.redis.del(this.k.saved(lw));
+    }
     if (kind === 'o|') {
       if ((await this.store.release(req, lw, 'offline', 0)) === 'ok') {
         this.realtime.toUsers([lw], 'hotline:offer_ended', {
@@ -504,12 +619,48 @@ export class HotlineService {
         await this.redis.del(this.k.lawyer(lw));
       }
     }
-    this.realtime.toUsers([lw], 'hotline:line', { online: false, reason });
+    this.realtime.toUsers([lw], 'hotline:line', {
+      online: false,
+      reason,
+      ...(detail ? { detail } : {}),
+      resumable: RESUMABLE.has(reason) && keep > 0,
+    });
+  }
+
+  /** POST /hotline/line/resume (socket `hotline:resume`) — the app, after it
+   * reconnected while the hotline screen is still open, puts the attorney
+   * back with the choice he had (audit 17.11 #3). The same checks as
+   * «Ожидать звонки» (licences, access). Already on the line = a heartbeat;
+   * nothing kept (he switched off, or too long ago) = `online: false`. */
+  async resumeLine(user: RequestUser, socketId?: string): Promise<LineView> {
+    await assertHotlineOn(this.flags);
+    this.assertAttorney(user);
+    const lw = user.sub;
+    const d = await this.lawyerDetail(lw);
+    const alive = await this.redis.zscore(this.k.alive, lw);
+    if (d && d.leaving !== '1' && alive !== null) {
+      await this.heartbeat(lw, socketId);
+      return this.lineView(lw, null);
+    }
+    const saved = await this.redis.hgetall(this.k.saved(lw));
+    const source = d?.leaving === '1' ? d : saved;
+    if (!source?.states || !source.practices || !source.langs) {
+      return this.lineView(lw, null);
+    }
+    const view = await this.goOnline(user, {
+      states: source.states.split(','),
+      practiceAreas: source.practices.split(','),
+      languages: source.langs.split(','),
+      accepting: source.accepting !== '0',
+    });
+    if (socketId) await this.redis.hset(this.k.lawyer(lw), 'sock', socketId);
+    return view;
   }
 
   async goOfflineByUser(user: RequestUser): Promise<LineView> {
     this.assertAttorney(user);
     await this.goOffline(user.sub, 'off');
+    await this.redis.del(this.k.saved(user.sub));
     return this.lineView(user.sub, null);
   }
 
@@ -534,10 +685,15 @@ export class HotlineService {
   async heartbeat(
     userId: string,
     socketId?: string,
-  ): Promise<{ line: boolean | null; requestId: string | null }> {
+  ): Promise<{
+    line: boolean | null;
+    requestId: string | null;
+    resumable?: boolean;
+  }> {
     const { s } = await this.cfg();
     const now = this.now();
     let line: boolean | null = null;
+    let resumable: boolean | undefined;
     if (await this.lawyerDetail(userId)) {
       line = await this.store.touchLawyer(
         userId,
@@ -548,6 +704,21 @@ export class HotlineService {
       }
       const st = await this.store.lawyerState(userId);
       if (st?.startsWith('b|')) await this.touchCall(st.slice(2), s, now);
+      const every = s['hotline.access_check_beats'];
+      if (line && every > 0) {
+        const beats = await this.redis.hincrby(
+          this.k.lawyer(userId),
+          'beats',
+          1,
+        );
+        if (beats % every === 0 && !(await this.recheckAccess(userId))) {
+          line = false;
+        }
+      }
+    } else if ((await this.redis.exists(this.k.saved(userId))) === 1) {
+      // off the line by the network: the app may call POST /hotline/line/resume
+      line = false;
+      resumable = true;
     }
     const req = await this.redis.get(this.k.client(userId));
     if (req) {
@@ -562,22 +733,59 @@ export class HotlineService {
         );
       }
     }
-    return { line, requestId: req };
+    return {
+      line,
+      requestId: req,
+      ...(resumable ? { resumable } : {}),
+    };
   }
 
-  private async touchCall(req: string, s: HotlineSettings, now: number) {
+  /** A sign of life of a connected call; `beatAt` is where a LOST call ends
+   * for billing (audit 17.11 #2), not when the sweeper noticed. */
+  private async touchCall(
+    req: string,
+    s: HotlineSettings,
+    now: number,
+    beatAt = now,
+  ) {
     await this.redis.zadd(
       this.k.conn,
       'XX',
       now + s['hotline.presence_ttl_sec'] * 1000,
       req,
     );
+    if ((await this.redis.zscore(this.k.conn, req)) !== null) {
+      await this.raiseBeat(req, beatAt);
+    }
   }
 
-  /** The attorney's line socket closed (screen off, network gone). */
+  private async raiseBeat(req: string, at: number): Promise<void> {
+    const prev = Number(
+      (await this.redis.hget(this.k.request(req), 'beatAt')) ?? 0,
+    );
+    if (at > prev) {
+      await this.redis.hset(this.k.request(req), 'beatAt', String(at));
+    }
+  }
+
+  /** The attorney's line socket closed (network change, app killed, a
+   * deploy closing every socket): NOT off at once (audit 17.11 #3, Uber
+   * keeps a driver through a short network loss) — he has
+   * `hotline.presence_ttl_sec` from now to come back on any socket (a new
+   * socket's heartbeat, or `POST /hotline/line/resume`). Off at once only by
+   * `hotline:away` (left the section) and «Выключить линию». */
   async lineSocketClosed(userId: string, socketId: string): Promise<void> {
     const d = await this.lawyerDetail(userId);
-    if (d && d.sock === socketId) await this.goOffline(userId, 'disconnected');
+    if (!d || d.sock !== socketId) return;
+    const { s } = await this.cfg();
+    await this.redis.hdel(this.k.lawyer(userId), 'sock');
+    await this.redis.zadd(
+      this.k.alive,
+      'XX',
+      'GT',
+      this.now() + s['hotline.presence_ttl_sec'] * 1000,
+      userId,
+    );
   }
 
   // ── matching (each step one atomic script) ─────────────────────────
@@ -661,9 +869,10 @@ export class HotlineService {
         lw,
         r.client,
         s['hotline.conflict_cache_sec'],
+        s['hotline.conflict_cases_max'],
       )
     ) {
-      const rqdExpiry = this.now() + DAY_SEC * 1000;
+      const rqdExpiry = this.now() + s['hotline.skip_memory_sec'] * 1000;
       if ((await this.store.release(req, lw, 'conflict', rqdExpiry)) === 'ok') {
         await this.freeLawyer(lw, depth + 1);
         await this.matchRequest(req, depth + 1);
@@ -672,6 +881,7 @@ export class HotlineService {
     }
     await this.bumpAgg('offers');
     const waiting = await this.waitingFor(d);
+    const { raw } = await this.cfg();
     this.realtime.toUsers([lw], 'hotline:offer', {
       requestId: req,
       topic: r.topic,
@@ -679,9 +889,12 @@ export class HotlineService {
       practiceArea: r.practice,
       languages: r.langs.split(','),
       clientName: r.clientName,
-      waitingMore: bandOf(waiting, [1, 2, 5, 10, 50]),
+      waitingMore: bandOf(
+        waiting,
+        hotlineBandsFrom(raw, 'hotline.waiting_more_bands'),
+      ),
       expiresAt: this.now() + s['hotline.offer_timeout_sec'] * 1000,
-      disclosure: await this.disclosure(lw, 'attorney', true),
+      disclosure: await this.disclosure(lw, 'attorney'),
     });
   }
 
@@ -717,8 +930,10 @@ export class HotlineService {
       await this.redis.hset(this.k.request(req), {
         lawyer: lw,
         answeredAt: String(now),
+        beatAt: String(now),
       });
       await this.redis.zrem(this.k.calive, req);
+      await this.redis.zrem(this.k.qwait, req);
       await this.redis.zadd(
         this.k.conn,
         now + s['hotline.presence_ttl_sec'] * 1000,
@@ -766,7 +981,38 @@ export class HotlineService {
     const st = await this.store.requestState(req);
     if (!r || !st?.startsWith('c|')) return null;
     if (r.callId) return r.callId;
-    const { callId } = await this.bridge.open({
+    // Audit 17.11 #5: two «Взять» in the same instant — one opens the call,
+    // the other waits for its id (the lock lives at most CALL_LOCK_MS).
+    const token = randomUUID();
+    const lockKey = this.k.callLock(req);
+    if (
+      (await this.redis.set(lockKey, token, 'PX', CALL_LOCK_MS, 'NX')) !== 'OK'
+    ) {
+      const until = Date.now() + CALL_LOCK_MS;
+      while (Date.now() < until) {
+        await new Promise((ok) => setTimeout(ok, CALL_WAIT_STEP_MS));
+        const id = await this.redis.hget(this.k.request(req), 'callId');
+        if (id) return id;
+        if ((await this.redis.exists(lockKey)) === 0) break;
+      }
+      return this.redis.hget(this.k.request(req), 'callId');
+    }
+    try {
+      const again = await this.redis.hget(this.k.request(req), 'callId');
+      if (again) return again;
+      return await this.openCall(req, r, st, s);
+    } finally {
+      await this.redis.eval(UNLOCK_LUA, 1, lockKey, token);
+    }
+  }
+
+  private async openCall(
+    req: string,
+    r: Record<string, string>,
+    st: string,
+    s: HotlineSettings,
+  ): Promise<string> {
+    const { callId } = await this.bridge!.open({
       requestId: req,
       clientId: r.client,
       attorneyId: st.slice(2),
@@ -814,7 +1060,10 @@ export class HotlineService {
         continue;
       }
       if (c && c.heartbeatAt > now - s['hotline.presence_ttl_sec'] * 1000) {
-        await this.touchCall(req, s, now);
+        await this.touchCall(req, s, now, c.heartbeatAt);
+      } else if (c) {
+        // the call screens' last sign of life also bounds a lost call
+        await this.raiseBeat(req, c.heartbeatAt);
       }
       await this.redis.zadd(
         this.k.callsync,
@@ -829,11 +1078,12 @@ export class HotlineService {
     await assertHotlineOn(this.flags);
     this.assertAttorney(user);
     const lw = user.sub;
+    const { s } = await this.cfg();
     const res = await this.store.release(
       req,
       lw,
       'declined',
-      this.now() + DAY_SEC * 1000,
+      this.now() + s['hotline.skip_memory_sec'] * 1000,
     );
     if (res === 'ok') {
       await this.bumpAgg('declined');
@@ -850,7 +1100,7 @@ export class HotlineService {
       req,
       lw,
       'timeout',
-      this.now() + DAY_SEC * 1000,
+      this.now() + s['hotline.skip_memory_sec'] * 1000,
     );
     if (res !== 'ok') return;
     await this.bumpAgg('timeouts');
@@ -925,13 +1175,31 @@ export class HotlineService {
       };
     }
     const now = this.now();
+    const answeredAt = Number(r.answeredAt ?? now);
+    // Audit 17.11 #2: a LOST call ends at its last sign of life (a
+    // heartbeat of either side or of the call screens), not when the sweeper
+    // noticed (+ the whole presence window, or + the hours the switch was
+    // off); a time-limited one at the limit.
+    let endAt = now;
+    if (reason === 'lost') {
+      endAt = Math.min(now, Number(r.beatAt ?? answeredAt));
+    } else if (reason === 'time_limit' && s['hotline.call_max_minutes'] > 0) {
+      endAt = Math.min(
+        now,
+        answeredAt + s['hotline.call_max_minutes'] * 60_000,
+      );
+    }
     const seconds =
       fromCall?.durationSec ??
-      Math.max(0, Math.round((now - Number(r.answeredAt ?? now)) / 1000));
+      Math.max(0, Math.round((endAt - answeredAt) / 1000));
     await this.redis.hincrby(this.k.trial(lw), 'seconds', seconds);
+    await this.redis.expire(
+      this.k.trial(lw),
+      s['hotline.trial_memory_days'] * DAY_SEC,
+    );
     await this.redis.hset(this.k.request(req), {
       status: 'ended',
-      endedAt: String(now),
+      endedAt: String(endAt),
       endReason: reason,
       seconds: String(seconds),
     });
@@ -956,7 +1224,7 @@ export class HotlineService {
         requestId: req,
         clientId: r.client,
         attorneyId: lw,
-        endedAt: now,
+        endedAt: endAt,
         reason,
         durationSec: seconds,
       }));
@@ -977,9 +1245,12 @@ export class HotlineService {
       conversationId,
       review: raw['hotline.review_enabled'] !== false,
     });
-    if (next === 'i') await this.freeLawyer(lw);
     if (next === 'x') await this.redis.del(this.k.lawyer(lw));
     if (missedOut) await this.goOffline(lw, 'missed');
+    // Audit 17.11 #4: after every call — is he still allowed on the line?
+    else if (next !== 'x' && (await this.recheckAccess(lw)) && next === 'i') {
+      await this.freeLawyer(lw);
+    }
     return {
       ok: true,
       seconds,
@@ -1011,7 +1282,84 @@ export class HotlineService {
     if (!STATE.test(state) || !(await this.stateCodes()).has(state)) {
       this.bad('unknown_state');
     }
-    const topic = String(input.topic ?? '').trim();
+    return this.openRequest(user, s, {
+      state,
+      practice,
+      langs,
+      topic: input.topic,
+      buckets: langs.map((l) => bucketOf(state, practice, l)),
+      callbackOf: null,
+    });
+  }
+
+  /** Audit 17.11 #6 — POST /hotline/call-back: the CLIENT calls the same
+   * attorney again after a hotline call (Uber / Lyft: after the ride only
+   * the rider reaches the driver, through the app, for a while; the driver
+   * never gets the rider's number). It is an ordinary hotline request whose
+   * only queue is that attorney's private one (`cb~<attorney>`, every
+   * attorney on the line is in his own): he gets the usual offer with
+   * «Взять» / «Пропустить» while on the line; until then the client waits
+   * in that queue like any other («Сообщите мне» works too). The attorney
+   * has no way to start a call to the client. */
+  async callBack(
+    user: RequestUser,
+    input: { attorneyId: string; languages: string[]; topic: string },
+  ): Promise<RequestView> {
+    await assertHotlineOn(this.flags);
+    this.assertClient(user);
+    const { s } = await this.cfg();
+    const existing = await this.redis.get(this.k.client(user.sub));
+    if (existing && (await this.store.requestState(existing))) {
+      return this.view(existing, user.sub);
+    }
+    const langs = this.validLanguages(
+      input.languages,
+      s['hotline.max_languages'],
+    );
+    const hours = s['hotline.callback_window_hours'];
+    const last = await this.prisma.hotlineCall.findFirst({
+      where: {
+        client_id: user.sub,
+        attorney_id: String(input.attorneyId ?? ''),
+        ended_at:
+          hours > 0
+            ? { gte: new Date(this.now() - hours * 3_600_000) }
+            : { not: null },
+      },
+      orderBy: { ended_at: 'desc' },
+      select: { state_code: true, practice_area: true },
+    });
+    if (!last) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'You can call back only an attorney you talked to recently.',
+        details: { reason: 'no_recent_hotline_call', hours },
+      });
+    }
+    return this.openRequest(user, s, {
+      state: last.state_code,
+      practice: last.practice_area,
+      langs,
+      topic: input.topic,
+      buckets: [callbackBucket(input.attorneyId)],
+      callbackOf: input.attorneyId,
+    });
+  }
+
+  private async openRequest(
+    user: RequestUser,
+    s: HotlineSettings,
+    o: {
+      state: string;
+      practice: string;
+      langs: string[];
+      topic: string;
+      buckets: string[];
+      callbackOf: string | null;
+    },
+  ): Promise<RequestView> {
+    const { state, practice, langs, buckets } = o;
+    const topic = String(o.topic ?? '').trim();
     if (!topic) this.bad('topic_required');
     if (topic.length > s['hotline.topic_max_chars']) {
       this.bad('topic_too_long', { max: s['hotline.topic_max_chars'] });
@@ -1051,16 +1399,8 @@ export class HotlineService {
       .filter(Boolean)
       .join(' ')
       .trim();
-    const buckets = langs.map((l) => bucketOf(state, practice, l));
-    if (
-      !(await this.redis.set(
-        this.k.client(user.sub),
-        id,
-        'EX',
-        2 * DAY_SEC,
-        'NX',
-      ))
-    ) {
+    const ttl = hotlineKeyTtlSec(s);
+    if (!(await this.redis.set(this.k.client(user.sub), id, 'EX', ttl, 'NX'))) {
       // a double tap raced us: the other request wins
       const other = await this.redis.get(this.k.client(user.sub));
       if (other) return this.view(other, user.sub);
@@ -1075,8 +1415,9 @@ export class HotlineService {
       topic,
       created: String(now),
       status: 'searching',
+      ...(o.callbackOf ? { callbackOf: o.callbackOf } : {}),
     });
-    await this.redis.expire(this.k.request(id), 2 * DAY_SEC);
+    await this.redis.expire(this.k.request(id), ttl);
     await this.redis.hset(this.k.rcl, id, user.sub);
     await this.redis.hset(this.k.rst, id, 's');
     await this.redis.zadd(
@@ -1084,13 +1425,16 @@ export class HotlineService {
       now + s['hotline.client_ttl_sec'] * 1000,
       id,
     );
+    await this.redis.zadd(this.k.qwait, now, id);
     await this.store.setClientLangs(id, langs, true);
     const sp = pipeline(this.redis);
-    for (const b of buckets) sp.sadd(this.k.buckets, b);
+    for (const b of buckets) {
+      if (!b.startsWith('cb~')) sp.sadd(this.k.buckets, b);
+    }
     await sp.exec();
     await this.bumpAgg('requests');
     await this.matchRequest(id);
-    return this.view(id, user.sub, true);
+    return this.view(id, user.sub);
   }
 
   private async ownRequest(user: RequestUser, req: string) {
@@ -1130,6 +1474,8 @@ export class HotlineService {
       endedAt: String(this.now()),
     });
     await this.redis.zrem(this.k.calive, req);
+    await this.redis.zrem(this.k.qwait, req);
+    await this.redis.del(this.k.tokens(req));
     await this.redis.hdel(this.k.nq, req);
     await this.redis.hdel(this.k.natt, req);
     await this.redis.hdel(this.k.rcl, req);
@@ -1188,20 +1534,30 @@ export class HotlineService {
     const r = await this.ownRequest(user, req);
     const { s } = await this.cfg();
     if (!(await this.store.goOffline(req))) return this.view(req, user.sub);
+    await this.redis.zrem(this.k.qwait, req);
     const max = s['hotline.notify_max_wait_sec'];
-    const until = max > 0 ? Number(r.created) + max * 1000 : FAR;
+    // «0 — без предела» lives as long as the request's keys do (they expire
+    // after `hotline.key_ttl_hours`; closed a minute before, never orphaned)
+    const bound = Number(r.created) + (hotlineKeyTtlSec(s) - 60) * 1000;
+    const until =
+      max > 0 ? Number(r.created) + max * 1000 : Math.min(FAR, bound);
     await this.redis.zadd(this.k.calive, until, req);
     // No night notices (plan PR 5): the night is the client's own — the
-    // phone's zone, else the one the app keeps in his account (users.timezone,
-    // else his quiet-hours zone). `hotline.notify_quiet_*` say which hours.
-    const zone = timeZone ?? (await this.clientTimeZone(user.sub));
-    const off = zone ? utcOffsetMinutes(zone, this.now()) : null;
-    if (!allowNight && off !== null) {
-      await this.redis.hset(
-        this.k.nq,
-        req,
-        `${off},${s['hotline.notify_quiet_start_hour'] * 60},${s['hotline.notify_quiet_end_hour'] * 60}`,
-      );
+    // phone's zone, else the one in his account; unknown (audit 17.11 #7) =
+    // the zone of the request's state; nothing at all = the widest US night.
+    if (!allowNight) {
+      const start = s['hotline.notify_quiet_start_hour'] * 60;
+      const end = s['hotline.notify_quiet_end_hour'] * 60;
+      let off = this.offsetOf(timeZone);
+      off ??= this.offsetOf(await this.clientTimeZone(user.sub));
+      off ??= this.offsetOf(STATE_TIMEZONES[r.state]);
+      const window =
+        off !== null
+          ? `${off},${start},${end}`
+          : `${this.offsetOf(UNKNOWN_ZONE) ?? -300},${start},${
+              start === end ? end : (end + UNKNOWN_ZONE_STRETCH_MIN) % 1440
+            }`;
+      await this.redis.hset(this.k.nq, req, window);
     }
     await this.redis.hset(this.k.request(req), {
       status: 'offline',
@@ -1209,6 +1565,10 @@ export class HotlineService {
     });
     await this.markDirty(this.parseList(r.buckets), this.now());
     return this.view(req, user.sub);
+  }
+
+  private offsetOf(zone: string | null | undefined): number | null {
+    return zone ? utcOffsetMinutes(zone, this.now()) : null;
   }
 
   /** The client's own time zone from his account (the app sends it at
@@ -1238,7 +1598,12 @@ export class HotlineService {
   ): Promise<RequestView> {
     await assertHotlineOn(this.flags);
     const r = await this.ownRequest(user, req);
-    if (token !== undefined && token !== r.notifyToken) {
+    // any notice of THIS request works, an older one too (audit 17.11 #10)
+    if (
+      token !== undefined &&
+      token !== r.notifyToken &&
+      (await this.redis.sismember(this.k.tokens(req), token)) !== 1
+    ) {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,
         message: 'This notice is not for this hotline request.',
@@ -1253,6 +1618,7 @@ export class HotlineService {
         req,
       );
       await this.redis.hdel(this.k.nq, req);
+      await this.redis.zadd(this.k.qwait, this.now(), req);
       await this.redis.hset(this.k.request(req), 'status', 'searching');
       await this.matchRequest(req);
     }
@@ -1269,6 +1635,9 @@ export class HotlineService {
       notifyToken: token,
       notifyExpires: String(expiresAt),
     });
+    const { s } = await this.cfg();
+    await this.redis.sadd(this.k.tokens(req), token);
+    await this.redis.expire(this.k.tokens(req), hotlineKeyTtlSec(s));
     await this.bumpAgg('notices');
     await this.notifier.lawyerAvailable({
       userId: r.client,
@@ -1289,11 +1658,7 @@ export class HotlineService {
     );
   }
 
-  async view(
-    req: string,
-    clientId: string,
-    ackDisclosure = false,
-  ): Promise<RequestView> {
+  async view(req: string, clientId: string): Promise<RequestView> {
     const r = await this.requestDetail(req);
     if (!r) throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
     const st = await this.store.requestState(req);
@@ -1312,19 +1677,7 @@ export class HotlineService {
     let pos: string | null = null;
     let wait: string | null = null;
     if (status === 'queued' || status === 'offline') {
-      const ranks: number[] = [];
-      let lawyers = 0;
-      for (const b of this.parseList(r.buckets)) {
-        const rank = await this.store.queueRank(b, req);
-        if (rank !== null) ranks.push(rank);
-        lawyers += await this.redis.scard(this.k.bucketLawyers(b));
-      }
-      if (ranks.length) {
-        const best = Math.min(...ranks);
-        pos = positionBand(best);
-        const avgSec = await this.avgTalkSeconds();
-        wait = waitBand(((best + 1) * avgSec) / 60 / Math.max(1, lawyers));
-      }
+      ({ pos, wait } = await this.bands(req, this.parseList(r.buckets)));
     }
     let lawyer: RequestView['lawyer'] = null;
     if (status === 'connected') {
@@ -1352,33 +1705,102 @@ export class HotlineService {
       conversationId: r.conversationId ?? null,
       disclosure:
         status === 'searching' || status === 'queued'
-          ? await this.disclosure(clientId, 'client', ackDisclosure)
+          ? await this.disclosure(clientId, 'client')
           : null,
     };
   }
 
-  /** A version tag of the client's view (ETag of GET /hotline/requests/:id). */
+  /** The rough place and wait of a waiting request (one pipeline). */
+  private async bands(
+    req: string,
+    buckets: string[],
+  ): Promise<{ pos: string | null; wait: string | null }> {
+    if (buckets.length === 0) return { pos: null, wait: null };
+    const p = pipeline(this.redis);
+    for (const b of buckets) {
+      p.zrank(this.k.queue(b), req);
+      p.scard(this.k.bucketLawyers(b));
+    }
+    const res = (await p.exec()) ?? [];
+    const ranks: number[] = [];
+    let lawyers = 0;
+    buckets.forEach((_, i) => {
+      const rank = res[2 * i]?.[1];
+      if (rank !== null && rank !== undefined) ranks.push(Number(rank));
+      lawyers += Number(res[2 * i + 1]?.[1] ?? 0);
+    });
+    if (ranks.length === 0) return { pos: null, wait: null };
+    const { raw } = await this.cfg();
+    const best = Math.min(...ranks);
+    const avgSec = await this.avgTalkSeconds();
+    return {
+      pos: positionBand(best, hotlineBandsFrom(raw, 'hotline.position_bands')),
+      wait: waitBand(
+        ((best + 1) * avgSec) / 60 / Math.max(1, lawyers),
+        hotlineBandsFrom(raw, 'hotline.wait_band_minutes'),
+      ),
+    };
+  }
+
+  /** A version tag of the client's view (ETag of GET /hotline/requests/:id).
+   * Audit 17.11 (P12): the 304 path no longer builds the whole view — one
+   * pipeline of the fields the view is made of, plus the place / wait only
+   * while waiting; the disclosure is in the tag as «seen or not». */
   async requestTag(user: RequestUser, req: string): Promise<string | null> {
-    const r = await this.requestDetail(req);
-    if (!r || r.client !== user.sub) return null;
-    const v = await this.view(req, user.sub);
+    const { s } = await this.cfg();
+    const p = pipeline(this.redis);
+    p.hmget(
+      this.k.request(req),
+      'client',
+      'status',
+      'endReason',
+      'callId',
+      'conversationId',
+      'buckets',
+    );
+    p.hget(this.k.rst, req);
+    p.sismember(this.k.off, req);
+    p.hexists(
+      this.k.ack(user.sub),
+      ackField(user.sub, 'client', s['hotline.disclosure_version']),
+    );
+    const res = (await p.exec()) ?? [];
+    const [client, status, endReason, callId, conversationId, buckets] =
+      (res[0]?.[1] as (string | null)[] | undefined) ?? [];
+    if (!client || client !== user.sub) return null;
+    const st = (res[1]?.[1] as string | null) ?? '';
+    const offline = Number(res[2]?.[1] ?? 0) === 1;
+    let pos: string | null = null;
+    let wait: string | null = null;
+    if (st === 'q')
+      ({ pos, wait } = await this.bands(req, this.parseList(buckets)));
     return [
-      v.status,
-      v.positionBand,
-      v.waitBand,
-      v.lawyer?.id,
-      v.endReason,
-      v.callId,
-      v.conversationId,
+      st || status,
+      offline ? 'off' : 'on',
+      pos,
+      wait,
+      endReason,
+      st.startsWith('c|') ? callId : '',
+      conversationId,
+      Number(res[3]?.[1] ?? 0),
     ].join('.');
   }
 
+  private avgCache?: { at: number; sec: number };
+
   private async avgTalkSeconds(): Promise<number> {
-    const a = await this.redis.hgetall(
+    if (this.avgCache && this.now() - this.avgCache.at < 30_000) {
+      return this.avgCache.sec;
+    }
+    const a = await this.redis.hmget(
       this.k.agg(this.hour(this.now() - 3_600_000)),
+      'ended',
+      'talkSeconds',
     );
-    const ended = Number(a.ended ?? 0);
-    return ended > 0 ? Number(a.talkSeconds ?? 0) / ended : 300;
+    const ended = Number(a[0] ?? 0);
+    const sec = ended > 0 ? Number(a[1] ?? 0) / ended : 300;
+    this.avgCache = { at: this.now(), sec };
+    return sec;
   }
 
   // ── counters (Valkey only, banded) ────────────────────────────────

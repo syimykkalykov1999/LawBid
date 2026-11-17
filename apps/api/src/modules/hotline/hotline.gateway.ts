@@ -6,6 +6,7 @@ import {
   WebSocketGateway,
 } from '@nestjs/websockets';
 import type { Socket } from 'socket.io';
+import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { REALTIME_NAMESPACE } from '../realtime/realtime-publisher.service';
 import { HotlineService } from './hotline.service';
 import { hotlineCounterRoom } from './hotline-sweeper.service';
@@ -31,7 +32,10 @@ const MAX_WATCH = 10;
  *    client in the queue, a connected call alive;
  *  - `hotline:away` — the app went to the background / left the section:
  *    the attorney is off the line AT ONCE (owner 16.11 ~18:20);
- *  - a closed line socket (screen off, network gone) → off at once;
+ *  - a closed line socket (network change, deploy) is NOT off at once
+ *    (audit 17.11 #3): `hotline.presence_ttl_sec` to come back;
+ *  - `hotline:resume` — after a reconnect, while the screen is open: back
+ *    on the line with the choice he had (same as POST /hotline/line/resume);
  *  - `hotline:watch` / `hotline:unwatch` — the counters rooms (only sockets
  *    on the hotline screen get counters).
  */
@@ -42,7 +46,7 @@ export class HotlineGateway implements OnGatewayDisconnect {
   @SubscribeMessage('hotline:heartbeat')
   async heartbeat(
     @ConnectedSocket() socket: Socket,
-  ): Promise<{ ok: boolean; line: boolean | null }> {
+  ): Promise<{ ok: boolean; line: boolean | null; resumable?: boolean }> {
     const d = data(socket);
     const sub = d.user?.sub;
     if (!sub || !(await this.hotline.enabled()))
@@ -54,7 +58,29 @@ export class HotlineGateway implements OnGatewayDisconnect {
     d.hotlineBeatAt = now;
     const res = await this.hotline.heartbeat(sub, socket.id);
     if (res.line !== null) d.hotlineLine = res.line;
-    return { ok: true, line: res.line };
+    return {
+      ok: true,
+      line: res.line,
+      ...(res.resumable ? { resumable: true } : {}),
+    };
+  }
+
+  @SubscribeMessage('hotline:resume')
+  async resume(
+    @ConnectedSocket() socket: Socket,
+  ): Promise<{ ok: boolean; line: boolean | null }> {
+    const d = data(socket);
+    const user = d.user as RequestUser | undefined;
+    if (!user?.sub || !(await this.hotline.enabled())) {
+      return { ok: false, line: null };
+    }
+    try {
+      const view = await this.hotline.resumeLine(user, socket.id);
+      d.hotlineLine = view.online;
+      return { ok: true, line: view.online };
+    } catch {
+      return { ok: false, line: false };
+    }
   }
 
   @SubscribeMessage('hotline:away')

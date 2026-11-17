@@ -1,6 +1,9 @@
 import { APP_SETTINGS } from './app-settings.defaults';
 import {
   HOTLINE_SETTING_DEFS,
+  hotlineBandsFrom,
+  minutesBand,
+  placeBand,
   OWNER_HOTLINE_SETTINGS,
   bandOf,
   hotlineCounterBandsFrom,
@@ -21,6 +24,9 @@ describe('hotline settings (owner row 87, 16.11)', () => {
       'hotline.mode': mode,
       'hotline.short_notice_enabled': shortNotice,
       'hotline.counter_bands': bands,
+      'hotline.waiting_more_bands': waitingMore,
+      'hotline.position_bands': place,
+      'hotline.wait_band_minutes': waitMin,
       'hotline.review_enabled': review,
       'hotline.client_steps_enabled': steps,
       ...numbers
@@ -29,6 +35,9 @@ describe('hotline settings (owner row 87, 16.11)', () => {
     expect(mode).toBe('on_for_all');
     expect(shortNotice).toBe(false);
     expect(bands).toEqual([1, 10, 50, 100]);
+    expect(waitingMore).toEqual([1, 2, 5, 10, 50]);
+    expect(place).toEqual([1, 5, 20]);
+    expect(waitMin).toEqual([5, 15, 30]);
     expect(review).toBe(true);
     expect(steps).toBe(true);
     for (const [k, v] of Object.entries(OWNER_HOTLINE_SETTINGS)) {
@@ -116,5 +125,47 @@ describe('hotline settings (owner row 87, 16.11)', () => {
         [1, 10, 50, 100],
       );
     }
+  });
+
+  it('audit 17.11 #8: the place, wait and «Ещё звонят» steps are admin lists, not code; the old texts stay by default', () => {
+    const schema = configSchema();
+    for (const key of [
+      'hotline.waiting_more_bands',
+      'hotline.position_bands',
+      'hotline.wait_band_minutes',
+    ] as const) {
+      expect(schema[key].description).toContain('Горячая линия');
+      expect(validateConfigValue(schema[key], [2, 4])).toBeNull();
+      expect(hotlineBandsFrom({ [key]: [2, 4] }, key)).toEqual([2, 4]);
+      expect(hotlineBandsFrom({ [key]: [4, 2] }, key)).toEqual(
+        OWNER_HOTLINE_SETTINGS[key],
+      );
+    }
+    const place = hotlineBandsFrom({}, 'hotline.position_bands');
+    expect([0, 1, 4, 5, 19, 20, 500].map((r) => placeBand(r, place))).toEqual([
+      '1',
+      '2-5',
+      '2-5',
+      '6-20',
+      '6-20',
+      '20+',
+      '20+',
+    ]);
+    const wait = hotlineBandsFrom({}, 'hotline.wait_band_minutes');
+    expect(
+      [0, 4.9, 5, 14, 15, 29, 30, 999].map((m) => minutesBand(m, wait)),
+    ).toEqual([
+      'lt5',
+      'lt5',
+      '5to15',
+      '5to15',
+      '15to30',
+      '15to30',
+      'gt30',
+      'gt30',
+    ]);
+    // the owner's own steps
+    expect(placeBand(2, [3, 10])).toBe('1-3');
+    expect(minutesBand(12, [10])).toBe('gt10');
   });
 });

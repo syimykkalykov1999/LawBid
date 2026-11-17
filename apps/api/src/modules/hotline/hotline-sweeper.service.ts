@@ -11,12 +11,17 @@ import {
 import type Redis from 'ioredis';
 import { pipeline } from '../../redis/redis-cluster-safe';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import { randomUUID } from 'node:crypto';
 import { HotlineService } from './hotline.service';
 
 /** Socket.IO room of one counter key (`b:<bucket>` or `l:<lang>`). */
 export const hotlineCounterRoom = (key: string) => `hotline:c:${key}`;
 
-const BATCH = 500;
+/** Compare-and-pexpire / compare-and-set-px of the leader lock: only the
+ * holder of the token extends or shortens it (a fencing token, audit 17.11
+ * #9 — a pass longer than the lease can no longer overlap another's). */
+const LEASE_LUA =
+  "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('PEXPIRE', KEYS[1], ARGV[2]) end return 0";
 
 /**
  * Owner row 87: the hotline's clock. Every API instance ticks every
@@ -41,6 +46,8 @@ export class HotlineSweeper implements OnApplicationBootstrap, OnModuleDestroy {
   private timer?: NodeJS.Timeout;
   private running = false;
   private intervalMs = 1000;
+  /** The lock token of the pass in progress; null = the lease was lost. */
+  private token: string | null = null;
 
   constructor(
     private readonly hotline: HotlineService,
@@ -78,25 +85,109 @@ export class HotlineSweeper implements OnApplicationBootstrap, OnModuleDestroy {
     if (this.running) return false;
     this.running = true;
     try {
-      if (!(await this.hotline.enabled())) return false;
+      if (!(await this.hotline.enabled())) {
+        // remember that the switch was off (audit 17.11 #2): heartbeats
+        // are refused meanwhile, so the first pass after it must not read
+        // everybody as lost
+        await this.hotline.redis.set(this.hotline.k.offSince, '1', 'NX');
+        return false;
+      }
       const { s } = await this.hotline.cfg();
       this.intervalMs = s['hotline.sweep_interval_ms'];
       const h = this.hotline;
       const redis = h.redis;
-      const lock = await redis.set(
-        h.k.tick,
-        '1',
-        'PX',
-        Math.max(100, this.intervalMs - 50),
-        'NX',
-      );
+      // The lease covers the whole pass and is renewed while it runs; at
+      // the end it is shortened to what is left of this interval, so 1 or
+      // 100 instances still make one pass per interval.
+      const lease = Math.max(1000, 3 * this.intervalMs);
+      const token = randomUUID();
+      const lock = await redis.set(h.k.tick, token, 'PX', lease, 'NX');
       if (lock !== 'OK') return false;
-      const now = h.nowMs();
-      await this.sweep(redis, now);
+      this.token = token;
+      const started = Date.now();
+      const renew = setInterval(
+        () => {
+          void this.renew(redis, lease);
+        },
+        Math.max(50, Math.floor(lease / 3)),
+      );
+      renew.unref();
+      try {
+        if ((await redis.del(h.k.offSince)) === 1) {
+          await this.resumeAfterOff(redis, h.nowMs());
+        }
+        await this.sweep(redis, h.nowMs());
+      } finally {
+        clearInterval(renew);
+        const left = Math.max(1, this.intervalMs - 50 - (Date.now() - started));
+        await redis.eval(LEASE_LUA, 1, h.k.tick, token, left);
+        this.token = null;
+      }
       return true;
     } finally {
       this.running = false;
     }
+  }
+
+  /** Extends the lease while this instance still holds it; else the rest
+   * of the pass stops at the next step (`holds()`). */
+  async renew(redis: Redis, lease: number): Promise<boolean> {
+    const token = this.token;
+    if (!token) return false;
+    const ok = Number(
+      await redis.eval(LEASE_LUA, 1, this.hotline.k.tick, token, lease),
+    );
+    if (ok !== 1) this.token = null;
+    return ok === 1;
+  }
+
+  /** The switch is back on (audit 17.11 #2, P2: a 30 s call billed as
+   * 3630 s). First the connected calls are synced with their real 1:1 call
+   * (one hung up meanwhile ends with ITS seconds), then everybody whose
+   * heartbeat ran out while heartbeats were refused gets one presence
+   * window to beat again; a call that stays silent ends at its last beat. */
+  async resumeAfterOff(redis: Redis, now: number): Promise<void> {
+    const h = this.hotline;
+    const k = h.k;
+    const { s } = await h.cfg();
+    const batch = s['hotline.sweep_batch'];
+    const ttlMs = s['hotline.presence_ttl_sec'] * 1000;
+    for (;;) {
+      const page = await redis.zrangebyscore(
+        k.callsync,
+        '-inf',
+        '+inf',
+        'LIMIT',
+        0,
+        batch,
+      );
+      await h.syncCalls(page);
+      // syncCalls re-schedules the live ones into the future
+      const left = await redis.zcount(k.callsync, '-inf', now);
+      if (page.length < batch || left === 0) break;
+    }
+    for (const key of [k.conn, k.alive, k.calive]) {
+      for (;;) {
+        const stale = await redis.zrangebyscore(
+          key,
+          '-inf',
+          now,
+          'LIMIT',
+          0,
+          batch,
+        );
+        if (stale.length === 0) break;
+        const p = pipeline(redis);
+        for (const m of stale) p.zadd(key, 'XX', now + ttlMs, m);
+        await p.exec();
+        if (stale.length < batch) break;
+      }
+    }
+  }
+
+  /** Inside `tick()`: still the leader? (The tests call `sweep` directly.) */
+  private holds(): boolean {
+    return !this.running || this.token !== null;
   }
 
   /** The work of one tick (public for the tests, which pass their clock). */
@@ -104,8 +195,9 @@ export class HotlineSweeper implements OnApplicationBootstrap, OnModuleDestroy {
     const h = this.hotline;
     const k = h.k;
     const { s, raw } = await h.cfg();
+    const batch = s['hotline.sweep_batch'];
     const due = (key: string) =>
-      redis.zrangebyscore(key, '-inf', now, 'LIMIT', 0, BATCH);
+      redis.zrangebyscore(key, '-inf', now, 'LIMIT', 0, batch);
 
     for (const m of await due(k.dl)) {
       const req = m.slice(2);
@@ -119,7 +211,14 @@ export class HotlineSweeper implements OnApplicationBootstrap, OnModuleDestroy {
       await h.closeRequest(req, offline ? 'notify_expired' : 'lost');
       await redis.zrem(k.calive, req);
     }
-    for (const req of await due(k.conn)) {
+    if (!this.holds()) return;
+    const lostCalls = await due(k.conn);
+    // the real 1:1 call may still be up (its screens beat) or already over
+    // with its own seconds: ask it before calling the hotline call lost
+    if (lostCalls.length) await h.syncCalls(lostCalls);
+    for (const req of lostCalls) {
+      const until = await redis.zscore(k.conn, req);
+      if (until !== null && Number(until) > now) continue;
       await h.endCall(req, 'lost');
       await redis.zrem(k.conn, req);
     }
@@ -130,6 +229,27 @@ export class HotlineSweeper implements OnApplicationBootstrap, OnModuleDestroy {
     // the real 1:1 calls behind connected requests (hung up on the call
     // screen, closed by the calls sweep, voice never came up)
     await h.syncCalls(await due(k.callsync));
+    // Audit 17.11 #8: `hotline.queue_max_wait_sec` — an online waiter (not
+    // «Сообщите мне») waits no longer than this, then «queue_timeout».
+    const maxWait = s['hotline.queue_max_wait_sec'];
+    if (maxWait > 0) {
+      for (const req of await redis.zrangebyscore(
+        k.qwait,
+        '-inf',
+        now - maxWait * 1000,
+        'LIMIT',
+        0,
+        batch,
+      )) {
+        const st = await h.store.requestState(req);
+        if (st?.startsWith('o|')) continue; // being offered: after it
+        if ((st === 's' || st === 'q') && !(await h.store.isOffline(req))) {
+          await h.closeRequest(req, 'queue_timeout');
+        }
+        await redis.zrem(k.qwait, req);
+      }
+    }
+    if (!this.holds()) return;
     for (const lw of await due(k.pause)) await h.unpause(lw);
     for (const req of await due(k.ntf)) {
       await redis.zrem(k.ntf, req);
@@ -193,7 +313,13 @@ export class HotlineSweeper implements OnApplicationBootstrap, OnModuleDestroy {
     bands: number[],
   ): Promise<number> {
     const k = this.hotline.k;
-    await redis.zremrangebyscore(k.watch, '-inf', now);
+    // TTLs on everything (audit 17.11 #12): the last shown value of a
+    // counter nobody watches any more is dropped with its watch
+    const gone = await redis.zrangebyscore(k.watch, '-inf', now);
+    if (gone.length) {
+      await redis.zremrangebyscore(k.watch, '-inf', now);
+      await redis.hdel(k.cnt, ...gone);
+    }
     const keys = await redis.zrangebyscore(
       k.watch,
       now,
