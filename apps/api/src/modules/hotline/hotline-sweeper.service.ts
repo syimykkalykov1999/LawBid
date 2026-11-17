@@ -27,6 +27,8 @@ const BATCH = 500;
  *   2. attorneys without a heartbeat → off the line;
  *   3. waiting clients without a heartbeat / expired «Сообщите мне» → closed;
  *   4. connected calls nobody confirms (both gone) or over the length limit;
+ *   4b. connected calls ↔ their real 1:1 call (plan PR 4), every
+ *      `call_sync_sec`;
  *   5. paused attorneys → back;
  *   6. «Адвокат на линии» notices not claimed in time → after N, closed;
  *   7. buckets with free attorneys and waiters → batch pairing, then
@@ -125,6 +127,9 @@ export class HotlineSweeper implements OnApplicationBootstrap, OnModuleDestroy {
       await h.endCall(req, 'time_limit');
       await redis.zrem(`${k.p}:connmax`, req);
     }
+    // the real 1:1 calls behind connected requests (hung up on the call
+    // screen, closed by the calls sweep, voice never came up)
+    await h.syncCalls(await due(k.callsync));
     for (const lw of await due(k.pause)) await h.unpause(lw);
     for (const req of await due(k.ntf)) {
       await redis.zrem(k.ntf, req);

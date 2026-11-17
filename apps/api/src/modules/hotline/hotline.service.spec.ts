@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import Redis from 'ioredis';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { HotlineConflictService } from './hotline-conflict.service';
+import type { HotlineCallBridge } from './hotline-call-bridge';
 import { HotlineSweeper } from './hotline-sweeper.service';
 import { HotlineService } from './hotline.service';
 import { bucketOf, HotlineKeys } from './hotline.store';
@@ -36,6 +37,19 @@ describe('hotline use cases (real Valkey)', () => {
   let sweeper: HotlineSweeper;
   let k: HotlineKeys;
   let entitlementValues: Record<string, unknown>;
+  let build: (bridge?: HotlineCallBridge) => void;
+  /** The fake 1:1 calls (plan PR 4): what the bridge was asked to do. */
+  let calls: Map<
+    string,
+    {
+      req: string;
+      status: string;
+      beat: number;
+      dur: number | null;
+      end: string | null;
+    }
+  >;
+  let bridgeLog: string[];
 
   const attorney = (id: string): RequestUser =>
     ({ sub: id, role: 'attorney' }) as RequestUser;
@@ -118,28 +132,85 @@ describe('hotline use cases (real Valkey)', () => {
       toRoom: (room: string, event: string, data: unknown) =>
         rooms.push({ room, event, data }),
     };
-    svc = new HotlineService(
-      redis,
-      prisma as never,
-      { isEnabled: () => Promise.resolve(flagOn) } as never,
-      { all: () => Promise.resolve(cfg) } as never,
-      realtime as never,
-      new HotlineConflictService(prisma as never, redis),
-      {
-        forUser: () => Promise.resolve({ values: entitlementValues }),
-      } as never,
-      undefined,
-      k,
-      () => now,
-    );
-    sweeper = new HotlineSweeper(
-      svc,
-      realtime as never,
-      {
-        setContext: () => undefined,
-        warn: () => undefined,
-      } as never,
-    );
+    build = (bridge?: HotlineCallBridge) => {
+      svc = new HotlineService(
+        redis,
+        prisma as never,
+        { isEnabled: () => Promise.resolve(flagOn) } as never,
+        { all: () => Promise.resolve(cfg) } as never,
+        realtime as never,
+        new HotlineConflictService(prisma as never, redis),
+        {
+          forUser: () => Promise.resolve({ values: entitlementValues }),
+        } as never,
+        undefined,
+        k,
+        () => now,
+        bridge,
+      );
+      sweeper = new HotlineSweeper(
+        svc,
+        realtime as never,
+        {
+          setContext: () => undefined,
+          warn: () => undefined,
+        } as never,
+      );
+    };
+    build();
+    calls = new Map();
+    bridgeLog = [];
+  });
+
+  /** A bridge with the 1:1 calls faked in memory (the real one: e2e). */
+  const fakeBridge = (): HotlineCallBridge => ({
+    open: (i) => {
+      const id = `call-${i.requestId.slice(0, 8)}`;
+      calls.set(id, {
+        req: i.requestId,
+        status: 'active',
+        beat: now,
+        dur: null,
+        end: null,
+      });
+      bridgeLog.push(`open ${i.clientId}->${i.attorneyId} at ${i.answeredAt}`);
+      return Promise.resolve({ callId: id });
+    },
+    hangUp: (id, by, reason) => {
+      const c = calls.get(id);
+      if (c && c.status === 'active') {
+        c.status = 'ended';
+        c.end = reason;
+      }
+      bridgeLog.push(`hangUp ${by} ${reason}`);
+      return Promise.resolve();
+    },
+    states: (ids) =>
+      Promise.resolve(
+        new Map(
+          ids.flatMap((id) => {
+            const c = calls.get(id);
+            return c
+              ? [
+                  [
+                    id,
+                    {
+                      live: c.status === 'active',
+                      status: c.status,
+                      heartbeatAt: c.beat,
+                      durationSec: c.dur,
+                      endReason: c.end,
+                    },
+                  ] as const,
+                ]
+              : [];
+          }),
+        ),
+      ),
+    finish: (i) => {
+      bridgeLog.push(`finish ${i.reason} ${i.durationSec}`);
+      return Promise.resolve({ conversationId: `conv-${i.clientId}` });
+    },
   });
 
   afterEach(async () => {
@@ -745,12 +816,148 @@ describe('hotline use cases (real Valkey)', () => {
     expect(await svc.requestTag(client('C2'), a.id)).toBeNull();
   });
 
-  it('UC 33: the hotline never imports or changes the 1:1 calls code', () => {
+  it('UC 33: only the bridge reaches the 1:1 calls, and only their public service', () => {
     const dir = __dirname;
     for (const f of readdirSync(dir)) {
-      if (!f.endsWith('.ts')) continue;
+      if (!f.endsWith('.ts') || f.endsWith('.spec.ts')) continue;
       const text = readFileSync(join(dir, f), 'utf8');
-      expect([f, /from '\.\.\/calls\//.test(text)]).toEqual([f, false]);
+      const imports = [...text.matchAll(/from '(\.\.\/calls\/[^']+)'/g)].map(
+        (m) => m[1],
+      );
+      if (f === 'hotline-call-bridge.ts') {
+        expect(imports).toEqual(['../calls/calls.service']);
+      } else {
+        expect([f, imports]).toEqual([f, []]);
+      }
     }
+  });
+
+  it('UC 34 (PR 4): «Взять» opens ONE real voice call (client → attorney, answered at «Взять»); the client sees it', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    const a = await ask('C1');
+    await goLine('L1');
+    now += 4000; // the offer rang 4 s: not billed
+    const res = await svc.accept(attorney('L1'), a.id);
+    expect(res).toMatchObject({ ok: true, state: 'connected' });
+    const callId = (res as { callId: string }).callId;
+    expect(callId).toMatch(/^call-/);
+    expect(bridgeLog).toEqual([`open C1->L1 at ${now}`]);
+    // a repeated «Взять» is the same call
+    expect(await svc.accept(attorney('L1'), a.id)).toMatchObject({ callId });
+    expect(bridgeLog).toHaveLength(1);
+    expect(
+      events.find((e) => e.event === 'hotline:connected')?.data,
+    ).toMatchObject({ requestId: a.id, callId, video: false });
+    const v = await svc.getRequest(client('C1'), a.id);
+    expect(v).toMatchObject({ status: 'connected', callId });
+  });
+
+  it('UC 35 (PR 4): the red button on the hotline ends the 1:1 call too; billing from «Взять»; the direct chat opens', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    const a = await ask('C1');
+    await goLine('L1');
+    now += 3000;
+    const { callId } = (await svc.accept(attorney('L1'), a.id)) as {
+      callId: string;
+    };
+    now += 90_000;
+    expect(await svc.endCall(a.id, 'ended', 'L1')).toEqual({
+      ok: true,
+      seconds: 90,
+      conversationId: 'conv-C1',
+    });
+    expect(bridgeLog.slice(1)).toEqual(['hangUp L1 hangup', 'finish ended 90']);
+    expect(calls.get(callId)?.status).toBe('ended');
+    expect(events.find((e) => e.event === 'hotline:ended')?.data).toMatchObject(
+      { callId, conversationId: 'conv-C1', seconds: 90 },
+    );
+    expect((await svc.getRequest(client('C1'), a.id)).conversationId).toBe(
+      'conv-C1',
+    );
+  });
+
+  it('UC 36 (PR 4): hung up on the CALL screen (POST /calls/:id/end) → the sync ends the hotline call with the call’s own seconds', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    const a = await ask('C1');
+    await goLine('L1');
+    const { callId } = (await svc.accept(attorney('L1'), a.id)) as {
+      callId: string;
+    };
+    // the call screens beat (GET /calls/:id) — the hotline call stays up
+    // without any hotline heartbeat
+    for (let i = 0; i < 4; i++) {
+      now += 20_000;
+      calls.get(callId)!.beat = now;
+      await tick(0);
+    }
+    expect((await svc.getRequest(client('C1'), a.id)).status).toBe('connected');
+    Object.assign(calls.get(callId)!, {
+      status: 'ended',
+      dur: 80,
+      end: 'hangup',
+    });
+    await tick(2001);
+    const v = await svc.getRequest(client('C1'), a.id);
+    expect(v).toMatchObject({ status: 'ended', endReason: 'ended' });
+    expect(bridgeLog).toContain('finish ended 80');
+    expect(bridgeLog.some((l) => l.startsWith('hangUp'))).toBe(false);
+    expect(await redis.hget(k.trial('L1'), 'seconds')).toBe('80');
+  });
+
+  it('UC 37 (PR 4): the voice never came up 3 times in a row → the attorney is off the line (like 3 unanswered offers)', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    await goLine('L1');
+    for (let i = 0; i < 3; i++) {
+      const a = await ask(`C${i}`);
+      const { callId } = (await svc.accept(attorney('L1'), a.id)) as {
+        callId: string;
+      };
+      now += 20_000;
+      await svc.heartbeat('L1'); // he stays on the hotline screen
+      // the app gave up connecting: `failed` → ended / link_lost, 20 s
+      Object.assign(calls.get(callId)!, {
+        status: 'ended',
+        dur: 20,
+        end: 'link_lost',
+      });
+      await tick(2001);
+      expect((await svc.getRequest(client(`C${i}`), a.id)).endReason).toBe(
+        'failed',
+      );
+    }
+    expect((await svc.lineView('L1', null)).online).toBe(false);
+    expect(
+      events.filter((e) => e.event === 'hotline:line').at(-1)?.data,
+    ).toMatchObject({ online: false, reason: 'missed' });
+  });
+
+  it('UC 38 (PR 4): a real conversation breaks the «no answer» row', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    await goLine('L1');
+    await ask('C1');
+    await tick(10_001); // miss 1 (no «Взять»); C1 never goes to L1 again
+    const b = await ask('C2');
+    const { callId } = (await svc.accept(attorney('L1'), b.id)) as {
+      callId: string;
+    };
+    expect(await redis.hget(k.lawyer('L1'), 'misses')).toBe('1');
+    for (let i = 0; i < 4; i++) {
+      now += 30_000;
+      await svc.heartbeat('L1');
+      calls.get(callId)!.beat = now;
+      await tick(0);
+    }
+    Object.assign(calls.get(callId)!, {
+      status: 'ended',
+      dur: 120,
+      end: 'hangup',
+    });
+    await tick(2001);
+    expect(await redis.hget(k.lawyer('L1'), 'misses')).toBe('0');
   });
 });

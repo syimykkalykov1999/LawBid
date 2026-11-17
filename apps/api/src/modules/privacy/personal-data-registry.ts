@@ -278,6 +278,8 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'ReferralCode',
       'Referral',
       'PartnerCommission',
+      // Owner row 87: the hotline call is a billing record (from «Взять»).
+      'HotlineCall',
       'PayrollEmployee',
       'PayrollPayout',
       'PayrollAccrual',
