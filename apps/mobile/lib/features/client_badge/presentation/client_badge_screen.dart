@@ -24,6 +24,8 @@ import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
 /// Owner 2026-10-02 — Settings → "Verify account" for clients: send
 /// documents, wait for the admin's approval, then $10/month for the gold
 /// badge. The badge shows only while approved AND paid.
+/// Owner 16.11: with «Проверка документов клиента» off (the default) there
+/// is no document step — the benefits and the pay button at once.
 class ClientBadgeScreen extends ConsumerStatefulWidget {
   const ClientBadgeScreen({super.key});
 
@@ -244,7 +246,7 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
           ],
         );
       }
-      if (s.status == ClientBadgeStatus.pending) {
+      if (s.documentsRequired && s.status == ClientBadgeStatus.pending) {
         return ListView(
           padding: const EdgeInsets.all(AppSpacing.screenSide),
           children: [
@@ -262,6 +264,67 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
           ],
         );
       }
+      Widget introCard() => card([
+            Row(
+              children: [
+                AppIcon(
+                  AppIcons.verifiedUserOutlined,
+                  color: colors.gold,
+                  size: 28,
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    t.t('cbadge.title'),
+                    style: type.titleMedium.copyWith(color: colors.text),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              // Owner 16.11: no documents → «subscribe and it is on».
+              t.t(s.documentsRequired ? 'cbadge.lead' : 'cbadge.lead.pay'),
+              key: const ValueKey('cbadge-lead'),
+              style: type.body.copyWith(color: colors.textSecondary),
+            ),
+          ]);
+      Widget benefitsCard() => card([
+            Text(
+              t.t('cbadge.benefits.title'),
+              style: type.titleMedium.copyWith(color: colors.text),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            for (final k in [
+              'cbadge.benefit.check',
+              'cbadge.benefit.first',
+              'cbadge.benefit.files',
+              'cbadge.benefit.promo',
+              // Owner 2026-11-04 (R-398): only while «Только с галочкой».
+              if (ref.watch(clientBadgeIncludesReelsProvider))
+                'cbadge.benefit.reels',
+            ])
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppIcon(
+                      AppIcons.checkRounded,
+                      color: colors.gold,
+                      size: 20,
+                    ),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Text(
+                        t.t(k),
+                        style: type.body.copyWith(color: colors.text),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ]);
       // Owner 2026-10-05 (plan builder): the plan covers the badge — no
       // buy button, the badge comes with the approval.
       Widget includedCard() => card([
@@ -295,16 +358,27 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
             if (s.includedInPlan)
               includedCard()
             else ...[
+              // Owner 16.11: no documents — what the check gives, then pay.
+              if (!s.documentsRequired) ...[
+                introCard(),
+                const SizedBox(height: AppSpacing.md),
+                benefitsCard(),
+                const SizedBox(height: AppSpacing.md),
+              ],
               card([
                 Text(
-                  t.t('cbadge.approved.title'),
+                  s.documentsRequired
+                      ? t.t('cbadge.approved.title')
+                      : t.t('cbadge.pay', {'price': price}),
                   style: type.titleMedium.copyWith(color: colors.text),
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                Text(
-                  t.t('cbadge.approved.text', {'price': price}),
-                  style: type.body.copyWith(color: colors.textSecondary),
-                ),
+                if (s.documentsRequired) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    t.t('cbadge.approved.text', {'price': price}),
+                    style: type.body.copyWith(color: colors.textSecondary),
+                  ),
+                ],
                 // Owner 2026-10-07: «$10 / ~~$15~~ month −33%».
                 if (s.discount != null) ...[
                   const SizedBox(height: AppSpacing.sm),
@@ -348,66 +422,9 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
       return ListView(
         padding: const EdgeInsets.all(AppSpacing.screenSide),
         children: [
-          card([
-            Row(
-              children: [
-                AppIcon(
-                  AppIcons.verifiedUserOutlined,
-                  color: colors.gold,
-                  size: 28,
-                ),
-                const SizedBox(width: AppSpacing.md),
-                Expanded(
-                  child: Text(
-                    t.t('cbadge.title'),
-                    style: type.titleMedium.copyWith(color: colors.text),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              t.t('cbadge.lead'),
-              style: type.body.copyWith(color: colors.textSecondary),
-            ),
-          ]),
+          introCard(),
           const SizedBox(height: AppSpacing.md),
-          card([
-            Text(
-              t.t('cbadge.benefits.title'),
-              style: type.titleMedium.copyWith(color: colors.text),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            for (final k in [
-              'cbadge.benefit.check',
-              'cbadge.benefit.first',
-              'cbadge.benefit.files',
-              'cbadge.benefit.promo',
-              // Owner 2026-11-04 (R-398): only while «Только с галочкой».
-              if (ref.watch(clientBadgeIncludesReelsProvider))
-                'cbadge.benefit.reels',
-            ])
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    AppIcon(
-                      AppIcons.checkRounded,
-                      color: colors.gold,
-                      size: 20,
-                    ),
-                    const SizedBox(width: AppSpacing.sm),
-                    Expanded(
-                      child: Text(
-                        t.t(k),
-                        style: type.body.copyWith(color: colors.text),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ]),
+          benefitsCard(),
           if (reason != null && reason.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.md),
             Text(
@@ -420,69 +437,74 @@ class _ClientBadgeScreenState extends ConsumerState<ClientBadgeScreen>
               style: type.bodySmall.copyWith(color: colors.dangerText),
             ),
           ],
-          const SizedBox(height: AppSpacing.lg),
-          Text(
-            t.t('cbadge.docs'),
-            style: type.titleMedium.copyWith(color: colors.text),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            t.t('cbadge.docs.hint'),
-            style: type.caption.copyWith(color: colors.textSecondary),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          for (var i = 0; i < _docs.length; i++)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: ClipRRect(
-                borderRadius: BorderRadius.circular(AppRadii.card),
-                child: Image(
-                  image: thumbImage(context, _docs[i].bytes, maxSide: 48),
-                  width: 48,
-                  height: 48,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => AppIcon(
-                    AppIcons.articleOutlined,
-                    color: colors.textSecondary,
+          // Owner 16.11: the document step only while the admin switch
+          // «Проверка документов клиента» is on (a revoked client waits for
+          // the admin otherwise).
+          if (s.documentsRequired) ...[
+            const SizedBox(height: AppSpacing.lg),
+            Text(
+              t.t('cbadge.docs'),
+              style: type.titleMedium.copyWith(color: colors.text),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              t.t('cbadge.docs.hint'),
+              style: type.caption.copyWith(color: colors.textSecondary),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            for (var i = 0; i < _docs.length; i++)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadii.card),
+                  child: Image(
+                    image: thumbImage(context, _docs[i].bytes, maxSide: 48),
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => AppIcon(
+                      AppIcons.articleOutlined,
+                      color: colors.textSecondary,
+                    ),
                   ),
                 ),
+                title: Text(
+                  _docs[i].name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: type.body.copyWith(color: colors.text),
+                ),
+                trailing: AppIconButton(
+                  icon: AppIcon(AppIcons.closeRounded, color: colors.text),
+                  semanticLabel: t.t('common.remove'),
+                  onPressed:
+                      _busy ? null : () => setState(() => _docs.removeAt(i)),
+                ),
               ),
-              title: Text(
-                _docs[i].name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: type.body.copyWith(color: colors.text),
+            if (_docs.length < _maxDocs)
+              AppButton(
+                label: t.t('cbadge.addPhoto'),
+                icon: AppIcons.addRounded,
+                variant: AppButtonVariant.secondary,
+                onPressed: _busy ? null : _add,
               ),
-              trailing: AppIconButton(
-                icon: AppIcon(AppIcons.closeRounded, color: colors.text),
-                semanticLabel: t.t('common.remove'),
-                onPressed:
-                    _busy ? null : () => setState(() => _docs.removeAt(i)),
+            const SizedBox(height: AppSpacing.lg),
+            if (s.includedInPlan)
+              includedCard()
+            else
+              Text(
+                t.t('cbadge.price', {'price': price}),
+                style: type.bodySmall.copyWith(color: colors.textSecondary),
               ),
-            ),
-          if (_docs.length < _maxDocs)
+            const SizedBox(height: AppSpacing.md),
             AppButton(
-              label: t.t('cbadge.addPhoto'),
-              icon: AppIcons.addRounded,
-              variant: AppButtonVariant.secondary,
-              onPressed: _busy ? null : _add,
+              label: _progress == null
+                  ? t.t('cbadge.submit')
+                  : t.t('cbadge.uploading', {'n': _progress!}),
+              isLoading: _busy,
+              onPressed: _docs.isEmpty ? null : _submit,
             ),
-          const SizedBox(height: AppSpacing.lg),
-          if (s.includedInPlan)
-            includedCard()
-          else
-            Text(
-              t.t('cbadge.price', {'price': price}),
-              style: type.bodySmall.copyWith(color: colors.textSecondary),
-            ),
-          const SizedBox(height: AppSpacing.md),
-          AppButton(
-            label: _progress == null
-                ? t.t('cbadge.submit')
-                : t.t('cbadge.uploading', {'n': _progress!}),
-            isLoading: _busy,
-            onPressed: _docs.isEmpty ? null : _submit,
-          ),
+          ],
         ],
       );
     }

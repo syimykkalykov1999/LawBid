@@ -1187,9 +1187,9 @@ class SocialActions {
     _ref.read(postEventsQueueProvider).view(post.id);
     if (!_viewed.add(post.id)) return;
     final now = _latest(post);
-    // A view counter the author hid stays hidden (no local «+1» on the 0
-    // the server sends to others).
-    if (now.viewsHidden && !now.isMine) return;
+    // Owner 16.11 (Instagram): a hidden view counter stays hidden for
+    // everyone, the author too (no local «+1» on the 0 the server sends).
+    if (now.viewsHidden) return;
     _ref
         .read(postOverridesProvider.notifier)
         .put(now.copyWith(viewCount: now.viewCount + 1));
@@ -1435,11 +1435,12 @@ final socialActionsProvider = Provider<SocialActions>((ref) {
   return actions;
 });
 
-/// Whether to draw [post]'s like counter for this viewer: the author always
-/// sees it; others unless the author hid it or the viewer hides them all
-/// (while the `hide_counts` flag is on).
+/// Whether to draw [post]'s like counter — and its share and repost
+/// counters, one switch like Instagram's «Hide like and share counts»: not
+/// when the author hid them (while the `hide_counts` flag is on). Owner
+/// 16.11: hidden means hidden for everyone, the author included — no number
+/// and no mark.
 bool showLikeCount(WidgetRef ref, Post post) {
-  if (post.isMine) return true;
   if (!ref.watch(featureFlagsControllerProvider).isEnabled('hide_counts')) {
     return true;
   }
@@ -1448,19 +1449,11 @@ bool showLikeCount(WidgetRef ref, Post post) {
   return !post.likesHidden;
 }
 
-/// The same for [post]'s view counter. The server already sends others a 0
-/// for a hidden one; this also keeps a local «+1» from showing.
+/// The same for [post]'s view counter. The server already sends everyone a
+/// 0 for a hidden one; this also keeps a local «+1» from showing.
 bool showViewCount(WidgetRef ref, Post post) {
-  if (post.isMine) return true;
   if (!ref.watch(featureFlagsControllerProvider).isEnabled('hide_counts')) {
     return true;
   }
   return !post.viewsHidden;
 }
-
-/// Owner 2026-10-28 (Instagram): the author still sees the own numbers of a
-/// post whose counter they hid, with a small «Скрыто для других» mark.
-bool hiddenForOthersMark(WidgetRef ref, Post post, {required bool views}) =>
-    post.isMine &&
-    (views ? post.viewsHidden : post.likesHidden) &&
-    ref.watch(featureFlagsControllerProvider).isEnabled('hide_counts');

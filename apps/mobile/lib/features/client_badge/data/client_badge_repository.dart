@@ -49,6 +49,7 @@ class ClientBadgeRepository {
         badgeActive: d.badgeActive,
         priceCents: d.priceCents,
         discount: PlanMappers.discount(d.discount),
+        documentsRequired: d.documentsRequired,
         canSubmit: d.canSubmit,
         canSubscribe: d.canSubscribe,
         includedInPlan: d.includedInPlan,

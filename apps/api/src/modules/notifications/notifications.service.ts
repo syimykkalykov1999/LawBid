@@ -118,6 +118,8 @@ export const NOTIFICATION_CATEGORY: Record<
   subscription_status: 'system',
   data_export_ready: 'system',
   account_deletion_scheduled: 'system',
+  // Firms audit 16.11: a firm's events (payload.kind).
+  firm_update: 'system',
   case_history_export_ready: 'system',
   moderation_notice: 'system',
   security_new_device: 'system',
@@ -213,6 +215,7 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   subscription_status: true,
   data_export_ready: false,
   account_deletion_scheduled: true,
+  firm_update: true,
   case_history_export_ready: false,
   moderation_notice: true,
   security_new_device: false,

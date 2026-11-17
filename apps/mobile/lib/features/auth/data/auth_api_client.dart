@@ -245,6 +245,19 @@ class AuthApiClient {
     return envelope.data;
   }
 
+  /// Detective R2B-9 (14.11): `POST /auth/social/nonce` — the one-time
+  /// nonce a Google sign-in hands to Google (`GoogleSignIn` /
+  /// Credential Manager `nonce`) and then sends back as
+  /// [api.SocialLoginDto.nonce]. Fetched right before each Google sign-in:
+  /// it works once and only for minutes (admin `auth.social_nonce_ttl_sec`).
+  /// Like [socialLogin] it needs no session.
+  Future<String> socialNonce() async {
+    final envelope = await guardApiCall(
+      () => _auth.socialNonce(extras: _skipAuth),
+    );
+    return envelope.data.nonce;
+  }
+
   /// [isDemo]: the stored refresh token belongs to a demo session, so the
   /// request must carry the demo header even before a session exists in
   /// memory (docs/ops/demo-world.md; `RequestFlags.demo`).
