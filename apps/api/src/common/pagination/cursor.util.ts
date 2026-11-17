@@ -52,3 +52,39 @@ export function decodeCursor(raw: string): CreatedAtCursor {
     HttpStatus.BAD_REQUEST,
   );
 }
+
+/**
+ * Rows strictly after the keyset cursor in (created_at DESC, id DESC)
+ * order, as a Prisma `where` part (any model with `created_at` + `id`).
+ * Row 126 (#1084, EXPLAIN ANALYZE on 300 000 posts): the tie-break OR alone
+ * is only a Filter, so the index was read from the newest row down to the
+ * cursor on every page (290 001 rows removed, 259 ms at depth 290 000, and
+ * growing with the table). `created_at <= t` beside it is an Index Cond
+ * range on the (created_at DESC, id DESC) index: the same rows, read from
+ * the cursor on (2.2 ms). Prisma has no row comparison
+ * `(created_at, id) < (t, id)`, so this is its equivalent.
+ */
+export function createdBefore(after: { t: string | Date; id: string }): {
+  AND: [
+    { created_at: { lte: Date } },
+    {
+      OR: [
+        { created_at: { lt: Date } },
+        { created_at: Date; id: { lt: string } },
+      ];
+    },
+  ];
+} {
+  const t = new Date(after.t);
+  return {
+    AND: [
+      { created_at: { lte: t } },
+      {
+        OR: [
+          { created_at: { lt: t } },
+          { created_at: t, id: { lt: after.id } },
+        ],
+      },
+    ],
+  };
+}

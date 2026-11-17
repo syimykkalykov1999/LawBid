@@ -11,11 +11,19 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiProperty,
+  ApiPropertyOptional,
   ApiTags,
 } from '@nestjs/swagger';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -49,6 +57,23 @@ export class FirmDto {
   @ApiProperty() ownerId!: string;
   @ApiProperty({ type: [String] }) states!: string[];
   @ApiProperty({ type: [FirmMemberDto] }) members!: FirmMemberDto[];
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    format: 'date-time',
+    description:
+      "The viewer's own pending invitation to this firm is valid until then",
+  })
+  inviteExpiresAt!: string | null;
+}
+
+export class AcceptFirmInviteDto {
+  @ApiPropertyOptional({
+    description: 'Which invitation; the newest one when left out',
+  })
+  @IsOptional()
+  @IsUUID()
+  firmId?: string;
 }
 
 export class CreateFirmDto {
@@ -61,6 +86,12 @@ export class InviteFirmMemberDto {
   @MinLength(2)
   @MaxLength(60)
   username!: string;
+}
+
+export class TransferFirmOwnerDto {
+  @ApiProperty({ description: 'An active lawyer of the firm' })
+  @IsUUID()
+  attorneyId!: string;
 }
 
 /** Owner 2026-10-14: a firm is its lawyers; behind the flag `firm_profiles`. */
@@ -116,9 +147,17 @@ export class FirmsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Accept the invitation to a firm' })
   @ApiEnvelopeResponse(FirmDto)
-  @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.FEATURE_DISABLED] })
-  acceptFirmInvite(@CurrentUser() user: RequestUser): Promise<FirmDto> {
-    return this.firms.accept(user.sub);
+  @ApiErrors({
+    404: [E.NOT_FOUND],
+    409: [E.FEATURE_DISABLED, E.FIRM_ALREADY_MEMBER, E.FIRM_FULL],
+  })
+  // Optional: an older app sends no body (the newest invitation).
+  @ApiBody({ type: AcceptFirmInviteDto, required: false })
+  acceptFirmInvite(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: AcceptFirmInviteDto,
+  ): Promise<FirmDto> {
+    return this.firms.accept(user.sub, dto?.firmId);
   }
 
   @AttorneyOnly()
@@ -128,13 +167,42 @@ export class FirmsController {
   @ApiErrors({
     403: [E.FORBIDDEN],
     404: [E.NOT_FOUND],
-    409: [E.FEATURE_DISABLED],
+    409: [E.FEATURE_DISABLED, E.FIRM_OWNER_MUST_TRANSFER],
   })
   removeFirmMember(
     @CurrentUser() user: RequestUser,
     @Param('attorneyId', ParseUUIDPipe) attorneyId: string,
   ): Promise<void> {
     return this.firms.remove(user.sub, attorneyId);
+  }
+
+  @AttorneyOnly()
+  @Post('me/owner')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Owner makes an active lawyer the owner (stays a member)',
+  })
+  @ApiEnvelopeResponse(FirmDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN],
+    404: [E.NOT_FOUND],
+    409: [E.FEATURE_DISABLED],
+  })
+  transferFirmOwner(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: TransferFirmOwnerDto,
+  ): Promise<FirmDto> {
+    return this.firms.transferOwnership(user.sub, dto.attorneyId);
+  }
+
+  @AttorneyOnly()
+  @Delete('me')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Owner closes the firm; its lawyers are told' })
+  @ApiErrors({ 403: [E.FORBIDDEN], 409: [E.FEATURE_DISABLED] })
+  closeFirm(@CurrentUser() user: RequestUser): Promise<void> {
+    return this.firms.close(user.sub);
   }
 
   @AttorneyOnly()
