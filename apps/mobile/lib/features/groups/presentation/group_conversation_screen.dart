@@ -21,6 +21,7 @@ import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
@@ -100,11 +101,49 @@ class _GroupConversationScreenState
 
   GroupThread get _thread => ref.read(groupThreadProvider(_key).notifier);
 
+  /// Groups WhatsApp parity, the 1:1 chat's drafts (chatTextDraftsProvider,
+  /// kept on the device per account): the unsent text of this group (or
+  /// topic) survives leaving the chat and killing the app.
+  String get _draftKey => groupDraftKey(widget.groupId, widget.topicId);
+
+  /// The draft that waits while an old message is being edited.
+  String _heldDraft = '';
+
+  void _saveDraft() {
+    // The field holds the edited message's text then, not a draft.
+    if (_editing != null) return;
+    ref.read(chatTextDraftsProvider.notifier).set(_draftKey, _text.text);
+  }
+
+  /// Leaves edit mode (the composer clears the field); the draft that
+  /// waited comes back right after.
+  void _stopEditing() {
+    if (_editing == null) return;
+    _editing = null;
+    final held = _heldDraft;
+    _heldDraft = '';
+    if (held.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _editing == null && _text.text.isEmpty) {
+        _text.value = TextEditingValue(
+          text: held,
+          selection: TextSelection.collapsed(offset: held.length),
+        );
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
-    _text.addListener(_onTyping);
+    // Groups WhatsApp parity (1:1 ConversationScreen): the unsent text is
+    // back.
+    final draft = ref.read(chatTextDraftsProvider.notifier).of(_draftKey);
+    if (draft != null) _text.text = draft;
+    _text
+      ..addListener(_saveDraft)
+      ..addListener(_onTyping);
     // A call may start or end in the group while this chat is open:
     // groupRunningCallProvider follows the server's `call:ongoing` events
     // (owner 2026-10-22, load audit finding 3: no 10 s polling).
@@ -173,7 +212,9 @@ class _GroupConversationScreenState
     _scroll
       ..removeListener(_onScroll)
       ..dispose();
-    _text.dispose();
+    _text
+      ..removeListener(_saveDraft)
+      ..dispose();
     super.dispose();
   }
 
@@ -323,13 +364,13 @@ class _GroupConversationScreenState
     final m = _editing;
     if (m == null) return;
     if (text == m.body.trim()) {
-      setState(() => _editing = null);
+      setState(_stopEditing);
       return;
     }
     try {
       await _thread.edit(m.id, text);
       // Leaving edit mode also clears the field; a failure keeps the text.
-      if (mounted && _editing?.id == m.id) setState(() => _editing = null);
+      if (mounted && _editing?.id == m.id) setState(_stopEditing);
     } on Object catch (e) {
       if (!mounted) return;
       _error(e);
@@ -572,7 +613,7 @@ class _GroupConversationScreenState
       case GroupMessageAction.reply:
         setState(() {
           _replyTo = m;
-          _editing = null;
+          _stopEditing();
         });
       case GroupMessageAction.copy:
         await Clipboard.setData(ClipboardData(text: m.body));
@@ -584,6 +625,9 @@ class _GroupConversationScreenState
       case GroupMessageAction.select:
         setState(() => _selected = {m.id});
       case GroupMessageAction.edit:
+        // The unsent text waits while an old message is edited, and comes
+        // back in the field afterwards (WhatsApp).
+        _heldDraft = _text.text;
         setState(() {
           _editing = m;
           _replyTo = null;
@@ -950,7 +994,7 @@ class _GroupConversationScreenState
         onToggle: _selected.isEmpty ? null : _toggle,
         onReply: (m) => setState(() {
           _replyTo = m;
-          _editing = null;
+          _stopEditing();
         }),
         onJump: _jumpTo,
         onRetry: _thread.retry,
@@ -1021,7 +1065,7 @@ class _GroupConversationScreenState
             canAttach: detail.canSendMedia || detail.canSendPolls,
             onCancelReply: () => setState(() => _replyTo = null),
             onCancelEdit: () {
-              setState(() => _editing = null);
+              setState(_stopEditing);
               _text.clear();
             },
           )
