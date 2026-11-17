@@ -87,6 +87,8 @@ import 'clients/feed_client.dart';
 import 'clients/client_reviews_client.dart';
 import 'clients/admin_review_appeals_client.dart';
 import 'clients/contacts_sync_client.dart';
+import 'clients/hotline_client.dart';
+import 'clients/admin_hotline_client.dart';
 import 'clients/admin_integrations_client.dart';
 import 'clients/admin_ops_client.dart';
 import 'clients/admin_shards_client.dart';
@@ -244,6 +246,8 @@ class LawbidApi {
   ClientReviewsClient? _clientReviews;
   AdminReviewAppealsClient? _adminReviewAppeals;
   ContactsSyncClient? _contactsSync;
+  HotlineClient? _hotline;
+  AdminHotlineClient? _adminHotline;
   AdminIntegrationsClient? _adminIntegrations;
   AdminOpsClient? _adminOps;
   AdminShardsClient? _adminShards;
@@ -546,6 +550,12 @@ class LawbidApi {
 
   ContactsSyncClient get contactsSync =>
       _contactsSync ??= ContactsSyncClient(_dio, baseUrl: _baseUrl);
+
+  HotlineClient get hotline =>
+      _hotline ??= HotlineClient(_dio, baseUrl: _baseUrl);
+
+  AdminHotlineClient get adminHotline =>
+      _adminHotline ??= AdminHotlineClient(_dio, baseUrl: _baseUrl);
 
   AdminIntegrationsClient get adminIntegrations =>
       _adminIntegrations ??= AdminIntegrationsClient(_dio, baseUrl: _baseUrl);
