@@ -196,6 +196,8 @@ class StoryPublishJob extends Notifier<StoryPublishState> {
           durationMs: d.videoDurationMs,
           limits: limits,
           reencodeAboveKbps: videoReencodeAboveKbpsOf(flags),
+          oneEncode: bunnyOneEncodeOf(flags),
+          maxBytes: videoMaxBytesOf(flags),
         );
     if (!need) return file;
     final compressor = ref.read(videoCompressorProvider);
