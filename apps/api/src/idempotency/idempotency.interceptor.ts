@@ -6,6 +6,7 @@ import {
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
+import { INTERCEPTORS_METADATA } from '@nestjs/common/constants';
 import type { Request, Response } from 'express';
 import type Redis from 'ioredis';
 import { createHash, randomUUID } from 'node:crypto';
@@ -82,6 +83,9 @@ return 0
  */
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
+  /** The global copy (see [GlobalIdempotencyInterceptor]). */
+  protected readonly signedInOnly: boolean = false;
+
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
 
   intercept(
@@ -95,8 +99,12 @@ export class IdempotencyInterceptor implements NestInterceptor {
     // Verify 17.11: registered globally AND still named on some routes —
     // the first (outer) instance owns the request, an inner one only passes
     // it on (a second claim would find its own pending record → 409).
-    const marked = req as { [IDEMPOTENCY_SEEN]?: true };
+    const marked = req as { [IDEMPOTENCY_SEEN]?: true; userId?: string };
     if (marked[IDEMPOTENCY_SEEN]) return next.handle();
+    // The global copy guards signed-in requests only: webhooks (Stripe,
+    // Bunny, SNS, Twilio) and other anonymous routes are left exactly as
+    // before — a route that wants it names the interceptor itself.
+    if (this.signedInOnly && !marked.userId) return next.handle();
     marked[IDEMPOTENCY_SEEN] = true;
 
     if (!key || req.method === 'GET' || req.method === 'HEAD') {
@@ -127,6 +135,10 @@ export class IdempotencyInterceptor implements NestInterceptor {
           return this.runAndStore(next, res, cacheKey, token, fingerprint);
         }
         if (existing.fingerprint !== fingerprint) {
+          // The global copy: a route that never promised replays (e.g. an
+          // outbox job re-sent with its own stable key and new file ids)
+          // runs as a new request instead of being refused for ever.
+          if (this.signedInOnly) return next.handle();
           return throwError(() => this.conflict('payload_mismatch'));
         }
         if (existing.state === 'pending') {
@@ -234,4 +246,40 @@ export class IdempotencyInterceptor implements NestInterceptor {
       details: { reason },
     });
   }
+}
+
+/**
+ * Verify 17.11 (Stripe: an Idempotency-Key on any POST): registered as an
+ * APP_INTERCEPTOR so every signed-in keyed request is applied once. Differs
+ * from the route-level copy in two ways: anonymous requests (webhooks,
+ * sign-in) pass untouched, and a different body under a seen key runs as a
+ * new request rather than 409 (the route-level copy stays strict). The key
+ * is scoped by user, method and URL, so one person's response is never
+ * replayed to another.
+ */
+@Injectable()
+export class GlobalIdempotencyInterceptor extends IdempotencyInterceptor {
+  protected override readonly signedInOnly = true;
+
+  override intercept(
+    context: ExecutionContext,
+    next: CallHandler<unknown>,
+  ): Observable<unknown> {
+    // A route (or its controller) that names the interceptor keeps its own,
+    // strict copy — the global one steps aside entirely.
+    if (
+      namesInterceptor(context.getHandler()) ||
+      namesInterceptor(context.getClass())
+    ) {
+      return next.handle();
+    }
+    return super.intercept(context, next);
+  }
+}
+
+function namesInterceptor(target: object | undefined): boolean {
+  if (!target) return false;
+  const list = Reflect.getMetadata(INTERCEPTORS_METADATA, target) as
+    unknown[] | undefined;
+  return (list ?? []).some((i) => i === IdempotencyInterceptor);
 }
