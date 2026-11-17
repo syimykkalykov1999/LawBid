@@ -14,3 +14,7 @@ id = "generic-api-key"
 [[rules.allowlists]]
 description = "translations seed: key names with keyword lists, not secrets"
 paths = ['''apps/api/prisma/seed/translations/[A-Za-z_-]+\.json''']
+
+[[rules.allowlists]]
+description = "hotline: SHA-256 pins of the 1:1 calls files (names like *-token.ts), not secrets"
+paths = ['''apps/api/src/modules/hotline/hotline-calls-untouched\.baseline\.json''']
