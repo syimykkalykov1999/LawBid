@@ -46,15 +46,12 @@ for SVC in $SERVICES; do
       || { echo "::error::$SVC runs on ARM64 but lawbid-*:${TAG} has no arm64 build"; exit 1; }
   fi
 done
-for SVC in $SERVICES; do
-  FAMILY="${CLUSTER}-${SVC}"
-  IMAGE="${REGISTRY}/lawbid-$( [ "$SVC" = admin ] && echo admin || echo api ):${TAG}"
-  SRC="$FAMILY"
-  if [ "${TD_FROM:-family}" = running ]; then
-    SRC=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SVC" --query 'services[0].taskDefinition' --output text)
-    case "$SRC" in arn:*) ;; *) echo "::error::$SVC: no running task definition ($SRC)" >&2; exit 1 ;; esac
-  fi
-  aws ecs describe-task-definition --task-definition "$SRC" --query 'taskDefinition' > td.json
+# new_revision <source task definition> <image> <app container>: registers a
+# copy of the source with the app container on <image> (APP_VERSION = $TAG)
+# and prints the new revision's ARN. The pool key of DB_POOL_ENV_JSON is the
+# container name (api-admin's container is `api`).
+new_revision() {
+  aws ecs describe-task-definition --task-definition "$1" --query 'taskDefinition' > td.json || return 1
   node -e '
     const fs = require("fs");
     const td = JSON.parse(fs.readFileSync("td.json", "utf8"));
@@ -76,32 +73,63 @@ for SVC in $SERVICES; do
     for (const c of td.containerDefinitions) c.image = c.image.replace(/(\/lawbid-clamav:1\.4)$/, "$1-debian");
     for (const k of ["taskDefinitionArn","revision","status","requiresAttributes","compatibilities","registeredAt","registeredBy","deregisteredAt"]) delete td[k];
     fs.writeFileSync("td.new.json", JSON.stringify(td));
-  ' "$IMAGE" "$TAG" "$SVC"
-  REV=$(aws ecs register-task-definition --cli-input-json file://td.new.json --query 'taskDefinition.taskDefinitionArn' --output text)
+  ' "$2" "$TAG" "$3" || return 1
+  aws ecs register-task-definition --cli-input-json file://td.new.json --query 'taskDefinition.taskDefinitionArn' --output text
+}
+
+ADM_PREV=""
+for SVC in $SERVICES; do
+  FAMILY="${CLUSTER}-${SVC}"
+  IMAGE="${REGISTRY}/lawbid-$( [ "$SVC" = admin ] && echo admin || echo api ):${TAG}"
+  SRC="$FAMILY"
+  if [ "${TD_FROM:-family}" = running ]; then
+    SRC=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SVC" --query 'services[0].taskDefinition' --output text)
+    case "$SRC" in arn:*) ;; *) echo "::error::$SVC: no running task definition ($SRC)" >&2; exit 1 ;; esac
+  fi
+  REV=$(new_revision "$SRC" "$IMAGE" "$SVC")
   aws ecs update-service --cluster "$CLUSTER" --service "$SVC" --task-definition "$REV" >/dev/null
   echo "$SVC -> $REV"
   REVS="$REVS $SVC=$REV"
-  # Owner 2026-11-11 («А»): the admin panel's API service runs the same
-  # revision as api (infra/modules/ecs aws_ecs_service.api_admin), when it exists.
+  # Owner 2026-11-11 («А»): the admin panel's API service runs api's image
+  # (infra/modules/ecs aws_ecs_service.api_admin), when it exists. Row 204
+  # (task_role_split): once Terraform put it on its own family
+  # <cluster>-api-admin (own task role), it gets a revision of THAT family
+  # with the same image; before that it shares api's revision, as before.
   if [ "$SVC" = api ] && [ "$(aws ecs describe-services --cluster "$CLUSTER" --services api-admin \
       --query 'services[?status==`ACTIVE`] | length(@)' --output text 2>/dev/null || echo 0)" = "1" ]; then
-    aws ecs update-service --cluster "$CLUSTER" --service api-admin --task-definition "$REV" >/dev/null
-    echo "api-admin -> $REV"
-    REVS="$REVS api-admin=$REV"
+    ADM_RUN=$(aws ecs describe-services --cluster "$CLUSTER" --services api-admin --query 'services[0].taskDefinition' --output text)
+    case "$ADM_RUN" in
+      */"${CLUSTER}-api-admin":*)
+        ADM_PREV="$ADM_RUN"
+        ADM_SRC="${CLUSTER}-api-admin"
+        [ "${TD_FROM:-family}" = running ] && ADM_SRC="$ADM_RUN"
+        ADM_REV=$(new_revision "$ADM_SRC" "$IMAGE" api)
+        ;;
+      *) ADM_REV="$REV" ;;
+    esac
+    aws ecs update-service --cluster "$CLUSTER" --service api-admin --task-definition "$ADM_REV" >/dev/null
+    echo "api-admin -> $ADM_REV"
+    REVS="$REVS api-admin=$ADM_REV"
   fi
 done
 
-# D1-35 (13.11): api-admin runs api's revision. When api's rollout fails
-# (ECS rolled api back) or is replaced, api-admin must not stay on the
-# rejected release: put it on whatever api runs now and wait for that.
+# D1-35 (13.11): api-admin runs api's revision (row 204: or its own family's
+# revision with api's image). When api's rollout fails (ECS rolled api back)
+# or is replaced, api-admin must not stay on the rejected release: put it on
+# whatever api runs now (own family: the revision it ran before) and wait.
 align_api_admin() {
   case " $REVS " in *" api-admin="*) ;; *) return 0 ;; esac
-  CUR=$(aws ecs describe-services --cluster "$CLUSTER" --services api \
-    --query 'services[0].taskDefinition' --output text 2>/dev/null || true)
+  if [ -n "$ADM_PREV" ]; then
+    # Row 204: its own family; back to the revision it ran before this roll.
+    CUR="$ADM_PREV"
+  else
+    CUR=$(aws ecs describe-services --cluster "$CLUSTER" --services api \
+      --query 'services[0].taskDefinition' --output text 2>/dev/null || true)
+  fi
   [ -n "$CUR" ] && [ "$CUR" != None ] || { echo "::warning::api-admin: could not read api's revision"; return 0; }
   aws ecs update-service --cluster "$CLUSTER" --service api-admin --task-definition "$CUR" >/dev/null \
     || { echo "::error::api-admin: could not move back to $CUR"; return 0; }
-  echo "api-admin -> $CUR (api's current revision, after the api rollback)"
+  echo "api-admin -> $CUR (back after the api rollback)"
   t0=$(date +%s)
   while [ $(( $(date +%s) - t0 )) -lt "$ROLL_TIMEOUT_SECONDS" ]; do
     ST=$(aws ecs describe-services --cluster "$CLUSTER" --services api-admin \

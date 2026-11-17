@@ -23,6 +23,8 @@ HotlineRequestViewDto _$HotlineRequestViewDtoFromJson(
       : HotlineDisclosureDto.fromJson(
           json['disclosure'] as Map<String, dynamic>,
         ),
+  callId: json['callId'] as String?,
+  conversationId: json['conversationId'] as String?,
 );
 
 Map<String, dynamic> _$HotlineRequestViewDtoToJson(
@@ -36,4 +38,6 @@ Map<String, dynamic> _$HotlineRequestViewDtoToJson(
   'lawyer': ?instance.lawyer?.toJson(),
   'notifyUntil': ?instance.notifyUntil,
   'disclosure': ?instance.disclosure?.toJson(),
+  'callId': ?instance.callId,
+  'conversationId': ?instance.conversationId,
 };
