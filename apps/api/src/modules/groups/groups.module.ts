@@ -13,6 +13,7 @@ import { AdminGroupsController } from './admin-groups.controller';
 import { AdminGroupsService } from './admin-groups.service';
 import { GroupPollsService } from './group-polls.service';
 import { GroupReactionsService } from './group-reactions.service';
+import { GroupReceiptsService } from './group-receipts.service';
 import { StarsCoreModule } from '../stars/stars.module';
 import { GroupPresenter } from './group-presenter.service';
 import { GroupSharedController } from './group-shared.controller';
@@ -44,6 +45,7 @@ import { GroupFanoutQueue } from './group-fanout.queue';
     GroupsService,
     GroupPollsService,
     GroupReactionsService,
+    GroupReceiptsService,
     GroupPresenter,
     GroupSharedService,
     AdminGroupsService,

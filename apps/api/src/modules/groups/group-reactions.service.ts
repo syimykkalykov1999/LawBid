@@ -3,12 +3,14 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { isSingleEmoji } from '../chat/chat-message-extras';
+import { NotificationsService } from '../notifications/notifications.service';
 import { StarsService } from '../stars/stars.service';
 import { GroupPresenter } from './group-presenter.service';
 import type { GroupMessageDto } from './groups.dto';
@@ -30,6 +32,7 @@ export class GroupReactionsService {
     private readonly groups: GroupsService,
     private readonly presenter: GroupPresenter,
     private readonly stars: StarsService,
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   /** PUT /groups/:id/messages/:messageId/reaction. */
@@ -84,8 +87,40 @@ export class GroupReactionsService {
           update: { emoji: clean, created_at: new Date() },
         });
       });
+      // Only the author of the message hears about a reaction (the 1:1
+      // ChatActionsService.react push: «Kim: Реакция 👍 «text»»).
+      if (row.sender_id && row.sender_id !== user.sub) {
+        await this.notifyAuthor(row.sender_id, groupId, row.id, {
+          actorId: user.sub,
+          emoji: clean,
+        });
+      }
     }
     await this.groups.broadcast(groupId, row);
     return (await this.presenter.messages([row], user.sub))[0];
+  }
+
+  /** A failed alert never fails the reaction. */
+  private async notifyAuthor(
+    recipientId: string,
+    groupId: string,
+    messageId: string,
+    extra: { actorId: string; emoji: string },
+  ): Promise<void> {
+    try {
+      await this.notifications?.emit({
+        type: 'new_message',
+        recipientId,
+        payload: {
+          groupId,
+          conversationId: groupId,
+          messageId,
+          event: 'reaction',
+          ...extra,
+        },
+      });
+    } catch {
+      // The push queue is down: the reaction itself is saved.
+    }
   }
 }

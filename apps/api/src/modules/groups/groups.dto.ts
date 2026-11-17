@@ -20,7 +20,14 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { ChatAttachmentDto, ReactionDto } from '../chat/chat.dto';
+import {
+  ChatAttachmentDto,
+  ReactionDto,
+  VOICE_MAX_MS,
+  VOICE_MIN_MS,
+  VOICE_WAVEFORM_MAX,
+  VoiceNoteDto,
+} from '../chat/chat.dto';
 import { UpdatedSinceQuery, type SyncPage } from '../../common/sync/sync.util';
 
 /** Owner 2026-10-20: group chats (Telegram + WhatsApp) — limits. */
@@ -461,9 +468,9 @@ export class SendGroupMessageDto {
   @MaxLength(64)
   clientMessageId!: string;
 
-  @ApiProperty({ enum: ['text', 'attachment'] })
-  @IsIn(['text', 'attachment'])
-  type!: 'text' | 'attachment';
+  @ApiProperty({ enum: ['text', 'attachment', 'voice'] })
+  @IsIn(['text', 'attachment', 'voice'])
+  type!: 'text' | 'attachment' | 'voice';
 
   @ApiPropertyOptional({
     maxLength: GROUP_MESSAGE_MAX_CHARS,
@@ -498,7 +505,11 @@ export class SendGroupMessageDto {
   @IsUUID('all', { each: true })
   mentionIds?: string[];
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'type=attachment.' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'type=attachment: a clean `chat_attachment` file; type=voice: a clean `chat_voice` file of the sender.',
+  })
   @IsOptional()
   @IsUUID('all')
   fileId?: string;
@@ -508,6 +519,31 @@ export class SendGroupMessageDto {
   @IsString()
   @MaxLength(200)
   fileName?: string;
+
+  // Groups WhatsApp parity (voice): the same fields as SendMessageDto.
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: VOICE_MIN_MS,
+    maximum: VOICE_MAX_MS,
+    description: 'type=voice.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(VOICE_MIN_MS)
+  @Max(VOICE_MAX_MS)
+  durationMs?: number;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    isArray: true,
+    description: `type=voice: up to ${VOICE_WAVEFORM_MAX} bars, each 0–100.`,
+  })
+  @IsOptional()
+  @ArrayMaxSize(VOICE_WAVEFORM_MAX)
+  @IsInt({ each: true })
+  @Min(0, { each: true })
+  @Max(100, { each: true })
+  waveform?: number[];
 }
 
 export class EditGroupMessageDto {
@@ -738,7 +774,7 @@ export class GroupReplyPreviewDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   senderName!: string | null;
 
-  @ApiProperty({ enum: ['text', 'system', 'poll', 'attachment'] })
+  @ApiProperty({ enum: ['text', 'system', 'poll', 'attachment', 'voice'] })
   type!: string;
 
   @ApiProperty({
@@ -765,8 +801,8 @@ export class GroupMessageDto {
   })
   topicId!: string | null;
 
-  @ApiProperty({ enum: ['text', 'system', 'poll', 'attachment'] })
-  type!: 'text' | 'system' | 'poll' | 'attachment';
+  @ApiProperty({ enum: ['text', 'system', 'poll', 'attachment', 'voice'] })
+  type!: 'text' | 'system' | 'poll' | 'attachment' | 'voice';
 
   @ApiPropertyOptional({ type: GroupPersonDto, nullable: true })
   sender!: GroupPersonDto | null;
@@ -812,6 +848,11 @@ export class GroupMessageDto {
 
   @ApiPropertyOptional({ type: ChatAttachmentDto, nullable: true })
   attachment!: ChatAttachmentDto | null;
+
+  // Groups WhatsApp parity (voice): the 1:1 chat's note. Optional in the
+  // contract: builds that predate it read a missing field.
+  @ApiPropertyOptional({ type: VoiceNoteDto, nullable: true })
+  voice?: VoiceNoteDto | null;
 
   @ApiPropertyOptional({ type: PollDto, nullable: true })
   poll!: PollDto | null;
@@ -1258,6 +1299,21 @@ export class GroupTopicDto {
 
   @ApiProperty()
   createdAt!: Date;
+}
+
+/** Groups WhatsApp parity («Данные» of my message): who has read it. */
+export class GroupMessageReadersDto {
+  @ApiProperty({
+    type: () => [GroupPersonDto],
+    description: 'Members whose read mark is at or past the message.',
+  })
+  readers!: GroupPersonDto[];
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Current members besides the author (who could read it).',
+  })
+  recipients!: number;
 }
 
 export class GroupReadResultDto {
