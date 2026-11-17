@@ -411,7 +411,10 @@ export class CaseCompletionReminderJob {
         try {
           const emitted = await emitOnce(
             this.redis,
-            `reminder:completion:${row.id}`,
+            // Verify 17.11: per close request (its auto_close_at), not per
+            // case — a declined «Выполнено» asked again within 48 h was
+            // never reminded (the first claim was still there).
+            `reminder:completion:${row.id}:${row.at.getTime()}`,
             claimTtlSec,
             () =>
               this.notifications.emit({
@@ -471,15 +474,28 @@ export class BidConfirmReminderJob {
               confirmation_required_at: { lte: before },
               confirm_reminded_at: null,
             },
-            select: { id: true, case_id: true, attorney_id: true },
+            select: {
+              id: true,
+              case_id: true,
+              attorney_id: true,
+              confirmation_required_at: true,
+            },
             take: CASE_JOB_BATCH,
           });
           for (const row of rows) {
             try {
-              await this.prisma.bid.update({
-                where: { id: row.id },
+              // Verify 17.11: one reminder per confirmation request — a
+              // conditional claim, so two overlapping runs (or a lock that
+              // expired mid-run) do not both send it.
+              const { count } = await this.prisma.bid.updateMany({
+                where: {
+                  id: row.id,
+                  confirm_reminded_at: null,
+                  confirmation_required_at: row.confirmation_required_at,
+                },
                 data: { confirm_reminded_at: now },
               });
+              if (count === 0) continue;
               await this.notifications.emit({
                 type: 'bid_confirm_reminder',
                 recipientId: row.attorney_id,

@@ -14,23 +14,23 @@ import '../profile/profile_fakes.dart';
 import 'cases_fakes.dart';
 
 CaseSummary _case(String id, CaseStatus status, {int bids = 0}) => CaseSummary(
-  id: id,
-  title: 'Case $id',
-  practice: const PracticeRef(
-    id: 'p-traffic',
-    code: 'traffic_tickets',
-    i18nKey: 'practice.traffic',
-    nameEn: 'Traffic',
-  ),
-  primaryStateCode: 'NJ',
-  additionalStateCount: 0,
-  city: null,
-  status: status,
-  budget: const CaseBudget(mode: BudgetMode.clarifyLater),
-  bidsCount: bids,
-  createdAt: DateTime(2026, 10, 4),
-  lastActivityAt: DateTime(2026, 10, 4),
-);
+      id: id,
+      title: 'Case $id',
+      practice: const PracticeRef(
+        id: 'p-traffic',
+        code: 'traffic_tickets',
+        i18nKey: 'practice.traffic',
+        nameEn: 'Traffic',
+      ),
+      primaryStateCode: 'NJ',
+      additionalStateCount: 0,
+      city: null,
+      status: status,
+      budget: const CaseBudget(mode: BudgetMode.clarifyLater),
+      bidsCount: bids,
+      createdAt: DateTime(2026, 10, 4),
+      lastActivityAt: DateTime(2026, 10, 4),
+    );
 
 class _Repo extends FakeCasesRepository {
   _Repo(List<CaseSummary> items) : super(myCasesItems: items);

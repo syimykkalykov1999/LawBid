@@ -35,6 +35,7 @@ import {
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
+import { withDeleted } from '../../prisma/soft-delete.extension';
 import { PrismaService } from '../../prisma/prisma.service';
 import { parseUpdatedSince, syncedAt } from '../../common/sync/sync.util';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -1445,7 +1446,10 @@ export class CasesService {
       query.sort ?? (filter === 'active' ? 'stage' : 'newest');
     const changed = since
       ? await this.prisma.case.findMany({
-          where: base,
+          // Verify 17.11: deleted cases too — the soft-delete filter hid
+          // them, so a deleted case never reached `deletedIds` and stayed
+          // on every device's «Мои» until a full reload.
+          where: withDeleted(base),
           orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
           take: 500,
           include: CASE_DETAIL_INCLUDE,
