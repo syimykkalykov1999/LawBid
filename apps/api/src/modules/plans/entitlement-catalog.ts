@@ -196,8 +196,8 @@ export const ENTITLEMENT_CATALOG: readonly EntitlementDef[] = [
   {
     // Owner row 87 (16.11 ~19:45): per plan the hotline is «Входит в тариф»
     // (this switch), «Отдельное дополнение $N» (the price below) or
-    // «Недоступно» (neither). Not read while «Бесплатно для всех»
-    // (hotline.free_for_all_enabled) is on.
+    // «Недоступно» (neither). Read only in `hotline.mode` = by_subscription
+    // («По подписке»), like attachments_in_posts.
     key: 'hotline',
     type: 'boolean',
     audiences: ['attorney'],
@@ -441,8 +441,8 @@ export const BASELINE_DEFAULTS: Record<Audience, Entitlements> = {
     priority_search: false,
     calls: true,
     video_calls: true,
-    // Owner 16.11: read only while «Бесплатно для всех» is off — then
-    // unavailable unless the owner sets it on a plan.
+    // Owner 16.11: read only in «По подписке» — then unavailable unless the
+    // owner sets it on a plan.
     hotline: false,
     hotline_addon_price_cents: null,
     // Owner 2026-10-05: templates come with a paid attorney plan.

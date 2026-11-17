@@ -408,11 +408,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     };
   }
   // Owner row 87 (16.11): the call hotline numbers (Russian label + key).
-  out['hotline.free_for_all_enabled'] = {
-    type: 'boolean',
-    defaultValue: true,
+  out['hotline.mode'] = {
+    type: 'string',
+    defaultValue: 'on_for_all',
     description:
-      'Горячая линия: «Бесплатно для всех» — любой адвокат с проверенной лицензией может ждать звонки, что бы ни стояло в планах (по умолчанию вкл., пока деньги выключены). Выкл. — решает план адвоката в «Деньги → Планы»: «Входит в тариф», «Отдельное дополнение» (цена в плане) или «Недоступно»; пробный срок — hotline.trial_days / hotline.trial_minutes. Клиенту всегда бесплатно. Меняется сразу, без выката (hotline.free_for_all_enabled).',
+      'Горячая линия: кто из адвокатов может ждать звонки — те же три режима, что у вложений в постах. on_for_all — «Вкл для всех» (по умолчанию, пока деньги выключены): любой адвокат с проверенной лицензией; by_subscription — «По подписке»: решает план адвоката в «Деньги → Планы» («Горячая линия входит в тариф» или «отдельное дополнение» с ценой рядом с ценой места помощника), пробный срок — hotline.trial_days / hotline.trial_minutes; off_for_all — «Выкл для всех»: ни один адвокат. Клиенту всегда бесплатно. Меняется сразу, без выката (hotline.mode).',
+    pattern: /^(by_subscription|off_for_all|on_for_all)$/,
   };
   out['hotline.counter_bands'] = {
     type: 'integer[]',

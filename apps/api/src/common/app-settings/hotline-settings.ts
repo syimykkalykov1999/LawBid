@@ -182,14 +182,14 @@ export const HOTLINE_SETTING_DEFS: readonly HotlineSettingDef[] = [
     default: 0,
     min: 0,
     labelRu:
-      'Горячая линия: бесплатный пробный срок адвоката, дней с первого включения линии (когда «Бесплатно для всех» выключено; 0 — нет)',
+      'Горячая линия: бесплатный пробный срок адвоката, дней с первого включения линии (режим «По подписке»; 0 — нет)',
   },
   {
     key: 'hotline.trial_minutes',
     default: 0,
     min: 0,
     labelRu:
-      'Горячая линия: бесплатные пробные минуты разговоров адвоката (когда «Бесплатно для всех» выключено; 0 — нет)',
+      'Горячая линия: бесплатные пробные минуты разговоров адвоката (режим «По подписке»; 0 — нет)',
   },
   {
     key: 'hotline.disclosure_version',
@@ -229,10 +229,12 @@ export const OWNER_HOTLINE_SETTINGS = {
   'hotline.disclosure_version': 1,
   'hotline.trial_days': 0,
   'hotline.trial_minutes': 0,
-  /** Owner 16.11 ~19:45: «Бесплатно для всех» overrides every plan while
-   * payments are off (on at start). Off = each plan decides (Деньги →
-   * Планы): «Входит в тариф» / «Отдельное дополнение $N» / «Недоступно». */
-  'hotline.free_for_all_enabled': true,
+  /** Owner 16.11 ~19:45 / ~20:05: who may wait for hotline calls — the same
+   * three modes as «Вложения в постах» (attachments_in_posts): on_for_all
+   * («Вкл для всех», the start while payments are off), by_subscription
+   * («По подписке»: each plan in Деньги → Планы — included / add-on $N /
+   * unavailable), off_for_all («Выкл для всех»: no attorney). */
+  'hotline.mode': 'on_for_all',
   /** Owner 16.11 ~19:50: after the one-time disclosure, later calls may show a
    * tiny «Звонки не записываются» line (off by default). */
   'hotline.short_notice_enabled': false,
@@ -247,7 +249,7 @@ export const OWNER_HOTLINE_SETTINGS = {
 
 export type HotlineSettingKey = Exclude<
   keyof typeof OWNER_HOTLINE_SETTINGS,
-  | 'hotline.free_for_all_enabled'
+  | 'hotline.mode'
   | 'hotline.short_notice_enabled'
   | 'hotline.counter_bands'
   | 'hotline.review_enabled'
@@ -300,4 +302,21 @@ export function bandOf(count: number, bands: readonly number[]): string {
     if (count >= bands[i]) shown = `${bands[i]}+`;
   }
   return shown;
+}
+
+/** The three modes of the plan builder (attachments_in_posts pattern). */
+export const HOTLINE_MODES = [
+  'by_subscription',
+  'off_for_all',
+  'on_for_all',
+] as const;
+export type HotlineMode = (typeof HOTLINE_MODES)[number];
+
+export function hotlineModeFrom(
+  appConfig: Readonly<Record<string, unknown>>,
+): HotlineMode {
+  const v = appConfig['hotline.mode'];
+  return (HOTLINE_MODES as readonly unknown[]).includes(v)
+    ? (v as HotlineMode)
+    : 'on_for_all';
 }
