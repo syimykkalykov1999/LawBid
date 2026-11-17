@@ -149,6 +149,10 @@ class FakeCasesRepository implements CasesRepository {
       calls.add('complete:$caseId');
 
   @override
+  Future<void> joinFirmBid(String bidId) async =>
+      calls.add('joinFirmBid:$bidId');
+
+  @override
   Future<void> confirmCompletion(String caseId) async =>
       calls.add('confirmCompletion:$caseId');
 

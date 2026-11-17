@@ -254,7 +254,7 @@ describe('soft-delete extension (docs/02_DATABASE.md §1.4)', () => {
       spy.mockRestore();
 
       expect(typeof svc.onModuleInit).toBe('function');
-      expect(typeof svc.onModuleDestroy).toBe('function');
+      expect(typeof svc.onApplicationShutdown).toBe('function');
       expect(typeof svc.$transaction).toBe('function');
       expect(typeof svc.user.findMany).toBe('function');
       await svc.$disconnect();

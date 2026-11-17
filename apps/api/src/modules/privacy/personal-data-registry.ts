@@ -122,6 +122,10 @@ export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   StaffCaseAppeal: ['admin_id'],
   StaffAnomaly: ['admin_id'],
   AdminNavPin: ['admin_id'],
+  // Firms audit 16.11 (PR-3): invitations the person got or sent.
+  FirmInvitation: ['attorney_id', 'invited_by'],
+  // Firms audit 16.11 (PR-4): «I joined my colleague's bid».
+  BidParticipant: ['attorney_id'],
 };
 
 const list = (...models: string[]): string[] => models;
@@ -148,6 +152,9 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'VideoAsset',
       'File',
       'ConnectedCustomer',
+      // Firms audit 16.11 (PR-2): the lawyer leaves the firm
+      // (FirmsService.onAccountErased).
+      'FirmMember',
     ),
     scrub: list(
       'VerificationRequest',
@@ -238,8 +245,9 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'AssistantActivity',
       'AssistantLiabilityAcceptance',
       'AssistantSeatChange',
+      // Firms audit 16.11 (PR-2): an erased owner hands the firm over first
+      // (FirmsService.onAccountErased); the firm row stays.
       'Firm',
-      'FirmMember',
       'OutreachActivity',
       'AttorneyTrust',
       'Report',

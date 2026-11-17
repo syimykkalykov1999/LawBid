@@ -175,6 +175,9 @@ drag and `CupertinoSheetRoute` release logic (`material/bottom_sheet.dart`,
 the Flutter cookbook "Create a shimmer loading effect" (docs.flutter.dev) in
 `lib/core/design_system/widgets/feedback/app_skeleton.dart`;
 `SpringSimulation` springs in `reply_swipe.dart` and `photo_gallery.dart`.
+Row 89 (2026-11-16): the drag-written `_moveController` of `Dismissible`
+(`widgets/dismissible.dart`), painted by a transition instead of
+`setState`, in `lib/features/chat/presentation/reply_swipe.dart`.
 Row 88, second part: the floating, snapping header of
 `RenderSliverFloatingPersistentHeader` / `FloatingHeaderSnapConfiguration`
 (`rendering/sliver_persistent_header.dart`) in

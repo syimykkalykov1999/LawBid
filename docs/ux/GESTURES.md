@@ -60,15 +60,17 @@ different start zones, and the arena order above.
 ## Rule 2b - Quoting a message (chat)
 
 Telegram: a message is quoted by dragging it toward the START side
-(left in LTR) past 56 dp. WhatsApp does the opposite direction, but that
+(left in LTR) past 64 dp of finger travel (row 89, 16.11). WhatsApp does the opposite direction, but that
 is the direction of "back" here, so we use Telegram's: the reply drag
 (`SwipeToReply`, `features/chat/presentation/reply_swipe.dart`) uses a
 recogniser that REFUSES a pointer that first moves toward the end, so the
 screen's back drag (an ancestor) takes it and a swipe back from the middle
 of a chat works even when the finger lands on a bubble. A mostly vertical
-move scrolls. The bubble follows the finger with growing resistance, a
-reply arrow appears behind it and a haptic ticks at the threshold. RTL is
-mirrored. Test: `test/features/chat/reply_swipe_test.dart`.
+move scrolls (refused at once). The bubble follows the finger 1:1 up to
+the line, then with a rubber band; a reply arrow grows in behind it, one
+light haptic at the line, and on release a spring brings it home. The
+drag only moves an AnimationController (Flutter `Dismissible` pattern), so
+the bubble is never rebuilt while dragging. RTL is mirrored. Test: `test/features/chat/reply_swipe_test.dart`.
 
 ## Rule 3 - Tabs swipe
 

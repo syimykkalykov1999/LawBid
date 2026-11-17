@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
@@ -62,7 +63,161 @@ Future<void> _drag(WidgetTester tester, Offset from, double dx) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _single(
+  WidgetTester tester, {
+  required VoidCallback onReply,
+  Widget? child,
+}) =>
+    tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: SwipeToReply(
+            onReply: onReply,
+            child: child ?? const SizedBox(height: 60, child: Text('hello')),
+          ),
+        ),
+      ),
+    );
+
+class _BuildCounter extends StatelessWidget {
+  const _BuildCounter(this.builds);
+  final List<int> builds;
+  @override
+  Widget build(BuildContext context) {
+    builds.add(1);
+    return const SizedBox(height: 60, child: Text('hello'));
+  }
+}
+
 void main() {
+  // Owner row 89 (2026-11-16): «как у WhatsApp/Telegram».
+  group('row 89: feels like WhatsApp/Telegram', () {
+    testWidgets('64 dp of finger quotes, a shorter pull does not',
+        (tester) async {
+      var replies = 0;
+      await _single(tester, onReply: () => replies++);
+      final at = tester.getCenter(find.text('hello'));
+      await _drag(tester, at, -(SwipeToReply.trigger - 14));
+      expect(replies, 0, reason: '50 dp is under the line');
+      await _drag(tester, at, -(SwipeToReply.trigger + 6));
+      expect(replies, 1, reason: '70 dp is past the line');
+    });
+
+    testWidgets('the bubble follows the finger 1:1 up to the line',
+        (tester) async {
+      await _single(tester, onReply: () {});
+      final home = tester.getTopLeft(find.text('hello')).dx;
+      final g = await tester.startGesture(tester.getCenter(find.text('hello')));
+      for (var i = 0; i < 4; i++) {
+        await g.moveBy(const Offset(-10, 0));
+        await tester.pump(const Duration(milliseconds: 8));
+      }
+      // Counted from the touch-down: the touch slop is not lost.
+      expect(tester.getTopLeft(find.text('hello')).dx, home - 40);
+      await g.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('one light haptic at the line, not one per frame',
+        (tester) async {
+      final buzz = <Object?>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'HapticFeedback.vibrate') buzz.add(call.arguments);
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      var replies = 0;
+      await _single(tester, onReply: () => replies++);
+      final g = await tester.startGesture(tester.getCenter(find.text('hello')));
+      // Far past the line, in many frames (120 Hz-like steps).
+      for (var i = 0; i < 40; i++) {
+        await g.moveBy(const Offset(-4, 0));
+        await tester.pump(const Duration(milliseconds: 8));
+      }
+      await g.up();
+      await tester.pumpAndSettle();
+      expect(buzz, ['HapticFeedbackType.lightImpact']);
+      expect(replies, 1);
+    });
+
+    testWidgets('let go: the arrow shows, then the bubble springs home',
+        (tester) async {
+      await _single(tester, onReply: () {});
+      final home = tester.getTopLeft(find.text('hello'));
+      final g = await tester.startGesture(tester.getCenter(find.text('hello')));
+      for (var i = 0; i < 10; i++) {
+        await g.moveBy(const Offset(-9, 0));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(find.byKey(const ValueKey('reply-swipe-arrow')), findsOneWidget);
+      final pulled = tester.getTopLeft(find.text('hello')).dx;
+      expect(pulled, lessThan(home.dx - SwipeToReply.trigger));
+      // Never farther than the rubber band's end.
+      expect(pulled, greaterThanOrEqualTo(home.dx - SwipeToReply.maxTravel));
+      await g.up();
+      // The spring's first frame starts it; the second moves it.
+      await tester.pump(const Duration(milliseconds: 16));
+      await tester.pump(const Duration(milliseconds: 16));
+      final next = tester.getTopLeft(find.text('hello')).dx;
+      // A glide, not a jump: on its way home but not there yet.
+      expect(next, greaterThan(pulled));
+      expect(next, lessThan(home.dx));
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(find.text('hello')), home);
+      expect(find.byKey(const ValueKey('reply-swipe-arrow')), findsNothing);
+    });
+
+    testWidgets('a drag does not rebuild the bubble', (tester) async {
+      final builds = <int>[];
+      await _single(tester, onReply: () {}, child: _BuildCounter(builds));
+      expect(builds, hasLength(1));
+      await _drag(tester, tester.getCenter(find.text('hello')), -120);
+      expect(builds, hasLength(1));
+    });
+
+    testWidgets('a mostly vertical drag scrolls the list, never quotes',
+        (tester) async {
+      final log = <int>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light(),
+          home: Scaffold(
+            body: ListView(
+              children: [
+                for (var i = 0; i < 30; i++)
+                  SwipeToReply(
+                    onReply: () => log.add(i),
+                    child: SizedBox(height: 60, child: Text('message $i')),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+      final x0 = tester.getTopLeft(find.text('message 6')).dx;
+      final y0 = tester.getTopLeft(find.text('message 6')).dy;
+      final g =
+          await tester.startGesture(tester.getCenter(find.text('message 6')));
+      // Up and a little toward the start, as a thumb scrolls.
+      for (var i = 0; i < 10; i++) {
+        await g.moveBy(const Offset(-6, -20));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(tester.getTopLeft(find.text('message 6')).dx, x0);
+      expect(tester.getTopLeft(find.text('message 6')).dy, lessThan(y0 - 100));
+      await g.up();
+      await tester.pumpAndSettle();
+      expect(log, isEmpty);
+    });
+  });
+
   testWidgets('a drag toward the start past the threshold quotes the message',
       (tester) async {
     var replies = 0;
@@ -168,7 +323,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
     }
     expect(tester.getTopLeft(find.text('hello')).dx, lessThan(home.dx - 40));
-    for (var i = 0; i < 10; i++) {
+    for (var i = 0; i < 4; i++) {
       await g.moveBy(const Offset(10, 0));
       await tester.pump(const Duration(milliseconds: 16));
     }
