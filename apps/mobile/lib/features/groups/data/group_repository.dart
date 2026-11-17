@@ -213,6 +213,25 @@ class GroupRepository {
     return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
   }
 
+  /// Row 110 (Telegram 🔍 in a chat): the text messages holding every word
+  /// of [q], newest first, a page at a time.
+  Future<CursorPage<api.GroupMessageDto>> searchMessages(
+    String id,
+    String q, {
+    String? topicId,
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _c.listGroupMessages(
+        id: id,
+        topicId: topicId,
+        cursor: cursor,
+        q: q.trim(),
+      ),
+    );
+    return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
+  }
+
   /// Package B: everything after [afterId] (oldest first, up to 200; more
   /// → `409 SYNC_TOO_OLD`, the caller reloads the page).
   Future<List<api.GroupMessageDto>> messagesAfter(

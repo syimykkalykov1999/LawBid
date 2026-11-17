@@ -15,6 +15,112 @@ export interface TuningKnob {
 }
 export type AutoscaleTarget = 'db' | 'redis' | 'endpoints' | 'ecs' | 'spot';
 
+/**
+ * Owner 15.11 («надеюсь я могу настраивать количество серверов авто спот и
+ * тд … сделай настраиваемыми»): per ECS service the fewest tasks
+ * (`<kind>.min_tasks`, RegisterScalableTarget MinCapacity, applied by the API
+ * on save) and the Spot split (`<kind>.spot_base` regular tasks first, then
+ * `<kind>.fargate_weight` : `<kind>.spot_weight`, the capacity provider
+ * strategy). Bounds are AWS's (CapacityProviderStrategyItem: base 0–100000,
+ * weight 0–1000). The floor is at least 1: 0 would stop the service (the
+ * pooler and api-admin included, so the admin could not undo it).
+ */
+export const ECS_CAPACITY_KINDS = [
+  'api',
+  'worker',
+  'admin',
+  'api_admin',
+  'pgbouncer',
+] as const;
+export type EcsCapacityKind = (typeof ECS_CAPACITY_KINDS)[number];
+const CAPACITY_RU: Record<EcsCapacityKind, string> = {
+  api: 'API',
+  worker: 'Фоновый сервер',
+  admin: 'Админка',
+  api_admin: 'API админки',
+  pgbouncer: 'Пул соединений',
+};
+/** Spot split when nothing is set: Terraform's spot_strategy (stack). */
+export const DEFAULT_SPOT_SPLIT = { base: 1, fargate: 1, spot: 4 } as const;
+
+function ecsCapacityKnobs(): Record<string, TuningKnob> {
+  const out: Record<string, TuningKnob> = {};
+  for (const k of ECS_CAPACITY_KINDS) {
+    const n = CAPACITY_RU[k];
+    out[`${k}.min_tasks`] = {
+      ru: `${n}: серверов не меньше (минимум)`,
+      min: 1,
+      max: 1000000000,
+      kind: 'integer',
+    };
+    out[`${k}.spot_base`] = {
+      ru: `${n}: сколько первых серверов всегда обычные (не Spot)`,
+      min: 0,
+      max: 100000,
+      kind: 'integer',
+    };
+    out[`${k}.fargate_weight`] = {
+      ru: `${n}: доля обычных среди остальных (вес)`,
+      min: 0,
+      max: 1000,
+      kind: 'integer',
+    };
+    out[`${k}.spot_weight`] = {
+      ru: `${n}: доля Spot среди остальных (вес; 0 — без Spot)`,
+      min: 0,
+      max: 1000,
+      kind: 'integer',
+    };
+  }
+  return out;
+}
+
+/** The Spot split of one service: the admin's numbers over the default. */
+export function spotSplit(
+  tuning: Record<string, number>,
+  kind: EcsCapacityKind,
+): { base: number; fargate: number; spot: number } {
+  return {
+    base: tuning[`${kind}.spot_base`] ?? DEFAULT_SPOT_SPLIT.base,
+    fargate: tuning[`${kind}.fargate_weight`] ?? DEFAULT_SPOT_SPLIT.fargate,
+    spot: tuning[`${kind}.spot_weight`] ?? DEFAULT_SPOT_SPLIT.spot,
+  };
+}
+
+/** Kinds whose Spot split the admin has set (any of the three numbers). */
+export function splitKinds(tuning: Record<string, number>): EcsCapacityKind[] {
+  return ECS_CAPACITY_KINDS.filter((k) =>
+    ['spot_base', 'fargate_weight', 'spot_weight'].some(
+      (f) => typeof tuning[`${k}.${f}`] === 'number',
+    ),
+  );
+}
+
+/**
+ * Checks across keys of the ECS numbers after the merge (owner 15.11): the
+ * floor is not above the owner's ceiling `scale.max_tasks.<kind>`, and a
+ * split keeps at least one weight above 0 (AWS: "at least one of the
+ * capacity providers must have a weight value greater than zero").
+ */
+export function checkEcsCapacity(
+  tuning: Record<string, number>,
+  maxTasks: Partial<Record<EcsCapacityKind, number>>,
+): string[] {
+  const errors: string[] = [];
+  for (const k of ECS_CAPACITY_KINDS) {
+    const min = tuning[`${k}.min_tasks`];
+    const max = maxTasks[k];
+    if (typeof min === 'number' && typeof max === 'number' && min > max) {
+      errors.push(`${k}.min_tasks: не больше максимума ${max}`);
+    }
+    const s = spotSplit(tuning, k);
+    if (s.fargate + s.spot === 0) {
+      errors.push(`${k}.spot_weight: обе доли 0`);
+    }
+  }
+  return errors;
+}
+
 export const AUTOSCALE_TUNING_SCHEMA: Record<
   AutoscaleTarget,
   Record<string, TuningKnob>
@@ -311,6 +417,9 @@ export const AUTOSCALE_TUNING_SCHEMA: Record<
       max: 1000000000,
       kind: 'integer',
     },
+    // Owner 15.11 («сделай настраиваемыми»): the floor and the Spot split
+    // of every service (ECS_CAPACITY_KNOBS below).
+    ...ecsCapacityKnobs(),
   },
   // 15.11 (owner, row 20): modules/spot-fallback/lambda/tuning_schema.json.
   spot: {

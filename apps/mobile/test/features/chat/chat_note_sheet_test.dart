@@ -43,6 +43,7 @@ class _Chats implements ChatRepository {
     bool? pinned,
     bool? hidden,
     bool? archived,
+    bool? unread,
   }) async {
     notes.add(note);
     return _conv;
