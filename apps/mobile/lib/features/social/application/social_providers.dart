@@ -213,6 +213,26 @@ class FollowerCounts extends Notifier<Map<String, int>> {
 final followerCountsProvider =
     NotifierProvider<FollowerCounts, Map<String, int>>(FollowerCounts.new);
 
+/// Verify 17.11: a live first page of ANY post list (profile, archive,
+/// reposts, tags, latest, explore, search, the single post) is the server's
+/// truth for its posts — the optimistic copy a like / save / edit left in
+/// [postOverridesProvider] steps aside (it used to stay for the whole
+/// session and hid edits and other people's counts). The feed did this
+/// already; a like still on its way keeps its copy (audit C2, C15).
+Future<CursorPage<Post>> settleLivePage(
+  Ref ref,
+  String? cursor,
+  Future<CursorPage<Post>> page,
+) async {
+  final live = await page;
+  if (cursor == null && ref.mounted) {
+    ref
+        .read(socialActionsProvider)
+        .applyServerTruth(live.items.map((p) => p.id));
+  }
+  return live;
+}
+
 // --- Feed (docs/05 §2) -----------------------------------------------------
 
 class FeedNotifier extends PagedNotifier<Post> {
@@ -296,8 +316,11 @@ class AttorneyPostsNotifier extends PagedNotifier<Post> {
       repo.attorneyPosts(attorneyId, cursor: cursor);
 
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) =>
-      readPage(ref.read(socialRepositoryProvider), cursor);
+  Future<CursorPage<Post>> fetch(String? cursor) => settleLivePage(
+        ref,
+        cursor,
+        readPage(ref.read(socialRepositoryProvider), cursor),
+      );
 
   // Owner 2026-10-28 (R-114, «на миллисекунду пустые квадраты»): a profile
   // tab opens on the phone's copy of its first page at once (the feed's
@@ -333,8 +356,11 @@ class ArchivedPostsNotifier extends PagedNotifier<Post> {
   }
 
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) =>
-      ref.read(socialRepositoryProvider).archivedPosts(cursor: cursor);
+  Future<CursorPage<Post>> fetch(String? cursor) => settleLivePage(
+        ref,
+        cursor,
+        ref.read(socialRepositoryProvider).archivedPosts(cursor: cursor),
+      );
 
   @override
   Object idOf(Post item) => item.id;
@@ -424,8 +450,11 @@ class UserRepostsNotifier extends PagedNotifier<Post> {
   }
 
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) =>
-      ref.read(socialRepositoryProvider).userReposts(userId, cursor: cursor);
+  Future<CursorPage<Post>> fetch(String? cursor) => settleLivePage(
+        ref,
+        cursor,
+        ref.read(socialRepositoryProvider).userReposts(userId, cursor: cursor),
+      );
 
   @override
   Object idOf(Post item) => item.id;
@@ -516,9 +545,13 @@ class TagPostsNotifier extends PagedNotifier<Post> {
   }
 
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) => ref
-      .read(socialRepositoryProvider)
-      .tagPosts(key.tag, key.sort, cursor: cursor, state: key.state);
+  Future<CursorPage<Post>> fetch(String? cursor) => settleLivePage(
+        ref,
+        cursor,
+        ref
+            .read(socialRepositoryProvider)
+            .tagPosts(key.tag, key.sort, cursor: cursor, state: key.state),
+      );
 
   @override
   Object idOf(Post item) => item.id;
@@ -549,12 +582,15 @@ class LatestPostsNotifier extends PagedNotifier<Post> {
   }
 
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) =>
-      ref.read(socialRepositoryProvider).latestPosts(
-            null,
-            cursor: cursor,
-            states: splitCodes(stateCode),
-          );
+  Future<CursorPage<Post>> fetch(String? cursor) => settleLivePage(
+        ref,
+        cursor,
+        ref.read(socialRepositoryProvider).latestPosts(
+              null,
+              cursor: cursor,
+              states: splitCodes(stateCode),
+            ),
+      );
 
   @override
   Object idOf(Post item) => item.id;
@@ -610,19 +646,23 @@ class FilteredPostsNotifier extends PagedNotifier<Post> {
   @override
   Future<CursorPage<Post>> fetch(String? cursor) {
     final practice = key.practice;
-    return ref.read(socialRepositoryProvider).latestPosts(
-          null,
-          cursor: cursor,
-          states: splitCodes(key.state),
-          practice: practice,
-          practices: splitCodes(key.practices),
-          // Older posts without a qualification: the category's hashtag.
-          tag: practice != null && !practice.contains('.')
-              ? topicTagFor(practice)
-              : null,
-          newsOnly: key.news,
-          generalOnly: key.general,
-        );
+    return settleLivePage(
+      ref,
+      cursor,
+      ref.read(socialRepositoryProvider).latestPosts(
+            null,
+            cursor: cursor,
+            states: splitCodes(key.state),
+            practice: practice,
+            practices: splitCodes(key.practices),
+            // Older posts without a qualification: the category's hashtag.
+            tag: practice != null && !practice.contains('.')
+                ? topicTagFor(practice)
+                : null,
+            newsOnly: key.news,
+            generalOnly: key.general,
+          ),
+    );
   }
 
   @override
@@ -664,17 +704,23 @@ class ExplorePostsNotifier extends PagedNotifier<Post> {
   @override
   Future<CursorPage<Post>> fetch(String? cursor) {
     final practice = key.practice;
-    return ref.read(socialRepositoryProvider).latestPosts(
-          key.state,
-          cursor: cursor,
-          practice: practice,
-          tag: practice == null ? null : topicTagFor(practice.split('.').first),
-          period: key.period,
-          withPhotos: key.withPhotos,
-          briefsOnly: key.briefsOnly,
-          popular: key.popular,
-          forYou: key.forYou,
-        );
+    return settleLivePage(
+      ref,
+      cursor,
+      ref.read(socialRepositoryProvider).latestPosts(
+            key.state,
+            cursor: cursor,
+            practice: practice,
+            tag: practice == null
+                ? null
+                : topicTagFor(practice.split('.').first),
+            period: key.period,
+            withPhotos: key.withPhotos,
+            briefsOnly: key.briefsOnly,
+            popular: key.popular,
+            forYou: key.forYou,
+          ),
+    );
   }
 
   @override
@@ -725,7 +771,12 @@ final savedPostsProvider = AsyncNotifierProvider.autoDispose<SavedPostsNotifier,
 );
 
 final postProvider = FutureProvider.autoDispose.family<Post, String>(
-  (ref, id) => ref.watch(socialRepositoryProvider).post(id),
+  (ref, id) async {
+    final post = await ref.watch(socialRepositoryProvider).post(id);
+    // Verify 17.11: the opened post is the truth (see [settleLivePage]).
+    if (ref.mounted) ref.read(socialActionsProvider).applyServerTruth([id]);
+    return post;
+  },
   retry: _noRetry,
 );
 

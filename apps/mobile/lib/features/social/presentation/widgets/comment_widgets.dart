@@ -30,7 +30,11 @@ import 'package:lawbid/features/translation/presentation/translatable_text.dart'
 
 /// Who a new comment answers (§5.1: one level; a reply to a reply goes to
 /// the top-level comment, the server prefixes "@username").
-typedef ReplyTarget = ({String parentId, String name});
+/// [parentId]: the thread (top-level comment) the reply lands under;
+/// [replyToId]: the comment actually answered (a reply in that thread or
+/// the top one) — the server notifies its author and puts their @handle in
+/// front, like Instagram (verify 17.11: the answered person got nothing).
+typedef ReplyTarget = ({String parentId, String replyToId, String name});
 
 /// docs/05 §5 comment row: author (attorney by profile, client as
 /// "Anna K."), time, text, like, "Ответить", replies on demand.
@@ -418,7 +422,11 @@ class _CommentTileState extends ConsumerState<CommentTile> {
     if (_pending) return;
     final a = _c.author;
     widget.onReply(
-      (parentId: _c.parentId ?? _c.id, name: a.username ?? a.displayName),
+      (
+        parentId: _c.parentId ?? _c.id,
+        replyToId: _c.id,
+        name: a.username ?? a.displayName,
+      ),
     );
   }
 
@@ -784,7 +792,7 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
             else
               'postId': widget.postId,
             'body': body,
-            if (reply?.parentId != null) 'parentId': reply!.parentId,
+            if (reply != null) 'parentId': reply.replyToId,
           },
         );
         if (!mounted) return;
@@ -811,6 +819,7 @@ class _CommentComposerState extends ConsumerState<CommentComposer> {
         postId: widget.postId,
         body: body,
         parentId: reply?.parentId,
+        replyToId: reply?.replyToId,
       );
       if (!mounted) return;
       if (reply != null) {

@@ -187,6 +187,50 @@ void main() {
     expect(repo.deltaReads, 0, reason: 'nor asked for a delta');
   });
 
+  test('verify 17.11: a counter hands the turn over and keeps the version',
+      () async {
+    final repo = _Repo()
+      ..bids = [
+        CaseBid(
+          id: 'b1',
+          caseId: 'case-1',
+          attorneyId: 'att-b1',
+          status: BidStatus.active,
+          feeType: FeeType.fixed,
+          amountCents: 50000,
+          message: 'hello',
+          startAvailability: StartAvailability.immediately,
+          startDate: null,
+          estimatedDurationDays: null,
+          roundCount: 1,
+          turn: PartyRole.attorney,
+          createdAt: DateTime(2026, 10, 20, 2),
+          version: 3,
+        ),
+      ];
+    final c = make(repo);
+    final sub = c.listen(caseBidsProvider(key), (_, __) {});
+    addTearDown(sub.close);
+    await c.read(caseBidsProvider(key).future);
+
+    events.add(
+      bidEvent('bid_countered', {
+        'bidId': 'b1',
+        'status': 'active',
+        'amountCents': 42000,
+        'countered': true,
+        'turn': 'client',
+      }),
+    );
+    await wait();
+
+    final row = c.read(caseBidsProvider(key)).value!.items.single;
+    expect(row.turn, PartyRole.client);
+    expect(row.roundCount, 2);
+    expect(row.version, 4);
+    expect(repo.listReads + repo.deltaReads, 1, reason: 'still 0 requests');
+  });
+
   test('a withdrawn bid changes its status in place: 0 requests', () async {
     final repo = _Repo();
     final c = make(repo);

@@ -73,11 +73,16 @@ export class FileScanRunner
     if (!this.workerEnabled) return;
     this.worker = new Worker(
       FILES_QUEUE,
-      (job: Job<{ fileId: string }>) =>
-        this.processor.run(
+      async (job: Job<{ fileId: string }>) => {
+        const outcome = await this.processor.run(
           job.data.fileId,
           job.attemptsMade + 1 >= (job.opts.attempts ?? 1),
-        ),
+        );
+        if (outcome === 'deferred:scanner-down') {
+          await this.retryLater(job.data.fileId);
+        }
+        return outcome;
+      },
       {
         ...bullOptions(FILES_QUEUE, url, { worker: true }),
         ...workerTuning(FILES_QUEUE),
@@ -94,6 +99,25 @@ export class FileScanRunner
     this.worker.on('error', (error) => {
       this.logger.error({ err: error.message }, 'files worker error');
     });
+  }
+
+  /**
+   * Audit 17.11 (problem 13): the scanner was down on the last attempt — the
+   * file is scanned again after `files.scan_outage_retry_minutes` with fresh
+   * attempts. Its own job id: the current job (id = file id) is still
+   * active. The processor skips a file that is no longer pending.
+   */
+  private async retryLater(fileId: string): Promise<void> {
+    if (!this.queue) return;
+    await this.queue.add(
+      FILE_SCAN_JOB,
+      { fileId },
+      {
+        ...FILE_SCAN_JOB_OPTS,
+        jobId: `${fileId}-outage-${Date.now()}`,
+        delay: await this.processor.outageRetryDelayMs(),
+      },
+    );
   }
 
   /**

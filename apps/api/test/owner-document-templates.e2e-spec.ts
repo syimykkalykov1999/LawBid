@@ -306,6 +306,13 @@ describe('Document templates (e2e, owner 2026-10-05)', () => {
       .set(admin.auth)
       .send({ fileId: b.fileId, title: 'Same file' })
       .expect(409);
+    // Verify 17.11: the file of a DELETED template is still its own —
+    // 409, not a 500 from the unique key.
+    await api()
+      .post('/api/v1/admin/document-templates')
+      .set(admin.auth)
+      .send({ fileId: a.fileId, title: 'Deleted file' })
+      .expect(409);
 
     const client = await user('client');
     await prisma.featureFlag.upsert({

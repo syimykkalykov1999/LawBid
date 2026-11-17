@@ -9,8 +9,15 @@ name: lawbid
 
 services:
   postgres:
-    # Owner 2026-10-14: PostgreSQL 16 for everything (dev, CI, prod).
-    image: postgres:16
+    # 17.11 (CONTENT_MEDIA_VERIFY №1): the same engines as prod and CI —
+    # RDS PostgreSQL 18.6 and ElastiCache Valkey 9.1, pinned by digest.
+    # PostgreSQL 18 images keep data in /var/lib/postgresql/18/docker, so the
+    # volume is mounted one level up and is a NEW volume (postgres18-data): the
+    # old PostgreSQL 16 volume `postgres-data` is left untouched (a 16 data
+    # directory cannot be opened by 18). After `docker compose up -d` run the
+    # migrations and the seed on the fresh 18 database (npm run db:migrate).
+    # The old volume can be removed by hand once it is not needed.
+    image: postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: lawbid
@@ -18,7 +25,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres18-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U root -d lawbid"]
       interval: 5s
@@ -26,13 +33,16 @@ services:
       retries: 10
 
   redis:
-    image: redis:7-alpine
+    # Valkey 9.1 = prod's ElastiCache engine (Redis-protocol compatible; the
+    # service keeps the name `redis` so REDIS_URL and scripts stay the same).
+    # New volume: Valkey does not read the newest Redis 7.4 RDB format.
+    image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
     ports:
       - "6379:6379"
     volumes:
-      - redis-data:/data
+      - valkey-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "valkey-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -82,7 +92,7 @@ services:
   # Mailpit (MIT): the maintained MailHog successor, same SMTP 1025 and web
   # UI 8025 (http://localhost:8025). CI runs the same image (api-ci.yml).
   mailpit:
-    image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
+    image: axllent/mailpit:v1.34.0@sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e
     ports:
       - "1025:1025" # SMTP
       - "8025:8025" # Web UI
@@ -122,6 +132,6 @@ services:
       - "7882:7882/udp" # ICE over UDP (single port mux)
 
 volumes:
-  postgres-data:
-  redis-data:
+  postgres18-data:
+  valkey-data:
   s3-data:

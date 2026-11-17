@@ -241,7 +241,7 @@ export class BadgesService {
     const res = (await bump.exec()) ?? [];
     const reads = res.slice(res.length - fresh.length);
     const icon = new Map(users.map((u) => [u.id, u.notif_icon_badge]));
-    await Promise.all(
+    const updates = await Promise.all(
       fresh.map(async (id, i) => {
         const h = (reads[i]?.[1] ?? {}) as Record<string, string>;
         // A missing or half hash is rebuilt the usual way (rare: expired).
@@ -249,12 +249,14 @@ export class BadgesService {
           h.chats !== undefined && h.notifs !== undefined
             ? shape(Number(h.chats), Number(h.notifs))
             : await this.get(id);
-        this.realtime.toUsers([id], 'badge:update', {
-          ...b,
-          iconBadge: icon.get(id) ?? true,
-        });
+        return {
+          userId: id,
+          data: { ...b, iconBadge: icon.get(id) ?? true },
+        };
       }),
     );
+    // Audit 17.11 (problem 9): one cursor + one pipeline for everyone.
+    this.realtime.toEachUser('badge:update', updates);
   }
 
   /**

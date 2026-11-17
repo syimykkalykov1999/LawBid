@@ -513,15 +513,14 @@ export class CommentsService {
     const u = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
-        first_name: true,
-        last_name: true,
         attorney_profile: { select: { username: true } },
+        client_profile: { select: { username: true } },
       },
     });
-    if (!u) return null;
-    return (
-      u.attorney_profile?.username ??
-      clientDisplayName(u.first_name, u.last_name).replace(/\s+/g, '')
-    );
+    // Verify 17.11: only a real @username goes in front (Instagram). The
+    // old "@AnnaK." fallback was read as the handle "annak" — another
+    // person's mention and notification — and a client's own @username
+    // (OQ-026) was ignored. No handle → no prefix (they are notified anyway).
+    return u?.attorney_profile?.username ?? u?.client_profile?.username ?? null;
   }
 }

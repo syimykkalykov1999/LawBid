@@ -40,6 +40,11 @@ variable "task_role_arn" {
   type        = string
   description = "ECS task role of the API and the workers (gets data access)."
 }
+variable "extra_task_role_arns" {
+  type        = map(string)
+  default     = {}
+  description = "Row 204: the other roles that run the app image (key => role ARN; api-admin and worker with task_role_split) get the same data access. Static keys, so the ARNs may be unknown at plan."
+}
 variable "standby_replicas" {
   type        = bool
   default     = true
@@ -123,7 +128,7 @@ resource "aws_opensearchserverless_access_policy" "app" {
         ]
       },
     ]
-    Principal = [var.task_role_arn]
+    Principal = concat([var.task_role_arn], values(var.extra_task_role_arns))
   }])
 }
 
@@ -139,6 +144,13 @@ resource "aws_iam_role_policy" "task_aoss" {
       Resource = aws_opensearchserverless_collection.search.arn
     }]
   })
+}
+
+resource "aws_iam_role_policy" "extra_task_aoss" {
+  for_each = var.extra_task_role_arns
+  name     = "${local.collection}-aoss"
+  role     = element(split("/", each.value), length(split("/", each.value)) - 1)
+  policy   = aws_iam_role_policy.task_aoss.policy
 }
 
 output "endpoint" { value = aws_opensearchserverless_collection.search.collection_endpoint }

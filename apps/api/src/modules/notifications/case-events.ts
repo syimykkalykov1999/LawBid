@@ -59,6 +59,9 @@ export interface BidPatch {
   /** The offer's amount / percent when the event is about a new offer. */
   amountCents?: number;
   percentBps?: number;
+  /** Verify 17.11: a counter — one more round, the turn of [turn]. */
+  countered?: true;
+  turn?: 'client' | 'attorney';
 }
 
 export interface CaseUpdateEvent {
@@ -153,6 +156,13 @@ function bidPatchOf(
       ? { amountCents: p.amountCents }
       : {}),
     ...(typeof p.percentBps === 'number' ? { percentBps: p.percentBps } : {}),
+    // Verify 17.11: a counter hands the turn to the other side and adds a
+    // round (and a version) — without it the row kept the old turn: no
+    // «Принять», then 409 STALE_VERSION on the next answer.
+    ...(kind === 'bid_countered' &&
+    (p.byRole === 'client' || p.byRole === 'attorney')
+      ? { countered: true, turn: p.byRole === 'client' ? 'attorney' : 'client' }
+      : {}),
   };
 }
 

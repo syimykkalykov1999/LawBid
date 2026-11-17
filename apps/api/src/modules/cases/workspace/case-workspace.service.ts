@@ -189,6 +189,8 @@ export class CaseWorkspaceService {
 
   // ---- files ---------------------------------------------------------
 
+  /** Every file at once — for the server's own use and tests only; the
+   * route always pages ([listFilesPage]). */
   async listFiles(
     user: RequestUser,
     caseId: string,

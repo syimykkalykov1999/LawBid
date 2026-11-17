@@ -72,6 +72,23 @@ describe('cloudNow (Облако rows)', () => {
     );
   });
 
+  it('search past four nodes (owner 15.11, search.max_nodes): the highest step that is on', () => {
+    const f = {
+      ...facts,
+      rows: [
+        ...(facts.rows ?? []).filter((r) => !r.id.startsWith('aws.opensearch_nodes')),
+        row('aws.opensearch_nodes_2', 'on'),
+        row('aws.opensearch_nodes_4', 'on'),
+        row('aws.opensearch_nodes_6', 'on'),
+        row('aws.opensearch_nodes_8', 'on'),
+        row('aws.opensearch_nodes_10', 'off'),
+      ],
+    };
+    expect(cloudNow('aws.opensearch_nodes_10', f)).toBe(
+      'Сейчас: движок поиска включён, узлов: 8, ищет Встроенный поиск (PostgreSQL)',
+    );
+  });
+
   it('WAF, Kinesis, cache Redis: on / off', () => {
     expect(cloudNow('aws.waf_bot_control', facts)).toBe('Сейчас: правила WAF выключены');
     expect(cloudNow('aws.events_stream', facts)).toBe('Сейчас: поток Kinesis включён');

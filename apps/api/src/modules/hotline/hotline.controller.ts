@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -37,7 +36,10 @@ import {
 import { assertHotlineOn } from './hotline-access';
 import {
   HotlineAcceptingDto,
+  HotlineCallBackDto,
   HotlineConfigDto,
+  HotlineDisclosureAckDto,
+  HotlineDisclosureDto,
   HotlineCountersDto,
   HotlineEndDto,
   HotlineLanguagesDto,
@@ -88,6 +90,38 @@ export class HotlineController {
     @Body() dto: HotlineLineDto,
   ): Promise<HotlineLineViewDto> {
     return this.hotline.goOnline(user, dto);
+  }
+
+  @Post('line/resume')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Back on the line after a reconnect with the kept choice (screen still open)',
+  })
+  @ApiEnvelopeResponse(HotlineLineViewDto)
+  @ApiErrors({
+    403: [
+      ErrorCode.FEATURE_DISABLED,
+      ErrorCode.FORBIDDEN,
+      ErrorCode.ATTORNEY_NOT_VERIFIED,
+      ErrorCode.ENTITLEMENT_REQUIRED,
+    ],
+  })
+  hotlineLineResume(
+    @CurrentUser() user: RequestUser,
+  ): Promise<HotlineLineViewDto> {
+    return this.hotline.resumeLine(user);
+  }
+
+  @Post('disclosure/ack')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '«Понятно» under the one-time disclosure' })
+  @ApiEnvelopeResponse(HotlineDisclosureDto)
+  hotlineDisclosureAck(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: HotlineDisclosureAckDto,
+  ): Promise<HotlineDisclosureDto> {
+    return this.hotline.ackDisclosure(user, dto?.version);
   }
 
   @Delete('line')
@@ -185,17 +219,35 @@ export class HotlineController {
     return this.hotline.createRequest(user, dto);
   }
 
+  @Post('call-back')
+  @ApiOperation({
+    summary:
+      '«Перезвонить»: the client calls the same attorney again (only the client)',
+  })
+  @ApiEnvelopeResponse(HotlineRequestViewDto, { status: HttpStatus.CREATED })
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    403: [ErrorCode.FEATURE_DISABLED, ErrorCode.FORBIDDEN],
+    429: [ErrorCode.RATE_LIMITED],
+  })
+  hotlineCallBack(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: HotlineCallBackDto,
+  ): Promise<HotlineRequestViewDto> {
+    return this.hotline.callBack(user, dto);
+  }
+
   @Get('requests/:id')
   @ApiOperation({ summary: 'My request (ETag / 304 for polling)' })
   @ApiEnvelopeResponse(HotlineRequestViewDto)
   @ApiErrors({ 404: [ErrorCode.NOT_FOUND] })
-  @Header('Cache-Control', 'private, max-age=5')
   async hotlineGetRequest(
     @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<HotlineRequestViewDto | undefined> {
+    await this.cacheFor(res);
     const tag = await this.hotline.requestTag(user, id);
     return conditionalGet(
       req,
@@ -275,13 +327,13 @@ export class HotlineController {
   })
   @ApiEnvelopeResponse(HotlineCountersDto)
   @ApiErrors(OFF)
-  @Header('Cache-Control', 'private, max-age=5')
   async hotlineCounters(
     @Query('keys') keys: string | undefined,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<HotlineCountersDto | undefined> {
     await assertHotlineOn({ isEnabled: () => this.hotline.enabled() });
+    await this.cacheFor(res);
     const map = await this.hotline.counters(String(keys ?? '').split(','));
     const items = Object.entries(map).map(([key, v]) => ({ key, ...v }));
     const tag = weakEtag(
@@ -294,6 +346,16 @@ export class HotlineController {
       tag,
       () => Promise.resolve(),
       () => Promise.resolve({ items }),
+    );
+  }
+
+  /** `hotline.poll_cache_sec` (audit 17.11 #8: was 5 s in code). */
+  private async cacheFor(res: Response): Promise<void> {
+    const { s } = await this.hotline.cfg();
+    const sec = s['hotline.poll_cache_sec'];
+    res.setHeader(
+      'Cache-Control',
+      sec > 0 ? `private, max-age=${sec}` : 'private, no-cache',
     );
   }
 }

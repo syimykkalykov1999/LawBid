@@ -23,6 +23,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
   Inject,
@@ -50,6 +51,7 @@ import {
   nameStrictSql,
   typedWords,
 } from '../../common/search/name-match.sql';
+import { SYNC_TOO_OLD_ERROR } from '../../common/sync/sync.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BoostActions } from '../promotions/boost-actions.service';
 import { randomUUID } from 'node:crypto';
@@ -103,6 +105,7 @@ import {
   unsupportedInTarget,
 } from '../../common/forward/forward-content';
 
+const giftUndoLog = new Logger('ChatGiftUndo');
 const CONVERSATIONS_PAGE = 20;
 const MESSAGES_PAGE = 30;
 const CATCH_UP_MAX = 100;
@@ -781,27 +784,64 @@ export class ChatService {
         select: { id: true, created_at: true },
       });
       if (!anchor) throw notFound();
-      const rows = await this.prisma.message.findMany({
-        where: {
-          conversation_id: id,
-          deleted_at: null,
-          hidden_for: { none: { user_id: user.sub } },
-          AND: [
-            notExpired(),
-            {
-              OR: [
-                { created_at: { gt: anchor.created_at } },
-                { created_at: anchor.created_at, id: { gt: anchor.id } },
-              ],
-            },
-          ],
-        },
-        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
-        take: CATCH_UP_MAX,
-      });
-      const urls = await this.mediaLinks(rows);
+      const seen = {
+        OR: [
+          { created_at: { lt: anchor.created_at } },
+          { created_at: anchor.created_at, id: { lte: anchor.id } },
+        ],
+      };
+      const [rows, changed] = await Promise.all([
+        this.prisma.message.findMany({
+          where: {
+            conversation_id: id,
+            deleted_at: null,
+            hidden_for: { none: { user_id: user.sub } },
+            AND: [notExpired(), { NOT: seen }],
+          },
+          orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          take: CATCH_UP_MAX + 1,
+        }),
+        // Audit 17.11 (problem 4): edits and deletes for everyone of
+        // messages the phone already holds (edited / revoked after the
+        // newest message it has) — before, only the 5-minute socket event
+        // log carried them. Index messages_conv_updated_idx
+        // (prisma/concurrent).
+        this.prisma.message.findMany({
+          where: {
+            conversation_id: id,
+            deleted_at: null,
+            updated_at: { gt: anchor.created_at },
+            hidden_for: { none: { user_id: user.sub } },
+            AND: [
+              notExpired(),
+              seen,
+              {
+                OR: [
+                  { edited_at: { gt: anchor.created_at } },
+                  { revoked_at: { gt: anchor.created_at } },
+                ],
+              },
+            ],
+          },
+          orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          take: CATCH_UP_MAX + 1,
+        }),
+      ]);
+      // Audit 17.11 (problem 4): more than the catch-up gives → 409
+      // SYNC_TOO_OLD, the app drops its copy and reads the first page (as
+      // groups and Telegram's getDifference «too long»). Before, the first
+      // 100 came back and the rest was silently lost.
+      if (rows.length > CATCH_UP_MAX || changed.length > CATCH_UP_MAX) {
+        throw new ConflictException({
+          ...SYNC_TOO_OLD_ERROR,
+          message: 'Too many messages since afterId — reload the page.',
+          details: { field: 'afterId', max: CATCH_UP_MAX },
+        });
+      }
+      const all = [...changed, ...rows];
+      const urls = await this.mediaLinks(all);
       return {
-        items: rows.map((m) => this.toMessage(m, user.sub, conv, urls)),
+        items: all.map((m) => this.toMessage(m, user.sub, conv, urls)),
         nextCursor: null,
       };
     }
@@ -1446,6 +1486,26 @@ export class ChatService {
       };
     };
     const prepared = prepare(conv.contacts_unlocked);
+    // Verifier 17.11 (two databases): the gift's charge commits on the
+    // primary database before the message commits on its own. Every gift
+    // charged by an attempt of the transaction below is listed here; any of
+    // them the stored message does not carry (the write failed, or a retry
+    // charged again) is paid back (StarsService.undoGift) — a saga with
+    // compensation. One database: the charge is in the same transaction and
+    // rolls back with it; the undo then finds nothing.
+    const giftSends: string[] = [];
+    const undoGifts = async (keep: string | null) => {
+      for (const sendId of giftSends) {
+        if (sendId === keep) continue;
+        await this.stars
+          .undoGift(sendId)
+          .catch((err: unknown) =>
+            giftUndoLog.error(
+              `gift ${sendId} not paid back (alert=gift_undo_failed): ${String(err)}`,
+            ),
+          );
+      }
+    };
     let message: Message;
     try {
       message = await withTxRetry(
@@ -1488,6 +1548,7 @@ export class ChatService {
                 note: p.giftNote,
               })
             : null;
+          if (given) giftSends.push(given.send.id);
           // Audit #6: the id was chosen above, the sealed bodies are bound to it.
           const m = await tx.message.create({
             data: {
@@ -1541,6 +1602,7 @@ export class ChatService {
         },
       );
     } catch (error) {
+      await undoGifts(null);
       // Nothing was stored (or a retry's own request delivers): no effects owed.
       await this.clearEffectsPending(pending);
       // A concurrent retry with the same clientMessageId won the insert.
@@ -1560,6 +1622,9 @@ export class ChatService {
       }
       throw error;
     }
+    // A retried attempt charged again: only the gift the message carries
+    // stays paid.
+    if (giftSends.length > 1) await undoGifts(message.gift_send_id);
 
     // OQ-054: the client writing in their case's chat is their own action
     // on that case (the attorney writing never is).

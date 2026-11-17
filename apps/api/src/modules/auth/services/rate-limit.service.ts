@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { createHash } from 'node:crypto';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
@@ -77,9 +77,62 @@ return {count, retryAfter}
  * get separate budgets. Normalization happens in the service layer, so
  * the limit has to live there too (docs/CHANGELOG.md, stage 1.4).
  */
+/** Keys the in-process stand-in holds at most (memory bound only). */
+const LOCAL_MAX_KEYS = 50_000;
+
+/**
+ * Audit 17.11 (problem 2): while Valkey is unreachable every limit runs in
+ * this process instead (the «insurance limiter» of rate-limiter-flexible,
+ * ISC — idea only): the same limit and window per key, counted per API
+ * task. Before, the error went up and nobody could send a message; the
+ * global throttler already fails open (RedisThrottlerStorageService).
+ */
+class LocalFixedWindows {
+  private readonly windows = new Map<
+    string,
+    { count: number; until: number }
+  >();
+
+  consume(key: string, limit: number, windowSeconds: number): RateLimitResult {
+    const now = Date.now();
+    let w = this.windows.get(key);
+    if (!w || w.until <= now) {
+      if (this.windows.size >= LOCAL_MAX_KEYS) this.sweep(now);
+      w = { count: 0, until: now + windowSeconds * 1000 };
+      this.windows.set(key, w);
+    }
+    w.count += 1;
+    const retryAfterSeconds = Math.max(1, Math.ceil((w.until - now) / 1000));
+    if (w.count > limit)
+      return { allowed: false, remaining: 0, retryAfterSeconds };
+    return { allowed: true, remaining: limit - w.count, retryAfterSeconds };
+  }
+
+  private sweep(now: number): void {
+    for (const [k, w] of this.windows)
+      if (w.until <= now) this.windows.delete(k);
+    // Still full (a flood of distinct keys): start over rather than grow.
+    if (this.windows.size >= LOCAL_MAX_KEYS) this.windows.clear();
+  }
+}
+
 @Injectable()
 export class RateLimitService {
+  private readonly log = new Logger(RateLimitService.name);
+  private readonly local = new LocalFixedWindows();
+  private lastWarnAt = 0;
+
   constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
+
+  /** One warning a minute while Valkey is down (alert for the on-call). */
+  private warnFallback(err: unknown): void {
+    const now = Date.now();
+    if (now - this.lastWarnAt < 60_000) return;
+    this.lastWarnAt = now;
+    this.log.warn(
+      `rate limit: Valkey unreachable, counting in this process (alert=rate_limit_unavailable): ${String(err)}`,
+    );
+  }
 
   async consumeFixedWindow(
     keyParts: string[],
@@ -87,13 +140,19 @@ export class RateLimitService {
     windowSeconds: number,
   ): Promise<RateLimitResult> {
     const key = this.buildKey('rl:fixed', keyParts);
-    const result = (await this.redis.eval(
-      FIXED_WINDOW_LUA,
-      1,
-      key,
-      windowSeconds,
-      limit,
-    )) as [number, number, number];
+    let result: [number, number, number];
+    try {
+      result = (await this.redis.eval(
+        FIXED_WINDOW_LUA,
+        1,
+        key,
+        windowSeconds,
+        limit,
+      )) as [number, number, number];
+    } catch (err) {
+      this.warnFallback(err);
+      return this.local.consume(key, limit, windowSeconds);
+    }
     return {
       allowed: result[0] === 1,
       remaining: result[1],
@@ -108,15 +167,22 @@ export class RateLimitService {
   ): Promise<RateLimitResult> {
     const key = this.buildKey('rl:sliding', keyParts);
     const nonce = Math.random().toString(36).slice(2);
-    const result = (await this.redis.eval(
-      SLIDING_WINDOW_LUA,
-      1,
-      key,
-      Date.now(),
-      windowSeconds,
-      limit,
-      nonce,
-    )) as [number, number, number];
+    let result: [number, number, number];
+    try {
+      result = (await this.redis.eval(
+        SLIDING_WINDOW_LUA,
+        1,
+        key,
+        Date.now(),
+        windowSeconds,
+        limit,
+        nonce,
+      )) as [number, number, number];
+    } catch (err) {
+      // The money-sensitive limits (SMS) stay limited, per process.
+      this.warnFallback(err);
+      return this.local.consume(key, limit, windowSeconds);
+    }
     return {
       allowed: result[0] === 1,
       remaining: result[1],

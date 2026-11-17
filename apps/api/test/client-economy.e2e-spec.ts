@@ -552,6 +552,24 @@ describe('Client economy (e2e, owner 2026-10-22)', () => {
     expect(ids(after.body.data)).not.toContain(kase.id);
     expect(after.body.meta.deletedIds).toContain(kase.id);
 
+    // Verify 17.11: a deleted case reaches deletedIds too (the soft-delete
+    // filter hid it from the delta, so it stayed on every device).
+    const syncedAfterClose = after.body.meta.syncedAt as string;
+    await prisma.case.update({
+      where: { id: kase.id },
+      data: { deleted_at: new Date() },
+    });
+    const gone = await api()
+      .get('/api/v1/users/me/cases')
+      .set(cl.auth)
+      .query({ updatedSince: syncedAfterClose })
+      .expect(200);
+    expect(gone.body.meta.deletedIds).toContain(kase.id);
+    await prisma.case.update({
+      where: { id: kase.id },
+      data: { deleted_at: null },
+    });
+
     // Delta audit D-P4: the case's own bid list answers a delta too.
     const caseBids = await api()
       .get(`/api/v1/cases/${kase.id}/bids`)
