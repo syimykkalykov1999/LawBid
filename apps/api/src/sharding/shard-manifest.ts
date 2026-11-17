@@ -60,6 +60,8 @@ export const SHARDED_MODELS: Readonly<Record<string, ShardedModelSpec>> = {
   CaseExtraPractice: spec('case', parent('case_id', 'Case')),
   Bid: spec('case', parent('case_id', 'Case')),
   BidOffer: spec('case', parent('bid_id', 'Bid')),
+  // Firms audit 16.11 (PR-4): colleagues who joined the firm's bid.
+  BidParticipant: spec('case', parent('bid_id', 'Bid')),
   CaseJournal: spec('case', parent('case_id', 'Case')),
   ContactDisclosure: spec('case', parent('case_id', 'Case')),
   ContactIssueReport: spec('case', parent('case_id', 'Case')),

@@ -511,6 +511,10 @@ export enum ErrorCode {
   // Firms audit 16.11 (PR-2) — 409: the owner hands the firm to a member
   // (or closes it) before leaving.
   FIRM_OWNER_MUST_TRANSFER = 'FIRM_OWNER_MUST_TRANSFER',
+  // Firms audit 16.11 (PR-4, owner) — 409: a colleague of the firm already
+  // bid on this case (details {bidId, attorneyId, firstName, lastName}); the
+  // lawyer joins that bid instead.
+  FIRM_BID_EXISTS = 'FIRM_BID_EXISTS',
   BID_LICENSE_PENDING = 'BID_LICENSE_PENDING',
   BAR_ATTEMPTS_COOLDOWN = 'BAR_ATTEMPTS_COOLDOWN',
   CASE_LIMIT_REACHED = 'CASE_LIMIT_REACHED',

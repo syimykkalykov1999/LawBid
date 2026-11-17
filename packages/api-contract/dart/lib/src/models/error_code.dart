@@ -454,6 +454,8 @@ enum ErrorCode {
   firmFull('FIRM_FULL'),
   @JsonValue('FIRM_OWNER_MUST_TRANSFER')
   firmOwnerMustTransfer('FIRM_OWNER_MUST_TRANSFER'),
+  @JsonValue('FIRM_BID_EXISTS')
+  firmBidExists('FIRM_BID_EXISTS'),
   @JsonValue('BID_LICENSE_PENDING')
   bidLicensePending('BID_LICENSE_PENDING'),
   @JsonValue('BAR_ATTEMPTS_COOLDOWN')
