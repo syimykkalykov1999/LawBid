@@ -4,6 +4,7 @@ import {
   OWNER_HOTLINE_SETTINGS,
   bandOf,
   hotlineCounterBandsFrom,
+  hotlineModeFrom,
   hotlineSettingsFrom,
 } from './hotline-settings';
 import {
@@ -17,7 +18,7 @@ describe('hotline settings (owner row 87, 16.11)', () => {
       HOTLINE_SETTING_DEFS.map((d) => [d.key, d.default]),
     );
     const {
-      'hotline.free_for_all_enabled': freeForAll,
+      'hotline.mode': mode,
       'hotline.short_notice_enabled': shortNotice,
       'hotline.counter_bands': bands,
       'hotline.review_enabled': review,
@@ -25,7 +26,7 @@ describe('hotline settings (owner row 87, 16.11)', () => {
       ...numbers
     } = OWNER_HOTLINE_SETTINGS;
     expect(numbers).toEqual(fromList);
-    expect(freeForAll).toBe(true);
+    expect(mode).toBe('on_for_all');
     expect(shortNotice).toBe(false);
     expect(bands).toEqual([1, 10, 50, 100]);
     expect(review).toBe(true);
@@ -88,10 +89,15 @@ describe('hotline settings (owner row 87, 16.11)', () => {
     }
   });
 
-  it('«Бесплатно для всех» is a switch, on at start (payments off)', () => {
+  it('«Вкл для всех / По подписке / Выкл для всех» like attachments; anything else refused and read as on_for_all', () => {
     const schema = configSchema();
-    expect(schema['hotline.free_for_all_enabled'].type).toBe('boolean');
-    expect(schema['hotline.free_for_all_enabled'].defaultValue).toBe(true);
+    for (const m of ['by_subscription', 'off_for_all', 'on_for_all']) {
+      expect(validateConfigValue(schema['hotline.mode'], m)).toBeNull();
+      expect(hotlineModeFrom({ 'hotline.mode': m })).toBe(m);
+    }
+    expect(validateConfigValue(schema['hotline.mode'], 'free')).not.toBeNull();
+    expect(hotlineModeFrom({})).toBe('on_for_all');
+    expect(schema['hotline.mode'].defaultValue).toBe('on_for_all');
     expect(schema['hotline.short_notice_enabled'].defaultValue).toBe(false);
   });
 

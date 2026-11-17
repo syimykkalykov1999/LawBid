@@ -19,7 +19,7 @@ import {
 
 const DAY = 24 * 60 * 60 * 1000;
 const base: HotlineAccessInput = {
-  freeForAll: false,
+  mode: 'by_subscription',
   included: false,
   addonPriceCents: null,
   addonActive: false,
@@ -77,11 +77,22 @@ describe('hotline switch (owner row 87)', () => {
 });
 
 describe('decideHotlineAccess (owner 16.11 ~19:45, per plan)', () => {
-  it('«Бесплатно для всех» (start): every attorney, whatever the plan', () => {
-    expect(decideHotlineAccess({ ...base, freeForAll: true })).toEqual({
+  it('«Вкл для всех» (start): every attorney, whatever the plan', () => {
+    expect(decideHotlineAccess({ ...base, mode: 'on_for_all' })).toEqual({
       allowed: true,
       via: 'free',
     });
+  });
+
+  it('«Выкл для всех»: nobody, even with the plan or a trial', () => {
+    expect(
+      decideHotlineAccess({
+        ...base,
+        mode: 'off_for_all',
+        included: true,
+        trialDays: 7,
+      }),
+    ).toEqual({ allowed: false, reason: 'off_for_all' });
   });
 
   it('«Входит в тариф»: allowed', () => {
