@@ -1804,12 +1804,26 @@ export class GroupsService {
     if (!(m.admin || m.group.who_can_post === 'all')) {
       throw forbidden('Only admins can write in this group.');
     }
-    const body = (dto.body ?? '').trim();
     const attachment = dto.type === 'attachment';
-    if (attachment && !(m.admin || m.group.who_can_media === 'all')) {
+    // Groups WhatsApp parity (voice): a note carries no text, like 1:1.
+    const voice = dto.type === 'voice';
+    const body = voice ? '' : (dto.body ?? '').trim();
+    // A voice note is media (WhatsApp / Telegram «Send media»).
+    if (
+      (attachment || voice) &&
+      !(m.admin || m.group.who_can_media === 'all')
+    ) {
       throw forbidden('Media is not allowed in this group.');
     }
-    if (attachment ? !dto.fileId || !dto.fileName : body.length === 0) {
+    if (voice) {
+      if (!dto.fileId || dto.durationMs === undefined) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'A voice message needs fileId and durationMs.',
+          details: { fields: ['fileId', 'durationMs'] },
+        });
+      }
+    } else if (attachment ? !dto.fileId || !dto.fileName : body.length === 0) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
         message: attachment
@@ -1826,10 +1840,13 @@ export class GroupsService {
     // After the duplicate check, so a resent message costs nothing.
     await this.limits?.consume('message', user.sub);
     const topic = await this.writableTopic(m, dto.topicId);
-    if (attachment) {
-      await this.files.assertAttachable(user.sub, dto.fileId!, [
-        'chat_attachment',
-      ]);
+    if (attachment || voice) {
+      await this.files.assertAttachable(
+        user.sub,
+        dto.fileId!,
+        voice ? ['chat_voice'] : ['chat_attachment'],
+      );
+      // One file, one message (1:1 or group): a file is never re-sent.
       const used =
         (await this.prisma.chatGroupMessage.findFirst({
           where: { file_id: dto.fileId, deleted_at: {} },
@@ -1880,7 +1897,7 @@ export class GroupsService {
           data: {
             group_id: id,
             sender_id: user.sub,
-            type: attachment ? 'attachment' : 'text',
+            type: voice ? 'voice' : attachment ? 'attachment' : 'text',
             body,
             client_message_id: dto.clientMessageId,
             topic_id: topic && !topic.is_general ? topic.id : null,
@@ -1888,8 +1905,11 @@ export class GroupsService {
             mention_ids: mentions,
             // Owner 2026-10-21: disappearing messages.
             expires_at: expiresAtFor(m.group.disappear_after_s),
-            file_id: attachment ? dto.fileId : null,
+            file_id: attachment || voice ? dto.fileId : null,
             file_name: attachment ? dto.fileName : null,
+            ...(voice
+              ? { duration_ms: dto.durationMs, waveform: dto.waveform ?? [] }
+              : {}),
             // Owner 2026-10-21 (Telegram): «Forwarded from <name>».
             ...(opts.forwardedFromName !== undefined
               ? {

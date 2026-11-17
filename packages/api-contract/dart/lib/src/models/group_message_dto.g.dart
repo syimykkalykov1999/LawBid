@@ -36,6 +36,9 @@ GroupMessageDto _$GroupMessageDtoFromJson(
   attachment: json['attachment'] == null
       ? null
       : ChatAttachmentDto.fromJson(json['attachment'] as Map<String, dynamic>),
+  voice: json['voice'] == null
+      ? null
+      : VoiceNoteDto.fromJson(json['voice'] as Map<String, dynamic>),
   poll: json['poll'] == null
       ? null
       : PollDto.fromJson(json['poll'] as Map<String, dynamic>),
@@ -69,6 +72,7 @@ Map<String, dynamic> _$GroupMessageDtoToJson(GroupMessageDto instance) =>
       'mentions': instance.mentions.map((e) => e.toJson()).toList(),
       'mentionsMe': instance.mentionsMe,
       'attachment': ?instance.attachment?.toJson(),
+      'voice': ?instance.voice?.toJson(),
       'poll': ?instance.poll?.toJson(),
       'editedAt': ?instance.editedAt?.toIso8601String(),
       'deleted': instance.deleted,

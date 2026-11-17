@@ -201279,7 +201279,8 @@
               "text",
               "system",
               "poll",
-              "attachment"
+              "attachment",
+              "voice"
             ]
           },
           "snippet": {
@@ -201416,7 +201417,8 @@
               "text",
               "system",
               "poll",
-              "attachment"
+              "attachment",
+              "voice"
             ],
             "type": "string"
           },
@@ -201481,6 +201483,15 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/ChatAttachmentDto"
+              }
+            ]
+          },
+          "voice": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/VoiceNoteDto"
               }
             ]
           },
@@ -202740,7 +202751,8 @@
           "type": {
             "enum": [
               "text",
-              "attachment"
+              "attachment",
+              "voice"
             ],
             "type": "string"
           },
@@ -202772,12 +202784,28 @@
           "fileId": {
             "type": "string",
             "format": "uuid",
-            "description": "type=attachment."
+            "description": "type=attachment: a clean `chat_attachment` file; type=voice: a clean `chat_voice` file of the sender."
           },
           "fileName": {
             "type": "string",
             "maxLength": 200,
             "description": "type=attachment."
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 500,
+            "maximum": 900000,
+            "description": "type=voice."
+          },
+          "waveform": {
+            "maxItems": 100,
+            "description": "type=voice: up to 100 bars, each 0–100.",
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 0
+            }
           }
         },
         "required": [

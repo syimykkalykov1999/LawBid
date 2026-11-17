@@ -30,6 +30,7 @@ import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_background_sync.dart';
 import 'package:lawbid/features/create/presentation/create_sheet.dart';
 import 'package:lawbid/features/demo/presentation/demo_banner.dart';
+import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -190,7 +191,10 @@ class _MainShellState extends ConsumerState<MainShell> {
           children: [
             // WhatsApp: a voice note keeps playing after the chat is left.
             VoiceMiniPlayer(
-              onOpen: (id) => context.push(ChatRoutes.conversation(id)),
+              // Groups WhatsApp parity: a group's note goes back to it.
+              onOpen: (id) => context.push(
+                groupRouteOfVoiceThread(id) ?? ChatRoutes.conversation(id),
+              ),
             ),
             Expanded(
               // The strip took the status bar's room; the screens below

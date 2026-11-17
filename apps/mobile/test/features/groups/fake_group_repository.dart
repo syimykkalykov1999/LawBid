@@ -197,6 +197,7 @@ class FakeGroupRepository implements GroupRepository {
       throw const ApiException(code: 'NETWORK_ERROR', message: 'offline');
     }
     sentBodies.add(body);
+    final voice = body.type == api.SendGroupMessageDtoType.voice;
     return thread.isEmpty
         ? message(
             'srv-${sentBodies.length}',
@@ -204,6 +205,17 @@ class FakeGroupRepository implements GroupRepository {
             mine: true,
             topicId: body.topicId,
             clientMessageId: body.clientMessageId,
+            type: voice
+                ? api.GroupMessageDtoType.voice
+                : api.GroupMessageDtoType.text,
+            voice: voice
+                ? api.VoiceNoteDto(
+                    url: 'https://signed/${body.fileId}',
+                    durationMs: body.durationMs ?? 0,
+                    waveform: body.waveform ?? const [],
+                    listened: false,
+                  )
+                : null,
           )
         : thread.first;
   }
@@ -327,6 +339,7 @@ api.GroupMessageDto message(
   String? forwardedFrom,
   String? clientMessageId,
   List<api.ReactionDto>? reactions,
+  api.VoiceNoteDto? voice,
 }) =>
     api.GroupMessageDto(
       id: id,
@@ -344,6 +357,7 @@ api.GroupMessageDto message(
       mentions: const [],
       mentionsMe: mentionsMe,
       attachment: attachment,
+      voice: voice,
       poll: poll,
       deleted: false,
       createdAt: _at.add(Duration(minutes: minutes)),
