@@ -6,6 +6,7 @@ import {
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -218,14 +219,7 @@ export class PostEngagementService {
             ...(hidden.length > 0 ? [{ author_id: { notIn: hidden } }] : []),
           ],
         },
-        ...(c
-          ? {
-              OR: [
-                { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, id: { lt: c.id } },
-              ],
-            }
-          : {}),
+        ...(c ? createdBefore({ t: c.createdAt, id: c.id }) : {}),
       },
       include: { post: true },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
