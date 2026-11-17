@@ -17,6 +17,7 @@ describe('CaseCommentsService.remove under a double DELETE', () => {
     };
     const db = {
       caseComment: {
+        count: jest.fn(() => Promise.resolve(0)),
         findFirst: jest.fn(() =>
           Promise.resolve(row.deleted_at ? null : { ...row }),
         ),

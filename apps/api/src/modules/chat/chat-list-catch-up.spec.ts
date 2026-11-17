@@ -9,18 +9,16 @@ import { ChatService } from './chat.service';
  */
 describe('chat list catch-up (updatedSince)', () => {
   const svc = Object.create(ChatService.prototype) as {
-    changedSince(me: string, since: string): Prisma.ConversationWhereInput;
+    changedSince(since: string): Prisma.ConversationWhereInput;
   };
 
-  it('matches a changed row or my read since then', () => {
+  it('matches a changed row or a read by either side since then (verify 17.11)', () => {
     const since = '2026-10-22T09:00:00.000Z';
     const at = new Date(since);
-    expect(svc.changedSince('me', since)).toEqual({
+    expect(svc.changedSince(since)).toEqual({
       OR: [
         { updated_at: { gte: at } },
-        {
-          participants: { some: { user_id: 'me', last_read_at: { gte: at } } },
-        },
+        { participants: { some: { last_read_at: { gte: at } } } },
       ],
     });
   });

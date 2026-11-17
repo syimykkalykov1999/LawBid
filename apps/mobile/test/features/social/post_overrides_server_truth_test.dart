@@ -10,8 +10,7 @@ import 'social_fakes.dart';
 /// copy stayed for the whole session and hid the author's edits and other
 /// people's counts on profiles, tags, search and the post screen.
 void main() {
-  test('a profile list from the server replaces the optimistic copy',
-      () async {
+  test('a profile list from the server replaces the optimistic copy', () async {
     final repo = FakeSocialRepository(posts: [fakePost('p1')]);
     final c = ProviderContainer(overrides: socialOverrides(repo));
     addTearDown(c.dispose);
