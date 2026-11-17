@@ -31,13 +31,23 @@ final caseWorkspaceProvider =
   retry: _noRetry,
 );
 
+/// The server's page cap for a case's files (`CASE_FILES_PAGE_MAX`).
+const kCaseFilesPageMax = 100;
+
 final caseFilesProvider =
     FutureProvider.autoDispose.family<List<api.WorkspaceFileDto>, String>(
   (ref, id) async {
     // R-385: kept 2 min (no realtime here; own actions invalidate).
     ref.keepAliveFor(KeepWindows.workspace);
+    // Verify 17.11: the route always pages now (it read every file of the
+    // case at once). This list picks the agreement PDF: documents only, the
+    // largest page the server gives.
     return (await guardApiCall(
-      () => ref.watch(caseWorkspaceClientProvider).listCaseFiles(id: id),
+      () => ref.watch(caseWorkspaceClientProvider).listCaseFiles(
+            id: id,
+            limit: kCaseFilesPageMax,
+            kind: api.CaseFilesKind.documents,
+          ),
     ))
         .data;
   },

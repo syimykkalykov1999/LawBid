@@ -40,7 +40,10 @@ import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { assertContingency, contingencyPolicy } from '../cases/cases.public';
-import { assertExpectedVersion } from '../../common/concurrency/optimistic-lock';
+import {
+  assertExpectedVersion,
+  staleVersion,
+} from '../../common/concurrency/optimistic-lock';
 import { BidStateMachine, bidNotFound } from './domain/bid-state-machine';
 import type { BidCaseChangeDto, BidDto } from './dto/bid-responses.dto';
 import type {
@@ -829,8 +832,15 @@ export class BidsService {
     await withTxRetry(this.prisma, async (tx) => {
       await tx.$queryRaw`SELECT id FROM bids WHERE id = ${bid.id}::UUID FOR UPDATE`;
       const now = await tx.bid.findUniqueOrThrow({ where: { id: bid.id } });
-      assertExpectedVersion(now.version, expectedVersion);
+      // Verify 17.11: without If-Match the version read above (before the
+      // lock) is the one this change was decided on — a client counter in
+      // between was rewritten as the attorney's offer. And the bid must
+      // still be waiting for the confirmation.
+      assertExpectedVersion(now.version, expectedVersion ?? bid.version);
       if (now.status !== 'active') throw bidNotActive(now.status);
+      if (now.confirmation_required_at === null) {
+        throw staleVersion(now.version);
+      }
       const terms = paymentTerms ?? Prisma.JsonNull;
       // bid_offers keeps one row per round; the replaced offer stays in the
       // journal, terms and message included.
