@@ -1,4 +1,8 @@
-import { compareVersions, isVersionBelow } from './semver.util';
+import {
+  compareVersions,
+  isVersionBelow,
+  legacyClientAllowed,
+} from './semver.util';
 
 describe('compareVersions', () => {
   it('returns 0 for equal versions', () => {
@@ -42,5 +46,31 @@ describe('isVersionBelow', () => {
   it('never blocks on unparseable input', () => {
     expect(isVersionBelow('garbage', '0.2.0')).toBe(false);
     expect(isVersionBelow('0.1.0', 'garbage')).toBe(false);
+  });
+});
+
+/** R2B-12 / R2B-9 (14.11): an older app keeps an old, weaker path only
+ * while it is older than the admin's «from this version on» setting. */
+describe('legacyClientAllowed', () => {
+  it('an empty setting = the new rule is not enforced yet', () => {
+    expect(legacyClientAllowed('1.0.0', '')).toBe(true);
+    expect(legacyClientAllowed(undefined, '')).toBe(true);
+    expect(legacyClientAllowed(undefined, '   ')).toBe(true);
+  });
+
+  it('a build older than the setting keeps the old path', () => {
+    expect(legacyClientAllowed('1.0.0', '1.1.0')).toBe(true);
+    expect(legacyClientAllowed('1.0.9+77', '1.1.0')).toBe(true);
+  });
+
+  it('the setting version and newer must use the new rule', () => {
+    expect(legacyClientAllowed('1.1.0', '1.1.0')).toBe(false);
+    expect(legacyClientAllowed('2.0.0', '1.1.0')).toBe(false);
+  });
+
+  it('no or an unreadable version with the rule on = the new rule (fail closed)', () => {
+    expect(legacyClientAllowed(undefined, '1.1.0')).toBe(false);
+    expect(legacyClientAllowed('', '1.1.0')).toBe(false);
+    expect(legacyClientAllowed('garbage', '1.1.0')).toBe(false);
   });
 });

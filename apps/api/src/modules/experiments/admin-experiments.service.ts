@@ -26,6 +26,7 @@ import {
   normalizeGuardrails,
   parseVariants,
 } from './experiment-definition';
+import { toHashVersion } from './experiment-math';
 import { ExperimentsNightlyJob } from './experiments-nightly.job';
 import { ExperimentsService } from './experiments.service';
 
@@ -94,6 +95,10 @@ export class AdminExperimentsService {
           dto.guardrails,
         ) as unknown as Prisma.InputJsonValue,
         end_at: dto.endAt ? new Date(dto.endAt) : null,
+        // Absent = the column default (2, GrowthBook v2).
+        ...(dto.hashVersion !== undefined
+          ? { hash_version: dto.hashVersion }
+          : {}),
         created_by: admin.id,
       },
     });
@@ -104,6 +109,7 @@ export class AdminExperimentsService {
       targetId: row.id,
       after: {
         key: row.key,
+        hashVersion: row.hash_version,
         variants: JSON.parse(
           JSON.stringify(dto.variants),
         ) as Prisma.InputJsonValue,
@@ -278,6 +284,7 @@ export class AdminExperimentsService {
       status: r.status,
       variants: parseVariants(r.variants),
       trafficPercent: r.traffic_percent,
+      hashVersion: toHashVersion(r.hash_version),
       guardrails: normalizeGuardrails(r.guardrails as Record<string, number>),
       startedAt: r.started_at?.toISOString() ?? null,
       endAt: r.end_at?.toISOString() ?? null,

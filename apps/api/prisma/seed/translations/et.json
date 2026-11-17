@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "Fail ei läbinud kontrolli. Valige mõni teine foto.",
   "cbadge.hint": "Kuldne märk Teie nime kõrval",
   "cbadge.lead": "Kuldne märk näitab, et Teie konto on verifitseeritud. Saatke dokumendid ja vaatame need käsitsi üle. Pärast kinnitamist lülitub märk tellimusega sisse.",
+  "cbadge.lead.pay": "Kuldne linnuke teie nime kõrval ja tellimuse eelised. Dokumente pole vaja: tellige ja kõik lülitub kohe sisse.",
   "cbadge.pay": "Telli {price} kuus",
   "cbadge.pending.text": "Vaatame Teie dokumente. Kui oleme valmis, saate teavituse.",
   "cbadge.pending.title": "Läbivaatamisel",
