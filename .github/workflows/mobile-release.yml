@@ -105,14 +105,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
-        with: { distribution: temurin, java-version: "17" }
+        with: { distribution: temurin, java-version: "25" }
       - name: Flutter version (apps/mobile/.fvmrc is the single pin)
         id: fv
         run: echo "v=$(jq -r .flutter apps/mobile/.fvmrc)" >> "$GITHUB_OUTPUT"
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with: { flutter-version: "${{ steps.fv.outputs.v }}", channel: stable, cache: true }
       - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
-        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+        with: { ruby-version: "4.0", bundler-cache: true, working-directory: apps/mobile }
       - name: Dart defines
         working-directory: apps/mobile
         env:
@@ -211,7 +211,7 @@ jobs:
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with: { flutter-version: "${{ steps.fv.outputs.v }}", channel: stable, cache: true }
       - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
-        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+        with: { ruby-version: "4.0", bundler-cache: true, working-directory: apps/mobile }
       - name: Dart defines
         working-directory: apps/mobile
         env:
@@ -335,7 +335,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
-        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+        with: { ruby-version: "4.0", bundler-cache: true, working-directory: apps/mobile }
       - name: Play lane
         working-directory: apps/mobile/android
         env:
@@ -358,7 +358,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
-        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+        with: { ruby-version: "4.0", bundler-cache: true, working-directory: apps/mobile }
       - name: Submit the TestFlight build with a 7-day phased release
         working-directory: apps/mobile/ios
         env:

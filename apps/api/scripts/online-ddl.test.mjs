@@ -62,9 +62,20 @@ t('allows the safe patterns', () => {
   assert.equal(r.status, 0, r.stdout + r.stderr);
 });
 
+// Squawk 2.72.0 (sbdchd/squawk#1457): a VALIDATE CONSTRAINT from an earlier
+// migration makes SET NOT NULL safe only when the constraint is named after
+// the column (Squawk cannot see the CHECK body in another file). Name the
+// CHECK `<column>_not_null` (docs/architecture/ONLINE_DDL.md §1).
 t('SET NOT NULL is fine once the CHECK is validated (migration after the validate)', () => {
-  const r = run(LT + 'ALTER TABLE "a" VALIDATE CONSTRAINT "ck";\nALTER TABLE "a" ALTER COLUMN "b" SET NOT NULL;');
+  const r = run(
+    LT + 'ALTER TABLE "a" VALIDATE CONSTRAINT "b_not_null";\nALTER TABLE "a" ALTER COLUMN "b" SET NOT NULL;',
+  );
   assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
+t('SET NOT NULL after validating an unrelated constraint is rejected', () => {
+  const r = run(LT + 'ALTER TABLE "a" VALIDATE CONSTRAINT "ck";\nALTER TABLE "a" ALTER COLUMN "b" SET NOT NULL;');
+  assert.equal(r.status, 1, r.stdout + r.stderr);
 });
 
 t('a table created in the same migration may be indexed and constrained plainly', () => {

@@ -112,6 +112,7 @@ const IdempotencyKeyHeader = ApiHeader({
  * DB row or cost money to retry (verify/social mint a User+Session,
  * refresh mints a new Session row, identifiers mints a UserIdentifier,
  * otp/request triggers a billed SMS/email send) — logout/logout-all/
+ * logout-others/
  * reauth/DELETE sessions are naturally idempotent already (revoking an
  * already-revoked session is a no-op) so they don't need it.
  */
@@ -359,6 +360,19 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async logoutAll(@CurrentUser() user: RequestUser): Promise<LoggedOutDto> {
     await this.auth.logoutAll(user);
+    return { loggedOut: true };
+  }
+
+  /** R2-A #9 (Telegram «Terminate all other sessions»): every other session
+   * of the account ends; the caller's stays, so its web cookie stays too.
+   * `logout-all` keeps its old meaning for the apps already out there. */
+  @ApiBearerAuth()
+  @ApiEnvelopeResponse(LoggedOutDto)
+  @ApiErrors({ 401: BEARER_401 })
+  @Post('logout-others')
+  @HttpCode(HttpStatus.OK)
+  async logoutOthers(@CurrentUser() user: RequestUser): Promise<LoggedOutDto> {
+    await this.auth.logoutOthers(user);
     return { loggedOut: true };
   }
 

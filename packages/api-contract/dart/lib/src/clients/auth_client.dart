@@ -108,6 +108,14 @@ abstract class AuthClient {
   @POST('/auth/logout-all')
   Future<LoggedOutEnvelope> logoutAll({@Extras() Map<String, dynamic>? extras});
 
+  /// R2-A #9 (Telegram «Terminate all other sessions»): every other session.
+  /// of the account ends; the caller's stays, so its web cookie stays too.
+  /// `logout-all` keeps its old meaning for the apps already out there.
+  @POST('/auth/logout-others')
+  Future<LoggedOutEnvelope> logoutOthers({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// "This wasn't me" on a new-device / new-country alert: every session of.
   /// the account ends, this one included (S14-4). Audited.
   @POST('/auth/wasnt-me')
