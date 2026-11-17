@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'admin_cases_bulk_action.dart';
+import 'admin_cases_filter_dto.dart';
 
 part 'admin_cases_bulk_dto.g.dart';
 
@@ -12,7 +13,8 @@ part 'admin_cases_bulk_dto.g.dart';
 class AdminCasesBulkDto {
   const AdminCasesBulkDto({
     required this.action,
-    required this.ids,
+    this.ids,
+    this.filter,
     this.reason = '',
   });
 
@@ -22,8 +24,11 @@ class AdminCasesBulkDto {
   final String reason;
   final AdminCasesBulkAction action;
 
-  /// Staff: at most 500; the owner: any number (processed in chunks).
-  final List<String> ids;
+  /// Exactly one of `ids` or `filter`. Staff: at most 500; the owner: any number (processed in chunks).
+  final List<String>? ids;
+
+  /// Row 179 B6: «select all by filter» — the cases list filter; the server resolves the ids (staff: at most `admin.bulk_select_cap`) and audits the filter.
+  final AdminCasesFilterDto? filter;
 
   Map<String, Object?> toJson() => _$AdminCasesBulkDtoToJson(this);
 }

@@ -22,24 +22,50 @@ import { useMe } from '@/lib/hooks';
  * Selected ids; cleared whenever [resetKey] (the list's filter) changes.
  * `toggle(id, order)` with the rows' order (RowSelectBox passes it on
  * Shift+click) ticks the range from the last clicked row (lib/bulk toggleRange).
+ *
+ * Row 179 B6: «Выбрать всё по фильтру» no longer walks the list collecting
+ * ids — it keeps the FILTER (`byFilter`: the server's count) and the bulk
+ * call sends the filter, as the users page does (S18-10). Ticking a row
+ * after that goes back to picking ids.
  */
 export function useSelection(resetKey: string) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [byFilter, setByFilter] = useState<{ count: number; capped: boolean } | null>(null);
   const anchor = useRef<string | null>(null);
   useEffect(() => {
     setSelected(new Set());
+    setByFilter(null);
     anchor.current = null;
   }, [resetKey]);
   return {
     selected,
+    /** «all matching the filter», resolved by the server; null = the ids. */
+    byFilter,
+    /** How many the bulk action touches. */
+    count: byFilter ? byFilter.count : selected.size,
     toggle: (id: string, order?: readonly string[]) => {
+      setByFilter(null);
       const from = anchor.current;
       anchor.current = id;
       setSelected((s) => (order ? toggleRange(s, from, id, order) : toggleId(s, id)));
     },
-    togglePage: (ids: string[]) => setSelected((s) => togglePage(s, ids)),
-    replace: (ids: string[]) => setSelected(new Set(ids)),
-    clear: () => setSelected(new Set()),
+    togglePage: (ids: string[]) => {
+      setByFilter(null);
+      setSelected((s) => togglePage(s, ids));
+    },
+    replace: (ids: string[]) => {
+      setByFilter(null);
+      setSelected(new Set(ids));
+    },
+    /** Row 179 B6: select everything the filter matches (the server's preview). */
+    selectFilter: (p: { matched: number; capped: boolean }) => {
+      setSelected(new Set());
+      setByFilter({ count: p.matched, capped: p.capped });
+    },
+    clear: () => {
+      setSelected(new Set());
+      setByFilter(null);
+    },
   };
 }
 

@@ -6,7 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/add_official_sticker_dto.dart';
-import '../models/admin_bulk_reason_dto.dart';
+import '../models/admin_bulk_filter_preview_envelope.dart';
 import '../models/admin_bulk_result_envelope.dart';
 import '../models/admin_channel_envelope.dart';
 import '../models/admin_channel_post_action_dto.dart';
@@ -16,10 +16,14 @@ import '../models/admin_channel_status_dto.dart';
 import '../models/admin_media_reason_dto.dart';
 import '../models/admin_sticker_pack_envelope.dart';
 import '../models/admin_sticker_pack_row_list_envelope.dart';
+import '../models/admin_sticker_packs_bulk_dto.dart';
+import '../models/admin_sticker_packs_bulk_preview_dto.dart';
 import '../models/admin_sticker_upload_dto.dart';
 import '../models/admin_video_row_list_envelope.dart';
 import '../models/admin_video_stats_envelope.dart';
 import '../models/admin_video_status.dart';
+import '../models/admin_videos_bulk_dto.dart';
+import '../models/admin_videos_bulk_preview_dto.dart';
 import '../models/create_official_sticker_pack_dto.dart';
 import '../models/file_envelope.dart';
 import '../models/kind2.dart';
@@ -67,7 +71,14 @@ abstract class AdminMediaClient {
   /// Take many videos down with one reason (posts removed, authors told why)
   @POST('/admin/media/videos/bulk-takedown')
   Future<AdminBulkResultEnvelope> bulkTakedownAdminVideos({
-    @Body() required AdminBulkReasonDto body,
+    @Body() required AdminVideosBulkDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Row 179 B6: how many videos the list filter matches that can be taken down (read-only)
+  @POST('/admin/media/videos/bulk/preview')
+  Future<AdminBulkFilterPreviewEnvelope> previewAdminVideosBulk({
+    @Body() required AdminVideosBulkPreviewDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -102,14 +113,21 @@ abstract class AdminMediaClient {
   /// Hide many packs with one reason (authors told why)
   @POST('/admin/media/sticker-packs/bulk-hide')
   Future<AdminBulkResultEnvelope> bulkHideAdminStickerPacks({
-    @Body() required AdminBulkReasonDto body,
+    @Body() required AdminStickerPacksBulkDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Row 179 B6: how many sticker packs the list filter matches (read-only)
+  @POST('/admin/media/sticker-packs/bulk/preview')
+  Future<AdminBulkFilterPreviewEnvelope> previewAdminStickerPacksBulk({
+    @Body() required AdminStickerPacksBulkPreviewDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
   /// Make many hidden packs available again
   @POST('/admin/media/sticker-packs/bulk-unhide')
   Future<AdminBulkResultEnvelope> bulkUnhideAdminStickerPacks({
-    @Body() required AdminBulkReasonDto body,
+    @Body() required AdminStickerPacksBulkDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

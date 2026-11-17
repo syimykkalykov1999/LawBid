@@ -19,6 +19,7 @@ import { Prisma, type AdminRole } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { readKey } from '../../common/secrets/key-holder';
+import { bulkFilterCap } from '../../common/admin-bulk/bulk-filter';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -88,8 +89,6 @@ const TOTP_ISSUER = 'LawBid Admin';
  * Owner 14.11 (row 179, B8): this is only the default — the owner sets the
  * window in Настройки (`admin.step_up_ttl_seconds`, owner-only + 2FA). */
 export const STEP_UP_TTL_SECONDS = 300;
-/** The staff default of `admin.bulk_select_cap` (row 179). */
-const BULK_SELECT_CAP_DEFAULT = 2000;
 
 export const ADMIN_AUDIT = {
   login: 'admin.login',
@@ -1390,12 +1389,9 @@ export class AdminAuthService {
 
   /** Owner 14.11 (row 179, B6): how many rows «select all» may collect for
    * this admin; null = no cap (always the owner; staff when the setting is 0). */
-  private async bulkSelectCapFor(role: string): Promise<number | null> {
-    if (role === 'super_admin') return null;
-    const n = this.settings
-      ? await this.settings.number('admin.bulk_select_cap')
-      : BULK_SELECT_CAP_DEFAULT;
-    return Number.isInteger(n) && n > 0 ? n : null;
+  private bulkSelectCapFor(role: string): Promise<number | null> {
+    // The same rule the server applies to «select all by filter» (B6).
+    return bulkFilterCap({ adminRole: role }, this.settings);
   }
 
   /** Owner 14.11 (row 179, B8): the step-up window, seconds — the owner's
