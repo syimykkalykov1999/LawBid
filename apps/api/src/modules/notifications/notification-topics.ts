@@ -163,6 +163,8 @@ export const TYPE_TOPIC: Record<NotificationType, string> = {
   new_message: 'messages',
   assistant_result: 'messages',
   missed_call: 'calls',
+  // Owner row 87: «Адвокат на линии — позвонить сейчас?» (the hotline).
+  hotline_attorney_available: 'calls',
   group_invite: 'groups',
   channel_post: 'channels',
   // Feed.
