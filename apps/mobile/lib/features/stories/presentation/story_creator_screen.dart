@@ -295,7 +295,12 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
   }
 
   Future<void> _loadStill(XFile file) async {
-    final bytes = await videoFrame(file, 0, quality: 60);
+    // Row 199: the admin's photo quality, not 60.
+    final bytes = await videoFrame(
+      file,
+      0,
+      quality: photoLimitsOf(ref.read(featureFlagsControllerProvider)).quality,
+    );
     if (mounted && identical(_video, file) && bytes != null) {
       setState(() => _videoStill = bytes);
     }

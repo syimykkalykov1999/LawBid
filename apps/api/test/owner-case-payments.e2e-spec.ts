@@ -9,7 +9,7 @@ import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { PAYMENT_PROVIDER } from '../src/modules/billing/billing.constants';
-import type { FakePaymentProvider } from '../src/modules/billing/fake-payment.provider';
+import { FakePaymentProvider } from '../src/modules/billing/fake-payment.provider';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { CasePaymentsService } from '../src/modules/case-payments/case-payments.service';
 import { PAYMENT_SETTINGS_KEY } from '../src/modules/case-payments/case-payments.settings';
@@ -723,6 +723,90 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
       .set(cli.auth)
       .expect(200);
     expect((after.body as Body).data).toMatchObject({ paidCents: 70_000 });
+  });
+
+  it('row 177: two refunds at once never pass the same rest (row lock); a retry of one admin click with the same key refunds once', async () => {
+    const att = await attorney();
+    const cli = await client();
+    const acct = await onboard(att);
+    const c = await caseInProgress(cli, att, 100_000);
+    const dep = await pay(cli, c.id, { kind: 'deposit', amountCents: 30_000 });
+    expect(dep.status).toBe(201);
+    const id = (dep.body as Body).data.paymentId as string;
+    const pending = await prisma.casePayment.findUniqueOrThrow({
+      where: { id },
+    });
+    fake.payConnectedCheckout(pending.stripe_checkout_id!);
+    await api().get(`/api/v1/cases/${c.id}/payments`).set(cli.auth).expect(200);
+    const fresh = () => prisma.casePayment.findUniqueOrThrow({ where: { id } });
+
+    // Two refunds of 20 000 out of 30 000 at the same moment, on Postgres:
+    // the payment row lock lets exactly one through.
+    const both = await Promise.all(
+      [1, 2].map((n) =>
+        api()
+          .post(`/api/v1/payments/${id}/refund`)
+          .set(att.auth)
+          .send({ amountCents: 20_000, reason: `at once ${n}` }),
+      ),
+    );
+    expect(both.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect((both.find((r) => r.status === 409)!.body as Body).error?.code).toBe(
+      'REFUND_AMOUNT_EXCEEDED',
+    );
+    const after = await fresh();
+    expect(after).toMatchObject({
+      refunded_cents: 20_000,
+      status: 'partially_refunded',
+    });
+    const charge = () =>
+      fake.retrieveConnectedCharge(acct, after.stripe_charge_id!);
+    expect((await charge())?.amountRefundedCents).toBe(20_000);
+
+    // One admin click whose Stripe answer was lost (Stripe did refund),
+    // then the retry with the same Idempotency-Key: same Stripe key, the
+    // money moves once and is booked once.
+    const admin = { type: 'admin' as const, id: null };
+    // `fake` is the dynamic provider's proxy: wrap the fake's own method.
+    const proto = FakePaymentProvider.prototype;
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- called with the instance below
+    const real = proto.refundConnected;
+    const keys: string[] = [];
+    let lose = true;
+    proto.refundConnected = async function (this: FakePaymentProvider, input) {
+      keys.push(input.idempotencyKey);
+      const out = await real.call(this, input);
+      if (lose) {
+        lose = false;
+        throw new Error('socket hang up');
+      }
+      return out;
+    };
+    const dto = { amountCents: 5_000, reason: 'Support ticket #177' };
+    try {
+      await expect(
+        service.refundPayment(await fresh(), dto, admin, {
+          requestKey: 'click-177',
+        }),
+      ).rejects.toMatchObject({
+        response: { code: 'REFUND_PROVIDER_FAILED' },
+      });
+      await service.refundPayment(await fresh(), dto, admin, {
+        requestKey: 'click-177',
+      });
+    } finally {
+      proto.refundConnected = real;
+    }
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toBe(keys[1]);
+    expect((await charge())?.amountRefundedCents).toBe(25_000);
+    expect(await fresh()).toMatchObject({ refunded_cents: 25_000 });
+    const live = await prisma.casePaymentRefund.findMany({
+      where: { payment_id: id, status: { not: 'failed' } },
+    });
+    expect(live.map((r) => r.amount_cents).sort((a, b) => a - b)).toEqual([
+      5_000, 20_000,
+    ]);
   });
 
   it('a dispute from Stripe marks the payment; lost → refunded', async () => {

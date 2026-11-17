@@ -10,7 +10,7 @@
 # Everything carries the stack's tags (Project=lawbid-loadtest, CreatedAt...).
 terraform {
   required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 5.60" }
+    aws = { source = "hashicorp/aws", version = "~> 6.72" }
   }
 }
 
@@ -60,7 +60,7 @@ variable "k6_version" {
 }
 variable "lk_version" {
   type        = string
-  default     = "2.13.0"
+  default     = "2.19.3"
   description = "livekit-cli release (github.com/livekit/livekit-cli/releases) - the LiveKit load tester is `lk load-test`."
 }
 variable "coturn_image" {
@@ -142,7 +142,7 @@ data "aws_iam_policy_document" "work" {
   # CloudWatch numbers of the TURN box are read by the test scripts
   statement {
     actions   = ["ssm:GetParameter"]
-    resources = ["arn:aws:ssm:${data.aws_region.current.name}:*:parameter/${var.name}/*"]
+    resources = ["arn:aws:ssm:${data.aws_region.current.region}:*:parameter/${var.name}/*"]
   }
   statement {
     actions   = ["ec2:DescribeInstances"]

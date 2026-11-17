@@ -11,7 +11,7 @@ import {
 } from './s3-storage.service';
 
 const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
-const PEM = privateKey.export({ type: 'pkcs8', format: 'pem' }) as string;
+const PEM = privateKey.export({ type: 'pkcs8', format: 'pem' } as const);
 
 const logger = { setContext: jest.fn(), warn: jest.fn() };
 

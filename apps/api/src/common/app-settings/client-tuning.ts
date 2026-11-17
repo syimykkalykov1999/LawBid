@@ -207,6 +207,15 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'While the realtime connection is up, the server tells the app when the virus check of an upload ended; the app asks itself only this often, in milliseconds, as a safety net (without the connection it asks every 700 ms as before).',
   },
+  // Row 110 (Telegram 🔍 in a chat): the in-chat and group member searches
+  // ask the server after this pause in typing (0 = at every key).
+  'client.chat_search_debounce_ms': {
+    default: 300,
+    min: 0,
+    max: 3000,
+    description:
+      'Search inside a chat and over group members: the server is asked after this many milliseconds without typing (0 = at every key).',
+  },
   // Owner row 109 (Telegram / Gmail): «Undo» after a delete, an archive or
   // an unfollow; the deleted comment reaches the server when it ends.
   'client.undo_window_s': {
@@ -268,6 +277,10 @@ export const OWNER_CLIENT_TUNING_SETTINGS = Object.fromEntries(
 export const OWNER_CHAT_PHOTO_SETTINGS = {
   'media.chat_photo_max_px': 1600,
   'media.chat_photo_quality': 82,
+  // Row 149 review: a photo picked from «Files» bigger than the file limit
+  // is still read and shrunk (WhatsApp / Telegram); only up to this many
+  // times the limit, so a 2 GB "picture" is never read whole. 0 = no cap.
+  'media.picked_image_read_x': 4,
 } as const;
 
 /** What the app is told to warm up, for the two kinds of network. */

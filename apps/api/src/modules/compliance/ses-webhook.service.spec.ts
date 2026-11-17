@@ -12,7 +12,7 @@ import {
 const { publicKey, privateKey } = generateKeyPairSync('rsa', {
   modulusLength: 2048,
 });
-const pem = publicKey.export({ type: 'spki', format: 'pem' }) as string;
+const pem = publicKey.export({ type: 'spki', format: 'pem' } as const);
 const TOPIC = 'arn:aws:sns:us-east-1:123456789012:ses-events';
 const CERT =
   'https://sns.us-east-1.amazonaws.com/SimpleNotificationService-abc.pem';

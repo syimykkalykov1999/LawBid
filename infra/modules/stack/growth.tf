@@ -103,7 +103,9 @@ module "growth" {
   rds_subnet_group_name         = local.growth_subnet_group
   rds_security_group_ids        = local.growth_db_sgs
   rds_kms_key_arn               = local.growth_db_kms
-  rds_parameter_group_name      = var.create_database ? "${local.name}-postgres16" : ""
+  # The primary's group (postgres16, or postgres18 after the upgrade: AWS
+  # Blue/Green puts the green copies on the target group).
+  rds_parameter_group_name = var.create_database ? module.postgres[0].parameter_group_name : ""
   # A read copy holds no data of its own: «Авто» may remove it again
   # (KNOWN_ERRORS 103; plan-guard lets only read copies go).
   rds_deletion_protection = false

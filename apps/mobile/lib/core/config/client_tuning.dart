@@ -25,6 +25,7 @@ abstract final class ClientTuning {
   static int _qrPollS = 10;
   static int _resumeMinAwayS = 30;
   static int _undoWindowS = 5;
+  static int _chatSearchDebounceMs = 300;
   static int _notInterestedKeepDays = 90;
   static int _videoPrefetchAhead = 3;
   static int _videoPrefetchCellular = 1;
@@ -63,6 +64,7 @@ abstract final class ClientTuning {
 
   static double _chatPhotoMaxPx = 1600;
   static int _chatPhotoQuality = 82;
+  static int _pickedImageReadX = 4;
   static int _sentryTracesPercent = 0;
   static int _traceparentPercent = 5;
 
@@ -103,6 +105,11 @@ abstract final class ClientTuning {
   /// Row 109 (Telegram / Gmail): how long «Undo» stays after a delete,
   /// an archive or an unfollow (`client.undo_window_s`).
   static Duration get undoWindow => Duration(seconds: _undoWindowS);
+
+  /// Row 110: the pause in typing before an in-chat or member search asks
+  /// the server (`client.chat_search_debounce_ms`, 0 = at every key).
+  static Duration get chatSearchDebounce =>
+      Duration(milliseconds: _chatSearchDebounceMs);
 
   /// Row 112: posts marked «Not interested» stay hidden on this device for
   /// this many days (`client.not_interested_keep_days`).
@@ -179,6 +186,11 @@ abstract final class ClientTuning {
   /// (`media.chat_photo_*`; the original stays on the phone).
   static double get chatPhotoMaxPx => _chatPhotoMaxPx;
   static int get chatPhotoQuality => _chatPhotoQuality;
+
+  /// Row 149: a photo picked from «Files» above the file limit is still read
+  /// and shrunk, up to this many times the limit (`media.picked_image_read_x`,
+  /// 0 = no cap), so a 2 GB "picture" is never read whole.
+  static int get pickedImageReadX => _pickedImageReadX;
 
   /// Media audit 13.11 (C7): longest side / JPEG quality of a verification
   /// document photo picked from «Files» (`client.verification_photo_*`).
@@ -288,6 +300,8 @@ abstract final class ClientTuning {
     _qrPollS = pick('client.qr_poll_s', 10, 5, 60);
     _resumeMinAwayS = pick('client.resume_refresh_min_away_s', 30, 5, 3600);
     _undoWindowS = pick('client.undo_window_s', 5, 2, 30);
+    _chatSearchDebounceMs =
+        pick('client.chat_search_debounce_ms', 300, 0, 3000);
     _notInterestedKeepDays =
         pick('client.not_interested_keep_days', 90, 1, 3650);
     _videoPrefetchAhead = pick('client.video_prefetch_ahead', 3, 0, 6);
@@ -307,6 +321,7 @@ abstract final class ClientTuning {
       4096,
     ).toDouble();
     _chatPhotoQuality = pick('media.chat_photo_quality', 82, 50, 100);
+    _pickedImageReadX = pick('media.picked_image_read_x', 4, 0, 100);
     _verificationPhotoMaxPx = pick(
       'client.verification_photo_max_px',
       2048,

@@ -50,6 +50,7 @@ ConversationDto _$ConversationDtoFromJson(
   pinnedAt: json['pinnedAt'] == null
       ? null
       : DateTime.parse(json['pinnedAt'] as String),
+  markedUnread: json['markedUnread'] as bool?,
 );
 
 Map<String, dynamic> _$ConversationDtoToJson(
@@ -78,6 +79,7 @@ Map<String, dynamic> _$ConversationDtoToJson(
   'waitingSince': ?instance.waitingSince?.toIso8601String(),
   'note': ?instance.note,
   'pinnedAt': ?instance.pinnedAt?.toIso8601String(),
+  'markedUnread': ?instance.markedUnread,
   'kind': instance.kind.toJson(),
   'requestStatus': instance.requestStatus.toJson(),
   'requestedByMe': instance.requestedByMe,

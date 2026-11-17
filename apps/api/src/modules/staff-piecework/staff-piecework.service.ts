@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import type { AdminWorkspace } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
-import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { reportTimeZone } from '../../common/utils/report-day';
 import {
   currentSchedule,

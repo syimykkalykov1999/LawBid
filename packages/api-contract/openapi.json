@@ -20367,7 +20367,7 @@
             }
           },
           "409": {
-            "description": "Conflict: FLAG_PROVIDER_KEYS_MISSING",
+            "description": "Conflict: FLAG_PROVIDER_KEYS_MISSING, STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -20757,6 +20757,16 @@
           },
           "403": {
             "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: STALE_VERSION",
             "content": {
               "application/json": {
                 "schema": {
@@ -57387,6 +57397,199 @@
         "summary": "Delete the obsolete «LawBid Monthly» budget (fresh 2FA step-up)",
         "tags": [
           "admin-launch"
+        ]
+      }
+    },
+    "/admin/spend/autoscale-tuning": {
+      "get": {
+        "operationId": "autoscaleTuning",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoscaleTuningReportEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Autoscaler numbers (SSM tuning) with labels and bounds",
+        "tags": [
+          "admin-spend"
+        ]
+      }
+    },
+    "/admin/spend/autoscale-tuning/{target}": {
+      "put": {
+        "operationId": "updateAutoscaleTuning",
+        "parameters": [
+          {
+            "name": "target",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAutoscaleTuningDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutoscaleTuningReportEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Change autoscaler numbers (needs step-up)",
+        "tags": [
+          "admin-spend"
         ]
       }
     },
@@ -100691,9 +100894,9 @@
           },
           {
             "name": "Idempotency-Key",
+            "required": true,
             "in": "header",
             "description": "Required: a retry returns the first refund, never a second.",
-            "required": true,
             "schema": {
               "type": "string"
             }
@@ -103594,6 +103797,16 @@
             "description": "OQ-047: only photos and documents (the chat's \"Files\" screen).",
             "schema": {
               "$ref": "#/components/schemas/MessagesFilter"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Search inside this chat: every word must be in the text.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
             }
           }
         ],
@@ -111263,6 +111476,16 @@
               "maximum": 50,
               "default": 30,
               "type": "number"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Search inside this group: every word must be in the text.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
             }
           }
         ],
@@ -167717,6 +167940,115 @@
           "name"
         ]
       },
+      "AutoscaleKnobDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "ru": {
+            "type": "string"
+          },
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "kind": {
+            "enum": [
+              "number",
+              "integer",
+              "flag"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "type": "number",
+            "nullable": true
+          }
+        },
+        "required": [
+          "key",
+          "ru",
+          "min",
+          "max",
+          "kind",
+          "value"
+        ]
+      },
+      "AutoscaleTuningTargetDto": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "enum": [
+              "db",
+              "redis",
+              "endpoints",
+              "ecs",
+              "spot"
+            ],
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "knobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutoscaleKnobDto"
+            }
+          }
+        },
+        "required": [
+          "target",
+          "available",
+          "knobs"
+        ]
+      },
+      "AutoscaleTuningReportDto": {
+        "type": "object",
+        "properties": {
+          "targets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AutoscaleTuningTargetDto"
+            }
+          }
+        },
+        "required": [
+          "targets"
+        ]
+      },
+      "AutoscaleTuningReportEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AutoscaleTuningReportDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "UpdateAutoscaleTuningDto": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number",
+              "nullable": true
+            }
+          }
+        },
+        "required": [
+          "values"
+        ]
+      },
       "CostRowStatusDto": {
         "type": "object",
         "properties": {
@@ -168751,6 +169083,9 @@
           },
           "settled": {
             "type": "boolean"
+          },
+          "superseded": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -168773,7 +169108,8 @@
           "plannedAt",
           "expiresAt",
           "finishedAt",
-          "settled"
+          "settled",
+          "superseded"
         ]
       },
       "InfraSuggestionDto": {
@@ -183736,6 +184072,63 @@
           "taskUsd"
         ]
       },
+      "ServiceNowDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "enum": [
+              "api",
+              "worker",
+              "api_admin",
+              "admin",
+              "pgbouncer"
+            ],
+            "type": "string"
+          },
+          "running": {
+            "type": "number"
+          },
+          "desired": {
+            "type": "number"
+          },
+          "spot": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Runs on Fargate Spot (null = the service does not say)."
+          },
+          "base": {
+            "type": "number",
+            "nullable": true,
+            "description": "Regular Fargate tasks first (strategy base; null = launch type)."
+          },
+          "fargateWeight": {
+            "type": "number",
+            "nullable": true,
+            "description": "FARGATE weight of the strategy (null = launch type)."
+          },
+          "spotWeight": {
+            "type": "number",
+            "nullable": true,
+            "description": "FARGATE_SPOT weight of the strategy (null = launch type)."
+          },
+          "min": {
+            "type": "number",
+            "nullable": true,
+            "description": "Autoscaling floor now (MinCapacity; null = not read)."
+          },
+          "max": {
+            "type": "number",
+            "nullable": true,
+            "description": "Autoscaling ceiling now (MaxCapacity; null = not read)."
+          }
+        },
+        "required": [
+          "kind",
+          "running",
+          "desired",
+          "spot"
+        ]
+      },
       "ContainersDto": {
         "type": "object",
         "properties": {
@@ -183756,12 +184149,20 @@
               "normal"
             ],
             "type": "string"
+          },
+          "services": {
+            "description": "Every ECS service the API can read now (empty off AWS), from the same cached report.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceNowDto"
+            }
           }
         },
         "required": [
           "onAws",
           "api",
-          "worker"
+          "worker",
+          "services"
         ]
       },
       "TierRowDto": {
@@ -183828,9 +184229,24 @@
             "nullable": true,
             "description": "Monthly price of that disk (gp3), USD."
           },
+          "dbMultiAz": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "The database has a standby in a second zone (Multi-AZ)."
+          },
+          "replicaCount": {
+            "type": "number",
+            "nullable": true,
+            "description": "Read copies of the database that report load now."
+          },
           "redisClass": {
             "type": "string",
             "nullable": true
+          },
+          "redisNodes": {
+            "type": "number",
+            "nullable": true,
+            "description": "Redis nodes in the group (primary + standbys)."
           },
           "redisNext": {
             "type": "string",
@@ -196036,6 +196452,10 @@
             "type": "string",
             "nullable": true
           },
+          "markedUnread": {
+            "type": "boolean",
+            "description": "Row 110: I marked the chat unread myself (Telegram / WhatsApp); cleared when I read it."
+          },
           "kind": {
             "description": "OQ-043: a case chat or a direct chat from a profile.",
             "allOf": [
@@ -196521,6 +196941,10 @@
             "nullable": true,
             "maxLength": 280,
             "description": "A note pinned on the chat; \"\" or null clears it."
+          },
+          "unread": {
+            "type": "boolean",
+            "description": "Row 110 (Telegram / WhatsApp «Mark as unread»): my own unread mark; reading the chat takes it off."
           },
           "pinned": {
             "type": "boolean",

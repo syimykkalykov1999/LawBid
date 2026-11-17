@@ -12,6 +12,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/l10n/week_start.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
@@ -1747,7 +1748,7 @@ class TasksArchiveScreen extends ConsumerWidget {
       appBar: AppTopBar(
         leading: AppBackButton(
           semanticLabel: t.t('common.close'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(fallback: AppRoutes.mine),
         ),
         title: Text(t.t('tasks.archive.title')),
       ),

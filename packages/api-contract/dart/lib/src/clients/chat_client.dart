@@ -104,12 +104,15 @@ abstract class ChatClient {
   /// [afterId] - Messages after this one, oldest first — catch-up after a reconnect (§8.5).
   ///
   /// [only] - OQ-047: only photos and documents (the chat's "Files" screen).
+  ///
+  /// [q] - Search inside this chat: every word must be in the text.
   @GET('/conversations/{id}/messages')
   Future<MessageListEnvelope> listMessages({
     @Path('id') required String id,
     @Query('cursor') String? cursor,
     @Query('afterId') String? afterId,
     @Query('only') MessagesFilter? only,
+    @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });
 

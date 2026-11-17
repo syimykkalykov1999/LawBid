@@ -58,6 +58,9 @@ const STATUSES: PaymentStatus[] = ['succeeded', 'pending_payment', 'partially_re
 const TABS: readonly Tab[] = ['payments', 'requests', 'accounts', 'settings'];
 const STATUS_TABS: readonly StatusTab[] = ['all', ...STATUSES, 'disputes'];
 const ACCOUNT_STATUSES: AccountStatus[] = ['active', 'onboarding', 'restricted', 'disabled', 'pending'];
+// Row 177: the requests' and accounts' status filters live in the address too.
+const REQUEST_TABS: readonly ('all' | RequestStatus)[] = ['all', ...REQUEST_STATUSES];
+const ACCOUNT_TABS: readonly ('all' | AccountStatus)[] = ['all', ...ACCOUNT_STATUSES];
 /** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
 const PAYMENT_SORT = ['case', 'parties', 'kind', 'attorney', 'fee', 'client', 'status', 'when'] as const;
 const REQUEST_SORT = ['created', 'case', 'attorney', 'client', 'description', 'amount', 'due', 'feePayer', 'status'] as const;
@@ -362,7 +365,7 @@ function RefundDialog({ payment, onClose, onDone }: { payment: Payment | null; o
 }
 
 function RequestsTab() {
-  const [status, setStatus] = useState<'all' | RequestStatus>('all');
+  const [status, setStatus] = useUrlState<'all' | RequestStatus>('requestStatus', 'all', REQUEST_TABS);
   const list = useInfiniteQuery({
     queryKey: ['payment-requests', status],
     initialPageParam: undefined as string | undefined,
@@ -459,7 +462,7 @@ function RequestsTab() {
 function AccountsTab({ canWrite }: { canWrite: boolean }) {
   const qc = useQueryClient();
   const toast = useToast();
-  const [status, setStatus] = useState<'all' | AccountStatus>('all');
+  const [status, setStatus] = useUrlState<'all' | AccountStatus>('accountStatus', 'all', ACCOUNT_TABS);
   const list = useInfiniteQuery({
     queryKey: ['payout-accounts', status],
     initialPageParam: undefined as string | undefined,

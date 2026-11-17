@@ -345,6 +345,88 @@ describe('StaffPieceworkService dispute / rerun', () => {
   });
 });
 
+describe('StaffPieceworkService day cut (row 180, admin.report_timezone)', () => {
+  // 14 Nov 2026 in Nevada (PST, UTC-8) is 08:00Z 14 Nov … 08:00Z 15 Nov.
+  const D = '2026-11-14';
+  const at = (iso: string) => new Date(iso);
+
+  function nevadaDay(): Fx {
+    const fx = emptyFx();
+    // Row 180 B9 (#1092): a new report zone counts from the NEXT day (a
+    // recorded schedule; days already worked are never re-cut). These cases
+    // run after the switch: Nevada is on the schedule from 1 Oct 2026.
+    fx.config = {
+      'staff.piecework_day_zones': [
+        { from: '2026-10-01', tz: 'America/Los_Angeles' },
+      ],
+    };
+    withPerson(fx, A1);
+    fx.rates.push(rate('ticket', 100));
+    fx.snapshots.push({ admin_id: A1, rating: 80, status: 'ok' });
+    fx.leaseDone.push(
+      ...done(A1, 'support_ticket', 3, at('2026-11-14T17:00:00Z')), // 09:00 PST
+      ...done(A1, 'support_ticket', 2, at('2026-11-15T02:00:00Z')), // 18:00 PST
+      ...done(A1, 'support_ticket', 1, at('2026-11-14T07:30:00Z')), // 23:30 PST 13 Nov
+      ...done(A1, 'support_ticket', 4, at('2026-11-15T08:30:00Z')), // 00:30 PST 15 Nov
+    );
+    return fx;
+  }
+
+  it('a job done at 18:00 PST lands on that local day, not on the next UTC day', async () => {
+    const fx = nevadaDay();
+    const res = await makeService(fx).svc.computeDay(D);
+    expect(fx.days).toEqual([
+      expect.objectContaining({
+        day: new Date(`${D}T00:00:00.000Z`),
+        kind: 'ticket',
+        units: 5, // 09:00 + 18:00 PST; not 23:30 the day before, not 00:30 after
+        amount_cents: 500,
+      }),
+    ]);
+    expect(fx.accruals[0]).toMatchObject({
+      event_ref: `staff_piecework:${A1}:${D}`,
+      amount_cents: 500,
+      period: '2026-11',
+    });
+    expect(res.totalCents).toBe(500);
+  });
+
+  it('follows the owner setting (UTC on request) from the day it took effect', async () => {
+    const fx = nevadaDay();
+    // The owner switched to UTC on 13 Nov: recorded from the next day on
+    // (#1092 cut-over), so 14 Nov is a UTC day.
+    fx.config = {
+      'staff.piecework_day_zones': [
+        { from: '2026-10-01', tz: 'America/Los_Angeles' },
+        { from: '2026-11-14', tz: 'UTC' },
+      ],
+    };
+    await makeService(fx, {
+      'staff.piecework_enabled': true,
+      'admin.report_timezone': 'UTC',
+    }).svc.computeDay(D);
+    expect(fx.days[0]).toMatchObject({ units: 4 }); // 07:30Z + 17:00Z
+  });
+
+  it('the local today cannot be recounted at 18:00 PST (UTC says it is tomorrow)', async () => {
+    jest.useFakeTimers({
+      now: at('2026-11-15T02:00:00Z'),
+      doNotFake: ['nextTick', 'setImmediate'],
+    });
+    try {
+      const { svc } = makeService(nevadaDay());
+      await expect(svc.rerun(OWNER, A1, D)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      await expect(svc.rerun(OWNER, A1, '2026-11-13')).resolves.toMatchObject({
+        day: '2026-11-13',
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
 describe('DAY_START fixture', () => {
   it('is the UTC midnight the rows are keyed by', () => {
     expect(DAY_START.toISOString()).toBe('2026-10-26T00:00:00.000Z');

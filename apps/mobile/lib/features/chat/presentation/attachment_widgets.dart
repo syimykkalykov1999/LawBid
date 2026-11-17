@@ -11,6 +11,7 @@ import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/file_types.dart';
 import 'package:lawbid/core/files/pick_files.dart';
+import 'package:lawbid/core/files/picker_web_options.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -18,6 +19,8 @@ import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/text/byte_size.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid/features/chat/application/image_edit.dart'
+    show rememberPhotoOriginal;
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
@@ -117,6 +120,12 @@ Future<List<PickedChatFile>> pickChatFiles(
   /// R-255: videos and documents stay on disk (ignored in the browser, which
   /// has no paths). A caller passes it only if it can send from a path.
   bool fromDisk = false,
+
+  /// Row 199 (WhatsApp / Telegram): the picked photos open in an editor
+  /// (the media preview). The gallery and camera then hand over the
+  /// original; the chat photo is made from it here, and an edit later is
+  /// drawn from the same original, so the photo sent is compressed once.
+  bool keepOriginals = false,
 }) async {
   final videoOn = prepareVideo != null && (limits?.allowsVideo ?? true);
   final choice = directChoice ??
@@ -199,6 +208,34 @@ Future<List<PickedChatFile>> pickChatFiles(
 
   final onDisk = fromDisk && !kIsWeb;
 
+  /// Row 199: [bytes], a whole picture, as a chat photo (shrunk and written
+  /// once, or only its location dropped when it is already small); how to
+  /// read [bytes] again is kept for the preview's edits. [gallery]: written
+  /// the way the gallery picker wrote it before (colour at half size, the
+  /// phones' own encoders), so a photo is not heavier than it was.
+  Future<void> addOriginal(
+    Uint8List bytes,
+    String name,
+    Future<Uint8List> Function() original, {
+    bool gallery = false,
+  }) async {
+    final pic = await cleanPickedPicture(
+      bytes,
+      name,
+      photos: chatPhotoLimits(),
+      chroma420: gallery,
+    );
+    final before = out.length;
+    add(pic.bytes, pic.name);
+    if (out.length > before) rememberPhotoOriginal(pic.bytes, original);
+  }
+
+  // Row 199: what the gallery / camera is asked for. With an editor ahead,
+  // the original (the one compression happens here); else the picker
+  // shrinks it as before.
+  final pickPx = keepOriginals ? null : ClientTuning.chatPhotoMaxPx;
+  final pickQuality = keepOriginals ? null : ClientTuning.chatPhotoQuality;
+
   /// A video or document kept on disk, checked by name and size only.
   Future<void> addPath(String path, String name, int size) async {
     final mime = mimeFor(name);
@@ -236,26 +273,31 @@ Future<List<PickedChatFile>> pickChatFiles(
       // a phone; the original stays on the device.
       final picked = videoOn
           ? await ImagePicker().pickMultipleMedia(
-              maxWidth: ClientTuning.chatPhotoMaxPx,
-              maxHeight: ClientTuning.chatPhotoMaxPx,
-              imageQuality: ClientTuning.chatPhotoQuality,
+              maxWidth: pickPx,
+              maxHeight: pickPx,
+              imageQuality: pickQuality,
               requestFullMetadata: false,
             )
           : await ImagePicker().pickMultiImage(
-              maxWidth: ClientTuning.chatPhotoMaxPx,
-              maxHeight: ClientTuning.chatPhotoMaxPx,
-              imageQuality: ClientTuning.chatPhotoQuality,
+              maxWidth: pickPx,
+              maxHeight: pickPx,
+              imageQuality: pickQuality,
               requestFullMetadata: false,
             );
       for (final f in picked) {
         // Too big: said at once, never read whole into the page's memory
-        // (a long iPhone clip could close a Safari tab).
-        if (await f.length() > maxBytes &&
-            !(videoOn && _isVideo(f) && !kIsWeb)) {
+        // (a long iPhone clip could close a Safari tab). An original photo
+        // over the limit is still read (up to the admin's cap) and shrunk,
+        // like one from «Files».
+        final video = videoOn && _isVideo(f);
+        final size = await f.length();
+        if (keepOriginals && !video
+            ? !pickedFileReadable(size, maxBytes, image: true)
+            : size > maxBytes && !(video && !kIsWeb)) {
           skipped++;
           continue;
         }
-        if (videoOn && _isVideo(f)) {
+        if (video) {
           final ready = await prepareVideo(f);
           final name =
               ready.name.contains('.') ? ready.name : '${ready.name}.mp4';
@@ -264,6 +306,13 @@ Future<List<PickedChatFile>> pickChatFiles(
           } else {
             add(await ready.readAsBytes(), name);
           }
+        } else if (keepOriginals) {
+          await addOriginal(
+            await f.readAsBytes(),
+            f.name,
+            f.readAsBytes,
+            gallery: true,
+          );
         } else {
           add(await readPickedPhoto(f), f.name);
         }
@@ -271,45 +320,99 @@ Future<List<PickedChatFile>> pickChatFiles(
     case 'camera':
       final f = await ImagePicker().pickImage(
         source: ImageSource.camera,
-        maxWidth: ClientTuning.chatPhotoMaxPx,
-        maxHeight: ClientTuning.chatPhotoMaxPx,
-        imageQuality: ClientTuning.chatPhotoQuality,
+        maxWidth: pickPx,
+        maxHeight: pickPx,
+        imageQuality: pickQuality,
         requestFullMetadata: false,
       );
-      if (f != null) add(await readPickedPhoto(f), f.name);
+      if (f == null) break;
+      if (keepOriginals) {
+        await addOriginal(
+          await f.readAsBytes(),
+          f.name,
+          f.readAsBytes,
+          gallery: true,
+        );
+      } else {
+        add(await readPickedPhoto(f), f.name);
+      }
     case 'files':
-      final result = await FilePicker.pickFiles(
-        // Web: a big file from iCloud or a HEIC to convert arrives after the
-        // window gets focus back; don't drop it.
-        cancelUploadOnWindowBlur: false,
+      // Row 149 (file_picker 13): a list; files are read only when asked.
+      // Web: a big file from iCloud or a HEIC to convert arrives after the
+      // window gets focus back; don't drop it (pickerWebOptions).
+      final picked = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: limits?.allExtensions ?? kChatFileExtensions,
-        allowMultiple: true,
-        withData: !onDisk,
+        // The stub equals the default; the web build passes other options.
+        // ignore: avoid_redundant_argument_values
+        webOptions: pickerWebOptions,
       );
-      for (final f in result?.files ?? const <PlatformFile>[]) {
+      for (final f in picked) {
+        // The size the picker reported, else from disk. Unknown, unreadable
+        // or over the limit: refused here, before anything is read (a 1-2 GB
+        // file on the web is never loaded whole), and one bad file does not
+        // stop the others. A picture over the limit is still read (up to the
+        // admin's cap) and shrunk below, like WhatsApp / Telegram.
+        final image = mimeFor(f.name)?.startsWith('image/') ?? false;
+        final int? size;
+        try {
+          size = f.lengthSync() ?? await f.length();
+        } on Object {
+          skipped++;
+          continue;
+        }
+        if (size == null || !pickedFileReadable(size, maxBytes, image: image)) {
+          skipped++;
+          continue;
+        }
         final path = onDisk ? f.path : null;
         if (path != null) {
           // A picture opens in the preview for editing, so it is read; it
           // was shrunk or is small. Only other files stay on disk.
-          if (mimeFor(f.name)?.startsWith('image/') ?? false) {
-            // Audit C7: shrunk like a gallery photo, without its location.
+          if (image) {
+            // Audit C7: shrunk like a gallery photo, without its location;
+            // row 199: an edit starts again from this file.
+            final file = XFile(path);
+            if (keepOriginals) {
+              await addOriginal(
+                await file.readAsBytes(),
+                f.name,
+                file.readAsBytes,
+              );
+              continue;
+            }
             final pic = await cleanPickedPicture(
-              await XFile(path).readAsBytes(),
+              await file.readAsBytes(),
               f.name,
               photos: chatPhotoLimits(),
             );
             add(pic.bytes, pic.name);
           } else {
-            await addPath(path, f.name, f.size);
+            await addPath(path, f.name, size);
           }
           continue;
         }
-        if (f.bytes == null) {
+        final Uint8List bytes;
+        try {
+          bytes = await f.readAsBytes();
+        } on Object {
           skipped++;
           continue;
         }
-        add(f.bytes!, f.name);
+        if (image && keepOriginals) {
+          // Row 199: an edit starts again from these bytes.
+          await addOriginal(bytes, f.name, () async => bytes);
+        } else if (image) {
+          // Audit C7: shrunk like a gallery photo, without its location.
+          final pic = await cleanPickedPicture(
+            bytes,
+            f.name,
+            photos: chatPhotoLimits(),
+          );
+          add(pic.bytes, pic.name);
+        } else {
+          add(bytes, f.name);
+        }
       }
   }
   if (skipped > 0 && context.mounted) {

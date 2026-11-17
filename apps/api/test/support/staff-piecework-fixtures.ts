@@ -67,8 +67,12 @@ export function rate(
   };
 }
 
-export function done(admin_id: string, kind: string, n: number) {
-  return Array.from({ length: n }, () => ({ admin_id, kind }));
+export function done(admin_id: string, kind: string, n: number, at?: Date) {
+  return Array.from({ length: n }, () => ({
+    admin_id,
+    kind,
+    created_at: at,
+  }));
 }
 
 export function makeDb(fx: Fx) {
@@ -249,6 +253,7 @@ export function makeService(
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   // Row 180 B9: the owner's report time zone (default: Nevada).
   const appSettings = {
+    all: () => Promise.resolve(stored),
     string: async (key: string) =>
       typeof stored[key] === 'string' ? stored[key] : 'America/Los_Angeles',
   };
@@ -259,7 +264,7 @@ export function makeService(
     audit as never,
     appSettings as never,
   );
-  return { svc, prisma, settings, payroll, audit };
+  return { svc, prisma, settings, appSettings, payroll, audit };
 }
 
 /** A person with a profile, stats for the day and a payroll entry. */

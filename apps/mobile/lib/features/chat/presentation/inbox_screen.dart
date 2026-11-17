@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/connectivity/connection_title.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -13,6 +14,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/core/platform/web_context_menu.dart';
@@ -44,6 +46,8 @@ import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart'
+    show muteDuration, pickMute;
 import 'package:lawbid/features/groups/presentation/widgets/group_invite_card.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
@@ -57,6 +61,7 @@ import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/team_inbox_tab.dart';
 import 'package:lawbid/features/team/team_routes.dart';
+import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/collapsing_header.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -130,23 +135,31 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     if (_folder == ChatListFolder.requests) return const [];
     final query = _query.value;
     if (query.isNotEmpty) {
-      return ref
-              .watch(
-                mergedChatSearchProvider((folder: _folder, q: query)),
-              )
-              .value
-              ?.items ??
-          const [];
+      return [
+        for (final e in ref
+                .watch(
+                  mergedChatSearchProvider((folder: _folder, q: query)),
+                )
+                .value
+                ?.items ??
+            const <ChatListEntry>[])
+          if (_folder != ChatListFolder.unread || e.hasUnread) e,
+      ];
     }
-    if (_folder == ChatListFolder.all) {
+    if (_folder == ChatListFolder.all || _folder == ChatListFolder.unread) {
       // R-404 (b): a person's row stands for all the chats behind it.
       return <ChatListEntry>[
         for (final e in ref.watch(mergedChatListProvider).value?.items ??
             const <ChatListEntry>[])
-          if (e case PersonChatEntry(:final conversations))
-            for (final c in conversations) DirectChatEntry(c)
-          else
-            e,
+          if (_folder == ChatListFolder.all || e.hasUnread)
+            if (e case PersonChatEntry(:final conversations))
+              for (final c in conversations)
+                if (_folder == ChatListFolder.all || c.hasUnread)
+                  DirectChatEntry(c)
+                else
+                  ...[]
+            else
+              e,
       ];
     }
     return [
@@ -261,8 +274,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                               children: [
                                 AppBackButton(
                                   semanticLabel: t.t('common.back'),
-                                  onPressed: widget.onBack ??
-                                      () => Navigator.of(context).maybePop(),
+                                  onPressed:
+                                      widget.onBack ?? () => context.safeBack(),
                                 ),
                               ],
                             ),
@@ -301,7 +314,10 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                             if (chatsAllowed)
                               (
                                 InboxTab.chats,
-                                t.t('inbox.tab.chats'),
+                                // Row 110 (Telegram): the title of the chats
+                                // reads «Ожидание сети…» / «Соединение…».
+                                connectionTitle(t, watchOfflineReason(ref)) ??
+                                    t.t('inbox.tab.chats'),
                                 badges.$1 + requests,
                               ),
                             if (showTeam)
@@ -717,7 +733,12 @@ class CountPill extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppRadii.pill),
         ),
         child: Text(
-          count > 99 ? '99+' : '$count',
+          // Row 110 (Telegram): 0 = marked unread by me, an empty pill.
+          count == 0
+              ? ''
+              : count > 99
+                  ? '99+'
+                  : '$count',
           style: type.badge.copyWith(color: colors.navy),
         ),
       ),
@@ -775,6 +796,18 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
   return m.body.replaceAll(kContactMask, t.t('chat.masked'));
 }
 
+/// Row 110: the «Unread» filter over a page of rows.
+PaginatedList<ChatListEntry> _onlyUnread(PaginatedList<ChatListEntry> l) =>
+    PaginatedList(
+      items: [
+        for (final e in l.items)
+          if (e.hasUnread) e,
+      ],
+      nextCursor: l.nextCursor,
+      isLoadingMore: l.isLoadingMore,
+      loadMoreError: l.loadMoreError,
+    );
+
 /// docs/05 §8.3 marker the server puts in place of a hidden contact.
 const kContactMask = '[контакт скрыт]';
 
@@ -810,8 +843,11 @@ class ConversationsView extends ConsumerWidget {
     Widget body;
     if (searching) {
       final key = (folder: folder, q: query);
+      final found = ref.watch(mergedChatSearchProvider(key));
       body = PagedListBody<ChatListEntry>(
-        value: ref.watch(mergedChatSearchProvider(key)),
+        value: folder == ChatListFolder.unread
+            ? found.whenData(_onlyUnread)
+            : found,
         t: t,
         itemKey: (e) => e.id,
         edgeToEdge: true,
@@ -828,6 +864,25 @@ class ConversationsView extends ConsumerWidget {
       );
     } else if (folder == ChatListFolder.requests) {
       body = const MessageRequestsView();
+    } else if (folder == ChatListFolder.unread) {
+      // Row 110 (WhatsApp «Unread», Telegram «Unread» folder): the «All»
+      // list already in memory, filtered here — no extra server request.
+      body = PagedListBody<ChatListEntry>(
+        value: ref.watch(mergedChatListProvider).whenData(_onlyUnread),
+        t: t,
+        itemKey: (e) => e.id,
+        edgeToEdge: true,
+        prefetch: _prefetchEntry,
+        itemBuilder: (context, e, _) => _entryRow(e),
+        animateChanges: true,
+        empty: AppEmptyState(
+          icon: AppIcons.doneAllRounded,
+          message: t.t('chat.folder.unread.empty'),
+        ),
+        onRefresh: () => refreshChatList(ref),
+        onLoadMore: () => loadMoreChatList(ref),
+        onRetryMore: () => retryChatListMore(ref),
+      );
     } else if (folder == ChatListFolder.all) {
       // R-404 (c): the newest chats' first pages are read into memory while
       // the list is on screen, so a tap opens on the messages at once.
@@ -1214,7 +1269,8 @@ class ConversationRow extends ConsumerWidget {
     final draft = ref.watch(chatTextDraftsProvider.select((m) => m[c.id]));
     final who = counterpartName(t, c);
     final last = c.lastMessage;
-    final unread = c.unreadCount > 0;
+    // Row 110: my own «unread» mark shows the pill without a number.
+    final unread = c.hasUnread;
     // Owner 2026-10-02: in "Select chats" a tap picks the chat.
     final picking = ref.watch(chatSelectionProvider);
     final picked = picking?.contains(c.id) ?? false;
@@ -1629,15 +1685,23 @@ class ConversationRow extends ConsumerWidget {
           c.pinned ? 'chat.organize.unpinned' : 'chat.organize.pinned',
         ),
       ),
-      onMute: () => unawaited(
-        act(
+      // Row 110 (WhatsApp 8 h / 1 week / Always, Telegram 1 h / 8 h /
+      // 2 d / forever): a swipe on a loud chat asks for how long.
+      onMute: () => unawaited(() async {
+        Duration? span;
+        if (!c.muted) {
+          final pick = await pickMute(context, t, muted: false);
+          if (pick == null || !context.mounted) return;
+          span = muteDuration(pick);
+        }
+        await act(
           () => repo.mute(
             c.id,
-            c.muted ? null : DateTime.now().add(const Duration(days: 3650)),
+            span == null ? null : DateTime.now().add(span),
           ),
-          c.muted ? 'chat.select.unmuted' : 'chat.select.muted',
-        ),
-      ),
+          span == null ? 'chat.select.unmuted' : 'chat.select.muted',
+        );
+      }()),
       onDelete: () => unawaited(
         confirmDeleteChat(
           context,

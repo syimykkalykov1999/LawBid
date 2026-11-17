@@ -72,7 +72,12 @@ final channelVideoPickerProvider = Provider<ChannelVideoPicker>(
     if (seconds > maxSeconds) {
       return (video: null, problem: ChannelVideoProblem.tooLong);
     }
-    final frame = await videoFrame(file, 0, quality: 60);
+    // Row 199: the admin's photo quality, not 60.
+    final frame = await videoFrame(
+      file,
+      0,
+      quality: photoLimitsOf(ref.read(featureFlagsControllerProvider)).quality,
+    );
     return (
       video: ChannelVideoDraft(
         file: file,
