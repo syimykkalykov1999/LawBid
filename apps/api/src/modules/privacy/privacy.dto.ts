@@ -22,7 +22,7 @@ export class DataExportJobDto {
     type: String,
     nullable: true,
     description:
-      'Signed download link while the export is ready (24 hours from completion); also sent by email.',
+      'Signed download link while the export is ready (24 hours from completion); also sent by email. Null on a ready export read without a fresh X-Reauth-Token once security.export_reauth_min_app_version covers the app: re-authenticate and read again.',
   })
   url!: string | null;
 

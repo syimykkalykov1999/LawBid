@@ -8,6 +8,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { SocialAuthService } from './social/social-auth.service';
 import { GoogleTokenVerifier } from './social/google-token-verifier.service';
+import { SocialNonceService } from './social/social-nonce.service';
 import { AppleTokenVerifier } from './social/apple-token-verifier.service';
 import { TokenService } from './services/token.service';
 import { OtpService } from './services/otp.service';
@@ -112,6 +113,7 @@ import { demoNoop } from '../../common/demo/demo-guards';
     PasswordService,
     SocialAuthService,
     GoogleTokenVerifier,
+    SocialNonceService,
     AppleTokenVerifier,
     TokenService,
     OtpService,
