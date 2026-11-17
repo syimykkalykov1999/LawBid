@@ -122,6 +122,10 @@ export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   StaffCaseAppeal: ['admin_id'],
   StaffAnomaly: ['admin_id'],
   AdminNavPin: ['admin_id'],
+  // Firms audit 16.11 (PR-3): invitations the person got or sent.
+  FirmInvitation: ['attorney_id', 'invited_by'],
+  // Firms audit 16.11 (PR-4): «I joined my colleague's bid».
+  BidParticipant: ['attorney_id'],
 };
 
 const list = (...models: string[]): string[] => models;

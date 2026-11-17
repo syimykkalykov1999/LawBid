@@ -4,6 +4,7 @@ import { GroupAddPolicy } from './group-add-policy';
 import { Module } from '@nestjs/common';
 import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { BlocksModule } from '../blocks/blocks.module';
+import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { RecommendationsModule } from '../recommendations/recommendations.module';
@@ -25,6 +26,8 @@ import { GroupFanoutQueue } from './group-fanout.queue';
     UsageLimitsModule,
     AdminAccessModule,
     BlocksModule,
+    // Owner 2026-11-16 (row 183): the admin switch «Группы».
+    FeatureFlagsModule,
     FilesModule,
     NotificationsModule,
     PrivacySettingsModule,

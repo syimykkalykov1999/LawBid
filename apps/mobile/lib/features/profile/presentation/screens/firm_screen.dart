@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/feedback/app_confirm_sheet.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
@@ -139,12 +140,21 @@ class _FirmScreenState extends ConsumerState<FirmScreen> {
     return [
       Text(f.name, style: type.titleMedium.copyWith(color: colors.text)),
       const SizedBox(height: AppSpacing.xs),
-      if (invited)
+      if (invited) ...[
         Text(
           t.t('firm.invited.hint'),
           style: type.bodySmall.copyWith(color: colors.textSecondary),
-        )
-      else
+        ),
+        // Firms audit 16.11 (PR-3): an invitation is valid for N days.
+        if (f.inviteExpiresAt case final until?)
+          Text(
+            t.t('firm.invite.expires', {
+              'date': ref.read(l10nFormatsProvider).date(until),
+            }),
+            key: const ValueKey('firm-invite-expires'),
+            style: type.bodySmall.copyWith(color: colors.textSecondary),
+          ),
+      ] else
         Text(
           '${t.t('firm.states')}: '
           '${f.states.isEmpty ? '—' : f.states.join(', ')}',
@@ -200,7 +210,11 @@ class _FirmScreenState extends ConsumerState<FirmScreen> {
           label: t.t('firm.accept'),
           isLoading: _busy,
           onPressed: () => _run(() async {
-            await guardApiCall(() => _client.acceptFirmInvite());
+            await guardApiCall(
+              () => _client.acceptFirmInvite(
+                body: api.AcceptFirmInviteDto(firmId: f.id),
+              ),
+            );
           }),
         ),
         const SizedBox(height: AppSpacing.sm),

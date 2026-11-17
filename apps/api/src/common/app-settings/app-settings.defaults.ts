@@ -862,6 +862,10 @@ export const OWNER_STALE_SETTINGS = {
   // other side confirms or keeps it open within this many days, else the
   // case closes by itself (both are told).
   'cases.close_confirm_days': 7,
+  // Firms audit 16.11 (PR-3): the most lawyers a firm holds (active plus
+  // pending invitations) and how many days an invitation is valid.
+  'firms.max_members': 50,
+  'firms.invite_expiry_days': 7,
 } as const;
 
 // Owner 2026-10-05: attorney trust levels (docs/ATTORNEY_TRUST.md). The
@@ -1389,9 +1393,12 @@ export const OWNER_STORAGE_SETTINGS = {
    * the WebP q88 it twins (sharp 0.35.5 / libvips 8.18.7 / aom 3.15.1, SSIM
    * and PSNR via ffmpeg, docs/architecture/IMAGES_AVIF.md): q60 lost detail
    * on detailed photos and text (SSIM -0.012, PSNR -4..5 dB); q75 is equal or
-   * better on all of them at 84 % of the WebP bytes. */
-  'images.avif_enabled': false,
-  'images.avif_since': '',
+   * better on all of them at 84 % of the WebP bytes.
+   * Owner order 16.11 (speed mechanisms proof, STRICT_RULES 6: needed
+   * functions on by default): ON, twins for photos uploaded from 17.11 on.
+   * Only the web asks for them (`X-Image-Formats: avif`); phones keep WebP. */
+  'images.avif_enabled': true,
+  'images.avif_since': '2026-11-17T00:00:00.000Z',
   'images.avif_quality': 75,
   'images.avif_effort': 2,
   /** Owner row 106 (media audit 13.11): a post / chat photo already at most

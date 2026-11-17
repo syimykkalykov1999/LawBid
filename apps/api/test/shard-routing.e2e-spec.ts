@@ -34,7 +34,7 @@ describe('shard routing (real PostgreSQL)', () => {
   });
 
   afterAll(async () => {
-    await prisma.onModuleDestroy();
+    await prisma.onApplicationShutdown();
     await primaryRaw.$disconnect();
     if (twoDb) await db1Raw.$disconnect();
   });

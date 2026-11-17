@@ -302,6 +302,8 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   bid_credits: 'bought offers',
   firms: 'firms',
   firm_members: 'firm members',
+  firm_invitations: 'firm invitations',
+  bid_participants: 'colleagues joined to firm bids',
   attorney_tasks: 'tasks',
   attorney_task_places: 'task places',
   attorney_task_people: 'task people',

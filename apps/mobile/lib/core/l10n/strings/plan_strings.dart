@@ -133,6 +133,8 @@ const planRu = <String, String>{
   'error.api.FIRM_ALREADY_MEMBER':
       'Адвокат уже состоит в фирме или приглашён в неё.',
   'error.api.FIRM_FULL': 'В фирме уже максимум адвокатов.',
+  'error.api.FIRM_BID_EXISTS':
+      'Ваш коллега уже предложил ставку по этому кейсу.',
   'error.api.FIRM_OWNER_MUST_TRANSFER':
       'Сначала передайте фирму другому адвокату или закройте её.',
   'post.menu.hideLikes': 'Скрыть число лайков',
@@ -388,6 +390,8 @@ const planEn = <String, String>{
   'error.api.FIRM_ALREADY_MEMBER':
       'This lawyer is already in a firm or invited to one.',
   'error.api.FIRM_FULL': 'The firm already has the maximum number of lawyers.',
+  'error.api.FIRM_BID_EXISTS':
+      'A colleague from your firm has already bid on this case.',
   'error.api.FIRM_OWNER_MUST_TRANSFER':
       'First make another lawyer the owner, or close the firm.',
   'post.menu.hideLikes': 'Hide like count',
