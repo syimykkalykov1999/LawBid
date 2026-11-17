@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "該檔案未透過檢查。請選擇其他照片。",
   "cbadge.hint": "姓名旁的金色認證標識",
   "cbadge.lead": "金色認證標識表示您的賬戶已透過驗證。請傳送檔案，我們將人工稽核。透過後，訂閱生效即可開啟認證標識。",
+  "cbadge.lead.pay": "名字旁的金色標記和訂閱的各項功能。無需證件：訂閱後立即開啟。",
   "cbadge.pay": "訂閱，每月 {price}",
   "cbadge.pending.text": "我們正在稽核您的檔案。完成後會通知您。",
   "cbadge.pending.title": "稽核中",

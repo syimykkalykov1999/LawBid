@@ -1,3 +1,4 @@
+import { assignVariant } from './experiment-math';
 import { ExperimentsService } from './experiments.service';
 
 function build(rows: unknown[]) {
@@ -153,5 +154,24 @@ describe('ExperimentsService', () => {
       expect(a?.variant).toBe('control');
       expect(a?.weights).toBeUndefined();
     });
+  });
+
+  it('buckets with the hash version stored on the experiment (row 150)', async () => {
+    const variants = running().variants;
+    const ids = Array.from({ length: 200 }, (_, i) => `user-${i}`);
+    const v2 = build([running({ hash_version: 2 })]);
+    const old = build([running({ hash_version: 1 })]);
+    // A row read before the column existed behaves as version 1.
+    const missing = build([running()]);
+    let differ = 0;
+    for (const id of ids) {
+      const a2 = await v2.svc.variant(id, 'case_feed_v2');
+      const a1 = await old.svc.variant(id, 'case_feed_v2');
+      expect(a2).toBe(assignVariant(id, 'case_feed_v2', variants, 100, 2));
+      expect(a1).toBe(assignVariant(id, 'case_feed_v2', variants, 100, 1));
+      expect(await missing.svc.variant(id, 'case_feed_v2')).toBe(a1);
+      if (a1 !== a2) differ++;
+    }
+    expect(differ).toBeGreaterThan(50);
   });
 });

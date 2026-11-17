@@ -19,6 +19,7 @@ ExperimentDto _$ExperimentDtoFromJson(
       .map((e) => ExperimentVariantDto.fromJson(e as Map<String, dynamic>))
       .toList(),
   trafficPercent: (json['trafficPercent'] as num).toInt(),
+  hashVersion: (json['hashVersion'] as num).toInt(),
   guardrails: ExperimentGuardrailsDto.fromJson(
     json['guardrails'] as Map<String, dynamic>,
   ),
@@ -47,6 +48,7 @@ Map<String, dynamic> _$ExperimentDtoToJson(ExperimentDto instance) =>
       'status': instance.status.toJson(),
       'variants': instance.variants.map((e) => e.toJson()).toList(),
       'trafficPercent': instance.trafficPercent,
+      'hashVersion': instance.hashVersion,
       'guardrails': instance.guardrails.toJson(),
       'startedAt': ?instance.startedAt?.toIso8601String(),
       'endAt': ?instance.endAt?.toIso8601String(),

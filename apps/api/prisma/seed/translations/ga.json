@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "Níor éirigh leis an gcomhad an tseiceáil. Roghnaigh grianghraf eile.",
   "cbadge.hint": "Tic óir in aice le d’ainm",
   "cbadge.lead": "Taispeánann an tic óir gur fíoraíodh do chuntas. Seol doiciméid agus athbhreithnímid de láimh iad. Tar éis ceadaithe cuirtear an tic air le síntiús.",
+  "cbadge.lead.pay": "An tic óir in aice le d'ainm agus buntáistí an tsíntiúis. Níl doiciméid ag teastáil: liostáil agus casfar air láithreach é.",
   "cbadge.pay": "Liostáil ar {price} sa mhí",
   "cbadge.pending.text": "Táimid ag féachaint ar do dhoiciméid. Gheobhaidh tú fógra nuair a bheimid críochnaithe.",
   "cbadge.pending.title": "Á athbhreithniú",

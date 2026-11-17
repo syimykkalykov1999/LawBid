@@ -22,7 +22,6 @@ import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
-import 'package:lawbid/features/social/presentation/widgets/hidden_counter_mark.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
@@ -734,7 +733,6 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
       VoidCallback onTap, {
       Color? color,
       VoidCallback? onCountTap,
-      bool hiddenMark = false,
     }) =>
         Padding(
           // Owner 2026-10-13: Instagram-like rail — the count in 12, a tight
@@ -769,15 +767,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                             fontWeight: FontWeight.w600,
                             shadows: shadow,
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(SocialFormat.count(f, count)),
-                              // The mark takes the number's colour.
-                              if (hiddenMark)
-                                const HiddenCounterMark(inheritColor: true),
-                            ],
-                          ),
+                          child: Text(SocialFormat.count(f, count)),
                         ),
                       ),
                     ],
@@ -924,19 +914,8 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                                   fontWeight: FontWeight.w600,
                                   shadows: shadow,
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(SocialFormat.count(f, p.viewCount)),
-                                    if (hiddenForOthersMark(
-                                      ref,
-                                      p,
-                                      views: true,
-                                    ))
-                                      const HiddenCounterMark(
-                                        inheritColor: true,
-                                      ),
-                                  ],
+                                child: Text(
+                                  SocialFormat.count(f, p.viewCount),
                                 ),
                               ),
                             ],
@@ -950,7 +929,6 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                         showLikeCount(ref, p) ? p.likeCount : null,
                         () => run(() => actions.toggleLike(p)),
                         color: p.likedByMe ? AppMediaOverlay.liked : null,
-                        hiddenMark: hiddenForOthersMark(ref, p, views: false),
                       ),
                       // Owner 2026-10-07: comments off → no comments
                       // button (the server refuses them anyway).
@@ -969,7 +947,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       rail(
                         AppIcons.autoModeRounded,
                         t.t(p.repostedByMe ? 'post.unrepost' : 'post.repost'),
-                        p.repostCount,
+                        showLikeCount(ref, p) ? p.repostCount : null,
                         () => showRepostSheet(context, ref, p),
                         color: p.repostedByMe ? AppMediaOverlay.reposted : null,
                         onCountTap: () => showRepostersList(context, p.id),
@@ -977,7 +955,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       rail(
                         AppIcons.sendOutlined,
                         t.t('post.share'),
-                        p.shareCount,
+                        showLikeCount(ref, p) ? p.shareCount : null,
                         () => sharePost(context, ref, p),
                       ),
                       rail(
