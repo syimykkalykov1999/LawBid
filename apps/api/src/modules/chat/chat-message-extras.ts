@@ -89,7 +89,7 @@ export function isSingleEmoji(text: string): boolean {
   if (!t || [...t].length > 12) return false;
   const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
   if ([...seg.segment(t)].length !== 1) return false;
-  return /\p{Extended_Pictographic}|\p{Regional_Indicator}|^[#*0-9]️?⃣$/u.test(
-    t,
-  );
+  // A named pattern: Prettier 3.9 and 3.10 lay this out the same way.
+  const emoji = /\p{Extended_Pictographic}|\p{Regional_Indicator}|^[#*0-9]️?⃣$/u;
+  return emoji.test(t);
 }
