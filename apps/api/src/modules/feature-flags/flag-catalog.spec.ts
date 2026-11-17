@@ -37,6 +37,11 @@ describe('FLAG_CATALOG — the one list of feature flags', () => {
     expect(f?.app).toBe(true);
   });
 
+  it('the call hotline is off by default (owner row 87)', () => {
+    const f = FLAG_CATALOG.find((x) => x.key === 'hotline');
+    expect(f?.enabled).toBe(false);
+  });
+
   it("the app's first-paint defaults are the catalog (run `npm run flags:sync` when this fails)", () => {
     const file = join(
       __dirname,
