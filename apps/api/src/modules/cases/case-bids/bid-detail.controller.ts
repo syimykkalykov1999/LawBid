@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Optional, Param } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -15,6 +15,7 @@ import { BidIdParamDto } from '../../bids/dto/bid-requests.dto';
 import { BidDto } from '../../bids/dto/bid-responses.dto';
 import { CaseBidsService } from './case-bids.service';
 import { RequiresDuty } from '../../auth/assistant/assistant-context';
+import { BidTeamService } from '../../firms/bid-team.service';
 
 const E = ErrorCode;
 
@@ -29,6 +30,8 @@ export class BidDetailController {
   constructor(
     private readonly bids: BidsService,
     private readonly caseBids: CaseBidsService,
+    // Firms audit 16.11 (PR-5): who works on the bid with its attorney.
+    @Optional() private readonly team?: BidTeamService,
   ) {}
 
   @RequiresDuty('cases', 'bids', 'bid_drafts')
@@ -44,6 +47,10 @@ export class BidDetailController {
   ): Promise<BidDto> {
     // BidsService.get() allows only the bid's two parties.
     const bid = await this.bids.get(user, params.id);
-    return { ...bid, attorney: await this.caseBids.attorneySummaryOf(bid.id) };
+    const [attorney, team] = await Promise.all([
+      this.caseBids.attorneySummaryOf(bid.id),
+      this.team?.team({ id: bid.id, attorney_id: bid.attorneyId }) ?? [],
+    ]);
+    return { ...bid, attorney, team };
   }
 }

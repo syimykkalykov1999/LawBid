@@ -85,7 +85,11 @@ export class ChatController {
     return conditionalGet(
       req,
       res,
-      q.q ? null : await this.versionEtag.conversations(user.sub),
+      // Firms audit 16.11 (PR-5): the stamps cover own chats only, so a
+      // lawyer on a firm bid's team gets the list without the tag.
+      q.q || (await this.chat.hasTeamChats(user))
+        ? null
+        : await this.versionEtag.conversations(user.sub),
       () => Promise.resolve(),
       () => this.chat.list(user, q.cursor, q.updatedSince, q.folder, q.q),
     );

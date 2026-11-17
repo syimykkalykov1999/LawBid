@@ -5,11 +5,13 @@ import {
   type MineFilterFields,
 } from './mine-filters';
 import { FilesService } from '../../files/files.service';
+import { BidTeamService } from '../../firms/bid-team.service';
 import { CasePhotosService } from '../services/case-photos.service';
 import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Optional,
 } from '@nestjs/common';
 import type {
   Bid,
@@ -102,6 +104,8 @@ export class MineService {
     private readonly subscriptions: SubscriptionAccessService,
     private readonly photos: CasePhotosService,
     private readonly files: FilesService,
+    // Firms audit 16.11 (PR-5): the firm's team works in the bid's chat.
+    @Optional() private readonly team?: BidTeamService,
   ) {}
 
   /** The ownership check and the "opened" ping of [ownerCase], without
@@ -625,13 +629,21 @@ export class MineService {
     if (owner) {
       await assertNoBlockBetween(this.prisma, user.sub, owner.client_id);
     }
+    // Firms audit 16.11 (PR-5): a lawyer who joined the firm's bid on this
+    // case works in that bid's chat (the bid's attorney is its attorney
+    // side), not in a chat of their own.
+    const teamBid = await this.team?.joinedBidOnCase(user.sub, caseId);
+    const attorneyId = teamBid?.attorney_id ?? user.sub;
     const existing = await this.prisma.conversation.findUnique({
       where: {
-        case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
+        case_id_attorney_id: { case_id: caseId, attorney_id: attorneyId },
       },
       select: { id: true, status: true, contacts_unlocked: true },
     });
-    if (existing) return toConversation(existing);
+    if (existing) {
+      if (teamBid) await this.seatTeam(existing.id, [user.sub]);
+      return toConversation(existing);
+    }
     const kase = await this.prisma.case.findUniqueOrThrow({
       where: { id: caseId },
       select: { client_id: true, status: true },
@@ -648,12 +660,16 @@ export class MineService {
       const created = await this.prisma.conversation.create({
         data: {
           case_id: caseId,
-          attorney_id: user.sub,
+          attorney_id: attorneyId,
           client_id: kase.client_id,
           status: 'pre_acceptance',
           contacts_unlocked: false,
           participants: {
-            create: [{ user_id: kase.client_id }, { user_id: user.sub }],
+            create: [
+              { user_id: kase.client_id },
+              { user_id: user.sub },
+              ...(teamBid ? [{ user_id: attorneyId }] : []),
+            ],
           },
         },
         select: { id: true, status: true, contacts_unlocked: true },
@@ -663,13 +679,27 @@ export class MineService {
       // A concurrent tap created it first (UQ case_id + attorney_id).
       const again = await this.prisma.conversation.findUnique({
         where: {
-          case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
+          case_id_attorney_id: { case_id: caseId, attorney_id: attorneyId },
         },
         select: { id: true, status: true, contacts_unlocked: true },
       });
-      if (again) return toConversation(again);
+      if (again) {
+        if (teamBid) await this.seatTeam(again.id, [user.sub]);
+        return toConversation(again);
+      }
       throw error;
     }
+  }
+
+  /** The team member's own row in the firm bid's chat (read marks, list). */
+  private async seatTeam(conversationId: string, ids: string[]): Promise<void> {
+    await this.prisma.conversationParticipant.createMany({
+      data: ids.map((user_id) => ({
+        conversation_id: conversationId,
+        user_id,
+      })),
+      skipDuplicates: true,
+    });
   }
 }
 

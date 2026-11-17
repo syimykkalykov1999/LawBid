@@ -449,6 +449,7 @@ export 'models/offer_status.dart';
 export 'models/bid_offer_dto.dart';
 export 'models/rating_dto.dart';
 export 'models/bid_attorney_summary_dto.dart';
+export 'models/bid_team_member_dto.dart';
 export 'models/bid_dto.dart';
 export 'models/create_bid_dto.dart';
 export 'models/bid_envelope.dart';

@@ -55,6 +55,19 @@ export class BidAttorneySummaryDto {
   rating!: RatingDto;
 }
 
+/** Firms audit 16.11 (PR-5): a lawyer of the firm's team on a bid (names
+ * only — the client sees who works on the bid with its attorney). */
+export class BidTeamMemberDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  firstName!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  lastName!: string | null;
+}
+
 /** One round of the negotiation history (docs/04 §5.2, §6). */
 export class BidOfferDto {
   @ApiProperty({ format: 'uuid' })
@@ -183,6 +196,12 @@ export class BidDto {
   /** The attorney summary — only on GET /bids/:id. */
   @ApiPropertyOptional({ type: BidAttorneySummaryDto })
   attorney?: BidAttorneySummaryDto;
+
+  /** Firms audit 16.11 (PR-5): the firm's team on the bid (the lawyers who
+   * joined it, still in the firm) — only on GET /bids/:id; empty with the
+   * `firm_profiles` switch off. */
+  @ApiPropertyOptional({ type: BidTeamMemberDto, isArray: true })
+  team?: BidTeamMemberDto[];
 }
 
 /** One thing the client changed in the case since the attorney's bid. */
