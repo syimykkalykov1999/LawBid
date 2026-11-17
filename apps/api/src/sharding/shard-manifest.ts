@@ -134,6 +134,8 @@ export const SHARDED_MODELS: Readonly<Record<string, ShardedModelSpec>> = {
   ContactSyncSetting: spec('user', owner('user_id')),
   ContactBookHash: spec('user', owner('owner_id')),
   CallLogHidden: spec('user', owner('user_id')),
+  // Owner row 87: the hotline billing record — the attorney's shard.
+  HotlineCall: spec('user', owner('attorney_id')),
   UserStickerPack: spec('user', owner('user_id')),
   UserRecentSticker: spec('user', owner('user_id')),
   AttorneyTask: spec('user', owner('attorney_id')),

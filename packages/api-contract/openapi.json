@@ -180707,6 +180707,11 @@
           "seconds": {
             "type": "number",
             "description": "Talked seconds (from «Взять»)."
+          },
+          "conversationId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The direct chat of the two, opened or reused after the call (WhatsApp-style)."
           }
         },
         "required": [
@@ -180749,6 +180754,11 @@
                 "$ref": "#/components/schemas/HotlineOfferState"
               }
             ]
+          },
+          "callId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The 1:1 voice call opened by «Взять» (GET /calls/:id, `call:signal`, GET /calls/ice-servers). Audio only, never recorded."
           }
         },
         "required": [
@@ -180856,6 +180866,16 @@
                 "$ref": "#/components/schemas/HotlineDisclosureDto"
               }
             ]
+          },
+          "callId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The 1:1 voice call while connected (GET /calls/:id)."
+          },
+          "conversationId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The direct chat of the two after the call."
           }
         },
         "required": [

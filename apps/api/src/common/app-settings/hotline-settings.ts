@@ -178,6 +178,13 @@ export const HOTLINE_SETTING_DEFS: readonly HotlineSettingDef[] = [
       'Горячая линия: предел длины одного звонка с линии, минут (0 — без предела)',
   },
   {
+    key: 'hotline.call_sync_sec',
+    default: 2,
+    min: 1,
+    labelRu:
+      'Горячая линия: как часто сервер сверяет разговор линии с самим звонком (положили трубку на экране звонка, связь не поднялась), секунд',
+  },
+  {
     key: 'hotline.trial_days',
     default: 0,
     min: 0,
@@ -226,6 +233,7 @@ export const OWNER_HOTLINE_SETTINGS = {
   'hotline.conflict_cache_sec': 3600,
   'hotline.sweep_interval_ms': 1000,
   'hotline.call_max_minutes': 0,
+  'hotline.call_sync_sec': 2,
   'hotline.disclosure_version': 1,
   'hotline.trial_days': 0,
   'hotline.trial_minutes': 0,

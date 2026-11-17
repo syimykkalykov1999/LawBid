@@ -214,6 +214,18 @@ export class HotlineRequestViewDto {
 
   @ApiPropertyOptional({ type: HotlineDisclosureDto, nullable: true })
   disclosure!: HotlineDisclosureDto | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'The 1:1 voice call while connected (GET /calls/:id).',
+  })
+  callId!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'The direct chat of the two after the call.',
+  })
+  conversationId!: string | null;
 }
 
 export class HotlineOfferResultDto {
@@ -224,12 +236,26 @@ export class HotlineOfferResultDto {
     enumName: 'HotlineOfferState',
   })
   state!: 'connected' | 'late' | 'gone' | 'skipped';
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'The 1:1 voice call opened by «Взять» (GET /calls/:id, `call:signal`, GET /calls/ice-servers). Audio only, never recorded.',
+  })
+  callId?: string | null;
 }
 
 export class HotlineEndDto {
   @ApiProperty() ok!: boolean;
   @ApiProperty({ description: 'Talked seconds (from «Взять»).' })
   seconds!: number;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'The direct chat of the two, opened or reused after the call (WhatsApp-style).',
+  })
+  conversationId?: string | null;
 }
 
 export class HotlineCounterDto {
