@@ -48,6 +48,7 @@ import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { BlocksService } from '../blocks/blocks.service';
 import {
   FeatureFlagsService,
+  GROUP_CHAT_CALLS_FLAG,
   GROUPS_FLAG,
 } from '../feature-flags/feature-flags.public';
 import { FilesService } from '../files/files.service';
@@ -218,6 +219,20 @@ export class GroupsService {
     }
   }
 
+  /** «Звонки в группах» (row 183): off = a group chat's call is refused. */
+  async assertCallsEnabled(): Promise<void> {
+    if (
+      this.flags &&
+      !(await this.flags.isEnabled(GROUP_CHAT_CALLS_FLAG, true))
+    ) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'Calls in group chats are switched off.',
+        details: { flag: GROUP_CHAT_CALLS_FLAG },
+      });
+    }
+  }
+
   /** The switch «Группы» as a yes / no; a missing row reads as on, as
    * channels do (the catalog creates it off on boot). */
   async enabled(): Promise<boolean> {
@@ -253,9 +268,13 @@ export class GroupsService {
     };
   }
 
-  /** For the calls module: 404 unless [userId] is in the group. */
+  /** For the calls module: 404 unless [userId] is in the group. Owner
+   * 16.11 (row 183): refused while «Группы в чатах» or its «Звонки в
+   * группах» is off — the calls module starts / joins a group chat's call
+   * only through here, so 1:1 call code stays untouched. */
   async assertMember(userId: string, groupId: string): Promise<Membership> {
     await this.assertEnabled();
+    await this.assertCallsEnabled();
     return this.requireMember(userId, groupId);
   }
 
