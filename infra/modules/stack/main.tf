@@ -1380,7 +1380,12 @@ locals {
   # Only the hosts reach the api / worker (same login as DATABASE_URL).
   db_shard_replica_hosts = { for i, g in module.growth_shard : "db${i + 1}" => g.replica_host if g.replica_host != "" }
   db_shard_env = var.db_shards > 0 ? merge(
-    { DB_SHARD_HOSTS = jsonencode({ for i, m in module.postgres_shard : "db${i + 1}" => m.endpoint }) },
+    {
+      DB_SHARD_HOSTS = jsonencode({ for i, m in module.postgres_shard : "db${i + 1}" => m.endpoint })
+      # Row 203 (16.11): ha-auto keeps every extra server on the primary's
+      # Multi-AZ (common/ops/ha-auto.service.ts shardHaSteps).
+      OPS_DB_SHARD_INSTANCES = join(",", [for m in module.postgres_shard : m.instance_id])
+    },
     length(local.db_shard_replica_hosts) > 0 ? { DB_SHARD_REPLICA_HOSTS = jsonencode(local.db_shard_replica_hosts) } : {},
   ) : {}
   # The migrate task: each server's master login plus the runtime logins.
@@ -2549,8 +2554,13 @@ data "aws_iam_policy_document" "ops" {
     resources = ["*"]
   }
   statement {
-    actions   = ["rds:DescribeDBInstances", "rds:ModifyDBInstance"]
-    resources = ["arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"]
+    actions = ["rds:DescribeDBInstances", "rds:ModifyDBInstance"]
+    # Row 203: and the extra database servers (<name>-dbN-postgres), whose
+    # Multi-AZ follows the primary's. Exactly those names, no wildcard.
+    resources = concat(
+      ["arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"],
+      [for m in module.postgres_shard : "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${m.instance_id}"],
+    )
   }
   # Admin button «Копия базы для чтения»: create / describe / delete exactly one
   # instance named <database>-readreplica. Nothing else on RDS changes.
