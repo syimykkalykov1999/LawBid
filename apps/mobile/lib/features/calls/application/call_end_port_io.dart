@@ -31,3 +31,36 @@ void Function() listenCallEnded(void Function(String callId) onEnded) {
     return () {};
   }
 }
+
+/// Row 216: the main isolate listens here only while it holds a call — an
+/// Android ring push the background isolate gets then is a waiting call
+/// for the main isolate, not a new system ring.
+const _waitingName = 'lawbid_call_waiting';
+
+/// Background isolate: true when a call holds the main isolate and took
+/// [callId] (nothing to ring here).
+bool sendCallWaiting(String callId) {
+  final port = IsolateNameServer.lookupPortByName(_waitingName);
+  if (port == null) return false;
+  port.send(callId);
+  return true;
+}
+
+/// Main isolate, while in a call: [onRing] gets every such id; returns the
+/// cancel function.
+void Function() listenCallWaiting(void Function(String callId) onRing) {
+  try {
+    final port = ReceivePort();
+    IsolateNameServer.removePortNameMapping(_waitingName);
+    IsolateNameServer.registerPortWithName(port.sendPort, _waitingName);
+    port.listen((Object? id) {
+      if (id is String) onRing(id);
+    });
+    return () {
+      IsolateNameServer.removePortNameMapping(_waitingName);
+      port.close();
+    };
+  } on Object {
+    return () {};
+  }
+}

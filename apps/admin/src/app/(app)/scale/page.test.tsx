@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '@/components/ui/toast';
 import type { Health } from '@/lib/scale';
@@ -8,6 +8,10 @@ import type { Health } from '@/lib/scale';
  * requests answered. Each block now shows as soon as its own data is here. */
 const pending = new Map<string, Promise<unknown>>();
 const answers = new Map<string, unknown>();
+const infraMock = vi.hoisted(() => ({
+  createPending: vi.fn(),
+  data: undefined as unknown,
+}));
 
 vi.mock('@/lib/api/client', () => ({
   ApiError: class ApiError extends Error {},
@@ -41,9 +45,10 @@ vi.mock('@/components/infra-plan-sheet', () => ({
   InfraSuggestionCards: () => null,
   useInfraModePick: () => ({ pick: vi.fn(), pending: null }),
   useInfra: () => ({
-    data: undefined,
+    data: infraMock.data,
     q: { refetch: vi.fn() },
     create: { mutate: vi.fn(), isPending: false },
+    createPending: { mutate: infraMock.createPending, isPending: false },
     confirm: { mutate: vi.fn(), isPending: false },
     cancel: { mutate: vi.fn() },
     rollback: { mutate: vi.fn(), isPending: false },
@@ -82,6 +87,24 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('«Масштаб» page (R-369)', () => {
+  it('«Применить изменения из кода» starts the same request → plan flow (owner 17.11)', async () => {
+    pending.set('/admin/economy', new Promise(() => undefined));
+    infraMock.data = {
+      guards: { dryRun: false, dailyCap: 0, quietHours: '23:00-06:00', configured: true, inQuietWindow: false },
+      switchable: [],
+      requests: [],
+      suggestions: [],
+    };
+    renderPage();
+    const button = await screen.findByTestId('infra-apply-pending');
+    expect(button.textContent).toBe('Применить изменения из кода');
+    // Quiet hours would refuse the confirm now: the row says why.
+    expect(screen.getByTestId('infra-pending-quiet').textContent).toContain('23:00-06:00');
+    fireEvent.click(button);
+    expect(infraMock.createPending).toHaveBeenCalledTimes(1);
+    infraMock.data = undefined;
+  });
+
   it('shows the alarms and the emergency button while the economy numbers are still loading', async () => {
     pending.set('/admin/economy', new Promise(() => undefined)); // AWS is slow
     renderPage();

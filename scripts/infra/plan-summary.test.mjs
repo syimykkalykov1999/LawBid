@@ -2,7 +2,7 @@
 // pooler and nothing else. Run: node --test scripts/infra/plan-summary.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { servingDestroys } from './plan-summary.mjs';
+import { forbidden, servingDestroys } from './plan-summary.mjs';
 
 const P = 'module.stack.module.pgbouncer[0].';
 // The real plan of request c48d4569 (16.11, «Авто» pooler off), serving part.
@@ -26,4 +26,27 @@ test('any other switch: the pooler service still counts', () => {
 test('pooler off: the api service still counts', () => {
   const p = { resources: [...plan.resources, { address: 'module.stack.module.ecs.aws_ecs_service.api', action: 'delete' }] };
   assert.deepEqual(servingDestroys(p, { db_pooler_enabled: false }), ['module.stack.module.ecs.aws_ecs_service.api']);
+});
+
+// Owner 17.11 «Применить изменения из кода» (aws.pending): no switch, the
+// changes are {}. The guards still refuse what they refuse for a switch.
+const pending = {
+  resources: [
+    { address: 'module.stack.module.s3.aws_cloudfront_distribution.media', action: 'update' },
+  ],
+};
+
+test('pending: Origin Shield, an in-place CDN update, passes both guards', () => {
+  assert.deepEqual(forbidden(pending, {}), []);
+  assert.deepEqual(servingDestroys(pending, {}), []);
+});
+
+test('pending: a destroyed bucket is still refused', () => {
+  const p = { resources: [...pending.resources, { address: 'module.stack.module.s3.aws_s3_bucket.media', action: 'delete' }] };
+  assert.deepEqual(forbidden(p, {}), ['module.stack.module.s3.aws_s3_bucket.media']);
+});
+
+test('pending: a replaced CDN is a serving destroy', () => {
+  const p = { resources: [{ address: 'module.stack.module.s3.aws_cloudfront_distribution.media', action: 'delete-create' }] };
+  assert.deepEqual(servingDestroys(p, {}), ['module.stack.module.s3.aws_cloudfront_distribution.media']);
 });

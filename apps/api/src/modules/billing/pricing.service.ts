@@ -44,6 +44,10 @@ export type PlanAmounts = Record<PlanKind, number>;
  * its code, its extra-seat price by `seat.<code>`. */
 export const planPriceKind = (planCode: string): string => planCode;
 export const seatPriceKind = (planCode: string): string => `seat.${planCode}`;
+/** Owner row 87 (16.11, plan PR 8): a plan's «Горячая линия» add-on price
+ * row, next to its extra-seat row. */
+export const hotlinePriceKind = (planCode: string): string =>
+  `hotline.${planCode}`;
 export const isLegacyKind = (kind: string): kind is PlanKind =>
   (PLAN_KINDS as readonly string[]).includes(kind);
 
@@ -273,6 +277,26 @@ export class PricingService {
     return id;
   }
 
+  /**
+   * Owner row 87 (plan PR 8): a plan saved before the add-on had its own
+   * price row has only the entitlement value; the first purchase creates
+   * the row (the admin's next edit of the plan replaces it as usual).
+   */
+  async ensureRow(kind: string, amountCents: number): Promise<number> {
+    const have = await this.amountOf(kind);
+    if (have != null) return have;
+    await this.prisma.planPrice.create({
+      data: {
+        kind,
+        amount_cents: amountCents,
+        currency: SUBSCRIPTION_CURRENCY,
+        note: 'plan entitlement',
+      },
+    });
+    this.invalidate();
+    return amountCents;
+  }
+
   /** Every price id [kind] ever had in the current mode (old ones too). */
   async knownPriceIds(kind: string): Promise<string[]> {
     await refreshProvider(this.provider);
@@ -290,17 +314,30 @@ export class PricingService {
    * (the legacy `seat` and each plan's `seat.<code>`) — how the webhook
    * sync finds the seat item on a subscription. */
   async allSeatPriceIds(): Promise<string[]> {
+    const ids = await this.priceIdsOfKinds('seat');
+    const legacy = await this.legacyPriceId('seat');
+    if (legacy) ids.push(legacy);
+    return [...new Set(ids)];
+  }
+
+  /** Owner row 87 (plan PR 8): every Stripe price ever used for the
+   * «Горячая линия» add-on (each plan's `hotline.<code>`) — how the webhook
+   * sync finds the add-on item on a subscription. */
+  allHotlinePriceIds(): Promise<string[]> {
+    return this.priceIdsOfKinds('hotline');
+  }
+
+  /** The current mode's Stripe price ids of [base] and `<base>.<code>`. */
+  private async priceIdsOfKinds(base: string): Promise<string[]> {
     await refreshProvider(this.provider);
     const mode = this.mode();
     const rows = await this.prisma.planPrice.findMany({
-      where: { OR: [{ kind: 'seat' }, { kind: { startsWith: 'seat.' } }] },
+      where: { OR: [{ kind: base }, { kind: { startsWith: `${base}.` } }] },
       select: { stripe_price_ids: true },
     });
     const ids = rows
       .map((r) => jsonMap(r.stripe_price_ids)[mode])
       .filter((v): v is string => !!v);
-    const legacy = await this.legacyPriceId('seat');
-    if (legacy) ids.push(legacy);
     return [...new Set(ids)];
   }
 
@@ -357,7 +394,12 @@ export class PricingService {
   ): Promise<{ product: string; interval: 'month' | 'year' }> {
     if (isLegacyKind(kind)) return PLAN_META[kind];
     const seat = kind.startsWith('seat.');
-    const code = seat ? kind.slice('seat.'.length) : kind;
+    const hotline = kind.startsWith('hotline.');
+    const code = seat
+      ? kind.slice('seat.'.length)
+      : hotline
+        ? kind.slice('hotline.'.length)
+        : kind;
     const plan = await this.prisma.plan.findUnique({
       where: { code },
       select: { name: true, interval: true },
@@ -368,6 +410,9 @@ export class PricingService {
         : undefined) ?? code;
     if (seat) {
       return { product: `LawBid Assistant seat — ${name}`, interval: 'month' };
+    }
+    if (hotline) {
+      return { product: `LawBid Call hotline — ${name}`, interval: 'month' };
     }
     return {
       product: `LawBid — ${name}`,

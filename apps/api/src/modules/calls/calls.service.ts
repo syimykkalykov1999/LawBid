@@ -805,7 +805,14 @@ export class CallsService {
         details: { callId: mine.id },
       });
     }
-    if (await this.liveCallOf(callee)) {
+    // Row 216 (owner 17.11, WhatsApp call waiting since Dec 2019): a callee
+    // talking in one 1:1 call is rung for this one too — their phone shows
+    // «Decline» / «End & Accept» and the caller hears ringing until they
+    // choose or the ring times out (missed, like any unanswered call).
+    // Busy at once stays for everything else: the callee rings or dials
+    // out, a second call already waits, a group call, or the admin switch
+    // `calls.call_waiting` is off.
+    if ((await this.liveCallOf(callee)) && !(await this.mayWait(callee))) {
       // The other side is talking: record "busy" right away.
       const busy = await this.prisma.call.create({
         data: {
@@ -867,6 +874,66 @@ export class CallsService {
     return this.toDto(call, user.sub);
   }
 
+  /**
+   * Row 216: may [userId] be rung for a second 1:1 call (call waiting)?
+   * Only while their one live call is a 1:1 call that is already talking —
+   * never a second waiting call, never during a ring or a group call.
+   */
+  private async mayWait(userId: string): Promise<boolean> {
+    if (!((await this.settings?.boolean('calls.call_waiting')) ?? true)) {
+      return false;
+    }
+    const live = await this.prisma.call.findMany({
+      where: {
+        status: { in: LIVE },
+        OR: [
+          {
+            is_group: false,
+            OR: [{ caller_id: userId }, { callee_id: userId }],
+          },
+          {
+            is_group: true,
+            participants: {
+              some: { user_id: userId, status: { in: IN_CALL } },
+            },
+          },
+        ],
+      },
+      select: { status: true, is_group: true },
+      take: 2,
+    });
+    return (
+      live.length === 1 && !live[0].is_group && live[0].status === 'active'
+    );
+  }
+
+  /**
+   * Row 216 («End & Accept»): answering a waiting call ends the 1:1 call
+   * this person was talking in — one call at a time, as before. The app
+   * hangs up first; this covers an app that did not get to (a lost
+   * request, the system screen's answer).
+   */
+  private async endOtherCallsOf(user: RequestUser, keepId: string) {
+    const others = await this.prisma.call.findMany({
+      where: {
+        id: { not: keepId },
+        is_group: false,
+        status: 'active',
+        OR: [{ caller_id: user.sub }, { callee_id: user.sub }],
+      },
+    });
+    for (const other of others) {
+      await this.finish(
+        other,
+        'ended',
+        user.sub,
+        undefined,
+        undefined,
+        user.sid,
+      );
+    }
+  }
+
   private async callAssistants(attorneyId: string): Promise<string[]> {
     const rows = await this.prisma.assistantMembership.findMany({
       where: {
@@ -900,6 +967,7 @@ export class CallsService {
       data: { status: 'active', answered_at: new Date() },
     });
     if (count === 0) throw conflict();
+    await this.endOtherCallsOf(user, id);
     const fresh = await this.prisma.call.findUniqueOrThrow({ where: { id } });
     // Both sides: the caller starts WebRTC, the callee's other devices
     // stop ringing.

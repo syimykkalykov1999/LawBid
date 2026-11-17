@@ -67,25 +67,30 @@ describe('In-app calls (e2e, OQ-041)', () => {
     });
   const bearer = (t: string) => ({ Authorization: `Bearer ${t}` });
 
-  async function chat(unlocked = true) {
+  /** [attorneyId]: a second client's chat with an attorney who exists. */
+  async function chat(unlocked = true, attorneyId?: string) {
     const client = await prisma.user.create({
       data: { role: 'client', first_name: 'Cara', last_name: 'Caller' },
     });
-    const attorney = await prisma.user.create({
-      data: { role: 'attorney', first_name: 'Paul', last_name: 'Phone' },
-    });
-    await prisma.attorneyProfile.create({
-      data: {
-        user_id: attorney.id,
-        username: `call_${attorney.id.slice(0, 8)}`,
-        username_lower: `call_${attorney.id.slice(0, 8)}`,
-        languages: ['en'],
-        verification_status: 'verified',
-      },
-    });
-    await prisma.subscription.create({
-      data: { user_id: attorney.id, status: 'active', price_cents: 39900 },
-    });
+    const attorney = attorneyId
+      ? await prisma.user.findUniqueOrThrow({ where: { id: attorneyId } })
+      : await prisma.user.create({
+          data: { role: 'attorney', first_name: 'Paul', last_name: 'Phone' },
+        });
+    if (!attorneyId) {
+      await prisma.attorneyProfile.create({
+        data: {
+          user_id: attorney.id,
+          username: `call_${attorney.id.slice(0, 8)}`,
+          username_lower: `call_${attorney.id.slice(0, 8)}`,
+          languages: ['en'],
+          verification_status: 'verified',
+        },
+      });
+      await prisma.subscription.create({
+        data: { user_id: attorney.id, status: 'active', price_cents: 39900 },
+      });
+    }
     const parent = await prisma.practiceArea.upsert({
       where: { code: 'calls_e2e' },
       create: {
@@ -405,15 +410,15 @@ describe('In-app calls (e2e, OQ-041)', () => {
       .set(c.attorney.auth)
       .expect(200);
 
-    // The attorney is talking in another chat → "busy".
+    // The attorney is calling out in another chat (not talking yet) →
+    // "busy" (row 216: call waiting is only for a callee who talks).
     const other = await chat();
     const live = await prisma.call.create({
       data: {
         conversation_id: other.id,
-        caller_id: other.client.id,
-        callee_id: c.attorney.id,
-        status: 'active',
-        answered_at: new Date(),
+        caller_id: c.attorney.id,
+        callee_id: other.client.id,
+        status: 'ringing',
       },
     });
     const busy = await api()
@@ -452,6 +457,86 @@ describe('In-app calls (e2e, OQ-041)', () => {
       'busy',
       'missed',
     ]);
+  });
+
+  // Row 216 (owner 17.11, WhatsApp call waiting): a callee talking in one
+  // 1:1 call is rung for a second one; the caller hears ringing. Decline →
+  // the caller gets «declined», the first call goes on. End & Accept → the
+  // first call ends, the second connects. A third call meanwhile is busy.
+  it('call waiting: a second call rings a talking callee; decline, then end & accept', async () => {
+    const first = await chat();
+    const second = await chat(true, first.attorney.id);
+    const attorneySock = await connect(first.attorney.token);
+    const client1Sock = await connect(first.client.token);
+
+    const one = await api()
+      .post(`/api/v1/conversations/${first.id}/calls`)
+      .set(first.client.auth)
+      .expect(201);
+    const firstId = one.body.data.id as string;
+    await api()
+      .post(`/api/v1/calls/${firstId}/accept`)
+      .set(first.attorney.auth)
+      .expect(200);
+
+    // The second caller hears ringing, the talking attorney is rung.
+    const rung = once<{ call: { id: string } }>(attorneySock, 'call:incoming');
+    const two = await api()
+      .post(`/api/v1/conversations/${second.id}/calls`)
+      .set(second.client.auth)
+      .expect(201);
+    expect(two.body.data.status).toBe('ringing');
+    expect((await rung).call.id).toBe(two.body.data.id);
+
+    // A third call while one already waits: busy at once.
+    const third = await chat(true, first.attorney.id);
+    const busy = await api()
+      .post(`/api/v1/conversations/${third.id}/calls`)
+      .set(third.client.auth)
+      .expect(201);
+    expect(busy.body.data.status).toBe('busy');
+
+    // Decline: the second caller reads «declined», the first call goes on.
+    await api()
+      .post(`/api/v1/calls/${two.body.data.id}/decline`)
+      .set(first.attorney.auth)
+      .expect(200);
+    const declined = await api()
+      .get(`/api/v1/calls/${two.body.data.id}`)
+      .set(second.client.auth)
+      .expect(200);
+    expect(declined.body.data.status).toBe('declined');
+    expect(
+      (await prisma.call.findUniqueOrThrow({ where: { id: firstId } })).status,
+    ).toBe('active');
+
+    // Calls again; End & Accept: the first call ends, the second connects.
+    const again = await api()
+      .post(`/api/v1/conversations/${second.id}/calls`)
+      .set(second.client.auth)
+      .expect(201);
+    expect(again.body.data.status).toBe('ringing');
+    const firstOver = once<{ call: { id: string; status: string } }>(
+      client1Sock,
+      'call:ended',
+    );
+    const taken = await api()
+      .post(`/api/v1/calls/${again.body.data.id}/accept`)
+      .set(first.attorney.auth)
+      .expect(200);
+    expect(taken.body.data.status).toBe('active');
+    const over = await firstOver;
+    expect(over.call).toMatchObject({ id: firstId, status: 'ended' });
+    expect(
+      (await prisma.call.findUniqueOrThrow({ where: { id: firstId } })).status,
+    ).toBe('ended');
+
+    // The attorney is free again after this call (one call at a time).
+    await api()
+      .post(`/api/v1/calls/${again.body.data.id}/end`)
+      .set(first.attorney.auth)
+      .send({})
+      .expect(200);
   });
 
   // Owner row 36: «answer on a second device». The callee is signed in on

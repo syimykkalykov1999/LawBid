@@ -26,7 +26,10 @@ import { incrWithTtl } from '../../redis/incr-with-ttl';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { KNOWN_LANGUAGE_NATIVE_NAMES } from '../i18n/language-names';
-import { EntitlementsService } from '../plans/entitlements.service';
+import {
+  EntitlementsService,
+  hotlineAddonActive,
+} from '../plans/entitlements.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import {
   assertHotlineOn,
@@ -439,9 +442,13 @@ export class HotlineService {
     const trial = await this.redis.hgetall(this.k.trial(lw));
     let included = false;
     let addonPrice: number | null = null;
+    let addonActive = false;
     const mode = hotlineModeFrom(raw);
     if (mode === 'by_subscription' && this.entitlements) {
-      const e = (await this.entitlements.forUser(lw)).values;
+      const resolved = await this.entitlements.forUser(lw);
+      const e = resolved.values;
+      // Plan PR 8: the add-on bought on the subscription card.
+      addonActive = hotlineAddonActive(resolved, this.now());
       included = e[HOTLINE_ENTITLEMENT] === true;
       const p = e[HOTLINE_ADDON_PRICE_ENTITLEMENT];
       addonPrice = typeof p === 'number' ? p : null;
@@ -450,7 +457,7 @@ export class HotlineService {
       mode,
       included,
       addonPriceCents: addonPrice,
-      addonActive: false,
+      addonActive,
       trialDays: s['hotline.trial_days'],
       trialMinutes: s['hotline.trial_minutes'],
       firstOnlineAt: trial.first ? Number(trial.first) : null,

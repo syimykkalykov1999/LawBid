@@ -371,3 +371,99 @@ class AssistantSeatsControl extends StatelessWidget {
     );
   }
 }
+
+/// Owner row 87 (16.11, plan PR 8): the «Горячая линия» add-on inside the
+/// current plan's card — the same row as the assistant count (bold title,
+/// caption, the control on the right) with the app's switch; the card's
+/// total under it while no seat row shows one.
+class HotlineAddonRow extends StatelessWidget {
+  const HotlineAddonRow({
+    required this.t,
+    required this.value,
+    required this.caption,
+    required this.onChanged,
+    this.total,
+    super.key,
+  });
+
+  final Translator t;
+  final bool value;
+
+  /// "+$49 a month" / "On until Dec 5" / "Confirming the payment".
+  final String caption;
+
+  /// null = the switch is disabled (bought after the first payment).
+  final ValueChanged<bool>? onChanged;
+
+  /// "$448 per month"; null = the seat row shows the total.
+  final String? total;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
+    final change = onChanged;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    t.t('plans.hotline.title'),
+                    style: typography.body.copyWith(
+                      color: colors.text,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    caption,
+                    key: const ValueKey('hotline-addon-caption'),
+                    style: typography.caption
+                        .copyWith(color: colors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            Switch.adaptive(
+              key: const ValueKey('hotline-addon-switch'),
+              value: value,
+              activeTrackColor: colors.gold,
+              onChanged: change == null
+                  ? null
+                  : (v) {
+                      AppHaptics.selection();
+                      change(v);
+                    },
+            ),
+          ],
+        ),
+        if (total case final String total) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  t.t('plans.total.label'),
+                  style: typography.bodySmall
+                      .copyWith(color: colors.textSecondary),
+                ),
+              ),
+              Text(
+                total,
+                key: const ValueKey('plan-total'),
+                style: typography.body.copyWith(
+                  color: colors.text,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
