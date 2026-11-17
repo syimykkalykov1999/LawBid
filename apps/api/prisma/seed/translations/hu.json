@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "A fájl nem felelt meg az ellenőrzésen. Válasszon másik fotót.",
   "cbadge.hint": "Arany pipa a neve mellett",
   "cbadge.lead": "Az arany pipa jelzi, hogy a fiókját ellenőrizték. Küldjön dokumentumokat, és kézzel átnézzük őket. A jóváhagyás után a pipa előfizetéssel kapcsol be.",
+  "cbadge.lead.pay": "Arany pipa a neved mellett és az előfizetés előnyei. Nem kell dokumentum: fizess elő, és azonnal bekapcsol.",
   "cbadge.pay": "Előfizetés havi {price} áron",
   "cbadge.pending.text": "Átnézzük a dokumentumait. Értesítjük, amint végeztünk.",
   "cbadge.pending.title": "Elbírálás alatt",

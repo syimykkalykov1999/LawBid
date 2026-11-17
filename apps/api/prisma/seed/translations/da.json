@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "Filen bestod ikke kontrollen. Vælg et andet foto.",
   "cbadge.hint": "Et guldflueben ved dit navn",
   "cbadge.lead": "Guldfluebenet viser, at din konto er verificeret. Send dokumenter, så gennemgår vi dem manuelt. Efter godkendelse aktiveres fluebenet med et abonnement.",
+  "cbadge.lead.pay": "Det gyldne flueben ved dit navn og abonnementets fordele. Ingen dokumenter: abonnér, og det slås til med det samme.",
   "cbadge.pay": "Abonner for {price} om måneden",
   "cbadge.pending.text": "Vi gennemgår dine dokumenter. Du får en notifikation, når vi er færdige.",
   "cbadge.pending.title": "Under behandling",

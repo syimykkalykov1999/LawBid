@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "Dosya kontrolden geçemedi. Başka bir fotoğraf seçin.",
   "cbadge.hint": "Adınızın yanında altın tik",
   "cbadge.lead": "Altın tik, hesabınızın doğrulandığını gösterir. Belge gönderin, elle inceleyelim. Onaydan sonra tik, abonelikle etkinleşir.",
+  "cbadge.lead.pay": "Adınızın yanında altın onay işareti ve aboneliğin avantajları. Belge gerekmez: abone olun, hemen açılır.",
   "cbadge.pay": "Ayda {price} ile abone ol",
   "cbadge.pending.text": "Belgelerinizi inceliyoruz. İşimiz bitince bildirim alırsınız.",
   "cbadge.pending.title": "İnceleniyor",
