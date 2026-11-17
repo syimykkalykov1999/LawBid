@@ -14,6 +14,9 @@ FirmDto _$FirmDtoFromJson(Map<String, dynamic> json) => FirmDto(
   members: (json['members'] as List<dynamic>)
       .map((e) => FirmMemberDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  inviteExpiresAt: json['inviteExpiresAt'] == null
+      ? null
+      : DateTime.parse(json['inviteExpiresAt'] as String),
 );
 
 Map<String, dynamic> _$FirmDtoToJson(FirmDto instance) => <String, dynamic>{
@@ -22,4 +25,5 @@ Map<String, dynamic> _$FirmDtoToJson(FirmDto instance) => <String, dynamic>{
   'ownerId': instance.ownerId,
   'states': instance.states,
   'members': instance.members.map((e) => e.toJson()).toList(),
+  'inviteExpiresAt': ?instance.inviteExpiresAt?.toIso8601String(),
 };

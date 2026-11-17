@@ -3,6 +3,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import type Redis from 'ioredis';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -10,6 +11,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { FirmsService } from '../src/modules/firms/firms.service';
 import { AccountAnonymizationService } from '../src/modules/privacy/account-anonymization.service';
 import { shardContext } from '../src/sharding/shard-context';
+import { REDIS_CLIENT } from '../src/redis/redis.constants';
 
 /**
  * Owner 2026-10-14: a firm is its lawyers. Members keep their own licences;
@@ -610,6 +612,196 @@ describe('Firm profile (e2e)', () => {
     // The last lawyer erased closes the firm.
     await firms.onAccountErased(first.id);
     expect(await prisma.firm.findUnique({ where: { id: firmId } })).toBeNull();
+  });
+
+  // Firms audit 16.11 (PR-3): invitations have their own table, tell the
+  // lawyer, expire, never block other firms, and the firm size is a setting.
+  async function setSetting(key: string, value: number | null) {
+    if (value === null) {
+      await prisma.appConfig.deleteMany({ where: { key } });
+    } else {
+      await prisma.appConfig.upsert({
+        where: { key },
+        create: { key, value },
+        update: { value },
+      });
+    }
+    // AppConfigService caches the whole table in Redis for 30 s.
+    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+  }
+
+  it('an invitation tells the lawyer and is valid for the set number of days', async () => {
+    const owner = await lawyer('NJ');
+    const x = await lawyer('NJ');
+    const made = await api()
+      .post('/api/v1/firms')
+      .set(owner.auth)
+      .send({ name: 'Invite LLP' })
+      .expect(201);
+    const firmId = made.body.data.id as string;
+    await setSetting('firms.invite_expiry_days', 3);
+    try {
+      await api()
+        .post('/api/v1/firms/me/members')
+        .set(owner.auth)
+        .send({ username: x.username })
+        .expect(200);
+    } finally {
+      await setSetting('firms.invite_expiry_days', null);
+    }
+    expect(await firmNotes(x)).toContainEqual(
+      expect.objectContaining({ kind: 'invite', firmId, actorId: owner.id }),
+    );
+    const mine = await api().get('/api/v1/firms/me').set(x.auth).expect(200);
+    expect(mine.body.data.id).toBe(firmId);
+    const until = Date.parse(mine.body.data.inviteExpiresAt as string);
+    expect(until - Date.now()).toBeGreaterThan(2.9 * 86_400_000);
+    expect(until - Date.now()).toBeLessThan(3.1 * 86_400_000);
+    // The owner sees the invitation among the lawyers; no expiry of his own.
+    const own = await api().get('/api/v1/firms/me').set(owner.auth).expect(200);
+    expect(own.body.data.inviteExpiresAt).toBeNull();
+    expect(
+      (own.body.data.members as { attorneyId: string; status: string }[]).find(
+        (m) => m.attorneyId === x.id,
+      )?.status,
+    ).toBe('invited');
+
+    // Expired: gone from «Моя фирма», cannot be accepted, can be renewed.
+    await prisma.firmInvitation.update({
+      where: { firm_id_attorney_id: { firm_id: firmId, attorney_id: x.id } },
+      data: { expires_at: new Date(Date.now() - 1000) },
+    });
+    await api().get('/api/v1/firms/me').set(x.auth).expect(404);
+    await api().post('/api/v1/firms/me/accept').set(x.auth).expect(404);
+    await api()
+      .post('/api/v1/firms/me/members')
+      .set(owner.auth)
+      .send({ username: x.username })
+      .expect(200);
+    await api().post('/api/v1/firms/me/accept').set(x.auth).expect(200);
+  });
+
+  it('a pending invitation blocks nothing: other firms invite, the lawyer picks one or starts his own', async () => {
+    const a = await lawyer('NJ');
+    const b = await lawyer('NJ');
+    const y = await lawyer('NJ');
+    const firmA = await firmWith('Alpha LLP', a);
+    const firmB = await firmWith('Beta LLP', b);
+    for (const owner of [a, b]) {
+      await api()
+        .post('/api/v1/firms/me/members')
+        .set(owner.auth)
+        .send({ username: y.username })
+        .expect(200);
+    }
+    // «Моя фирма» shows the newest invitation; accepting names the other.
+    const shown = await api().get('/api/v1/firms/me').set(y.auth).expect(200);
+    expect(shown.body.data.id).toBe(firmB);
+    const joined = await api()
+      .post('/api/v1/firms/me/accept')
+      .set(y.auth)
+      .send({ firmId: firmA })
+      .expect(200);
+    expect(joined.body.data.id).toBe(firmA);
+    // One firm at a time: the other invitation is gone.
+    expect(
+      await prisma.firmInvitation.count({ where: { attorney_id: y.id } }),
+    ).toBe(0);
+    const bView = await api().get('/api/v1/firms/me').set(b.auth).expect(200);
+    expect(
+      (bView.body.data.members as { attorneyId: string }[]).some(
+        (m) => m.attorneyId === y.id,
+      ),
+    ).toBe(false);
+
+    // Invited, the lawyer may still start his own firm.
+    const z = await lawyer('NJ');
+    await api()
+      .post('/api/v1/firms/me/members')
+      .set(a.auth)
+      .send({ username: z.username })
+      .expect(200);
+    await api()
+      .post('/api/v1/firms')
+      .set(z.auth)
+      .send({ name: 'Zed LLP' })
+      .expect(201);
+    const late = await api().post('/api/v1/firms/me/accept').set(z.auth);
+    expect(late.status).toBe(409);
+    expect(late.body.error.code).toBe('FIRM_ALREADY_MEMBER');
+  });
+
+  it('declining drops the invitation; the owner can withdraw one', async () => {
+    const owner = await lawyer('NJ');
+    const d = await lawyer('NJ');
+    const w = await lawyer('NJ');
+    const firmId = await firmWith('Decline LLP', owner);
+    for (const who of [d, w]) {
+      await api()
+        .post('/api/v1/firms/me/members')
+        .set(owner.auth)
+        .send({ username: who.username })
+        .expect(200);
+    }
+    await api()
+      .delete(`/api/v1/firms/me/members/${d.id}`)
+      .set(d.auth)
+      .expect(204);
+    await api().get('/api/v1/firms/me').set(d.auth).expect(404);
+    await api()
+      .delete(`/api/v1/firms/me/members/${w.id}`)
+      .set(owner.auth)
+      .expect(204);
+    await api().get('/api/v1/firms/me').set(w.auth).expect(404);
+    expect(
+      await prisma.firmInvitation.count({ where: { firm_id: firmId } }),
+    ).toBe(0);
+  });
+
+  it('the firm size is the admin setting, invitations included', async () => {
+    const owner = await lawyer('NJ');
+    const p = await lawyer('NJ');
+    const q = await lawyer('NJ');
+    await firmWith('Small LLP', owner);
+    await setSetting('firms.max_members', 2);
+    try {
+      await api()
+        .post('/api/v1/firms/me/members')
+        .set(owner.auth)
+        .send({ username: p.username })
+        .expect(200);
+      const full = await api()
+        .post('/api/v1/firms/me/members')
+        .set(owner.auth)
+        .send({ username: q.username });
+      expect(full.status).toBe(409);
+      expect(full.body.error.code).toBe('FIRM_FULL');
+      // Inviting the same lawyer again only renews the invitation.
+      await api()
+        .post('/api/v1/firms/me/members')
+        .set(owner.auth)
+        .send({ username: p.username })
+        .expect(200);
+    } finally {
+      await setSetting('firms.max_members', null);
+    }
+  });
+
+  it('a legacy invited row (before firm_invitations) blocks nothing', async () => {
+    const owner = await lawyer('NJ');
+    const old = await lawyer('NJ');
+    const firmId = await firmWith('Legacy LLP', owner);
+    await prisma.firmMember.create({
+      data: { firm_id: firmId, attorney_id: old.id, status: 'invited' },
+    });
+    await api().get('/api/v1/firms/me').set(old.auth).expect(404);
+    const own = await api().get('/api/v1/firms/me').set(owner.auth).expect(200);
+    expect(own.body.data.members).toHaveLength(1);
+    await api()
+      .post('/api/v1/firms')
+      .set(old.auth)
+      .send({ name: 'Fresh LLP' })
+      .expect(201);
   });
 
   it('is off behind the flag: every firm route refuses', async () => {

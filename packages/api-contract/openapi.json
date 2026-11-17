@@ -16138,6 +16138,16 @@
       "post": {
         "operationId": "acceptFirmInvite",
         "parameters": [],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptFirmInviteDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success envelope (docs/01 §7).",
@@ -16170,7 +16180,7 @@
             }
           },
           "409": {
-            "description": "Conflict: FEATURE_DISABLED",
+            "description": "Conflict: FEATURE_DISABLED, FIRM_ALREADY_MEMBER, FIRM_FULL",
             "content": {
               "application/json": {
                 "schema": {
@@ -147855,6 +147865,12 @@
             "items": {
               "$ref": "#/components/schemas/FirmMemberDto"
             }
+          },
+          "inviteExpiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "The viewer's own pending invitation to this firm is valid until then"
           }
         },
         "required": [
@@ -147862,7 +147878,8 @@
           "name",
           "ownerId",
           "states",
-          "members"
+          "members",
+          "inviteExpiresAt"
         ]
       },
       "CreateFirmDto": {
@@ -147901,6 +147918,15 @@
         "required": [
           "username"
         ]
+      },
+      "AcceptFirmInviteDto": {
+        "type": "object",
+        "properties": {
+          "firmId": {
+            "type": "string",
+            "description": "Which invitation; the newest one when left out"
+          }
+        }
       },
       "TransferFirmOwnerDto": {
         "type": "object",

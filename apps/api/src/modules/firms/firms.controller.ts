@@ -11,11 +11,19 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiProperty,
+  ApiPropertyOptional,
   ApiTags,
 } from '@nestjs/swagger';
-import { IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -49,6 +57,23 @@ export class FirmDto {
   @ApiProperty() ownerId!: string;
   @ApiProperty({ type: [String] }) states!: string[];
   @ApiProperty({ type: [FirmMemberDto] }) members!: FirmMemberDto[];
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    format: 'date-time',
+    description:
+      "The viewer's own pending invitation to this firm is valid until then",
+  })
+  inviteExpiresAt!: string | null;
+}
+
+export class AcceptFirmInviteDto {
+  @ApiPropertyOptional({
+    description: 'Which invitation; the newest one when left out',
+  })
+  @IsOptional()
+  @IsUUID()
+  firmId?: string;
 }
 
 export class CreateFirmDto {
@@ -122,9 +147,17 @@ export class FirmsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Accept the invitation to a firm' })
   @ApiEnvelopeResponse(FirmDto)
-  @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.FEATURE_DISABLED] })
-  acceptFirmInvite(@CurrentUser() user: RequestUser): Promise<FirmDto> {
-    return this.firms.accept(user.sub);
+  @ApiErrors({
+    404: [E.NOT_FOUND],
+    409: [E.FEATURE_DISABLED, E.FIRM_ALREADY_MEMBER, E.FIRM_FULL],
+  })
+  // Optional: an older app sends no body (the newest invitation).
+  @ApiBody({ type: AcceptFirmInviteDto, required: false })
+  acceptFirmInvite(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: AcceptFirmInviteDto,
+  ): Promise<FirmDto> {
+    return this.firms.accept(user.sub, dto?.firmId);
   }
 
   @AttorneyOnly()

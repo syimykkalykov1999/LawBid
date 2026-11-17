@@ -378,6 +378,8 @@ export const GLOBAL_MODELS: readonly string[] = [
   'BidCredit',
   'Firm',
   'FirmMember',
+  // Firms audit 16.11 (PR-3).
+  'FirmInvitation',
   'SearchSynonymGroup',
   'SearchSynonymTerm',
   'SearchQueryLog',
