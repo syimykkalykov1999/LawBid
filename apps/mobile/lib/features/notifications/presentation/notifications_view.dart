@@ -208,6 +208,12 @@ String? notificationRoute({
       return AppRoutes.myCase(caseId);
     case 'payout_account_status':
       return CasePaymentsRoutes.payoutAccount;
+    // Firms audit 16.11: a bid sent in my name opens it; the rest of the
+    // firm's news opens «Моя фирма».
+    case 'firm_update' when bidId != null:
+      return AppRoutes.bid(bidId);
+    case 'firm_update':
+      return AppRoutes.myFirm;
     // Owner 2026-10-20: a booking was requested, answered, moved or is near.
     case 'consultation_update':
       final consultationId = s('consultationId');
@@ -365,6 +371,13 @@ String notificationText(Translator t, AppNotification n) {
         return '$base $detail';
       }
       return base;
+    }
+  }
+  // Firms audit 16.11: what happened in the firm (`notif.firm.<kind>`).
+  if (n.type == 'firm_update') {
+    final kind = n.payload['kind'];
+    if (kind is String && RegExp(r'^[a-z_]{1,40}$').hasMatch(kind)) {
+      return t.t('notif.firm.$kind');
     }
   }
   // Owner 2026-10-20: what happened to a booking (`notif.consult.<kind>`).
@@ -539,6 +552,7 @@ IconData notificationIcon(AppNotification n) => switch (n.type) {
       'case_payment_disputed' => AppIcons.errorOutlineRounded,
       'payout_account_status' => AppIcons.accountBalanceOutlined,
       'consultation_update' => AppIcons.eventAvailableRounded,
+      'firm_update' => AppIcons.groupsOutlined,
       'assistant_task' || 'task_assigned' => AppIcons.eventNoteRounded,
       'task_reminder' => AppIcons.notificationsActiveOutlined,
       'task_purge_soon' => AppIcons.inventory2Outlined,
