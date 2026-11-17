@@ -171,6 +171,7 @@ export const SHARDED_MODELS: Readonly<Record<string, ShardedModelSpec>> = {
   ChatGroup: spec('content', owner('created_by')),
   ChatGroupMember: spec('content', parent('group_id', 'ChatGroup')),
   ChatGroupMessage: spec('content', parent('group_id', 'ChatGroup')),
+  ChatGroupMessageReaction: spec('content', parent('group_id', 'ChatGroup')),
   ChatGroupTopic: spec('content', parent('group_id', 'ChatGroup')),
   ChatGroupTopicRead: spec('content', parent('topic_id', 'ChatGroupTopic')),
   ChatGroupJoinRequest: spec('content', parent('group_id', 'ChatGroup')),

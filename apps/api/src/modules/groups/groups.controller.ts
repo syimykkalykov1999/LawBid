@@ -74,6 +74,8 @@ import {
   type GroupPersonPage,
 } from './groups.dto';
 import { GroupsService } from './groups.service';
+import { GroupReactionsService } from './group-reactions.service';
+import { ReactMessageDto } from '../chat/chat.dto';
 import type { SyncPage } from '../../common/sync/sync.util';
 
 const GROUP_ERRORS = {
@@ -94,6 +96,7 @@ export class GroupsController {
   constructor(
     private readonly groups: GroupsService,
     private readonly polls: GroupPollsService,
+    private readonly reactions: GroupReactionsService,
   ) {}
 
   @Get()
@@ -401,6 +404,23 @@ export class GroupsController {
     @Param() p: GroupMessageParamDto,
   ): Promise<void> {
     await this.groups.remove(user, p.id, p.messageId);
+  }
+
+  // Groups WhatsApp parity: the 1:1 chat's reactions (one emoji each).
+  @Put(':id/messages/:messageId/reaction')
+  @ApiOperation({ summary: 'React with one emoji (null removes it)' })
+  @ApiEnvelopeResponse(GroupMessageDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    402: [ErrorCode.INSUFFICIENT_STARS],
+    ...GROUP_ERRORS,
+  })
+  reactToGroupMessage(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupMessageParamDto,
+    @Body() dto: ReactMessageDto,
+  ): Promise<GroupMessageDto> {
+    return this.reactions.react(user, p.id, p.messageId, dto.emoji);
   }
 
   @Put(':id/pin')

@@ -30,6 +30,7 @@ import '../models/group_topic_list_envelope.dart';
 import '../models/pin_group_message_dto.dart';
 import '../models/poll_envelope.dart';
 import '../models/poll_voter_option_list_envelope.dart';
+import '../models/react_message_dto.dart';
 import '../models/read_group_dto.dart';
 import '../models/send_group_message_dto.dart';
 import '../models/set_group_role_dto.dart';
@@ -251,6 +252,15 @@ abstract class GroupsClient {
   Future<void> deleteGroupMessage({
     @Path('id') required String id,
     @Path('messageId') required String messageId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// React with one emoji (null removes it)
+  @PUT('/groups/{id}/messages/{messageId}/reaction')
+  Future<GroupMessageEnvelope> reactToGroupMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Body() required ReactMessageDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

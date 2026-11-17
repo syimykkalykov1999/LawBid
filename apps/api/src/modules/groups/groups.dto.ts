@@ -20,7 +20,7 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { ChatAttachmentDto } from '../chat/chat.dto';
+import { ChatAttachmentDto, ReactionDto } from '../chat/chat.dto';
 import { UpdatedSinceQuery, type SyncPage } from '../../common/sync/sync.util';
 
 /** Owner 2026-10-20: group chats (Telegram + WhatsApp) — limits. */
@@ -828,6 +828,14 @@ export class GroupMessageDto {
     description: 'The first author (or channel) of a forwarded message.',
   })
   forwardedFrom!: string | null;
+
+  // Groups WhatsApp parity: the 1:1 chat's reactions (one emoji per person).
+  // Optional in the contract: builds that predate it read a missing field.
+  @ApiPropertyOptional({
+    type: () => [ReactionDto],
+    description: 'Emoji reactions, in the order they were first chosen.',
+  })
+  reactions!: ReactionDto[];
 }
 
 export class GroupDto {
