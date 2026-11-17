@@ -2207,6 +2207,12 @@ locals {
       # Owner 2026-11-11 («Авто» by count): every copy, comma separated; the
       # api shares the reads between them (prisma-read.service.ts).
       DB_REPLICA_HOST = join(",", module.growth.replica_endpoints)
+      # Infra audit 14.11: the copies are reached directly (not through the
+      # pooler), so their pool follows the same direct-connection budget as
+      # the primary without a pooler (3..10 per task at the peak task count),
+      # not the pooler-side 10 per task (src/prisma/prisma-read.service.ts
+      # falls back to DB_POOL_SIZE when this is unset).
+      DB_READ_POOL_SIZE = tostring(local.direct_pool_size)
     } : {},
     # Admin button «Копия базы для чтения» (owner 2026-10-24): the API creates
     # and deletes ONE replica itself through the RDS API. Only these names are

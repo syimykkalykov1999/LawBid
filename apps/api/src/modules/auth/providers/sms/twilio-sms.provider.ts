@@ -14,6 +14,13 @@ import {
 
 /** A failure on Twilio's side or the network (worth a retry, counts toward
  * the breaker); a 4xx (bad number, blocked country) is the caller's. */
+/** Worth sending again: a fault Twilio answered or a broken connection —
+ * NOT our own time limit, after which the first request may still reach
+ * the phone (infra audit 14.11: a second send texted and billed twice). */
+export function isTwilioRetryable(error: unknown): boolean {
+  return !(error instanceof CallTimeoutError) && isTwilioServiceFault(error);
+}
+
 export function isTwilioServiceFault(error: unknown): boolean {
   if (error instanceof CallTimeoutError) return true;
   const status = (error as { status?: number } | null)?.status;
@@ -90,7 +97,7 @@ export class TwilioSmsProvider implements SmsProvider {
           {
             attempts: 2,
             baseDelayMs: 400,
-            retryable: isTwilioServiceFault,
+            retryable: isTwilioRetryable,
           },
         ),
       isTwilioServiceFault,
