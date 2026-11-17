@@ -24,7 +24,12 @@ abstract final class ClientTuning {
   static int _callEndedHoldS = 0;
   static int _qrPollS = 10;
   static int _resumeMinAwayS = 30;
+  static int _loadAheadPercent = 100;
+  static int _feedLoadAheadPercent = 200;
+  static int _loadAheadRows = 8;
+  static int _mediaPrefetchAhead = 3;
   static int _undoWindowS = 5;
+  static int _chatSearchDebounceMs = 300;
   static int _notInterestedKeepDays = 90;
   static int _videoPrefetchAhead = 3;
   static int _videoPrefetchCellular = 1;
@@ -101,9 +106,30 @@ abstract final class ClientTuning {
   static Duration get qrPoll => Duration(seconds: _qrPollS);
   static Duration get resumeMinAway => Duration(seconds: _resumeMinAwayS);
 
+  /// Row 38 (Instagram / TikTok): lists ask for the next page while this
+  /// many screens are still ahead (`client.load_ahead_percent` / 100).
+  static double get loadAheadScreens => _loadAheadPercent / 100;
+
+  /// The same for full-width card lists such as the feed
+  /// (`client.feed_load_ahead_percent`).
+  static double get feedLoadAheadScreens => _feedLoadAheadPercent / 100;
+
+  /// Message threads ask for older messages this many rows before the
+  /// oldest loaded one (`client.load_ahead_rows`).
+  static int get loadAheadRows => _loadAheadRows;
+
+  /// Pictures of this many next rows are warmed
+  /// (`client.media_prefetch_ahead`).
+  static int get mediaPrefetchAhead => _mediaPrefetchAhead;
+
   /// Row 109 (Telegram / Gmail): how long «Undo» stays after a delete,
   /// an archive or an unfollow (`client.undo_window_s`).
   static Duration get undoWindow => Duration(seconds: _undoWindowS);
+
+  /// Row 110: the pause in typing before an in-chat or member search asks
+  /// the server (`client.chat_search_debounce_ms`, 0 = at every key).
+  static Duration get chatSearchDebounce =>
+      Duration(milliseconds: _chatSearchDebounceMs);
 
   /// Row 112: posts marked «Not interested» stay hidden on this device for
   /// this many days (`client.not_interested_keep_days`).
@@ -293,7 +319,14 @@ abstract final class ClientTuning {
     _callEndedHoldS = pick('client.call_ended_hold_s', 0, 0, 600);
     _qrPollS = pick('client.qr_poll_s', 10, 5, 60);
     _resumeMinAwayS = pick('client.resume_refresh_min_away_s', 30, 5, 3600);
+    _loadAheadPercent = pick('client.load_ahead_percent', 100, 10, 1000);
+    _feedLoadAheadPercent =
+        pick('client.feed_load_ahead_percent', 200, 10, 1000);
+    _loadAheadRows = pick('client.load_ahead_rows', 8, 1, 100);
+    _mediaPrefetchAhead = pick('client.media_prefetch_ahead', 3, 0, 10);
     _undoWindowS = pick('client.undo_window_s', 5, 2, 30);
+    _chatSearchDebounceMs =
+        pick('client.chat_search_debounce_ms', 300, 0, 3000);
     _notInterestedKeepDays =
         pick('client.not_interested_keep_days', 90, 1, 3650);
     _videoPrefetchAhead = pick('client.video_prefetch_ahead', 3, 0, 6);

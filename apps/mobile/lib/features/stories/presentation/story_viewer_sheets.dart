@@ -197,7 +197,7 @@ class _ViewersSheetState extends ConsumerState<_ViewersSheet> {
   void initState() {
     super.initState();
     _scroll.addListener(() {
-      if (_scroll.position.extentAfter < 240) {
+      if (LoadAhead.nearEnd(_scroll.position)) {
         ref.read(storyViewersProvider(widget.story.id).notifier).loadMore();
       }
     });

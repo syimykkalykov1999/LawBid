@@ -38,6 +38,13 @@ abstract final class RequestFlags {
   /// A route that legitimately answers HTML: the captive-portal check skips it.
   static const expectsHtml = 'expectsHtml';
 
+  /// R2-A #10: a request that goes out with this captured bearer token (a
+  /// String) instead of the current session's — the server half of a
+  /// sign-out that already happened on the phone. AuthInterceptor neither
+  /// refreshes nor signs out on its errors: the session it would touch may
+  /// already be the next account's.
+  static const bearer = 'bearer';
+
   /// Internal: attempt counter RetryInterceptor keeps across re-fetches.
   static const retryAttempt = 'retryAttempt';
 

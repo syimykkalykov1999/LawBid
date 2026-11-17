@@ -380,6 +380,19 @@ export class GroupMessagesQueryDto {
   @Min(1)
   @Max(50)
   limit?: number;
+
+  /**
+   * Row 110 (Telegram 🔍 in a chat): only the text messages holding every
+   * typed word, newest first, paged by `cursor`.
+   */
+  @ApiPropertyOptional({
+    maxLength: 200,
+    description: 'Search inside this group: every word must be in the text.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
 }
 
 /** Sweep B-c1: a page of members / voters (keyset, like messages). */
@@ -397,6 +410,21 @@ export class GroupPageQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+}
+
+/** Row 110 (Telegram «Search members», WhatsApp 🔍 over participants):
+ * the members page, optionally only the people whose name or @username
+ * matches [q] (any alphabet, like every name search). */
+export class GroupMembersQueryDto extends GroupPageQueryDto {
+  @ApiPropertyOptional({
+    maxLength: 100,
+    description:
+      'Only members whose name or @username matches (one page, no cursor).',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  q?: string;
 }
 
 export class GroupsQueryDto {

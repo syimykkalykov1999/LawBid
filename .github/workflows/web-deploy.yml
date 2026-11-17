@@ -305,9 +305,13 @@ jobs:
 
       # Owner 2026-10-23: app and assets under v/<sha>/ (see above); row 170:
       # the engine under v/<engineRevision>/ (`engine` output, v/<...>).
+      # Row 173: WEB_SKWASM_THREADS (repository variable) = auto | single;
+      # single forces one drawing thread even on a cross-origin isolated page.
       - name: Move the heavy files under v/<sha>/ (engine under v/<engineRevision>/)
         id: imm
         working-directory: apps/mobile
+        env:
+          WEB_SKWASM_THREADS: ${{ vars.WEB_SKWASM_THREADS || 'auto' }}
         run: |
           python3 ../../scripts/deploy/web-immutable.py build/web "${{ env.RELEASE_SHA }}" "${{ steps.fonts.outputs.base }}" | tee "$RUNNER_TEMP/imm.log"
           E=$(sed -n 's/^engine=//p' "$RUNNER_TEMP/imm.log" | tail -1)
@@ -330,6 +334,10 @@ jobs:
           # Owner 2026-10-22: the page's scripts are files (strict CSP).
           test -s build/web/boot_head.js
           test -s build/web/boot_end.js
+          # Row 173: the isolation worker, and no deprecated Flutter worker
+          # that would replace it (web/flutter_bootstrap.js).
+          test -s build/web/coi_sw.js
+          ! grep -q 'serviceWorkerVersion: "' build/web/flutter_bootstrap.js
           test -s build/web/pay.js
           test -s $V/main.dart.wasm
           test -s $V/main.dart.js
@@ -526,7 +534,7 @@ jobs:
         run: >-
           aws cloudfront create-invalidation
           --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}"
-          --paths "/index.html" "/icons/*" "/favicon.png" "/flutter_bootstrap.js" "/boot_head.js" "/boot_end.js" "/version.json" "/manifest.json"
+          --paths "/index.html" "/icons/*" "/favicon.png" "/flutter_bootstrap.js" "/boot_head.js" "/boot_end.js" "/coi_sw.js" "/version.json" "/manifest.json"
 
   notify:
     name: Tell the owner
