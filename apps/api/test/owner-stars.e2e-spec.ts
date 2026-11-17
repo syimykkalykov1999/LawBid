@@ -10,6 +10,7 @@ import { adminSession, adminStepUp } from './support/admin-login';
 import { PAYMENT_PROVIDER } from '../src/modules/billing/billing.constants';
 import type { FakePaymentProvider } from '../src/modules/billing/fake-payment.provider';
 import { StarsService } from '../src/modules/stars/stars.service';
+import { forEachDatabase } from '../src/sharding/for-each-database';
 
 /**
  * Owner 2026-10-20 — stars: bought on the web (checkout), gifts in a chat
@@ -313,6 +314,60 @@ describe('Stars, gifts and paid stickers (e2e)', () => {
       .post(`/api/v1/stars/received-gifts/${sid}/convert`)
       .set(attorney.auth)
       .expect(409);
+  });
+
+  // Verifier 17.11: with two databases the gift was charged on the primary
+  // before the message was written on its own database — a failed message
+  // write kept the money and left no message. The charge is undone now.
+  it('a gift whose message is not written costs nothing', async () => {
+    await flag(true);
+    const client = await user('client', 'Unlucky');
+    const attorney = await user('attorney', 'Nobody');
+    const convId = await chat(client.id, attorney.id);
+    const g = await gift(client.id, 30, 'Tulip');
+    await prisma.starWallet.create({
+      data: { user_id: client.id, balance: 50, lifetime_bought: 50 },
+    });
+    // The message insert of this chat fails (on whichever database holds
+    // it) after the gift was charged — a real database error, not a mock.
+    const fn = `e2e_fail_msg_${convId.replace(/-/g, '')}`;
+    await forEachDatabase(prisma, async () => {
+      await prisma.$executeRawUnsafe(
+        `CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$
+         BEGIN RAISE EXCEPTION 'message write failed'; END $$`,
+      );
+      await prisma.$executeRawUnsafe(
+        `CREATE TRIGGER ${fn} BEFORE INSERT ON messages FOR EACH ROW
+         WHEN (NEW.conversation_id = '${convId}'::uuid) EXECUTE FUNCTION ${fn}()`,
+      );
+    });
+    try {
+      await api()
+        .post(`/api/v1/conversations/${convId}/messages`)
+        .set(client.auth)
+        .send({ clientMessageId: randomUUID(), type: 'gift', giftId: g.id })
+        .expect(500);
+    } finally {
+      await forEachDatabase(prisma, async () => {
+        await prisma.$executeRawUnsafe(
+          `DROP TRIGGER IF EXISTS ${fn} ON messages`,
+        );
+        await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS ${fn}()`);
+      });
+    }
+    expect(
+      (
+        await prisma.starWallet.findUniqueOrThrow({
+          where: { user_id: client.id },
+        })
+      ).balance,
+    ).toBe(50);
+    expect(
+      await prisma.giftSend.count({ where: { sender_id: client.id } }),
+    ).toBe(0);
+    expect(
+      (await prisma.gift.findUniqueOrThrow({ where: { id: g.id } })).sent_count,
+    ).toBe(0);
   });
 
   it('a gift to a profile notifies; yourself and a blocked user are refused', async () => {

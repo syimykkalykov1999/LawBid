@@ -799,6 +799,40 @@ export class StarsService {
     return { send, gift };
   }
 
+  /**
+   * Verifier 17.11 (two databases): a gift charged for a chat message that
+   * was never stored is undone — the stars go back to the giver (ledger
+   * `refund`, idem key `gift-undo:<send>`, so twice is once), the gift-send
+   * row goes and the gift's counter drops. One primary transaction. Returns
+   * false when there is nothing to undo (already undone, or the send rolled
+   * back with the message in the one-database setup).
+   */
+  async undoGift(sendId: string): Promise<boolean> {
+    const run = () =>
+      this.prisma.$transaction((g) => this.undoGiftIn(g as Tx, sendId));
+    return readsAreSplit(this.prisma) ? shardContext.runOnPrimary(run) : run();
+  }
+
+  private async undoGiftIn(tx: Tx, sendId: string): Promise<boolean> {
+    const send = await tx.giftSend.findUnique({ where: { id: sendId } });
+    if (!send) return false;
+    const back = await this.creditIn(
+      tx,
+      send.sender_id,
+      send.price_stars,
+      'refund',
+      `gift-undo:${send.id}`,
+      { refId: send.id, note: 'gift message not sent' },
+    );
+    if (!back) return false;
+    await tx.giftSend.delete({ where: { id: send.id } });
+    await tx.gift.update({
+      where: { id: send.gift_id },
+      data: { sent_count: { decrement: 1 } },
+    });
+    return true;
+  }
+
   /** POST /stars/gifts/:giftId/send — a gift to a profile (no chat). */
   async sendToProfile(
     senderId: string,
