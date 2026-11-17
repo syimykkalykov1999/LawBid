@@ -13,7 +13,10 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 /// search (short words ask nothing; a failing search shows no groups).
 final groupSearchProvider = FutureProvider.autoDispose
     .family<List<api.GroupInvitePreviewDto>, String>((ref, q) async {
-  if (q.trim().length < 2) return const [];
+  // Row 183: no group search while «Группы» is off.
+  if (q.trim().length < 2 || !ref.watch(groupsEnabledProvider)) {
+    return const [];
+  }
   try {
     return await ref.watch(groupRepositoryProvider).searchPublic(q.trim());
   } on Object {

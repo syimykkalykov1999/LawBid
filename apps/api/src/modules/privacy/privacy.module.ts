@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
 import { AuthModule } from '../auth/auth.module';
 import { BidsModule } from '../bids/bids.module';
+import { FirmsModule } from '../firms/firms.module';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { createEmailProvider } from '../auth/providers/email/email-provider.factory';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -60,6 +61,8 @@ export class PrivacyModule {
         SubscriptionsModule,
         JournalModule,
         BidsModule,
+        // Firms audit 16.11 (PR-2): an erased firm owner hands the firm over.
+        FirmsModule,
         JournalModule,
         // «Вход и письма по почте» gates the data-export e-mail.
         FeatureFlagsModule,

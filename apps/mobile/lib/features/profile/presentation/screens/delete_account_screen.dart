@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/presentation/widgets/password_step_up.dart';
@@ -94,75 +95,86 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
     final t = ref.watch(translatorProvider);
     final state = ref.watch(deleteAccountControllerProvider);
 
-    return Scaffold(
-      backgroundColor: colors.bg,
-      appBar: AppTopBar(
-        title: Text(t.t('deleteAccount.title')),
-        leading: AppBackButton(
-          semanticLabel: t.t('common.back'),
-          onPressed: () => context.safeBack(),
-        ),
-      ),
-      // UI modernization pass (2026-09-27): a danger-toned step indicator
-      // (warning → re-auth → confirm) and a fade/rise cross-fade between
-      // steps; instant under reduce-motion. Step logic is unchanged.
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.screenSide),
-          child: Column(
-            children: [
-              if (_progressFor(state.step) case final progress?) ...[
-                AppStepProgress(
-                  total: _totalSteps,
-                  current: progress,
-                  activeColor: colors.danger,
-                  semanticLabel: t.t('common.stepOf', {
-                    'current': '$progress',
-                    'total': '$_totalSteps',
-                  }),
+    // R2-A #5 (iOS: a destructive step in progress cannot be left): no back,
+    // swipe or system back while `DELETE /users/me` is on the way.
+    final submitting = state.step == DeleteAccountStep.submitting;
+    return PopScope(
+      canPop: !submitting,
+      child: Scaffold(
+        backgroundColor: colors.bg,
+        appBar: AppTopBar(
+          title: Text(t.t('deleteAccount.title')),
+          leading: submitting
+              ? null
+              : AppBackButton(
+                  semanticLabel: t.t('common.back'),
+                  // R2-A #2: opened by a link or after a web refresh, the
+                  // screen is alone — back leads to Settings.
+                  onPressed: () =>
+                      context.safeBack(fallback: AppRoutes.profileSettings),
                 ),
-                const SizedBox(height: AppSpacing.xl),
-              ],
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: context.reduceMotion
-                      ? Duration.zero
-                      : AppMotion.stepSwitch,
-                  switchInCurve: AppMotion.enterCurve,
-                  switchOutCurve: AppMotion.exitCurve,
-                  transitionBuilder: (child, animation) => FadeTransition(
-                    opacity: animation,
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(AppMotion.pageSlideFraction, 0),
-                        end: Offset.zero,
-                      ).animate(animation),
-                      child: child,
+        ),
+        // UI modernization pass (2026-09-27): a danger-toned step indicator
+        // (warning → re-auth → confirm) and a fade/rise cross-fade between
+        // steps; instant under reduce-motion. Step logic is unchanged.
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(AppSpacing.screenSide),
+            child: Column(
+              children: [
+                if (_progressFor(state.step) case final progress?) ...[
+                  AppStepProgress(
+                    total: _totalSteps,
+                    current: progress,
+                    activeColor: colors.danger,
+                    semanticLabel: t.t('common.stepOf', {
+                      'current': '$progress',
+                      'total': '$_totalSteps',
+                    }),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+                ],
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: context.reduceMotion
+                        ? Duration.zero
+                        : AppMotion.stepSwitch,
+                    switchInCurve: AppMotion.enterCurve,
+                    switchOutCurve: AppMotion.exitCurve,
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(AppMotion.pageSlideFraction, 0),
+                          end: Offset.zero,
+                        ).animate(animation),
+                        child: child,
+                      ),
+                    ),
+                    child: KeyedSubtree(
+                      key: ValueKey<DeleteAccountStep>(state.step),
+                      child: switch (state.step) {
+                        DeleteAccountStep.warning => _WarningStep(t: t),
+                        DeleteAccountStep.reauthPassword =>
+                          _ReauthPasswordStep(t: t),
+                        DeleteAccountStep.reauthPhone => _ReauthPhoneStep(
+                            t: t,
+                            controller: _phoneController,
+                            digits: _phoneDigits,
+                          ),
+                        DeleteAccountStep.reauthCode => _ReauthCodeStep(t: t),
+                        DeleteAccountStep.confirmPhrase => _ConfirmPhraseStep(
+                            t: t,
+                            phraseController: _phraseController,
+                          ),
+                        DeleteAccountStep.submitting => const _SubmittingStep(),
+                        DeleteAccountStep.done => _DoneStep(t: t),
+                      },
                     ),
                   ),
-                  child: KeyedSubtree(
-                    key: ValueKey<DeleteAccountStep>(state.step),
-                    child: switch (state.step) {
-                      DeleteAccountStep.warning => _WarningStep(t: t),
-                      DeleteAccountStep.reauthPassword =>
-                        _ReauthPasswordStep(t: t),
-                      DeleteAccountStep.reauthPhone => _ReauthPhoneStep(
-                          t: t,
-                          controller: _phoneController,
-                          digits: _phoneDigits,
-                        ),
-                      DeleteAccountStep.reauthCode => _ReauthCodeStep(t: t),
-                      DeleteAccountStep.confirmPhrase => _ConfirmPhraseStep(
-                          t: t,
-                          phraseController: _phraseController,
-                        ),
-                      DeleteAccountStep.submitting => const _SubmittingStep(),
-                      DeleteAccountStep.done => _DoneStep(t: t),
-                    },
-                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

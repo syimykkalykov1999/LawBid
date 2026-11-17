@@ -24,6 +24,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -225,17 +226,16 @@ export class AdminUsersService {
   ): Promise<AdminUsersPage> {
     const limit = q.limit ?? LIST_DEFAULT;
     const cursor = q.cursor ? decodeCursor(q.cursor) : undefined;
-    const where: Prisma.UserWhereInput = {
-      ...this.listWhere(q, countries),
-      ...(cursor
-        ? {
-            OR: [
-              { created_at: { lt: cursor.createdAt } },
-              { created_at: cursor.createdAt, id: { lt: cursor.id } },
-            ],
-          }
-        : {}),
-    };
+    // Row 215: the cursor as an index range on users(created_at), joined
+    // with AND (the filter may carry an AND / OR of its own).
+    const where: Prisma.UserWhereInput = cursor
+      ? {
+          AND: [
+            this.listWhere(q, countries),
+            createdBefore({ t: cursor.createdAt, id: cursor.id }),
+          ],
+        }
+      : this.listWhere(q, countries);
     const rows = await this.prisma.user.findMany({
       where,
       select: LIST_SELECT,

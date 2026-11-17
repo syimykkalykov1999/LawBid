@@ -436,7 +436,8 @@ describe('JobsRunner', () => {
       CRON_HEAVY_FREQUENT_QUEUE,
     );
     expect(cronLaneOf(CRON_JOBS.privacyAnonymize)).toBe(CRON_HEAVY_QUEUE);
-    expect(cronLaneOf(CRON_JOBS.sessionsCleanup)).toBe(CRON_QUEUE);
+    // 14.11 (DB scale review): the nightly sessions walk moved to heavy.
+    expect(cronLaneOf(CRON_JOBS.sessionsCleanup)).toBe(CRON_HEAVY_QUEUE);
     // every minute-job that is not a quick sweep must not sit with the signal
     const fast = CRON_SCHEDULES.filter(
       (s) => cronLaneOf(s.name) === CRON_FAST_QUEUE,

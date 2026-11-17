@@ -239,7 +239,7 @@ export function buildVisibleCasesSql(
         ${categoryFilter}
         ${extraFilter}
         ${text || since ? searchFilter : Prisma.empty}
-        ${cursor ? Prisma.sql`AND (c.created_at < ${cursor.createdAt} OR (c.created_at = ${cursor.createdAt} AND c.id < ${cursor.id}::UUID))` : Prisma.empty}
+        ${cursor ? Prisma.sql`AND (c.created_at, c.id) < (${cursor.createdAt}, ${cursor.id}::UUID)` : Prisma.empty}
       ORDER BY c.created_at DESC, c.id DESC
       LIMIT ${limit}`;
   }
@@ -380,9 +380,10 @@ export function buildPracticeCasesSql(
     extra ?? Prisma.empty
   }`;
   const stateFilter = anyStateOf(stateCodes(state, states));
+  // Row 215: the row comparison (an index condition), as in the branches
+  // above; the OR form was only a Filter (EXPLAIN: 229 ms -> 0.3 ms deep).
   const cursorFilter = cursor
-    ? Prisma.sql`AND (c.created_at < ${cursor.createdAt}
-        OR (c.created_at = ${cursor.createdAt} AND c.id < ${cursor.id}::UUID))`
+    ? Prisma.sql`AND (c.created_at, c.id) < (${cursor.createdAt}, ${cursor.id}::UUID)`
     : Prisma.empty;
   return Prisma.sql`
     SELECT c.id, c.created_at FROM cases c

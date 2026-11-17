@@ -26,12 +26,20 @@ class VoiceMessageBody extends ConsumerWidget {
     required this.threadId,
     this.avatarUrl,
     this.avatarName,
+    this.thread,
     super.key,
   });
 
   final ChatMessage message;
   final bool mine;
+
+  /// The 1:1 chat (its notes play in a row, «played» goes to it); with
+  /// [thread] the mini-player's link back.
   final String threadId;
+
+  /// Groups WhatsApp parity: a chat that is not a 1:1 one (a group) gives
+  /// its own notes and «played» here instead of the 1:1 chat thread.
+  final VoiceThread? thread;
 
   /// The sender's photo and name (initials when there is no photo).
   final String? avatarUrl;
@@ -74,9 +82,12 @@ class VoiceMessageBody extends ConsumerWidget {
         showAppSnackBar(context, t.t('chat.voice.duringCall'));
         return;
       }
-      final thread = ref.read(chatThreadProvider(threadId).notifier);
+      final custom = thread;
+      final played = custom?.played ??
+          ref.read(chatThreadProvider(threadId).notifier).voicePlayed;
       // WhatsApp: the other side's voice notes right after this one.
-      final all = ref.read(chatThreadProvider(threadId)).all;
+      final all =
+          custom?.messages() ?? ref.read(chatThreadProvider(threadId)).all;
       final at = all.indexWhere((x) => x.id == m.id);
       final then = <ChatMessage>[];
       for (var i = at - 1; !mine && at > 0 && i >= 0; i--) {
@@ -96,13 +107,13 @@ class VoiceMessageBody extends ConsumerWidget {
         then: then,
         onAutoPlay: (x) async {
           try {
-            await thread.voicePlayed(x);
+            await played(x);
           } on Object {
             // The chat was closed meanwhile.
           }
         },
       );
-      if (!mine) await thread.voicePlayed(m);
+      if (!mine) await played(m);
     }
 
     final button = Semantics(
@@ -271,6 +282,19 @@ class VoiceMessageBody extends ConsumerWidget {
 
   static String _speed(double s) =>
       s == s.roundToDouble() ? s.toInt().toString() : s.toString();
+}
+
+/// Groups WhatsApp parity: where a [VoiceMessageBody] outside a 1:1 chat
+/// finds the notes that play after it and reports a played one.
+@immutable
+class VoiceThread {
+  const VoiceThread({required this.messages, required this.played});
+
+  /// The chat's notes as [ChatMessage]s, newest first (the 1:1 `all`).
+  final List<ChatMessage> Function() messages;
+
+  /// A note of someone else was played (best effort).
+  final Future<void> Function(ChatMessage m) played;
 }
 
 /// The sender's photo with a small mic badge in a corner (WhatsApp).

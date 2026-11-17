@@ -43,7 +43,6 @@ import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
 import 'package:lawbid/features/social/presentation/widgets/caption_fit.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
-import 'package:lawbid/features/social/presentation/widgets/hidden_counter_mark.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_attachments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_promo_row.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
@@ -1172,7 +1171,6 @@ class _ThreadsPost extends ConsumerWidget {
       Widget icon,
       int count, {
       VoidCallback? onCountTap,
-      bool hiddenMark = false,
     }) =>
         Row(
           mainAxisSize: MainAxisSize.min,
@@ -1184,22 +1182,16 @@ class _ThreadsPost extends ConsumerWidget {
                 behavior: HitTestBehavior.opaque,
                 child: Padding(
                   padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Row 95 (catalog C6): the changed digits roll.
-                      AppCounterRoll(
-                        text: SocialFormat.count(f, count),
-                        value: count,
-                        // The same number look as the post bar's (_Count).
-                        style: type.bodySmall.copyWith(
-                          color: colors.text,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 13,
-                        ),
-                      ),
-                      if (hiddenMark) const HiddenCounterMark(),
-                    ],
+                  // Row 95 (catalog C6): the changed digits roll.
+                  child: AppCounterRoll(
+                    text: SocialFormat.count(f, count),
+                    value: count,
+                    // The same number look as the post bar's (_Count).
+                    style: type.bodySmall.copyWith(
+                      color: colors.text,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ),
@@ -1286,7 +1278,6 @@ class _ThreadsPost extends ConsumerWidget {
                     // a tap on the number opens who liked.
                     showLikeCount(ref, p) ? p.likeCount : 0,
                     onCountTap: () => showLikersList(context, p.id),
-                    hiddenMark: hiddenForOthersMark(ref, p, views: false),
                   ),
                   action(
                     BounceIcon(
@@ -1319,7 +1310,7 @@ class _ThreadsPost extends ConsumerWidget {
                       ),
                       onTap: () => showRepostSheet(context, ref, p),
                     ),
-                    p.repostCount,
+                    showLikeCount(ref, p) ? p.repostCount : 0,
                     // Owner 2026-10-18: the counter opens who reposted.
                     onCountTap: () => showRepostersList(context, p.id),
                   ),
@@ -1332,7 +1323,7 @@ class _ThreadsPost extends ConsumerWidget {
                       label: t.t('post.share'),
                       onTap: () => sharePost(context, ref, p),
                     ),
-                    p.shareCount,
+                    showLikeCount(ref, p) ? p.shareCount : 0,
                   ),
                 ],
               ),
@@ -2788,8 +2779,6 @@ class PostActionsBar extends ConsumerWidget {
                         color:
                             post.likedByMe ? colors.danger : colors.actionIcon,
                         onTap: () => showLikersList(context, post.id),
-                        hiddenMark:
-                            hiddenForOthersMark(ref, post, views: false),
                       ),
                     if (post.commentCount > 0)
                       _Stat(
@@ -2802,14 +2791,14 @@ class PostActionsBar extends ConsumerWidget {
                           commentsEnabled: post.commentsEnabled,
                         ),
                       ),
-                    if (post.repostCount > 0)
+                    if (post.repostCount > 0 && showLikeCount(ref, post))
                       _Stat(
                         icon: AppIcons.autoModeRounded,
                         value: post.repostCount,
                         color: colors.actionIcon,
                         onTap: () => showRepostersList(context, post.id),
                       ),
-                    if (post.shareCount > 0)
+                    if (post.shareCount > 0 && showLikeCount(ref, post))
                       _Stat(
                         icon: AppIcons.sendOutlined,
                         value: post.shareCount,
@@ -2834,8 +2823,6 @@ class PostActionsBar extends ConsumerWidget {
                       _Count(
                         post.likeCount,
                         onTap: () => showLikersList(context, post.id),
-                        hiddenMark:
-                            hiddenForOthersMark(ref, post, views: false),
                       ),
                     BounceIcon(
                       extent: _kBarExtent,
@@ -2864,7 +2851,7 @@ class PostActionsBar extends ConsumerWidget {
                       ),
                       onTap: () => showRepostSheet(context, ref, post),
                     ),
-                    if (post.repostCount > 0)
+                    if (post.repostCount > 0 && showLikeCount(ref, post))
                       _Count(
                         post.repostCount,
                         onTap: () => showRepostersList(context, post.id),
@@ -2877,7 +2864,8 @@ class PostActionsBar extends ConsumerWidget {
                       label: t.t('post.share'),
                       onTap: () => sharePost(context, ref, post),
                     ),
-                    if (post.shareCount > 0) _Count(post.shareCount),
+                    if (post.shareCount > 0 && showLikeCount(ref, post))
+                      _Count(post.shareCount),
                   ],
                 ],
               ),
@@ -2902,13 +2890,10 @@ class PostActionsBar extends ConsumerWidget {
 }
 
 class _Count extends ConsumerWidget {
-  const _Count(this.value, {this.onTap, this.hiddenMark = false});
+  const _Count(this.value, {this.onTap});
 
   final int value;
   final VoidCallback? onTap;
-
-  /// The author hid this counter from others (see [HiddenCounterMark]).
-  final bool hiddenMark;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2917,7 +2902,7 @@ class _Count extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     // Row 95 (motion catalog C6, iOS 17 `.numericText()` / Telegram): a
     // like or a view rolls the changed digits instead of swapping them.
-    final number = AppCounterRoll(
+    final text = AppCounterRoll(
       text: SocialFormat.count(f, value),
       value: value,
       style: type.bodySmall.copyWith(
@@ -2926,12 +2911,6 @@ class _Count extends ConsumerWidget {
         fontSize: 13,
       ),
     );
-    final text = hiddenMark
-        ? Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [number, const HiddenCounterMark()],
-          )
-        : number;
     return Padding(
       padding: const EdgeInsetsDirectional.only(end: AppSpacing.sm),
       child: onTap == null ? text : AppPressable(onTap: onTap, child: text),
@@ -2947,14 +2926,12 @@ class _Stat extends StatelessWidget {
     required this.value,
     required this.color,
     required this.onTap,
-    this.hiddenMark = false,
   });
 
   final IconData icon;
   final int value;
   final Color color;
   final VoidCallback onTap;
-  final bool hiddenMark;
 
   @override
   Widget build(BuildContext context) {
@@ -2968,7 +2945,7 @@ class _Stat extends StatelessWidget {
             height: _kBarExtent,
             child: Center(child: AppIcon(icon, size: _kBarIcon, color: color)),
           ),
-          _Count(value, onTap: onTap, hiddenMark: hiddenMark),
+          _Count(value, onTap: onTap),
         ],
       ),
     );

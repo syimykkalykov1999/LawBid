@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { Badge, Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/empty';
+import { Select } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
@@ -21,7 +22,12 @@ import {
   reelsClientMode,
   reelsClientModeWrites,
 } from '@/lib/reels-client-mode';
+
+/** Owner 16.11 (row 183): the «Группы в чатах» card and its second switch. */
+const GROUPS_FLAG = 'groups';
+const GROUP_CHAT_CALLS_FLAG = 'groups_calls';
 import { formatDateTime } from '@/lib/utils';
+import { HASH_VERSION_OPTIONS } from '@/lib/experiments';
 
 /**
  * Owner 2026-10-06: every switch says in plain Russian what it changes for
@@ -144,6 +150,11 @@ const FLAG_INFO: Record<string, FlagInfo> = {
     href: KEYS,
     hrefLabel: 'Ключи и сервисы',
   },
+  hotline: {
+    title: 'Горячая линия',
+    what: 'Клиент звонит «свободному адвокату»: система сама находит адвоката, который сам включил «Ожидать звонки», имеет проверенную лицензию в штате клиента, нужную тему и язык. Звонок — наш обычный голосовой звонок один на один. Выключено — линии нет нигде, сервер отказывает на все её запросы; обычные звонки не меняются',
+    need: 'Ничего. Время на ответ, очередь и счётчики — в «Настройки», ключи hotline.*',
+  },
   chat_translate: {
     title: 'Переводчик (Google Translate)',
     what: 'Главный переключатель перевода во всём приложении. В чате — пункт «Перевести» в меню сообщения (долгое нажатие), в постах, комментариях, делах, ставках, отзывах и профилях — кнопка под текстом. Пока выключено: ничего не показывается и языки не скачиваются, что бы ни стояло в разделах «Где работает» (translate.*). Разделы выбираются на карточке Google Translate и действуют только при включённом переключателе.',
@@ -180,6 +191,14 @@ const FLAG_INFO: Record<string, FlagInfo> = {
   channels: {
     title: 'Сообщества (каналы)',
     what: 'Каналы адвокатов и компаний: посты для подписчиков, вкладка «Сообщества» в «Поделиться», создание и поиск каналов, уведомления о постах каналов. Выключено — сообществ нигде нет (ни в приложении, ни на сайте), сервер отказывает на все запросы каналов.',
+  },
+  groups: {
+    title: 'Группы в чатах',
+    what: 'Групповые чаты как в WhatsApp: создание группы, вступление по ссылке, приглашения, сообщения, опросы и звонки в группе. Не зависит от «Сообществ». Выключено — групп нигде нет (ни в приложении, ни на сайте), сервер отказывает на все запросы групп. Уже созданные группы и их сообщения сохраняются и вернутся, когда переключатель включат.',
+  },
+  groups_calls: {
+    title: 'Звонки в группах',
+    what: 'Аудио- и видеозвонок всей группе из группового чата. Выключено — кнопки звонка в группах нет, сервер отказывает начать или подключиться к звонку группы; сами группы работают. Личные звонки один на один не меняются.',
   },
   news_posts: {
     title: 'Новости',
@@ -327,6 +346,8 @@ type Flag = {
   key: string;
   enabled: boolean;
   rolloutPercent: number;
+  /** Row 150: 1 = old FNV-1a, 2 = GrowthBook v2 (who gets a partial rollout). */
+  hashVersion?: number;
   description: string | null;
   paid: boolean;
   missingKeys: string[];
@@ -372,6 +393,21 @@ export default function FlagsPage() {
     },
   });
 
+  // Row 150: which hash picks the users of a partial rollout. Changing it
+  // re-picks them, so the card asks first; the list is re-read after.
+  const hash = useMutation({
+    mutationFn: async (v: { key: string; hashVersion: number }) =>
+      api.PATCH('/admin/feature-flags/{key}', {
+        params: { path: { key: v.key } },
+        body: { hashVersion: v.hashVersion },
+      }),
+    onSuccess: () => {
+      toast.success('Деление людей изменено');
+      void qc.invalidateQueries({ queryKey: ['flags'] });
+    },
+    onError: (e) => toast.error(e),
+  });
+
   const flags = q.data ?? [];
   const enabledByKey = Object.fromEntries(flags.map((f) => [f.key, f.enabled]));
   // Owner 2026-11-04 (R-398): client reels are ONE three-way choice over
@@ -391,7 +427,10 @@ export default function FlagsPage() {
       void qc.invalidateQueries({ queryKey: ['flags'] });
     },
   });
-  const shown = flags.filter((f) => f.key !== REELS_CLIENT_PAID_FLAG);
+  // Owner 16.11 (row 183): «Звонки в группах» lives inside the «Группы в
+  // чатах» card, not on a card of its own.
+  const shown = flags.filter((f) => f.key !== REELS_CLIENT_PAID_FLAG && f.key !== GROUP_CHAT_CALLS_FLAG);
+  const groupCalls = flags.find((f) => f.key === GROUP_CHAT_CALLS_FLAG);
   const groups: [string, Flag[]][] = [
     ['Функции приложения', shown.filter((f) => !f.key.endsWith('_login'))],
     ['Способы входа', shown.filter((f) => f.key.endsWith('_login'))],
@@ -425,6 +464,7 @@ export default function FlagsPage() {
                       i={i}
                       busy={update.isPending || reelsMode.isPending}
                       onChange={(v) => update.mutate({ key: f.key, ...v })}
+                      onHash={(h) => hash.mutate({ key: f.key, hashVersion: h })}
                       control={
                         <ReelsClientModeControl
                           mode={reelsClientMode(enabledByKey)}
@@ -433,8 +473,38 @@ export default function FlagsPage() {
                         />
                       }
                     />
+                  ) : f.key === GROUPS_FLAG && groupCalls ? (
+                    <FlagCard
+                      key={f.key}
+                      f={f}
+                      i={i}
+                      busy={update.isPending}
+                      onChange={(v) => update.mutate({ key: f.key, ...v })}
+                      onHash={(h) => hash.mutate({ key: f.key, hashVersion: h })}
+                      extra={
+                        <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-line px-3 py-2">
+                          <span className="min-w-0 text-sm text-ink">
+                            {FLAG_INFO[GROUP_CHAT_CALLS_FLAG].title}
+                            <span className="block text-xs text-muted">{FLAG_INFO[GROUP_CHAT_CALLS_FLAG].what}</span>
+                          </span>
+                          <Switch
+                            checked={groupCalls.enabled}
+                            disabled={update.isPending}
+                            label={FLAG_INFO[GROUP_CHAT_CALLS_FLAG].title}
+                            onChange={(v) => update.mutate({ key: GROUP_CHAT_CALLS_FLAG, enabled: v })}
+                          />
+                        </div>
+                      }
+                    />
                   ) : (
-                    <FlagCard key={f.key} f={f} i={i} busy={update.isPending} onChange={(v) => update.mutate({ key: f.key, ...v })} />
+                    <FlagCard
+                      key={f.key}
+                      f={f}
+                      i={i}
+                      busy={update.isPending || hash.isPending}
+                      onChange={(v) => update.mutate({ key: f.key, ...v })}
+                      onHash={(h) => hash.mutate({ key: f.key, hashVersion: h })}
+                    />
                   ),
                 )}
               </div>
@@ -479,14 +549,19 @@ function FlagCard({
   i,
   busy,
   onChange,
+  onHash,
   control,
+  extra,
 }: {
   f: Flag;
   i: number;
   busy: boolean;
   onChange: (v: { enabled: boolean }) => void;
+  onHash: (hashVersion: number) => void;
   /** Replaces the on/off switch with a richer control (R-398). */
   control?: React.ReactNode;
+  /** A second switch under the card's own one (row 183). */
+  extra?: React.ReactNode;
 }) {
   const info = infoFor(f);
   const title = info.title;
@@ -535,6 +610,7 @@ function FlagCard({
           )}
         </div>
         {control}
+        {extra}
         {f.paid && f.missingKeys.length > 0 ? (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-warning-soft px-3 py-2 text-xs text-warning">
             <span className="min-w-0 break-words">Нельзя включить: ключи сервиса ещё не добавлены.</span>
@@ -547,7 +623,35 @@ function FlagCard({
             {info.hrefLabel ?? 'Открыть настройки'} →
           </Link>
         ) : null}
-        <div className="mt-2 text-[11px] text-faint">Изменён {formatDateTime(f.updatedAt)}</div>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-faint">
+          <span>Изменён {formatDateTime(f.updatedAt)}</span>
+          <label className="flex items-center gap-1.5">
+            <span>Деление людей</span>
+            <Select
+              aria-label={`${title}: деление людей`}
+              className="h-7 w-auto py-0 text-[11px]"
+              value={f.hashVersion ?? 1}
+              disabled={busy}
+              onChange={(e) => {
+                const next = Number(e.target.value);
+                if (next === (f.hashVersion ?? 1)) return;
+                if (
+                  !window.confirm(
+                    'Если функция включена не у всех, сменится, у кого именно она включена. Сменить?',
+                  )
+                )
+                  return;
+                onHash(next);
+              }}
+            >
+              {HASH_VERSION_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+          </label>
+        </div>
       </Card>
     </m.div>
   );

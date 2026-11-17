@@ -665,6 +665,19 @@ export const NOTIFICATION_TEMPLATES: Partial<
     en: { title: 'LawBid', body: 'A message from the LawBid team.' },
     ru: { title: 'LawBid', body: 'Сообщение от команды LawBid.' },
   },
+  // Owner row 87 (hotline plan PR 5): the client asked «Сообщите, когда
+  // появится адвокат»; the tap claims the call (`requestId`, `claimToken`).
+  hotline_attorney_available: {
+    group: 'messages',
+    en: {
+      title: 'An attorney is on the line',
+      body: 'Tap to call now. Your place in line is kept.',
+    },
+    ru: {
+      title: 'Адвокат на линии',
+      body: 'Нажмите, чтобы позвонить сейчас. Ваше место в очереди сохранено.',
+    },
+  },
   // OQ-041.
   missed_call: {
     group: 'messages',
@@ -784,6 +797,13 @@ export const NOTIFICATION_TEMPLATES: Partial<
       title: 'Аккаунт будет удалён',
       body: 'Удаление через несколько дней. Ссылка для отмены — в письме на вашей почте.',
     },
+  },
+  // Firms audit 16.11: the body says what happened (`notif.firm.<kind>`),
+  // this pair is the fallback.
+  firm_update: {
+    group: 'system',
+    en: { title: 'Your firm', body: 'There is news in your firm.' },
+    ru: { title: 'Ваша фирма', body: 'В вашей фирме есть новости.' },
   },
   case_history_export_ready: {
     group: 'system',

@@ -99,6 +99,8 @@ void main() {
         repo,
         extra: [
           groupRepositoryProvider.overrideWithValue(FakeGroupRepository([])),
+          // Row 183: the switch «Группы в чатах» held on.
+          groupsEnabledProvider.overrideWithValue(true),
         ],
       );
       expect(find.byType(AppErrorState), findsNothing);
@@ -118,6 +120,8 @@ void main() {
           groupRepositoryProvider.overrideWithValue(
             FakeGroupRepository([listGroup('g1'), listGroup('g2')]),
           ),
+          // Row 183: the switch «Группы в чатах» held on.
+          groupsEnabledProvider.overrideWithValue(true),
         ],
       );
       expect(find.byKey(const ValueKey('channels-caption')), findsNothing);
@@ -140,10 +144,39 @@ void main() {
       await tester.pump(const Duration(minutes: 5));
     });
 
+    // Owner 2026-11-16 (row 183): «Группы» off = the page is the channels
+    // only, no «Groups | Channels» pills and no group rows.
+    testWidgets('groups flag off: channels only, no Groups pill (row 183)',
+        (tester) async {
+      final repo = FakeChannelsRepository()..listed = [fakeChannel()];
+      await pump(
+        tester,
+        const ChannelsScreen(),
+        repo,
+        extra: [
+          groupRepositoryProvider.overrideWithValue(
+            FakeGroupRepository([listGroup('g1'), listGroup('g2')]),
+          ),
+          groupsEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      expect(find.byKey(const ValueKey('channels-kind')), findsNothing);
+      expect(find.byType(GroupChatTile), findsNothing);
+      expect(find.byType(ChannelRow), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(minutes: 5));
+    });
+
     testWidgets('Mine, Subscriptions and Discover change by a tap or a swipe',
         (tester) async {
       final repo = FakeChannelsRepository()..listed = [fakeChannel()];
-      await pump(tester, const ChannelsScreen(), repo);
+      await pump(
+        tester,
+        const ChannelsScreen(),
+        repo,
+        // Row 183: the switch «Группы в чатах» held on.
+        extra: [groupsEnabledProvider.overrideWithValue(true)],
+      );
       // Owner 2026-10-21 (inbox 34): the screen opens on «Mine».
       expect(repo.calls, contains('list:managed:'));
       expect(repo.calls, isNot(contains('list:subscribed:')));

@@ -174,7 +174,7 @@ const twoDb = !!process.env.DATABASE_URL_SHARDS;
       }
       await service.close();
       await Promise.all(Object.values(raw).map((c) => c.$disconnect()));
-      await prisma.onModuleDestroy();
+      await prisma.onApplicationShutdown();
       log.mockRestore();
     });
 

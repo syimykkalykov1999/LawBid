@@ -49,6 +49,8 @@ export class GroupPollsService {
     groupId: string,
     dto: CreatePollDto,
   ): Promise<GroupMessageDto> {
+    // Row 183: the admin switch «Группы» (GroupsService.assertEnabled).
+    await this.groups.assertEnabled();
     const m = await this.groups.requireMember(user.sub, groupId);
     if (!(
       m.admin ||
@@ -146,6 +148,8 @@ export class GroupPollsService {
     pollId: string,
     optionIds: string[],
   ): Promise<PollDto> {
+    // Row 183: the admin switch «Группы» (GroupsService.assertEnabled).
+    await this.groups.assertEnabled();
     await this.groups.requireMember(user.sub, groupId);
     const poll = await this.load(groupId, pollId);
     if (poll.closed_at) {
@@ -189,6 +193,8 @@ export class GroupPollsService {
     groupId: string,
     pollId: string,
   ): Promise<PollDto> {
+    // Row 183: the admin switch «Группы» (GroupsService.assertEnabled).
+    await this.groups.assertEnabled();
     const m = await this.groups.requireMember(user.sub, groupId);
     const poll = await this.load(groupId, pollId);
     if (poll.creator_id !== user.sub && !m.can('delete')) {
@@ -212,6 +218,8 @@ export class GroupPollsService {
     groupId: string,
     pollId: string,
   ): Promise<PollVoterOptionDto[]> {
+    // Row 183: the admin switch «Группы» (GroupsService.assertEnabled).
+    await this.groups.assertEnabled();
     await this.groups.requireMember(user.sub, groupId);
     const poll = await this.load(groupId, pollId);
     if (poll.anonymous) {
@@ -256,6 +264,8 @@ export class GroupPollsService {
     cursor?: string,
     limit = 50,
   ): Promise<GroupPersonPage> {
+    // Row 183: the admin switch «Группы» (GroupsService.assertEnabled).
+    await this.groups.assertEnabled();
     await this.groups.requireMember(user.sub, groupId);
     const poll = await this.load(groupId, pollId);
     if (poll.anonymous) {

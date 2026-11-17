@@ -244,7 +244,7 @@ class _VotersSheetState extends ConsumerState<_VotersSheet> {
           if (last && voters.length < total) {
             _loadMore(option.id, voters.length);
           }
-          return _VoterRow(person: p, t: t);
+          return PollVoterRow(person: p, t: t);
         });
       }
       rows.add(() => Divider(height: AppSpacing.xl, color: colors.border));
@@ -312,8 +312,10 @@ class _NoVotes extends StatelessWidget {
   }
 }
 
-class _VoterRow extends StatelessWidget {
-  const _VoterRow({required this.person, required this.t});
+/// One person of a people list: avatar and name (poll voters, and the
+/// readers of a group message).
+class PollVoterRow extends StatelessWidget {
+  const PollVoterRow({required this.person, required this.t, super.key});
 
   final api.GroupPersonDto person;
   final Translator t;

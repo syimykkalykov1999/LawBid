@@ -11,3 +11,5 @@ export { newFileKey } from './files.policy';
 // Owner 2026-10-26: the avatar previews a stored avatar must have (demo /
 // seed avatars wrote none, so every list's `…_w256` link was a 404).
 export { AVATAR_VARIANT_PX, variantKey } from './files.policy';
+// The decode cap every sharp reader uses (a decompression bomb is refused).
+export { MAX_INPUT_PIXELS } from './files.policy';

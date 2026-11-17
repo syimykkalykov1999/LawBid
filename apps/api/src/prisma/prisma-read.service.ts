@@ -5,7 +5,7 @@ import {
 import {
   Injectable,
   Logger,
-  OnModuleDestroy,
+  OnApplicationShutdown,
   OnModuleInit,
   Optional,
 } from '@nestjs/common';
@@ -149,7 +149,7 @@ interface Copy {
  *   front of the replica (see pooler-url.ts for why it is not DB_POOLER_HOST).
  */
 @Injectable()
-export class PrismaReadService implements OnModuleInit, OnModuleDestroy {
+export class PrismaReadService implements OnModuleInit, OnApplicationShutdown {
   private readonly log = new Logger('PrismaRead');
   /** Owner 2026-11-11 («Авто» by count): every read copy, first one first. */
   private readonly copies = new Map<string, Copy>();
@@ -459,10 +459,14 @@ export class PrismaReadService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async onModuleDestroy(): Promise<void> {
+  /** Row 213: closed in the last phase, with the primary (see the proxy's
+   * onApplicationShutdown in prisma.service.ts). */
+  async onApplicationShutdown(): Promise<void> {
     if (this.routed) {
-      await (this.routed as unknown as { onModuleDestroy(): Promise<void> })
-        .onModuleDestroy()
+      await (
+        this.routed as unknown as { onApplicationShutdown(): Promise<void> }
+      )
+        .onApplicationShutdown()
         .catch(() => undefined);
     }
     if (this.timer) clearInterval(this.timer);

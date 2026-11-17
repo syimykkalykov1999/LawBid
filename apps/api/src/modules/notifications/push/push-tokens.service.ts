@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { resolveChains } from './sign-in-chain';
 
 /** At most this many devices get a push per user (newest first). */
 const MAX_DEVICES = 10;
@@ -20,6 +21,13 @@ export interface PushDevice {
  * docs/05 §9.5 push tokens: bound to the device's session chain (the JWT
  * `sid`), so logging out of a device stops its pushes. Registration moves
  * a token to the current user/session (a device changing hands).
+ *
+ * 14.11 (DB scale review, finding 8): the token row carries the chain
+ * itself (`session_chain_id`). `session_id` only points at the row current
+ * at the last registration and is cleared when sessions.cleanup removes
+ * that row, so a device that refreshes without re-registering (background
+ * wake, an app not opened for weeks) keeps its pushes. Rows of an older
+ * release without a chain read it through `session_id`.
  */
 @Injectable()
 export class PushTokensService {
@@ -50,6 +58,7 @@ export class PushTokensService {
       create: {
         user_id: userId,
         session_id: session.id,
+        session_chain_id: sessionChainId,
         fcm_token: token,
         token_kind: kind,
         platform,
@@ -60,6 +69,7 @@ export class PushTokensService {
       update: {
         user_id: userId,
         session_id: session.id,
+        session_chain_id: sessionChainId,
         token_kind: kind,
         platform,
         local_reminders: localReminders,
@@ -105,7 +115,9 @@ export class PushTokensService {
   }
 
   /** Registration-token rows of [sessionChainId] (one device's sign-in)
-   * other than [keep]. Two queries by id, no join (shard-ready step 0). */
+   * other than [keep]: by the row's chain, and — for rows of an older
+   * release without one — by the chain's session rows. Two queries by id,
+   * no join (shard-ready step 0). */
   private async dropLegacyTokens(
     userId: string,
     sessionChainId: string,
@@ -115,13 +127,18 @@ export class PushTokensService {
       where: { user_id: userId, session_chain_id: sessionChainId },
       select: { id: true },
     });
-    if (sessions.length === 0) return;
     await this.prisma.pushToken.deleteMany({
       where: {
         user_id: userId,
         token_kind: 'token',
-        session_id: { in: sessions.map((s) => s.id) },
         fcm_token: { not: keep },
+        OR: [
+          { session_chain_id: sessionChainId },
+          {
+            session_chain_id: null,
+            session_id: { in: sessions.map((s) => s.id) },
+          },
+        ],
       },
     });
   }
@@ -136,29 +153,34 @@ export class PushTokensService {
   /** [activeTokens] with each device's FCM field (2026-11-07: an FID goes
    * out as `message.fid`, a legacy token as `message.token`). */
   async activeDevices(userId: string): Promise<PushDevice[]> {
-    const rows = await this.prisma.$queryRaw<
-      { token: string; kind: string; alive: boolean }[]
-    >`
-      SELECT t.fcm_token AS token,
-             t.token_kind AS kind,
-             EXISTS (SELECT 1 FROM sessions s2
-                     WHERE s2.session_chain_id = s.session_chain_id
-                       AND s2.revoked_at IS NULL
-                       AND s2.expires_at > now()) AS alive
-      FROM push_tokens t
-      JOIN sessions s ON s.id = t.session_id
-      WHERE t.user_id = ${userId}::UUID
-      ORDER BY t.last_seen_at DESC
-      LIMIT ${MAX_DEVICES}`;
-    const dead = rows.filter((r) => !r.alive).map((r) => r.token);
+    // 14.11 (finding 8): alive = the token's sign-in chain still has a live
+    // session row (the row it registered on may be long gone). No SQL join
+    // with sessions: different families (resolveChains).
+    const rows = await this.prisma.pushToken.findMany({
+      where: { user_id: userId },
+      orderBy: { last_seen_at: 'desc' },
+      take: MAX_DEVICES,
+      select: {
+        fcm_token: true,
+        token_kind: true,
+        session_id: true,
+        session_chain_id: true,
+      },
+    });
+    const { chainOf, live } = await resolveChains(this.prisma, userId, rows);
+    const isAlive = (r: (typeof rows)[number]) => {
+      const chain = chainOf(r);
+      return chain !== null && live.has(chain);
+    };
+    const dead = rows.filter((r) => !isAlive(r)).map((r) => r.fcm_token);
     if (dead.length > 0) {
       await this.prisma.pushToken.deleteMany({
         where: { fcm_token: { in: dead } },
       });
     }
     return rows
-      .filter((r) => r.alive)
-      .map((r) => ({ token: r.token, fid: r.kind === 'fid' }));
+      .filter(isAlive)
+      .map((r) => ({ token: r.fcm_token, fid: r.token_kind === 'fid' }));
   }
 
   /** Browser tokens: a browser push must show something, so silent
@@ -218,26 +240,28 @@ export class PushTokensService {
     // are different families).
     const row = await this.prisma.pushToken.findUnique({
       where: { fcm_token: token },
-      select: { user_id: true, session_id: true },
+      select: { user_id: true, session_id: true, session_chain_id: true },
     });
     if (!row) return null;
-    const own = await this.prisma.session.findUnique({
-      where: { id: row.session_id },
-      select: { session_chain_id: true },
-    });
-    if (!own) return null;
+    let chainId = row.session_chain_id;
+    if (!chainId && row.session_id) {
+      const own = await this.prisma.session.findUnique({
+        where: { id: row.session_id },
+        select: { session_chain_id: true },
+      });
+      chainId = own?.session_chain_id ?? null;
+    }
+    if (!chainId) return null;
     const live = await this.prisma.session.findFirst({
       where: {
         user_id: row.user_id,
-        session_chain_id: own.session_chain_id,
+        session_chain_id: chainId,
         revoked_at: null,
         expires_at: { gt: new Date() },
       },
       select: { id: true },
     });
-    return live
-      ? { userId: row.user_id, sessionChainId: own.session_chain_id }
-      : null;
+    return live ? { userId: row.user_id, sessionChainId: chainId } : null;
   }
 
   /** The reminders an iPhone has armed itself (it reports after each

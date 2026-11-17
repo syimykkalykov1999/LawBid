@@ -123,7 +123,7 @@ function squawk(files, extra, label) {
       console.error(`squawk is not installed (${r.error.message}); CI installs it, see api-ci.yml`);
       failed++;
     } else {
-      console.warn(`squawk not found: skipped online-DDL lint of ${label} (npm i -g squawk-cli@2.70.0, or SQUAWK_BIN=...)`);
+      console.warn(`squawk not found: skipped online-DDL lint of ${label} (npm i -g squawk-cli@2.72.0, or SQUAWK_BIN=...)`);
     }
     return;
   }

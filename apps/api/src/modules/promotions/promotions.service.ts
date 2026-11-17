@@ -17,6 +17,7 @@ import { ConfigService } from '@nestjs/config';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { CasePromotion, Prisma } from '../../generated/prisma/client';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -821,12 +822,7 @@ export class PromotionsService {
         user_id: userId,
         status: { notIn: ['canceled'] },
         ...(cursor
-          ? {
-              OR: [
-                { created_at: { lt: cursor.createdAt } },
-                { created_at: cursor.createdAt, id: { lt: cursor.id } },
-              ],
-            }
+          ? createdBefore({ t: cursor.createdAt, id: cursor.id })
           : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
