@@ -90,8 +90,10 @@ List<Conversation>? applyReadByMe(
   String conversationId,
 ) {
   final i = items.indexWhere((c) => c.id == conversationId);
-  if (i < 0 || items[i].unreadCount == 0) return null;
-  return [...items]..[i] = items[i].withActivity(unreadCount: 0);
+  // Row 110: a read also takes my own «unread» mark off (Telegram).
+  if (i < 0 || !items[i].hasUnread) return null;
+  return [...items]..[i] =
+      items[i].withActivity(unreadCount: 0, markedUnread: false);
 }
 
 /// The chats the server says changed (an `updatedSince` answer) replace

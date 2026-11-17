@@ -72,6 +72,7 @@ class Conversation {
     this.waitingSince,
     this.note,
     this.pinnedAt,
+    this.markedUnread = false,
     this.blocked = false,
     this.matchedMessage,
     this.disappearAfterS,
@@ -109,6 +110,7 @@ class Conversation {
         waitingSince: waitingSince,
         note: note,
         pinnedAt: pinnedAt,
+        markedUnread: markedUnread,
         matchedMessage: matchedMessage,
         disappearAfterS: disappearAfterS,
       );
@@ -121,6 +123,7 @@ class Conversation {
     DateTime? lastMessageAt,
     int? unreadCount,
     DateTime? updatedAt,
+    bool? markedUnread,
   }) =>
       Conversation(
         id: id,
@@ -147,6 +150,7 @@ class Conversation {
         waitingSince: waitingSince,
         note: note,
         pinnedAt: pinnedAt,
+        markedUnread: markedUnread ?? this.markedUnread,
         matchedMessage: matchedMessage,
         disappearAfterS: disappearAfterS,
       );
@@ -182,6 +186,13 @@ class Conversation {
 
   bool get waiting => waitingSince != null;
   bool get pinned => pinnedAt != null;
+
+  /// Row 110 (Telegram «Mark as unread», WhatsApp «Mark as unread»): I put
+  /// the unread mark back on myself; reading the chat takes it off.
+  final bool markedUnread;
+
+  /// The row counts as unread: new messages, or my own unread mark.
+  bool get hasUnread => unreadCount > 0 || markedUnread;
 
   /// OQ-043: started from a profile ("Message"), not from a case.
   final bool isDirect;
@@ -237,7 +248,24 @@ enum ChatFolder { primary, general }
 /// The chat list's sub-tabs: All · Primary · General · Cases · Waiting ·
 /// Requests (owner 2026-10-21: «Cases» = only the chats tied to a case).
 /// `archive` (owner 2026-10-20) is the Archive screen, never a pill.
-enum ChatListFolder { all, primary, general, cases, waiting, requests, archive }
+/// «Forever» (Telegram's «Disable», WhatsApp's «Always»): the server keeps
+/// a moment, so forever is a moment ten years away. One name for it in the
+/// whole app.
+const kMuteForever = Duration(days: 3650);
+
+/// Row 110 (WhatsApp «Unread» filter, 2024; Telegram «Unread» folder):
+/// [unread] is filtered on the device from the «All» list in memory, it is
+/// never sent to the server.
+enum ChatListFolder {
+  all,
+  unread,
+  primary,
+  general,
+  cases,
+  waiting,
+  requests,
+  archive,
+}
 
 // OQ-047: `attachment` — a photo or a document after acceptance.
 // Owner 2026-10-20: `contact` — a shared attorney card, `place` — an address.

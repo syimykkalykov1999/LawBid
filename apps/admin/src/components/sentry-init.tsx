@@ -19,18 +19,12 @@ export function SentryInit({ dsn }: { dsn: string | null }) {
     // is idle (at the latest 4 s after the page opened).
     const start = () => void (async () => {
       try {
-        const [Sentry, { scrubEvent }] = await Promise.all([
+        const [Sentry, { sentryInitOptions }] = await Promise.all([
           import('@sentry/browser'),
           import('@/lib/sentry'),
         ]);
         if (Sentry.getClient()) return;
-        Sentry.init({
-          dsn,
-          environment: 'production',
-          sendDefaultPii: false,
-          tracesSampleRate: 0,
-          beforeSend: (event) => scrubEvent(event),
-        });
+        Sentry.init(sentryInitOptions(dsn));
       } catch {
         // Reporting must never be the next error.
       }

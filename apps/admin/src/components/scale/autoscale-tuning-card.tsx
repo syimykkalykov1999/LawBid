@@ -11,7 +11,11 @@ import { api } from '@/lib/api/client';
 import { tuningChanges, type TuningTarget } from '@/lib/autoscale-tuning';
 
 const KEY = ['autoscale-tuning'] as const;
-const TITLE: Record<string, string> = { redis: 'Valkey', db: 'База', endpoints: 'Точки доступа AWS', ecs: 'Серверы ECS (цель и паузы)', spot: 'Запасные серверы вместо Spot' };
+const TITLE: Record<string, string> = { redis: 'Valkey', db: 'База', endpoints: 'Точки доступа AWS', ecs: 'Серверы ECS (цель, паузы, минимум, Spot)', spot: 'Запасные серверы вместо Spot' };
+/** Owner 15.11: what changing the minimum and the Spot split does. */
+export const ECS_HINT =
+  'Минимум серверов применяется сразу (не выше максимума «Масштаб»). Доли Spot: первые N серверов всегда обычные, остальные делятся по весам обычные:Spot. ' +
+  'Смена долей запускает новое развёртывание сервиса в течение 5 минут: AWS заменяет серверы по одному (у пула соединений с одним сервером — короткая пауза, лучше менять ночью). При Spot-автомате «Выкл» доли не применяются.';
 
 /**
  * Owner 14.11: every number of the Redis / database «Авто» from the admin,
@@ -56,6 +60,11 @@ export function AutoscaleTuningCard({ nowLine }: { nowLine?: (target: TuningTarg
               {nowLine ? (
                 <p className="-mt-2 mb-3 break-words text-xs text-muted" data-testid={`tuning-now-${t.target}`}>
                   {nowLine(t.target)}
+                </p>
+              ) : null}
+              {t.target === 'ecs' ? (
+                <p className="-mt-1 mb-3 text-xs text-muted" data-testid="tuning-ecs-hint">
+                  {ECS_HINT}
                 </p>
               ) : null}
               <div className="space-y-2">

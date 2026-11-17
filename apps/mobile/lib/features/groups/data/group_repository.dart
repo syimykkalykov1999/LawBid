@@ -199,6 +199,15 @@ class GroupRepository {
     return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
   }
 
+  /// Row 110 (Telegram «Search members»): the members whose name or
+  /// @username matches [q] (one page, any alphabet).
+  Future<List<api.GroupMemberDto>> searchMembers(String id, String q) async {
+    final env = await guardApiCall(
+      () => _c.listGroupMembers(id: id, q: q.trim()),
+    );
+    return env.data;
+  }
+
   // --- messages -------------------------------------------------------------
 
   Future<CursorPage<api.GroupMessageDto>> messages(
@@ -210,6 +219,25 @@ class GroupRepository {
       () => _c.listGroupMessages(id: id, topicId: topicId, cursor: cursor),
     );
     _noteImages(id, env.data);
+    return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
+  }
+
+  /// Row 110 (Telegram 🔍 in a chat): the text messages holding every word
+  /// of [q], newest first, a page at a time.
+  Future<CursorPage<api.GroupMessageDto>> searchMessages(
+    String id,
+    String q, {
+    String? topicId,
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _c.listGroupMessages(
+        id: id,
+        topicId: topicId,
+        cursor: cursor,
+        q: q.trim(),
+      ),
+    );
     return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
   }
 

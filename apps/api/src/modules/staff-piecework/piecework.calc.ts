@@ -15,6 +15,10 @@
  *   60-74 90 %, below 60 75 %); «мало данных» is always 1.00 and a missing
  *   snapshot is 1.00 too, but the day is marked «без рейтинга».
  */
+import {
+  previousReportDay,
+  reportDayBounds,
+} from '../../common/utils/report-day';
 
 /** The unit kinds a rate can be set for (plan table `staff_rates.kind`). */
 export const PIECEWORK_RATE_KINDS = [
@@ -149,15 +153,29 @@ export function isDay(s: string): boolean {
   return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
 }
 
-/** [start, end) of a UTC calendar day. */
-export function dayBounds(day: string): { start: Date; end: Date } {
-  const start = new Date(`${day}T00:00:00.000Z`);
-  return { start, end: new Date(start.getTime() + 86_400_000) };
+/** The value stored in the DATE columns (`staff_piecework_days.day`,
+ * `staff_daily_stats.day`) for a day key: the day itself, no time zone. */
+export function dayDate(day: string): Date {
+  return new Date(`${day}T00:00:00.000Z`);
 }
 
-/** YYYY-MM-DD of the UTC day before [now]. */
-export function yesterdayOf(now: Date): string {
-  return new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
+/**
+ * [start, end) of a day of the report time zone (row 180, B9): the owner's
+ * `admin.report_timezone` midnight, not UTC's, so work done at 18:00 in
+ * Nevada is paid on that Nevada day. 23–25 hours around DST
+ * (common/utils/report-day.ts, the same cut as «Сегодня» and the KPI days).
+ */
+export function dayBounds(
+  day: string,
+  timeZone: string,
+): { start: Date; end: Date } {
+  const { from, to } = reportDayBounds(day, timeZone);
+  return { start: from, end: to };
+}
+
+/** YYYY-MM-DD of the last complete day of [timeZone] before [now]. */
+export function yesterdayOf(now: Date, timeZone: string): string {
+  return previousReportDay(now, timeZone);
 }
 
 /** The payroll accrual reference of a day: one per person per day. */

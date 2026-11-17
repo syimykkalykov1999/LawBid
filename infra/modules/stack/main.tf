@@ -1242,6 +1242,11 @@ locals {
   # as its default minor (18.3) and refused as a downgrade of 18.6
   # (KNOWN_ERRORS 174).
   database_engine_version = split(".", var.database_engine_version)[0] == local.database_running_major ? var.database_engine_version : (length(data.aws_db_instance.primary) > 0 ? data.aws_db_instance.primary[0].engine_version : local.database_running_major)
+  # Owner row 196 (16.11): the class the primary really runs right now (read
+  # from AWS on every plan; db-autoscale changes it by itself). The one source
+  # of truth for its read copies and for a new extra server. A fresh stack
+  # (no primary yet) or a database that is not ours falls back as before.
+  database_live_class = length(data.aws_db_instance.primary) > 0 ? data.aws_db_instance.primary[0].db_instance_class : try(data.aws_db_instance.existing[0].db_instance_class, var.database_instance_class)
 }
 
 module "postgres" {
@@ -1298,7 +1303,7 @@ variable "db_shard_instance_class" {
 }
 
 locals {
-  db_shard_class = var.db_shard_instance_class != "" ? var.db_shard_instance_class : try(data.aws_db_instance.existing[0].db_instance_class, var.database_instance_class)
+  db_shard_class = var.db_shard_instance_class != "" ? var.db_shard_instance_class : local.database_live_class
 }
 
 module "postgres_shard" {
@@ -1312,21 +1317,31 @@ module "postgres_shard" {
   instance_class             = local.db_shard_class
   backup_retention_days      = var.database_backup_retention_days
   multi_az                   = var.database_multi_az
-  engine_version             = var.database_engine_version
-  auto_minor_version_upgrade = var.database_auto_minor_upgrade
-  monitoring_interval        = var.database_monitoring_interval
-  database_insights_advanced = var.database_insights_advanced
-  log_group_class            = var.database_log_group_class
-  tags                       = local.tags
+  # KNOWN_ERRORS 189: exactly the primary's version (one source:
+  # local.database_engine_version = the version the primary really runs, or
+  # its pin), so the parameter group family (postgres16 / postgres18, chosen
+  # by the module from the major) is the primary's too. The bare
+  # var.database_engine_version ("16") put the extra servers on 16.13 next
+  # to a primary on 18.6 (16.11).
+  engine_version              = local.database_engine_version
+  allow_major_version_upgrade = true
+  auto_minor_version_upgrade  = var.database_auto_minor_upgrade
+  monitoring_interval         = var.database_monitoring_interval
+  database_insights_advanced  = var.database_insights_advanced
+  log_group_class             = var.database_log_group_class
+  tags                        = local.tags
 
   # Owner 2026-11-12: «Авто» removes an extra server again, only while it
   # is EMPTY (the API and plan-guard check that; IAM allows deleting only
-  # …-db*-postgres). AWS keeps a final snapshot of it (never deleted).
+  # …-db*-postgres). KNOWN_ERRORS 189: an empty server leaves nothing
+  # behind: no final snapshot and no retained automated backups (both kept
+  # billing until the owner deleted them by hand, 16.11). The module ties
+  # delete_automated_backups to skip_final_snapshot. The primary keeps both.
   deletion_protection = false
-  skip_final_snapshot = var.ephemeral
+  skip_final_snapshot = true
   # KNOWN_ERRORS 180: a removed extra server's secret must go at once, or the
   # next «Авто» switch-on of the same server fails on CreateSecret (name
-  # still in its 30-day recovery window). AWS keeps the final DB snapshot.
+  # still in its 30-day recovery window).
   recovery_window_in_days = 0
 }
 
@@ -1350,16 +1365,18 @@ module "growth_shard" {
   has_source_db           = true
   event_loop_p99_alarm_ms = 0
 
-  rds_read_replicas             = var.growth.rds_read_replicas
-  rds_source_identifier         = module.postgres_shard[count.index].instance_id
-  rds_source_arn                = module.postgres_shard[count.index].arn
-  rds_replica_instance_class    = var.growth.rds_replica_instance_class
-  rds_primary_instance_class    = local.db_shard_class
+  rds_read_replicas     = var.growth.rds_read_replicas
+  rds_source_identifier = module.postgres_shard[count.index].instance_id
+  rds_source_arn        = module.postgres_shard[count.index].arn
+  # Row 196: a server's copies take that server's own current class.
+  rds_primary_instance_class    = module.postgres_shard[count.index].instance_class
   rds_replica_lag_alarm_seconds = var.growth.rds_replica_lag_alarm_s
   rds_subnet_group_name         = "${local.name}-db${count.index + 1}-postgres"
   rds_security_group_ids        = [module.postgres_shard[count.index].security_group_id]
   rds_kms_key_arn               = module.kms.key_arn
-  rds_parameter_group_name      = "${local.name}-db${count.index + 1}-postgres16"
+  # The server's own group (postgres16 or postgres18, KNOWN_ERRORS 189): a
+  # copy of an 18 server cannot take a postgres16 group.
+  rds_parameter_group_name = module.postgres_shard[count.index].parameter_group_name
   # A read copy holds no data of its own: «Авто» may remove it (KNOWN_ERRORS 103).
   rds_deletion_protection = false
 }
@@ -1368,7 +1385,12 @@ locals {
   # Only the hosts reach the api / worker (same login as DATABASE_URL).
   db_shard_replica_hosts = { for i, g in module.growth_shard : "db${i + 1}" => g.replica_host if g.replica_host != "" }
   db_shard_env = var.db_shards > 0 ? merge(
-    { DB_SHARD_HOSTS = jsonencode({ for i, m in module.postgres_shard : "db${i + 1}" => m.endpoint }) },
+    {
+      DB_SHARD_HOSTS = jsonencode({ for i, m in module.postgres_shard : "db${i + 1}" => m.endpoint })
+      # Row 203 (16.11): ha-auto keeps every extra server on the primary's
+      # Multi-AZ (common/ops/ha-auto.service.ts shardHaSteps).
+      OPS_DB_SHARD_INSTANCES = join(",", [for m in module.postgres_shard : m.instance_id])
+    },
     length(local.db_shard_replica_hosts) > 0 ? { DB_SHARD_REPLICA_HOSTS = jsonencode(local.db_shard_replica_hosts) } : {},
   ) : {}
   # The migrate task: each server's master login plus the runtime logins.
@@ -2195,6 +2217,12 @@ locals {
       # Owner 2026-11-11 («Авто» by count): every copy, comma separated; the
       # api shares the reads between them (prisma-read.service.ts).
       DB_REPLICA_HOST = join(",", module.growth.replica_endpoints)
+      # Infra audit 14.11: the copies are reached directly (not through the
+      # pooler), so their pool follows the same direct-connection budget as
+      # the primary without a pooler (3..10 per task at the peak task count),
+      # not the pooler-side 10 per task (src/prisma/prisma-read.service.ts
+      # falls back to DB_POOL_SIZE when this is unset).
+      DB_READ_POOL_SIZE = tostring(local.direct_pool_size)
     } : {},
     # Admin button «Копия базы для чтения» (owner 2026-10-24): the API creates
     # and deletes ONE replica itself through the RDS API. Only these names are
@@ -2442,6 +2470,12 @@ data "aws_iam_policy_document" "ops" {
       # separate ops role, not on the task role (least privilege, S4-1).
       "application-autoscaling:DescribeScalingPolicies",
       "application-autoscaling:PutScalingPolicy",
+      # Owner 15.11 (admin floor per service, AwsOpsService.applyMinTasks):
+      # the quiet-hours morning-up action follows the admin's floor. Until
+      # this is applied the floor still changes, the morning action keeps
+      # Terraform's (the admin save reports it as failed `<kind>.morning`).
+      "application-autoscaling:DescribeScheduledActions",
+      "application-autoscaling:PutScheduledAction",
     ]
     resources = ["*"]
   }
@@ -2531,8 +2565,13 @@ data "aws_iam_policy_document" "ops" {
     resources = ["*"]
   }
   statement {
-    actions   = ["rds:DescribeDBInstances", "rds:ModifyDBInstance"]
-    resources = ["arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"]
+    actions = ["rds:DescribeDBInstances", "rds:ModifyDBInstance"]
+    # Row 203: and the extra database servers (<name>-dbN-postgres), whose
+    # Multi-AZ follows the primary's. Exactly those names, no wildcard.
+    resources = concat(
+      ["arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"],
+      [for m in module.postgres_shard : "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${m.instance_id}"],
+    )
   }
   # Admin button «Копия базы для чтения»: create / describe / delete exactly one
   # instance named <database>-readreplica. Nothing else on RDS changes.

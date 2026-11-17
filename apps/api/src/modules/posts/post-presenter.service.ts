@@ -411,23 +411,28 @@ export class PostPresenter {
         tags: tagsByPost.get(p.id) ?? [],
         mentions: this.mentions.pick(p.body, mentioned),
         status: p.status,
-        // Owner 2026-10-15: a hidden counter is shown to its author only.
-        likeCount:
-          p.hide_likes && p.author_id !== viewerId
-            ? 0
-            : clamp(p.like_count + (pLike.get(p.id) ?? 0)),
+        // Owner 16.11 (Instagram): a hidden counter is hidden for everyone,
+        // its author too (was: the author still saw it, 2026-10-15).
+        likeCount: p.hide_likes
+          ? 0
+          : clamp(p.like_count + (pLike.get(p.id) ?? 0)),
         // Owner 2026-10-18: comments turned off are hidden (Instagram).
         commentCount:
           !p.comments_enabled && p.author_id !== viewerId
             ? 0
             : clamp(p.comment_count + (pComment.get(p.id) ?? 0)),
-        saveCount: clamp(p.save_count + (pSave.get(p.id) ?? 0)),
-        shareCount: clamp(p.share_count + (pShare.get(p.id) ?? 0)),
-        viewCount:
-          p.hide_views && p.author_id !== viewerId
-            ? 0
-            : clamp(p.view_count + (pView.get(p.id) ?? 0)),
-        repostCount: repostCounts.get(p.id) ?? 0,
+        // Owner 16.11 (Instagram «Hide like and share counts»): the same
+        // switch hides saves, shares and reposts for everyone too.
+        saveCount: p.hide_likes
+          ? 0
+          : clamp(p.save_count + (pSave.get(p.id) ?? 0)),
+        shareCount: p.hide_likes
+          ? 0
+          : clamp(p.share_count + (pShare.get(p.id) ?? 0)),
+        viewCount: p.hide_views
+          ? 0
+          : clamp(p.view_count + (pView.get(p.id) ?? 0)),
+        repostCount: p.hide_likes ? 0 : (repostCounts.get(p.id) ?? 0),
         likedByMe: liked.has(p.id),
         repostedByMe: reposted.has(p.id),
         repostedBy: reposters?.get(p.id) ?? null,

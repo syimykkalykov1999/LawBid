@@ -17,6 +17,8 @@ import 'package:lawbid/features/groups/domain/ongoing_call.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart'
+    show muteDuration, pickMute;
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -262,12 +264,22 @@ class GroupChatTile extends ConsumerWidget {
           g.pinned ? 'chat.organize.unpinned' : 'chat.organize.pinned',
         ),
       ),
-      onMute: () => unawaited(
-        act(
-          () => updateMyGroup(ref, g.id, muted: !muted),
-          muted ? 'chat.select.unmuted' : 'chat.select.muted',
-        ),
-      ),
+      // Row 110: a swipe on a loud group asks for how long, like a chat.
+      onMute: () => unawaited(() async {
+        if (muted) {
+          return act(
+            () => updateMyGroup(ref, g.id, muted: false),
+            'chat.select.unmuted',
+          );
+        }
+        final pick = await pickMute(context, t, muted: false);
+        final span = pick == null ? null : muteDuration(pick);
+        if (span == null || !context.mounted) return;
+        await act(
+          () => updateMyGroup(ref, g.id, mutedFor: span),
+          'chat.select.muted',
+        );
+      }()),
       onDelete: () => unawaited(
         confirmDeleteChat(
           context,
@@ -435,7 +447,14 @@ Future<void> showGroupOrganizeSheet(
       case 'pin':
         await updateMyGroup(ref, g.id, pinned: !g.pinned);
       case 'mute':
-        await updateMyGroup(ref, g.id, muted: !muted);
+        if (muted) {
+          await updateMyGroup(ref, g.id, muted: false);
+        } else {
+          final span = await pickMute(context, t, muted: false)
+              .then((p) => p == null ? null : muteDuration(p));
+          if (span == null) return;
+          await updateMyGroup(ref, g.id, mutedFor: span);
+        }
       case 'archive':
         await updateMyGroup(ref, g.id, archived: !inArchive);
         // Row 109 (Gmail «Archived · Undo»).

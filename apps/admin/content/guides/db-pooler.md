@@ -28,7 +28,7 @@ sources:
 
 1. Код, Terraform и воркфлоу уже влиты в `main`: новый образ приложения без настройки пулера работает как раньше.
 2. **Репозиторий образов.** Claude в папке `infra/bootstrap`: `terraform plan`, затем `terraform apply`. В плане должен быть только новый репозиторий `lawbid-pgbouncer` и его правило очистки.
-3. **Собрать образ.** GitHub → **Actions → Build PgBouncer → Run workflow** (тег по умолчанию `1.24.0-1`). Внизу страницы запуска — строка `pgbouncer_image = "...lawbid-pgbouncer:1.24.0-1"` и подтверждение, что есть сборки для двух типов процессоров.
+3. **Собрать образ.** GitHub → **Actions → Build PgBouncer → Run workflow** (тег по умолчанию `1.26.1-1`). Внизу страницы запуска — строка `pgbouncer_image = "...lawbid-pgbouncer:1.26.1-1"` и подтверждение, что есть сборки для двух типов процессоров.
 4. **Настройки прода.** Claude добавляет в `infra/envs/prod/terraform.tfvars`: `db_pooler_enabled = true`, `pgbouncer_image` (строка из шага 3), `pgbouncer_max_tasks = 3`.
 5. **Посмотреть план** (`terraform plan`). Ожидается: проверка бюджета соединений проходит; создаются внутреннее имя `lawbid-prod.internal`, сервис пула, правила доступа, 5 тревог, автомасштабирование; у серверов api и worker меняются настройки (добавлен адрес пула). **Ничего не удаляется.** Если план другой — не применять.
 6. **Сначала только пул:** `terraform apply -target='module.stack.module.pgbouncer'`. Подождать 3-5 минут, проверить пункты 1-3 раздела «Как проверить».
@@ -39,7 +39,7 @@ sources:
 
 1. AWS → **ECS** → кластер `lawbid-prod` → сервис `pgbouncer`: 2 из 2 задач Running.
 2. AWS → **Cloud Map → Namespaces** → `lawbid-prod.internal` → сервис `pgbouncer`: 2 экземпляра Healthy.
-3. **CloudWatch → Log groups** → `/lawbid/lawbid-prod/pgbouncer`: строка `process up: PgBouncer 1.24.0` и раз в 30 секунд строка с числами соединений.
+3. **CloudWatch → Log groups** → `/lawbid/lawbid-prod/pgbouncer`: строка `process up: PgBouncer 1.26.1` и раз в 30 секунд строка с числами соединений.
 4. **Главное.** AWS → **RDS** → база → **Monitoring** → `DatabaseConnections`: не больше ~69 и ровнее, чем раньше. В **CloudWatch → Metrics → LawBid/lawbid-prod/PgBouncer**: `ServerConnections` ≤ 23 на задачу, `ClientsWaiting` и `MaxWaitSeconds` около нуля.
 5. В админке **Система → Здоровье системы** всё зелёное; на **Система → Масштаб** карточка «Пулер соединений (PgBouncer)» показывает две живые задачи; пробный вход пользователя проходит.
 6. В логах api нет ошибок `prepared statement ... does not exist`, `query_wait_timeout`, `P1017`.

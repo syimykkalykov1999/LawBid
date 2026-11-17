@@ -45,6 +45,23 @@ describe('TwilioSmsProvider resilience', () => {
     expect(create).toHaveBeenCalledTimes(2);
   });
 
+  // Infra audit 14.11: a send that timed out on our side may still reach
+  // the phone (the time limit only stops waiting, the request goes on), so
+  // sending again would text the person twice and bill it twice.
+  it('a timed-out send is not sent a second time', async () => {
+    jest.useFakeTimers();
+    try {
+      create.mockImplementation(() => new Promise(() => undefined));
+      const sent = provider.send('+14155550100', '123456');
+      const failed = expect(sent).rejects.toThrow();
+      await jest.advanceTimersByTimeAsync(30_000);
+      await failed;
+      expect(create).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("does not retry a rejected number (the caller's fault)", async () => {
     create.mockRejectedValue(
       Object.assign(new Error('invalid'), { status: 400 }),

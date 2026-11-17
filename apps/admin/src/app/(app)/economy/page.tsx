@@ -369,7 +369,7 @@ export default function EconomyPage() {
               </div>
             </Card>
             <Card className="flex flex-col gap-2 p-4">
-              <div className="text-sm font-medium text-heading">Redis</div>
+              <div className="text-sm font-medium text-heading">Valkey</div>
               <div className="text-sm text-muted">
                 Размер: <span className="text-ink">{e.capacity.redisClass ?? '—'}</span>
               </div>

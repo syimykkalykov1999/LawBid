@@ -666,8 +666,12 @@ export class EconomyService {
 
   /** Owner 2026-10-25: the three-state controls (off / on / auto) and the
    * ceilings the owner sets in the admin reach the Lambdas through one small
-   * S3 object (they cannot read our database). Written only when changed. */
-  private async publishScaleControls(): Promise<void> {
+   * S3 object (they cannot read our database). Written only when changed.
+   * Owner 15.11 («сделай настраиваемыми»): `spot_fallback.want` = the Spot
+   * split the admin set per service (SSM `ecs-scaling/tuning`); the
+   * spot-fallback Lambda uses it as the normal strategy. Public: the admin
+   * save calls it at once so the Lambda never sees old numbers. */
+  async publishScaleControls(): Promise<void> {
     try {
       const bucket = this.storage?.awsBucket('documents');
       if (!this.storage || !bucket) return;
@@ -677,13 +681,24 @@ export class EconomyService {
         this.settingsSvc.string('scale.spot_fallback.mode').catch(() => 'auto'),
       ]);
       const tri = (m: string) => (m === 'on' || m === 'off' ? m : 'auto');
+      // An unreadable tuning = no split (the Lambda keeps Terraform's).
+      const ecsTuning =
+        (await Promise.resolve()
+          .then(() => this.ssm?.getTuning('ecs'))
+          .catch(() => null)) ?? {};
+      const want = await Promise.resolve()
+        .then(() => this.aws.spotSplits(ecsTuning))
+        .catch(() => ({}));
       const body = JSON.stringify({
         endpoints: {
           mode: tri(mode),
           ceiling: Math.max(0, Math.min(4, Math.floor(ceiling))),
         },
         // Owner 2026-11-12 (row 67): modules/spot-fallback reads this.
-        spot_fallback: { mode: tri(spotMode) },
+        spot_fallback: {
+          mode: tri(spotMode),
+          ...(want && Object.keys(want).length ? { want } : {}),
+        },
       });
       const last = await this.redis.get(SCALE_CONTROLS_KEY);
       if (last === body) return;

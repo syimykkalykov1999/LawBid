@@ -454,7 +454,9 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.staffDailyStats, pattern: '10 9 * * *' },
   { name: CRON_JOBS.staffRatingNightly, pattern: '40 9 * * *' },
   { name: CRON_JOBS.staffHeadScore, pattern: '55 1 * * *' },
-  { name: CRON_JOBS.staffPiecework, pattern: '15 2 * * *' },
+  // Row 180 (B9): after daily-stats and the rating snapshot of the same
+  // report-time-zone day (was 02:15, before them).
+  { name: CRON_JOBS.staffPiecework, pattern: '15 10 * * *' },
   { name: CRON_JOBS.staffAnomalies, pattern: '25 2 * * *' },
   { name: CRON_JOBS.staffAiQaNightly, pattern: '0 4 * * *' },
   { name: CRON_JOBS.staffRetaliationExpire, pattern: '22 3 * * *' },
@@ -515,6 +517,9 @@ export const HEAVY_JOBS: readonly CronJobName[] = [
   // 13.11 (owner list row 76): ~900 000 attorneys at 10M held the `cron`
   // lane for ~21 minutes (partition.tick and 64 jobs waited).
   CRON_JOBS.bidSubscriptionLapse,
+  // 14.11 (DB scale review, finding 1): walks the whole sessions table every
+  // night in PK batches; on `cron` it held the hourly case / bid jobs.
+  CRON_JOBS.sessionsCleanup,
   // Staff package: the nightly aggregates.
   CRON_JOBS.staffDailyStats,
   CRON_JOBS.staffRatingNightly,

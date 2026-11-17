@@ -111,7 +111,7 @@ class _ProfileTabPagesState extends State<ProfileTabPages> {
                     onNotification: (n) {
                       if (n.depth == 0 &&
                           n.metrics.axis == Axis.vertical &&
-                          n.metrics.extentAfter < 320) {
+                          LoadAhead.nearEnd(n.metrics)) {
                         widget.onNearEnd?.call(i);
                       }
                       return false;

@@ -58,10 +58,18 @@ export function resourceType(address) {
   return parts.length >= 2 ? parts[parts.length - 2] : '';
 }
 
+// 16.11 (KNOWN_ERRORS 188): switching the pooler off removes its own
+// service and service discovery. infra-apply moves the services to the
+// direct database first (drain, KNOWN_ERRORS 182), so nothing serves through
+// them any more; the API allows the same (infra-auto.logic DRAINED_OWN).
+const DRAINED_OWN = /^module\.stack\.module\.pgbouncer\[0\]\./;
+
 /** Addresses whose delete or replacement would take serving parts away. */
-export function servingDestroys(summary) {
+export function servingDestroys(summary, changes = {}) {
+  const poolerOff = changes?.db_pooler_enabled === false;
   return summary.resources
     .filter((r) => r.action.includes('delete') && NEVER_AUTO_DESTROY.includes(resourceType(r.address)))
+    .filter((r) => !(poolerOff && DRAINED_OWN.test(r.address)))
     .map((r) => r.address);
 }
 
@@ -86,7 +94,8 @@ export function summarize(plan) {
 // Owner 2026-11-12: a request that lowers db_shards to K may remove the
 // extra servers K and above (postgres_shard[N] / growth_shard[N], N >= K;
 // a plain delete, never a replacement). The API allows such a request only
-// while those servers hold no data; AWS keeps a final snapshot.
+// while those servers hold no data, so nothing is kept (no final snapshot,
+// no automated backups: KNOWN_ERRORS 189).
 const SHARD_MODULE = /(^|\.)module\.(postgres_shard|growth_shard)\[(\d+)\]\./;
 
 export function forbidden(summary, changes = {}) {
@@ -113,12 +122,13 @@ if (isMain) {
     process.exit(1);
   }
   const s = summarize(JSON.parse(readFileSync(path, 'utf8')));
+  const changes = process.argv[3] ? JSON.parse(readFileSync(process.argv[3], 'utf8')) : {};
   process.stdout.write(`${JSON.stringify(s)}\n`);
   if (process.env.SERVING_OUT) {
-    const serving = servingDestroys(s);
+    const serving = servingDestroys(s, changes);
     writeFileSync(process.env.SERVING_OUT, serving.length ? `${serving.join('\n')}\n` : '');
   }
-  const bad = forbidden(s, process.argv[3] ? JSON.parse(readFileSync(process.argv[3], 'utf8')) : {});
+  const bad = forbidden(s, changes);
   if (bad.length) {
     process.stderr.write(`plan-summary: the plan destroys protected data: ${bad.join(', ')}\n`);
     process.exit(3);

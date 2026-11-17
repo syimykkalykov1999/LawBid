@@ -67,7 +67,17 @@ variable "deletion_protection" {
 variable "skip_final_snapshot" {
   type        = bool
   default     = false
-  description = "Prod: false (a final snapshot is kept). Load-test stacks: true."
+  description = "Prod: false (a final snapshot is kept, automated backups stay for their retention). Load-test stacks and the extra database servers that «Авто» removes only while empty: true (no final snapshot, automated backups deleted with the server)."
+}
+# KNOWN_ERRORS 189: an extra database server follows the primary's major
+# version. When the primary moves (Blue/Green 16 -> 18), an existing extra
+# server is moved by RDS itself (ModifyDBInstance --allow-major-version-
+# upgrade, in the Sunday maintenance window). Never set on the primary: its
+# major moves only by Blue/Green (docs/runbooks/db-major-upgrade.md).
+variable "allow_major_version_upgrade" {
+  type        = bool
+  default     = false
+  description = "Let RDS upgrade this server to a newer major version in place. Only the extra database servers (stack module postgres_shard); the primary: false."
 }
 variable "tags" {
   type    = map(string)
@@ -364,6 +374,7 @@ resource "aws_db_instance" "this" {
   final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.name}-postgres-final-${random_id.final_snapshot.hex}"
 
   auto_minor_version_upgrade   = var.auto_minor_version_upgrade
+  allow_major_version_upgrade  = var.allow_major_version_upgrade
   monitoring_interval          = var.monitoring_interval
   monitoring_role_arn          = var.monitoring_interval > 0 ? aws_iam_role.monitoring[0].arn : null
   maintenance_window           = "sun:04:30-sun:05:30"
@@ -391,8 +402,20 @@ resource "aws_db_instance" "this" {
 output "endpoint" { value = aws_db_instance.this.address }
 output "instance_id" { value = aws_db_instance.this.identifier }
 output "arn" { value = aws_db_instance.this.arn }
+# Row 196: the class in the state, refreshed from AWS on every plan
+# (instance_class is in ignore_changes, so a resize made outside Terraform
+# shows here, not the configured number).
+output "instance_class" { value = aws_db_instance.this.instance_class }
 output "master_secret_arn" { value = aws_secretsmanager_secret.master.arn }
 output "security_group_id" { value = aws_security_group.db.id }
 output "backup_retention_days" { value = var.backup_retention_days }
 output "parameter_group_name" { value = local.parameter_group_name }
 output "engine_major" { value = local.engine_major }
+# KNOWN_ERRORS 189: read by infra/modules/stack/tests/db_shards.tftest.hcl
+# (an extra server = the primary's version, and it leaves nothing behind).
+output "engine_version" { value = aws_db_instance.this.engine_version }
+output "allow_major_version_upgrade" { value = aws_db_instance.this.allow_major_version_upgrade }
+output "deletion_protection" { value = aws_db_instance.this.deletion_protection }
+output "skip_final_snapshot" { value = aws_db_instance.this.skip_final_snapshot }
+output "delete_automated_backups" { value = aws_db_instance.this.delete_automated_backups }
+output "final_snapshot_identifier" { value = aws_db_instance.this.final_snapshot_identifier }

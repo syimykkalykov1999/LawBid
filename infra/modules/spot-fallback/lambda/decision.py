@@ -39,7 +39,8 @@ class Config:
 
 @dataclass(frozen=True)
 class Want:
-    """The normal strategy of one service (from Terraform)."""
+    """The normal strategy of one service (Terraform's, or the admin's split
+    from the control file, owner 15.11)."""
 
     base: int = 1
     fargate: int = 1
@@ -151,6 +152,11 @@ def on_tick(live, want, st, cfg, now, control="auto"):
         if is_fallback(live):
             return Action("none", "held on regular Fargate by the owner", st)
         return _fallback(st, cfg, now, "owner holds the service on regular Fargate")
+    if want.spot == 0 and is_normal(live, want):
+        # Owner 15.11: the admin chose no Spot for this service. Its normal
+        # strategy then looks like a fallback (FARGATE_SPOT weight 0); it is
+        # not one, so no "restore" deployment every hold.
+        return Action("none", "normal (no Spot by the owner)", replace(st, fallback_since=None))
     if is_fallback(live):
         marks = [_ts(st.last_failure), _ts(st.fallback_since), live.spot_failure_at]
         last = max((x for x in marks if x), default=None)
