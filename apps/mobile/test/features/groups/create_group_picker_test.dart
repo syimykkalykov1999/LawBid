@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
-import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
 import 'package:lawbid/features/groups/application/people_candidates.dart';
 import 'package:lawbid/features/groups/presentation/widgets/people_picker.dart';
 
@@ -68,8 +67,8 @@ void main() {
 
   test('the phone book LawBid people become picker people', () {
     final people = peopleFromContacts(const [
-      ContactPerson(hash: 'h1', userId: 'k1', displayName: ' Kim '),
-      ContactPerson(hash: 'h2', userId: 'k2', displayName: ' '),
+      (userId: 'k1', displayName: ' Kim ', avatarUrl: null),
+      (userId: 'k2', displayName: ' ', avatarUrl: null),
     ]);
     expect(people.map((p) => (p.userId, p.name)), [('k1', 'Kim')]);
   });
