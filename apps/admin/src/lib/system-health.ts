@@ -89,16 +89,16 @@ export function word(item: HealthItem): Worded {
       };
     case "redis":
       return {
-        title: "Быстрая память (Redis)",
+        title: "Быстрая память (Valkey)",
         line: d.error
-          ? "Redis не отвечает."
+          ? "Valkey не отвечает."
           : `Занято ${n(d.usedMb) ?? "—"} МБ${n(d.usedPct) !== null ? ` (${n(d.usedPct)} %)` : ""}.`,
         todo:
           s === "green"
             ? undefined
             : s === "yellow"
-              ? "Память заполняется. Если держится больше суток — увеличьте размер Redis при следующем «ставь на AWS»."
-              : "AWS заменяет упавший Redis сам. Не прошло за 15 минут — напишите Claude «Redis красный».",
+              ? "Память заполняется. Если держится больше суток — увеличьте размер Valkey при следующем «ставь на AWS»."
+              : "AWS заменяет упавший Valkey сам. Не прошло за 15 минут — напишите Claude «Valkey красный».",
         runbook: "redis.md",
       };
     case "storage":

@@ -30,7 +30,7 @@ export const SEVERITY_WORD: Record<string, { label: string; tone: Tone }> = {
 const LIVE_TITLE: Record<string, string> = {
   queues: 'Очереди задач',
   database: 'База данных',
-  redis: 'Redis (быстрая память)',
+  redis: 'Valkey (быстрая память)',
   worker: 'Фоновый обработчик',
   storage: 'Хранилище файлов',
   backup: 'Копии базы',
