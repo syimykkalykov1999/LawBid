@@ -1,4 +1,8 @@
 import {
+  FeatureFlagsService,
+  GROUPS_FLAG,
+} from '../feature-flags/feature-flags.public';
+import {
   TextLimitsService,
   textLimit,
 } from '../../common/app-settings/text-limits.service';
@@ -32,6 +36,7 @@ import {
 } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -204,7 +209,15 @@ export class ChatService {
     @Optional() private readonly heavy?: HeavyHittersService,
     // Owner 2026-10-27: a new chat counts for the author's boost paid per action.
     @Optional() private readonly boostActions?: BoostActions,
+    // Owner 2026-11-16 (row 183): with «Группы» off the folder counters
+    // leave group invitations and archived groups out.
+    @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
+
+  /** The admin switch «Группы» (a missing row reads as on, as in GroupsService). */
+  private async groupsOn(): Promise<boolean> {
+    return !this.flags || (await this.flags.isEnabled(GROUPS_FLAG, true));
+  }
 
   /**
    * Owner 2026-10-01: the folder filter. "all" = everything but requests
@@ -651,6 +664,7 @@ export class ChatService {
     if (!this.sideOf(user)) {
       return { waiting: 0, requests: 0, cases: 0, archived: 0 };
     }
+    const groupsOn = await this.groupsOn();
     const [waiting, requests, casesAwaiting, archivedChats, archivedGroups] =
       await Promise.all([
         this.prisma.conversation.count({
@@ -672,15 +686,17 @@ export class ChatService {
             ],
           },
         }),
-        this.prisma.chatGroupMember.count({
-          where: {
-            user_id: user.sub,
-            left_at: null,
-            hidden_at: null,
-            archived_at: { not: null },
-            group: { deleted_at: null, last_message_at: { not: null } },
-          },
-        }),
+        groupsOn
+          ? this.prisma.chatGroupMember.count({
+              where: {
+                user_id: user.sub,
+                left_at: null,
+                hidden_at: null,
+                archived_at: { not: null },
+                group: { deleted_at: null, last_message_at: { not: null } },
+              },
+            })
+          : 0,
       ]);
     return {
       waiting,
@@ -774,16 +790,7 @@ export class ChatService {
         ...(only ? { type: only } : {}),
         AND: [
           notExpired(),
-          ...(c
-            ? [
-                {
-                  OR: [
-                    { created_at: { lt: c.createdAt } },
-                    { created_at: c.createdAt, id: { lt: c.id } },
-                  ],
-                },
-              ]
-            : []),
+          ...(c ? [createdBefore({ t: c.createdAt, id: c.id })] : []),
         ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
@@ -1718,14 +1725,19 @@ export class ChatService {
           last_message_at: { not: null },
         },
       }),
-      // Owner 2026-10-21: group invitations wait in Requests too.
-      this.prisma.chatGroupInvite.count({
-        where: {
-          invitee_id: user.sub,
-          status: 'pending',
-          group: { deleted_at: null },
-        },
-      }),
+      // Owner 2026-10-21: group invitations wait in Requests too
+      // (row 183: not while «Группы» is off).
+      this.groupsOn().then((on) =>
+        on
+          ? this.prisma.chatGroupInvite.count({
+              where: {
+                invitee_id: user.sub,
+                status: 'pending',
+                group: { deleted_at: null },
+              },
+            })
+          : 0,
+      ),
     ]);
     return { count: chats + invites };
   }

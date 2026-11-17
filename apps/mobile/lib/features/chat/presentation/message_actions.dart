@@ -341,7 +341,7 @@ Future<void> showMessageMenu(
                 moreLabel: t.t('channel.react.add'),
                 quick: [
                   for (final e in kQuickReactions)
-                    _ReactionButton(
+                    MessageReactionButton(
                       emoji: e,
                       selected: e == myEmoji,
                       onTap: () {
@@ -367,7 +367,7 @@ Future<void> showMessageMenu(
                                   SizedBox(
                                     width: 50,
                                     child: Center(
-                                      child: _ReactionButton(
+                                      child: MessageReactionButton(
                                         emoji: e,
                                         selected: e == myEmoji,
                                         price: premium.reactionStars,
@@ -676,12 +676,15 @@ Future<StarsOverview?> _premiumReactions(WidgetRef ref) async {
   }
 }
 
-class _ReactionButton extends StatelessWidget {
-  const _ReactionButton({
+/// One emoji of the reactions bar (the 1:1 long-press menu; group chats
+/// reuse it in theirs).
+class MessageReactionButton extends StatelessWidget {
+  const MessageReactionButton({
     required this.emoji,
     required this.selected,
     required this.onTap,
     this.price,
+    super.key,
   });
 
   final String emoji;
@@ -927,7 +930,7 @@ class EditBar extends ConsumerWidget {
 /// chip that lands while the chat is open pops in (scale 0.6 → 1 on
 /// `easeOutBack`, [AppPopIn]); chips that were there when the bubble was
 /// built stay still, so scrolling never pops anything.
-class ReactionChips extends ConsumerStatefulWidget {
+class ReactionChips extends ConsumerWidget {
   const ReactionChips({
     required this.message,
     required this.conversationId,
@@ -940,32 +943,59 @@ class ReactionChips extends ConsumerStatefulWidget {
   final bool mine;
 
   @override
-  ConsumerState<ReactionChips> createState() => _ReactionChipsState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    return ReactionChipRow(
+      reactions: message.reactions,
+      alignEnd: mine,
+      onTap: (r) async {
+        final n = ref.read(chatThreadProvider(conversationId).notifier);
+        try {
+          await n.react(message, r.mine ? null : r.emoji);
+        } on Object catch (e) {
+          if (context.mounted) showAppSnackBar(context, _errorOf(t, e));
+        }
+      },
+    );
+  }
 }
 
-class _ReactionChipsState extends ConsumerState<ReactionChips> {
+/// The chips themselves (1:1 and group chats share them): one per emoji
+/// with its count, mine in gold; [onTap] gets the tapped one.
+class ReactionChipRow extends StatefulWidget {
+  const ReactionChipRow({
+    required this.reactions,
+    required this.alignEnd,
+    required this.onTap,
+    super.key,
+  });
+
+  final List<MessageReaction> reactions;
+  final bool alignEnd;
+  final void Function(MessageReaction r) onTap;
+
+  @override
+  State<ReactionChipRow> createState() => _ReactionChipRowState();
+}
+
+class _ReactionChipRowState extends State<ReactionChipRow> {
   /// The chips of the last build (`emoji` + mine): new ones pop.
   Set<String>? _shown;
-
-  ChatMessage get message => widget.message;
-  String get conversationId => widget.conversationId;
-  bool get mine => widget.mine;
 
   @override
   Widget build(BuildContext context) {
     final before = _shown;
-    _shown = {for (final r in message.reactions) '${r.emoji}${r.mine}'};
+    _shown = {for (final r in widget.reactions) '${r.emoji}${r.mine}'};
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final t = ref.watch(translatorProvider);
     return Padding(
       padding: const EdgeInsets.only(top: 3),
       child: Wrap(
         spacing: 4,
         runSpacing: 4,
-        alignment: mine ? WrapAlignment.end : WrapAlignment.start,
+        alignment: widget.alignEnd ? WrapAlignment.end : WrapAlignment.start,
         children: [
-          for (final r in message.reactions)
+          for (final r in widget.reactions)
             AppPopIn(
               key: ValueKey('chip-${r.emoji}${r.mine}'),
               animate:
@@ -975,17 +1005,7 @@ class _ReactionChipsState extends ConsumerState<ReactionChips> {
                 selected: r.mine,
                 label: '${r.emoji} ${r.count}',
                 child: GestureDetector(
-                  onTap: () async {
-                    final n =
-                        ref.read(chatThreadProvider(conversationId).notifier);
-                    try {
-                      await n.react(message, r.mine ? null : r.emoji);
-                    } on Object catch (e) {
-                      if (context.mounted) {
-                        showAppSnackBar(context, _errorOf(t, e));
-                      }
-                    }
-                  },
+                  onTap: () => widget.onTap(r),
                   child: Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 7, vertical: 2),

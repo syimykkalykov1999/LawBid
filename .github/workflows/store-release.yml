@@ -120,7 +120,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
-        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+        with: { ruby-version: "4.0", bundler-cache: true, working-directory: apps/mobile }
       - name: Play key
         uses: ./.github/actions/play-key
         with:
@@ -141,7 +141,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
-        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+        with: { ruby-version: "4.0", bundler-cache: true, working-directory: apps/mobile }
       - name: fastlane ios release
         working-directory: apps/mobile/ios
         env:
@@ -214,7 +214,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
-        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+        with: { ruby-version: "4.0", bundler-cache: true, working-directory: apps/mobile }
       - uses: ./.github/actions/play-key
         with:
           json: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
@@ -231,7 +231,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
-        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+        with: { ruby-version: "4.0", bundler-cache: true, working-directory: apps/mobile }
       - working-directory: apps/mobile/ios
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -264,7 +264,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
-        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+        with: { ruby-version: "4.0", bundler-cache: true, working-directory: apps/mobile }
       - uses: ./.github/actions/play-key
         with:
           json: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
@@ -283,7 +283,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
-        with: { ruby-version: "3.3", bundler-cache: true, working-directory: apps/mobile }
+        with: { ruby-version: "4.0", bundler-cache: true, working-directory: apps/mobile }
       - working-directory: apps/mobile/ios
         env:
           PERCENT: ${{ inputs.percent }}

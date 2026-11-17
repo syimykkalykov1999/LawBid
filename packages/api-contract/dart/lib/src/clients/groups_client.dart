@@ -22,6 +22,7 @@ import '../models/group_list_envelope.dart';
 import '../models/group_member_list_envelope.dart';
 import '../models/group_message_envelope.dart';
 import '../models/group_message_list_envelope.dart';
+import '../models/group_message_readers_envelope.dart';
 import '../models/group_person_list_envelope.dart';
 import '../models/group_read_result_envelope.dart';
 import '../models/group_shared_kind.dart';
@@ -30,6 +31,7 @@ import '../models/group_topic_list_envelope.dart';
 import '../models/pin_group_message_dto.dart';
 import '../models/poll_envelope.dart';
 import '../models/poll_voter_option_list_envelope.dart';
+import '../models/react_message_dto.dart';
 import '../models/read_group_dto.dart';
 import '../models/send_group_message_dto.dart';
 import '../models/set_group_role_dto.dart';
@@ -154,11 +156,14 @@ abstract class GroupsClient {
   /// Sweep B-c1: members page by page (owner, admins, then by join time).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [q] - Only members whose name or @username matches (one page, no cursor).
   @GET('/groups/{id}/members')
   Future<GroupMemberListEnvelope> listGroupMembers({
     @Path('id') required String id,
     @Query('limit') num? limit = 50,
     @Query('cursor') String? cursor,
+    @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -251,6 +256,23 @@ abstract class GroupsClient {
   Future<void> deleteGroupMessage({
     @Path('id') required String id,
     @Path('messageId') required String messageId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Who has read my message (the author only)
+  @GET('/groups/{id}/messages/{messageId}/readers')
+  Future<GroupMessageReadersEnvelope> groupMessageReaders({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// React with one emoji (null removes it)
+  @PUT('/groups/{id}/messages/{messageId}/reaction')
+  Future<GroupMessageEnvelope> reactToGroupMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Body() required ReactMessageDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -101,6 +101,11 @@ String groupMessagePreview(
   final String body;
   if (m.isPoll) {
     body = t.t('group.preview.poll', {'question': m.poll?.question ?? ''});
+  } else if (m.isVoice) {
+    // Groups WhatsApp parity: «🎤 Voice message 0:12», as in the 1:1 list.
+    final d = Duration(milliseconds: m.voice?.durationMs ?? 0);
+    body = '🎤 ${t.t('chat.voice.label')} '
+        '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
   } else if (m.attachment != null) {
     final caption = m.body.trim();
     body = caption.isNotEmpty

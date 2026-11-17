@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { ClientSubscription, Plan } from '../../generated/prisma/client';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
@@ -25,6 +26,10 @@ import {
   PayLinkService,
 } from '../billing/pay-link.service';
 import { PricingService } from '../billing/pricing.service';
+import {
+  approveClientBadgeWithoutDocuments,
+  CLIENT_BADGE_DOCUMENTS_SETTING,
+} from '../client-badge/client-badge.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import type {
   ClientPlanCheckoutDto,
@@ -62,6 +67,8 @@ export class ClientPlansService {
     @Optional() private readonly notifications?: NotificationsService,
     // Owner 2026-10-22: our own card page in place of Stripe's.
     @Optional() private readonly payLink?: PayLinkService,
+    // Owner 16.11: «Проверка документов клиента» (badge without documents).
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
     this.returnBase = (
       config.get<string>('APP_LINK_BASE_URL') ?? 'https://lawbid.app'
@@ -423,6 +430,7 @@ export class ClientPlansService {
     });
     await this.entitlements.invalidateUser(row.user_id);
     const after = clientSubscriptionActive(updated);
+    if (after) await this.badgeWithoutDocuments(row.user_id);
     if (before !== after || row.status !== updated.status) {
       await this.notifications
         ?.emit({
@@ -467,6 +475,30 @@ export class ClientPlansService {
         code: ErrorCode.FORBIDDEN,
         message: 'Clients only.',
       });
+    }
+  }
+
+  /**
+   * Owner 16.11: a paid plan that includes the gold check turns it on at
+   * once — no documents — while «Проверка документов клиента» is off (the
+   * default). The badge row is approved without files, so every badge
+   * reader (feed, profile, reels) sees it; it goes away with the plan
+   * (planBadgeHolders reads the live plan). A revoked row stays revoked.
+   */
+  private async badgeWithoutDocuments(userId: string): Promise<void> {
+    if (!this.settings) return;
+    try {
+      if (await this.settings.boolean(CLIENT_BADGE_DOCUMENTS_SETTING)) return;
+      const { values } = await this.entitlements.forUser(userId);
+      if (values.verified_badge !== true) return;
+      await approveClientBadgeWithoutDocuments(this.prisma, userId);
+    } catch (e) {
+      // The plan itself is already saved; the badge row heals on the
+      // client's next badge read (ClientBadgeService.state).
+      this.logger.warn(
+        { userId, err: String(e) },
+        'client plan badge without documents failed',
+      );
     }
   }
 

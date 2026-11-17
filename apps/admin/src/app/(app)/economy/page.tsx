@@ -74,7 +74,7 @@ export default function EconomyPage() {
       <PageHeader
         eyebrow="Система"
         title="Экономика"
-        subtitle="Два тормоза, каждый ограничивает только своё. Сторонние платные сервисы (SMS, видео Bunny, перевод, проверка личности, Cloudflare) сверяются с правилом от дохода: при превышении на минимум идут только они (лимиты сервисов, новые видео, SMS кроме входа и сброса пароля). Счёт AWS сверяется с бюджетом AWS: при превышении ограничиваются только серверы, база и Redis, видео и SMS не трогаются. Оба снимаются сами ниже 90 %."
+        subtitle="Два тормоза, каждый ограничивает только своё. Сторонние платные сервисы (SMS, видео Bunny, перевод, проверка личности, Cloudflare) сверяются с правилом от дохода: при превышении на минимум идут только они (лимиты сервисов, новые видео, SMS кроме входа и сброса пароля). Счёт AWS сверяется с бюджетом AWS: при превышении ограничиваются только серверы, база и Valkey, видео и SMS не трогаются. Оба снимаются сами ниже 90 %."
         actions={e ? <UpdatedAgo at={q.dataUpdatedAt} /> : null}
       />
       <ErrorNote text={q.error ? errorText(q.error) : null} />
@@ -96,7 +96,7 @@ export default function EconomyPage() {
                   ? `С ${formatDateTime(e.since)}: сторонние платные сервисы — лимиты на минимуме, новые видео на паузе, SMS только для входа и сброса пароля. Серверы AWS этот тормоз не трогает. Снимется само, когда прогноз сторонних расходов упадёт ниже 90% допустимого.`
                   : 'Прогноз расходов на сторонние сервисы укладывается в правило. Делать ничего не нужно.'}
               {e.enabled && awsHeld
-                ? ` Счёт AWS выше бюджета: серверов не больше минимума, база и Redis не растут (видео и SMS работают).`
+                ? ` Счёт AWS выше бюджета: серверов не больше минимума, база и Valkey не растут (видео и SMS работают).`
                 : ''}
             </span>
           </Card>
@@ -147,7 +147,7 @@ export default function EconomyPage() {
                   style={{ width: `${Math.min(100, Math.round(awsUsed * 100))}%` }}
                 />
               </div>
-              <div className="mt-1 text-xs text-muted">Прогноз — {Math.round(awsUsed * 100)}% от бюджета. Тормоз: только серверы, база и Redis.</div>
+              <div className="mt-1 text-xs text-muted">Прогноз — {Math.round(awsUsed * 100)}% от бюджета. Тормоз: только серверы, база и Valkey.</div>
             </Card>
           </div>
           <p className="mb-6 text-sm text-muted">
@@ -329,13 +329,13 @@ export default function EconomyPage() {
         </>
       )}
 
-      <SectionTitle>База данных и Redis</SectionTitle>
+      <SectionTitle>База данных и Valkey</SectionTitle>
       {!e ? (
         <Skeleton className="mb-6 h-32 rounded-[var(--radius-lg)]" />
       ) : (
         <>
           <p className="mb-3 text-sm text-muted">
-            {e.capacity.onAws ? 'Нагрузка базы и Redis.' : 'Нагрузка базы и Redis читается, а менять размер можно только на AWS.'}{' '}
+            {e.capacity.onAws ? 'Нагрузка базы и Valkey.' : 'Нагрузка базы и Valkey читается, а менять размер можно только на AWS.'}{' '}
             Увеличить или уменьшить — в{' '}
             <Link href="/scale" className="text-gold-600 underline-offset-2 hover:underline">
               «Масштабе»
@@ -369,7 +369,7 @@ export default function EconomyPage() {
               </div>
             </Card>
             <Card className="flex flex-col gap-2 p-4">
-              <div className="text-sm font-medium text-heading">Redis</div>
+              <div className="text-sm font-medium text-heading">Valkey</div>
               <div className="text-sm text-muted">
                 Размер: <span className="text-ink">{e.capacity.redisClass ?? '—'}</span>
               </div>
@@ -390,7 +390,7 @@ export default function EconomyPage() {
               <tbody>
                 {[
                   ...e.capacity.dbTiers.map((t) => ({ ...t, kind: 'База' })),
-                  ...e.capacity.redisTiers.map((t) => ({ ...t, kind: 'Redis' })),
+                  ...e.capacity.redisTiers.map((t) => ({ ...t, kind: 'Valkey' })),
                 ].map((t) => (
                   <tr key={t.name} className="border-b border-line last:border-0">
                     <td className="p-3">

@@ -19,6 +19,7 @@ import { ModerationService } from '../moderation/moderation.service';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -785,17 +786,14 @@ export class ClientReviewsService {
         status: 'published',
         ...(query.rating !== undefined ? { rating: query.rating } : {}),
         ...(c
-          ? {
-              OR: oldest
-                ? [
-                    { created_at: { gt: c.createdAt } },
-                    { created_at: c.createdAt, id: { gt: c.id } },
-                  ]
-                : [
-                    { created_at: { lt: c.createdAt } },
-                    { created_at: c.createdAt, id: { lt: c.id } },
-                  ],
-            }
+          ? oldest
+            ? {
+                OR: [
+                  { created_at: { gt: c.createdAt } },
+                  { created_at: c.createdAt, id: { gt: c.id } },
+                ],
+              }
+            : createdBefore({ t: c.createdAt, id: c.id })
           : {}),
       },
       orderBy: oldest

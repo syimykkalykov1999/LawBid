@@ -5,9 +5,10 @@ import { useState } from 'react';
 import { MoreButton } from '@/components/legacy/more-button';
 import { ErrorNote, PageHeader } from '@/components/page-header';
 import { useReason } from '@/components/reason-dialog';
-import { Badge, type Tone } from '@/components/ui/card';
+import { Badge, Card, type Tone } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
 import { Input, Select } from '@/components/ui/input';
 import { SortTh, Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { Tabs } from '@/components/ui/tabs';
@@ -15,6 +16,7 @@ import { useToast } from '@/components/ui/toast';
 import { VerifiedBadge } from '@/components/verified-badge';
 import { api, errorText } from '@/lib/api/client';
 import { can } from '@/lib/rbac';
+import { saveConfig } from '@/lib/config-save';
 import { useMe } from '@/lib/hooks';
 import { reelsClientMode } from '@/lib/reels-client-mode';
 import { sortRows, useTableSort } from '@/lib/table-sort';
@@ -41,6 +43,10 @@ const SUB_RU: Record<string, string> = {
   comped: 'бесплатно (подарок)',
 };
 
+/** Owner 16.11: «Проверка документов клиента» — off (default) = the client
+ * pays and gets the badge, no documents; on = documents → approval → payment. */
+const DOCS_KEY = 'verification.client_badge_documents';
+
 /** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
 const SORT_KEYS = ['client', 'status', 'sub', 'docs', 'submitted'] as const;
 
@@ -58,6 +64,26 @@ export default function ClientBadgesPage() {
   const toast = useToast();
   const me = useMe();
   const canManage = me.data ? can(me.data, 'verification', 'manage') : false;
+  const canSettings = me.data ? can(me.data, 'settings', 'manage') : false;
+  const config = useQuery({
+    queryKey: ['config'],
+    queryFn: async () =>
+      (await api.GET('/admin/config')).data!.data as unknown as { key: string; value: unknown; stored: boolean }[],
+  });
+  const docsEntry = config.data?.find((e) => e.key === DOCS_KEY);
+  const docsOn = docsEntry?.value === true;
+  const saveDocs = useMutation({
+    mutationFn: async (value: boolean) => {
+      const res = await saveConfig(qc, DOCS_KEY, value);
+      if (res.error) throw res.error;
+      return value;
+    },
+    onSuccess: (v) => {
+      toast.success(`Проверка документов клиента: ${v ? 'включено' : 'выключено'}`);
+      void qc.invalidateQueries({ queryKey: ['config'] });
+    },
+    onError: (e) => toast.error(e),
+  });
   const { ask, dialog } = useReason();
   const [status, setStatus] = useUrlState<Status>('status', 'pending', STATUSES);
   const [sub, setSub] = useState<Sub>('');
@@ -148,8 +174,27 @@ export default function ClientBadgesPage() {
       <PageHeader
         eyebrow="Люди"
         title="Галочки клиентов"
-        subtitle={`Золотая галочка по месячной подписке: клиент присылает документы, вы одобряете, он оплачивает. Цена — в разделе «Цены».${reelsByBadge ? ' В галочку входит публикация рилсов (раздел «Функции» → «Рилсы: публикация клиентами» → «Только с галочкой»).' : ''}`}
+        subtitle={`Золотая галочка по месячной подписке. ${docsOn ? 'Клиент присылает документы, вы одобряете, он оплачивает.' : 'Клиент просто оплачивает и сразу получает галочку и функции клиентского плана (Деньги → Планы), документы не спрашиваются.'} Цена — в разделе «Цены».${reelsByBadge ? ' В галочку входит публикация рилсов (раздел «Функции» → «Рилсы: публикация клиентами» → «Только с галочкой»).' : ''}`}
       />
+      <Card className="mb-4 p-5" data-testid={`switch-${DOCS_KEY}`}>
+        <div className="flex items-start gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-medium text-heading">Проверка документов клиента</h3>
+              <Badge tone={docsOn ? 'success' : 'neutral'}>{docsOn ? 'Вкл' : 'Выкл'}</Badge>
+            </div>
+            <p className="mt-1.5 break-words text-sm leading-relaxed text-muted">
+              Выкл (по умолчанию): клиент оплачивает подписку и сразу получает галочку и функции плана, без документов. Вкл: как раньше — документы, одобрение, потом оплата. Уже выданные галочки не меняются; снятую галочку возвращаете только вы.
+            </p>
+          </div>
+          <Switch
+            checked={docsOn}
+            disabled={!canSettings || !docsEntry || saveDocs.isPending}
+            label="Проверка документов клиента"
+            onChange={(v) => saveDocs.mutate(v)}
+          />
+        </div>
+      </Card>
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Tabs<Status>
           value={status}

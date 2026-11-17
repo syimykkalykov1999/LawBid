@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { createdBefore } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
@@ -247,14 +248,7 @@ export class StaffAppealsService {
     const where: Prisma.AdminAppealWhereInput = {
       ...(q.state === 'open' ? { status: { in: ['new', 'seen'] } } : {}),
       ...(q.state === 'decided' ? { status: 'resolved' } : {}),
-      ...(cursor
-        ? {
-            OR: [
-              { created_at: { lt: cursor.at } },
-              { created_at: cursor.at, id: { lt: cursor.id } },
-            ],
-          }
-        : {}),
+      ...(cursor ? createdBefore({ t: cursor.at, id: cursor.id }) : {}),
     };
     const rows = await this.prisma.adminAppeal.findMany({
       where,

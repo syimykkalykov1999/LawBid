@@ -5,7 +5,7 @@ stays closed in a browser until it is built with
 `--dart-define=WEB_ENABLED=true` (`lib/core/platform/web_gate.dart`).
 
 - `sqlite3.wasm` and `drift_worker.js`: the local database on the web, at the
-  versions pinned in `pubspec.lock` (drift 2.35.3, sqlite3 3.5.2). After a drift
+  versions pinned in `pubspec.lock` (drift 2.35.4, sqlite3 3.9.1). After a drift
   or sqlite3 upgrade, download the matching files
   (`scripts/ci/check-web-assets-lock.sh` fails CI until they match):
   `https://github.com/simolus3/drift/releases/download/drift-<ver>/drift_worker.js`

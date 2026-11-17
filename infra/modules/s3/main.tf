@@ -498,6 +498,19 @@ variable "cdn_additional_metrics" {
   description = "S8-6: CloudFront additional metrics (CacheHitRate, OriginLatency, 4xx/5xx by status) on the media and documents distributions. About $0.01 per metric per distribution per month (8 metrics x 2 = ~$0.16/month, fixed at any scale). false = off."
 }
 
+# Owner order 16.11 (speed mechanisms proof), the media half of R2 row 171
+# (the web CDN got it on 14.11): Origin Shield, one more cache layer in front
+# of the media bucket. Every edge asks the shield instead of S3, so a photo
+# is read from S3 about once, the hit ratio goes up and a cold edge answers
+# sooner (measured 16.11: first avatar view 0.50 s Miss vs 0.25 s Hit).
+# About $0.0075-0.01 per 10 000 requests that reach the shield. Empty = the
+# bucket's own region (AWS advice), "off" = no shield.
+variable "media_origin_shield_region" {
+  type        = string
+  default     = ""
+  description = "Origin Shield region for the media bucket origin; empty = the bucket's region, \"off\" = no Origin Shield."
+}
+
 resource "aws_cloudfront_distribution" "media" {
   enabled         = true
   comment         = "${var.name} media"
@@ -516,6 +529,14 @@ resource "aws_cloudfront_distribution" "media" {
     domain_name              = aws_s3_bucket.media.bucket_regional_domain_name
     origin_id                = "media"
     origin_access_control_id = aws_cloudfront_origin_access_control.media.id
+
+    dynamic "origin_shield" {
+      for_each = var.media_origin_shield_region == "off" ? [] : [var.media_origin_shield_region == "" ? aws_s3_bucket.media.bucket_region : var.media_origin_shield_region]
+      content {
+        enabled              = true
+        origin_shield_region = origin_shield.value
+      }
+    }
   }
 
   default_cache_behavior {

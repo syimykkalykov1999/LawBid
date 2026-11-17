@@ -175,6 +175,9 @@ drag and `CupertinoSheetRoute` release logic (`material/bottom_sheet.dart`,
 the Flutter cookbook "Create a shimmer loading effect" (docs.flutter.dev) in
 `lib/core/design_system/widgets/feedback/app_skeleton.dart`;
 `SpringSimulation` springs in `reply_swipe.dart` and `photo_gallery.dart`.
+Row 89 (2026-11-16): the drag-written `_moveController` of `Dismissible`
+(`widgets/dismissible.dart`), painted by a transition instead of
+`setState`, in `lib/features/chat/presentation/reply_swipe.dart`.
 Row 88, second part: the floating, snapping header of
 `RenderSliverFloatingPersistentHeader` / `FloatingHeaderSnapConfiguration`
 (`rendering/sliver_persistent_header.dart`) in
@@ -786,19 +789,19 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-## Web release assets: drift 2.35.3, sqlite3.dart 3.5.2 — MIT; flutter-passkeys 2.5.0 — BSD-3-Clause
+## Web release assets: drift 2.35.4, sqlite3.dart 3.9.1 — MIT; flutter-passkeys 2.5.0 — BSD-3-Clause
 
 Copied unmodified from the upstream GitHub releases (D1-22 / D1-24, 13.11;
 `scripts/ci/check-web-assets-lock.sh` checks the first two against the
 versions in `pubspec.lock`):
 
-- `web/drift_worker.js` — `drift-2.35.3/drift_worker.js`
+- `web/drift_worker.js` — `drift-2.35.4/drift_worker.js`
   (https://github.com/simolus3/drift/releases), SHA-256
-  `a54b81412d4c4ab56653bb9e4c02912b0820bb37e2bba00722ddef4d78083d4a`;
-- `web/sqlite3.wasm` — `sqlite3-3.5.2/sqlite3.wasm`
+  `48c950cd8e3bc3cddb34816c860e228be8832bef07a297c27e9907c057ff8162`;
+- `web/sqlite3.wasm` — `sqlite3-3.9.1/sqlite3.wasm` (the same bytes as 3.9.0)
   (https://github.com/simolus3/sqlite3.dart/releases; SQLite itself is in
   the public domain), SHA-256
-  `13d3f11d05b39ba0618a7115fb41640a5d48b6300f5d3f325f554b42bd6688a4`;
+  `e7451780e78c56ff864fe9317a0fbcd6aeb2e8de3beba7f5efd963202f7ec3d9`;
 - `web/passkeys_bundle.js` — `2.5.0/bundle.js`
   (https://github.com/corbado/flutter-passkeys/releases), SHA-256
   `56a7525e0786cf84490747b0c47d72c3c154dccc7a58b2eb072a36da78a31919`.
@@ -886,6 +889,38 @@ LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
 NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
+
+## coi-serviceworker — MIT
+
+The mechanism of `web/coi_sw.js` (a service worker that serves the page's
+own navigations again with `Cross-Origin-Opener-Policy` /
+`Cross-Origin-Embedder-Policy` added, so the page becomes cross-origin
+isolated without server headers), owner row 173 (2026-11-14), commit
+7b1d2a092d0d2dd2b7270b6f12f13605de26f214,
+https://github.com/gzuidhof/coi-serviceworker. Our copy is narrower
+(navigations of app pages only, no forced reload, `credentialless` only).
+
+MIT License
+
+Copyright (c) 2021 Guido Zuidhof
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
 
 ## Tinycon 0.6.8 — MIT
 

@@ -2,7 +2,7 @@ import {
   Inject,
   Injectable,
   Logger,
-  OnModuleDestroy,
+  OnApplicationShutdown,
   OnModuleInit,
   Optional,
 } from '@nestjs/common';
@@ -175,7 +175,7 @@ export const PRISMA_ENV = Symbol('PRISMA_ENV');
 @Injectable()
 export class PrismaService
   extends PrismaClient
-  implements OnModuleInit, OnModuleDestroy
+  implements OnModuleInit, OnApplicationShutdown
 {
   /**
    * [env] (owner 2026-11-11): the read path builds a second, routed client
@@ -454,7 +454,16 @@ export class PrismaService
             await router.start();
           };
         }
-        if (prop === 'onModuleDestroy') {
+        // Row 213 (KNOWN_ERRORS 179): the pool closes in the LAST phase of
+        // app.close(). Nest runs onModuleDestroy → beforeApplicationShutdown
+        // → dispose (HTTP server) → onApplicationShutdown, and this @Global
+        // module comes last in each phase; the BullMQ runners wait for their
+        // running jobs in onApplicationShutdown, so a disconnect in
+        // onModuleDestroy let a finishing job re-open the pool after it and
+        // leave it open (e2e: «reading 'Socket'» after the suite). Same
+        // place as @nestjs/typeorm (TypeOrmCoreModule) and @nestjs/mongoose.
+        if (prop === 'onModuleDestroy') return undefined;
+        if (prop === 'onApplicationShutdown') {
           return async () => {
             await (real as unknown as PrismaClient).$disconnect();
             await control.disconnectShardDatabases();
@@ -597,7 +606,7 @@ export class PrismaService
     await this.$connect();
   }
 
-  async onModuleDestroy(): Promise<void> {
+  async onApplicationShutdown(): Promise<void> {
     await this.$disconnect();
   }
 }

@@ -8,6 +8,7 @@ import {
 import { Prisma, type Referral } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -159,9 +160,11 @@ export class AdminReferralsService {
     const ids = term ? await this.userIdsMatching(term) : [];
     const rows = await this.prisma.referral.findMany({
       where: {
-        ...(term
-          ? {
-              AND: [
+        // Row 215: the search and the cursor (an index range on
+        // (status, created_at)) both live in the one AND.
+        AND: [
+          ...(term
+            ? [
                 {
                   OR: [
                     { code: { startsWith: normalizeReferralCode(term) } },
@@ -169,21 +172,16 @@ export class AdminReferralsService {
                     { referee_id: { in: ids } },
                   ],
                 },
-              ],
-            }
-          : {}),
+              ]
+            : []),
+          ...(cursor
+            ? [createdBefore({ t: cursor.createdAt, id: cursor.id })]
+            : []),
+        ],
         ...(q.status ? { status: q.status } : {}),
         ...(q.role ? { referee_role: q.role } : {}),
         ...(q.referrerId ? { referrer_id: q.referrerId } : {}),
         ...(q.refereeId ? { referee_id: q.refereeId } : {}),
-        ...(cursor
-          ? {
-              OR: [
-                { created_at: { lt: cursor.createdAt } },
-                { created_at: cursor.createdAt, id: { lt: cursor.id } },
-              ],
-            }
-          : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,

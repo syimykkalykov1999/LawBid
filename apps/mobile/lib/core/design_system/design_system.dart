@@ -62,6 +62,7 @@ export 'widgets/inputs/app_text_field.dart';
 export 'widgets/inputs/field_counter.dart';
 export 'widgets/lists/app_paginated_list_view.dart';
 export 'widgets/lists/app_picker_row.dart';
+export 'widgets/lists/load_ahead.dart';
 export 'widgets/motion/app_entrance.dart';
 export 'widgets/motion/app_motion_bits.dart';
 export 'widgets/motion/app_pressable.dart';

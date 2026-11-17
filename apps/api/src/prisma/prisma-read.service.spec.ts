@@ -73,7 +73,7 @@ describe('PrismaReadService', () => {
     expect(s.db).not.toBe(primary);
     expect(s.db).toBe(s.db); // one client, created once
     expect(s.usingReplica).toBe(true);
-    await s.onModuleDestroy();
+    await s.onApplicationShutdown();
   });
 
   // Rows 8 / 9 (15.11, KNOWN_ERRORS 161): a stale DB_REPLICA_HOST (copy
@@ -87,7 +87,7 @@ describe('PrismaReadService', () => {
     expect(s.db).toBe(primary); // created, sample in flight
     await s.sampleLag();
     expect(s.db).not.toBe(primary);
-    await s.onModuleDestroy();
+    await s.onApplicationShutdown();
   });
 
   it('a copy that is gone (sample fails) never gets a read', async () => {
@@ -98,7 +98,7 @@ describe('PrismaReadService', () => {
     await ready(s);
     expect(s.db).toBe(primary);
     expect(s.replicaLagMs).toBeNull();
-    await s.onModuleDestroy();
+    await s.onApplicationShutdown();
   });
 
   it('builds the replica URL from DATABASE_URL + DB_REPLICA_HOST (no extra secret)', async () => {
@@ -112,7 +112,7 @@ describe('PrismaReadService', () => {
     expect(resolveReplicaUrl()).toBe(
       'postgresql://u:p@replica-1.example:5432/lawbid',
     );
-    await s.onModuleDestroy();
+    await s.onApplicationShutdown();
   });
 
   // Owner 2026-11-11: with extra servers the copies are read through a
@@ -136,7 +136,7 @@ describe('PrismaReadService', () => {
     await ready(s);
     jest.spyOn(demoContext, 'isDemo').mockReturnValue(true);
     expect(s.db).toBe(primary);
-    await s.onModuleDestroy();
+    await s.onApplicationShutdown();
   });
 
   it('has its own pool size variable (falls back to DB_POOL_SIZE)', () => {
@@ -167,13 +167,13 @@ describe('PrismaReadService', () => {
       expect(s.replicaLagMs).toBe(8_000);
       expect(s.db).toBe(primary);
       expect(s.usingReplica).toBe(false);
-      await s.onModuleDestroy();
+      await s.onApplicationShutdown();
     });
 
     it('uses the replica again once it caught up', async () => {
       const s = await withLag(120);
       expect(s.db).not.toBe(primary);
-      await s.onModuleDestroy();
+      await s.onApplicationShutdown();
     });
 
     it('a per-call maxStalenessMs wins over the default', async () => {
@@ -181,21 +181,21 @@ describe('PrismaReadService', () => {
       expect(s.readDb({ maxStalenessMs: 10_000 })).not.toBe(primary);
       expect(s.readDb({ maxStalenessMs: 1_000 })).toBe(primary);
       expect(s.readDb({ maxStalenessMs: 0 })).toBe(primary);
-      await s.onModuleDestroy();
+      await s.onApplicationShutdown();
     });
 
     it('DB_REPLICA_MAX_LAG_MS changes the default budget', async () => {
       process.env.DB_REPLICA_MAX_LAG_MS = '20000';
       const s = await withLag(8_000);
       expect(s.db).not.toBe(primary);
-      await s.onModuleDestroy();
+      await s.onApplicationShutdown();
     });
 
     it('a failed sample means "do not trust the replica"', async () => {
       const s = await withLag(new Error('connection refused'));
       expect(s.replicaLagMs).toBeNull();
       expect(s.db).toBe(primary);
-      await s.onModuleDestroy();
+      await s.onApplicationShutdown();
     });
   });
 
@@ -222,7 +222,7 @@ describe('PrismaReadService', () => {
       expect(s.db).not.toBe(primary);
       await s.sampleLag();
       expect(s.db).not.toBe(primary);
-      await s.onModuleDestroy();
+      await s.onApplicationShutdown();
     });
 
     it('auto: follows the lag', async () => {
@@ -230,7 +230,7 @@ describe('PrismaReadService', () => {
       await s.refreshSettings();
       await ready(s);
       expect(s.db).toBe(primary);
-      await s.onModuleDestroy();
+      await s.onApplicationShutdown();
     });
   });
 });
@@ -260,7 +260,7 @@ describe('PrismaReadService with several copies', () => {
     expect(a).not.toBe(primary);
     expect(b).not.toBe(a);
     expect(c).toBe(a);
-    await s.onModuleDestroy();
+    await s.onApplicationShutdown();
   });
 
   // Row 9 (15.11): «Авто» removes copy 2 while old tasks still list it.
@@ -273,7 +273,7 @@ describe('PrismaReadService with several copies', () => {
       Array.from({ length: 6 }, () => marker(s.db) as string),
     );
     expect([...seen]).toEqual(['r1.example']);
-    await s.onModuleDestroy();
+    await s.onApplicationShutdown();
   });
 
   it('a copy dropped from DB_REPLICA_HOST is disconnected and never read', async () => {
@@ -290,7 +290,7 @@ describe('PrismaReadService with several copies', () => {
     );
     expect([...seen]).toEqual(['r1.example']);
     expect(r2.raw.$disconnect).toHaveBeenCalled();
-    await s.onModuleDestroy();
+    await s.onApplicationShutdown();
   });
 });
 
@@ -351,7 +351,7 @@ describe('PrismaReadService: a read on a dead copy is answered by the primary', 
     );
     // Out of the rotation: the next reads go straight to the primary.
     expect(s.db).toBe(primary);
-    await s.onModuleDestroy();
+    await s.onApplicationShutdown();
   }, 30_000);
 
   it('a write through the read client is never repeated on the primary', async () => {
@@ -379,7 +379,7 @@ describe('PrismaReadService: a read on a dead copy is answered by the primary', 
       copy.client.$queryRawUnsafe('DELETE FROM users'),
     ).rejects.toBeDefined();
     expect(primary.user.update).not.toHaveBeenCalled();
-    await s.onModuleDestroy();
+    await s.onApplicationShutdown();
   }, 30_000);
 });
 
