@@ -632,6 +632,10 @@ enum NotificationType {
   // Owner 2026-10-25 (privacy round 13, S13-14): "your account will be
   // deleted on <date>" at day 0 and day 13 of the grace period.
   account_deletion_scheduled
+  // Firms audit 16.11: one type for a firm's events; payload.kind says which
+  // (bid_sent_for_you, invite, owner_transferred, closed, bid_joined) and
+  // picks the `notif.firm.<kind>` text.
+  firm_update
 
   @@map("notification_type")
 }
@@ -2183,6 +2187,10 @@ model Bid {
   confirmed_at             DateTime?         @db.Timestamptz
   /// The one reminder has gone out for the current wait.
   confirm_reminded_at      DateTime?         @db.Timestamptz
+  /// Firms audit 16.11 (PR-1, rest of row 167): who really sent the bid: the
+  /// attorney, or the firm owner sending as a member (`sendAsAttorneyId`).
+  /// Null on bids sent before this column existed.
+  sent_by                  String?           @db.Uuid
 
   accepted_for_case  Case?                @relation("CaseAcceptedBid")
   offers             BidOffer[]
@@ -3683,35 +3691,43 @@ model NotificationQuietHours {
 }
 
 model PushToken {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id         String   @db.Uuid
-  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  session_id      String   @db.Uuid
-  session         Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String   @db.Uuid
+  user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  /// The NEWEST session row of the device's sign-in chain. 14.11 (DB scale
+  /// review, finding 8): every refresh moves it to the new row
+  /// (SessionService.rotate), so the cascade only removes the token when the
+  /// chain itself ends — not when an old row of a signed-in device expires.
+  session_id       String   @db.Uuid
+  session          Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  /// The device's sign-in chain (stable across refreshes); liveness and
+  /// "same device" matches use it. NULL only on rows of an older release
+  /// (then the chain is read through `session_id`).
+  session_chain_id String?  @db.Uuid
   /// The device's FCM address: a registration token (older app versions)
   /// or, when `token_kind` is "fid", its Firebase Installation ID.
-  fcm_token       String   @unique
+  fcm_token        String   @unique
   /// 2026-11-07 (FCM HTTP v1 deprecates `message.token` for `message.fid`):
   /// "token" = legacy registration token, "fid" = Firebase Installation ID.
-  token_kind      String   @default("token")
-  platform        String
+  token_kind       String   @default("token")
+  platform         String
   /// Owner 2026-10-20: the app on this device keeps its own copy of the
   /// planner reminders (local alarm) and shows the reminder push itself,
   /// under the same id, so the two never show twice. Android only.
-  local_reminders Boolean  @default(false)
+  local_reminders  Boolean  @default(false)
   /// Owner 2026-10-22 (WhatsApp): the app on this Android device draws chat
   /// notifications itself (sender's photo, one stack per chat) from a
   /// data-only push. Older app versions keep the normal alert.
-  chat_style      Boolean  @default(false)
+  chat_style       Boolean  @default(false)
   /// Owner 2026-10-26: the app on this Android device also draws
   /// notifications with a person (bid, comment, like, missed call …) with
   /// that person's round photo from a data-only push.
-  actor_style     Boolean  @default(false)
+  actor_style      Boolean  @default(false)
   /// Owner 2026-10-20: reminders (`<taskId>@<remindAt ms>`) this iPhone has
   /// armed as local alarms; the reminder push skips them (no double banner).
-  armed_reminders String[] @default([])
-  last_seen_at    DateTime @default(now()) @db.Timestamptz
-  created_at      DateTime @default(now()) @db.Timestamptz
+  armed_reminders  String[] @default([])
+  last_seen_at     DateTime @default(now()) @db.Timestamptz
+  created_at       DateTime @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -3722,20 +3738,24 @@ model PushToken {
 
 /// Owner 2026-10-17: an iPhone's PushKit (VoIP) token — incoming calls go
 /// to Apple directly as VoIP pushes (FCM can't send them), so iOS shows the
-/// call screen and rings even when the app is closed. Bound to the session
+/// call screen and rings even when the app is closed. Bound to the sign-in
 /// chain like push_tokens; `topic` is the app's bundle id + ".voip".
 model VoipToken {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id      String   @db.Uuid
-  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  session_id   String   @db.Uuid
-  session      Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
-  token        String   @unique
-  topic        String
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String   @db.Uuid
+  user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  /// As push_tokens.session_id: the newest row of the chain, moved on every
+  /// refresh (14.11, finding 8).
+  session_id       String   @db.Uuid
+  session          Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  /// The phone's sign-in chain; NULL only on rows of an older release.
+  session_chain_id String?  @db.Uuid
+  token            String   @unique
+  topic            String
   /// sandbox (development-signed builds) | production (TestFlight, store).
-  environment  String
-  last_seen_at DateTime @default(now()) @db.Timestamptz
-  created_at   DateTime @default(now()) @db.Timestamptz
+  environment      String
+  last_seen_at     DateTime @default(now()) @db.Timestamptz
+  created_at       DateTime @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt

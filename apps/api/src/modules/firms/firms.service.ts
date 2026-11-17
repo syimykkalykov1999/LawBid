@@ -154,6 +154,7 @@ export class FirmsService {
 
   /** The viewer's firm, or 404; invitations show to the invited lawyer. */
   async mine(userId: string): Promise<FirmView> {
+    await this.assertEnabled();
     const m = await this.myMembership(userId);
     if (!m) throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
     return this.view(m.firm_id, m.status === 'active', userId);
@@ -161,6 +162,7 @@ export class FirmsService {
 
   /** Public page of a firm: active members and the union of their states. */
   async publicPage(firmId: string): Promise<FirmView> {
+    await this.assertEnabled();
     return this.view(firmId, false);
   }
 
@@ -202,6 +204,7 @@ export class FirmsService {
   }
 
   async accept(userId: string): Promise<FirmView> {
+    await this.assertEnabled();
     const m = await this.myMembership(userId);
     if (!m || m.status !== 'invited') {
       throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
@@ -215,6 +218,7 @@ export class FirmsService {
 
   /** Decline an invitation, leave the firm, or (the owner) remove someone. */
   async remove(userId: string, attorneyId: string): Promise<void> {
+    await this.assertEnabled();
     const mine = await this.myMembership(userId);
     if (!mine) throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
     if (attorneyId !== userId && mine.role !== 'owner') {
@@ -262,6 +266,7 @@ export class FirmsService {
     userId: string,
     caseId: string,
   ): Promise<FirmMemberView[]> {
+    await this.assertEnabled();
     const m = await this.myMembership(userId);
     if (!m || m.status !== 'active') {
       throw new NotFoundException({ code: ErrorCode.NOT_FOUND });

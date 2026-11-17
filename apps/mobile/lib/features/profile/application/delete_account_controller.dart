@@ -195,7 +195,19 @@ class DeleteAccountController extends _$DeleteAccountController {
     final reauthStep = ref.read(isDemoSessionProvider)
         ? DeleteAccountStep.warning
         : _identityStep;
-    final result = await _repo.deleteAccount(reauthToken: token);
+    // R2-A #5: the repository is held before the request, so a person who
+    // left the screen mid-request (this autoDispose notifier is then gone)
+    // is still signed out locally when the deletion succeeds.
+    final repo = _repo;
+    final result = await repo.deleteAccount(reauthToken: token);
+    if (!ref.mounted) {
+      final deleted = result is AccountDeletionSuccess;
+      if (deleted) {
+        AppEvents.track(AppEventNames.accountDeletionRequested);
+        await repo.clearAfterDeletion();
+      }
+      return deleted;
+    }
     var succeeded = false;
     result.when(
       success: () {

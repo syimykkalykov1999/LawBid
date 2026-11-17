@@ -369,7 +369,7 @@ class PagedTileGrid<T> extends StatelessWidget {
           onRefresh: onRefresh,
           child: NotificationListener<ScrollNotification>(
             onNotification: (n) {
-              if (n.metrics.extentAfter < 600 && value.canLoadMore) {
+              if (LoadAhead.nearEnd(n.metrics) && value.canLoadMore) {
                 onLoadMore();
               }
               return false;

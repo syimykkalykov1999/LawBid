@@ -330,6 +330,9 @@ class RealAuthRepository implements AuthRepository {
   Future<void> logoutAll() => _client.logoutAll();
 
   @override
+  Future<void> logoutOthers() => _client.logoutOthers();
+
+  @override
   Future<List<DeviceSession>> listSessions() => _client.listSessions();
 
   @override
