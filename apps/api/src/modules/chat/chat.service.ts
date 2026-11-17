@@ -813,11 +813,26 @@ export class ChatService {
             deleted_at: null,
             updated_at: { gt: anchor.created_at },
             hidden_for: { none: { user_id: user.sub } },
-            // Verify 17.11: any change after the phone's newest message —
-            // edits, deletes for everyone, reactions and «voice played»
-            // (they all move updated_at); the old filter kept only the first
-            // two.
-            AND: [notExpired(), seen],
+            AND: [
+              notExpired(),
+              seen,
+              {
+                OR: [
+                  { edited_at: { gt: anchor.created_at } },
+                  { revoked_at: { gt: anchor.created_at } },
+                  // Verify 17.11: «voice played» and new / changed reactions
+                  // too (they never reached a phone that was offline). Not
+                  // updated_at alone: the key re-encryption job touches every
+                  // row and would make every catch-up a 409.
+                  { listened_at: { gt: anchor.created_at } },
+                  {
+                    reactions: {
+                      some: { created_at: { gt: anchor.created_at } },
+                    },
+                  },
+                ],
+              },
+            ],
           },
           orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
           take: CATCH_UP_MAX + 1,

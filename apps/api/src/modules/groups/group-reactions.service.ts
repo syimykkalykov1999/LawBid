@@ -96,6 +96,12 @@ export class GroupReactionsService {
         });
       }
     }
+    // Verify 17.11: a reaction change is a change of the message for the
+    // offline catch-up (GroupsService.messagesAfter).
+    await this.prisma.chatGroupMessage.updateMany({
+      where: { id: row.id, group_id: groupId },
+      data: { changed_at: new Date() },
+    });
     await this.groups.broadcast(groupId, row);
     return (await this.presenter.messages([row], user.sub))[0];
   }

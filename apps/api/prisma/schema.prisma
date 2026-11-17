@@ -3519,6 +3519,9 @@ model ChatGroupMessage {
   waveform            Int[]                      @default([])
   edited_at           DateTime?                  @db.Timestamptz
   deleted_at          DateTime?                  @db.Timestamptz
+  /// Verify 17.11: the last edit, delete for everyone or reaction change —
+  /// the offline catch-up returns messages changed after the phone's newest.
+  changed_at          DateTime?                  @db.Timestamptz
   /// Owner 2026-10-21: disappearing messages — see messages.expires_at.
   expires_at          DateTime?                  @db.Timestamptz
   /// Owner 2026-10-21 (Telegram): «Forwarded from <name>» — the first

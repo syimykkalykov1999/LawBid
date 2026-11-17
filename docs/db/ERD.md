@@ -1071,6 +1071,7 @@ erDiagram
     Int duration_ms "nullable"
     DateTime edited_at "nullable"
     DateTime deleted_at "nullable"
+    DateTime changed_at "nullable"
     DateTime expires_at "nullable"
     Boolean forwarded
     String forwarded_from_name "nullable"
