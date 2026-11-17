@@ -1,3 +1,4 @@
+import { growthbookHash } from '../../common/vendor/growthbook/hash';
 import { hash01 } from '../recommendations/ranking.math';
 
 /**
@@ -5,6 +6,30 @@ import { hash01 } from '../recommendations/ranking.math';
  * EXPERIMENTS.md): who gets which variant, and the statistics of the nightly
  * report. No I/O here, so every function is unit-tested on its own.
  */
+
+/**
+ * How units are bucketed (owner row 150), stored per experiment and per
+ * flag in `hash_version`:
+ * 1 = the original FNV-1a of seed + unit (`hash01`). Biased on similar ids
+ *     and correlated between similarly named keys; kept for every row that
+ *     existed before, so nobody changes group.
+ * 2 = GrowthBook SDK hash v2, fnv32a(fnv32a(seed + unit) + ''): even on
+ *     sequential ids and independent between experiments. New rows get it.
+ */
+export type HashVersion = 1 | 2;
+export const HASH_VERSIONS: readonly HashVersion[] = [1, 2];
+
+/** Stable 0..1 bucket of [value] under [seed] with the given hash version. */
+export function bucket(
+  seed: string,
+  value: string,
+  hashVersion: HashVersion,
+): number {
+  return hashVersion === 2 ? growthbookHash(seed, value) : hash01(seed + value);
+}
+
+/** A stored hash_version read back; anything unknown counts as 1 (as before). */
+export const toHashVersion = (v: unknown): HashVersion => (v === 2 ? 2 : 1);
 
 export interface VariantWeight {
   key: string;
@@ -22,17 +47,18 @@ export function assignVariant(
   key: string,
   variants: readonly VariantWeight[],
   trafficPercent: number,
+  hashVersion: HashVersion = 1,
 ): string | null {
   if (variants.length === 0 || trafficPercent <= 0) return null;
   if (
     trafficPercent < 100 &&
-    hash01(`${key}:traffic:${unitId}`) * 100 >= trafficPercent
+    bucket(`${key}:traffic:`, unitId, hashVersion) * 100 >= trafficPercent
   ) {
     return null;
   }
   const total = variants.reduce((s, v) => s + Math.max(0, v.weight), 0);
   if (total <= 0) return null;
-  const u = hash01(`${key}:variant:${unitId}`) * total;
+  const u = bucket(`${key}:variant:`, unitId, hashVersion) * total;
   let acc = 0;
   for (const v of variants) {
     acc += Math.max(0, v.weight);
@@ -46,10 +72,11 @@ export function inRollout(
   flagKey: string,
   userId: string,
   percent: number,
+  hashVersion: HashVersion = 1,
 ): boolean {
   if (percent >= 100) return true;
   if (percent <= 0) return false;
-  return hash01(`flag:${flagKey}:${userId}`) * 100 < percent;
+  return bucket(`flag:${flagKey}:`, userId, hashVersion) * 100 < percent;
 }
 
 /** Impressions/clicks are kept for this share of users (same user always in or out). */

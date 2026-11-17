@@ -61,3 +61,100 @@ describe('ClientPlansService.portalSession (owner 2026-10-06)', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
+
+// Owner 16.11: a client pays for a plan with the gold check and gets it at
+// once — no documents — while «Проверка документов клиента» is off; the
+// plan's features come from the plan builder (entitlements frozen on the
+// row) and end with the plan.
+describe('ClientPlansService: plan badge without documents (owner 16.11)', () => {
+  function plan(documents: boolean, badgeRow: Record<string, unknown> | null) {
+    const sub = {
+      id: 's1',
+      user_id: 'u1',
+      status: 'incomplete',
+      trial_ends_at: null,
+      current_period_end: null,
+      canceled_at: null,
+    };
+    let badge = badgeRow;
+    const prisma = {
+      clientSubscription: {
+        findUnique: jest.fn().mockResolvedValue(sub),
+        update: jest.fn(({ data }: { data: Record<string, unknown> }) =>
+          Promise.resolve({ ...sub, ...data }),
+        ),
+      },
+      clientVerification: {
+        findUnique: jest.fn(() => Promise.resolve(badge)),
+        update: jest.fn(({ data }: { data: Record<string, unknown> }) => {
+          badge = { ...badge, ...data };
+          return Promise.resolve(badge);
+        }),
+        upsert: jest.fn(({ create }: { create: Record<string, unknown> }) => {
+          badge = { ...create };
+          return Promise.resolve(badge);
+        }),
+      },
+    } as unknown as PrismaService;
+    const entitlements = {
+      invalidateUser: jest.fn().mockResolvedValue(undefined),
+      forUser: jest.fn().mockResolvedValue({
+        values: { verified_badge: true, video_posts: true },
+      }),
+    } as unknown as EntitlementsService;
+    const settings = {
+      boolean: jest.fn((k: string) =>
+        Promise.resolve(
+          k === 'verification.client_badge_documents' ? documents : false,
+        ),
+      ),
+    };
+    const svc = new ClientPlansService(
+      prisma,
+      {} as PlansService,
+      entitlements,
+      {} as PricingService,
+      { get: () => undefined } as unknown as ConfigService,
+      {} as PaymentProvider,
+      { emit: jest.fn().mockResolvedValue(undefined) } as never,
+      undefined,
+      settings as never,
+    );
+    const active = {
+      id: 'sub_1',
+      customerId: 'cus',
+      status: 'active',
+      currentPeriodEnd: Math.floor(Date.now() / 1000) + 30 * 86400,
+      cancelAtPeriodEnd: false,
+      trialEnd: null,
+      canceledAt: null,
+    };
+    return { svc, active, badge: () => badge };
+  }
+
+  it('documents off: the paid plan approves the badge with no documents', async () => {
+    const { svc, active, badge } = plan(false, null);
+    await svc.applySubscription(active as never);
+    expect(badge()).toMatchObject({
+      user_id: 'u1',
+      status: 'approved',
+      document_file_ids: [],
+    });
+  });
+
+  it('documents on: the plan waits for the documents (no row is made)', async () => {
+    const { svc, active, badge } = plan(true, null);
+    await svc.applySubscription(active as never);
+    expect(badge()).toBeNull();
+  });
+
+  it('documents off: a badge the admin revoked stays revoked', async () => {
+    const { svc, active, badge } = plan(false, {
+      id: 'v1',
+      user_id: 'u1',
+      status: 'revoked',
+    });
+    await svc.applySubscription(active as never);
+    expect(badge()).toMatchObject({ status: 'revoked' });
+  });
+});

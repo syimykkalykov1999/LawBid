@@ -7,6 +7,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { shardContext } from '../src/sharding/shard-context';
 
 /**
  * Owner 2026-10-14: a firm is its lawyers. Members keep their own licences;
@@ -270,21 +271,204 @@ describe('Firm profile (e2e)', () => {
     expect(shown.firm?.name).toBe('Firm C');
   });
 
-  it('is off behind the flag', async () => {
+  // Firms audit 16.11 (PR-1, rest of row 167): the bid records who really
+  // sent it and the member it went out for is told.
+  it('the owner sends a bid as a member: sent_by is the owner, the member is notified', async () => {
+    const owner = await lawyer('NJ');
+    const il = await lawyer('IL');
+    await prisma.subscription.create({
+      data: { user_id: il.id, status: 'active', price_cents: 39900 },
+    });
+    await api()
+      .post('/api/v1/firms')
+      .set(owner.auth)
+      .send({ name: 'Firm S' })
+      .expect(201);
+    await api()
+      .post('/api/v1/firms/me/members')
+      .set(owner.auth)
+      .send({ username: il.username })
+      .expect(200);
+    await api().post('/api/v1/firms/me/accept').set(il.auth).expect(200);
+    const client = await prisma.user.create({ data: { role: 'client' } });
+    const pa = await prisma.practiceArea.upsert({
+      where: { code: 'firm_test_area' },
+      create: {
+        code: 'firm_test_area',
+        name_en: 'E2E firm',
+        i18n_key: 'practice.firm_test',
+        sort: 1,
+      },
+      update: {},
+    });
+    await prisma.attorneyPracticeArea.create({
+      data: { attorney_id: il.id, practice_area_id: pa.id },
+    });
+    const c = await prisma.case.create({
+      data: {
+        client_id: client.id,
+        title: 'Security deposit kept in Chicago',
+        description: 'The landlord keeps the whole deposit after move-out.',
+        practice_area_id: pa.id,
+        primary_state_code: 'IL',
+        budget_mode: 'clarify_later',
+        status: 'open',
+      },
+    });
+    await prisma.caseState.create({
+      data: { case_id: c.id, state_code: 'IL', is_primary: true },
+    });
+    const sent = await api()
+      .post(`/api/v1/cases/${c.id}/bids`)
+      .set(owner.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        feeType: 'fixed',
+        amountCents: 50_000,
+        message: 'Our firm handles deposit disputes in Illinois every week.',
+        startAvailability: 'immediately',
+        sendAsAttorneyId: il.id,
+      });
+    expect(sent.status).toBe(201);
+    const bidId = sent.body.data.id as string;
+    const row = await shardContext.runForCase(c.id, () =>
+      prisma.bid.findUnique({
+        where: { id: bidId },
+        select: { attorney_id: true, sent_by: true },
+      }),
+    );
+    expect(row).toEqual({ attorney_id: il.id, sent_by: owner.id });
+
+    const inbox = await api()
+      .get('/api/v1/notifications')
+      .set(il.auth)
+      .expect(200);
+    const rows = inbox.body.data as {
+      type: string;
+      payload: Record<string, unknown>;
+    }[];
+    const note = rows.find((n) => n.type === 'firm_update');
+    expect(note?.payload).toMatchObject({
+      kind: 'bid_sent_for_you',
+      bidId,
+      caseId: c.id,
+      actorId: owner.id,
+    });
+    // The owner is not told about his own bid.
+    const ownerInbox = await api()
+      .get('/api/v1/notifications')
+      .set(owner.auth)
+      .expect(200);
+    expect(
+      (ownerInbox.body.data as { type: string }[]).some(
+        (n) => n.type === 'firm_update',
+      ),
+    ).toBe(false);
+  });
+
+  it('a bid of my own records me as the sender and notifies no firm member', async () => {
+    const me = await lawyer('NJ');
+    await prisma.subscription.create({
+      data: { user_id: me.id, status: 'active', price_cents: 39900 },
+    });
+    const client = await prisma.user.create({ data: { role: 'client' } });
+    const pa = await prisma.practiceArea.upsert({
+      where: { code: 'firm_test_area' },
+      create: {
+        code: 'firm_test_area',
+        name_en: 'E2E firm',
+        i18n_key: 'practice.firm_test',
+        sort: 1,
+      },
+      update: {},
+    });
+    await prisma.attorneyPracticeArea.create({
+      data: { attorney_id: me.id, practice_area_id: pa.id },
+    });
+    const c = await prisma.case.create({
+      data: {
+        client_id: client.id,
+        title: 'Speeding ticket near Newark',
+        description: 'A ticket on the turnpike, I want to contest it.',
+        practice_area_id: pa.id,
+        primary_state_code: 'NJ',
+        budget_mode: 'clarify_later',
+        status: 'open',
+      },
+    });
+    await prisma.caseState.create({
+      data: { case_id: c.id, state_code: 'NJ', is_primary: true },
+    });
+    const sent = await api()
+      .post(`/api/v1/cases/${c.id}/bids`)
+      .set(me.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        feeType: 'fixed',
+        amountCents: 40_000,
+        message: 'I contest New Jersey tickets every week, happy to help.',
+        startAvailability: 'immediately',
+      })
+      .expect(201);
+    const row = await shardContext.runForCase(c.id, () =>
+      prisma.bid.findUnique({
+        where: { id: sent.body.data.id as string },
+        select: { sent_by: true },
+      }),
+    );
+    expect(row?.sent_by).toBe(me.id);
+    const inbox = await api().get('/api/v1/notifications').set(me.auth);
+    expect(
+      (inbox.body.data as { type: string }[]).some(
+        (n) => n.type === 'firm_update',
+      ),
+    ).toBe(false);
+  });
+
+  it('is off behind the flag: every firm route refuses', async () => {
+    const owner = await lawyer('NJ');
+    const m = await lawyer('NJ');
+    const made = await api()
+      .post('/api/v1/firms')
+      .set(owner.auth)
+      .send({ name: 'Firm Off' })
+      .expect(201);
+    await api()
+      .post('/api/v1/firms/me/members')
+      .set(owner.auth)
+      .send({ username: m.username })
+      .expect(200);
     await prisma.featureFlag.update({
       where: { key: 'firm_profiles' },
       data: { enabled: false },
     });
-    const a = await lawyer('NJ');
-    const r = await api()
-      .post('/api/v1/firms')
-      .set(a.auth)
-      .send({ name: 'Nope' });
-    expect(r.status).toBe(409);
-    expect(r.body.error.code).toBe('FEATURE_DISABLED');
-    await prisma.featureFlag.update({
-      where: { key: 'firm_profiles' },
-      data: { enabled: true },
-    });
+    try {
+      const a = await lawyer('NJ');
+      const calls = [
+        api().post('/api/v1/firms').set(a.auth).send({ name: 'Nope' }),
+        api().get('/api/v1/firms/me').set(owner.auth),
+        api()
+          .get(`/api/v1/firms/${made.body.data.id as string}`)
+          .set(a.auth),
+        api().post('/api/v1/firms/me/accept').set(m.auth),
+        api().delete(`/api/v1/firms/me/members/${m.id}`).set(m.auth),
+        api()
+          .post('/api/v1/firms/me/members')
+          .set(owner.auth)
+          .send({ username: a.username }),
+        api()
+          .get(`/api/v1/firms/me/cases/${randomUUID()}/eligible`)
+          .set(owner.auth),
+      ];
+      for (const r of await Promise.all(calls)) {
+        expect(r.status).toBe(409);
+        expect(r.body.error.code).toBe('FEATURE_DISABLED');
+      }
+    } finally {
+      await prisma.featureFlag.update({
+        where: { key: 'firm_profiles' },
+        data: { enabled: true },
+      });
+    }
   });
 });

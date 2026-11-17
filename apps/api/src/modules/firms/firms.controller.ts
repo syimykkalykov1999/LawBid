@@ -90,7 +90,7 @@ export class FirmsController {
   @Get('me')
   @ApiOperation({ summary: 'My firm (or a pending invitation); 404 if none' })
   @ApiEnvelopeResponse(FirmDto)
-  @ApiErrors({ 404: [E.NOT_FOUND] })
+  @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.FEATURE_DISABLED] })
   myFirm(@CurrentUser() user: RequestUser): Promise<FirmDto> {
     return this.firms.mine(user.sub);
   }
@@ -100,7 +100,10 @@ export class FirmsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Owner invites a lawyer to the firm' })
   @ApiEnvelopeResponse(FirmDto)
-  @ApiErrors({ 403: [E.FORBIDDEN], 409: [E.FIRM_ALREADY_MEMBER, E.FIRM_FULL] })
+  @ApiErrors({
+    403: [E.FORBIDDEN],
+    409: [E.FIRM_ALREADY_MEMBER, E.FIRM_FULL, E.FEATURE_DISABLED],
+  })
   inviteFirmMember(
     @CurrentUser() user: RequestUser,
     @Body() dto: InviteFirmMemberDto,
@@ -113,7 +116,7 @@ export class FirmsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Accept the invitation to a firm' })
   @ApiEnvelopeResponse(FirmDto)
-  @ApiErrors({ 404: [E.NOT_FOUND] })
+  @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.FEATURE_DISABLED] })
   acceptFirmInvite(@CurrentUser() user: RequestUser): Promise<FirmDto> {
     return this.firms.accept(user.sub);
   }
@@ -122,7 +125,11 @@ export class FirmsController {
   @Delete('me/members/:attorneyId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Leave, decline, or (owner) remove a member' })
-  @ApiErrors({ 403: [E.FORBIDDEN], 404: [E.NOT_FOUND] })
+  @ApiErrors({
+    403: [E.FORBIDDEN],
+    404: [E.NOT_FOUND],
+    409: [E.FEATURE_DISABLED],
+  })
   removeFirmMember(
     @CurrentUser() user: RequestUser,
     @Param('attorneyId', ParseUUIDPipe) attorneyId: string,
@@ -134,7 +141,7 @@ export class FirmsController {
   @Get('me/cases/:caseId/eligible')
   @ApiOperation({ summary: 'Members whose licence fits the case' })
   @ApiEnvelopeResponse(FirmMemberDto, { isArray: true })
-  @ApiErrors({ 404: [E.NOT_FOUND] })
+  @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.FEATURE_DISABLED] })
   firmMembersForCase(
     @CurrentUser() user: RequestUser,
     @Param('caseId', ParseUUIDPipe) caseId: string,
@@ -146,7 +153,7 @@ export class FirmsController {
   @Get(':id')
   @ApiOperation({ summary: 'A firm page: active members and their states' })
   @ApiEnvelopeResponse(FirmDto)
-  @ApiErrors({ 404: [E.NOT_FOUND] })
+  @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.FEATURE_DISABLED] })
   getFirm(@Param('id', ParseUUIDPipe) id: string): Promise<FirmDto> {
     return this.firms.publicPage(id);
   }
