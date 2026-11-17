@@ -44,6 +44,9 @@ MyBidItemDto _$MyBidItemDtoFromJson(Map<String, dynamic> json) => MyBidItemDto(
       : BidAttorneySummaryDto.fromJson(
           json['attorney'] as Map<String, dynamic>,
         ),
+  team: (json['team'] as List<dynamic>?)
+      ?.map((e) => BidTeamMemberDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
   coverUrl: json['coverUrl'] as String?,
   coverBlurhash: json['coverBlurhash'] as String?,
 );
@@ -72,6 +75,7 @@ Map<String, dynamic> _$MyBidItemDtoToJson(
   'outsideLicensedStates': instance.outsideLicensedStates,
   'createdAt': instance.createdAt.toIso8601String(),
   'attorney': ?instance.attorney?.toJson(),
+  'team': ?instance.team?.map((e) => e.toJson()).toList(),
   'case': instance.caseValue.toJson(),
   'lastOffer': instance.lastOffer.toJson(),
   'coverUrl': ?instance.coverUrl,

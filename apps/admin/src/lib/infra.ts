@@ -122,5 +122,26 @@ export function latestFor(requests: InfraRequest[] | undefined, itemId: string):
 
 /** «Выкл → Вкл» for the sheet title. */
 export function targetWord(to: string): string {
+  if (to === INFRA_PENDING_STATE) return "Применить";
   return to === "on" ? "Включить" : "Выключить";
+}
+
+/**
+ * Owner 17.11 «Применить изменения из кода»: a request that changes no
+ * switch (API itemId aws.pending): the plan is main's Terraform as is,
+ * then the same 2FA confirm and apply.
+ */
+export const INFRA_PENDING_ID = "aws.pending";
+export const INFRA_PENDING_STATE = "pending";
+
+export function isPending(r: Pick<InfraRequest, "itemId"> | null | undefined): boolean {
+  return r?.itemId === INFRA_PENDING_ID;
+}
+
+/** Why the confirm would be refused now (quiet hours), or null. */
+export function quietHoursNote(
+  g: Pick<InfraOverview["guards"], "quietHours" | "inQuietWindow"> | null | undefined,
+): string | null {
+  if (!g || g.inQuietWindow || !g.quietHours) return null;
+  return `Подтвердить можно только в тихие часы: ${g.quietHours} (Чикаго). План готовится и сейчас, но действует 30 минут.`;
 }

@@ -34,6 +34,7 @@ import {
 import { CaseJournalService } from '../journal/case-journal.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { FirmsService } from '../firms/firms.service';
+import { BidTeamService } from '../firms/bid-team.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
 import { EntitlementsService } from '../plans/entitlements.service';
@@ -152,6 +153,8 @@ export class BidsService {
     @Optional() private readonly rankingEvents?: RankingEventsService,
     // Firms audit 16.11 (PR-4, owner): one bid per firm per case.
     @Optional() private readonly firms?: FirmsService,
+    // Firms audit 16.11 (PR-5): the firm's team on a bid.
+    @Optional() private readonly team?: BidTeamService,
   ) {}
 
   /** Firms audit 16.11 (PR-4, owner): a live bid of a colleague of the
@@ -229,8 +232,11 @@ export class BidsService {
       skipDuplicates: true,
     });
     if (made.count > 0) {
+      // PR-5: the lawyers already on the bid's team hear it too (the same
+      // `bid_joined` news: «A colleague joined your bid»).
+      const team = (await this.team?.teamIds(bid)) ?? [];
       const tell = [
-        ...new Set([bid.attorney_id, bid.sent_by].filter(Boolean)),
+        ...new Set([bid.attorney_id, bid.sent_by, ...team].filter(Boolean)),
       ].filter((id): id is string => !!id && id !== user.sub);
       for (const recipientId of tell) {
         await this.notifications.emit({

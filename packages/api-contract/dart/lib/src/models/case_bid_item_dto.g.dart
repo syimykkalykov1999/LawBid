@@ -45,6 +45,9 @@ CaseBidItemDto _$CaseBidItemDtoFromJson(Map<String, dynamic> json) =>
       confirmationRequiredAt: json['confirmationRequiredAt'] == null
           ? null
           : DateTime.parse(json['confirmationRequiredAt'] as String),
+      team: (json['team'] as List<dynamic>?)
+          ?.map((e) => BidTeamMemberDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
 
 Map<String, dynamic> _$CaseBidItemDtoToJson(
@@ -70,6 +73,7 @@ Map<String, dynamic> _$CaseBidItemDtoToJson(
   'outsidePractice': instance.outsidePractice,
   'outsideLicensedStates': instance.outsideLicensedStates,
   'createdAt': instance.createdAt.toIso8601String(),
+  'team': ?instance.team?.map((e) => e.toJson()).toList(),
   'attorney': instance.attorney.toJson(),
   'bestPrice': instance.bestPrice,
   'lowOffer': instance.lowOffer,

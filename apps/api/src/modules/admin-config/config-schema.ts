@@ -248,6 +248,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Phones whose ICE list said relay pass only relay candidates to the other phone (older apps ignore the policy). Off = every signal passes unchanged.',
   };
+  out['calls.call_waiting'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Call waiting (WhatsApp): someone talking in a 1:1 call is rung for a second 1:1 call with Decline / End & Accept; the caller hears ringing. Off = the second caller gets busy at once.',
+  };
   out['calls.transport_report_ratio_pct'] = {
     type: 'integer',
     defaultValue: 30,

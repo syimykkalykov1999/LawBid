@@ -29,6 +29,8 @@ export function apiBaseOf(req: {
 export type PayKind =
   | 'subscription'
   | 'seats'
+  // Owner row 87 (plan PR 8): the «Горячая линия» add-on.
+  | 'hotline'
   | 'promotion'
   // Owner 2026-10-22 («лечи всё»): every other purchase on the same page.
   | 'stars'
@@ -60,6 +62,7 @@ export interface PayPayload {
 export type PayOrder =
   | { kind: 'subscription'; order: CheckoutRequestDto }
   | { kind: 'seats'; seats: number }
+  | { kind: 'hotline' }
   | { kind: 'promotion'; promotionId: string }
   | { kind: 'stars' | 'bid_pack'; purchaseId: string }
   | { kind: 'client_plan'; planCode?: string }
@@ -75,6 +78,8 @@ function payloadOf(order: PayOrder): Partial<PayPayload> {
       return { r: order.order };
     case 'seats':
       return { k: 'seats', s: order.seats };
+    case 'hotline':
+      return { k: 'hotline' };
     case 'promotion':
       return { k: 'promotion', p: order.promotionId };
     case 'stars':

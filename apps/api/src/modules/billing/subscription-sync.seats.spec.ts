@@ -100,6 +100,7 @@ describe('SubscriptionSyncService seats', () => {
       bids: { withdrawActiveBidsForAttorney: jest.fn() },
       pricing: {
         allSeatPriceIds: jest.fn().mockResolvedValue(['price_seat']),
+        allHotlinePriceIds: jest.fn().mockResolvedValue(['price_hl']),
       },
       logger: { warn: jest.fn(), debug: jest.fn(), error: jest.fn() },
     });
@@ -151,6 +152,23 @@ describe('SubscriptionSyncService seats', () => {
     expect(order[0]).toBe('seatPriceIds');
     expect(order.filter((o) => o === 'seatPriceIds')).toHaveLength(1);
     expect(order).toContain('transaction');
+  });
+
+  it('row 87 (plan PR 8): the hotline add-on item turns it on, its price on top of the seats', async () => {
+    const { svc, updates } = setup({
+      local: { hotline_addon: false, hotline_addon_invoice_id: 'in_hl' },
+    });
+    const r = remote(3);
+    r.items!.push({ priceId: 'price_hl', quantity: 1, unitAmountCents: 4_900 });
+    await svc.apply(r);
+    expect(updates[0]).toMatchObject({
+      assistant_seats: 3,
+      hotline_addon: true,
+      hotline_addon_ends_at: null,
+      hotline_addon_invoice_id: null,
+      // 59 900 + 1 seat × 10 000 + the add-on 4 900.
+      price_cents: 74_800,
+    });
   });
 
   it('reads the seat quantity from Stripe (a purchase applied after 3DS)', async () => {

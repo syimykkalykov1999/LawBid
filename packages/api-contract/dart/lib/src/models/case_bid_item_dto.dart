@@ -6,6 +6,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'bid_attorney_summary_dto.dart';
 import 'bid_status.dart';
+import 'bid_team_member_dto.dart';
 import 'fee_type.dart';
 import 'party_role.dart';
 import 'payment_terms_dto.dart';
@@ -39,6 +40,7 @@ class CaseBidItemDto {
     this.paymentTerms,
     this.percentBps,
     this.confirmationRequiredAt,
+    this.team,
   });
 
   factory CaseBidItemDto.fromJson(Map<String, Object?> json) =>
@@ -78,6 +80,11 @@ class CaseBidItemDto {
   /// case's states — bidding is allowed, the client is told.
   final bool outsideLicensedStates;
   final DateTime createdAt;
+
+  /// Firms audit 16.11 (PR-5): the firm's team on the bid (the lawyers who.
+  /// joined it, still in the firm) — only on GET /bids/:id; empty with the.
+  /// `firm_profiles` switch off.
+  final List<BidTeamMemberDto>? team;
   final BidAttorneySummaryDto attorney;
 
   /// Owner 2026-10-25: the lowest reasonable price on the case (suspiciously low bids excluded). For a later "best price" label.

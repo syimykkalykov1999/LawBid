@@ -28,8 +28,10 @@ CaseBid bidFixture({
   FeeType fee = FeeType.fixed,
   String id = 'bid-1',
   BidStatus status = BidStatus.active,
+  List<String> teamNames = const [],
 }) =>
     CaseBid(
+      teamNames: teamNames,
       id: id,
       caseId: 'case-1',
       attorneyId: 'att-1',
@@ -518,6 +520,31 @@ void main() {
       expect(find.text('Decline'), findsOneWidget);
       expect(find.text('Counter-offer'), findsWidgets);
       expect(find.text('Round 0 of 5'), findsWidgets);
+    });
+
+    testWidgets("the client sees the firm's team on the bid", (tester) async {
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: clientMe(),
+        extra: casesOverrides(
+          repo: _BidRepo(bidFixture(teamNames: ['Ann Lee', 'Bo Kim'])),
+        ),
+      );
+      await tester.pumpWidget(wrap(const BidDetailScreen(bidId: 'bid-1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('bid-firm-team')), findsOneWidget);
+      expect(find.text('Ann Lee, Bo Kim'), findsOneWidget);
+    });
+
+    testWidgets('no team row without a team', (tester) async {
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: clientMe(),
+        extra: casesOverrides(repo: _BidRepo(bidFixture())),
+      );
+      await tester.pumpWidget(wrap(const BidDetailScreen(bidId: 'bid-1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('bid-firm-team')), findsNothing);
     });
 
     testWidgets("attorney's turn is not now: no accept button", (tester) async {

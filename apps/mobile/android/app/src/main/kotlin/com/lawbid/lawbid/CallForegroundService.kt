@@ -24,6 +24,9 @@ class CallForegroundService : Service() {
 
     private var wakeLock: android.os.PowerManager.WakeLock? = null
 
+    /** Row 216: a cellular call holds the LawBid call (see CallHoldWatcher). */
+    private var holdWatcher: CallHoldWatcher? = null
+
     /** Swiped from the recent apps: the Flutter engine lives in the activity
      * and dies with it (the call's WebRTC and signaling are Dart), so a
      * service that stayed would only show a call that is no longer there
@@ -39,6 +42,8 @@ class CallForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        holdWatcher?.stop()
+        holdWatcher = null
         try {
             wakeLock?.takeIf { it.isHeld }?.release()
         } catch (e: Exception) {
@@ -51,10 +56,15 @@ class CallForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            holdWatcher?.stop()
+            holdWatcher = null
             stopForeground(STOP_FOREGROUND_REMOVE)
             clearNotification()
             stopSelf()
             return START_NOT_STICKY
+        }
+        if (holdWatcher == null) {
+            holdWatcher = CallHoldWatcher(this).also { it.start() }
         }
         if (wakeLock == null) {
             // The CPU stays on for the whole call (screen off, Doze).

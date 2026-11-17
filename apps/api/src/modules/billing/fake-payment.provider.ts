@@ -142,15 +142,23 @@ export class FakePaymentProvider implements PaymentProvider {
   }
   /** Seat quantities set on fake subscriptions (OQ-048). */
   readonly seats = new Map<string, number>();
+  /** Owner row 87 (plan PR 8): the hotline add-on quantity (0 / 1) of
+   * fake subscriptions — its own item, never counted as seats. */
+  readonly addons = new Map<string, number>();
+
+  private itemsOf(priceId: string): Map<string, number> {
+    const kind = this.prices.get(priceId)?.metadata.kind ?? '';
+    return kind.startsWith('hotline.') ? this.addons : this.seats;
+  }
 
   setSeatQuantity(
     subscriptionId: string,
-    _seatPriceId: string,
+    seatPriceId: string,
     quantity: number,
   ): Promise<ProviderSubscription> {
     const cur = this.subscriptions.get(subscriptionId);
     if (!cur) throw new Error('no such subscription');
-    this.seats.set(subscriptionId, quantity);
+    this.itemsOf(seatPriceId).set(subscriptionId, quantity);
     return Promise.resolve(strip(cur));
   }
 
@@ -186,7 +194,8 @@ export class FakePaymentProvider implements PaymentProvider {
   ): Promise<ProviderSeatCharge> {
     const cur = this.subscriptions.get(input.subscriptionId);
     if (!cur) throw new Error('no such subscription');
-    const before = this.seats.get(input.subscriptionId) ?? 0;
+    const items = this.itemsOf(input.seatPriceId);
+    const before = items.get(input.subscriptionId) ?? 0;
     const amountCents = this.proratedSeatCents(
       cur,
       input.seatPriceId,
@@ -195,8 +204,7 @@ export class FakePaymentProvider implements PaymentProvider {
     );
     const invoiceId = `in_fake_seats_${randomUUID().slice(0, 8)}`;
     const status = this.seatChargeOutcome;
-    if (status === 'applied')
-      this.seats.set(input.subscriptionId, input.quantity);
+    if (status === 'applied') items.set(input.subscriptionId, input.quantity);
     this.invoices.set(invoiceId, {
       id: invoiceId,
       customerId: cur.customerId,
