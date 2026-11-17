@@ -141,7 +141,13 @@ class _VideoEditorScreenState extends ConsumerState<VideoEditorScreen>
   void _scheduleCoverFrame() {
     _coverTimer?.cancel();
     _coverTimer = Timer(const Duration(milliseconds: 250), () async {
-      final bytes = await videoFrame(widget.file, _cut.coverMs, quality: 60);
+      // Row 199: the cover in the admin's photo quality, not 60.
+      final bytes = await videoFrame(
+        widget.file,
+        _cut.coverMs,
+        quality:
+            photoLimitsOf(ref.read(featureFlagsControllerProvider)).quality,
+      );
       if (mounted && bytes != null) setState(() => _coverFrame = bytes);
     });
   }
