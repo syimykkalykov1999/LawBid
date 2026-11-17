@@ -2345,6 +2345,7 @@
   "form.disabled.required": "Fyll først ut de obligatoriske feltene.",
   "gallery.accessDenied": "Ingen tilgang til bildene dine. Tillat det i telefoninnstillingene.",
   "gallery.saveFailed": "Kunne ikke lagre bildet. Prøv igjen.",
+  "gallery.shareFailed": "Kunne ikke dele. Prøv igjen.",
   "gate.verify.cases": "Saker åpnes etter at LawBid har bekreftet lisensen din. Det tar vanligvis 1–2 virkedager.",
   "gate.verify.cta": "Fullfør verifiseringen",
   "gate.verify.post": "Bare verifiserte advokater kan publisere i feeden, slik at klientene alltid vet hvem de leser.",

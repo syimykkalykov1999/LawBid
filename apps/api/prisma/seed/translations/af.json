@@ -2345,6 +2345,7 @@
   "form.disabled.required": "Vul eers die verpligte velde in.",
   "gallery.accessDenied": "Geen toegang tot jou foto's nie. Laat dit toe in jou foon se instellings.",
   "gallery.saveFailed": "Kon nie die foto stoor nie. Probeer asseblief weer.",
+  "gallery.shareFailed": "Kon nie deel nie. Probeer weer.",
   "gate.verify.cases": "Sake maak oop nadat LawBid jou lisensie bevestig het. Dit neem gewoonlik 1–2 werksdae.",
   "gate.verify.cta": "Voltooi verifiëring",
   "gate.verify.post": "Slegs geverifieerde prokureurs kan in die stroom plaas, sodat kliënte altyd weet wie hulle lees.",

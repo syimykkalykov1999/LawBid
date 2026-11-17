@@ -16,6 +16,14 @@ export interface R2Keys {
  * `R2_TEST_ENDPOINT` points the client at a local MinIO for the e2e suite
  * (test/r2-public-store.e2e-spec.ts); production ignores it.
  */
+/** Time limits of the object-storage clients (R2 and S3): connect within
+ * 3 s; a socket idle for 30 s is given up (idle, not total — a long
+ * server-side copy keeps its connection busy). */
+export const STORAGE_REQUEST_HANDLER = {
+  connectionTimeout: 3_000,
+  requestTimeout: 30_000,
+};
+
 export function createR2Client(keys: R2Keys): S3Client {
   const test =
     process.env.NODE_ENV === 'production'
@@ -30,6 +38,9 @@ export function createR2Client(keys: R2Keys): S3Client {
       accessKeyId: keys.accessKeyId,
       secretAccessKey: keys.secretAccessKey,
     },
+    // Infra audit 14.11 (as SES does): a bucket that stops answering frees
+    // the request and its socket; the SDK default is no limit at all.
+    requestHandler: STORAGE_REQUEST_HANDLER,
     // Newer SDK checksums are not accepted by every R2 operation.
     requestChecksumCalculation: 'WHEN_REQUIRED',
     responseChecksumValidation: 'WHEN_REQUIRED',
