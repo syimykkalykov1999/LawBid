@@ -459,6 +459,7 @@ export 'models/firm_dto.dart';
 export 'models/create_firm_dto.dart';
 export 'models/firm_envelope.dart';
 export 'models/invite_firm_member_dto.dart';
+export 'models/transfer_firm_owner_dto.dart';
 export 'models/firm_member_list_envelope.dart';
 export 'models/admin_ban_dto.dart';
 export 'models/admin_ban_list_envelope.dart';
