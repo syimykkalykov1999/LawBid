@@ -22,6 +22,7 @@ import '../models/group_list_envelope.dart';
 import '../models/group_member_list_envelope.dart';
 import '../models/group_message_envelope.dart';
 import '../models/group_message_list_envelope.dart';
+import '../models/group_message_readers_envelope.dart';
 import '../models/group_person_list_envelope.dart';
 import '../models/group_read_result_envelope.dart';
 import '../models/group_shared_kind.dart';
@@ -250,6 +251,14 @@ abstract class GroupsClient {
   /// Delete for everyone (the author, or an admin)
   @DELETE('/groups/{id}/messages/{messageId}')
   Future<void> deleteGroupMessage({
+    @Path('id') required String id,
+    @Path('messageId') required String messageId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Who has read my message (the author only)
+  @GET('/groups/{id}/messages/{messageId}/readers')
+  Future<GroupMessageReadersEnvelope> groupMessageReaders({
     @Path('id') required String id,
     @Path('messageId') required String messageId,
     @Extras() Map<String, dynamic>? extras,
