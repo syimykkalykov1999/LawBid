@@ -247,6 +247,8 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
       durationMs: cut.totalMs,
       limits: limits,
       reencodeAboveKbps: videoReencodeAboveKbpsOf(flags),
+      oneEncode: bunnyOneEncodeOf(flags),
+      maxBytes: videoMaxBytesOf(flags),
     );
     if (!need) return null;
     final compressor = ref.read(videoCompressorProvider);

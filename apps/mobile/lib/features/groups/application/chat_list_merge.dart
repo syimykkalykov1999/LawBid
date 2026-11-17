@@ -19,6 +19,9 @@ sealed class ChatListEntry {
 
   /// Last message time, else the last update.
   DateTime get activityAt;
+
+  /// Row 110: the row shows under the «Unread» filter.
+  bool get hasUnread;
 }
 
 final class DirectChatEntry extends ChatListEntry {
@@ -35,6 +38,9 @@ final class DirectChatEntry extends ChatListEntry {
   @override
   DateTime get activityAt =>
       conversation.lastMessageAt ?? conversation.updatedAt;
+
+  @override
+  bool get hasUnread => conversation.hasUnread;
 }
 
 final class GroupChatEntry extends ChatListEntry {
@@ -50,6 +56,9 @@ final class GroupChatEntry extends ChatListEntry {
 
   @override
   DateTime get activityAt => group.lastMessageAt ?? group.updatedAt;
+
+  @override
+  bool get hasUnread => group.unreadCount > 0;
 }
 
 /// R-404 (b) (owner 2026-11-04, Telegram: one person = one row): in «All»
@@ -96,6 +105,9 @@ final class PersonChatEntry extends ChatListEntry {
     return best!;
   }
 
+  @override
+  bool get hasUnread => conversations.any((c) => c.hasUnread);
+
   int get unread {
     var n = 0;
     for (final c in conversations) {
@@ -127,6 +139,7 @@ final class PersonChatEntry extends ChatListEntry {
         callsMuted: n.callsMuted,
         isDirect: true,
         pinnedAt: pinned ? n.pinnedAt ?? n.updatedAt : null,
+        markedUnread: hasUnread && unread == 0,
         blocked: n.blocked,
       );
     }
@@ -401,7 +414,7 @@ Future<void> updateMyGroup(
               : muted == null
                   ? null
                   : muted
-                      ? now.add(const Duration(days: 3650))
+                      ? now.add(kMuteForever)
                       : now.subtract(const Duration(seconds: 1)),
         ),
       );

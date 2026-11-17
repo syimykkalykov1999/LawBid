@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { access } from 'node:fs/promises';
 import { getHeapStatistics } from 'node:v8';
-import { monitorEventLoopDelay, type IntervalHistogram } from 'node:perf_hooks';
+import { monitorEventLoopDelay, type ELDHistogram } from 'node:perf_hooks';
 import { LoopStallService } from './loop-stall';
 
 const EMIT_MS = 60_000;
@@ -81,7 +81,7 @@ export function emfLine(
 export class RuntimeStatsService
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
-  private histogram?: IntervalHistogram;
+  private histogram?: ELDHistogram;
   private timer?: NodeJS.Timeout;
   /** Worst thread-pool lag seen since the last emit (S8-7). */
   private poolLagMs = 0;

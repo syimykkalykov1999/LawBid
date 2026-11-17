@@ -858,6 +858,7 @@ erDiagram
     DateTime pinned_at "nullable"
     DateTime hidden_at "nullable"
     DateTime archived_at "nullable"
+    DateTime marked_unread_at "nullable"
     DateTime created_at
     DateTime updated_at
     Int shard_id
