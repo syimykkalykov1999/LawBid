@@ -1,12 +1,12 @@
 #!/bin/sh
-# End-to-end test of the online table conversion on a throw-away PostgreSQL 16
+# End-to-end test of the online table conversion on a throw-away PostgreSQL 18 (prod engine)
 # (docker). Starts a container, runs the integration spec, removes it.
 #   sh scripts/ops/partition-selftest.sh
 set -eu
 NAME=lawbid-partition-selftest
 PORT=${PARTITION_TEST_PORT:-55433}
 docker rm -f "$NAME" >/dev/null 2>&1 || true
-docker run -d --name "$NAME" -e POSTGRES_PASSWORD=pw -e POSTGRES_DB=t -p "$PORT:5432" postgres:16 >/dev/null
+docker run -d --name "$NAME" -e POSTGRES_PASSWORD=pw -e POSTGRES_DB=t -p "$PORT:5432" postgres:18.6 >/dev/null
 trap 'docker rm -f "$NAME" >/dev/null 2>&1 || true' EXIT
 i=0
 until docker exec "$NAME" pg_isready -U postgres -d t >/dev/null 2>&1; do
