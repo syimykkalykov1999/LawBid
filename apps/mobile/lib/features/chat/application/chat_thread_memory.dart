@@ -16,24 +16,30 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 ///
 /// Small on purpose: [capacity] chats × [pageSize] messages, least
 /// recently used dropped first.
-class ChatThreadMemory {
-  ChatThreadMemory({this.capacity = 12, this.pageSize = 50});
+class ChatThreadMemory extends ThreadMemory<ChatMessage> {
+  ChatThreadMemory({super.capacity, super.pageSize});
+}
+
+/// The memory of [ChatThreadMemory] for any kind of message (groups
+/// WhatsApp parity: the group threads keep theirs the same way).
+class ThreadMemory<T> {
+  ThreadMemory({this.capacity = 12, this.pageSize = 50});
 
   final int capacity;
   final int pageSize;
-  final _pages = <String, List<ChatMessage>>{};
+  final _pages = <String, List<T>>{};
 
   bool contains(String conversationId) => _pages.containsKey(conversationId);
 
   /// The remembered page (newest first), marking it as used now.
-  List<ChatMessage>? take(String conversationId) {
+  List<T>? take(String conversationId) {
     final page = _pages.remove(conversationId);
     if (page != null) _pages[conversationId] = page;
     return page;
   }
 
   /// Remembers the newest [pageSize] of [messages] (newest first).
-  void put(String conversationId, List<ChatMessage> messages) {
+  void put(String conversationId, List<T> messages) {
     if (messages.isEmpty) return;
     _pages.remove(conversationId);
     _pages[conversationId] = messages.length > pageSize
