@@ -413,6 +413,25 @@ class ApiSocialRepository implements SocialRepository {
     }
   }
 
+  /// Verify 17.11: an archived post shown in the profile again is no
+  /// longer «gone» from the phone's copy of the feed.
+  Future<void> _forgetGone(String id) async {
+    final key = _goneKey;
+    if (key == null) return;
+    try {
+      final gone = await _goneIds();
+      if (gone.remove(id) == null) return;
+      await _local.savePage(
+        key,
+        jsonEncode({
+          for (final e in gone.entries) e.key: e.value.toIso8601String(),
+        }),
+      );
+    } on Object catch (e) {
+      debugPrint('deleted posts write: $e');
+    }
+  }
+
   Future<CursorPage<Post>> _withoutGone(CursorPage<Post> page) async {
     final gone = await _goneIds();
     if (gone.isEmpty) return page;
@@ -738,15 +757,21 @@ class ApiSocialRepository implements SocialRepository {
       );
 
   @override
-  Future<Post> setPostArchived(String id, {required bool archived}) async =>
-      SocialMappers.post(
-        (await guardApiCall(
-          () => archived
-              ? _posts.archivePost(id: id)
-              : _posts.unarchivePost(id: id),
-        ))
-            .data,
-      );
+  Future<Post> setPostArchived(String id, {required bool archived}) async {
+    final post = SocialMappers.post(
+      (await guardApiCall(
+        () => archived
+            ? _posts.archivePost(id: id)
+            : _posts.unarchivePost(id: id),
+      ))
+          .data,
+    );
+    // Verify 17.11: like a deleted post, an archived one stays out of the
+    // phone's copy of the feed after a restart (it flashed back before the
+    // live page came).
+    await (archived ? _rememberGone(id) : _forgetGone(id));
+    return post;
+  }
 
   @override
   Future<CursorPage<Post>> archivedPosts({String? cursor}) async {
