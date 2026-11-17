@@ -1280,9 +1280,10 @@ class _MessageListState extends ConsumerState<_MessageList> {
                     );
                   }
                   BuildCounter.hit('chat.row');
-                  // Prefetch the older page ~8 rows before the top, so history
-                  // is already there when the user scrolls up (Telegram-style).
-                  if (i >= entries.length - 8 &&
+                  // Prefetch the older page a few rows before the top, so
+                  // history is already there when the user scrolls up
+                  // (Telegram-style). Row 38: `client.load_ahead_rows`.
+                  if (i >= entries.length - LoadAhead.rows &&
                       state.nextCursor != null &&
                       !state.loadingMore &&
                       !state.loadMoreFailed &&

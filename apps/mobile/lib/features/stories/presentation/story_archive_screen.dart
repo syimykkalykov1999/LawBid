@@ -28,7 +28,7 @@ class _StoryArchiveScreenState extends ConsumerState<StoryArchiveScreen> {
   void initState() {
     super.initState();
     _scroll.addListener(() {
-      if (_scroll.position.extentAfter < 400) {
+      if (LoadAhead.nearEnd(_scroll.position)) {
         ref.read(storyArchiveProvider.notifier).loadMore();
       }
     });

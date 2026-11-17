@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/navigation/shell/desktop_input.dart';
 import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/presentation/voice_hold.dart';
@@ -185,6 +186,20 @@ class _GroupComposerState extends ConsumerState<GroupComposer>
     _focus.requestFocus();
   }
 
+  /// Desktop web Enter (review 14.11, Telegram Desktop): with the @mention
+  /// list open it picks the first person instead of sending «@an».
+  void _enter() {
+    final q = _query;
+    if (q != null) {
+      final found = _candidates(q);
+      if (found.isNotEmpty) {
+        _pick(found.first);
+        return;
+      }
+    }
+    _submit();
+  }
+
   void _submit() {
     final text = _text.text.trim();
     if (text.isEmpty) return;
@@ -313,37 +328,52 @@ class _GroupComposerState extends ConsumerState<GroupComposer>
           controller: _text,
           max: maxChars,
           showFrom: counterFrom,
-          child: TextField(
+          // Row 110 (desktop web, like the direct chat): Enter sends,
+          // Shift+Enter is a new line, Esc closes the reply / edit bar.
+          child: DesktopSendOnEnter(
+            onSend: _enter,
             controller: _text,
-            focusNode: _focus,
-            onTapOutside: hideKeyboardOnTapOutside,
-            minLines: 1,
-            maxLines: 5,
-            maxLength: maxChars,
-            buildCounter: noFieldCounter,
-            textCapitalization: TextCapitalization.sentences,
-            style: type.body.copyWith(color: colors.text),
-            decoration: InputDecoration(
-              hintText: t.t('chat.hint'),
-              filled: true,
-              fillColor: colors.bg,
-              contentPadding: EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.md,
-                AppSpacing.md + (near ? kInsideCounterRoom : 0),
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
-                borderSide: BorderSide(color: colors.border),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
-                borderSide: BorderSide(color: colors.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(24),
-                borderSide: BorderSide(color: colors.gold),
+            onEscape: () {
+              final close = widget.editing != null
+                  ? widget.onCancelEdit
+                  : widget.replyTo != null
+                      ? widget.onCancelReply
+                      : null;
+              close?.call();
+              return close != null;
+            },
+            child: TextField(
+              controller: _text,
+              focusNode: _focus,
+              onTapOutside: hideKeyboardOnTapOutside,
+              minLines: 1,
+              maxLines: 5,
+              maxLength: maxChars,
+              buildCounter: noFieldCounter,
+              textCapitalization: TextCapitalization.sentences,
+              style: type.body.copyWith(color: colors.text),
+              decoration: InputDecoration(
+                hintText: t.t('chat.hint'),
+                filled: true,
+                fillColor: colors.bg,
+                contentPadding: EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md,
+                  AppSpacing.md + (near ? kInsideCounterRoom : 0),
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide(color: colors.gold),
+                ),
               ),
             ),
           ),
