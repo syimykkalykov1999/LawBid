@@ -144,6 +144,8 @@ interface Fx {
   subscriber: string;
   channel: string;
   tag: string;
+  /** A feed cursor deep in the "every other post" tail (row 126). */
+  feedTailCursor: string;
 }
 
 // A v4-shaped id: the strict id validators of some routes reject the plain
@@ -210,7 +212,23 @@ async function fixtures(db: PrismaClient): Promise<Fx> {
   const channel = await one(`
     SELECT s.channel_id::text, s.user_id::text FROM channel_subscriptions s
     ORDER BY s.channel_id LIMIT 1`);
+  // Row 126: the tail keyset was a Filter, not an index range — a page deep
+  // in the tail read every newer post (EXPLAIN: 290 001 rows removed at
+  // depth 290 000). A cursor halfway down the posts keeps that measured.
+  const deepPost = await one(`
+    SELECT id::text, to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS t
+    FROM posts ORDER BY created_at DESC, id DESC
+    OFFSET (SELECT count(*) / 2 FROM posts) LIMIT 1`);
+  const feedTailCursor = Buffer.from(
+    JSON.stringify({
+      f: null,
+      r: 0,
+      v: null,
+      l: { t: deepPost.t, id: deepPost.id },
+    }),
+  ).toString('base64url');
   return {
+    feedTailCursor,
     client: kase.client_id,
     attorney: conv.attorney_id,
     attorneyUsername: conv.username,
@@ -235,6 +253,11 @@ function endpoints(f: Fx): Endpoint[] {
   return [
     // feed, reels, stories
     { label: 'feed', path: '/feed', as: 'client' },
+    {
+      label: 'feed tail (deep cursor)',
+      path: `/feed?cursor=${f.feedTailCursor}`,
+      as: 'client',
+    },
     { label: 'reels', path: '/reels', as: 'client' },
     { label: 'stories tray', path: '/stories/tray', as: 'client' },
     {

@@ -91,6 +91,22 @@ export class ReauthTokenDto {
   reauthToken!: string;
 }
 
+/** POST /auth/social/nonce (detective R2B-9, 14.11). */
+export class SocialNonceDto {
+  @ApiProperty({
+    description:
+      'One-time nonce to hand to Google sign-in and send back as `nonce` of POST /auth/social (or Google linking). Works once.',
+  })
+  nonce!: string;
+
+  @ApiProperty({
+    format: 'date-time',
+    description:
+      'After this the nonce is refused (admin auth.social_nonce_ttl_sec).',
+  })
+  expiresAt!: string;
+}
+
 /** POST /auth/otp/request. */
 export class OtpSentDto {
   @ApiProperty({ description: 'Always true: the code was sent.' })
