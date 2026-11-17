@@ -2587,6 +2587,7 @@
   "group.picker.done": "Eginda ({count})",
   "group.picker.doneNone": "Eginda",
   "group.picker.empty": "Hasi lehenik norbaitekin txat bat, gero hemen gehitu ahalko duzu. Edo partekatu taldearen esteka.",
+  "group.picker.frequent": "Maiz harremanetan",
   "group.picker.noMatch": "Ez da inor aurkitu",
   "group.picker.remove": "Kendu",
   "group.picker.search": "Bilatu",

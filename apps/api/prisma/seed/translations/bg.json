@@ -2587,6 +2587,7 @@
   "group.picker.done": "Готово ({count})",
   "group.picker.doneNone": "Готово",
   "group.picker.empty": "Първо започнете чат с някого, после ще можете да го добавите тук. Или споделете връзката към групата.",
+  "group.picker.frequent": "Чести контакти",
   "group.picker.noMatch": "Не е намерен никой",
   "group.picker.remove": "Премахни",
   "group.picker.search": "Търсене",

@@ -2587,6 +2587,7 @@
   "group.picker.done": "ပြီးပြီ ({count})",
   "group.picker.doneNone": "ပြီးပြီ",
   "group.picker.empty": "အရင်ဆုံး တစ်ဦးဦးနှင့် ချက်တင်စတင်ပါ၊ ထို့နောက် ဤနေရာတွင် ထည့်နိုင်ပါသည်။ သို့မဟုတ် အုပ်စုလင့်ခ်ကို မျှဝေပါ။",
+  "group.picker.frequent": "မကြာခဏ ဆက်သွယ်သူများ",
   "group.picker.noMatch": "မည်သူမျှ မတွေ့ပါ",
   "group.picker.remove": "ဖယ်ရှားရန်",
   "group.picker.search": "ရှာရန်",

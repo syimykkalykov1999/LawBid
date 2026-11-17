@@ -2587,6 +2587,7 @@
   "group.picker.done": "تأیید ({count})",
   "group.picker.doneNone": "تأیید",
   "group.picker.empty": "ابتدا با کسی گفتگو را شروع کنید، سپس می‌توانید او را اینجا اضافه کنید. یا پیوند گروه را به اشتراک بگذارید.",
+  "group.picker.frequent": "مخاطبان پرتکرار",
   "group.picker.noMatch": "کسی پیدا نشد",
   "group.picker.remove": "حذف",
   "group.picker.search": "جستجو",

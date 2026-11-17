@@ -2587,6 +2587,7 @@
   "group.picker.done": "Ferdig ({count})",
   "group.picker.doneNone": "Ferdig",
   "group.picker.empty": "Start en samtale med noen først, så kan du legge dem til her. Eller del gruppelenken.",
+  "group.picker.frequent": "Ofte kontaktet",
   "group.picker.noMatch": "Ingen funnet",
   "group.picker.remove": "Fjern",
   "group.picker.search": "Søk",

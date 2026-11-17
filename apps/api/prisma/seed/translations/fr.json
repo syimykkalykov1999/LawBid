@@ -2587,6 +2587,7 @@
   "group.picker.done": "Terminé ({count})",
   "group.picker.doneNone": "Terminé",
   "group.picker.empty": "Commencez d'abord une discussion avec quelqu'un, puis vous pourrez l'ajouter ici. Ou partagez le lien du groupe.",
+  "group.picker.frequent": "Contacts fréquents",
   "group.picker.noMatch": "Aucun résultat",
   "group.picker.remove": "Retirer",
   "group.picker.search": "Rechercher",

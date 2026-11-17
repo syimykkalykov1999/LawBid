@@ -2587,6 +2587,7 @@
   "group.picker.done": "ແລ້ວໆ ({count})",
   "group.picker.doneNone": "ແລ້ວໆ",
   "group.picker.empty": "ເລີ່ມແຊັດກັບຄົນໃດຄົນໜຶ່ງກ່ອນ ແລ້ວຈຶ່ງເພີ່ມເຂົາເຈົ້າທີ່ນີ້ໄດ້. ຫຼືແບ່ງປັນລິ້ງກຸ່ມ.",
+  "group.picker.frequent": "ຕິດຕໍ່ເລື້ອຍໆ",
   "group.picker.noMatch": "ບໍ່ພົບໃຜ",
   "group.picker.remove": "ລຶບອອກ",
   "group.picker.search": "ຄົ້ນຫາ",

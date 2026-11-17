@@ -2587,6 +2587,7 @@
   "group.picker.done": "সম্পন্ন ({count})",
   "group.picker.doneNone": "সম্পন্ন",
   "group.picker.empty": "আগে কারও সাথে চ্যাট শুরু করুন, তারপর এখানে যোগ করতে পারবেন। অথবা গ্রুপের লিংক শেয়ার করুন।",
+  "group.picker.frequent": "প্রায়ই যোগাযোগ",
   "group.picker.noMatch": "কাউকে পাওয়া যায়নি",
   "group.picker.remove": "সরান",
   "group.picker.search": "খুঁজুন",

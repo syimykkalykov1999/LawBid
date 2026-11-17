@@ -2587,6 +2587,7 @@
   "group.picker.done": "完成（{count}）",
   "group.picker.doneNone": "完成",
   "group.picker.empty": "请先与某人开始聊天，然后即可在此添加。也可以分享群组链接。",
+  "group.picker.frequent": "常联系的人",
   "group.picker.noMatch": "未找到任何人",
   "group.picker.remove": "移除",
   "group.picker.search": "搜索",

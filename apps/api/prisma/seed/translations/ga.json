@@ -2587,6 +2587,7 @@
   "group.picker.done": "Críochnaithe ({count})",
   "group.picker.doneNone": "Críochnaithe",
   "group.picker.empty": "Cuir comhrá tús le duine éigin ar dtús, ansin féadfaidh tú iad a chur leis anseo. Nó roinn nasc an ghrúpa.",
+  "group.picker.frequent": "Teagmháil go minic",
   "group.picker.noMatch": "Níor aimsíodh aon duine",
   "group.picker.remove": "Bain",
   "group.picker.search": "Cuardaigh",

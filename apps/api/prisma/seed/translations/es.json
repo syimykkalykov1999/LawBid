@@ -2587,6 +2587,7 @@
   "group.picker.done": "Listo ({count})",
   "group.picker.doneNone": "Listo",
   "group.picker.empty": "Primero inicia un chat con alguien y luego podrás añadirlo aquí. O comparte el enlace del grupo.",
+  "group.picker.frequent": "Contactos frecuentes",
   "group.picker.noMatch": "No se encontró a nadie",
   "group.picker.remove": "Quitar",
   "group.picker.search": "Buscar",

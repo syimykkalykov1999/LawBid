@@ -2587,6 +2587,7 @@
   "group.picker.done": "完了（{count}）",
   "group.picker.doneNone": "完了",
   "group.picker.empty": "先に誰かとチャットを始めると、ここに追加できます。またはグループのリンクを共有してください。",
+  "group.picker.frequent": "よく連絡する相手",
   "group.picker.noMatch": "見つかりませんでした",
   "group.picker.remove": "削除",
   "group.picker.search": "検索",

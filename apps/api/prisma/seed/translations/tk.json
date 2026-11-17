@@ -2587,6 +2587,7 @@
   "group.picker.done": "Taýýar ({count})",
   "group.picker.doneNone": "Taýýar",
   "group.picker.empty": "Ilki bilen kimdir biri bilen çat başlaň, soň ony şu ýere goşup bilersiňiz. Ýa-da topar baglanyşygyny paýlaşyň.",
+  "group.picker.frequent": "Ýygy-ýygydan habarlaşýanlar",
   "group.picker.noMatch": "Hiç kim tapylmady",
   "group.picker.remove": "Aýyr",
   "group.picker.search": "Gözleg",

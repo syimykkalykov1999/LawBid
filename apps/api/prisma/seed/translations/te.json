@@ -2587,6 +2587,7 @@
   "group.picker.done": "పూర్తి ({count})",
   "group.picker.doneNone": "పూర్తి",
   "group.picker.empty": "ముందు ఎవరితోనైనా చాట్ మొదలుపెట్టండి, ఆ తర్వాత వారిని ఇక్కడ జోడించవచ్చు. లేదా గ్రూప్ లింక్ షేర్ చేయండి.",
+  "group.picker.frequent": "తరచుగా సంప్రదించినవారు",
   "group.picker.noMatch": "ఎవరూ దొరకలేదు",
   "group.picker.remove": "తొలగించు",
   "group.picker.search": "వెతకండి",

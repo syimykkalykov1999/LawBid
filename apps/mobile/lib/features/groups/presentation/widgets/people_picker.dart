@@ -5,6 +5,8 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart'
+    show ContactsSectionTitle;
 import 'package:lawbid/features/groups/application/people_candidates.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_avatar.dart';
 import 'package:lawbid/shared/people/people_suggest_list.dart';
@@ -193,6 +195,16 @@ class _PeopleSelectorState extends ConsumerState<PeopleSelector> {
   Widget _list(Translator t, List<PickedPerson> all) {
     final searching =
         peopleSuggestQuery(_query).length >= peopleSuggestMinChars;
+    // Owner 2026-11-16 (WhatsApp «Новая группа»): before a search, the
+    // people I write to most lead under «Часто общаетесь», then everyone
+    // else under «Контакты» (my chats and my phone book's LawBid people).
+    if (_query.trim().isEmpty) {
+      final frequent = withoutPeople(
+        ref.watch(groupFrequentPeopleProvider),
+        widget.excludeIds,
+      );
+      if (frequent.isNotEmpty) return _sections(t, frequent, all);
+    }
     if (all.isEmpty && !searching) {
       return AppEmptyState(
         icon: AppIcons.peopleOutlineRounded,
@@ -241,6 +253,50 @@ class _PeopleSelectorState extends ConsumerState<PeopleSelector> {
           checked: ticked.contains(p.userId),
           onTap: () => widget.onToggle(p),
         );
+      },
+    );
+  }
+}
+
+extension on _PeopleSelectorState {
+  /// «Часто общаетесь» ([frequent]) on top, then the rest of [all] under
+  /// «Контакты»; a person is listed once.
+  Widget _sections(
+    Translator t,
+    List<PickedPerson> frequent,
+    List<PickedPerson> all,
+  ) {
+    final top = {for (final p in frequent) p.userId};
+    final rest = [
+      for (final p in all)
+        if (!top.contains(p.userId)) p,
+    ];
+    final ticked = {for (final p in widget.selected) p.userId};
+    final rows = <Object>[
+      'group.picker.frequent',
+      ...frequent,
+      if (rest.isNotEmpty) ...['phoneContacts.title', ...rest],
+    ];
+    return ListView.builder(
+      key: const ValueKey('people-sections'),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      itemCount: rows.length,
+      itemBuilder: (context, i) => switch (rows[i]) {
+        // The same section title as the Contacts screen's lists.
+        final String key => Semantics(
+            header: true,
+            child: ContactsSectionTitle(
+              t.t(key),
+              key: ValueKey('people-section-$key'),
+            ),
+          ),
+        final PickedPerson p => _PersonRow(
+            key: ValueKey('person-${p.userId}'),
+            person: p,
+            checked: ticked.contains(p.userId),
+            onTap: () => widget.onToggle(p),
+          ),
+        _ => const SizedBox.shrink(),
       },
     );
   }

@@ -2587,6 +2587,7 @@
   "group.picker.done": "완료({count})",
   "group.picker.doneNone": "완료",
   "group.picker.empty": "먼저 상대와 대화를 시작하면 여기서 추가할 수 있습니다. 또는 그룹 링크를 공유하세요.",
+  "group.picker.frequent": "자주 연락하는 사람",
   "group.picker.noMatch": "검색 결과가 없습니다",
   "group.picker.remove": "제거",
   "group.picker.search": "검색",

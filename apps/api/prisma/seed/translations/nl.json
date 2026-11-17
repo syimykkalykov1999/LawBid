@@ -2587,6 +2587,7 @@
   "group.picker.done": "Klaar ({count})",
   "group.picker.doneNone": "Klaar",
   "group.picker.empty": "Start eerst een chat met iemand, dan kun je die hier toevoegen. Of deel de groepslink.",
+  "group.picker.frequent": "Vaak gecontacteerd",
   "group.picker.noMatch": "Niemand gevonden",
   "group.picker.remove": "Verwijderen",
   "group.picker.search": "Zoeken",

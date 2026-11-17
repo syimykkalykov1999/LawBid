@@ -2587,6 +2587,7 @@
   "group.picker.done": "Болсон ({count})",
   "group.picker.doneNone": "Болсон",
   "group.picker.empty": "Эхлээд хэн нэгэнтэй чат эхлүүлээрэй, дараа нь эндээс нэмж болно. Эсвэл группийн холбоосыг хуваалцаарай.",
+  "group.picker.frequent": "Байнга харилцдаг",
   "group.picker.noMatch": "Хэн ч олдсонгүй",
   "group.picker.remove": "Хасах",
   "group.picker.search": "Хайх",

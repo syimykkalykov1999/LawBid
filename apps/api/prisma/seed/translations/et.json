@@ -2587,6 +2587,7 @@
   "group.picker.done": "Valmis ({count})",
   "group.picker.doneNone": "Valmis",
   "group.picker.empty": "Alusta esmalt kellegagi vestlust, siis saad ta siia lisada. Või jaga grupi linki.",
+  "group.picker.frequent": "Sagedased kontaktid",
   "group.picker.noMatch": "Kedagi ei leitud",
   "group.picker.remove": "Eemalda",
   "group.picker.search": "Otsi",

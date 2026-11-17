@@ -2587,6 +2587,7 @@
   "group.picker.done": "Færdig ({count})",
   "group.picker.doneNone": "Færdig",
   "group.picker.empty": "Start først en chat med en person, så kan du tilføje vedkommende her. Eller del gruppelinket.",
+  "group.picker.frequent": "Ofte kontaktet",
   "group.picker.noMatch": "Ingen fundet",
   "group.picker.remove": "Fjern",
   "group.picker.search": "Søg",

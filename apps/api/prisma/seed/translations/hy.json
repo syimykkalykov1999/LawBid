@@ -2587,6 +2587,7 @@
   "group.picker.done": "Պատրաստ է ({count})",
   "group.picker.doneNone": "Պատրաստ է",
   "group.picker.empty": "Սկզբում զրույց սկսեք որևէ մեկի հետ, հետո կկարողանաք նրան այստեղ ավելացնել։ Կամ կիսվեք խմբի հղումով։",
+  "group.picker.frequent": "Հաճախակի կոնտակտներ",
   "group.picker.noMatch": "Ոչ ոք չի գտնվել",
   "group.picker.remove": "Հեռացնել",
   "group.picker.search": "Որոնել",

@@ -2587,6 +2587,7 @@
   "group.picker.done": "Imekamilika ({count})",
   "group.picker.doneNone": "Imekamilika",
   "group.picker.empty": "Anza gumzo na mtu kwanza, kisha unaweza kumwongeza hapa. Au shiriki kiungo cha kikundi.",
+  "group.picker.frequent": "Unaowasiliana nao mara kwa mara",
   "group.picker.noMatch": "Hakuna aliyepatikana",
   "group.picker.remove": "Ondoa",
   "group.picker.search": "Tafuta",

@@ -195,6 +195,21 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         body: SafeArea(
           child: _step == 0 ? _membersStep(t) : _detailsStep(t),
         ),
+        // Owner 2026-11-16 (WhatsApp «Новая группа»): the round «→» at the
+        // bottom right goes on to the name and photo.
+        floatingActionButton: _step == 0
+            ? AppFab(
+                buttonKey: const ValueKey('create-next'),
+                icon: AppIcons.arrowForwardRounded,
+                semanticLabel: _people.isEmpty
+                    ? t.t('group.create.next')
+                    : t.t(
+                        'group.create.nextCount',
+                        {'count': context.digits(_people.length)},
+                      ),
+                onPressed: () => setState(() => _step = 1),
+              )
+            : null,
       ),
     );
   }
@@ -208,28 +223,20 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
         Expanded(
           child: PeopleSelector(selected: _people, onToggle: _toggle),
         ),
+        // The hint keeps clear of the «→» button at the bottom right.
         Padding(
-          padding: const EdgeInsets.all(AppSpacing.screenSide),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                t.t('group.create.membersHint'),
-                textAlign: TextAlign.center,
-                style: typography.caption.copyWith(color: colors.textSecondary),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              AppButton(
-                key: const ValueKey('create-next'),
-                label: _people.isEmpty
-                    ? t.t('group.create.next')
-                    : t.t(
-                        'group.create.nextCount',
-                        {'count': context.digits(_people.length)},
-                      ),
-                onPressed: () => setState(() => _step = 1),
-              ),
-            ],
+          padding: const EdgeInsetsDirectional.fromSTEB(
+            AppSpacing.screenSide,
+            AppSpacing.sm,
+            AppSpacing.screenSide + 72,
+            AppSpacing.screenSide,
+          ),
+          child: SizedBox(
+            width: double.infinity,
+            child: Text(
+              t.t('group.create.membersHint'),
+              style: typography.caption.copyWith(color: colors.textSecondary),
+            ),
           ),
         ),
       ],

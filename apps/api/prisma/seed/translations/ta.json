@@ -2587,6 +2587,7 @@
   "group.picker.done": "முடிந்தது ({count})",
   "group.picker.doneNone": "முடிந்தது",
   "group.picker.empty": "முதலில் ஒருவருடன் அரட்டையைத் தொடங்குங்கள், பிறகு அவரை இங்கே சேர்க்கலாம். அல்லது குழு இணைப்பைப் பகிருங்கள்.",
+  "group.picker.frequent": "அடிக்கடி தொடர்பு",
   "group.picker.noMatch": "யாரும் கிடைக்கவில்லை",
   "group.picker.remove": "நீக்கு",
   "group.picker.search": "தேடு",

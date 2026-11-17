@@ -2587,6 +2587,7 @@
   "group.picker.done": "მზადაა ({count})",
   "group.picker.doneNone": "მზადაა",
   "group.picker.empty": "ჯერ დაიწყეთ ჩატი ვინმესთან, შემდეგ აქ დაამატებთ. ან გააზიარეთ ჯგუფის ბმული.",
+  "group.picker.frequent": "ხშირი კონტაქტები",
   "group.picker.noMatch": "არავინ მოიძებნა",
   "group.picker.remove": "ამოშლა",
   "group.picker.search": "ძიება",

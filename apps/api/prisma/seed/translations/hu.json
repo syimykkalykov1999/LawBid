@@ -2587,6 +2587,7 @@
   "group.picker.done": "Kész ({count})",
   "group.picker.doneNone": "Kész",
   "group.picker.empty": "Először indíts csevegést valakivel, utána itt hozzáadhatod. Vagy oszd meg a csoport linkjét.",
+  "group.picker.frequent": "Gyakori kapcsolatok",
   "group.picker.noMatch": "Nincs találat",
   "group.picker.remove": "Eltávolítás",
   "group.picker.search": "Keresés",

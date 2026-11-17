@@ -2587,6 +2587,7 @@
   "group.picker.done": "Gotovo ({count})",
   "group.picker.doneNone": "Gotovo",
   "group.picker.empty": "Prvo započni ćaskanje sa nekim, pa ga možeš dodati ovde. Ili podeli link grupe.",
+  "group.picker.frequent": "Чести контакти",
   "group.picker.noMatch": "Niko nije pronađen",
   "group.picker.remove": "Ukloni",
   "group.picker.search": "Pretraga",

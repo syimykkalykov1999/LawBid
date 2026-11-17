@@ -2587,6 +2587,7 @@
   "group.picker.done": "Gotowe ({count})",
   "group.picker.doneNone": "Gotowe",
   "group.picker.empty": "Najpierw rozpocznij czat z kimś, wtedy będzie można dodać tę osobę tutaj. Możesz też udostępnić link do grupy.",
+  "group.picker.frequent": "Częste kontakty",
   "group.picker.noMatch": "Nikogo nie znaleziono",
   "group.picker.remove": "Usuń",
   "group.picker.search": "Szukaj",

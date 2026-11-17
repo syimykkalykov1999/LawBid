@@ -2587,6 +2587,7 @@
   "group.picker.done": "Lokið ({count})",
   "group.picker.doneNone": "Lokið",
   "group.picker.empty": "Byrjaðu fyrst spjall við einhvern, þá geturðu bætt viðkomandi við hér. Eða deildu hlekk hópsins.",
+  "group.picker.frequent": "Oft í sambandi",
   "group.picker.noMatch": "Enginn fannst",
   "group.picker.remove": "Fjarlægja",
   "group.picker.search": "Leita",

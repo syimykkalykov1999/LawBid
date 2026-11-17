@@ -2587,6 +2587,7 @@
   "group.picker.done": "Končano ({count})",
   "group.picker.doneNone": "Končano",
   "group.picker.empty": "Najprej začnite klepet z osebo, nato jo lahko dodate tukaj. Ali pa delite povezavo do skupine.",
+  "group.picker.frequent": "Pogosti stiki",
   "group.picker.noMatch": "Nikogar ni mogoče najti",
   "group.picker.remove": "Odstrani",
   "group.picker.search": "Iskanje",

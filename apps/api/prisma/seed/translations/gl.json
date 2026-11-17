@@ -2587,6 +2587,7 @@
   "group.picker.done": "Feito ({count})",
   "group.picker.doneNone": "Feito",
   "group.picker.empty": "Primeiro inicia un chat con alguén e despois poderás engadilo aquí. Ou comparte a ligazón do grupo.",
+  "group.picker.frequent": "Contactos frecuentes",
   "group.picker.noMatch": "Non se atopou ninguén",
   "group.picker.remove": "Quitar",
   "group.picker.search": "Buscar",
