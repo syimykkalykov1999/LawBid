@@ -251,6 +251,14 @@ class ReplicaFollowTests(HandlerTests):
         self.run_with(f, {"action": "force", "class": "db.t4g.micro"})
         self.assertEqual(f.modified(), [("db", "db.t4g.micro")])
 
+    def test_admin_button_copy_follows_too(self):
+        # Row 196 (16.11): the copy of the admin button (`<db>-readreplica`)
+        # stayed at its first class while the primary grew.
+        f = ReplicaFake(primary="db.t4g.medium", cpu=10.0,
+                        replicas={"db-readreplica": "db.t4g.micro", "db-replica-1": "db.t4g.medium"})
+        self.run_with(f)
+        self.assertEqual(f.modified(), [("db-readreplica", "db.t4g.medium")])
+
     def test_status_lists_the_copies(self):
         f = ReplicaFake()
         self.assertEqual(self.run_with(f, {"action": "status"})["replicas"], ["db-replica-1"])
