@@ -18,7 +18,10 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_decline_marks.dart';
+import 'package:lawbid/features/calls/application/call_end_port_stub.dart'
+    if (dart.library.io) 'package:lawbid/features/calls/application/call_end_port_io.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
+import 'package:lawbid/features/calls/application/call_hold.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_media_view.dart';
 import 'package:lawbid/features/calls/application/call_screen_awake.dart';
@@ -75,7 +78,17 @@ class CallSession {
     this.endedAt,
     this.releasing = false,
     this.conversationId,
+    this.held = false,
+    this.peerHeld = false,
   });
+
+  /// Row 216 (WhatsApp «On hold»): a cellular or other app's call holds
+  /// ours on this phone — the mic is off, the link stays, the call comes
+  /// back when that call is over.
+  final bool held;
+
+  /// The other phone put the call on hold (its `{'type':'hold'}` signal).
+  final bool peerHeld;
 
   /// Row 166 (WhatsApp «Call again»): the chat this phone dialled from — set
   /// only on a 1:1 call we started, so the ended screen can ring again.
@@ -153,6 +166,8 @@ class CallSession {
     DateTime? endedAt,
     bool? releasing,
     String? conversationId,
+    bool? held,
+    bool? peerHeld,
   }) =>
       CallSession(
         phase: phase ?? this.phase,
@@ -172,6 +187,8 @@ class CallSession {
         endedAt: endedAt ?? this.endedAt,
         releasing: releasing ?? this.releasing,
         conversationId: conversationId ?? this.conversationId,
+        held: held ?? this.held,
+        peerHeld: peerHeld ?? this.peerHeld,
       );
 }
 
@@ -493,6 +510,27 @@ final callClockProvider = Provider<DateTime Function()>((_) => DateTime.now);
 /// and tears everything down on hang-up, decline, timeout or failure.
 class CallController extends Notifier<CallSession> {
   CallMedia? _media;
+
+  /// Row 216: who holds the call on this phone, and whether the camera
+  /// was sending when the hold came (it comes back with the call).
+  CallHold _hold = const CallHold();
+  bool _heldCamera = false;
+
+  /// True once the call has talked for [kCallHoldSettle] (an iOS audio
+  /// interruption before that is CallKit handing the audio over).
+  bool _holdSettled = false;
+  Timer? _settleTimer;
+
+  /// Row 216: the waiting call's ring timeout and its soft in-call beep.
+  Timer? _waitTimer;
+  Timer? _waitBeep;
+
+  /// A group call's «Join» row that came during our call (kept for after).
+  Timer? _inviteTimer;
+
+  /// Android: a ring push the background isolate got while this isolate
+  /// holds a call comes here (call waiting), not to the system ring.
+  void Function()? _stopWaitingPort;
   StreamSubscription<RealtimeEvent>? _events;
   Timer? _ringTimer;
   Timer? _connectTimer;
@@ -684,6 +722,33 @@ class CallController extends Notifier<CallSession> {
       }
     });
     ref.listen<CallAudioState>(callAudioRouterProvider, _onAudioRoute);
+    // Row 216: our call ended with a second call waiting — that call now
+    // rings as a normal incoming call (WhatsApp); while a call lives, the
+    // Android background isolate hands ring pushes to this one.
+    listenSelf((prev, next) {
+      if (prev?.phase != CallPhase.active && next.phase == CallPhase.active) {
+        _settleTimer?.cancel();
+        _holdSettled = false;
+        _settleTimer = Timer(kCallHoldSettle, () => _holdSettled = true);
+      }
+    });
+    listenSelf((prev, next) {
+      final was = prev?.busy ?? false;
+      if (was == next.busy) return;
+      if (next.busy) {
+        _stopWaitingPort ??= listenCallWaiting(
+          (id) => unawaited(ringFromPush(id)),
+        );
+      } else {
+        _stopWaitingPort?.call();
+        _stopWaitingPort = null;
+        _promoteWaiting();
+      }
+    });
+    final interruptions = ref.read(callAudioInterruptionsProvider).listen(
+          (began) => _onInterruption(began: began),
+          onError: (Object _) {},
+        );
     final fg = ref.read(callForegroundProvider);
     final actions = fg.actions.listen(_onNotificationAction);
     unawaited(
@@ -699,8 +764,15 @@ class CallController extends Notifier<CallSession> {
       if (_awakeOn) unawaited(awake(on: false));
       _awakeOn = false;
       unawaited(actions.cancel());
+      unawaited(interruptions.cancel());
       _events?.cancel();
       _clearTimers();
+      _waitTimer?.cancel();
+      _waitBeep?.cancel();
+      _inviteTimer?.cancel();
+      _settleTimer?.cancel();
+      _stopWaitingPort?.call();
+      _stopWaitingPort = null;
       unawaited(_media?.close());
     });
     return const CallSession();
@@ -810,6 +882,12 @@ class CallController extends Notifier<CallSession> {
   }
 
   void _onNotificationAction(String action) {
+    // Row 216 (Android, CallForegroundService): a cellular call took the
+    // phone's audio («hold») and gave it back («unhold»).
+    if (action == 'hold' || action == 'unhold') {
+      setHold(CallHoldSource.phoneCall, on: action == 'hold');
+      return;
+    }
     if (action == 'hangup') {
       if (state.busy) {
         unawaited(hangUp());
@@ -1904,6 +1982,33 @@ class CallController extends Notifier<CallSession> {
     callTrace('ringFromPush $callId accept=$accept phase=${state.phase} '
         'current=${state.call?.id}');
     if (state.busy && state.call?.id != callId) {
+      // Row 216: «End & Accept» on the phone's call screen (CallKit call
+      // waiting, the Android ring) — this call ends, the other is taken.
+      if (accept) {
+        await endAndAcceptWaiting(callId);
+        return;
+      }
+      if (_isWaiting(callId)) return;
+      // Row 216: a ring push while talking — call waiting, like the socket.
+      if (_canWait &&
+          !(_wasDeclinedHere(callId) || await declinedHere(callId))) {
+        try {
+          final call = await _getWithRetry(callId);
+          if (!_ringsHere(call)) {
+            unawaited(ref.read(systemCallUiProvider).dismiss(callId));
+            return;
+          }
+          if (!state.busy) {
+            // Our call ended meanwhile: it rings as any call.
+            _ring(call, showSystemUi: showSystemUi);
+            return;
+          }
+          if (_offerWaiting(call)) return;
+        } on Object catch (e) {
+          callTrace('waiting $callId: cannot read it: $e');
+        }
+      }
+      if (!state.busy || state.call?.id == callId) return;
       // Talking already: the system ring for this one must go, and the
       // caller hears it was declined (busy).
       unawaited(ref.read(systemCallUiProvider).dismiss(callId));
@@ -2014,7 +2119,12 @@ class CallController extends Notifier<CallSession> {
   /// The call being answered right now (see [accept]).
   String? _accepting;
 
-  void _ring(AppCall call, {bool showSystemUi = true}) {
+  void _ring(
+    AppCall call, {
+    bool showSystemUi = true,
+    // Row 216: «End & Accept» answers it at once — no ring, no buzz.
+    bool ringOut = true,
+  }) {
     callTrace('ring ${call.id} systemUi=$showSystemUi '
         'lifecycle=${WidgetsBinding.instance.lifecycleState}');
     _reset();
@@ -2037,6 +2147,7 @@ class CallController extends Notifier<CallSession> {
     _startSync();
     // While it rings, get the relay list ready: answering connects faster.
     unawaited(_iceServers().then<void>((_) {}, onError: (Object _) {}));
+    if (!ringOut) return;
     // Owner 2026-10-02: "Calls" off in Settings → the call still comes
     // (the in-app screen), but without the ringing system UI or a buzz.
     // Owner 2026-10-21: and so do the muted calls of this chat / group.
@@ -2624,6 +2735,12 @@ class CallController extends Notifier<CallSession> {
           ref
               .read(callMicsOffProvider.notifier)
               .set(peer, on: data['on'] != true);
+        case 'hold':
+          // Row 216: the other phone's call is on hold (a cellular call
+          // there) — «On hold» here until it comes back.
+          if (!call.group) {
+            state = state.copyWith(peerHeld: data['on'] == true);
+          }
         case 'restart':
           // The side that answered lost the route: the offerer renews it.
           if (_offered.contains(peer)) await _restartIce(peer);
@@ -2631,6 +2748,194 @@ class CallController extends Notifier<CallSession> {
     } on Object {
       _linkLost(peer);
     }
+  }
+
+  // --- Hold (row 216) ------------------------------------------------------
+
+  /// Row 216 (owner 17.11, WhatsApp): [source] put our call on hold ([on])
+  /// or let it go — a cellular / other app's call on this phone. The link
+  /// stays; the mic (and a sending camera) pause; the other phone reads
+  /// «On hold». The call comes back when the last holder lets go. [callId]
+  /// (the phone's call system) must be this call.
+  void setHold(CallHoldSource source, {required bool on, String? callId}) {
+    final call = state.call;
+    if (call == null) return;
+    if (callId != null && callId.toLowerCase() != call.id.toLowerCase()) {
+      return;
+    }
+    final talking =
+        state.phase == CallPhase.active || state.phase == CallPhase.connecting;
+    if (on && !talking) return;
+    final was = _hold.held;
+    _hold = _hold.apply(source, on: on);
+    if (_hold.held == was) return;
+    _applyHold(call, held: _hold.held);
+  }
+
+  /// iOS audio interruptions (another app's call, Siri). A «began» right as
+  /// CallKit hands the audio over is not a hold (a known CallKit / WebRTC
+  /// quirk): only a call talking for a few seconds is held by it.
+  void _onInterruption({required bool began}) {
+    if (!began) {
+      setHold(CallHoldSource.interruption, on: false);
+      return;
+    }
+    if (state.phase != CallPhase.active || !_holdSettled) return;
+    setHold(CallHoldSource.interruption, on: true);
+  }
+
+  /// The phone's call system gave the audio back (CallKit activated the
+  /// session, the app came to the front): a stale interruption holds no
+  /// more.
+  void audioBack() {
+    if (!_hold.by.contains(CallHoldSource.interruption)) return;
+    setHold(CallHoldSource.interruption, on: false);
+  }
+
+  void _applyHold(AppCall call, {required bool held}) {
+    callTrace('hold ${call.id} held=$held by=${_hold.by}');
+    final media = _media;
+    if (held) {
+      media?.setMuted(true);
+      _heldCamera = state.video && state.cameraOn;
+      if (_heldCamera && media != null) unawaited(media.setCameraOn(false));
+    } else {
+      // The person's own mute stays as they left it.
+      media?.setMuted(state.muted);
+      if (_heldCamera && media != null) unawaited(media.setCameraOn(true));
+      _heldCamera = false;
+      // The other call moved the sound: back to the speaker / earpiece /
+      // headset this call had.
+      if (media != null) {
+        unawaited(
+          media
+              .setSpeaker(state.speaker)
+              .then<void>((_) {}, onError: (Object _) {}),
+        );
+      }
+    }
+    state = state.copyWith(held: held);
+    if (call.group || !state.busy) return;
+    unawaited(
+      ref
+          .read(callSignalSenderProvider)(call.id, holdSignal(on: held))
+          .then<void>((_) {}, onError: (Object _) {}),
+    );
+  }
+
+  // --- Call waiting (row 216) ----------------------------------------------
+
+  /// Talking (or connecting) in a call: a second call may wait.
+  bool get _canWait =>
+      state.call != null &&
+      (state.phase == CallPhase.active || state.phase == CallPhase.connecting);
+
+  bool _isWaiting(String callId) =>
+      ref.read(callWaitingProvider)?.call.id.toLowerCase() ==
+      callId.toLowerCase();
+
+  /// [call] rings while we talk: the «Decline» / «End & Accept» prompt. iOS
+  /// shows CallKit's own call waiting (its tone, the lock screen); Android
+  /// and the web show the in-app prompt with a soft beep in the call, like
+  /// WhatsApp. True when it is the waiting call now.
+  bool _offerWaiting(AppCall call) {
+    if (!_canWait || state.call?.id == call.id) return false;
+    final current = ref.read(callWaitingProvider);
+    if (current != null) return current.call.id == call.id;
+    if (call.outgoing || call.status != CallStatus.ringing) return false;
+    final ios = !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+    callTrace('waiting ${call.id} during ${state.call?.id} ios=$ios');
+    ref
+        .read(callWaitingProvider.notifier)
+        .set(CallWaiting(call: call, systemUi: ios));
+    _waitTimer?.cancel();
+    _waitTimer = Timer(kCallRingTimeout + kCallRingGrace, () {
+      callTrace('waiting ${call.id}: rang out');
+      _dropWaiting(call.id);
+    });
+    if (ios) {
+      unawaited(ref.read(systemCallUiProvider).showIncoming(call));
+      return true;
+    }
+    if (callRingMuted(
+      ref,
+      conversationId: call.conversationId,
+      groupId: call.groupId,
+    )) {
+      return true;
+    }
+    void beep() => unawaited(ref.read(appSoundsProvider).videoRequest());
+    beep();
+    _waitBeep?.cancel();
+    _waitBeep = Timer.periodic(kCallWaitingBeepEvery, (_) => beep());
+    unawaited(AppHaptics.heavy());
+    return true;
+  }
+
+  void _clearWaiting() {
+    _waitTimer?.cancel();
+    _waitTimer = null;
+    _waitBeep?.cancel();
+    _waitBeep = null;
+    if (ref.mounted) ref.read(callWaitingProvider.notifier).set(null);
+  }
+
+  /// The waiting call [callId] is over: the prompt (and its system screen)
+  /// go.
+  void _dropWaiting(String callId) {
+    if (!_isWaiting(callId)) return;
+    _clearWaiting();
+    unawaited(ref.read(systemCallUiProvider).dismiss(callId));
+  }
+
+  /// Our call ended while one waited: it rings now as a normal call.
+  void _promoteWaiting() {
+    final w = ref.read(callWaitingProvider);
+    if (w == null) return;
+    _clearWaiting();
+    scheduleMicrotask(() {
+      if (!ref.mounted || state.busy) return;
+      callTrace('waiting ${w.call.id}: our call ended, it rings');
+      _ring(w.call);
+    });
+  }
+
+  /// «Decline» on the waiting prompt: the caller hears it was declined, our
+  /// call goes on.
+  Future<void> declineWaiting() async {
+    final w = ref.read(callWaitingProvider);
+    if (w == null) return;
+    final id = w.call.id;
+    callTrace('waiting $id: declined');
+    _clearWaiting();
+    noteDeclinedHere(id);
+    unawaited(markDeclinedHere(id));
+    unawaited(ref.read(systemCallUiProvider).dismiss(id));
+    try {
+      await _repo.decline(id);
+    } on Object {
+      // The server sweeps it to missed anyway.
+    }
+  }
+
+  /// «End & Accept»: our call ends (the other side reads «Call ended»),
+  /// the waiting one [callId] (default: the prompt's) is answered.
+  Future<void> endAndAcceptWaiting([String? callId]) async {
+    final w = ref.read(callWaitingProvider);
+    final id = callId ?? w?.call.id;
+    if (id == null) return;
+    final waiting =
+        w != null && w.call.id.toLowerCase() == id.toLowerCase() ? w : null;
+    if (waiting != null) _clearWaiting();
+    callTrace('waiting $id: end & accept (current ${state.call?.id})');
+    if (state.busy && state.call?.id != id) await hangUp();
+    if (!ref.mounted || (state.busy && state.call?.id != id)) return;
+    if (waiting != null && !state.busy) {
+      _ring(waiting.call, showSystemUi: false, ringOut: false);
+      await accept();
+      return;
+    }
+    await ringFromPush(id, accept: true);
   }
 
   /// The last `seq` seen per call (package H).
@@ -2659,8 +2964,20 @@ class CallController extends Notifier<CallSession> {
     switch (e.name) {
       case 'call:incoming':
         final call = CallMappers.fromEvent(data);
-        // While in another call the server's sweep marks this one missed.
-        if (call == null || state.busy) return;
+        if (call == null) return;
+        if (state.busy) {
+          if (call.id == state.call?.id) return;
+          if (_wasDeclinedHere(call.id)) {
+            _declineAgain(call.id);
+            return;
+          }
+          if (!ref.read(canDoProvider(AssistantDuty.calls))) return;
+          // Row 216 (WhatsApp call waiting): a second call while talking —
+          // «Decline» / «End & Accept». Not talking yet (we ring or dial
+          // out): the server's sweep marks it missed, as before.
+          _offerWaiting(call);
+          return;
+        }
         // Owner 2026-11-08: declined on this phone (the system screen of a
         // locked phone) — told again, never rung again.
         if (_wasDeclinedHere(call.id)) {
@@ -2672,8 +2989,20 @@ class CallController extends Notifier<CallSession> {
         _ring(call);
       case 'call:invite':
         final call = CallMappers.fromEvent(data);
-        if (call == null || state.busy) return;
+        if (call == null) return;
         if (!ref.read(canDoProvider(AssistantDuty.calls))) return;
+        // Row 216: during our own call the light «Join» row is kept for
+        // after it (the call host shows it once we are free), for one ring
+        // length; the group call itself is unchanged.
+        _inviteTimer?.cancel();
+        if (state.busy) {
+          final id = call.id;
+          _inviteTimer = Timer(kCallRingTimeout, () {
+            if (ref.mounted && ref.read(callInviteProvider)?.callId == id) {
+              ref.read(callInviteProvider.notifier).set(null);
+            }
+          });
+        }
         ref.read(callInviteProvider.notifier).set(
               CallInvite(
                 callId: call.id,
@@ -2684,6 +3013,11 @@ class CallController extends Notifier<CallSession> {
             );
       case 'call:accepted':
         final call = CallMappers.fromEvent(data);
+        // Row 216: the waiting call was answered on another of our devices.
+        if (call != null && _isWaiting(call.id)) {
+          _dropWaiting(call.id);
+          return;
+        }
         if (call == null || call.id != state.call?.id) return;
         if (call.outgoing && state.phase == CallPhase.outgoing) {
           _ringTimer?.cancel();
@@ -2703,6 +3037,12 @@ class CallController extends Notifier<CallSession> {
         // The «Join» row of a call that is over goes at once (inbox 20).
         if (call != null && ref.read(callInviteProvider)?.callId == call.id) {
           ref.read(callInviteProvider.notifier).set(null);
+        }
+        // Row 216: the waiting call is over (the caller gave up, it timed
+        // out, it was declined on another device).
+        if (call != null && _isWaiting(call.id)) {
+          _dropWaiting(call.id);
+          return;
         }
         if (call == null || call.id != state.call?.id) return;
         unawaited(ref.read(systemCallUiProvider).dismiss(call.id));
@@ -2921,6 +3261,8 @@ class CallController extends Notifier<CallSession> {
       reconnecting: false,
       endedAt: DateTime.now(),
       releasing: true,
+      held: false,
+      peerHeld: false,
     );
     unawaited(_release(media, endedId, gen: _gen, keepOpen: keepOpen));
   }
@@ -3004,6 +3346,10 @@ class CallController extends Notifier<CallSession> {
     ref.read(callMicsOffProvider.notifier).clear();
     ref.read(callFrontCameraProvider.notifier).front();
     _accepting = null;
+    _hold = const CallHold();
+    _heldCamera = false;
+    _settleTimer?.cancel();
+    _holdSettled = false;
     _clearTimers();
     // Audit 2026-10-02: the incoming melody stops with any change.
     unawaited(ref.read(appSoundsProvider).stopRingtone());

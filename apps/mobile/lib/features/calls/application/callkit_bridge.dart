@@ -13,6 +13,7 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_decline_marks.dart';
 import 'package:lawbid/features/calls/application/call_end_port_stub.dart'
     if (dart.library.io) 'package:lawbid/features/calls/application/call_end_port_io.dart';
+import 'package:lawbid/features/calls/application/call_hold.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/notifications/application/task_reminder_scheduler.dart';
@@ -136,7 +137,8 @@ class CallkitSystemUi implements SystemCallUi {
             maximumCallGroups: 1,
             maximumCallsPerCallGroup: 1,
             supportsDTMF: false,
-            supportsHolding: false,
+            // Row 216: a cellular call holds ours instead of ending it.
+            supportsHolding: true,
           ),
         ),
       );
@@ -335,7 +337,11 @@ CallKitParams lawbidIncomingParams({
       maximumCallGroups: 1,
       maximumCallsPerCallGroup: 1,
       supportsDTMF: false,
-      supportsHolding: false,
+      // Row 216 (owner 17.11): a cellular call during ours offers «Hold &
+      // Accept»; CallKit holds this call (CXSetHeldCallAction) and gives it
+      // back when that call ends. One call group: a second LawBid call gets
+      // «End & Accept» / «Decline» (call waiting), never two at once.
+      supportsHolding: true,
     ),
   );
 }
@@ -490,6 +496,10 @@ Future<void> lawbidBackgroundMessage(RemoteMessage message) async {
   }
   final ring = incomingCallFromPush(d);
   if (ring == null) return;
+  // Row 216: the app's own isolate holds a call — this is a second call
+  // (call waiting): it shows the in-app «Decline» / «End & Accept» prompt,
+  // not the full-screen ring over the call.
+  if (sendCallWaiting(ring.callId)) return;
   await showLawbidIncoming(
     callId: ring.callId,
     callerName: ring.callerName,
@@ -623,6 +633,18 @@ final callkitEventsProvider = Provider<void>((ref) {
             callTrace('callkit timeout $id');
           case CallEventActionCallToggleAudioSession(:final isActive):
             callTrace('callkit audio session active=$isActive');
+            // Row 216: the audio is ours again — no stale interruption hold.
+            if (isActive) controller.audioBack();
+          case CallEventActionCallToggleHold(:final id, :final isOnHold):
+            // Row 216 (owner 17.11): iOS CallKit (CXSetHeldCallAction) /
+            // Android Telecom (Connection.onHold) held our call for a
+            // cellular call, or gave it back.
+            callTrace('callkit hold $id on=$isOnHold');
+            controller.setHold(
+              CallHoldSource.system,
+              on: isOnHold,
+              callId: systemCallId(id),
+            );
           case CallEventActionCallDecline(:final callKitParams):
             final id = systemCallId(callKitParams.id);
             callTrace('callkit decline $id byUs=${_endedByUs(id)}');
@@ -646,6 +668,12 @@ final callkitEventsProvider = Provider<void>((ref) {
             // not declined; the person's own decline of the real call is
             // sent natively (AppDelegate.onDecline has its true data).
             if (s.call?.id != target && await endedByApp(target)) break;
+            // Row 216: «Decline» on CallKit's call waiting — our call goes on.
+            final waiting = ref.read(callWaitingProvider)?.call.id;
+            if (waiting != null && waiting.toLowerCase() == target) {
+              await controller.declineWaiting();
+              break;
+            }
             // Owner 2026-11-08: never rung here again (socket, push, scan).
             controller.noteDeclinedHere(target);
             await markDeclinedHere(target);
@@ -698,7 +726,11 @@ final callkitEventsProvider = Provider<void>((ref) {
   });
   // Back to the front: what the native side declined meanwhile.
   final lifecycle = AppLifecycleListener(
-    onResume: () => unawaited(_loadDeclinedHere(ref)),
+    onResume: () {
+      unawaited(_loadDeclinedHere(ref));
+      // Row 216: back in front, the audio is ours — no stale interruption.
+      ref.read(callControllerProvider.notifier).audioBack();
+    },
   );
   ref.onDispose(() {
     sub?.cancel();

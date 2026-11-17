@@ -634,7 +634,12 @@ import flutter_callkit_incoming
     data.maximumCallGroups = 1
     data.maximumCallsPerCallGroup = 1
     data.supportsDTMF = false
-    data.supportsHolding = false
+    // Row 216 (owner 17.11, WhatsApp): a cellular call during ours offers
+    // «Hold & Accept» — CallKit holds this call (CXSetHeldCallAction, the
+    // plugin hands it to Dart as ACTION_CALL_TOGGLE_HOLD: mic off, link
+    // kept) and gives it back when that call ends. One call group: a
+    // second LawBid call gets «End & Accept» / «Decline» (call waiting).
+    data.supportsHolding = true
     data.isShowMissedCallNotification = false
     // "Calls" switched off in Settings: the call shows without a ringtone.
     if (p["silent"] as? String) == "1" {
