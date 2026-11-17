@@ -34,9 +34,9 @@ const cacheOwn = new Set<Redis>();
             config.get<number>('REDIS_COMMAND_TIMEOUT_MS') ?? 1000,
           ),
           // Same-tick commands share one round trip (REDIS_AUTOPIPELINE,
-          // default on; verify in the load test, turn off to roll back).
+          // default on since 16.11; false on the task rolls back).
           enableAutoPipelining:
-            config.get<boolean>('REDIS_AUTOPIPELINE') ?? false,
+            config.get<boolean>('REDIS_AUTOPIPELINE') ?? true,
         });
         // Module init sends commands right away; give the connection a
         // moment (bounded) so a normal boot does not start with refusals.

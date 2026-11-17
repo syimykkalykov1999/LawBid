@@ -134,10 +134,14 @@ export const envSchema = z
     // enabled" group; every client becomes an ioredis Cluster, BullMQ queues
     // get a {queue} hash tag, Socket.IO is forced to the sharded adapter.
     REDIS_CLUSTER: envBoolean(false),
-    // Redis hardening (S6): ioredis auto-pipelining on REDIS_CLIENT (verify in
-    // the load test; false = old behaviour) and an optional single BullMQ
-    // hash-tag prefix for cluster mode (default: one `{queue}` tag each).
-    REDIS_AUTOPIPELINE: envBoolean(false),
+    // Redis hardening (S6): ioredis auto-pipelining on REDIS_CLIENT and an
+    // optional single BullMQ hash-tag prefix for cluster mode (default: one
+    // `{queue}` tag each). Owner order 16.11 (speed mechanisms proof): ON by
+    // default. Measured on ioredis 6.0.0: 2000 parallel requests x 4 cache
+    // GETs 126.6 -> 73.8 ms (1.7x), and the throttler's defineCommand Lua
+    // gives the same hits / blocks with it on and off (the 25.10 e2e break
+    // was on ioredis 5). false = one round trip per command, as before.
+    REDIS_AUTOPIPELINE: envBoolean(true),
     REDIS_BULL_PREFIX: z.preprocess(blankToUndefined, z.string().optional()),
     // Local docker cluster only: JSON natMap for announced addresses.
     REDIS_CLUSTER_NAT_MAP: z.string().optional(),
