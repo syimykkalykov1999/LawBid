@@ -187,6 +187,12 @@ abstract final class CasesMappers {
         attorney: b.attorney == null ? null : attorney(b.attorney!),
         outsidePractice: b.outsidePractice,
         outsideLicensedStates: b.outsideLicensedStates,
+        // Firms audit 16.11 (PR-5): the firm's team on the bid.
+        teamNames: [
+          for (final m in b.team ?? const <api.BidTeamMemberDto>[])
+            if ('${m.firstName ?? ''} ${m.lastName ?? ''}'.trim().isNotEmpty)
+              '${m.firstName ?? ''} ${m.lastName ?? ''}'.trim(),
+        ],
       );
 
   static FeedCase feedCase(api.CaseFeedItemDto c) => FeedCase(

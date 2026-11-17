@@ -437,6 +437,16 @@ class _BidBody extends StatelessWidget {
               forClient: viewer == PartyRole.client,
             ),
           ),
+        // Firms audit 16.11 (PR-5): who works on the bid with the attorney.
+        if (viewer == PartyRole.client && bid.teamNames.isNotEmpty)
+          DetailSection(
+            key: const ValueKey('bid-firm-team'),
+            title: t.t('firm.members'),
+            child: Text(
+              bid.teamNames.join(', '),
+              style: typography.body.copyWith(color: colors.text),
+            ),
+          ),
         DetailSection(
           title: t.t('cases.bid.message'),
           // Owner 2026-10-05: «Перевести» for the client (cases zone).
