@@ -44,6 +44,7 @@ export const ENTITLEMENT_KEYS = [
   'calls',
   'video_calls',
   'hotline',
+  'hotline_addon_price_cents',
   'document_templates',
   'chat_translate',
   'translations_per_day',
@@ -193,19 +194,37 @@ export const ENTITLEMENT_CATALOG: readonly EntitlementDef[] = [
     },
   },
   {
-    // Owner row 87 (16.11): the attorney's right to wait for hotline calls,
-    // read only in `hotline.billing_mode` = plan («входит в подписку»): the
-    // owner ticks the plans here. In free mode every verified attorney may,
-    // in addon mode the add-on decides.
+    // Owner row 87 (16.11 ~19:45): per plan the hotline is «Входит в тариф»
+    // (this switch), «Отдельное дополнение $N» (the price below) or
+    // «Недоступно» (neither). Not read while «Бесплатно для всех»
+    // (hotline.free_for_all_enabled) is on.
     key: 'hotline',
     type: 'boolean',
     audiences: ['attorney'],
     group: 'features',
-    label: { en: 'Call hotline', ru: 'Горячая линия' },
+    label: { en: 'Call hotline included', ru: 'Горячая линия входит в тариф' },
     description: {
-      en: 'Can turn on «Wait for calls» and take hotline calls from clients in the states of their verified licences.',
-      ru: 'Может включить «Ожидать звонки» и принимать звонки с горячей линии от клиентов из штатов своих проверенных лицензий.',
+      en: 'The plan includes «Wait for calls»: hotline calls from clients in the states of the attorney’s verified licences.',
+      ru: 'В тариф входит «Ожидать звонки»: звонки с горячей линии от клиентов из штатов проверенных лицензий адвоката.',
     },
+  },
+  {
+    // Owner 16.11 ~19:45: «Отдельное дополнение $N» of this plan, cents a
+    // month; empty = the plan offers no add-on (payments are off today, the
+    // purchase itself comes with the subscription card, plan PR 8).
+    key: 'hotline_addon_price_cents',
+    type: 'price',
+    audiences: ['attorney'],
+    group: 'billing',
+    label: {
+      en: 'Call hotline add-on, price',
+      ru: 'Горячая линия — отдельное дополнение, цена',
+    },
+    description: {
+      en: 'Monthly price of the hotline add-on on this plan (cents). Empty = no add-on: the hotline is included or unavailable.',
+      ru: 'Цена дополнения «Горячая линия» в месяц на этом тарифе (центы). Пусто — дополнения нет: линия входит в тариф или недоступна.',
+    },
+    min: 0,
   },
   {
     key: 'document_templates',
@@ -422,9 +441,10 @@ export const BASELINE_DEFAULTS: Record<Audience, Entitlements> = {
     priority_search: false,
     calls: true,
     video_calls: true,
-    // Owner 16.11: read only in hotline.billing_mode = plan — off unless
-    // the owner ticks a plan.
+    // Owner 16.11: read only while «Бесплатно для всех» is off — then
+    // unavailable unless the owner sets it on a plan.
     hotline: false,
+    hotline_addon_price_cents: null,
     // Owner 2026-10-05: templates come with a paid attorney plan.
     document_templates: false,
     chat_translate: true,

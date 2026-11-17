@@ -178,32 +178,25 @@ export const HOTLINE_SETTING_DEFS: readonly HotlineSettingDef[] = [
       'Горячая линия: предел длины одного звонка с линии, минут (0 — без предела)',
   },
   {
-    key: 'hotline.refund_short_call_sec',
-    default: 30,
-    min: 0,
-    labelRu:
-      'Горячая линия: звонок короче стольких секунд не засчитывается адвокату (минуты пробного срока и оплата возвращаются сами; 0 — выкл.)',
-  },
-  {
-    key: 'hotline.addon_price_cents',
-    default: 0,
-    min: 0,
-    labelRu:
-      'Горячая линия: цена отдельного дополнения для адвоката, центов в месяц (режим addon; деньги сейчас выключены)',
-  },
-  {
     key: 'hotline.trial_days',
     default: 0,
     min: 0,
     labelRu:
-      'Горячая линия: бесплатный пробный срок адвоката, дней с первого включения линии (режимы plan и addon; 0 — нет)',
+      'Горячая линия: бесплатный пробный срок адвоката, дней с первого включения линии (когда «Бесплатно для всех» выключено; 0 — нет)',
   },
   {
     key: 'hotline.trial_minutes',
     default: 0,
     min: 0,
     labelRu:
-      'Горячая линия: бесплатные пробные минуты разговоров адвоката (режимы plan и addon; 0 — нет)',
+      'Горячая линия: бесплатные пробные минуты разговоров адвоката (когда «Бесплатно для всех» выключено; 0 — нет)',
+  },
+  {
+    key: 'hotline.disclosure_version',
+    default: 1,
+    min: 1,
+    labelRu:
+      'Горячая линия: версия текстов-предупреждений («Звонки не записываются…»). Текст показывается один раз — при первом звонке; увеличьте число после правки текста, и все увидят его ещё раз',
   },
 ];
 
@@ -233,11 +226,16 @@ export const OWNER_HOTLINE_SETTINGS = {
   'hotline.conflict_cache_sec': 3600,
   'hotline.sweep_interval_ms': 1000,
   'hotline.call_max_minutes': 0,
-  'hotline.addon_price_cents': 0,
+  'hotline.disclosure_version': 1,
   'hotline.trial_days': 0,
   'hotline.trial_minutes': 0,
-  'hotline.refund_short_call_sec': 30,
-  'hotline.billing_mode': 'free',
+  /** Owner 16.11 ~19:45: «Бесплатно для всех» overrides every plan while
+   * payments are off (on at start). Off = each plan decides (Деньги →
+   * Планы): «Входит в тариф» / «Отдельное дополнение $N» / «Недоступно». */
+  'hotline.free_for_all_enabled': true,
+  /** Owner 16.11 ~19:50: after the one-time disclosure, later calls may show a
+   * tiny «Звонки не записываются» line (off by default). */
+  'hotline.short_notice_enabled': false,
   /** Owner answers 16.11 (q. 7, 8): a short optional review after the call
    * (like Uber) and «Дальше / Назад» steps for the client before connecting. */
   'hotline.review_enabled': true,
@@ -247,17 +245,10 @@ export const OWNER_HOTLINE_SETTINGS = {
   'hotline.counter_bands': [1, 10, 50, 100] as number[],
 } as const;
 
-/** Owner 16.11 ~18:35: who may wait for hotline calls. The client is always
- * free. free (default while payments are off) = every attorney with a
- * verified licence; plan = only the plans the owner ticked (entitlement
- * `hotline` in Деньги → Планы); addon = a separate monthly add-on
- * (`hotline.addon_price_cents`). plan / addon honour the trial below. */
-export const HOTLINE_BILLING_MODES = ['free', 'plan', 'addon'] as const;
-export type HotlineBillingMode = (typeof HOTLINE_BILLING_MODES)[number];
-
 export type HotlineSettingKey = Exclude<
   keyof typeof OWNER_HOTLINE_SETTINGS,
-  | 'hotline.billing_mode'
+  | 'hotline.free_for_all_enabled'
+  | 'hotline.short_notice_enabled'
   | 'hotline.counter_bands'
   | 'hotline.review_enabled'
   | 'hotline.client_steps_enabled'
@@ -281,15 +272,6 @@ export function hotlineSettingsFrom(
     out[d.key as HotlineSettingKey] = ok ? Math.floor(v) : d.default;
   }
   return out;
-}
-
-export function hotlineBillingModeFrom(
-  appConfig: Readonly<Record<string, unknown>>,
-): HotlineBillingMode {
-  const v = appConfig['hotline.billing_mode'];
-  return (HOTLINE_BILLING_MODES as readonly unknown[]).includes(v)
-    ? (v as HotlineBillingMode)
-    : 'free';
 }
 
 export const DEFAULT_COUNTER_BANDS: readonly number[] = [1, 10, 50, 100];
