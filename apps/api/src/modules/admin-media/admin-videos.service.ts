@@ -9,6 +9,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -66,14 +67,7 @@ export class AdminVideosService {
       ...(status ? { status } : {}),
       ...(ownerId ? { owner_user_id: ownerId } : {}),
       ...createdWindow(window),
-      ...(c
-        ? {
-            OR: [
-              { created_at: { lt: c.createdAt } },
-              { created_at: c.createdAt, id: { lt: c.id } },
-            ],
-          }
-        : {}),
+      ...(c ? createdBefore({ t: c.createdAt, id: c.id }) : {}),
     });
     const rows = await this.prisma.videoAsset.findMany({
       where,

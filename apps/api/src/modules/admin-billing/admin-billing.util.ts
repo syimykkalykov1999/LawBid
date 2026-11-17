@@ -1,4 +1,5 @@
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -12,20 +13,16 @@ export interface Page<T> {
   nextCursor: string | null;
 }
 
-/** Keyset condition for (created_at DESC, id DESC) lists. */
-export function afterCursor(cursor?: string): {
-  OR?: (
-    { created_at: { lt: Date } } | { created_at: Date; id: { lt: string } }
-  )[];
-} {
+/** Keyset condition for (created_at DESC, id DESC) lists. Row 215: as an
+ * index range (createdBefore), so a deep page starts at the cursor on the
+ * (created_at DESC, id DESC) indexes of subscriptions, payments, seat
+ * changes, dispute refunds and duplicate fixes. */
+export function afterCursor(
+  cursor?: string,
+): ReturnType<typeof createdBefore> | Record<string, never> {
   if (!cursor) return {};
   const c = decodeCursor(cursor);
-  return {
-    OR: [
-      { created_at: { lt: c.createdAt } },
-      { created_at: c.createdAt, id: { lt: c.id } },
-    ],
-  };
+  return createdBefore({ t: c.createdAt, id: c.id });
 }
 
 /** Rows fetched with take = size + 1 → one page and its cursor. */

@@ -401,11 +401,18 @@ describe('ReviewsService.list / summary (§7.4)', () => {
     });
     expect(page2.nextCursor).toBeNull();
     const second = (
-      prisma.review.findMany.mock.calls[1] as [{ where: { OR: unknown[] } }]
+      prisma.review.findMany.mock.calls[1] as [{ where: { AND: unknown[] } }]
     )[0];
-    expect(second.where.OR).toEqual([
-      { created_at: { lt: rows[1].created_at } },
-      { created_at: rows[1].created_at, id: { lt: rows[1].id } },
+    // Row 215: the same rows as the old OR, with the range bound beside it
+    // (an Index Cond on reviews(attorney_id, created_at DESC)).
+    expect(second.where.AND).toEqual([
+      { created_at: { lte: rows[1].created_at } },
+      {
+        OR: [
+          { created_at: { lt: rows[1].created_at } },
+          { created_at: rows[1].created_at, id: { lt: rows[1].id } },
+        ],
+      },
     ]);
   });
 

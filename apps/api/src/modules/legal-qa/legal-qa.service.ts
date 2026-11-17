@@ -15,6 +15,7 @@ import { Prisma } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -190,12 +191,7 @@ export class LegalQaService {
     if (text) where.push({ id: { in: await this.searchIds(text) } });
     if (q.cursor) {
       const c = decodeCursor(q.cursor);
-      where.push({
-        OR: [
-          { created_at: { lt: c.createdAt } },
-          { created_at: c.createdAt, id: { lt: c.id } },
-        ],
-      });
+      where.push(createdBefore({ t: c.createdAt, id: c.id }));
     }
     const rows = await this.prisma.legalQuestion.findMany({
       where: { AND: where },
