@@ -6,34 +6,7 @@ import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 
-/// A section title of the contacts lists ("On LawBid", "Invite to LawBid").
-class ContactsSectionTitle extends ConsumerWidget {
-  const ContactsSectionTitle(this.label, {this.count, super.key});
-
-  final String label;
-  final int? count;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.screenSide,
-        AppSpacing.lg,
-        AppSpacing.screenSide,
-        AppSpacing.xs,
-      ),
-      child: Text(
-        count == null ? label : '$label · $count',
-        style: type.caption.copyWith(
-          color: colors.textSecondary,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    );
-  }
-}
+export 'package:lawbid/core/design_system/widgets/display/contacts_section_title.dart';
 
 /// One LawBid person from the phone book: avatar, the phone-book name,
 /// the @username below, and [trailing] (the action buttons, or nothing in
