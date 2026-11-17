@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type { Prisma } from '../../../generated/prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { caseNotFound } from '../domain/case-state-machine';
 import { readsAreSplit } from '../../../sharding/split-reads';
+import { BidTeamService } from '../../firms/bid-team.service';
 
 export interface CaseViewer {
   userId: string;
@@ -14,7 +15,8 @@ export interface CaseViewer {
 /**
  * - owner: the client who created the case;
  * - attorney_participant: an attorney with a bid or a conversation on it
- *   (any status — their own bid history and work stay reachable);
+ *   (any status — their own bid history and work stay reachable), or on
+ *   the firm's team of a live bid on it (Firms audit 16.11, PR-5);
  * - attorney_prospect: an open case the attorney may see per docs/04 §4.1
  *   / docs/02 §5.4 (verified attorney, verified license in one of the
  *   case's states). Owner 2026-09-30: any practice — `inPractice` says
@@ -72,7 +74,24 @@ interface DecideRow {
  */
 @Injectable()
 export class CaseAccessPolicy {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Firms audit 16.11 (PR-5): a lawyer on the firm's team of a bid on the
+    // case is a participant too (BidTeamService: in the firm, switch on).
+    @Optional() private readonly team?: BidTeamService,
+  ) {}
+
+  /** [row] with the firm's team counted as participants (PR-5). */
+  private async withTeam(
+    a: string,
+    caseId: string,
+    row: DecideRow,
+  ): Promise<DecideRow> {
+    if (row.participant || !this.team) return row;
+    return (await this.team.joinedBidOnCase(a, caseId))
+      ? { ...row, participant: true }
+      : row;
+  }
 
   async decide(
     viewer: CaseViewer,
@@ -100,7 +119,9 @@ export class CaseAccessPolicy {
     // one query per family instead.
     if (readsAreSplit(this.prisma)) {
       const split = await this.decideRowSplit(a, caseId, db);
-      return split ? this.accessOf(split) : null;
+      return split
+        ? this.accessOf(await this.withTeam(a, caseId, split))
+        : null;
     }
     const rows = await db.$queryRaw<
       {
@@ -162,7 +183,7 @@ export class CaseAccessPolicy {
       WHERE c.id = ${caseId}::UUID AND c.deleted_at IS NULL`;
     const row = rows[0];
     if (!row) return null;
-    return this.accessOf(row);
+    return this.accessOf(await this.withTeam(a, caseId, row));
   }
 
   private accessOf(row: DecideRow): CaseAccess | null {
