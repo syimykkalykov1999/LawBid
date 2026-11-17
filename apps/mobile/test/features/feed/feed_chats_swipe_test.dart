@@ -69,6 +69,7 @@ class _Chats implements ChatRepository {
     bool? pinned,
     bool? hidden,
     bool? archived,
+    bool? unread,
   }) async {
     calls.add('organize pinned=$pinned');
     return _conv();
@@ -202,6 +203,10 @@ void main() {
       Offset(row.right - 8, row.center.dy),
       const Offset(-100, 0),
     );
+    await tester.pumpAndSettle();
+    // Row 110: a swipe on a loud chat asks for how long (Telegram).
+    await tester
+        .tap(find.byKey(const ValueKey('group-choice-MuteChoice.hour')));
     await tester.pumpAndSettle();
     expect(repo.calls, contains('mute'));
     expect(tester.getTopLeft(chats).dx, 0);

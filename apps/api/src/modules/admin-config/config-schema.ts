@@ -2029,6 +2029,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   ] as const) {
     out[key] = { ...out[key], description, min, max };
   }
+  // Owner row 199: one encode for the videos Bunny re-encodes anyway.
+  out['media.bunny_one_encode'] = {
+    ...out['media.bunny_one_encode'],
+    description:
+      'Reels, stories and channel videos no taller than media.video_max_height go to Bunny as recorded (Bunny encodes once); off = the phone also re-encodes above media.video_reencode_above_kbps.',
+  };
   for (const platform of ['ios', 'android']) {
     // The "Update" button of the forced / soft update screen. Needed for
     // iOS before the first release: the App Store id exists only after the
