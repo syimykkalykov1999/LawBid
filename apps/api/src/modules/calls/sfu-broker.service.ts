@@ -46,6 +46,9 @@ export interface SfuCtx {
   userId: string;
   /** False for a channel-call listener (design doc §6). */
   canPublish: boolean;
+  /** Audit 17.11 (problem 5): false for an audio call — no `cam` track
+   * (a modified app could push video into it and spend SFU traffic). */
+  video: boolean;
   /** Our own list of people with status `joined` right now. */
   joinedUserIds: string[];
 }
@@ -421,6 +424,13 @@ export class SfuBrokerService {
       return { mid: t.mid, trackName };
     });
     if (wanted.length === 0) throw invalid('No tracks.', 'tracks');
+    if (!ctx.video && wanted.some((w) => w.trackName === 'cam')) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'This is an audio call: no camera track.',
+        details: { field: 'trackName' },
+      });
+    }
 
     return await this.store.withSession(ctx.callId, ctx.userId, async () => {
       const st = await this.stateOrThrow(ctx);
