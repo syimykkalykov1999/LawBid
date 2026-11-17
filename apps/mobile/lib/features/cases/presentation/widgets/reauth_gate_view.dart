@@ -19,11 +19,16 @@ class ReauthGateView extends ConsumerWidget {
     required this.access,
     required this.t,
     this.note,
+    this.inSheet = false,
     super.key,
   });
 
   final HistoryAccess access;
   final Translator t;
+
+  /// R2B-12 (14.11): the same gate inside `showReauthSheet` — the list
+  /// takes only the height it needs and starts nearer the sheet's top.
+  final bool inSheet;
 
   /// Small print under the actions (e.g. "read-only" for the history).
   final String? note;
@@ -49,9 +54,10 @@ class ReauthGateView extends ConsumerWidget {
       _ => null,
     };
     return ListView(
-      padding: const EdgeInsets.fromLTRB(
+      shrinkWrap: inSheet,
+      padding: EdgeInsets.fromLTRB(
         AppSpacing.screenSide,
-        AppSpacing.xxxl,
+        inSheet ? AppSpacing.lg : AppSpacing.xxxl,
         AppSpacing.screenSide,
         AppSpacing.xxl,
       ),

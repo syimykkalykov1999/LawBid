@@ -355,7 +355,7 @@ class _PreviewVideo extends ConsumerWidget {
         // Owner 2026-10-18: no black box over the tile — its cover stays
         // until the video's first frame is drawn over it.
         if (previewing) ReelVideo(video: clip, active: true, backdrop: false),
-        if (post.viewCount > 0)
+        if (post.viewCount > 0 && !post.viewsHidden)
           PositionedDirectional(
             start: 6,
             bottom: 5,
@@ -460,7 +460,7 @@ class ReelGridTile extends ConsumerWidget {
                 placeholder: (_, __) => ColoredBox(color: colors.skeletonBase),
                 errorWidget: (_, __, ___) => cover(),
               ),
-            if (post.viewCount > 0)
+            if (post.viewCount > 0 && !post.viewsHidden)
               PositionedDirectional(
                 start: 6,
                 bottom: 5,
