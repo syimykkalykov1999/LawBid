@@ -122,8 +122,8 @@ export function computeRowStatus(i: StatusInput): RowStatus {
         return o(
           'attention',
           state === 'auto' && e.id === 'aws.redis_autoscale'
-            ? 'Памяти Redis не хватает: Авто сейчас поднимет размер.'
-            : 'Памяти Redis не хватает.',
+            ? 'Памяти Valkey не хватает: Авто сейчас поднимет размер.'
+            : 'Памяти Valkey не хватает.',
         );
       }
       if (e.id === 'aws.redis_autoscale') {
@@ -131,9 +131,9 @@ export function computeRowStatus(i: StatusInput): RowStatus {
           return o('idle', 'Автомасштаб выключен: размер не меняется сам.');
         if (state === 'on')
           return o('idle', 'Пробный режим: только письма, что бы он сделал.');
-        return o('idle', 'Памяти хватает, размер Redis не меняется.');
+        return o('idle', 'Памяти хватает, размер Valkey не меняется.');
       }
-      return o('active', 'Redis работает, памяти хватает.');
+      return o('active', 'Valkey работает, памяти хватает.');
     }
     case 'aws.capacity_ceiling':
     case 'hidden.economy_tick':

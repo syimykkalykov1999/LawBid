@@ -14897,7 +14897,7 @@
             }
           },
           "409": {
-            "description": "Conflict: CASE_INVALID_STATE, BID_ALREADY_EXISTS, IDEMPOTENCY_KEY_CONFLICT",
+            "description": "Conflict: CASE_INVALID_STATE, BID_ALREADY_EXISTS, IDEMPOTENCY_KEY_CONFLICT, FIRM_BID_EXISTS",
             "content": {
               "application/json": {
                 "schema": {
@@ -14943,6 +14943,113 @@
           }
         ],
         "summary": "Place a bid on an open case (attorney)",
+        "tags": [
+          "bids"
+        ]
+      }
+    },
+    "/bids/{id}/join": {
+      "post": {
+        "operationId": "joinBid",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BidJoinEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: BID_INVALID_STATE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Join a colleague's bid of the firm (one bid per firm per case)",
         "tags": [
           "bids"
         ]
@@ -15957,6 +16064,84 @@
         "tags": [
           "firms"
         ]
+      },
+      "delete": {
+        "operationId": "closeFirm",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner closes the firm; its lawyers are told",
+        "tags": [
+          "firms"
+        ]
       }
     },
     "/firms/me/members": {
@@ -16060,6 +16245,16 @@
       "post": {
         "operationId": "acceptFirmInvite",
         "parameters": [],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptFirmInviteDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success envelope (docs/01 §7).",
@@ -16092,7 +16287,7 @@
             }
           },
           "409": {
-            "description": "Conflict: FEATURE_DISABLED",
+            "description": "Conflict: FEATURE_DISABLED, FIRM_ALREADY_MEMBER, FIRM_FULL",
             "content": {
               "application/json": {
                 "schema": {
@@ -16191,7 +16386,7 @@
             }
           },
           "409": {
-            "description": "Conflict: FEATURE_DISABLED",
+            "description": "Conflict: FEATURE_DISABLED, FIRM_OWNER_MUST_TRANSFER",
             "content": {
               "application/json": {
                 "schema": {
@@ -16237,6 +16432,123 @@
           }
         ],
         "summary": "Leave, decline, or (owner) remove a member",
+        "tags": [
+          "firms"
+        ]
+      }
+    },
+    "/firms/me/owner": {
+      "post": {
+        "operationId": "transferFirmOwner",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferFirmOwnerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner makes an active lawyer the owner (stays a member)",
         "tags": [
           "firms"
         ]
@@ -76551,6 +76863,1382 @@
         "summary": "Clients: allow or forbid being found by people who have my number",
         "tags": [
           "contacts-sync"
+        ]
+      }
+    },
+    "/hotline/config": {
+      "get": {
+        "operationId": "hotlineConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineConfigEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Hotline switches and numbers for the app",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/hotline/line": {
+      "put": {
+        "operationId": "hotlineLineOn",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotlineLineDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineLineViewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED, FORBIDDEN, ATTORNEY_NOT_VERIFIED, ENTITLEMENT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Ожидать звонки»: on the line with these filters",
+        "tags": [
+          "hotline"
+        ]
+      },
+      "delete": {
+        "operationId": "hotlineLineOff",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineLineViewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Выключить линию»",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/hotline/line/accepting": {
+      "post": {
+        "operationId": "hotlineSetAccepting",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotlineAcceptingDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineLineViewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Принимать звонки» on / off (⋯ menu in a call)",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/hotline/heartbeat": {
+      "post": {
+        "operationId": "hotlineHeartbeat",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineEndEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "REST fallback of the socket `hotline:heartbeat` (screen open)",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/hotline/offers/{id}/accept": {
+      "post": {
+        "operationId": "hotlineAcceptOffer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineOfferResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Взять» (idempotent); billing starts here",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/hotline/offers/{id}/decline": {
+      "post": {
+        "operationId": "hotlineDeclineOffer",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineOfferResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Пропустить»: the call goes to the next attorney",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/hotline/calls/{id}/end": {
+      "post": {
+        "operationId": "hotlineEndCall",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineEndEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "End a hotline call (either side, idempotent)",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/hotline/requests": {
+      "post": {
+        "operationId": "hotlineCreateRequest",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotlineRequestDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineRequestViewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Связаться с адвокатом» (one active request per client)",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/hotline/requests/{id}": {
+      "get": {
+        "operationId": "hotlineGetRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineRequestViewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My request (ETag / 304 for polling)",
+        "tags": [
+          "hotline"
+        ]
+      },
+      "delete": {
+        "operationId": "hotlineCancelRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineRequestViewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Выйти из очереди» / cancel",
+        "tags": [
+          "hotline"
+        ]
+      },
+      "patch": {
+        "operationId": "hotlineChangeLanguages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotlineLanguagesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineRequestViewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Поменять язык» while waiting (keeps the place)",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/hotline/requests/{id}/notify-me": {
+      "post": {
+        "operationId": "hotlineNotifyMe",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotlineNotifyMeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineRequestViewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Сообщите, когда появится адвокат»: leave, keep the place",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/hotline/requests/{id}/claim": {
+      "post": {
+        "operationId": "hotlineClaim",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineRequestViewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Позвонить сейчас»: online again with the original time",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/hotline/counters": {
+      "get": {
+        "operationId": "hotlineCounters",
+        "parameters": [
+          {
+            "name": "keys",
+            "required": true,
+            "in": "query",
+            "description": "Comma list: b:<state~practice~lang> or l:<lang> (≤ 20)",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineCountersEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Banded «адвокатов / клиентов» of buckets (ETag / 304, 5 s)",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/admin/hotline/live": {
+      "get": {
+        "operationId": "adminHotlineLive",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineLiveEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Hotline now: line, queues, calls (Valkey only)",
+        "tags": [
+          "admin-hotline"
         ]
       }
     },
@@ -138201,6 +139889,8 @@
           "BAR_NUMBER_FORMAT_INVALID",
           "FIRM_ALREADY_MEMBER",
           "FIRM_FULL",
+          "FIRM_OWNER_MUST_TRANSFER",
+          "FIRM_BID_EXISTS",
           "BID_LICENSE_PENDING",
           "BAR_ATTEMPTS_COOLDOWN",
           "CASE_LIMIT_REACHED",
@@ -146101,6 +147791,32 @@
           "data"
         ]
       },
+      "BidJoinDto": {
+        "type": "object",
+        "properties": {
+          "bidId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "bidId"
+        ]
+      },
+      "BidJoinEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BidJoinDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "ChangeBidDto": {
         "type": "object",
         "properties": {
@@ -146283,6 +147999,12 @@
             "items": {
               "$ref": "#/components/schemas/FirmMemberDto"
             }
+          },
+          "inviteExpiresAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "The viewer's own pending invitation to this firm is valid until then"
           }
         },
         "required": [
@@ -146290,7 +148012,8 @@
           "name",
           "ownerId",
           "states",
-          "members"
+          "members",
+          "inviteExpiresAt"
         ]
       },
       "CreateFirmDto": {
@@ -146328,6 +148051,27 @@
         },
         "required": [
           "username"
+        ]
+      },
+      "AcceptFirmInviteDto": {
+        "type": "object",
+        "properties": {
+          "firmId": {
+            "type": "string",
+            "description": "Which invitation; the newest one when left out"
+          }
+        }
+      },
+      "TransferFirmOwnerDto": {
+        "type": "object",
+        "properties": {
+          "attorneyId": {
+            "type": "string",
+            "description": "An active lawyer of the firm"
+          }
+        },
+        "required": [
+          "attorneyId"
         ]
       },
       "FirmMemberListEnvelope": {
@@ -178857,6 +180601,699 @@
         },
         "required": [
           "enabled"
+        ]
+      },
+      "HotlineDisclosureKind": {
+        "type": "string",
+        "enum": [
+          "full",
+          "short"
+        ]
+      },
+      "HotlineDisclosureDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "nullable": true,
+            "description": "Text key (hotline.disclosure.client_wait / hotline.disclosure.attorney_offer / hotline.notice.short); null = show nothing (already seen)."
+          },
+          "kind": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineDisclosureKind"
+              }
+            ]
+          },
+          "version": {
+            "type": "number",
+            "description": "hotline.disclosure_version"
+          },
+          "ru": {
+            "type": "string",
+            "nullable": true
+          },
+          "en": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "version"
+        ]
+      },
+      "HotlineConfigDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Флаги → «Горячая линия»."
+          },
+          "heartbeatSec": {
+            "type": "number"
+          },
+          "offerTimeoutSec": {
+            "type": "number"
+          },
+          "maxLanguages": {
+            "type": "number"
+          },
+          "topicMaxChars": {
+            "type": "number"
+          },
+          "countersIntervalSec": {
+            "type": "number"
+          },
+          "notifyClaimSec": {
+            "type": "number"
+          },
+          "reviewEnabled": {
+            "type": "boolean",
+            "description": "hotline.review_enabled"
+          },
+          "clientStepsEnabled": {
+            "type": "boolean",
+            "description": "hotline.client_steps_enabled («Дальше / Назад»)"
+          },
+          "disclosure": {
+            "$ref": "#/components/schemas/HotlineDisclosureDto"
+          }
+        },
+        "required": [
+          "enabled",
+          "heartbeatSec",
+          "offerTimeoutSec",
+          "maxLanguages",
+          "topicMaxChars",
+          "countersIntervalSec",
+          "notifyClaimSec",
+          "reviewEnabled",
+          "clientStepsEnabled",
+          "disclosure"
+        ]
+      },
+      "HotlineConfigEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HotlineConfigDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "HotlineLineState": {
+        "type": "string",
+        "enum": [
+          "idle",
+          "offered",
+          "busy",
+          "not_accepting",
+          "paused",
+          "off"
+        ]
+      },
+      "HotlineAccessVia": {
+        "type": "string",
+        "enum": [
+          "free",
+          "plan",
+          "addon",
+          "trial"
+        ]
+      },
+      "HotlineLineViewDto": {
+        "type": "object",
+        "properties": {
+          "online": {
+            "type": "boolean"
+          },
+          "state": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineLineState"
+              }
+            ]
+          },
+          "accepting": {
+            "type": "boolean"
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "practiceAreas": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "heartbeatSec": {
+            "type": "number"
+          },
+          "offerTimeoutSec": {
+            "type": "number"
+          },
+          "via": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineAccessVia"
+              }
+            ]
+          }
+        },
+        "required": [
+          "online",
+          "state",
+          "accepting",
+          "states",
+          "practiceAreas",
+          "languages",
+          "heartbeatSec",
+          "offerTimeoutSec"
+        ]
+      },
+      "HotlineLineDto": {
+        "type": "object",
+        "properties": {
+          "states": {
+            "minItems": 1,
+            "maxItems": 100,
+            "description": "Two-letter states; only states of verified licences.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2,
+              "minLength": 2
+            }
+          },
+          "practiceAreas": {
+            "minItems": 1,
+            "maxItems": 500,
+            "description": "Practice area codes.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          },
+          "languages": {
+            "minItems": 1,
+            "maxItems": 50,
+            "description": "Language codes (en, es, ru…).",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 16
+            }
+          },
+          "accepting": {
+            "type": "boolean",
+            "default": true,
+            "description": "«Принимать звонки»; false = on the line, no new calls."
+          }
+        },
+        "required": [
+          "states",
+          "practiceAreas",
+          "languages"
+        ]
+      },
+      "HotlineLineViewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HotlineLineViewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "HotlineAcceptingDto": {
+        "type": "object",
+        "properties": {
+          "accepting": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accepting"
+        ]
+      },
+      "HotlineEndDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "seconds": {
+            "type": "number",
+            "description": "Talked seconds (from «Взять»)."
+          }
+        },
+        "required": [
+          "ok",
+          "seconds"
+        ]
+      },
+      "HotlineEndEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HotlineEndDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "HotlineOfferState": {
+        "type": "string",
+        "enum": [
+          "connected",
+          "late",
+          "gone",
+          "skipped"
+        ]
+      },
+      "HotlineOfferResultDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "state": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineOfferState"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ok",
+          "state"
+        ]
+      },
+      "HotlineOfferResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HotlineOfferResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "HotlineRequestStatus": {
+        "type": "string",
+        "enum": [
+          "searching",
+          "queued",
+          "offline",
+          "connected",
+          "ended",
+          "cancelled"
+        ]
+      },
+      "HotlineLawyerDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "The client’s state"
+          },
+          "barNumber": {
+            "type": "string",
+            "nullable": true,
+            "description": "Bar number there."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "state"
+        ]
+      },
+      "HotlineRequestViewDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineRequestStatus"
+              }
+            ]
+          },
+          "positionBand": {
+            "type": "string",
+            "nullable": true,
+            "description": "Rough place: 1, 2-5, 6-20, 20+ (never exact)."
+          },
+          "waitBand": {
+            "type": "string",
+            "nullable": true,
+            "description": "Rough wait: lt5, 5to15, 15to30, gt30 (minutes)."
+          },
+          "endReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "cancelled, lost, queue_full, notify_expired, notify_exhausted («Мы не дозвонились, оставьте заявку снова»), time_limit, ended"
+          },
+          "lawyer": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineLawyerDto"
+              }
+            ]
+          },
+          "notifyUntil": {
+            "type": "number",
+            "nullable": true,
+            "description": "ms; «Сообщите мне» ends"
+          },
+          "disclosure": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineDisclosureDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ]
+      },
+      "HotlineRequestDto": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 2,
+            "example": "CA"
+          },
+          "practiceArea": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "languages": {
+            "minItems": 1,
+            "maxItems": 10,
+            "description": "Up to hotline.max_languages.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 16
+            }
+          },
+          "topic": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "«О чём звонок», up to hotline.topic_max_chars."
+          }
+        },
+        "required": [
+          "state",
+          "practiceArea",
+          "languages",
+          "topic"
+        ]
+      },
+      "HotlineRequestViewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HotlineRequestViewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "HotlineLanguagesDto": {
+        "type": "object",
+        "properties": {
+          "languages": {
+            "minItems": 1,
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 16
+            }
+          }
+        },
+        "required": [
+          "languages"
+        ]
+      },
+      "HotlineNotifyMeDto": {
+        "type": "object",
+        "properties": {
+          "timeZone": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "IANA time zone of the phone (night window in its clock).",
+            "example": "America/Los_Angeles"
+          },
+          "allowNight": {
+            "type": "boolean",
+            "default": false,
+            "description": "Notify at night too."
+          }
+        }
+      },
+      "HotlineCounterDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "b:<state~practice~lang> or l:<lang>"
+          },
+          "lawyers": {
+            "type": "string",
+            "description": "Banded: 0, 1 (есть), 10+, 50+, 100+"
+          },
+          "clients": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "lawyers",
+          "clients"
+        ]
+      },
+      "HotlineCountersDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotlineCounterDto"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "HotlineCountersEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HotlineCountersDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "HotlineBucketRowDto": {
+        "type": "object",
+        "properties": {
+          "bucket": {
+            "type": "string"
+          },
+          "lawyers": {
+            "type": "number"
+          },
+          "waiting": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "bucket",
+          "lawyers",
+          "waiting"
+        ]
+      },
+      "HotlineHourDto": {
+        "type": "object",
+        "properties": {
+          "hour": {
+            "type": "string"
+          },
+          "requests": {
+            "type": "number"
+          },
+          "offers": {
+            "type": "number"
+          },
+          "accepted": {
+            "type": "number"
+          },
+          "declined": {
+            "type": "number"
+          },
+          "timeouts": {
+            "type": "number"
+          },
+          "ended": {
+            "type": "number"
+          },
+          "talkSeconds": {
+            "type": "number"
+          },
+          "notices": {
+            "type": "number"
+          },
+          "peakOnline": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "hour",
+          "requests",
+          "offers",
+          "accepted",
+          "declined",
+          "timeouts",
+          "ended",
+          "talkSeconds",
+          "notices",
+          "peakOnline"
+        ]
+      },
+      "HotlineLiveDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "onLine": {
+            "type": "number"
+          },
+          "idle": {
+            "type": "number"
+          },
+          "offered": {
+            "type": "number"
+          },
+          "inCall": {
+            "type": "number"
+          },
+          "notAccepting": {
+            "type": "number"
+          },
+          "paused": {
+            "type": "number"
+          },
+          "waitingOnline": {
+            "type": "number"
+          },
+          "waitingOffline": {
+            "type": "number"
+          },
+          "callsNow": {
+            "type": "number"
+          },
+          "buckets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotlineBucketRowDto"
+            }
+          },
+          "hours": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotlineHourDto"
+            }
+          }
+        },
+        "required": [
+          "enabled",
+          "onLine",
+          "idle",
+          "offered",
+          "inCall",
+          "notAccepting",
+          "paused",
+          "waitingOnline",
+          "waitingOffline",
+          "callsNow",
+          "buckets",
+          "hours"
+        ]
+      },
+      "HotlineLiveEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HotlineLiveDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
         ]
       },
       "IntegrationFieldDto": {

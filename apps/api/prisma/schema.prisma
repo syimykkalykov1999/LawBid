@@ -1044,6 +1044,12 @@ model User {
   contact_sync                ContactSyncSetting?
   // Owner 2026-10-22: the stored phone book (hashes only).
   contact_book_hashes         ContactBookHash[]
+  // Firms audit 16.11 (PR-2): a firm's owner and members are real users.
+  firms_owned                 Firm[]                         @relation("FirmOwner")
+  firm_membership             FirmMember?                    @relation("FirmMemberAttorney")
+  // Firms audit 16.11 (PR-3): invitations to firms, received and sent.
+  firm_invitations            FirmInvitation[]               @relation("FirmInvitationAttorney")
+  firm_invitations_sent       FirmInvitation[]               @relation("FirmInvitationSender")
 
   // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma
   // can't declare gin_trgm_ops, and ignores partial indexes in its diff.
@@ -2197,6 +2203,8 @@ model Bid {
 
   accepted_for_case  Case?                @relation("CaseAcceptedBid")
   offers             BidOffer[]
+  /// Firms audit 16.11 (PR-4): colleagues of the firm who joined this bid.
+  participants       BidParticipant[]
   contact_disclosure ContactDisclosure?
   contact_issues     ContactIssueReport[]
   deal_records       DealRecord[]
@@ -2222,6 +2230,23 @@ model Bid {
 
 // Negotiation history. Append-only except the pending -> accepted/
 // declined/countered/superseded status transition (§4.D).
+/// Firms audit 16.11 (PR-4, owner): a firm sends ONE bid per case; a
+/// colleague who wanted to bid joins the firm's bid instead (the bid's
+/// attorney and its sender are told). Case family, child of the bid.
+model BidParticipant {
+  bid_id      String   @db.Uuid
+  bid         Bid      @relation(fields: [bid_id], references: [id], onDelete: Cascade)
+  attorney_id String   @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
+  shard_id Int @default(0) @db.SmallInt
+
+  @@id([bid_id, attorney_id])
+  @@index([attorney_id])
+  @@map("bid_participants")
+}
+
 model BidOffer {
   id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   bid_id        String      @db.Uuid
@@ -7266,14 +7291,39 @@ model BidCredit {
 /// its states are the union of its member lawyers' verified licenses, and a
 /// bid goes out from the member who holds a matching license.
 model Firm {
-  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name       String       @db.VarChar(120)
-  owner_id   String       @db.Uuid
-  created_at DateTime     @default(now()) @db.Timestamptz
-  members    FirmMember[]
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String           @db.VarChar(120)
+  owner_id    String           @db.Uuid
+  /// Firms audit 16.11 (PR-2): the owner is a real user; an erased owner
+  /// hands the firm over first (FirmsService.onAccountErased).
+  owner       User             @relation("FirmOwner", fields: [owner_id], references: [id], onDelete: Restrict)
+  created_at  DateTime         @default(now()) @db.Timestamptz
+  members     FirmMember[]
+  invitations FirmInvitation[]
 
   @@index([owner_id])
   @@map("firms")
+}
+
+/// Firms audit 16.11 (PR-3): an invitation to a firm. A lawyer may hold
+/// several (one per firm) and none of them blocks creating or joining
+/// another firm; it is valid until `expires_at` (`firms.invite_expiry_days`).
+/// Accepting one makes the lawyer an active `firm_members` row and drops the
+/// rest. Legacy `firm_members` rows with status `invited` were copied here.
+model FirmInvitation {
+  firm_id     String   @db.Uuid
+  firm        Firm     @relation(fields: [firm_id], references: [id], onDelete: Cascade)
+  attorney_id String   @db.Uuid
+  attorney    User     @relation("FirmInvitationAttorney", fields: [attorney_id], references: [id], onDelete: Cascade)
+  invited_by  String   @db.Uuid
+  inviter     User     @relation("FirmInvitationSender", fields: [invited_by], references: [id], onDelete: Cascade)
+  created_at  DateTime @default(now()) @db.Timestamptz
+  expires_at  DateTime @db.Timestamptz
+
+  @@id([firm_id, attorney_id])
+  @@index([attorney_id, expires_at])
+  @@index([invited_by])
+  @@map("firm_invitations")
 }
 
 /// status: invited (waiting for the lawyer) | active. A lawyer is in at most
@@ -7282,6 +7332,7 @@ model FirmMember {
   firm_id     String   @db.Uuid
   firm        Firm     @relation(fields: [firm_id], references: [id], onDelete: Cascade)
   attorney_id String   @unique @db.Uuid
+  attorney    User     @relation("FirmMemberAttorney", fields: [attorney_id], references: [id], onDelete: Cascade)
   role        String   @default("member") @db.VarChar(10)
   status      String   @default("invited") @db.VarChar(10)
   created_at  DateTime @default(now()) @db.Timestamptz

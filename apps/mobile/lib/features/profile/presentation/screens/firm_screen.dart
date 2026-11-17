@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/feedback/app_confirm_sheet.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
@@ -139,12 +140,21 @@ class _FirmScreenState extends ConsumerState<FirmScreen> {
     return [
       Text(f.name, style: type.titleMedium.copyWith(color: colors.text)),
       const SizedBox(height: AppSpacing.xs),
-      if (invited)
+      if (invited) ...[
         Text(
           t.t('firm.invited.hint'),
           style: type.bodySmall.copyWith(color: colors.textSecondary),
-        )
-      else
+        ),
+        // Firms audit 16.11 (PR-3): an invitation is valid for N days.
+        if (f.inviteExpiresAt case final until?)
+          Text(
+            t.t('firm.invite.expires', {
+              'date': ref.read(l10nFormatsProvider).date(until),
+            }),
+            key: const ValueKey('firm-invite-expires'),
+            style: type.bodySmall.copyWith(color: colors.textSecondary),
+          ),
+      ] else
         Text(
           '${t.t('firm.states')}: '
           '${f.states.isEmpty ? '—' : f.states.join(', ')}',
@@ -200,7 +210,11 @@ class _FirmScreenState extends ConsumerState<FirmScreen> {
           label: t.t('firm.accept'),
           isLoading: _busy,
           onPressed: () => _run(() async {
-            await guardApiCall(() => _client.acceptFirmInvite());
+            await guardApiCall(
+              () => _client.acceptFirmInvite(
+                body: api.AcceptFirmInviteDto(firmId: f.id),
+              ),
+            );
           }),
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -226,6 +240,25 @@ class _FirmScreenState extends ConsumerState<FirmScreen> {
             );
             _username.clear();
           }),
+        ),
+        // Firms audit 16.11 (PR-2): the owner hands the firm over or closes
+        // it (settings rows + the same confirm sheet as «Выйти»).
+        const SizedBox(height: AppSpacing.md),
+        AppListRow(
+          key: const ValueKey('firm-transfer'),
+          flush: true,
+          icon: AppIcons.manageAccountsOutlined,
+          label: t.t('firm.transfer'),
+          onTap: _busy ? null : () => _transfer(f),
+        ),
+        AppListRow(
+          key: const ValueKey('firm-close'),
+          flush: true,
+          destructive: true,
+          showChevron: false,
+          icon: AppIcons.deleteOutlineRounded,
+          label: t.t('firm.close'),
+          onTap: _busy ? null : _close,
         ),
       ] else
         AppButton(
@@ -266,6 +299,87 @@ class _FirmScreenState extends ConsumerState<FirmScreen> {
       await guardApiCall(
         () => _client.removeFirmMember(attorneyId: m.attorneyId),
       );
+    });
+  }
+
+  /// Firms audit 16.11 (PR-2): pick an active lawyer, confirm, hand over.
+  Future<void> _transfer(api.FirmDto f) async {
+    final t = ref.read(translatorProvider);
+    final heirs = f.members
+        .where((m) => m.role.json != 'owner' && m.status.json == 'active')
+        .toList();
+    if (heirs.isEmpty) {
+      showAppSnackBar(context, t.t('firm.transfer.none'));
+      return;
+    }
+    String nameOf(api.FirmMemberDto m) =>
+        [m.firstName, m.lastName].whereType<String>().join(' ').trim();
+    final picked = await showAppBottomSheet<api.FirmMemberDto>(
+      context: context,
+      builder: (ctx) {
+        final type = Theme.of(ctx).extension<AppTypographyTokens>()!;
+        final colors = Theme.of(ctx).extension<AppColorTokens>()!;
+        return SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const AppSheetHandle(),
+                Padding(
+                  padding: const EdgeInsets.all(AppSpacing.screenSide),
+                  child: Text(
+                    t.t('firm.transfer.pick'),
+                    style: type.titleMedium.copyWith(color: colors.text),
+                  ),
+                ),
+                for (final m in heirs)
+                  AppListRow(
+                    key: ValueKey('firm-heir-${m.attorneyId}'),
+                    label: nameOf(m),
+                    subtitle: m.states.isEmpty ? null : m.states.join(', '),
+                    onTap: () => Navigator.of(ctx).pop(m),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (picked == null || !mounted) return;
+    final name = nameOf(picked);
+    final ok = await showConfirmSheet(
+      context,
+      t: t,
+      title: t.t('firm.transfer.title', {'name': name}),
+      message: t.t('firm.transfer.message', {'name': name}),
+      confirmLabel: t.t('firm.transfer.confirm'),
+    );
+    if (!ok || !mounted) return;
+    await _run(() async {
+      await guardApiCall(
+        () => _client.transferFirmOwner(
+          body: api.TransferFirmOwnerDto(attorneyId: picked.attorneyId),
+        ),
+      );
+    });
+  }
+
+  /// Firms audit 16.11 (PR-2): the owner closes the firm for everyone.
+  Future<void> _close() async {
+    final t = ref.read(translatorProvider);
+    final ok = await showConfirmSheet(
+      context,
+      t: t,
+      title: t.t('firm.close.title'),
+      message: t.t('firm.close.message'),
+      confirmLabel: t.t('firm.close'),
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    await _run(() async {
+      await guardApiCall(() => _client.closeFirm());
     });
   }
 

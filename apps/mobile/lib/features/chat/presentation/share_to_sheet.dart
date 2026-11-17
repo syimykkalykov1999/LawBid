@@ -363,10 +363,18 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
 
   // ── Communities ────────────────────────────────────────────────────
 
-  Widget _communities(Translator t) => Column(
-        children: [
+  // Row 183: with «Группы» off «Сообщества» is the channels only.
+  _Community get _shownCommunity =>
+      ref.watch(groupsEnabledProvider) ? _community : _Community.channels;
+
+  Widget _communities(Translator t) {
+    final groupsOn = ref.watch(groupsEnabledProvider);
+    final community = _shownCommunity;
+    return Column(
+      children: [
+        if (groupsOn)
           PillTabs<_Community>(
-            value: _community,
+            value: community,
             tabs: [
               (_Community.groups, t.t('share.to.groups')),
               (_Community.channels, t.t('share.to.channels')),
@@ -379,24 +387,26 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
             ),
             onChanged: (v) => setState(() => _community = v),
           ),
-          Expanded(
-            // Owner 2026-10-21: on «Группы», a swipe back goes on to
-            // «Чаты» (the outer tab), like Instagram's nested tabs.
-            child: NotificationListener<ScrollNotification>(
-              onNotification: _innerScroll,
-              child: SwipePages<_Community>(
-                value: _community,
-                values: _Community.values,
-                onChanged: (v) => setState(() => _community = v),
-                pageBuilder: (context, c) => switch (c) {
-                  _Community.groups => _groupsList(t),
-                  _Community.channels => _channelsList(t),
-                },
-              ),
+        Expanded(
+          // Owner 2026-10-21: on «Группы», a swipe back goes on to
+          // «Чаты» (the outer tab), like Instagram's nested tabs.
+          child: NotificationListener<ScrollNotification>(
+            onNotification: _innerScroll,
+            child: SwipePages<_Community>(
+              value: community,
+              values:
+                  groupsOn ? _Community.values : const [_Community.channels],
+              onChanged: (v) => setState(() => _community = v),
+              pageBuilder: (context, c) => switch (c) {
+                _Community.groups => _groupsList(t),
+                _Community.channels => _channelsList(t),
+              },
             ),
           ),
-        ],
-      );
+        ),
+      ],
+    );
+  }
 
   bool _innerScroll(ScrollNotification n) {
     if (n.depth != 0 || n.metrics.axis != Axis.horizontal) return false;
@@ -405,7 +415,7 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
         ? n.overscroll < 0
         : n.metrics.pixels < n.metrics.minScrollExtent - 24;
     if (!_backFired &&
-        _community == _Community.groups &&
+        _shownCommunity == _Community.groups &&
         before &&
         (n is OverscrollNotification || n is ScrollUpdateNotification)) {
       _backFired = true;

@@ -32,6 +32,8 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         groupRepositoryProvider.overrideWithValue(repo),
+        // Row 183: the switch «Группы в чатах» held on.
+        groupsEnabledProvider.overrideWithValue(true),
         realtimeClientProvider.overrideWithValue(null),
         realtimeEventsProvider.overrideWithValue(events.stream),
         currentUserIdProvider.overrideWithValue('u1'),
