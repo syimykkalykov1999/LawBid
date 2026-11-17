@@ -156,7 +156,18 @@ export type RealtimeEvent =
   | 'channel:post'
   | 'channel:update'
   | 'comment:new'
-  | 'badge:update';
+  | 'badge:update'
+  // Owner row 87 (16.11): the call hotline — an offer to an attorney and its
+  // end, the line on/off, the client's request status, «Адвокат на линии»,
+  // connected / ended, and the banded counters of a watched bucket.
+  | 'hotline:offer'
+  | 'hotline:offer_ended'
+  | 'hotline:line'
+  | 'hotline:request'
+  | 'hotline:notify'
+  | 'hotline:connected'
+  | 'hotline:ended'
+  | 'hotline:counters';
 
 /** Owner 2026-10-22: QR sign-in status for the waiting browser (never a
  * token — it redeems through `POST /auth/qr/poll` with its secret). */

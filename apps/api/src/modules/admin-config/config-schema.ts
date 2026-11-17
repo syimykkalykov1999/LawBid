@@ -782,14 +782,14 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['files.scan_handoff_max_kb'] = {
     ...out['files.scan_handoff_max_kb'],
     description:
-      'KB of a small upload handed from confirm to the virus check through Redis, so the worker does not read it from storage again (0 = off, default 8192, max 32768).',
+      'KB of a small upload handed from confirm to the virus check through Valkey, so the worker does not read it from storage again (0 = off, default 8192, max 32768).',
     min: 0,
     max: 32_768,
   };
   out['files.scan_handoff_ttl_s'] = {
     ...out['files.scan_handoff_ttl_s'],
     description:
-      'Seconds such bytes wait in Redis for the check (10-3600, default 120); after that the worker reads the file from storage.',
+      'Seconds such bytes wait in Valkey for the check (10-3600, default 120); after that the worker reads the file from storage.',
     min: 10,
     max: 3600,
   };
@@ -1576,7 +1576,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     type: 'string',
     defaultValue: 'off',
     description:
-      'Biggest database / Redis size the autoscalers may use: auto = what the allowed monthly spend pays for (Экономика), off = only the Terraform ceiling. Changed on the «Расходы» page.',
+      'Biggest database / Valkey size the autoscalers may use: auto = what the allowed monthly spend pays for (Экономика), off = only the Terraform ceiling. Changed on the «Расходы» page.',
     pattern: /^(off|auto)$/,
   };
   out['scale.bunny_hardstop.mode'] = {
