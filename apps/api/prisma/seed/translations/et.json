@@ -2345,6 +2345,7 @@
   "form.disabled.required": "Täida kõigepealt kohustuslikud väljad.",
   "gallery.accessDenied": "Fotodele pole juurdepääsu. Lubage see telefoni seadetes.",
   "gallery.saveFailed": "Foto salvestamine ebaõnnestus. Proovige uuesti.",
+  "gallery.shareFailed": "Jagamine ebaõnnestus. Proovi uuesti.",
   "gate.verify.cases": "Juhtumid avanevad pärast seda, kui LawBid on Teie litsentsi kinnitanud. See võtab tavaliselt 1–2 tööpäeva.",
   "gate.verify.cta": "Viige verifitseerimine lõpuni",
   "gate.verify.post": "Voos saavad postitada ainult verifitseeritud advokaadid, et kliendid teaksid alati, keda nad loevad.",

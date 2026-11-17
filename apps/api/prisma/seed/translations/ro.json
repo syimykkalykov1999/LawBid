@@ -2345,6 +2345,7 @@
   "form.disabled.required": "Completează mai întâi câmpurile obligatorii.",
   "gallery.accessDenied": "Nu există acces la fotografii. Permiteți-l din setările telefonului.",
   "gallery.saveFailed": "Fotografia nu a putut fi salvată. Încercați din nou.",
+  "gallery.shareFailed": "Nu s-a putut distribui. Încearcă din nou.",
   "gate.verify.cases": "Cazurile se deschid după ce LawBid vă confirmă licența. De obicei durează 1–2 zile lucrătoare.",
   "gate.verify.cta": "Finalizați verificarea",
   "gate.verify.post": "Doar avocații verificați pot publica în flux, astfel încât clienții să știe mereu pe cine citesc.",

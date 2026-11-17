@@ -22,28 +22,36 @@ describe('VoipTokensService.fcmTokensCoveredBy', () => {
   ];
   const prisma = {
     session: {
-      findMany: jest.fn(async (a: { where: { id: { in: string[] } } }) =>
-        sessions
-          .filter((s) => a.where.id.in.includes(s.id))
-          .map((s) => ({ session_chain_id: s.session_chain_id })),
+      findMany: jest.fn(
+        async (a: {
+          where: { id?: { in: string[] }; session_chain_id?: { in: string[] } };
+        }) =>
+          a.where.id
+            ? sessions
+                .filter((s) => a.where.id!.in.includes(s.id))
+                .map((s) => ({ session_chain_id: s.session_chain_id }))
+            : sessions
+                .filter((s) =>
+                  a.where.session_chain_id!.in.includes(s.session_chain_id),
+                )
+                .map((s) => ({ id: s.id })),
       ),
     },
+    // Rows of an older release (no chain of their own): matched by the
+    // chain's session rows, the second OR branch.
     pushToken: {
       findMany: jest.fn(
         async (a: {
           where: {
             platform: string;
-            session: { session_chain_id: { in: string[] } };
+            OR: [unknown, { session_id: { in: string[] } }];
           };
         }) =>
           pushTokens
             .filter(
               (t) =>
                 t.platform === a.where.platform &&
-                a.where.session.session_chain_id.in.includes(
-                  sessions.find((s) => s.id === t.session_id)
-                    ?.session_chain_id ?? '',
-                ),
+                a.where.OR[1].session_id.in.includes(t.session_id),
             )
             .map((t) => ({ fcm_token: t.fcm_token })),
       ),
@@ -78,35 +86,40 @@ describe('VoipTokensService.fcmTokensCoveredBy', () => {
  */
 describe('VoipTokensService: one VoIP push per phone', () => {
   it('activeDevices keeps only the newest token of each sign-in chain', async () => {
-    const rows = [
+    const tokens = [
       {
         token: 'new',
         topic: 't',
         environment: 'production',
-        sessionId: 's2',
-        chainId: 'iphone',
-        alive: true,
+        session_id: 's2',
+        session_chain_id: 'iphone',
       },
       {
         token: 'old',
         topic: 't',
         environment: 'production',
-        sessionId: 's1',
-        chainId: 'iphone',
-        alive: true,
+        session_id: 's1',
+        session_chain_id: 'iphone',
       },
       {
         token: 'ipad',
         topic: 't',
         environment: 'production',
-        sessionId: 's3',
-        chainId: 'ipad',
-        alive: true,
+        session_id: 's3',
+        session_chain_id: 'ipad',
       },
     ];
     const prisma = {
-      $queryRaw: jest.fn(async () => rows),
-      voipToken: { deleteMany: jest.fn() },
+      session: {
+        findMany: jest.fn(async () => [
+          { id: 's2', session_chain_id: 'iphone' },
+          { id: 's3', session_chain_id: 'ipad' },
+        ]),
+      },
+      voipToken: {
+        findMany: jest.fn(async () => tokens),
+        deleteMany: jest.fn(),
+      },
     };
     const svc = new VoipTokensService(prisma as never);
     const out = await svc.activeDevices('u');
@@ -129,7 +142,10 @@ describe('VoipTokensService: one VoIP push per phone', () => {
       where: {
         user_id: 'u',
         token: { not: 'new' },
-        session: { session_chain_id: 'iphone' },
+        OR: [
+          { session_chain_id: 'iphone' },
+          { session_chain_id: null, session: { session_chain_id: 'iphone' } },
+        ],
       },
     });
   });

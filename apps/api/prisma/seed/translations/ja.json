@@ -2345,6 +2345,7 @@
   "form.disabled.required": "まず必須項目を入力してください。",
   "gallery.accessDenied": "写真へのアクセス権がありません。スマートフォンの設定で許可してください。",
   "gallery.saveFailed": "写真を保存できませんでした。もう一度お試しください。",
+  "gallery.shareFailed": "共有できませんでした。もう一度お試しください。",
   "gate.verify.cases": "LawBidが資格を確認すると、案件を閲覧できます。通常1~2営業日かかります。",
   "gate.verify.cta": "本人確認を完了する",
   "gate.verify.post": "フィードに投稿できるのは確認済みの弁護士のみです。これにより、依頼者は誰の投稿かを常に把握できます。",

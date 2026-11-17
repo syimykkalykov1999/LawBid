@@ -2345,6 +2345,7 @@
   "form.disabled.required": "Hãy điền các trường bắt buộc trước.",
   "gallery.accessDenied": "Không có quyền truy cập ảnh. Hãy cho phép trong cài đặt điện thoại.",
   "gallery.saveFailed": "Không thể lưu ảnh. Vui lòng thử lại.",
+  "gallery.shareFailed": "Không thể chia sẻ. Vui lòng thử lại.",
   "gate.verify.cases": "Mục Vụ việc mở sau khi LawBid xác nhận giấy phép của bạn. Thường mất 1–2 ngày làm việc.",
   "gate.verify.cta": "Hoàn tất xác minh",
   "gate.verify.post": "Chỉ luật sư đã xác minh mới có thể đăng lên bảng tin, để khách hàng luôn biết họ đang đọc bài của ai.",

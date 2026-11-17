@@ -110247,6 +110247,16 @@
               "default": 50,
               "type": "number"
             }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Only members whose name or @username matches (one page, no cursor).",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
           }
         ],
         "responses": {

@@ -2345,6 +2345,7 @@
   "form.disabled.required": "Pirmiausia užpildykite privalomus laukus.",
   "gallery.accessDenied": "Nėra prieigos prie nuotraukų. Leiskite ją telefono nustatymuose.",
   "gallery.saveFailed": "Nepavyko išsaugoti nuotraukos. Bandykite dar kartą.",
+  "gallery.shareFailed": "Nepavyko pasidalyti. Bandykite dar kartą.",
   "gate.verify.cases": "Bylos atsiveria, kai LawBid patvirtina Jūsų licenciją. Tai paprastai užtrunka 1–2 darbo dienas.",
   "gate.verify.cta": "Užbaigti patvirtinimą",
   "gate.verify.post": "Įrašus sraute gali skelbti tik patvirtinti advokatai, kad klientai visada žinotų, ką skaito.",

@@ -930,7 +930,7 @@ class _BeforeTyping extends ConsumerWidget {
       },
       child: NotificationListener<ScrollNotification>(
         onNotification: (n) {
-          if (n.metrics.extentAfter < 400) {
+          if (LoadAhead.nearEnd(n.metrics)) {
             for (final load in loaders) {
               load();
             }
