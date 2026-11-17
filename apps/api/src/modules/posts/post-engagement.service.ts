@@ -102,8 +102,9 @@ export class PostEngagementService {
   }
 
   /** Owner 2026-10-20: GET /posts/:id/likes — who liked a post (newest
-   * first, avatar/name/follow state). When the author hid the counter only
-   * the author sees the list; blocked people either way are left out. */
+   * first, avatar/name/follow state). Owner 16.11 (Instagram): when the
+   * author hid the counter the list is empty for everyone, the author too;
+   * blocked people either way are left out. */
   async listLikers(
     viewerId: string,
     postId: string,
@@ -111,9 +112,7 @@ export class PostEngagementService {
   ): Promise<PeoplePage> {
     const post = await this.visible(postId);
     await assertNoBlock(this.prisma, viewerId, post.author_id);
-    if (post.hide_likes && post.author_id !== viewerId) {
-      return { items: [], nextCursor: null };
-    }
+    if (post.hide_likes) return { items: [], nextCursor: null };
     const c = cursor ? decodeCursor(cursor) : undefined;
     const hidden = await this.blockedWith(viewerId);
     const rows = await this.prisma.postLike.findMany({
@@ -149,7 +148,8 @@ export class PostEngagementService {
 
   /** Owner 2026-10-18: GET /posts/:id/reposts — who reposted a post
    * (newest first, avatar/name/follow state); blocked people either way
-   * are left out. */
+   * are left out. Owner 16.11: empty for everyone, the author too, while
+   * the author hides the like and share counts. */
   async listReposters(
     viewerId: string,
     postId: string,
@@ -157,6 +157,7 @@ export class PostEngagementService {
   ): Promise<PeoplePage> {
     const post = await this.visible(postId);
     await assertNoBlock(this.prisma, viewerId, post.author_id);
+    if (post.hide_likes) return { items: [], nextCursor: null };
     const c = cursor ? decodeCursor(cursor) : undefined;
     const hidden = await this.blockedWith(viewerId);
     const rows = await this.prisma.postRepost.findMany({
