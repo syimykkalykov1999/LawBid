@@ -357,8 +357,8 @@ export const ENTITLEMENT_CATALOG: readonly EntitlementDef[] = [
     group: 'visibility',
     label: { en: 'Verified badge', ru: 'Галочка верификации' },
     description: {
-      en: 'The gold badge once the documents are approved — no separate badge payment.',
-      ru: 'Золотая галочка после проверки документов — без отдельной оплаты галочки.',
+      en: 'The gold badge right after payment — no separate badge payment. Documents are asked only while «Проверка документов клиента» is on.',
+      ru: 'Золотая галочка сразу после оплаты — без отдельной оплаты галочки. Документы спрашиваются, только если включена «Проверка документов клиента».',
     },
   },
   {

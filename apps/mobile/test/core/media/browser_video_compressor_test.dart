@@ -92,4 +92,28 @@ void main() {
     expect(out, isNull);
     expect(e.calls, 0);
   });
+
+  // Media check 14.11 (rows 97/144): a light H.264 file whose moov box sits
+  // at the end is only re-muxed in the browser (moov first, same packets).
+  // Its size is about the source's, and it must still replace the original.
+  test('a re-muxed fast-start file is kept although it is not smaller',
+      () async {
+    final remuxed = XFile.fromData(
+      Uint8List(1000),
+      mimeType: 'video/mp4',
+      name: kBrowserFastStartName,
+      // On the VM an XFile's name comes from its path (the browser keeps
+      // the name given).
+      path: '/tmp/$kBrowserFastStartName',
+    );
+    final out = await BrowserVideoCompressor(_Encoder(result: remuxed))
+        .compress(_video(1000), limits: limits);
+    expect(out?.name, kBrowserFastStartName);
+    // A re-encode of the same size is still dropped.
+    expect(
+      await BrowserVideoCompressor(_Encoder(result: _video(1000)))
+          .compress(_video(1000), limits: limits),
+      isNull,
+    );
+  });
 }

@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "Fail tidak lulus semakan. Pilih foto lain.",
   "cbadge.hint": "Tanda semak emas di sebelah nama anda",
   "cbadge.lead": "Tanda semak emas menunjukkan akaun anda telah disahkan. Hantar dokumen dan kami menyemaknya secara manual. Selepas kelulusan, tanda semak dihidupkan dengan langganan.",
+  "cbadge.lead.pay": "Tanda emas di sebelah nama anda dan kelebihan langganan. Tiada dokumen diperlukan: langgan dan ia aktif serta-merta.",
   "cbadge.pay": "Langgan dengan {price} sebulan",
   "cbadge.pending.text": "Kami sedang meneliti dokumen anda. Anda menerima pemberitahuan apabila kami selesai.",
   "cbadge.pending.title": "Sedang disemak",

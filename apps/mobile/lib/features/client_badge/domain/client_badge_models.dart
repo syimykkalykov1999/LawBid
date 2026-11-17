@@ -3,6 +3,8 @@ import 'package:lawbid/features/plans/domain/plan_models.dart';
 
 /// Owner 2026-10-02 — the client's paid gold badge: documents → approval in
 /// the admin → $10/month. The server decides when the badge is on.
+/// Owner 16.11: documents only while the admin switch «Проверка документов
+/// клиента» is on (off by default) — then the client just pays.
 enum ClientBadgeStatus {
   none,
   pending,
@@ -37,6 +39,7 @@ class ClientBadgeState {
     required this.canSubmit,
     required this.canSubscribe,
     this.discount,
+    this.documentsRequired = true,
     this.includedInPlan = false,
     this.subscription,
     this.rejectReason,
@@ -47,6 +50,9 @@ class ClientBadgeState {
   /// badge — no separate payment; it shows once the documents are
   /// approved.
   final bool includedInPlan;
+
+  /// Owner 16.11: false = no document step, the client pays at once.
+  final bool documentsRequired;
 
   final ClientBadgeStatus status;
   final bool badgeActive;

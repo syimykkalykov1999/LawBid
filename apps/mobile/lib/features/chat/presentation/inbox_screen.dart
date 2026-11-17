@@ -45,6 +45,7 @@ import 'package:lawbid/features/chat/presentation/desktop_chats.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart'
     show muteDuration, pickMute;
@@ -537,7 +538,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     );
   }
 
-  /// The vertical ⋮ menu of the chats list: "Select chats".
+  /// The vertical ⋮ menu of the chats list: «Новая группа» (owner 16.11,
+  /// row 183 plan step 1, WhatsApp order: first), then "Select chats".
   Future<void> _showChatsMenu(
     BuildContext context,
     Translator t,
@@ -545,6 +547,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
   ) async {
     final organize =
         !ref.read(isAssistantProvider) && _folder != ChatListFolder.requests;
+    // The admin switch «Группы в чатах» (on by default).
+    final groups = ref.read(groupsEnabledProvider);
     final pick = await showAppBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -553,6 +557,14 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
           children: [
             const SizedBox(height: AppSpacing.sm),
             const AppSheetHandle(),
+            if (groups)
+              AppListRow(
+                key: const ValueKey('chats-menu-new-group'),
+                icon: AppIcons.groupAddOutlined,
+                label: t.t('group.new'),
+                showChevron: false,
+                onTap: () => Navigator.of(ctx).pop('group'),
+              ),
             if (organize)
               AppListRow(
                 key: const ValueKey('chats-menu-select'),
@@ -568,6 +580,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     );
     if (!context.mounted) return;
     switch (pick) {
+      case 'group':
+        unawaited(context.push(GroupRoutes.create));
       case 'select':
         ref.read(chatSelectionProvider.notifier).start();
     }
