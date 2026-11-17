@@ -31,6 +31,7 @@ import { REASON_MIN } from '@/lib/reason-policy';
 import { Reason } from '@/lib/reasons';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { dayParam, paymentsCsvQuery } from '@/lib/export-query';
 import { useUrlState } from '@/lib/url-state';
 
 type Tab = 'payments' | 'refunds' | 'duplicates' | 'disputes';
@@ -47,13 +48,17 @@ const DISPUTE_SORT = ['user', 'status', 'amount', 'reason', 'created'] as const;
 /** Payments and refunds. */
 export default function PaymentsPage() {
   const [tab, setTab] = useUrlState<Tab>('tab', 'payments', TABS);
+  // Row 180 B7: the CSV is what the Payments tab shows (its filters).
+  const [status] = useUrlState<PayStatus>('status', '', PAY_STATUSES);
+  const [from] = useUrlState<string>('from', '');
+  const [to] = useUrlState<string>('to', '');
   return (
     <>
       <PageHeader
         eyebrow="Деньги"
         title="Платежи и возвраты"
         subtitle="Все оплаты подписок через Stripe. Отсюда можно вернуть деньги целиком или частично — возврат пишется в журнал аудита."
-        actions={<CsvButton entity="payments" />}
+        actions={<CsvButton entity="payments" query={paymentsCsvQuery(tab, status, from, to)} />}
       />
       <div className="mb-4">
         <Tabs
@@ -75,8 +80,11 @@ export default function PaymentsPage() {
 function Payments() {
   const { canWrite, canOpenUsers } = useBillingRole();
   const [status, setStatus] = useUrlState<PayStatus>('status', '', PAY_STATUSES);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // R3A-10 / row 180 B7: the dates live in the address too (the CSV reads them).
+  const [fromRaw, setFrom] = useUrlState<string>('from', '');
+  const [toRaw, setTo] = useUrlState<string>('to', '');
+  const from = dayParam(fromRaw);
+  const to = dayParam(toRaw);
   const [refundOf, setRefundOf] = useState<AdminPayment | null>(null);
   const list = useInfiniteQuery({
     queryKey: ['billing-payments', status, from, to],

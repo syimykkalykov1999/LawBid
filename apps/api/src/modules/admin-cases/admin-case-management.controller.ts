@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Optional,
   Param,
   Post,
   Query,
@@ -36,13 +37,20 @@ import {
   AdminIdParamDto,
   type Page,
   AdminCasesBulkDto,
+  AdminCasesBulkPreviewDto,
 } from './admin-cases.dto';
 import {
+  AdminBulkFilterPreviewDto,
   AdminBulkResultDto,
   BULK_MAX,
 } from '../admin-content/admin-content.dto';
 import { eachIdInChunks } from '../admin-content/bulk.util';
-import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
+import {
+  bulkFilterPreview,
+  bulkTargets,
+} from '../../common/admin-bulk/bulk-filter';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { AuditLogService } from '../admin-access/audit-log.service';
 import { AdminCaseManagementService } from './admin-case-management.service';
 
 const E = ErrorCode;
@@ -61,6 +69,9 @@ export class AdminCaseManagementController {
   constructor(
     private readonly cases: AdminCaseManagementService,
     private readonly versionEtag: VersionEtagService,
+    // Row 179 B6: «select all by filter» audits the filter once.
+    @Optional() private readonly audit?: AuditLogService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   @Get()
@@ -104,6 +115,24 @@ export class AdminCaseManagementController {
     });
   }
 
+  @Post('bulk/preview')
+  @Roles('super_admin', 'support')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Row 179 B6: how many cases the list filter matches (read-only, before a bulk action)',
+  })
+  @ApiEnvelopeResponse(AdminBulkFilterPreviewDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
+  previewAdminCasesBulk(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminCasesBulkPreviewDto,
+  ): Promise<AdminBulkFilterPreviewDto> {
+    return bulkFilterPreview(admin, this.settings, (cap) =>
+      this.cases.idsByFilter(dto.filter, admin.countries ?? null, cap),
+    );
+  }
+
   @Post('bulk')
   @Roles('super_admin', 'support')
   @SkipAutoAudit()
@@ -114,15 +143,28 @@ export class AdminCaseManagementController {
   })
   @ApiEnvelopeResponse(AdminBulkResultDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
-  bulkAdminCases(
+  async bulkAdminCases(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminCasesBulkDto,
   ): Promise<AdminBulkResultDto> {
     // Owner 2026-11-12: staff keep 500 cases a request; the owner sends
     // any number, worked through in chunks. Each case runs in its own
-    // shard (its id carries it).
-    assertStaffBulkCap(admin, dto.ids, BULK_MAX);
-    return eachIdInChunks(dto.ids, (id) =>
+    // shard (its id carries it). Row 179 B6: or the list's filter,
+    // resolved here (staff: `admin.bulk_select_cap`).
+    const ids = await bulkTargets({
+      admin,
+      ids: dto.ids,
+      filter: dto.filter,
+      staffMax: BULK_MAX,
+      settings: this.settings,
+      resolve: (cap) =>
+        this.cases.idsByFilter(dto.filter!, admin.countries ?? null, cap),
+      audit: this.audit,
+      auditAction: 'admin.cases.bulk_filter',
+      targetType: 'case_filter',
+      bulkAction: dto.action,
+    });
+    return eachIdInChunks(ids, (id) =>
       shardContext.runForCase(id, () =>
         this.cases.act(admin, id, dto.action, dto.reason),
       ),

@@ -8,11 +8,13 @@ import 'package:retrofit/retrofit.dart';
 import '../models/admin_bid_row_list_envelope.dart';
 import '../models/admin_bid_status.dart';
 import '../models/admin_bulk_content_dto.dart';
+import '../models/admin_bulk_filter_preview_envelope.dart';
 import '../models/admin_bulk_result_envelope.dart';
 import '../models/admin_classify_posts_dto.dart';
 import '../models/admin_client_review_row_list_envelope.dart';
 import '../models/admin_comment_row_list_envelope.dart';
 import '../models/admin_comment_thread.dart';
+import '../models/admin_content_bulk_preview_dto.dart';
 import '../models/admin_overview_envelope.dart';
 import '../models/admin_post_kind.dart';
 import '../models/admin_post_row_list_envelope.dart';
@@ -213,6 +215,13 @@ abstract class AdminContentClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Row 179 B6: how many posts / comments / reviews a list filter matches (read-only, before a bulk action)
+  @POST('/admin/content/bulk/preview')
+  Future<AdminBulkFilterPreviewEnvelope> previewAdminContentBulk({
+    @Body() required AdminContentBulkPreviewDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// All bids, newest first.
   ///
   /// [q] - Search text.
@@ -260,6 +269,12 @@ abstract class AdminContentClient {
 
   /// CSV export (streamed, up to 50 000 rows; a last line says when it was cut). Every export is audited; `users` (phones, emails) needs X-Justification.
   ///
+  /// [disputed] - Case payments: only disputed ones (the «Споры» tab).
+  ///
+  /// [hasReports] - Cases: true = only with an open report («Только с жалобами»), false = without one.
+  ///
+  /// [withDeadline] - Cases: only with a deadline from today on («С датой»; today in `admin.report_timezone`).
+  ///
   /// [xJustification] - Required for entity=users: why contacts are exported (10–500 chars, encodeURIComponent for non-ASCII).
   @GET('/admin/export/{entity}')
   Future<void> exportAdminCsv({
@@ -273,6 +288,9 @@ abstract class AdminContentClient {
     @Query('kind') String? kind,
     @Query('from') DateTime? from,
     @Query('to') DateTime? to,
+    @Query('disputed') bool? disputed,
+    @Query('hasReports') bool? hasReports,
+    @Query('withDeadline') bool? withDeadline,
     @Header('X-Justification') String? xJustification,
     @Extras() Map<String, dynamic>? extras,
   });

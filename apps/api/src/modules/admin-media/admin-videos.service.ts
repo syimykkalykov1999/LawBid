@@ -7,6 +7,11 @@ import {
 } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
 import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
+import {
+  type BulkFilterMatch,
+  idsByFilter,
+  NEWEST_FIRST,
+} from '../../common/admin-bulk/bulk-filter';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   createdBefore,
@@ -64,9 +69,7 @@ export class AdminVideosService {
     const c = cursor ? decodeCursor(cursor) : undefined;
     // withDeleted: the admin sees taken-down / deleted assets too.
     const where: Prisma.VideoAssetWhereInput = withDeleted({
-      ...(status ? { status } : {}),
-      ...(ownerId ? { owner_user_id: ownerId } : {}),
-      ...createdWindow(window),
+      ...videosWhere(status, ownerId, window),
       ...(c ? createdBefore({ t: c.createdAt, id: c.id }) : {}),
     });
     const rows = await this.prisma.videoAsset.findMany({
@@ -109,6 +112,33 @@ export class AdminVideosService {
     };
   }
 
+  /** Row 179 B6: the ids the list filter matches that can still be taken
+   * down (already deleted assets are left out, as the panel did); [cap]
+   * null = every match. */
+  async idsByFilter(
+    q: {
+      status?: AdminVideoStatus;
+      ownerId?: string;
+      from?: string;
+      to?: string;
+    },
+    cap: number | null,
+  ): Promise<BulkFilterMatch> {
+    const where: Prisma.VideoAssetWhereInput = withDeleted({
+      ...videosWhere(q.status, q.ownerId, q),
+      AND: [{ status: { not: 'deleted' as const } }],
+    });
+    return idsByFilter(
+      (p) =>
+        this.prisma.videoAsset.findMany({
+          where,
+          select: { id: true },
+          orderBy: NEWEST_FIRST,
+          ...p,
+        }),
+      cap,
+    );
+  }
   async takedown(admin: AdminActor, id: string, reason: string): Promise<void> {
     const postSelect = { id: true, status: true, deleted_at: true } as const;
     // Two databases: the video is global, its post lives with the author
@@ -212,4 +242,17 @@ export class AdminVideosService {
       failed7d,
     };
   }
+}
+
+/** The videos list's filter (without the paging cursor). */
+function videosWhere(
+  status?: AdminVideoStatus,
+  ownerId?: string,
+  window: { from?: string; to?: string } = {},
+): Prisma.VideoAssetWhereInput {
+  return {
+    ...(status ? { status } : {}),
+    ...(ownerId ? { owner_user_id: ownerId } : {}),
+    ...createdWindow(window),
+  };
 }

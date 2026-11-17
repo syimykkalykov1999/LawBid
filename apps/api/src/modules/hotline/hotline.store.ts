@@ -70,6 +70,10 @@ export class HotlineKeys {
   get conn(): string {
     return `${this.p}:conn`;
   }
+  /** Connected calls with a real 1:1 call: req → next sync with it. */
+  get callsync(): string {
+    return `${this.p}:callsync`;
+  }
   /** Paused attorneys: lawyer → until. */
   get pause(): string {
     return `${this.p}:pause`;

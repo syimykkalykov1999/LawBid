@@ -4,19 +4,23 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'admin_templates_filter_dto.dart';
 import 'template_bulk_action.dart';
 
 part 'admin_templates_bulk_dto.g.dart';
 
 @JsonSerializable()
 class AdminTemplatesBulkDto {
-  const AdminTemplatesBulkDto({required this.ids, required this.action});
+  const AdminTemplatesBulkDto({required this.action, this.ids, this.filter});
 
   factory AdminTemplatesBulkDto.fromJson(Map<String, Object?> json) =>
       _$AdminTemplatesBulkDtoFromJson(json);
 
-  /// Staff: at most 100; the owner: any number (processed in chunks).
-  final List<String> ids;
+  /// Exactly one of `ids` or `filter`. Staff: at most 100; the owner: any number (processed in chunks).
+  final List<String>? ids;
+
+  /// Row 179 B6: «select all by filter» — the templates list filter; the server resolves the ids (staff: at most `admin.bulk_select_cap`) and audits the filter.
+  final AdminTemplatesFilterDto? filter;
   final TemplateBulkAction action;
 
   Map<String, Object?> toJson() => _$AdminTemplatesBulkDtoToJson(this);

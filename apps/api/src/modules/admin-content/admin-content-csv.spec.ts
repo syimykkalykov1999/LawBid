@@ -198,3 +198,110 @@ describe('exportCsvStream honours the page filters', () => {
     expect(await where('bids', {})).toBeUndefined();
   });
 });
+
+/** Row 180 follow-up B7: the payments and case-payments CSV take the page
+ * filters too, and the cases CSV «Только с жалобами» and «С датой». */
+describe('exportCsvStream: payments, case payments, cases with reports / a date', () => {
+  const U = '11111111-1111-4111-8111-111111111111';
+  const where = async (
+    entity: string,
+    filter: Record<string, unknown>,
+    tz = 'America/Los_Angeles',
+  ) => {
+    const findMany = jest.fn(() => Promise.resolve([]));
+    const report = {
+      findMany: jest.fn(() => Promise.resolve([{ target_id: 'r1' }])),
+    };
+    const model = { findMany };
+    const svc = new AdminContentService(
+      {
+        case: model,
+        payment: model,
+        casePayment: model,
+        report,
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      undefined,
+      { string: jest.fn(() => Promise.resolve(tz)) } as never,
+    );
+    await svc.exportCsvStream(entity, () => undefined, { filter });
+    return {
+      where: (findMany.mock.calls[0] as unknown as [{ where?: unknown }])[0]
+        .where,
+      report,
+    };
+  };
+
+  it('payments: status and the date window of the Payments tab', async () => {
+    const r = await where('payments', {
+      status: 'failed',
+      from: '2026-11-01T07:00:00.000Z',
+      to: '2026-11-08T08:00:00.000Z',
+    });
+    expect(r.where).toEqual({
+      AND: [
+        { status: 'failed' },
+        {
+          created_at: {
+            gte: new Date('2026-11-01T07:00:00.000Z'),
+            lt: new Date('2026-11-08T08:00:00.000Z'),
+          },
+        },
+      ],
+    });
+  });
+
+  it('case payments: status, «Споры» (disputed), person and case', async () => {
+    const r = await where('case_payments', {
+      status: 'succeeded',
+      disputed: true,
+      userId: U,
+      caseId: U,
+    });
+    expect(r.where).toEqual({
+      AND: [
+        { status: 'succeeded' },
+        { OR: [{ client_id: U }, { attorney_id: U }] },
+        { case_id: U },
+        { dispute_status: { not: null } },
+      ],
+    });
+  });
+
+  it('cases «Только с жалобами»: the open-report case ids, as the list', async () => {
+    const r = await where('cases', { hasReports: true });
+    expect(r.report.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { target_type: 'case', status: 'open' },
+      }),
+    );
+    expect(r.where).toEqual({ AND: [{ id: { in: ['r1'] } }] });
+  });
+
+  it('cases «С датой»: a deadline from local midnight of the report zone', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-14T03:00:00Z'));
+    try {
+      const r = await where('cases', { withDeadline: true });
+      // 03:00 UTC on the 14th is still the 13th in Nevada (PST, UTC-8).
+      expect(r.where).toEqual({
+        AND: [{ deadline_at: { gte: new Date('2026-11-13T08:00:00.000Z') } }],
+      });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('disputed / hasReports / withDeadline on a list without them: 400 before the file', () => {
+    expect(() => exportWhere('payments', { disputed: true })).toThrow(
+      expect.objectContaining({ status: 400 }),
+    );
+    expect(() => exportWhere('users', { hasReports: true })).toThrow(
+      expect.objectContaining({ status: 400 }),
+    );
+    expect(() => exportWhere('bids', { withDeadline: true })).toThrow(
+      expect.objectContaining({ status: 400 }),
+    );
+  });
+});

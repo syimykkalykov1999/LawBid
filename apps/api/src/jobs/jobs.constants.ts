@@ -454,10 +454,11 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.staffDailyStats, pattern: '10 9 * * *' },
   { name: CRON_JOBS.staffRatingNightly, pattern: '40 9 * * *' },
   { name: CRON_JOBS.staffHeadScore, pattern: '55 1 * * *' },
-  // Row 180 (B9): after daily-stats and the rating snapshot of the same
-  // report-time-zone day (was 02:15, before them).
+  // Row 180 B9: piecework and anomalies count the day of the report time
+  // zone too: after daily-stats / rating-nightly, just after midnight in
+  // Nevada (piecework counts every day that ended in the last 25 h).
   { name: CRON_JOBS.staffPiecework, pattern: '15 10 * * *' },
-  { name: CRON_JOBS.staffAnomalies, pattern: '25 2 * * *' },
+  { name: CRON_JOBS.staffAnomalies, pattern: '25 10 * * *' },
   { name: CRON_JOBS.staffAiQaNightly, pattern: '0 4 * * *' },
   { name: CRON_JOBS.staffRetaliationExpire, pattern: '22 3 * * *' },
   { name: CRON_JOBS.staffRetention, pattern: '0 3 * * *' },

@@ -352,6 +352,14 @@ describe('StaffPieceworkService day cut (row 180, admin.report_timezone)', () =>
 
   function nevadaDay(): Fx {
     const fx = emptyFx();
+    // Row 180 B9 (#1092): a new report zone counts from the NEXT day (a
+    // recorded schedule; days already worked are never re-cut). These cases
+    // run after the switch: Nevada is on the schedule from 1 Oct 2026.
+    fx.config = {
+      'staff.piecework_day_zones': [
+        { from: '2026-10-01', tz: 'America/Los_Angeles' },
+      ],
+    };
     withPerson(fx, A1);
     fx.rates.push(rate('ticket', 100));
     fx.snapshots.push({ admin_id: A1, rating: 80, status: 'ok' });
@@ -383,8 +391,16 @@ describe('StaffPieceworkService day cut (row 180, admin.report_timezone)', () =>
     expect(res.totalCents).toBe(500);
   });
 
-  it('follows the owner setting (UTC on request)', async () => {
+  it('follows the owner setting (UTC on request) from the day it took effect', async () => {
     const fx = nevadaDay();
+    // The owner switched to UTC on 13 Nov: recorded from the next day on
+    // (#1092 cut-over), so 14 Nov is a UTC day.
+    fx.config = {
+      'staff.piecework_day_zones': [
+        { from: '2026-10-01', tz: 'America/Los_Angeles' },
+        { from: '2026-11-14', tz: 'UTC' },
+      ],
+    };
     await makeService(fx, {
       'staff.piecework_enabled': true,
       'admin.report_timezone': 'UTC',

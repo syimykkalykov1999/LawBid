@@ -1,16 +1,17 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { reportDayKey, reportTimeZone } from '../../common/utils/report-day';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { ck } from '../../redis/redis-cluster-safe';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
-import {
-  LEASE_KINDS_BY_AREA,
-  utcDay,
-  type OpenedCard,
-} from './staff-security.util';
+import { LEASE_KINDS_BY_AREA, type OpenedCard } from './staff-security.util';
 
-/** Redis hash of one UTC day: field `<adminId>:<counter>`. Three days. */
+/** Redis hash of one report day (row 180 B9: the owner's report time zone,
+ * `admin.report_timezone`): field `<adminId>:<counter>`. Three days. A card
+ * is counted in the day of the moment it was opened, so across a zone
+ * switch every card is in exactly one day. */
 export const dayKey = (day: string) => ck('adm', `staff:sec:${day}`);
 const DAY_KEEP_SECONDS = 3 * 86_400;
 
@@ -25,7 +26,7 @@ export interface DayCounters {
 /**
  * Staff package T11 (plan C4, the snooping detector): a light Redis
  * counter, no database write on the request path except one indexed lease
- * lookup (only while leases are on). Per admin and UTC day it counts
+ * lookup (only while leases are on). Per admin and report day it counts
  *  - `opened`   cards opened,
  *  - `outside`  cards of a queue section opened without holding the lease,
  *  - `burst`    minutes in which more than `staff.cards_per_minute` cards
@@ -42,7 +43,13 @@ export class StaffCardWatch {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly prisma: PrismaService,
     private readonly staff: StaffSettingsService,
+    @Optional() private readonly appSettings?: AppSettingsService,
   ) {}
+
+  /** The report day (YYYY-MM-DD) of [at] — the key the counters go to. */
+  async today(at: Date = new Date()): Promise<string> {
+    return reportDayKey(at, await reportTimeZone(this.appSettings));
+  }
 
   /** A card was opened by [adminId]. Never throws. */
   async noteOpened(adminId: string, card: OpenedCard): Promise<void> {
@@ -50,7 +57,7 @@ export class StaffCardWatch {
       const settings = await this.staff.get();
       const minute = Math.floor(Date.now() / 60_000);
       const minuteKey = ck('adm', `staff:cards:${adminId}:${minute}`);
-      const day = dayKey(utcDay());
+      const day = dayKey(await this.today());
       const [[, perMinute]] = (await this.redis
         .multi()
         .incr(minuteKey)
@@ -84,7 +91,7 @@ export class StaffCardWatch {
   /** A full-value reveal happened (for the daily report). Never throws. */
   async noteReveal(adminId: string): Promise<void> {
     try {
-      const day = dayKey(utcDay());
+      const day = dayKey(await this.today());
       await this.redis
         .multi()
         .hincrby(day, `${adminId}:reveals`, 1)
@@ -95,7 +102,7 @@ export class StaffCardWatch {
     }
   }
 
-  /** Every admin's counters of [day] (UTC `YYYY-MM-DD`). */
+  /** Every admin's counters of [day] (report day `YYYY-MM-DD`). */
   async readDay(day: string): Promise<Map<string, DayCounters>> {
     const raw = await this.redis.hgetall(dayKey(day));
     const out = new Map<string, DayCounters>();
