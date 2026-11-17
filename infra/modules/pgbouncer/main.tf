@@ -293,6 +293,19 @@ resource "aws_security_group" "svc" {
   description = "PgBouncer tasks: app tasks in, database and AWS APIs out"
   vpc_id      = var.vpc_id
   tags        = merge(var.tags, { Name = "${var.name}-pgbouncer" })
+  # KNOWN_ERRORS 182 (16.11): the database group lists this group in its
+  # inline ingress (stack: postgres allowed_security_group_ids). By default
+  # Terraform destroys a dependency BEFORE updating the resources that
+  # referenced it, so switching the pooler off tried to delete this group
+  # while the database group still pointed at it: DependencyViolation, apply
+  # stopped half-way. create_before_destroy inverts that edge (Terraform core
+  # CBDEdgeTransformer): the database group drops the reference first, then
+  # this group goes. The flag lives in the state, so the first apply with the
+  # pooler on writes it (proven with terraform_data, KNOWN_ERRORS 182). The
+  # fixed name stays: the group is never replaced, only created or destroyed.
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_vpc_security_group_ingress_rule" "svc_from_clients" {
@@ -485,8 +498,10 @@ resource "aws_appautoscaling_target" "this" {
   min_capacity       = var.min_tasks
   max_capacity       = var.max_tasks
   # Owner 2026-11-12: the app (economy job) writes the owner's ceiling
-  # scale.max_tasks.pgbouncer (no upper bound); an apply keeps it.
-  lifecycle { ignore_changes = [max_capacity] }
+  # scale.max_tasks.pgbouncer (no upper bound); an apply keeps it. Owner
+  # 15.11: the floor too (pgbouncer.min_tasks, at least 1 — the API needs
+  # the pooler).
+  lifecycle { ignore_changes = [max_capacity, min_capacity] }
 }
 
 resource "aws_appautoscaling_policy" "cpu" {

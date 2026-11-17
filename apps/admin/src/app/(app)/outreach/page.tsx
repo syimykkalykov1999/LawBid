@@ -43,6 +43,7 @@ import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
+import { optimistic, patchRow } from '@/lib/optimistic';
 import { LEAD_KIND, LEAD_SOURCE, LEAD_STATUS, TEMPLATE_KIND, usd } from '@/lib/labels';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
@@ -854,8 +855,14 @@ function Templates() {
           body: { name: t.name, kind: t.kind, subject: t.subject, body: t.body, active: !t.active },
         })
       ).data!.data,
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['outreach-templates'] }),
-    onError: (e) => toast.error(e),
+    // Row 192 (detective R4-C №5): the switch flips at once, a refusal
+    // flips it back (lib/optimistic.ts, as on «Функции»).
+    ...optimistic<OutreachTemplate[], OutreachTemplate>(
+      qc,
+      ['outreach-templates'],
+      patchRow((row, t) => ({ ...row, active: !t.active })),
+      { onError: (e) => toast.error(e) },
+    ),
   });
 
   return (
@@ -892,7 +899,13 @@ function Templates() {
                   <Td className="text-xs text-muted">{TEMPLATE_KIND[t.kind]}</Td>
                   <Td className="text-xs text-muted">{t.subject}</Td>
                   <Td>
-                    <Switch checked={t.active} onChange={() => toggle.mutate(t)} label={t.active ? 'да' : 'нет'} />
+                    <Switch
+                      checked={t.active}
+                      // Row 192: one write at a time; a double click sends no second one.
+                      disabled={toggle.isPending}
+                      onChange={() => toggle.mutate(t)}
+                      label={t.active ? 'да' : 'нет'}
+                    />
                   </Td>
                   <Td>
                     <Button size="sm" variant="outline" onClick={() => setEditing(t)}>

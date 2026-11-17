@@ -785,7 +785,8 @@ export function shardModuleIndex(address: string): number | null {
  * Owner 2026-11-12 («Авто» both ways, like copies): a request that lowers
  * `db_shards` to K may remove the servers K and above — the API lets such a
  * request plan only while those servers hold no data (ShardMoveService.
- * emptyServers), and AWS keeps a final snapshot of each.
+ * emptyServers), so nothing is kept of them (no final snapshot, no automated
+ * backups: KNOWN_ERRORS 189).
  */
 export function forbiddenDestroys(
   resources: readonly PlanResource[],

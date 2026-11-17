@@ -8,6 +8,7 @@ let month: { ok: true; data: PieceOverview } | { ok: false; missing: true } = { 
 const put = vi.fn().mockResolvedValue({});
 const post = vi.fn().mockResolvedValue({});
 const del = vi.fn().mockResolvedValue({});
+const overviewFor = vi.fn();
 
 vi.mock('@/lib/hooks', () => ({ useMe: () => ({ data: { role: 'super_admin', permissions: {} } }) }));
 vi.mock('@/lib/api/client', () => ({ api: { GET: vi.fn() }, ApiError: class extends Error {}, toProxy: { onRequest: () => undefined }, errorText: String }));
@@ -17,7 +18,10 @@ vi.mock('@/lib/staff-data', async (orig) => {
   return {
     ...real,
     useRates: () => ({ data: rates, isPending: false, error: null }),
-    usePieceOverview: () => ({ data: month, isPending: false, error: null }),
+    usePieceOverview: (period: string | undefined) => {
+      overviewFor(period);
+      return { data: month, isPending: false, error: null };
+    },
     staffPut: (...a: unknown[]) => put(...a),
     staffPost: (...a: unknown[]) => post(...a),
     staffDelete: (...a: unknown[]) => del(...a),
@@ -61,6 +65,7 @@ afterEach(() => {
   put.mockClear();
   post.mockClear();
   del.mockClear();
+  overviewFor.mockClear();
   rates = { ok: false, missing: true };
   month = { ok: false, missing: true };
 });
@@ -98,6 +103,17 @@ describe('«Ставки за решения»', () => {
     renderPage();
     fireEvent.click(screen.getByText('Закончить'));
     await waitFor(() => expect(del).toHaveBeenCalledWith('/admin/staff/rates/r1'));
+  });
+
+  it('«this month» comes from the API (report time zone), then the picked month', () => {
+    rates = { ok: true, data: [] };
+    month = { ok: true, data: { ...overview, period: '2026-10' } };
+    renderPage();
+    expect(overviewFor).toHaveBeenLastCalledWith(undefined);
+    const input = screen.getByLabelText('Месяц') as HTMLInputElement;
+    expect(input.value).toBe('2026-10');
+    fireEvent.change(input, { target: { value: '2026-09' } });
+    expect(overviewFor).toHaveBeenLastCalledWith('2026-09');
   });
 
   it('month overview: days can be held or recounted', async () => {
