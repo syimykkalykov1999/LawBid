@@ -502,6 +502,12 @@ final groupRequestsProvider =
 
 typedef GroupThreadKey = ({String groupId, String? topicId});
 
+/// Groups WhatsApp parity: where the unsent text of a group (or of one of
+/// its topics) waits in the 1:1 chat's drafts (chatTextDraftsProvider).
+/// Group ids never clash with chat ids (both are server UUIDs).
+String groupDraftKey(String groupId, String? topicId) =>
+    topicId == null ? groupId : '$groupId/$topicId';
+
 /// A message I wrote that the server has not confirmed yet.
 class PendingGroupMessage {
   const PendingGroupMessage({
