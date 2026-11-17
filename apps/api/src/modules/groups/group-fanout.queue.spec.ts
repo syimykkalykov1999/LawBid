@@ -69,6 +69,27 @@ describe('broadcastAudiences', () => {
     ]);
   });
 
+  it('reactions: each reactor gets their own emoji, one publish per emoji', () => {
+    const reactedBy = new Map([
+      ['a', '👍'],
+      ['b', '👍'],
+      ['c', '❤️'],
+    ]);
+    const out = broadcastAudiences(
+      ['s', 'a', 'b', 'c', 'd'],
+      's',
+      [],
+      false,
+      reactedBy,
+    );
+    expect(out).toEqual([
+      { userIds: ['s'], mine: true, mentionsMe: false, myEmoji: null },
+      { userIds: ['a', 'b'], mine: false, mentionsMe: false, myEmoji: '👍' },
+      { userIds: ['c'], mine: false, mentionsMe: false, myEmoji: '❤️' },
+      { userIds: ['d'], mine: false, mentionsMe: false, myEmoji: null },
+    ]);
+  });
+
   it('512 members → at most 4 publishes', () => {
     const ids = Array.from({ length: 512 }, (_, i) => `u${i}`);
     expect(

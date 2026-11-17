@@ -63,7 +63,7 @@
 | AVIF-двойники фото (веб) | `images.avif_enabled` | aom 3.15.1 (в sharp) | ❌ был ВЫКЛ → **ВКЛ** для фото с 17.11 | замер #1167: AVIF q75 по SSIM/PSNR равен или лучше WebP q88 при **84 %** байт; аватар прода с `Accept: avif` отдаётся WebP — двойников не было | PR А |
 | Цветовой профиль P3, 4:4:4 для документов, прозрачность | `image-processor.ts` | — | ⚠️ открыто | файл правит открытый #1098 (медиа-проверка); чтобы не конфликтовать, не трогаю — следующий PR поверх #1098 | после #1098 |
 | Декод-лимит картинки для модерации | `media-moderation.service.ts` | — | ❌ не было → `limitInputPixels` | детектив A1-6; тесты media-moderation зелёные | PR А |
-| Видео на телефоне аппаратно | Android Media3 Transformer, iOS AVAssetWriter, веб Mediabunny | Media3 1.9.2 → **1.11.1** (10.09); Mediabunny 1.65.2 → 1.66.0 (13.11, < 7 дней) | ✅ | одно кодирование для Bunny (#1165); API, которые мы зовём, в 1.10–1.11 не удалены (RELEASENOTES Media3) | PR Б (Media3) |
+| Видео на телефоне аппаратно | Android Media3 Transformer, iOS AVAssetWriter, веб Mediabunny | Media3 1.9.2 (1.11.1 от 10.09 есть, но поднять нельзя: video_player_android, и на его main тоже, закрепил ExoPlayer 1.9.2, а все модули Media3 должны совпадать); Mediabunny 1.65.2 → 1.66.0 (13.11, < 7 дней) | ✅ | одно кодирование для Bunny (#1165); API, которые мы зовём, в 1.10–1.11 не удалены (RELEASENOTES Media3) | ждёт video_player_android |
 | Превью кадра видео | `video_frames.dart` | — | ✅ | все обложки берут качество фото из `photoLimitsOf` (#1165); 30 только у ленты кадров редактора | — |
 | Голосовые | AAC-LC 16 кГц / 32 кбит/с, `record` | record 7.1.2 → 7.2.0 (11.11, < 7 дней) | ✅ | WhatsApp — Opus, частота официально не опубликована; оставлено как есть, меняется в админке (`media.voice_sample_rate_hz`); #1083 (голос для iPhone) открыт | — |
 
@@ -99,10 +99,10 @@
 - Перед пушем: commit с хуками, слияние свежего main, повтор затронутых проверок; полные e2e-шарды и two-db, `terraform validate` и `terraform test` — в CI.
 - Риск и откат: AVIF — `images.avif_enabled` Выкл в админке, ссылки сразу снова WebP; Origin Shield — `media_origin_shield_region = "off"`.
 
-**PR Б — версии (не начат, только список).** Все вышли ≥ 7 дней назад:
+**PR Б — версии.** Всё вышло не меньше 7 дней назад:
 - API: `@nestjs/common|core|platform-express|platform-socket.io|websockets|testing` 12.4.0 → 12.4.2; все `@aws-sdk/*` 3.1164.0 → 3.1165.0; `undici` 8.12.3 → 8.12.4 (`npm install --package-lock-only`, затем unit + e2e).
 - Админка: `next` и `eslint-config-next` 16.4.5 → 16.4.6.
-- Телефон: `drift` 2.35.3 → 2.35.4, `sqlite3` 3.9.0 → 3.9.1, `connectivity_plus` 7.3.1 → 7.3.2 (`flutter pub upgrade <пакеты>`, build_runner не нужен — drift_dev не меняется); `androidx.media3:*` 1.9.2 → 1.11.1 в `apps/mobile/android/app/build.gradle.kts:178-180`. По RELEASENOTES Media3 ни один из вызываемых API (`Transformer.Builder`, `Composition.Builder.setHdrMode`, `DefaultEncoderFactory`, `VideoEncoderSettings.setBitrate`, `Presentation.createForShortSide`, `FrameDropEffect`) не удалён; 1.11 требует Kotlin ≥ 2.2 — у нас 2.4.21. Компиляцию докажет `flutter build apk --debug` в mobile-ci. Нужен «## Веб» в теле PR (веб: без изменений, кроме drift/sqlite3 в web-воркере).
+- Телефон: `drift` 2.35.3 → 2.35.4 и `sqlite3` 3.9.0 → 3.9.1, вместе с ними `web/drift_worker.js` из релиза drift-2.35.4 (`sqlite3.wasm` 3.9.1 байт в байт совпадает с 3.9.0). Не подняты: `connectivity_plus` 7.3.2 — ему нужен `dbus ^0.8.0`, а `desktop_drop ^0.8.4` держит `dbus ^0.7.10` (ответ pub); `androidx.media3` 1.11.1 — `video_player_android` закрепил ExoPlayer 1.9.2, а все модули Media3 должны совпадать.
 - С 18.11 (исполнится 7 дней): Flutter 3.50.0, cached_network_image 4.0.7, octo_image 2.1.5, record 7.2.0, mediabunny 1.66.0, NestJS 12.5.x — следующим обходом версий.
 
 **PR В — фото на сервере (после слияния #1098, тот же файл `image-processor.ts`).** WebP `smartSubsample: true` для снимков документов; цветовой профиль P3 (`keepIccProfile`/`withIccProfile('p3')`) и ICC из HEIC. Прозрачность (`flatten`) не трогать без вашего слова: меняется вид PNG-логотипов в тёмной теме.
@@ -111,7 +111,7 @@
 1. **Cloudflare → lawbid.dev → Speed → Optimization → Protocol Optimization → HTTP/3 (with QUIC): On.** Сейчас `media.lawbid.dev` отдаёт только HTTP/2.
 2. **`terraform apply` для `envs/prod`** после слияния PR А: включится Origin Shield у медиа-CDN (≈ $0.0075–0.01 за 10 тыс. запросов к щиту).
 3. По желанию: CDN (CloudFront) перед админкой и API — Brotli для админки и HTTP/3 для API. Это деньги и terraform, поэтому только по вашему слову.
-4. Телефоны: после следующей сборки проверить запись видео на Android (Media3 1.11.1) — 1 короткое видео в чат.
+4. Телефоны: после следующей сборки открыть веб-версию и любой чат: локальная база на вебе работает на новом drift-воркере.
 
 ## Не проверено
 - Работа кэшей на самих телефонах (нужна сборка, по правилу — только по слову владельца).

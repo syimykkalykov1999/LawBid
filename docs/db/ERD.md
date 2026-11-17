@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-311 tables.
+312 tables.
 
 ```mermaid
 erDiagram
@@ -1057,6 +1057,14 @@ erDiagram
     DateTime expires_at "nullable"
     Boolean forwarded
     String forwarded_from_name "nullable"
+    DateTime created_at
+    Int shard_id
+  }
+  chat_group_message_reactions {
+    String message_id PK,FK
+    String group_id FK
+    String user_id PK
+    String emoji
     DateTime created_at
     Int shard_id
   }
@@ -4119,6 +4127,7 @@ erDiagram
   chat_group_messages }o--o| chat_group_topics : "topic_id"
   chat_group_messages }o--o| chat_group_messages : "group_id, reply_to_id"
   chat_group_messages }o--o| files : "file_id"
+  chat_group_message_reactions }o--|| chat_group_messages : "group_id, message_id"
   chat_group_topics }o--|| chat_groups : "group_id"
   chat_group_topic_reads }o--|| chat_group_topics : "topic_id"
   chat_group_topic_reads }o--|| users : "user_id"

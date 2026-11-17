@@ -29,10 +29,10 @@ generator client {
   // src/generated/prisma (git-ignored, compiled by `nest build` like any
   // other source). No engine binaries any more, so the same build runs on
   // Fargate X86_64 and ARM64 (Alpine/musl) alike. The API is CommonJS.
-  provider     = "prisma-client"
-  output       = "../src/generated/prisma"
-  moduleFormat = "cjs"
-  runtime      = "nodejs"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  runtime             = "nodejs"
   // Bare relative imports inside the generated files (documented value ""):
   // CommonJS resolves them in `nest build` output, and ts-jest / ts-node
   // find the .ts files (a `.js` suffix would not resolve under Jest).
@@ -636,6 +636,10 @@ enum NotificationType {
   // (bid_sent_for_you, invite, owner_transferred, closed, bid_joined) and
   // picks the `notif.firm.<kind>` text.
   firm_update
+  // Owner row 87 (hotline plan PR 5): «Адвокат на линии — позвонить
+  // сейчас?» to a client who pressed «Сообщите, когда появится адвокат»
+  // (payload: requestId, claimToken, expiresAt).
+  hotline_attorney_available
 
   @@map("notification_type")
 }
@@ -3448,40 +3452,41 @@ model ChatGroupMember {
 /// Owner 2026-10-26: PARTITION BY HASH (group_id), 16 partitions, key
 /// (id, group_id); the poll and the reply point at (group_id, id).
 model ChatGroupMessage {
-  id                  String             @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  group_id            String             @db.Uuid
-  group               ChatGroup          @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  id                  String                     @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id            String                     @db.Uuid
+  group               ChatGroup                  @relation(fields: [group_id], references: [id], onDelete: Cascade)
   /// NULL for system messages.
-  sender_id           String?            @db.Uuid
-  sender              User?              @relation("ChatGroupMessageSender", fields: [sender_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sender_id           String?                    @db.Uuid
+  sender              User?                      @relation("ChatGroupMessageSender", fields: [sender_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   type                GroupMessageType
-  body                String             @default("")
+  body                String                     @default("")
   client_message_id   String
   /// system messages: added | removed | left | joined | renamed | created |
   /// photo | pinned | promoted | demoted | poll_closed | call_started | call_ended
-  system_kind         String?            @db.VarChar(24)
+  system_kind         String?                    @db.VarChar(24)
   system_payload      Json?
   /// null = «General» (or no topics at all).
-  topic_id            String?            @db.Uuid
-  topic               ChatGroupTopic?    @relation(fields: [topic_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  reply_to_id         String?            @db.Uuid
-  reply_to            ChatGroupMessage?  @relation("GroupMessageReply", fields: [group_id, reply_to_id], references: [group_id, id], onDelete: SetNull, onUpdate: NoAction)
-  replies             ChatGroupMessage[] @relation("GroupMessageReply")
+  topic_id            String?                    @db.Uuid
+  topic               ChatGroupTopic?            @relation(fields: [topic_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  reply_to_id         String?                    @db.Uuid
+  reply_to            ChatGroupMessage?          @relation("GroupMessageReply", fields: [group_id, reply_to_id], references: [group_id, id], onDelete: SetNull, onUpdate: NoAction)
+  replies             ChatGroupMessage[]         @relation("GroupMessageReply")
   /// @mentioned user ids.
-  mention_ids         String[]           @default([]) @db.Uuid
-  file_id             String?            @db.Uuid
-  file                File?              @relation("ChatGroupMessageFile", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  mention_ids         String[]                   @default([]) @db.Uuid
+  file_id             String?                    @db.Uuid
+  file                File?                      @relation("ChatGroupMessageFile", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   file_name           String?
-  edited_at           DateTime?          @db.Timestamptz
-  deleted_at          DateTime?          @db.Timestamptz
+  edited_at           DateTime?                  @db.Timestamptz
+  deleted_at          DateTime?                  @db.Timestamptz
   /// Owner 2026-10-21: disappearing messages — see messages.expires_at.
-  expires_at          DateTime?          @db.Timestamptz
+  expires_at          DateTime?                  @db.Timestamptz
   /// Owner 2026-10-21 (Telegram): «Forwarded from <name>» — the first
   /// author (or channel), kept through re-forwards.
-  forwarded           Boolean            @default(false)
-  forwarded_from_name String?            @db.VarChar(120)
-  created_at          DateTime           @default(now()) @db.Timestamptz
+  forwarded           Boolean                    @default(false)
+  forwarded_from_name String?                    @db.VarChar(120)
+  created_at          DateTime                   @default(now()) @db.Timestamptz
   poll                ChatGroupPoll?
+  reactions           ChatGroupMessageReaction[]
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -3494,6 +3499,25 @@ model ChatGroupMessage {
   @@index([file_id])
   @@index([reply_to_id])
   @@map("chat_group_messages")
+}
+
+/// Groups WhatsApp parity: one emoji reaction per person per group message
+/// (changing it replaces it), the same shape as MessageReaction.
+model ChatGroupMessageReaction {
+  message_id String           @db.Uuid
+  /// Part of the key of the message (group messages are partitioned by group).
+  group_id   String           @db.Uuid
+  message    ChatGroupMessage @relation(fields: [group_id, message_id], references: [group_id, id], onDelete: Cascade)
+  user_id    String           @db.Uuid
+  emoji      String           @db.VarChar(16)
+  created_at DateTime         @default(now()) @db.Timestamptz
+
+  /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
+  shard_id Int @default(0) @db.SmallInt
+
+  @@id([message_id, user_id])
+  @@index([user_id])
+  @@map("chat_group_message_reactions")
 }
 
 model ChatGroupTopic {
