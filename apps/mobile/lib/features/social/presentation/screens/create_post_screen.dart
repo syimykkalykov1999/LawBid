@@ -13,6 +13,7 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/media/video_frames.dart';
@@ -600,7 +601,13 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   }
 
   Future<void> _loadCoverFrame(_VideoPick pick) async {
-    final bytes = await videoFrame(pick.file, pick.cut.coverMs, quality: 60);
+    // Row 199: the cover (uploaded as the post's poster) in the admin's
+    // photo quality, not 60.
+    final bytes = await videoFrame(
+      pick.file,
+      pick.cut.coverMs,
+      quality: photoLimitsOf(ref.read(featureFlagsControllerProvider)).quality,
+    );
     if (mounted && bytes != null && identical(_video, pick)) {
       setState(() => pick.frame = bytes);
     }

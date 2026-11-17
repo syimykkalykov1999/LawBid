@@ -79,6 +79,7 @@ class _Chats implements ChatRepository {
     bool? pinned,
     bool? hidden,
     bool? archived,
+    bool? unread,
   }) async {
     if (failOrganize) throw StateError('write failed');
     wrote = true;

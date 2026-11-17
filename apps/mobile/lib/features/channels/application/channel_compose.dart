@@ -303,6 +303,8 @@ class ChannelCompose extends Notifier<ChannelComposeState> {
       durationMs: v.durationSec * 1000,
       limits: limits,
       reencodeAboveKbps: videoReencodeAboveKbpsOf(flags),
+      oneEncode: bunnyOneEncodeOf(flags),
+      maxBytes: videoMaxBytesOf(flags),
     );
     if (!need) return v.file;
     _set(ChannelComposePhase.compressing);
