@@ -23,7 +23,7 @@ import { can } from '@/lib/rbac';
 import { CONTENT_STATUS, label, ROLE_TEXT, StatusPill } from '@/lib/labels';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
-import { collectIds, dayBounds, type Noun } from '@/lib/bulk';
+import { dayBounds, type Noun } from '@/lib/bulk';
 import {
   AuthorFilterButton,
   BulkBar,
@@ -72,14 +72,10 @@ export function ClientReviewsPanel() {
   const sel = useSelection(`${tab}|${text}|${filterKey(filter)}`);
   const bulk = useBulkRun();
 
+  // The list's filter; «select all by filter» sends it (row 179 B6).
+  const listQuery = { q: text || undefined, status: tab === 'all' ? undefined : tab, authorId: filter.author?.id, ...dayBounds(filter.from, filter.to) };
   const fetchPage = async (cursor: string | undefined) =>
-    (
-      await api.GET('/admin/content/client-reviews', {
-        params: {
-          query: { cursor, q: text || undefined, status: tab === 'all' ? undefined : tab, authorId: filter.author?.id, ...dayBounds(filter.from, filter.to) },
-        },
-      })
-    ).data!;
+    (await api.GET('/admin/content/client-reviews', { params: { query: { ...listQuery, cursor } } })).data!;
   const list = useInfiniteQuery({
     queryKey: ['admin-client-reviews', tab, text, filterKey(filter)],
     initialPageParam: undefined as string | undefined,
@@ -96,7 +92,16 @@ export function ClientReviewsPanel() {
   });
   const onBulk = (hide: boolean) =>
     bulk.run({
-      ids: [...sel.selected],
+      ids: sel.byFilter ? [] : [...sel.selected],
+      count: sel.byFilter?.count,
+      sendAll: sel.byFilter
+        ? async (reason) =>
+            bulkData(
+              await api.POST('/admin/content/bulk', {
+                body: { action: hide ? 'hide' : 'restore', type: 'client_review', filter: listQuery, reason },
+              }),
+            )
+        : undefined,
       verb: hide ? 'Скрыть' : 'Вернуть',
       doneVerb: hide ? 'Скрыто' : 'Возвращено',
       noun: REVIEWS,
@@ -161,20 +166,14 @@ export function ClientReviewsPanel() {
       {bulk.dialog}
       {canWrite ? (
         <BulkBar
-          selectedCount={sel.selected.size}
+          selectedCount={sel.count}
           noun={REVIEWS}
           onClear={sel.clear}
-          onSelectAll={async (cap) => {
-            const r = await collectIds(
-              async (c) => {
-                const p = await fetchPage(c);
-                return { data: p.data, nextCursor: p.meta?.nextCursor };
-              },
-              undefined,
-              cap,
-            );
-            sel.replace(r.ids);
-            return r.capped;
+          onSelectAll={async () => {
+            // Row 179 B6: the server counts the filter (no page walk).
+            const p = (await api.POST('/admin/content/bulk/preview', { body: { type: 'client_review', filter: listQuery } })).data!.data;
+            sel.selectFilter(p);
+            return p.capped;
           }}
         >
           <Button size="sm" variant="danger-soft" disabled={bulk.pending} onClick={() => onBulk(true)}>

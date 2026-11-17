@@ -11,8 +11,13 @@ HotlineOfferResultDto _$HotlineOfferResultDtoFromJson(
 ) => HotlineOfferResultDto(
   ok: json['ok'] as bool,
   state: HotlineOfferState.fromJson(json['state'] as String),
+  callId: json['callId'] as String?,
 );
 
 Map<String, dynamic> _$HotlineOfferResultDtoToJson(
   HotlineOfferResultDto instance,
-) => <String, dynamic>{'ok': instance.ok, 'state': instance.state.toJson()};
+) => <String, dynamic>{
+  'ok': instance.ok,
+  'state': instance.state.toJson(),
+  'callId': ?instance.callId,
+};

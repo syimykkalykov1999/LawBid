@@ -232,6 +232,7 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   comment_likes: 'comment likes',
   follows: 'follows',
   follow_tombstones: 'unfollows journal (sync tombstones)',
+  hotline_calls: 'hotline calls (billing records, from «Взять»)',
   user_blocks: 'blocks',
   saved_items: 'bookmarks',
   video_assets: 'Bunny video rows (videos are deleted in Bunny too)',

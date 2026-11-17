@@ -156,18 +156,11 @@ export class AdminContentExtrasService {
     filter: ContentFilter = {},
   ): Promise<Page<AdminClientReviewRowDto>> {
     const c = cursor ? decodeCursor(cursor) : undefined;
-    const term = q?.trim();
-    const like = { contains: term ?? '', mode: 'insensitive' as const };
-    const person = { OR: [{ first_name: like }, { last_name: like }] };
+    const base = clientReviewsWhere(q, status, filter);
     const where: Prisma.ClientReviewWhereInput = {
-      ...(status ? { status } : {}),
-      // The author of a review of a client is `attorney_id` (any role).
-      ...(filter.authorId ? { attorney_id: filter.authorId } : {}),
-      ...createdWindow(filter),
+      ...base,
       AND: [
-        term
-          ? { OR: [{ body: like }, { attorney: person }, { client: person }] }
-          : {},
+        ...base.AND,
         c
           ? {
               OR: [
@@ -295,6 +288,29 @@ export class AdminContentExtrasService {
       justification,
     });
   }
+}
+
+/** The reviews-of-clients list's filter (row 179 B6: «select all by
+ * filter» resolves ids with the very same one). */
+export function clientReviewsWhere(
+  q?: string,
+  status?: 'published' | 'hidden' | 'removed',
+  filter: ContentFilter = {},
+): Prisma.ClientReviewWhereInput & { AND: Prisma.ClientReviewWhereInput[] } {
+  const term = q?.trim();
+  const like = { contains: term ?? '', mode: 'insensitive' as const };
+  const person = { OR: [{ first_name: like }, { last_name: like }] };
+  return {
+    ...(status ? { status } : {}),
+    // The author of a review of a client is `attorney_id` (any role).
+    ...(filter.authorId ? { attorney_id: filter.authorId } : {}),
+    ...createdWindow(filter),
+    AND: [
+      term
+        ? { OR: [{ body: like }, { attorney: person }, { client: person }] }
+        : {},
+    ],
+  };
 }
 
 function notFound() {
