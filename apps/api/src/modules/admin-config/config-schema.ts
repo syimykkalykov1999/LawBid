@@ -1225,6 +1225,18 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100000,
   };
+  out['outreach.raw_unsubscribe_token_keep_days'] = {
+    ...out['outreach.raw_unsubscribe_token_keep_days'],
+    description:
+      'Days an old cold-email unsubscribe token stays readable after its hash is stored (14; 0 = clear at once). New links are signed and store nothing.',
+    min: 0,
+    max: 365,
+  };
+  out['outreach.signed_unsubscribe_links'] = {
+    ...out['outreach.signed_unsubscribe_links'],
+    description:
+      'Cold emails print the signed unsubscribe link (nothing secret in the database). Off: the legacy token, which a rollback can still read. Turn on once this release is fully live.',
+  };
   out['sessions.cleanup_batch'] = {
     ...out['sessions.cleanup_batch'],
     description:

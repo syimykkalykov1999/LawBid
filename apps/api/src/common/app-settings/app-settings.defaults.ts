@@ -2242,6 +2242,15 @@ export const OWNER_CASE_FANOUT_SETTINGS = {
  *   true = the old behaviour, any sign-in cancels.
  */
 export const OWNER_PRIVACY_SETTINGS = {
+  /** R2B-14 (14.11): days an old cold-email unsubscribe token is kept raw
+   * after its hash exists (a rollback still prints it); then only the hash
+   * stays. 0 = clear at once. */
+  'outreach.raw_unsubscribe_token_keep_days': 14,
+  /** R2B-14 expand/contract: cold emails print the signed unsubscribe link.
+   * Off by default for this release (the previous release cannot read
+   * signed links after a rollback); the owner switches it on once this
+   * release is fully live. Signed links are accepted on read either way. */
+  'outreach.signed_unsubscribe_links': false,
   'privacy.auto_retention': true,
   'privacy.retention_audit_log_days': 1825,
   'privacy.retention_data_access_log_days': 1825,

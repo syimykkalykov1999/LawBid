@@ -756,7 +756,7 @@ export class CronProcessor {
       case CRON_JOBS.rewardsAward:
         return this.rewards?.autoAward();
       case CRON_JOBS.outreachRetention:
-        return this.outreachRetention?.run();
+        return this.outreachRetention?.runDaily();
       case CRON_JOBS.opsGuard:
         return this.opsGuard?.guard();
       case CRON_JOBS.legalReminders:
