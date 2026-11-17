@@ -125,7 +125,7 @@ async function main(): Promise<void> {
     }
   } finally {
     await svc.close();
-    await prisma.onModuleDestroy();
+    await prisma.onApplicationShutdown();
     redis?.disconnect();
   }
 }

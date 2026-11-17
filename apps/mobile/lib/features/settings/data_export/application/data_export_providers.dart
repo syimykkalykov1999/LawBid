@@ -6,9 +6,16 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/cases/application/case_history_controller.dart';
 import 'package:lawbid/features/settings/data_export/data/data_export_repository.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 final dataExportRepositoryProvider = Provider<DataExportRepository>(
   (ref) => ApiDataExportRepository(ref.watch(dioProvider)),
+);
+
+/// Opens the ZIP link outside the app (the browser downloads it); tests
+/// replace it.
+final dataExportLauncherProvider = Provider<Future<bool> Function(Uri)>(
+  (ref) => (uri) => launchUrl(uri, mode: LaunchMode.externalApplication),
 );
 
 /// How often the status is re-read while the ZIP is being built; tests
@@ -59,16 +66,52 @@ class DataExportController extends AsyncNotifier<DataExport?> {
     }
   }
 
+  /// The gate's token while it is still fresh (5 minutes), else null.
+  String? get freshToken {
+    final access = ref.read(historyAccessProvider);
+    return access.isOpen ? access.token : null;
+  }
+
+  /// The server wants a (new) reauth.
+  static bool isReauthError(Object e) =>
+      e is ApiException &&
+      (e.code == ApiErrorCodes.reauthRequired ||
+          e.code == ApiErrorCodes.reauthInvalid);
+
+  /// Re-reads the status. Detective R2B-12 (14.11): the gate's token goes
+  /// along while it is fresh; a token the server refuses (used up, expired
+  /// a second early) is not a failed poll — the status is read without it.
   Future<void> refresh() async {
     final current = state.value;
     if (current == null) return;
+    final repo = ref.read(dataExportRepositoryProvider);
+    final token = freshToken;
     try {
-      final next =
-          await ref.read(dataExportRepositoryProvider).status(current.id);
+      DataExport next;
+      try {
+        next = await repo.status(current.id, reauthToken: token);
+      } on Object catch (e) {
+        if (token == null || !isReauthError(e)) rethrow;
+        next = await repo.status(current.id);
+      }
       if (ref.mounted) state = AsyncData(next);
     } on Object {
       // Offline: keep the last known status; the next poll retries.
     }
+  }
+
+  /// Detective R2B-12 (14.11): the download link, read with a fresh
+  /// [reauthToken] (the server gives it out only then). Null when the
+  /// export is no longer ready. Throws [ApiException] — a reauth error
+  /// means «ask again» (the caller opens the reauth sheet).
+  Future<String?> linkWith(String reauthToken) async {
+    final current = state.value;
+    if (current == null) return null;
+    final next = await ref
+        .read(dataExportRepositoryProvider)
+        .status(current.id, reauthToken: reauthToken);
+    if (ref.mounted) state = AsyncData(next);
+    return next.status == DataExportStatus.ready ? next.url : null;
   }
 
   void _poll(String id, int attempt) {

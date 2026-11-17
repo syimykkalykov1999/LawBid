@@ -565,7 +565,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
   },
   {
     id: 'aws.redis',
-    name: 'Redis / Valkey (2 узла: основной и запасной)',
+    name: 'Valkey (быстрая память)',
     purpose: 'Быстрая память: очереди, чаты в реальном времени, кэш.',
     kind: 'aws',
     control: tf(['redis_node_type', 'redis_replicas'], {
@@ -579,13 +579,13 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ),
     price: price(
       'fixed',
-      'Valkey: t4g.micro ×2 ≈ $19; ступени ≈ $37, $76, $256, $510 за пару (Redis было $23, $47, $95, $320, $638)',
+      'Valkey 9.1: сейчас один узел t4g.micro ≈ $9,5, без запасного (запасной добавляет HA: пара ≈ $19); ступени ≈ $37, $76, $256, $510 за пару',
       U.cache,
     ),
     usd: { launch: R(19), k100: R(76), m1: R(256, 510) },
     needed: 'yes',
-    neededNote: 'Нужен. Размер меняет автомасштаб Redis (следующая строка).',
-    alarm: 'тревога памяти Redis 70 % (redis-memory)',
+    neededNote: 'Нужен. Размер меняет автомасштаб Valkey (следующая строка).',
+    alarm: 'тревога памяти Valkey 70 % (redis-memory)',
     ceService: 'Amazon ElastiCache',
     awsTypes: [
       'aws_elasticache_replication_group',
@@ -595,9 +595,9 @@ export const COST_REGISTRY: readonly CostEntry[] = [
   },
   {
     id: 'aws.redis_cache',
-    name: 'Отдельный Redis для кэша',
+    name: 'Отдельный Valkey для кэша',
     purpose:
-      'Кэш уходит из основного Redis (очереди, чаты) в свой узел, когда основному тесно по памяти.',
+      'Кэш уходит из основного Valkey (очереди, чаты) в свой узел, когда основному тесно по памяти.',
     kind: 'aws',
     control: tf(['redis_cache_node'], {
       off: 'redis_cache_node = false',
@@ -615,12 +615,12 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ifOnUsd: R(12, 25),
     needed: 'later',
     neededNote:
-      'G5 (2026-11-08): включается само (cache.redis_mode = Авто), когда основному Redis долго не хватает памяти. Само не выключается: без него память снова кончится.',
+      'G5 (2026-11-08): включается само (cache.redis_mode = Авто), когда основному Valkey долго не хватает памяти. Само не выключается: без него память снова кончится.',
     alarm: null,
   },
   {
     id: 'aws.redis_autoscale',
-    name: 'Автомасштаб размера Redis',
+    name: 'Автомасштаб размера Valkey',
     purpose:
       'Как у базы: поднимает тип узла при нехватке памяти, ночью опускает.',
     kind: 'aws',
@@ -633,21 +633,21 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ),
     price: price(
       'free',
-      'Сама функция стоит копейки; платите за выбранный размер Redis',
+      'Сама функция стоит копейки; платите за выбранный размер Valkey',
       U.lambda,
     ),
     usd: { launch: R(0), k100: R(0), m1: R(0) },
     needed: 'auto',
     neededNote:
-      'Авто: Redis растёт только при нехватке памяти и не выше потолка по деньгам.',
+      'Авто: Valkey растёт только при нехватке памяти и не выше потолка по деньгам.',
     alarm: 'письмо при каждой смене; потолок по деньгам (aws.capacity_ceiling)',
     note: 'V4',
   },
   {
     id: 'aws.capacity_ceiling',
-    name: 'Потолок размера базы и Redis «по деньгам»',
+    name: 'Потолок размера базы и Valkey «по деньгам»',
     purpose:
-      'Автомасштабы не растут дороже, чем позволяет допустимый расход месяца (правило «Экономика»): база до 35 % и Redis до 15 % допустимой суммы.',
+      'Автомасштабы не растут дороже, чем позволяет допустимый расход месяца (правило «Экономика»): база до 35 % и Valkey до 15 % допустимой суммы.',
     kind: 'aws',
     control: {
       type: 'app-setting',
@@ -668,7 +668,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(0), m1: R(0) },
     needed: 'yes',
     neededNote:
-      'Авто держит базу и Redis в рамках бюджета. «Выкл» = потолок только из Terraform (дороже).',
+      'Авто держит базу и Valkey в рамках бюджета. «Выкл» = потолок только из Terraform (дороже).',
     alarm: 'правило «Экономика»; бюджетные письма AWS',
     note: 'V4',
   },
@@ -2196,7 +2196,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     id: 'aws.autoscale_code',
     name: 'Обновление кода функций автомасштаба',
     purpose:
-      'Когда на main новый код функций автомасштаба (Redis, база, точки доступа, Spot), «Авто» само выкатывает его в облако. Применяется без кода владельца, только если в плане нет ничего, кроме обновления этих четырёх функций на месте; иначе ждёт владельца.',
+      'Когда на main новый код функций автомасштаба (Valkey, база, точки доступа, Spot), «Авто» само выкатывает его в облако. Применяется без кода владельца, только если в плане нет ничего, кроме обновления этих четырёх функций на месте; иначе ждёт владельца.',
     kind: 'aws',
     control: tf(['autoscale_code_flip'], {
       off: 'autoscale_code_flip = false',
@@ -2761,7 +2761,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ifOnUsd: R(0.5, 5),
     needed: 'later',
     neededNote:
-      'Включайте, когда сотрудников станет много. Платит только при ключе в «Ключи и сервисы» и мастер-тумблере; счётчик в Redis с ночным снимком останавливает вызовы на потолке.',
+      'Включайте, когда сотрудников станет много. Платит только при ключе в «Ключи и сервисы» и мастер-тумблере; счётчик в Valkey с ночным снимком останавливает вызовы на потолке.',
     alarm: 'потолок расходов на ИИ в месяц (staff.ai.monthly_cents)',
     providers: ['anthropic'],
   },
@@ -3035,7 +3035,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     id: 'hidden.economy_tick',
     name: 'Проверка «Экономики» каждые 5 минут (задача economy.guard)',
     purpose:
-      'Читает нагрузку базы и Redis в CloudWatch, считает допустимый расход, ставит потолки серверов и размера базы.',
+      'Читает нагрузку базы и Valkey в CloudWatch, считает допустимый расход, ставит потолки серверов и размера базы.',
     kind: 'aws',
     control: fixed(
       'Выключается флагом economy_guard (админка → Флаги): тогда потолки не пересчитываются и снимаются.',
@@ -3051,12 +3051,12 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0.2), k100: R(0.2), m1: R(0.2) },
     needed: 'auto',
     neededNote:
-      'Нагрузка: 288 запусков в сутки, несколько запросов к CloudWatch и Redis каждый. Копейки.',
+      'Нагрузка: 288 запусков в сутки, несколько запросов к CloudWatch и Valkey каждый. Копейки.',
     alarm: null,
   },
   {
     id: 'hidden.autoscale_lambdas',
-    name: 'Запуски автомасштабов базы и Redis каждые 5 минут',
+    name: 'Запуски автомасштабов базы и Valkey каждые 5 минут',
     purpose:
       'Две функции Lambda смотрят нагрузку; ночью проверяют, можно ли уменьшить.',
     kind: 'aws',
@@ -3072,14 +3072,14 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     usd: { launch: R(0), k100: R(0), m1: R(0) },
     needed: 'auto',
     neededNote:
-      'Нагрузка: 576 запусков в сутки на двоих. Те же переключатели, что у строк «Автомасштаб базы / Redis» выше: этот меняет оба сразу.',
+      'Нагрузка: 576 запусков в сутки на двоих. Те же переключатели, что у строк «Автомасштаб базы / Valkey» выше: этот меняет оба сразу.',
     alarm: null,
   },
   {
     id: 'hidden.cron_jobs',
     name: 'Периодические фоновые задачи (рекомендации, теги, пересчёты, очистки)',
     purpose:
-      'Рекомендации и теги каждые 10 минут, пересчёты счётчиков, ночные очистки. Дают нагрузку на базу и Redis.',
+      'Рекомендации и теги каждые 10 минут, пересчёты счётчиков, ночные очистки. Дают нагрузку на базу и Valkey.',
     kind: 'aws',
     control: {
       type: 'app-setting',
@@ -3156,7 +3156,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     id: 'hidden.health_checks',
     name: 'Проверки «жив ли сайт» каждые 30–60 секунд',
     purpose:
-      'Route 53 стучится на сайт снаружи; /health/ready проверяет базу и Redis на каждый такой стук.',
+      'Route 53 стучится на сайт снаружи; /health/ready проверяет базу и Valkey на каждый такой стук.',
     kind: 'aws',
     control: tf(['uptime_check'], {
       off: 'uptime_check = "off"',

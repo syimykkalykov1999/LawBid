@@ -334,7 +334,7 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
           return {
             state: null,
             known: false,
-            note: 'База и Redis сейчас в разных положениях; выберите одно, чтобы выровнять.',
+            note: 'База и Valkey сейчас в разных положениях; выберите одно, чтобы выровнять.',
           };
         }
         return { state: [...states][0], known: true, note: null };

@@ -5,10 +5,12 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/accept_firm_invite_dto.dart';
 import '../models/create_firm_dto.dart';
 import '../models/firm_envelope.dart';
 import '../models/firm_member_list_envelope.dart';
 import '../models/invite_firm_member_dto.dart';
+import '../models/transfer_firm_owner_dto.dart';
 
 part 'firms_client.g.dart';
 
@@ -27,6 +29,10 @@ abstract class FirmsClient {
   @GET('/firms/me')
   Future<FirmEnvelope> myFirm({@Extras() Map<String, dynamic>? extras});
 
+  /// Owner closes the firm; its lawyers are told
+  @DELETE('/firms/me')
+  Future<void> closeFirm({@Extras() Map<String, dynamic>? extras});
+
   /// Owner invites a lawyer to the firm
   @POST('/firms/me/members')
   Future<FirmEnvelope> inviteFirmMember({
@@ -37,6 +43,7 @@ abstract class FirmsClient {
   /// Accept the invitation to a firm
   @POST('/firms/me/accept')
   Future<FirmEnvelope> acceptFirmInvite({
+    @Body() AcceptFirmInviteDto? body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -44,6 +51,13 @@ abstract class FirmsClient {
   @DELETE('/firms/me/members/{attorneyId}')
   Future<void> removeFirmMember({
     @Path('attorneyId') required String attorneyId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Owner makes an active lawyer the owner (stays a member)
+  @POST('/firms/me/owner')
+  Future<FirmEnvelope> transferFirmOwner({
+    @Body() required TransferFirmOwnerDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -29,10 +29,10 @@ generator client {
   // src/generated/prisma (git-ignored, compiled by `nest build` like any
   // other source). No engine binaries any more, so the same build runs on
   // Fargate X86_64 and ARM64 (Alpine/musl) alike. The API is CommonJS.
-  provider     = "prisma-client"
-  output       = "../src/generated/prisma"
-  moduleFormat = "cjs"
-  runtime      = "nodejs"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  runtime             = "nodejs"
   // Bare relative imports inside the generated files (documented value ""):
   // CommonJS resolves them in `nest build` output, and ts-jest / ts-node
   // find the .ts files (a `.js` suffix would not resolve under Jest).
@@ -632,6 +632,14 @@ enum NotificationType {
   // Owner 2026-10-25 (privacy round 13, S13-14): "your account will be
   // deleted on <date>" at day 0 and day 13 of the grace period.
   account_deletion_scheduled
+  // Firms audit 16.11: one type for a firm's events; payload.kind says which
+  // (bid_sent_for_you, invite, owner_transferred, closed, bid_joined) and
+  // picks the `notif.firm.<kind>` text.
+  firm_update
+  // Owner row 87 (hotline plan PR 5): «Адвокат на линии — позвонить
+  // сейчас?» to a client who pressed «Сообщите, когда появится адвокат»
+  // (payload: requestId, claimToken, expiresAt).
+  hotline_attorney_available
 
   @@map("notification_type")
 }
@@ -1040,6 +1048,12 @@ model User {
   contact_sync                ContactSyncSetting?
   // Owner 2026-10-22: the stored phone book (hashes only).
   contact_book_hashes         ContactBookHash[]
+  // Firms audit 16.11 (PR-2): a firm's owner and members are real users.
+  firms_owned                 Firm[]                         @relation("FirmOwner")
+  firm_membership             FirmMember?                    @relation("FirmMemberAttorney")
+  // Firms audit 16.11 (PR-3): invitations to firms, received and sent.
+  firm_invitations            FirmInvitation[]               @relation("FirmInvitationAttorney")
+  firm_invitations_sent       FirmInvitation[]               @relation("FirmInvitationSender")
 
   // Trigram GIN on full_name_lower is a *partial* index (raw SQL): Prisma
   // can't declare gin_trgm_ops, and ignores partial indexes in its diff.
@@ -1330,6 +1344,9 @@ model FeatureFlag {
   key             String   @id
   enabled         Boolean
   rollout_percent Int      @default(100)
+  /// Bucketing hash of the partial rollout: 1 = FNV-1a (rows from before
+  /// 2026-11-29), 2 = GrowthBook v2 (new rows). See experiment-math.ts.
+  hash_version    Int      @default(2) @db.SmallInt
   description     String?
   updated_by      String?  @db.Uuid
   updated_by_user User?    @relation(fields: [updated_by], references: [id], onDelete: Restrict)
@@ -2183,9 +2200,15 @@ model Bid {
   confirmed_at             DateTime?         @db.Timestamptz
   /// The one reminder has gone out for the current wait.
   confirm_reminded_at      DateTime?         @db.Timestamptz
+  /// Firms audit 16.11 (PR-1, rest of row 167): who really sent the bid: the
+  /// attorney, or the firm owner sending as a member (`sendAsAttorneyId`).
+  /// Null on bids sent before this column existed.
+  sent_by                  String?           @db.Uuid
 
   accepted_for_case  Case?                @relation("CaseAcceptedBid")
   offers             BidOffer[]
+  /// Firms audit 16.11 (PR-4): colleagues of the firm who joined this bid.
+  participants       BidParticipant[]
   contact_disclosure ContactDisclosure?
   contact_issues     ContactIssueReport[]
   deal_records       DealRecord[]
@@ -2211,6 +2234,23 @@ model Bid {
 
 // Negotiation history. Append-only except the pending -> accepted/
 // declined/countered/superseded status transition (§4.D).
+/// Firms audit 16.11 (PR-4, owner): a firm sends ONE bid per case; a
+/// colleague who wanted to bid joins the firm's bid instead (the bid's
+/// attorney and its sender are told). Case family, child of the bid.
+model BidParticipant {
+  bid_id      String   @db.Uuid
+  bid         Bid      @relation(fields: [bid_id], references: [id], onDelete: Cascade)
+  attorney_id String   @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
+  shard_id Int @default(0) @db.SmallInt
+
+  @@id([bid_id, attorney_id])
+  @@index([attorney_id])
+  @@map("bid_participants")
+}
+
 model BidOffer {
   id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   bid_id        String      @db.Uuid
@@ -3299,6 +3339,8 @@ enum GroupMessageType {
   system
   poll
   attachment
+  /// Groups WhatsApp parity: a voice note (chat_voice file, like 1:1).
+  voice
 
   @@map("group_message_type")
 }
@@ -3412,40 +3454,45 @@ model ChatGroupMember {
 /// Owner 2026-10-26: PARTITION BY HASH (group_id), 16 partitions, key
 /// (id, group_id); the poll and the reply point at (group_id, id).
 model ChatGroupMessage {
-  id                  String             @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  group_id            String             @db.Uuid
-  group               ChatGroup          @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  id                  String                     @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  group_id            String                     @db.Uuid
+  group               ChatGroup                  @relation(fields: [group_id], references: [id], onDelete: Cascade)
   /// NULL for system messages.
-  sender_id           String?            @db.Uuid
-  sender              User?              @relation("ChatGroupMessageSender", fields: [sender_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  sender_id           String?                    @db.Uuid
+  sender              User?                      @relation("ChatGroupMessageSender", fields: [sender_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   type                GroupMessageType
-  body                String             @default("")
+  body                String                     @default("")
   client_message_id   String
   /// system messages: added | removed | left | joined | renamed | created |
   /// photo | pinned | promoted | demoted | poll_closed | call_started | call_ended
-  system_kind         String?            @db.VarChar(24)
+  system_kind         String?                    @db.VarChar(24)
   system_payload      Json?
   /// null = «General» (or no topics at all).
-  topic_id            String?            @db.Uuid
-  topic               ChatGroupTopic?    @relation(fields: [topic_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  reply_to_id         String?            @db.Uuid
-  reply_to            ChatGroupMessage?  @relation("GroupMessageReply", fields: [group_id, reply_to_id], references: [group_id, id], onDelete: SetNull, onUpdate: NoAction)
-  replies             ChatGroupMessage[] @relation("GroupMessageReply")
+  topic_id            String?                    @db.Uuid
+  topic               ChatGroupTopic?            @relation(fields: [topic_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  reply_to_id         String?                    @db.Uuid
+  reply_to            ChatGroupMessage?          @relation("GroupMessageReply", fields: [group_id, reply_to_id], references: [group_id, id], onDelete: SetNull, onUpdate: NoAction)
+  replies             ChatGroupMessage[]         @relation("GroupMessageReply")
   /// @mentioned user ids.
-  mention_ids         String[]           @default([]) @db.Uuid
-  file_id             String?            @db.Uuid
-  file                File?              @relation("ChatGroupMessageFile", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  mention_ids         String[]                   @default([]) @db.Uuid
+  file_id             String?                    @db.Uuid
+  file                File?                      @relation("ChatGroupMessageFile", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   file_name           String?
-  edited_at           DateTime?          @db.Timestamptz
-  deleted_at          DateTime?          @db.Timestamptz
+  /// Groups WhatsApp parity (voice): the note's length and 0–100 bars for
+  /// the bubble, the same columns as messages.duration_ms / waveform.
+  duration_ms         Int?
+  waveform            Int[]                      @default([])
+  edited_at           DateTime?                  @db.Timestamptz
+  deleted_at          DateTime?                  @db.Timestamptz
   /// Owner 2026-10-21: disappearing messages — see messages.expires_at.
-  expires_at          DateTime?          @db.Timestamptz
+  expires_at          DateTime?                  @db.Timestamptz
   /// Owner 2026-10-21 (Telegram): «Forwarded from <name>» — the first
   /// author (or channel), kept through re-forwards.
-  forwarded           Boolean            @default(false)
-  forwarded_from_name String?            @db.VarChar(120)
-  created_at          DateTime           @default(now()) @db.Timestamptz
+  forwarded           Boolean                    @default(false)
+  forwarded_from_name String?                    @db.VarChar(120)
+  created_at          DateTime                   @default(now()) @db.Timestamptz
   poll                ChatGroupPoll?
+  reactions           ChatGroupMessageReaction[]
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -3458,6 +3505,25 @@ model ChatGroupMessage {
   @@index([file_id])
   @@index([reply_to_id])
   @@map("chat_group_messages")
+}
+
+/// Groups WhatsApp parity: one emoji reaction per person per group message
+/// (changing it replaces it), the same shape as MessageReaction.
+model ChatGroupMessageReaction {
+  message_id String           @db.Uuid
+  /// Part of the key of the message (group messages are partitioned by group).
+  group_id   String           @db.Uuid
+  message    ChatGroupMessage @relation(fields: [group_id, message_id], references: [group_id, id], onDelete: Cascade)
+  user_id    String           @db.Uuid
+  emoji      String           @db.VarChar(16)
+  created_at DateTime         @default(now()) @db.Timestamptz
+
+  /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
+  shard_id Int @default(0) @db.SmallInt
+
+  @@id([message_id, user_id])
+  @@index([user_id])
+  @@map("chat_group_message_reactions")
 }
 
 model ChatGroupTopic {
@@ -3663,35 +3729,43 @@ model NotificationQuietHours {
 }
 
 model PushToken {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id         String   @db.Uuid
-  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  session_id      String   @db.Uuid
-  session         Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String   @db.Uuid
+  user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  /// The NEWEST session row of the device's sign-in chain. 14.11 (DB scale
+  /// review, finding 8): every refresh moves it to the new row
+  /// (SessionService.rotate), so the cascade only removes the token when the
+  /// chain itself ends — not when an old row of a signed-in device expires.
+  session_id       String   @db.Uuid
+  session          Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  /// The device's sign-in chain (stable across refreshes); liveness and
+  /// "same device" matches use it. NULL only on rows of an older release
+  /// (then the chain is read through `session_id`).
+  session_chain_id String?  @db.Uuid
   /// The device's FCM address: a registration token (older app versions)
   /// or, when `token_kind` is "fid", its Firebase Installation ID.
-  fcm_token       String   @unique
+  fcm_token        String   @unique
   /// 2026-11-07 (FCM HTTP v1 deprecates `message.token` for `message.fid`):
   /// "token" = legacy registration token, "fid" = Firebase Installation ID.
-  token_kind      String   @default("token")
-  platform        String
+  token_kind       String   @default("token")
+  platform         String
   /// Owner 2026-10-20: the app on this device keeps its own copy of the
   /// planner reminders (local alarm) and shows the reminder push itself,
   /// under the same id, so the two never show twice. Android only.
-  local_reminders Boolean  @default(false)
+  local_reminders  Boolean  @default(false)
   /// Owner 2026-10-22 (WhatsApp): the app on this Android device draws chat
   /// notifications itself (sender's photo, one stack per chat) from a
   /// data-only push. Older app versions keep the normal alert.
-  chat_style      Boolean  @default(false)
+  chat_style       Boolean  @default(false)
   /// Owner 2026-10-26: the app on this Android device also draws
   /// notifications with a person (bid, comment, like, missed call …) with
   /// that person's round photo from a data-only push.
-  actor_style     Boolean  @default(false)
+  actor_style      Boolean  @default(false)
   /// Owner 2026-10-20: reminders (`<taskId>@<remindAt ms>`) this iPhone has
   /// armed as local alarms; the reminder push skips them (no double banner).
-  armed_reminders String[] @default([])
-  last_seen_at    DateTime @default(now()) @db.Timestamptz
-  created_at      DateTime @default(now()) @db.Timestamptz
+  armed_reminders  String[] @default([])
+  last_seen_at     DateTime @default(now()) @db.Timestamptz
+  created_at       DateTime @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -3702,20 +3776,24 @@ model PushToken {
 
 /// Owner 2026-10-17: an iPhone's PushKit (VoIP) token — incoming calls go
 /// to Apple directly as VoIP pushes (FCM can't send them), so iOS shows the
-/// call screen and rings even when the app is closed. Bound to the session
+/// call screen and rings even when the app is closed. Bound to the sign-in
 /// chain like push_tokens; `topic` is the app's bundle id + ".voip".
 model VoipToken {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id      String   @db.Uuid
-  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  session_id   String   @db.Uuid
-  session      Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
-  token        String   @unique
-  topic        String
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String   @db.Uuid
+  user             User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  /// As push_tokens.session_id: the newest row of the chain, moved on every
+  /// refresh (14.11, finding 8).
+  session_id       String   @db.Uuid
+  session          Session  @relation(fields: [session_id], references: [id], onDelete: Cascade)
+  /// The phone's sign-in chain; NULL only on rows of an older release.
+  session_chain_id String?  @db.Uuid
+  token            String   @unique
+  topic            String
   /// sandbox (development-signed builds) | production (TestFlight, store).
-  environment  String
-  last_seen_at DateTime @default(now()) @db.Timestamptz
-  created_at   DateTime @default(now()) @db.Timestamptz
+  environment      String
+  last_seen_at     DateTime @default(now()) @db.Timestamptz
+  created_at       DateTime @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
   shard_id Int @default(0) @db.SmallInt
@@ -7243,14 +7321,39 @@ model BidCredit {
 /// its states are the union of its member lawyers' verified licenses, and a
 /// bid goes out from the member who holds a matching license.
 model Firm {
-  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name       String       @db.VarChar(120)
-  owner_id   String       @db.Uuid
-  created_at DateTime     @default(now()) @db.Timestamptz
-  members    FirmMember[]
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String           @db.VarChar(120)
+  owner_id    String           @db.Uuid
+  /// Firms audit 16.11 (PR-2): the owner is a real user; an erased owner
+  /// hands the firm over first (FirmsService.onAccountErased).
+  owner       User             @relation("FirmOwner", fields: [owner_id], references: [id], onDelete: Restrict)
+  created_at  DateTime         @default(now()) @db.Timestamptz
+  members     FirmMember[]
+  invitations FirmInvitation[]
 
   @@index([owner_id])
   @@map("firms")
+}
+
+/// Firms audit 16.11 (PR-3): an invitation to a firm. A lawyer may hold
+/// several (one per firm) and none of them blocks creating or joining
+/// another firm; it is valid until `expires_at` (`firms.invite_expiry_days`).
+/// Accepting one makes the lawyer an active `firm_members` row and drops the
+/// rest. Legacy `firm_members` rows with status `invited` were copied here.
+model FirmInvitation {
+  firm_id     String   @db.Uuid
+  firm        Firm     @relation(fields: [firm_id], references: [id], onDelete: Cascade)
+  attorney_id String   @db.Uuid
+  attorney    User     @relation("FirmInvitationAttorney", fields: [attorney_id], references: [id], onDelete: Cascade)
+  invited_by  String   @db.Uuid
+  inviter     User     @relation("FirmInvitationSender", fields: [invited_by], references: [id], onDelete: Cascade)
+  created_at  DateTime @default(now()) @db.Timestamptz
+  expires_at  DateTime @db.Timestamptz
+
+  @@id([firm_id, attorney_id])
+  @@index([attorney_id, expires_at])
+  @@index([invited_by])
+  @@map("firm_invitations")
 }
 
 /// status: invited (waiting for the lawyer) | active. A lawyer is in at most
@@ -7259,6 +7362,7 @@ model FirmMember {
   firm_id     String   @db.Uuid
   firm        Firm     @relation(fields: [firm_id], references: [id], onDelete: Cascade)
   attorney_id String   @unique @db.Uuid
+  attorney    User     @relation("FirmMemberAttorney", fields: [attorney_id], references: [id], onDelete: Cascade)
   role        String   @default("member") @db.VarChar(10)
   status      String   @default("invited") @db.VarChar(10)
   created_at  DateTime @default(now()) @db.Timestamptz
@@ -8723,6 +8827,9 @@ model Experiment {
   variants          Json
   /// Share of units that enter the experiment at all (0-100).
   traffic_percent   Int       @default(0)
+  /// Bucketing hash: 1 = FNV-1a (experiments from before 2026-11-29),
+  /// 2 = GrowthBook v2 (new ones). Fixed once the test has started.
+  hash_version      Int       @default(2) @db.SmallInt
   /// { reportsRelIncreasePct, errorsRelIncreasePct, minImpressions }
   guardrails        Json
   start_at          DateTime? @db.Timestamptz

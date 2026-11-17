@@ -145,10 +145,13 @@ abstract class UsersClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Export status; a fresh 24-hour signed link while it is ready
+  /// Export status; a fresh 24-hour signed link while it is ready (with a fresh reauth).
+  ///
+  /// [xReauthToken] - reauthToken from POST /auth/reauth (5 minutes, not consumed). Without it `url` is null once the admin setting security.export_reauth_min_app_version covers this app version.
   @GET('/users/me/data-export/{exportId}')
   Future<DataExportJobEnvelope> getDataExport({
     @Path('exportId') required String exportId,
+    @Header('X-Reauth-Token') String? xReauthToken,
     @Extras() Map<String, dynamic>? extras,
   });
 

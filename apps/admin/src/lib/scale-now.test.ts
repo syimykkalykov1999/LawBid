@@ -92,7 +92,7 @@ describe('cloudNow (Облако rows)', () => {
   it('WAF, Kinesis, cache Redis: on / off', () => {
     expect(cloudNow('aws.waf_bot_control', facts)).toBe('Сейчас: правила WAF выключены');
     expect(cloudNow('aws.events_stream', facts)).toBe('Сейчас: поток Kinesis включён');
-    expect(cloudNow('aws.redis_cache', facts)).toBe('Сейчас: отдельного Redis для кэша нет');
+    expect(cloudNow('aws.redis_cache', facts)).toBe('Сейчас: отдельного Valkey для кэша нет');
   });
 
   it('PgBouncer: its tasks; Spot: which services; HA: the standby and the API tasks', () => {

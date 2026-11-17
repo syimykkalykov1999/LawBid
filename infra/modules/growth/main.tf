@@ -62,11 +62,6 @@ variable "rds_source_arn" {
   default     = ""
   description = "ARN of the primary instance. AWS requires the ARN (not the identifier) as replicate_source_db once db_subnet_group_name is set (owner 2026-11-11: the first live auto test failed on exactly that). Empty = the identifier."
 }
-variable "rds_replica_instance_class" {
-  type        = string
-  default     = ""
-  description = "Empty = the same class as the primary; replicas can be resized in the RDS console without Terraform undoing it."
-}
 variable "rds_kms_key_arn" {
   type        = string
   default     = ""
@@ -88,8 +83,9 @@ variable "rds_replica_lag_alarm_seconds" {
   description = "Alarm when ReplicaLag stays above this many seconds for 10 minutes (the app reads search / profiles / feeds from the replica, a few seconds old is fine, minutes is not). 0 = no alarm."
 }
 variable "rds_primary_instance_class" {
-  type    = string
-  default = "db.t4g.medium"
+  type        = string
+  default     = "db.t4g.medium"
+  description = "Owner row 196: the class the primary runs NOW (the stack reads it from AWS). Every read copy is created with exactly this class, one source of truth; db-autoscale keeps it equal when the primary resizes later."
 }
 variable "rds_subnet_group_name" {
   type    = string
@@ -198,7 +194,7 @@ resource "aws_db_instance" "replica" {
   count               = var.has_source_db ? var.rds_read_replicas : 0
   identifier          = "${var.name}-postgres-replica-${count.index + 1}"
   replicate_source_db = var.rds_source_arn != "" ? var.rds_source_arn : var.rds_source_identifier
-  instance_class      = var.rds_replica_instance_class != "" ? var.rds_replica_instance_class : var.rds_primary_instance_class
+  instance_class      = var.rds_primary_instance_class
 
   db_subnet_group_name   = var.rds_subnet_group_name != "" ? var.rds_subnet_group_name : null
   vpc_security_group_ids = length(var.rds_security_group_ids) > 0 ? var.rds_security_group_ids : null
@@ -516,6 +512,8 @@ resource "aws_cloudwatch_metric_alarm" "event_loop" {
 # same alarm name with a 70 % threshold, so the two fought over one alarm.
 
 output "replica_endpoints" { value = aws_db_instance.replica[*].address }
+# Row 196: the class of every copy (tests: copy class == primary class).
+output "replica_instance_classes" { value = aws_db_instance.replica[*].instance_class }
 # First replica's address: the stack hands it to the tasks as DB_REPLICA_HOST.
 output "replica_host" { value = try(aws_db_instance.replica[0].address, "") }
 output "db_proxy_endpoint" { value = one(aws_db_proxy.this[*].endpoint) }

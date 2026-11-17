@@ -109,7 +109,8 @@ export class VersionEtagService {
       r.view_count,
       r.repost_count,
       // Owner 2026-10-28: a counter the author hides / shows changes the
-      // answer for others at once (not only through updated_at).
+      // answer for everyone, the author too, at once (not only through
+      // updated_at).
       r.hide_likes ? 1 : 0,
       r.hide_views ? 1 : 0,
       r.author_updated_at,

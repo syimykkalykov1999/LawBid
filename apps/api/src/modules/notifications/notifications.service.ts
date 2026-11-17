@@ -66,6 +66,8 @@ export const NOTIFICATION_CATEGORY: Record<
   case_comment: 'bids',
   // OQ-041: a call nobody answered (own category, owner 2026-09-30).
   missed_call: 'calls',
+  // Owner row 87: the hotline notice (a call, under «Звонки»).
+  hotline_attorney_available: 'calls',
   // OQ-042.
   mention: 'social',
   // Owner 2026-09-30, opt-in.
@@ -118,6 +120,8 @@ export const NOTIFICATION_CATEGORY: Record<
   subscription_status: 'system',
   data_export_ready: 'system',
   account_deletion_scheduled: 'system',
+  // Firms audit 16.11: a firm's events (payload.kind).
+  firm_update: 'system',
   case_history_export_ready: 'system',
   moderation_notice: 'system',
   security_new_device: 'system',
@@ -171,6 +175,7 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   post_comment: false,
   case_comment: false,
   missed_call: true,
+  hotline_attorney_available: true,
   mention: false,
   followed_post: false,
   channel_post: false,
@@ -213,6 +218,7 @@ export const NOTIFICATION_IMPORTANT: Record<NotificationType, boolean> = {
   subscription_status: true,
   data_export_ready: false,
   account_deletion_scheduled: true,
+  firm_update: true,
   case_history_export_ready: false,
   moderation_notice: true,
   security_new_device: false,

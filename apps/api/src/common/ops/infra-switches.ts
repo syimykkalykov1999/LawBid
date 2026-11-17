@@ -363,7 +363,7 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
       on: { autoscale_code_flip: true },
     },
     impact:
-      'Без перерыва: обновляется только код функций автомасштаба (Redis, база, точки доступа, Spot).',
+      'Без перерыва: обновляется только код функций автомасштаба (Valkey, база, точки доступа, Spot).',
   },
   {
     id: 'aws.waf_alb',
@@ -574,7 +574,7 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
       on: { redis_cache_node: true },
     },
     impact:
-      'Без перерыва: узел кэша создаётся 10–15 минут, серверы перезапускаются по очереди; до этого кэш живёт в основном Redis.',
+      'Без перерыва: узел кэша создаётся 10–15 минут, серверы перезапускаются по очереди; до этого кэш живёт в основном Valkey.',
   },
   {
     id: 'aws.pgbouncer',

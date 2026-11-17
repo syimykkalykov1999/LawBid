@@ -127,7 +127,7 @@ export function cloudNow(id: string, f: NowFacts): string {
   }
   if (id.startsWith('aws.waf')) return line([onOff(st, 'правила WAF включены', 'правила WAF выключены')]);
   if (id === 'aws.events_stream') return line([onOff(st, 'поток Kinesis включён', 'поток Kinesis выключен')]);
-  if (id === 'aws.redis_cache') return line([onOff(st, 'отдельный Redis для кэша включён', 'отдельного Redis для кэша нет')]);
+  if (id === 'aws.redis_cache') return line([onOff(st, 'отдельный Valkey для кэша включён', 'отдельного Valkey для кэша нет')]);
   if (id === 'aws.pgbouncer') {
     const s = services.find((x) => x.kind === 'pgbouncer');
     return line([s ? `PgBouncer ${s.running} из ${s.desired}` : onOff(st, 'PgBouncer включён', 'PgBouncer выключен')]);

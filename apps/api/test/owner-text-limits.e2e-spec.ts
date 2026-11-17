@@ -7,7 +7,7 @@ import type Redis from 'ioredis';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { CreateCommentDto } from '../src/modules/comments/comments.dto';
-import { APP_CONFIG_CACHE_KEY } from '../src/modules/feature-flags/services/app-config.service';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 
@@ -48,9 +48,17 @@ describe('Text limits (e2e)', () => {
     await prisma.appConfig.deleteMany({
       where: { key: 'limits.comment_chars' },
     });
-    await redis.del(APP_CONFIG_CACHE_KEY);
+    await dropAppConfigCache(redis);
     await app.close();
   });
+
+  // Row 214 (17.11, red on #1178 in «API e2e (two databases)»): the writes
+  // below go to the table directly, so the cache is dropped exactly the way
+  // every admin save does it (dropAppConfigCache: memo + Redis copy + config
+  // version). Deleting only the app_config key left the version unchanged,
+  // and GET /config/bootstrap answered the copy another suite had stored for
+  // that version in the shared Valkey (its body cache is keyed by the
+  // version, #1040), without the new limit.
 
   const body = (n: number) =>
     plainToInstance(CreateCommentDto, { body: 'x'.repeat(n) });
@@ -59,7 +67,11 @@ describe('Text limits (e2e)', () => {
     await prisma.appConfig.deleteMany({
       where: { key: 'limits.comment_chars' },
     });
-    await redis.del(APP_CONFIG_CACHE_KEY);
+    await dropAppConfigCache(redis);
+    // Regression check: the bootstrap is answered (and its body cached for
+    // the current config version) BEFORE the change, as on a busy server.
+    // The next test must still see the new limit.
+    await request(base).get('/api/v1/config/bootstrap').expect(200);
     // Owner 2026-10-19: the starting value is Instagram's 2200.
     expect(await validate(body(2200))).toHaveLength(0);
     expect((await validate(body(2201))).length).toBeGreaterThan(0);
@@ -69,7 +81,7 @@ describe('Text limits (e2e)', () => {
       create: { key: 'limits.comment_chars', value: 500 },
       update: { value: 500 },
     });
-    await redis.del(APP_CONFIG_CACHE_KEY);
+    await dropAppConfigCache(redis);
     expect(await validate(body(500))).toHaveLength(0);
     expect((await validate(body(501))).length).toBeGreaterThan(0);
   });

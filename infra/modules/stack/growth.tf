@@ -5,7 +5,7 @@ variable "growth" {
   description = <<-EOT
     Growth switches (all off by default):
       rds_read_replicas          0..5 read copies of the database; then set the secret DATABASE_REPLICA_URL (extra_secrets) - search reads move there, no deploy.
-      rds_replica_instance_class "" = same class as the primary.
+      rds_replica_instance_class must stay "": a copy always has the primary's current class (owner row 196).
       rds_replica_lag_alarm_s    alarm when ReplicaLag is above this many seconds for 10 minutes; 0 = no alarm.
       db_proxy_enabled           RDS Proxy in front of the database (needs db_proxy_secret_arn).
       db_proxy_secret_arn        Secrets Manager secret {username,password} of the app role.
@@ -47,6 +47,12 @@ variable "growth" {
     error_message = "growth.rds_read_replicas: 0..5."
   }
   validation {
+    # Owner row 196 (16.11): a read copy is exactly the primary's size, one
+    # source of truth (local.database_live_class); no separate size.
+    condition     = var.growth.rds_replica_instance_class == ""
+    error_message = "growth.rds_replica_instance_class is gone: a read copy always takes the primary's current class (db-autoscale keeps it there). Leave it empty."
+  }
+  validation {
     # Owner 2026-11-12: the search engine data nodes, 1, 2 or 4. Across two
     # Availability Zones AWS accepts only an even count of data nodes.
     # Owner 15.11 (search.max_nodes): 1 or an even count up to 10. Two zones
@@ -81,9 +87,14 @@ variable "growth" {
 }
 
 locals {
-  growth_source_db    = var.create_database ? module.postgres[0].instance_id : var.existing_database_identifier
-  growth_source_arn   = var.create_database ? module.postgres[0].arn : try(data.aws_db_instance.existing[0].db_instance_arn, "")
-  growth_db_class     = var.create_database ? var.database_instance_class : try(data.aws_db_instance.existing[0].db_instance_class, var.database_instance_class)
+  growth_source_db  = var.create_database ? module.postgres[0].instance_id : var.existing_database_identifier
+  growth_source_arn = var.create_database ? module.postgres[0].arn : try(data.aws_db_instance.existing[0].db_instance_arn, "")
+  # Owner row 196 (16.11): the copies take the class the primary REALLY runs
+  # (read from AWS on every plan), never the tfvars number: db-autoscale
+  # resizes the primary by itself and modules/postgres ignores
+  # instance_class, so database_instance_class goes stale (a copy came up
+  # db.t4g.micro next to a db.t4g.medium primary).
+  growth_db_class     = local.database_live_class
   growth_subnet_group = var.create_database ? "${local.name}-postgres" : try(data.aws_db_instance.existing[0].db_subnet_group, "")
   # A same-region replica of an encrypted primary must use the primary's key.
   growth_db_kms = var.create_database ? module.kms.key_arn : try(data.aws_db_instance.existing[0].kms_key_id, "")
@@ -109,7 +120,6 @@ module "growth" {
   rds_read_replicas             = var.growth.rds_read_replicas
   rds_source_identifier         = local.growth_source_db
   rds_source_arn                = local.growth_source_arn
-  rds_replica_instance_class    = var.growth.rds_replica_instance_class
   rds_primary_instance_class    = local.growth_db_class
   rds_replica_lag_alarm_seconds = var.growth.rds_replica_lag_alarm_s
   rds_subnet_group_name         = local.growth_subnet_group

@@ -43,6 +43,7 @@ import {
   AUTH_EVENT_TYPES,
 } from './services/auth-event.service';
 import { GoogleTokenVerifier } from './social/google-token-verifier.service';
+import { SocialNonceService } from './social/social-nonce.service';
 import { AppleTokenVerifier } from './social/apple-token-verifier.service';
 import type { OtpRequestDto } from './dto/otp-request.dto';
 import type { OtpVerifyDto } from './dto/otp-verify.dto';
@@ -150,6 +151,8 @@ export class AuthService {
     @Optional() private readonly ageGate?: AgeGateService,
     // N-2: the domain-event bus.
     @Optional() private readonly events?: DomainEvents,
+    // Detective R2B-9 (14.11): Google linking takes the server's nonce too.
+    @Optional() private readonly socialNonces?: SocialNonceService,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -1199,7 +1202,7 @@ export class AuthService {
   }
 
   // ---------------------------------------------------------------------
-  // POST /auth/logout, /auth/logout-all
+  // POST /auth/logout, /auth/logout-all, /auth/logout-others
   // ---------------------------------------------------------------------
   async logout(user: RequestUser): Promise<void> {
     await this.revocation.revokeChain(user.sid, 'logout');
@@ -1210,12 +1213,33 @@ export class AuthService {
     });
   }
 
+  /** POST /auth/logout-all: every session of the account ends, the
+   * caller's own included. Its meaning never changes — apps already in the
+   * stores rely on it (expand/contract: «keep this one» is its own route,
+   * [logoutOthers]). */
   async logoutAll(user: RequestUser): Promise<void> {
     await this.revocation.revokeAllChainsForUser(user.sub, 'logout_all');
     await this.authEvents.record({
       userId: user.sub,
       eventType: AUTH_EVENT_TYPES.LOGOUT_ALL,
       success: true,
+    });
+  }
+
+  /** POST /auth/logout-others — R2-A #9 (Telegram «Terminate all other
+   * sessions»): every session of the account ends except the caller's own,
+   * so the phone that pressed it stays signed in. */
+  async logoutOthers(user: RequestUser): Promise<void> {
+    await this.revocation.revokeOtherChainsForUser(
+      user.sub,
+      user.sid,
+      'logout_all',
+    );
+    await this.authEvents.record({
+      userId: user.sub,
+      eventType: AUTH_EVENT_TYPES.LOGOUT_ALL,
+      success: true,
+      meta: { scope: 'others', sessionChainId: user.sid },
     });
   }
 
@@ -1421,6 +1445,9 @@ export class AuthService {
           code: ErrorCode.AUTH_SOCIAL_TOKEN_INVALID,
           message: 'idToken and nonce are required for apple/google linking.',
         });
+      }
+      if (dto.provider === 'google') {
+        await this.socialNonces?.assertIssued(dto.nonce, meta?.appVersion);
       }
       const verifier = dto.provider === 'apple' ? this.apple : this.google;
       const verified = await verifier.verify(dto.idToken, dto.nonce);

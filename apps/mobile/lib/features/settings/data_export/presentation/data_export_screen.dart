@@ -10,10 +10,10 @@ import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/application/case_history_controller.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/reauth_gate_view.dart';
+import 'package:lawbid/features/cases/presentation/widgets/reauth_sheet.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/settings/data_export/application/data_export_providers.dart';
 import 'package:lawbid/features/settings/data_export/data/data_export_repository.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// docs/06 §5.2 / docs/01 §10.7 — Settings → «Скачать мои данные»: behind
 /// the reauth gate, one button queues the ZIP; the status card follows the
@@ -26,6 +26,12 @@ class DataExportScreen extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final access = ref.watch(historyAccessProvider);
+    // R2B-12 (14.11): an export already asked for stays on screen when the
+    // 5-minute reauth runs out (or the download sheet asks again): the gate
+    // guards a new request and the link, not the status.
+    final hasJob = ref.watch(
+      dataExportControllerProvider.select((s) => s.value != null),
+    );
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
@@ -37,7 +43,7 @@ class DataExportScreen extends ConsumerWidget {
       ),
       body: AnimatedSwitcher(
         duration: context.reduceMotion ? Duration.zero : AppMotion.stepSwitch,
-        child: access.isOpen
+        child: access.isOpen || hasJob
             ? const _ExportBody(key: ValueKey('export'))
             : ReauthGateView(
                 key: const ValueKey('reauth'),
@@ -53,11 +59,44 @@ class DataExportScreen extends ConsumerWidget {
 class _ExportBody extends ConsumerWidget {
   const _ExportBody({super.key});
 
-  Future<void> _download(BuildContext context, Translator t, String url) async {
+  /// Detective R2B-12 (14.11): the link is read with a fresh reauth — the
+  /// gate's token while it lasts, else the reauth sheet first (Google
+  /// Takeout asks again before a download). A token the server refuses
+  /// opens the sheet once more.
+  Future<void> _download(BuildContext context, WidgetRef ref) async {
+    final t = ref.read(translatorProvider);
+    final controller = ref.read(dataExportControllerProvider.notifier);
+    var token = controller.freshToken;
+    String? url;
+    for (var attempt = 0; attempt < 2 && url == null; attempt++) {
+      if (token == null) {
+        if (!context.mounted) return;
+        token = await showReauthSheet(
+          context,
+          note: t.t('dataExport.reauthNote'),
+        );
+      }
+      if (token == null || !context.mounted) return;
+      try {
+        url = await controller.linkWith(token);
+        if (url == null) break;
+      } on Object catch (e) {
+        if (!context.mounted) return;
+        if (!DataExportController.isReauthError(e)) {
+          showAppSnackBar(context, errorText(t, e));
+          return;
+        }
+        token = null;
+      }
+    }
+    if (!context.mounted) return;
+    if (url == null) {
+      showAppSnackBar(context, t.t('dataExport.cantOpen'));
+      return;
+    }
     final uri = Uri.tryParse(url);
-    if (uri == null ||
-        uri.scheme != 'https' ||
-        !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+    final launch = ref.read(dataExportLauncherProvider);
+    if (uri == null || uri.scheme != 'https' || !await launch(uri)) {
       if (context.mounted) {
         showAppSnackBar(context, t.t('dataExport.cantOpen'));
       }
@@ -164,7 +203,7 @@ class _ExportBody extends ConsumerWidget {
               job: job,
               t: t,
               formats: formats,
-              onDownload: (url) => _download(context, t, url),
+              onDownload: () => _download(context, ref),
               onRefresh: () =>
                   ref.read(dataExportControllerProvider.notifier).refresh(),
             ),
@@ -224,7 +263,7 @@ class _StatusCard extends StatelessWidget {
   final DataExport job;
   final Translator t;
   final L10nFormats formats;
-  final ValueChanged<String> onDownload;
+  final VoidCallback onDownload;
   final VoidCallback onRefresh;
 
   @override
@@ -274,7 +313,9 @@ class _StatusCard extends StatelessWidget {
               style: typography.body.copyWith(color: colors.textSecondary),
             ),
           ],
-          if (job.status == DataExportStatus.ready && job.url != null) ...[
+          // R2B-12: shown for a ready export with or without the link —
+          // the link itself is read after the reauth (see _download).
+          if (job.status == DataExportStatus.ready) ...[
             const SizedBox(height: AppSpacing.lg),
             AppButton(
               key: const ValueKey('download-export'),
@@ -282,7 +323,7 @@ class _StatusCard extends StatelessWidget {
               icon: AppIcons.openInNewRounded,
               variant: AppButtonVariant.secondary,
               height: AppSizes.touchTarget,
-              onPressed: () => onDownload(job.url!),
+              onPressed: onDownload,
             ),
           ],
           if (job.status.inProgress) ...[

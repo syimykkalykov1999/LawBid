@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto';
 import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -775,16 +776,7 @@ export class SearchService {
                 },
               ]
             : []),
-          ...(c
-            ? [
-                {
-                  OR: [
-                    { created_at: { lt: c.createdAt } },
-                    { created_at: c.createdAt, id: { lt: c.id } },
-                  ],
-                },
-              ]
-            : []),
+          ...(c ? [createdBefore({ t: c.createdAt, id: c.id })] : []),
         ],
       },
       orderBy: popular
@@ -854,18 +846,12 @@ export class SearchService {
                 notIn: [...(await this.blocks.hiddenIds(user.sub))],
               },
             },
+            // Row 215: the cursor as an index range, inside the AND.
+            ...(c ? [createdBefore({ t: c.createdAt, id: c.id })] : []),
           ],
           tags: { some: { tag_id: tag.id } },
           ...(contentClass ? { content_class: contentClass } : {}),
           ...(videoOnly ? { video_asset_id: { not: null } } : {}),
-          ...(c
-            ? {
-                OR: [
-                  { created_at: { lt: c.createdAt } },
-                  { created_at: c.createdAt, id: { lt: c.id } },
-                ],
-              }
-            : {}),
         },
         orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
         take: PAGE + 1,

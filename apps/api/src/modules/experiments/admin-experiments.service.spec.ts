@@ -15,6 +15,8 @@ function row(over: Record<string, unknown> = {}) {
       { key: 'new_formula', weight: 50 },
     ],
     traffic_percent: 0,
+    // The column default for a new row (row 150).
+    hash_version: 2,
     guardrails: {},
     start_at: null,
     end_at: null,
@@ -80,6 +82,28 @@ describe('AdminExperimentsService', () => {
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'experiment.create' }),
     );
+  });
+
+  it('a new test gets GrowthBook v2 unless the admin picks the old hash', async () => {
+    const a = build(null);
+    expect((await a.svc.create(admin, dto)).hashVersion).toBe(2);
+    expect(a.prisma.experiment.create.mock.calls[0][0].data).not.toHaveProperty(
+      'hash_version',
+    );
+    const b = build(null);
+    expect(
+      (await b.svc.create(admin, { ...dto, hashVersion: 1 })).hashVersion,
+    ).toBe(1);
+    expect(b.prisma.experiment.create.mock.calls[0][0].data.hash_version).toBe(
+      1,
+    );
+  });
+
+  it('an experiment from before the column reads as version 1', async () => {
+    const legacy = row();
+    delete (legacy as Partial<typeof legacy>).hash_version;
+    const { svc } = build(legacy);
+    expect((await svc.list())[0].hashVersion).toBe(1);
   });
 
   it('refuses a bad definition and a duplicate key', async () => {

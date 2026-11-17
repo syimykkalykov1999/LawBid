@@ -788,7 +788,7 @@ describe('EconomyService: two brakes, each braking only what it controls (owner 
     const on = t.events.find((e) => e.kind === 'guard_on');
     expect(on?.text).toContain('сторонние платные сервисы');
     expect(on?.text).toContain(
-      'Серверы, база и Redis AWS этот тормоз не трогает',
+      'Серверы, база и Valkey AWS этот тормоз не трогает',
     );
   });
 

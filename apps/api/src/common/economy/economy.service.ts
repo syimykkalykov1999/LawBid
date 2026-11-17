@@ -753,7 +753,7 @@ export class EconomyService {
     });
     const text =
       `Расходы на сторонние платные сервисы (SMS, видео Bunny, перевод, проверка личности, Cloudflare) за месяц ≈ $${f.thirdPartyProjectedUsd} при допустимых $${f.allowedUsd}. ` +
-      'Ограничены только они: лимиты этих сервисов на минимум, новые видео на паузе, SMS только для входа и сброса пароля. Серверы, база и Redis AWS этот тормоз не трогает.';
+      'Ограничены только они: лимиты этих сервисов на минимум, новые видео на паузе, SMS только для входа и сброса пароля. Серверы, база и Valkey AWS этот тормоз не трогает.';
     await this.event('guard_on', text, now);
     this.logger.warn(
       {
@@ -859,7 +859,7 @@ export class EconomyService {
         });
         await this.event(
           'ceiling',
-          `Счёт AWS за месяц ≈ $${f.awsProjectedUsd} при потолке $${capUsd}: серверов не больше минимума, база и Redis не растут. Видео и SMS этот тормоз не трогает.`,
+          `Счёт AWS за месяц ≈ $${f.awsProjectedUsd} при потолке $${capUsd}: серверов не больше минимума, база и Valkey не растут. Видео и SMS этот тормоз не трогает.`,
           now,
         );
       }
@@ -934,7 +934,7 @@ export class EconomyService {
       case 'db_connections':
         return `База данных: занято ${v}% соединений (порог ${p.limit}%). Можно увеличить базу на ступень в карточке «Экономика».`;
       case 'redis_memory':
-        return `Redis: память ${v}% (порог ${p.limit}%). Можно увеличить Redis на ступень в карточке «Экономика».`;
+        return `Valkey: память ${v}% (порог ${p.limit}%). Можно увеличить Valkey на ступень в карточке «Экономика».`;
     }
   }
 
@@ -978,7 +978,7 @@ export class EconomyService {
   ): Promise<{ from: string; to: string } | null> {
     const res = await this.capacity.increase(target);
     if (!res) return null;
-    const what = target === 'db' ? 'База данных' : 'Redis';
+    const what = target === 'db' ? 'База данных' : 'Valkey';
     const text = `${what}: ${res.from} → ${res.to} (по кнопке в админке; короткое переключение, секунды-минута).`;
     await this.event('scaled_up', text, now);
     this.logger.warn(
@@ -1019,7 +1019,7 @@ export class EconomyService {
     if (!res) {
       return { ok: false, reason: 'no_smaller', text: 'Меньшего размера нет.' };
     }
-    const what = target === 'db' ? 'База данных' : 'Redis';
+    const what = target === 'db' ? 'База данных' : 'Valkey';
     const text = `${what}: ${res.from} → ${res.to} (по кнопке «Уменьшить» в админке; короткое переключение).`;
     await this.event('scaled_down', text, now);
     this.logger.warn(

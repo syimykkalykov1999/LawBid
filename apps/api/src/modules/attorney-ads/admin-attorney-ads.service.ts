@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Optional } from '@nestjs/common';
 import type { AttorneyAdArchive, Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -149,14 +150,7 @@ export class AdminAttorneyAdsService {
       where: {
         AND: [
           this.where(q),
-          cursor
-            ? {
-                OR: [
-                  { created_at: { lt: cursor.createdAt } },
-                  { created_at: cursor.createdAt, id: { lt: cursor.id } },
-                ],
-              }
-            : {},
+          cursor ? createdBefore({ t: cursor.createdAt, id: cursor.id }) : {},
         ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],

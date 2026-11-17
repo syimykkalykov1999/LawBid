@@ -264,7 +264,7 @@ export function autoWants(
       id: 'aws.autoscale_code',
       to: live('aws.autoscale_code') === 'on' ? 'off' : 'on',
       reason:
-        'На main новый код функций автомасштаба (Redis, база, точки доступа, Spot): «Авто» обновляет их само.',
+        'На main новый код функций автомасштаба (Valkey, база, точки доступа, Spot): «Авто» обновляет их само.',
     });
   }
   if (s.eventsStreamWanted === true && live('aws.events_stream') !== 'on') {
@@ -288,7 +288,7 @@ export function autoWants(
       reason:
         cacheMode === 'on'
           ? 'cache.redis_mode = Вкл, а отдельного узла кэша нет.'
-          : 'Основному Redis не хватает памяти: кэш переезжает в свой узел.',
+          : 'Основному Valkey не хватает памяти: кэш переезжает в свой узел.',
     });
   }
   if (

@@ -21,6 +21,7 @@ import { FilesService } from '../files/files.service';
 import { assertUploadCount } from '../files/upload-limits';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -445,17 +446,14 @@ export class ReviewsService {
         status: 'published',
         ...(query.rating !== undefined ? { rating: query.rating } : {}),
         ...(cursor
-          ? {
-              OR: oldest
-                ? [
-                    { created_at: { gt: cursor.createdAt } },
-                    { created_at: cursor.createdAt, id: { gt: cursor.id } },
-                  ]
-                : [
-                    { created_at: { lt: cursor.createdAt } },
-                    { created_at: cursor.createdAt, id: { lt: cursor.id } },
-                  ],
-            }
+          ? oldest
+            ? {
+                OR: [
+                  { created_at: { gt: cursor.createdAt } },
+                  { created_at: cursor.createdAt, id: { gt: cursor.id } },
+                ],
+              }
+            : createdBefore({ t: cursor.createdAt, id: cursor.id })
           : {}),
       },
       orderBy: oldest

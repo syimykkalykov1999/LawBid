@@ -69,12 +69,20 @@ export class ClientBadgeStateDto {
   currency!: string;
 
   @ApiProperty({
-    description: 'Documents can be sent (none / rejected / revoked).',
+    description:
+      'Owner 16.11: the admin switch «Проверка документов клиента». false (default) = the client pays and gets the badge at once, no documents; true = documents → approval → payment.',
+  })
+  documentsRequired!: boolean;
+
+  @ApiProperty({
+    description:
+      'Documents can be sent (none / rejected / revoked); always false while documents are not required.',
   })
   canSubmit!: boolean;
 
   @ApiProperty({
-    description: 'Approved and not paid: the checkout can start.',
+    description:
+      'The checkout can start: approved and not paid, or — documents not required — any client not paid and not revoked.',
   })
   canSubscribe!: boolean;
 

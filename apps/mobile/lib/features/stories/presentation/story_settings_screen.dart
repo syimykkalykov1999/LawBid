@@ -269,7 +269,7 @@ class _PeoplePickerState extends ConsumerState<_PeoplePicker> {
   void initState() {
     super.initState();
     _scroll.addListener(() {
-      if (_scroll.position.extentAfter < 240) {
+      if (LoadAhead.nearEnd(_scroll.position)) {
         ref.read(storyFollowingProvider(_query).notifier).loadMore();
       }
     });
