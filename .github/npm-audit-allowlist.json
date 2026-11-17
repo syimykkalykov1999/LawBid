@@ -1,4 +1,11 @@
 {
   "_how": "High/critical npm advisories that may stay for now. Gate: scripts/ci/npm-audit-gate.mjs (api-ci.yml and admin-ci.yml share this list). Each entry needs id (GHSA), package, reason and an expiry date (YYYY-MM-DD); an expired entry fails CI again.",
-  "advisories": []
+  "advisories": [
+    {
+      "id": "GHSA-fc5q-39xc-vjpf",
+      "package": "picomatch",
+      "reason": "17.11: ReDoS in picomatch <=4.0.7, no patched release yet (first_patched_version null). Only dev/build/test tooling uses it (jest, @nestjs/cli, lint-staged, @parcel/watcher, ts-loader); no runtime dependency in api/admin/mobile, and patterns are ours, not user input. Bump as soon as a patch ships.",
+      "expires": "2026-12-01"
+    }
+  ]
 }
