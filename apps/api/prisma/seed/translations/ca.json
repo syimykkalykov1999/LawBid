@@ -2346,6 +2346,7 @@
   "form.disabled.required": "Omple primer els camps obligatoris.",
   "gallery.accessDenied": "Sense accés a les fotos. Permet-ho a la configuració del telèfon.",
   "gallery.saveFailed": "No s'ha pogut desar la foto. Torna-ho a provar.",
+  "gallery.shareFailed": "No s'ha pogut compartir. Torna-ho a provar.",
   "gate.verify.cases": "Els casos s’obren quan LawBid confirma la vostra llicència. Normalment triga d’1 a 2 dies laborables.",
   "gate.verify.cta": "Completa la verificació",
   "gate.verify.post": "Només els advocats verificats poden publicar al feed, perquè els clients sàpiguen sempre qui estan llegint.",

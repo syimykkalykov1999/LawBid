@@ -2346,6 +2346,7 @@
   "form.disabled.required": "Əvvəlcə məcburi sahələri doldurun.",
   "gallery.accessDenied": "Şəkillərinizə giriş yoxdur. Telefon ayarlarında icazə verin.",
   "gallery.saveFailed": "Şəkli saxlamaq mümkün olmadı. Yenidən cəhd edin.",
+  "gallery.shareFailed": "Paylaşmaq alınmadı. Yenidən cəhd edin.",
   "gate.verify.cases": "İşlər LawBid lisenziyanızı təsdiqlədikdən sonra açılır. Bu, adətən 1–2 iş günü çəkir.",
   "gate.verify.cta": "Doğrulamanı tamamla",
   "gate.verify.post": "Lentdə yalnız doğrulanmış vəkillər paylaşım edə bilər, beləliklə müştərilər kimi oxuduqlarını həmişə bilir.",

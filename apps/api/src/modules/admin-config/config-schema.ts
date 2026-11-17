@@ -64,6 +64,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Where new PUBLIC media (avatars, post and review photos, stickers) is stored: aws or r2 (Cloudflare R2; needs Integrations → Cloudflare R2). Private files (chats, cases, documents, verification) always stay on AWS.',
     pattern: /^(aws|r2)$/,
   };
+  // Owner row 173 (2026-11-14): website multi-threading (COOP/COEP).
+  out['web.cross_origin_isolation'] = {
+    type: 'boolean',
+    defaultValue: false,
+    description:
+      'Website: cross-origin isolation (COOP same-origin + COEP credentialless, added by the site’s own service worker from the next page load), so the drawing engine uses a second thread in Chrome, Edge and Firefox. Off by default: under it Cloudflare Turnstile and Stripe frames on app pages and sign-in popups that talk back to the page stop working (docs/dev/COOP_COEP_TEST_2026-11-14.md). The card page /pay.html and the company site never get it.',
+  };
   // Owner 2026-10-24 (search-ready): checked again on save (engine keys).
   out['ledger.reconcile_mode'] = {
     type: 'string',
@@ -1144,6 +1151,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Bloat check: biggest table (MB) the heap estimate may read; bigger tables use statistics only.',
     min: 0,
     max: 100000,
+  };
+  out['sessions.cleanup_batch'] = {
+    ...out['sessions.cleanup_batch'],
+    description:
+      'Sessions cleanup (nightly): session rows scanned per statement (one short transaction each).',
+    min: 100,
+    max: 50000,
+  };
+  out['sessions.revoked_retention_days'] = {
+    ...out['sessions.revoked_retention_days'],
+    description:
+      'Sessions cleanup: days a signed-out or blocked session row is kept (incident review, new-device signal).',
+    min: 1,
+    max: 3650,
   };
   out['privacy.retention_batch'] = {
     ...out['privacy.retention_batch'],

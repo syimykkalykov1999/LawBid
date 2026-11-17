@@ -2346,6 +2346,7 @@
   "form.disabled.required": "Imla l-ewwel l-oqsma obbligatorji.",
   "gallery.accessDenied": "M'hemmx aċċess għar-ritratti tiegħek. Ippermettih fis-settings tat-telefon.",
   "gallery.saveFailed": "Ma setgħetx tiġi ssejvjata r-ritratt. Erġa' pprova.",
+  "gallery.shareFailed": "Ma setax jinqasam. Erġa' pprova.",
   "gate.verify.cases": "Il-każijiet jinfetħu wara li LawBid jikkonferma l-liċenzja tiegħek. Normalment jieħu 1–2 jiem tax-xogħol.",
   "gate.verify.cta": "Kompli l-verifika",
   "gate.verify.post": "Biss avukati vverifikati jistgħu jippostjaw fil-feed, sabiex il-klijenti dejjem ikunu jafu min qed jaqraw.",

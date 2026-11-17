@@ -2346,6 +2346,7 @@
   "form.disabled.required": "Ranpli chan obligatwa yo anvan.",
   "gallery.accessDenied": "Pa gen aksè a foto ou yo. Pèmèt li nan paramèt telefòn nan.",
   "gallery.saveFailed": "Nou pa t kapab sove foto a. Tanpri eseye ankò.",
+  "gallery.shareFailed": "Nou pa t ka pataje. Eseye ankò.",
   "gate.verify.cases": "Ka yo louvri apre LawBid konfime lisans ou. Sa pran 1–2 jou ouvrab anjeneral.",
   "gate.verify.cta": "Konplete verifikasyon",
   "gate.verify.post": "Sèlman avoka verifye ka pibliye nan fil la, konsa kliyan yo toujou konnen ki moun y ap li.",

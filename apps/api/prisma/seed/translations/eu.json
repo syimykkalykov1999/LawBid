@@ -2346,6 +2346,7 @@
   "form.disabled.required": "Bete lehenik derrigorrezko eremuak.",
   "gallery.accessDenied": "Ez dago argazkietarako sarbiderik. Baimendu telefonoaren ezarpenetan.",
   "gallery.saveFailed": "Ezin izan da argazkia gorde. Saiatu berriro.",
+  "gallery.shareFailed": "Ezin izan da partekatu. Saiatu berriro.",
   "gate.verify.cases": "Auziak LawBid-ek zure lizentzia berretsi ondoren irekitzen dira. Normalean 1-2 lanegun behar dira.",
   "gate.verify.cta": "Osatu egiaztapena",
   "gate.verify.post": "Abokatu egiaztatuek bakarrik argitaratu dezakete jarioan, bezeroek beti jakin dezaten nor irakurtzen ari diren.",

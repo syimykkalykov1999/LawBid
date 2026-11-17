@@ -2346,6 +2346,7 @@
   "form.disabled.required": "Udfyld først de obligatoriske felter.",
   "gallery.accessDenied": "Ingen adgang til dine billeder. Tillad det i telefonens indstillinger.",
   "gallery.saveFailed": "Billedet kunne ikke gemmes. Prøv igen.",
+  "gallery.shareFailed": "Kunne ikke dele. Prøv igen.",
   "gate.verify.cases": "Sager åbnes, når LawBid har bekræftet din licens. Det tager normalt 1–2 hverdage.",
   "gate.verify.cta": "Fuldfør verificering",
   "gate.verify.post": "Kun verificerede advokater kan skrive opslag i feedet, så klienter altid ved, hvem de læser.",

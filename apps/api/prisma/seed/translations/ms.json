@@ -2346,6 +2346,7 @@
   "form.disabled.required": "Isi dahulu ruang wajib.",
   "gallery.accessDenied": "Tiada akses kepada foto anda. Benarkan dalam tetapan telefon.",
   "gallery.saveFailed": "Tidak dapat menyimpan foto. Sila cuba lagi.",
+  "gallery.shareFailed": "Tidak dapat berkongsi. Cuba lagi.",
   "gate.verify.cases": "Kes dibuka selepas LawBid mengesahkan lesen anda. Biasanya mengambil masa 1–2 hari bekerja.",
   "gate.verify.cta": "Lengkapkan pengesahan",
   "gate.verify.post": "Hanya peguam yang disahkan boleh menyiarkan ke suapan, supaya klien sentiasa tahu siapa yang mereka baca.",

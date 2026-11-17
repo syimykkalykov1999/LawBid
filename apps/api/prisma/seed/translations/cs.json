@@ -2346,6 +2346,7 @@
   "form.disabled.required": "Nejprve vyplňte povinná pole.",
   "gallery.accessDenied": "Žádný přístup k fotkám. Povolte ho v nastavení telefonu.",
   "gallery.saveFailed": "Fotku se nepodařilo uložit. Zkuste to znovu.",
+  "gallery.shareFailed": "Sdílení se nezdařilo. Zkuste to znovu.",
   "gate.verify.cases": "Případy se zpřístupní poté, co LawBid potvrdí vaši licenci. Obvykle to trvá 1–2 pracovní dny.",
   "gate.verify.cta": "Dokončit ověření",
   "gate.verify.post": "Do feedu mohou přispívat pouze ověření advokáti, aby klienti vždy věděli, koho čtou.",

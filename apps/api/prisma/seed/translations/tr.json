@@ -2346,6 +2346,7 @@
   "form.disabled.required": "Önce zorunlu alanları doldurun.",
   "gallery.accessDenied": "Fotoğraflarınıza erişim yok. Telefon ayarlarından izin verin.",
   "gallery.saveFailed": "Fotoğraf kaydedilemedi. Lütfen tekrar deneyin.",
+  "gallery.shareFailed": "Paylaşılamadı. Tekrar deneyin.",
   "gate.verify.cases": "Davalar, LawBid lisansınızı onayladıktan sonra açılır. Bu genellikle 1–2 iş günü sürer.",
   "gate.verify.cta": "Doğrulamayı tamamla",
   "gate.verify.post": "Akışta yalnızca doğrulanmış avukatlar paylaşım yapabilir; böylece müvekkiller kimi okuduklarını her zaman bilir.",

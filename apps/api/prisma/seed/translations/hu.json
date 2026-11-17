@@ -2346,6 +2346,7 @@
   "form.disabled.required": "Először töltsd ki a kötelező mezőket.",
   "gallery.accessDenied": "Nincs hozzáférés a fotókhoz. Engedélyezze a telefon beállításaiban.",
   "gallery.saveFailed": "Nem sikerült menteni a fotót. Próbálja újra.",
+  "gallery.shareFailed": "A megosztás nem sikerült. Próbálja újra.",
   "gate.verify.cases": "Az ügyek azután nyílnak meg, hogy a LawBid megerősíti az engedélyét. Ez általában 1–2 munkanapot vesz igénybe.",
   "gate.verify.cta": "Ellenőrzés befejezése",
   "gate.verify.post": "A hírfolyamba csak ellenőrzött ügyvédek posztolhatnak, így az ügyfelek mindig tudják, kinek az írását olvassák.",

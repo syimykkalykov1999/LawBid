@@ -2346,6 +2346,7 @@
   "form.disabled.required": "Fyll först i de obligatoriska fälten.",
   "gallery.accessDenied": "Ingen åtkomst till dina bilder. Tillåt det i telefonens inställningar.",
   "gallery.saveFailed": "Det gick inte att spara bilden. Försök igen.",
+  "gallery.shareFailed": "Det gick inte att dela. Försök igen.",
   "gate.verify.cases": "Ärenden öppnas när LawBid har bekräftat din licens. Det tar vanligtvis 1–2 arbetsdagar.",
   "gate.verify.cta": "Slutför verifieringen",
   "gate.verify.post": "Endast verifierade advokater kan publicera i flödet, så att klienter alltid vet vem de läser.",

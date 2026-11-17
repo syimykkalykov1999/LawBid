@@ -130,7 +130,7 @@ class _GroupFilesScreenState extends ConsumerState<GroupFilesScreen>
 
   bool Function(ScrollNotification) _scroll(ChatFilesTab tab) => (n) {
         final f = _feeds[tab]!;
-        if (n.metrics.extentAfter < 400 && f.error == null) _load(tab);
+        if (LoadAhead.nearEnd(n.metrics) && f.error == null) _load(tab);
         return false;
       };
 

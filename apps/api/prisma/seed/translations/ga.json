@@ -2346,6 +2346,7 @@
   "form.disabled.required": "Líon isteach na réimsí riachtanacha ar dtús.",
   "gallery.accessDenied": "Níl rochtain ar do ghrianghraif. Ceadaigh é i socruithe an fhóin.",
   "gallery.saveFailed": "Níorbh fhéidir an grianghraf a shábháil. Bain triail eile as.",
+  "gallery.shareFailed": "Níorbh fhéidir é a roinnt. Bain triail eile as.",
   "gate.verify.cases": "Osclaítear cásanna tar éis do cheadúnas a dheimhniú ag LawBid. Tógann sé 1–2 lá oibre de ghnáth.",
   "gate.verify.cta": "Críochnaigh an fíorú",
   "gate.verify.post": "Ní féidir ach le haturnaetha fíoraithe postáil sa fhotha, ionas go mbeidh a fhios ag cliaint i gcónaí cé atá á léamh acu.",

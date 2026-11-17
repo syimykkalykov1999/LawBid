@@ -2346,6 +2346,7 @@
   "form.disabled.required": "Najprej izpolnite obvezna polja.",
   "gallery.accessDenied": "Ni dostopa do fotografij. Dovolite ga v nastavitvah telefona.",
   "gallery.saveFailed": "Fotografije ni bilo mogoče shraniti. Poskusite znova.",
+  "gallery.shareFailed": "Deljenje ni uspelo. Poskusite znova.",
   "gate.verify.cases": "Zadeve se odprejo, ko LawBid potrdi vašo licenco. Običajno traja 1–2 delovna dneva.",
   "gate.verify.cta": "Dokončaj verifikacijo",
   "gate.verify.post": "V tok lahko objavljajo samo preverjeni odvetniki, zato stranke vedno vedo, koga berejo.",

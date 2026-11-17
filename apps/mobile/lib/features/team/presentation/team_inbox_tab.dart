@@ -95,7 +95,7 @@ class _TeamInboxTabState extends ConsumerState<TeamInboxTab> {
     final tr = ref.read(translatorProvider);
     return NotificationListener<ScrollNotification>(
       onNotification: (n) {
-        if (n.metrics.extentAfter < 400) {
+        if (LoadAhead.nearEnd(n.metrics)) {
           ref.read(teamRequestsProvider.notifier).loadMore();
         }
         return false;
