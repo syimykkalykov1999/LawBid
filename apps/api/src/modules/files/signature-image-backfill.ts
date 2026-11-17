@@ -1,3 +1,4 @@
+import type { PrismaClient } from '../../generated/prisma/client';
 import { storeSignatureImage } from './signature-image';
 import type { S3StorageService } from './storage/s3-storage.service';
 
@@ -36,18 +37,10 @@ interface Row {
 
 export interface SignatureBackfillDeps {
   prisma: {
-    caseSignature: {
-      findMany(args: {
-        where: Record<string, unknown>;
-        orderBy: { id: 'asc' };
-        take: number;
-        select: Record<string, true>;
-      }): Promise<Row[]>;
-      updateMany(args: {
-        where: Record<string, unknown>;
-        data: Record<string, unknown>;
-      }): Promise<{ count: number }>;
-    };
+    caseSignature: Pick<
+      PrismaClient['caseSignature'],
+      'findMany' | 'updateMany'
+    >;
   };
   storage: Pick<S3StorageService, 'put' | 'head' | 'awsBucket'>;
 }

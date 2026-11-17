@@ -121,14 +121,14 @@ describe('signature pictures in private storage', () => {
     const base = { clear: false, limit: 0, batch: 2, log };
 
     const dry = await runSignatureBackfill(
-      { prisma, storage: s },
+      { prisma: prisma as never, storage: s },
       { ...base, apply: false },
     );
     expect(dry).toEqual({ candidates: 3, stored: 0, cleared: 0, failed: 0 });
     expect(s.put).not.toHaveBeenCalled();
 
     const done = await runSignatureBackfill(
-      { prisma, storage: s },
+      { prisma: prisma as never, storage: s },
       { ...base, apply: true },
     );
     expect(done.stored).toBe(3);
@@ -141,7 +141,7 @@ describe('signature pictures in private storage', () => {
     expect(rows[3].image_key).toBeNull();
 
     const again = await runSignatureBackfill(
-      { prisma, storage: s },
+      { prisma: prisma as never, storage: s },
       { ...base, apply: true },
     );
     expect(again).toEqual({ candidates: 0, stored: 0, cleared: 0, failed: 0 });
@@ -149,7 +149,7 @@ describe('signature pictures in private storage', () => {
     // Step 2: one object went missing — its bytes stay.
     s.objects.delete(`aws-documents/${rows[1].image_key}`);
     const cleared = await runSignatureBackfill(
-      { prisma, storage: s },
+      { prisma: prisma as never, storage: s },
       { ...base, apply: true, clear: true },
     );
     expect(cleared).toMatchObject({ cleared: 2, failed: 1 });
