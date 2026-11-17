@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart'
-    show adoptSentChatMedia, uploadChatAttachmentJob, uploadChatVoiceJob;
-import 'package:lawbid/features/chat/data/voice_files.dart'
-    show adoptVoiceFileAsCache;
+    show
+        adoptSentChatMedia,
+        adoptVoiceFileAsCache,
+        uploadChatAttachmentJob,
+        uploadChatVoiceJob;
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart'
     show groupRepositoryProvider;
