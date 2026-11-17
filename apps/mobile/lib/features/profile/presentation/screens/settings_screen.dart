@@ -271,14 +271,14 @@ class SettingsScreen extends ConsumerWidget {
           if (!ref.watch(isAssistantProvider))
             if (ref.watch(partnerMeProvider).value case final PartnerMe pm
                 when pm.enabled && (pm.isPartner || pm.canJoin))
-            AppListRow(
-              key: const ValueKey('settings-partner'),
-              icon: AppIcons.handshakeOutlined,
-              label: t.t('partner.title'),
-              subtitle:
-                  t.t(pm.isPartner ? 'partner.hint' : 'partner.join.hint'),
-              onTap: () => openSettingsRoute(context, AppRoutes.partner),
-            ),
+              AppListRow(
+                key: const ValueKey('settings-partner'),
+                icon: AppIcons.handshakeOutlined,
+                label: t.t('partner.title'),
+                subtitle:
+                    t.t(pm.isPartner ? 'partner.hint' : 'partner.join.hint'),
+                onTap: () => openSettingsRoute(context, AppRoutes.partner),
+              ),
           // Owner 2026-10-15: the client's Saved moved here from «Mine».
           // Owner 2026-10-22 (audit #4 §1, Instagram): «Сохранённое» in the
           // same place for both roles (the attorney's bookmark in «Мои»

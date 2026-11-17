@@ -677,6 +677,19 @@ class ReelUploadHandler extends UploadJobHandler {
       });
     }
 
+    // Verify 17.11: a slot from an earlier run (a restart, a long upload on a
+    // slow network) may be past Bunny's `expire` — renewed first, so the
+    // resume is not refused for ever (it looped on 401 before).
+    final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    if (upload.expire - nowSec < _renewBeforeSec) {
+      upload = await repo.renewUpload(upload);
+      await scope.saveProgress({
+        'signature': upload.signature,
+        'expire': upload.expire,
+      });
+      if (cancel.isCancelled) return;
+    }
+
     // 3. The bytes, resumable from the saved TUS address.
     await repo.upload(
       video,
@@ -701,6 +714,9 @@ class ReelUploadHandler extends UploadJobHandler {
     );
     await scope.saveProgress({'uploaded': true});
   }
+
+  /// Renew the TUS signature when less than this is left of it.
+  static const _renewBeforeSec = 10 * 60;
 
   static ReelUpload? _uploadOf(Map<String, Object?> p) {
     final id = p['assetId'] as String?;

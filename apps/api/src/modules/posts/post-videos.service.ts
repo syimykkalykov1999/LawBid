@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { VideoAsset } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { onlyDeleted } from '../../prisma/soft-delete.extension';
 import { VideosService } from '../videos/videos.service';
 import { PostsService } from './posts.service';
 
@@ -180,8 +181,11 @@ export class PostVideosService {
     await this.videos.markDeleted(orphans.map((o) => o.id));
     stats.orphans = orphans.length;
     // (d) deleted at us, still at Bunny.
+    // Verify 17.11: a deleted asset has deleted_at set, and the soft-delete
+    // extension hides such rows unless the filter names deleted_at — this
+    // read always found nothing, so nothing deleted here left Bunny.
     const purge = await this.prisma.videoAsset.findMany({
-      where: { status: 'deleted', purged_at: null },
+      where: onlyDeleted({ status: 'deleted' as const, purged_at: null }),
       take: BATCH,
     });
     for (const a of purge) {
