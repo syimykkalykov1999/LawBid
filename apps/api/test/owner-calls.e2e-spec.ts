@@ -454,6 +454,58 @@ describe('In-app calls (e2e, OQ-041)', () => {
     ]);
   });
 
+  // Owner row 36: «answer on a second device». The callee is signed in on
+  // two phones; the first pick-up wins, the other phone hears it (it stops
+  // ringing) and its own late pick-up is refused, the call goes on.
+  it('two devices of the callee: the first pick-up wins, the other hears it and is refused', async () => {
+    const c = await chat();
+    const attorneySock = await connect(c.attorney.token);
+    const phoneA = await connect(c.client.token);
+    const otherTok = token(c.client.id, 'client');
+    const phoneB = await connect(otherTok);
+
+    const ringA = once<{ call: { id: string } }>(phoneA, 'call:incoming');
+    const ringB = once<{ call: { id: string } }>(phoneB, 'call:incoming');
+    const started = await api()
+      .post(`/api/v1/conversations/${c.id}/calls`)
+      .set(c.attorney.auth)
+      .expect(201);
+    const callId = started.body.data.id as string;
+    expect((await ringA).call.id).toBe(callId);
+    expect((await ringB).call.id).toBe(callId);
+
+    const heardOnB = once<{ call: { id: string; status: string } }>(
+      phoneB,
+      'call:accepted',
+    );
+    const heardByCaller = once<{ call: { status: string } }>(
+      attorneySock,
+      'call:accepted',
+    );
+    await api()
+      .post(`/api/v1/calls/${callId}/accept`)
+      .set(c.client.auth)
+      .expect(200);
+    expect(await heardOnB).toMatchObject({
+      call: { id: callId, status: 'active' },
+    });
+    expect((await heardByCaller).call.status).toBe('active');
+
+    const late = await api()
+      .post(`/api/v1/calls/${callId}/accept`)
+      .set(bearer(otherTok));
+    expect(late.status).toBe(409);
+    expect(late.body.error.code).toBe('CALL_STATE_CONFLICT');
+    const row = await prisma.call.findUniqueOrThrow({ where: { id: callId } });
+    expect(row.status).toBe('active');
+
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(c.attorney.auth)
+      .send({})
+      .expect(200);
+  });
+
   it('refused before acceptance, when blocked, and for strangers', async () => {
     const locked = await chat(false);
     const r = await api()

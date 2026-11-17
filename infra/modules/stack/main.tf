@@ -1242,6 +1242,11 @@ locals {
   # as its default minor (18.3) and refused as a downgrade of 18.6
   # (KNOWN_ERRORS 174).
   database_engine_version = split(".", var.database_engine_version)[0] == local.database_running_major ? var.database_engine_version : (length(data.aws_db_instance.primary) > 0 ? data.aws_db_instance.primary[0].engine_version : local.database_running_major)
+  # Owner row 196 (16.11): the class the primary really runs right now (read
+  # from AWS on every plan; db-autoscale changes it by itself). The one source
+  # of truth for its read copies and for a new extra server. A fresh stack
+  # (no primary yet) or a database that is not ours falls back as before.
+  database_live_class = length(data.aws_db_instance.primary) > 0 ? data.aws_db_instance.primary[0].db_instance_class : try(data.aws_db_instance.existing[0].db_instance_class, var.database_instance_class)
 }
 
 module "postgres" {
@@ -1298,7 +1303,7 @@ variable "db_shard_instance_class" {
 }
 
 locals {
-  db_shard_class = var.db_shard_instance_class != "" ? var.db_shard_instance_class : try(data.aws_db_instance.existing[0].db_instance_class, var.database_instance_class)
+  db_shard_class = var.db_shard_instance_class != "" ? var.db_shard_instance_class : local.database_live_class
 }
 
 module "postgres_shard" {
@@ -1360,11 +1365,11 @@ module "growth_shard" {
   has_source_db           = true
   event_loop_p99_alarm_ms = 0
 
-  rds_read_replicas             = var.growth.rds_read_replicas
-  rds_source_identifier         = module.postgres_shard[count.index].instance_id
-  rds_source_arn                = module.postgres_shard[count.index].arn
-  rds_replica_instance_class    = var.growth.rds_replica_instance_class
-  rds_primary_instance_class    = local.db_shard_class
+  rds_read_replicas     = var.growth.rds_read_replicas
+  rds_source_identifier = module.postgres_shard[count.index].instance_id
+  rds_source_arn        = module.postgres_shard[count.index].arn
+  # Row 196: a server's copies take that server's own current class.
+  rds_primary_instance_class    = module.postgres_shard[count.index].instance_class
   rds_replica_lag_alarm_seconds = var.growth.rds_replica_lag_alarm_s
   rds_subnet_group_name         = "${local.name}-db${count.index + 1}-postgres"
   rds_security_group_ids        = [module.postgres_shard[count.index].security_group_id]
@@ -1380,7 +1385,12 @@ locals {
   # Only the hosts reach the api / worker (same login as DATABASE_URL).
   db_shard_replica_hosts = { for i, g in module.growth_shard : "db${i + 1}" => g.replica_host if g.replica_host != "" }
   db_shard_env = var.db_shards > 0 ? merge(
-    { DB_SHARD_HOSTS = jsonencode({ for i, m in module.postgres_shard : "db${i + 1}" => m.endpoint }) },
+    {
+      DB_SHARD_HOSTS = jsonencode({ for i, m in module.postgres_shard : "db${i + 1}" => m.endpoint })
+      # Row 203 (16.11): ha-auto keeps every extra server on the primary's
+      # Multi-AZ (common/ops/ha-auto.service.ts shardHaSteps).
+      OPS_DB_SHARD_INSTANCES = join(",", [for m in module.postgres_shard : m.instance_id])
+    },
     length(local.db_shard_replica_hosts) > 0 ? { DB_SHARD_REPLICA_HOSTS = jsonencode(local.db_shard_replica_hosts) } : {},
   ) : {}
   # The migrate task: each server's master login plus the runtime logins.
@@ -2207,6 +2217,12 @@ locals {
       # Owner 2026-11-11 («Авто» by count): every copy, comma separated; the
       # api shares the reads between them (prisma-read.service.ts).
       DB_REPLICA_HOST = join(",", module.growth.replica_endpoints)
+      # Infra audit 14.11: the copies are reached directly (not through the
+      # pooler), so their pool follows the same direct-connection budget as
+      # the primary without a pooler (3..10 per task at the peak task count),
+      # not the pooler-side 10 per task (src/prisma/prisma-read.service.ts
+      # falls back to DB_POOL_SIZE when this is unset).
+      DB_READ_POOL_SIZE = tostring(local.direct_pool_size)
     } : {},
     # Admin button «Копия базы для чтения» (owner 2026-10-24): the API creates
     # and deletes ONE replica itself through the RDS API. Only these names are
@@ -2549,8 +2565,13 @@ data "aws_iam_policy_document" "ops" {
     resources = ["*"]
   }
   statement {
-    actions   = ["rds:DescribeDBInstances", "rds:ModifyDBInstance"]
-    resources = ["arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"]
+    actions = ["rds:DescribeDBInstances", "rds:ModifyDBInstance"]
+    # Row 203: and the extra database servers (<name>-dbN-postgres), whose
+    # Multi-AZ follows the primary's. Exactly those names, no wildcard.
+    resources = concat(
+      ["arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${local.name}-postgres"],
+      [for m in module.postgres_shard : "arn:aws:rds:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:db:${m.instance_id}"],
+    )
   }
   # Admin button «Копия базы для чтения»: create / describe / delete exactly one
   # instance named <database>-readreplica. Nothing else on RDS changes.

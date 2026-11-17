@@ -465,7 +465,7 @@ class _ScopeListState extends ConsumerState<_ScopeList> {
 
     // Discover never ends: the next pages of both lists come near the end.
     bool more(ScrollNotification n) {
-      if (recommended && n.metrics.extentAfter < 400) {
+      if (recommended && LoadAhead.nearEnd(n.metrics)) {
         unawaited(ref.read(recommendedChannelsProvider.notifier).loadMore());
         unawaited(ref.read(recommendedGroupsProvider.notifier).loadMore());
       }

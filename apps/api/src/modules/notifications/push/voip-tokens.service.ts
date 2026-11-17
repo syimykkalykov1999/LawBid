@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { resolveChains } from './sign-in-chain';
 
 /** At most this many iPhones get a call push per user (newest first). */
 const MAX_DEVICES = 10;
@@ -19,7 +20,9 @@ export interface VoipDevice {
 /**
  * Owner 2026-10-17: iPhone PushKit (VoIP) tokens — incoming calls go to
  * Apple directly. Bound to the session chain like push tokens: signing
- * out of a device stops its calls.
+ * out of a device stops its calls. 14.11 (finding 8): the chain is stored
+ * on the row (`session_chain_id`), so an iPhone that only wakes for calls
+ * keeps ringing after its registration-time session row is cleaned up.
  */
 @Injectable()
 export class VoipTokensService {
@@ -47,6 +50,7 @@ export class VoipTokensService {
       create: {
         user_id: userId,
         session_id: session.id,
+        session_chain_id: sessionChainId,
         token,
         topic,
         environment,
@@ -54,6 +58,7 @@ export class VoipTokensService {
       update: {
         user_id: userId,
         session_id: session.id,
+        session_chain_id: sessionChainId,
         topic,
         environment,
         last_seen_at: new Date(),
@@ -65,7 +70,14 @@ export class VoipTokensService {
       where: {
         user_id: userId,
         token: { not: token },
-        session: { session_chain_id: sessionChainId },
+        OR: [
+          { session_chain_id: sessionChainId },
+          // a row of an older release: its chain through its session row
+          {
+            session_chain_id: null,
+            session: { session_chain_id: sessionChainId },
+          },
+        ],
       },
     });
     const stale = await this.prisma.voipToken.findMany({
@@ -87,23 +99,35 @@ export class VoipTokensService {
     });
   }
 
-  /** Tokens whose session chain is still signed in (dead ones removed). */
+  /** Tokens whose session chain is still signed in (dead ones removed).
+   * `sessionId` is the chain's newest live row (the token's own row may be
+   * gone, finding 8) — fcmTokensCoveredBy resolves the chain from it. */
   async activeDevices(userId: string): Promise<VoipDevice[]> {
-    const rows = await this.prisma.$queryRaw<
-      (VoipDevice & { alive: boolean })[]
-    >`
-      SELECT t.token AS token, t.topic AS topic,
-             t.environment AS environment, t.session_id AS "sessionId",
-             s.session_chain_id AS "chainId",
-             EXISTS (SELECT 1 FROM sessions s2
-                     WHERE s2.session_chain_id = s.session_chain_id
-                       AND s2.revoked_at IS NULL
-                       AND s2.expires_at > now()) AS alive
-      FROM voip_tokens t
-      JOIN sessions s ON s.id = t.session_id
-      WHERE t.user_id = ${userId}::UUID
-      ORDER BY t.last_seen_at DESC
-      LIMIT ${MAX_DEVICES}`;
+    const tokens = await this.prisma.voipToken.findMany({
+      where: { user_id: userId },
+      orderBy: { last_seen_at: 'desc' },
+      take: MAX_DEVICES,
+      select: {
+        token: true,
+        topic: true,
+        environment: true,
+        session_id: true,
+        session_chain_id: true,
+      },
+    });
+    const { chainOf, live } = await resolveChains(this.prisma, userId, tokens);
+    const rows = tokens.map((t) => {
+      const chainId = chainOf(t) ?? undefined;
+      const sessionId = chainId ? live.get(chainId) : undefined;
+      return {
+        token: t.token,
+        topic: t.topic,
+        environment: t.environment as ApnsEnvironment,
+        sessionId: sessionId ?? '',
+        chainId,
+        alive: sessionId !== undefined,
+      };
+    });
     const dead = rows.filter((r) => !r.alive).map((r) => r.token);
     if (dead.length > 0) {
       await this.prisma.voipToken.deleteMany({
@@ -167,12 +191,24 @@ export class VoipTokensService {
       select: { session_chain_id: true },
     });
     if (chains.length === 0) return [];
+    const chainIds = [...new Set(chains.map((c) => c.session_chain_id))];
+    // Rows of an older release carry no chain: matched by the chain's
+    // session rows. Literal ids (no sub-select), so both branches use their
+    // index (BitmapOr) — this query has no account id to narrow by.
+    const chainRows = await this.prisma.session.findMany({
+      where: { session_chain_id: { in: chainIds } },
+      select: { id: true },
+    });
     const rows = await this.prisma.pushToken.findMany({
       where: {
         platform: 'ios',
-        session: {
-          session_chain_id: { in: chains.map((c) => c.session_chain_id) },
-        },
+        OR: [
+          { session_chain_id: { in: chainIds } },
+          {
+            session_chain_id: null,
+            session_id: { in: chainRows.map((r) => r.id) },
+          },
+        ],
       },
       select: { fcm_token: true },
     });

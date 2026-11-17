@@ -402,6 +402,10 @@ resource "aws_db_instance" "this" {
 output "endpoint" { value = aws_db_instance.this.address }
 output "instance_id" { value = aws_db_instance.this.identifier }
 output "arn" { value = aws_db_instance.this.arn }
+# Row 196: the class in the state, refreshed from AWS on every plan
+# (instance_class is in ignore_changes, so a resize made outside Terraform
+# shows here, not the configured number).
+output "instance_class" { value = aws_db_instance.this.instance_class }
 output "master_secret_arn" { value = aws_secretsmanager_secret.master.arn }
 output "security_group_id" { value = aws_security_group.db.id }
 output "backup_retention_days" { value = var.backup_retention_days }

@@ -34,8 +34,11 @@ def build(root, rev=REV, head=HEAD):
     open(os.path.join(root, "boot_head.js"), "w").write(head)
 
 
-def run(root, version=SHA, *extra):
-    return subprocess.run([sys.executable, SCRIPT, root, version, *extra], capture_output=True, text=True)
+def run(root, version=SHA, *extra, threads=None):
+    env = {k: v for k, v in os.environ.items() if k != "WEB_SKWASM_THREADS"}
+    if threads is not None:
+        env["WEB_SKWASM_THREADS"] = threads
+    return subprocess.run([sys.executable, SCRIPT, root, version, *extra], capture_output=True, text=True, env=env)
 
 
 def read(root, name):
@@ -99,6 +102,51 @@ class EngineFolder(unittest.TestCase):
         r = run(self.root)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("skwasm.wasm", r.stderr)
+
+
+class SkwasmThreads(unittest.TestCase):
+    """Row 173 (2026-11-14): WEB_SKWASM_THREADS auto | single inside the
+    row 170 flow (engine under v/<engineRevision>/)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = self.tmp.name
+        build(self.root)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_auto_is_the_default_and_leaves_the_loader_choice(self):
+        for threads in (None, "", "auto"):
+            with self.subTest(threads=threads):
+                self.tearDown()
+                self.setUp()
+                r = run(self.root, SHA, "/s/", threads=threads)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                boot = read(self.root, "flutter_bootstrap.js")
+                self.assertNotIn("forceSingleThreadedSkwasm", boot)
+                self.assertIn(f'canvasKitBaseUrl:"v/{REV}/canvaskit"', boot)
+                self.assertIn("skwasm threads: auto", r.stdout)
+                self.assertEqual(r.stdout.strip().splitlines()[-1], f"engine=v/{REV}")
+
+    def test_single_forces_one_thread_with_the_engine_folder(self):
+        r = run(self.root, SHA, "/s/", threads="single")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        boot = read(self.root, "flutter_bootstrap.js")
+        self.assertIn(
+            f'config:{{entrypointBaseUrl:"v/{SHA}/",canvasKitBaseUrl:"v/{REV}/canvaskit",'
+            f'assetBase:"v/{SHA}/",fontFallbackBaseUrl:"/s/",forceSingleThreadedSkwasm:true}},}});',
+            boot,
+        )
+        self.assertIn("skwasm threads: single", r.stdout)
+        self.assertEqual(r.stdout.strip().splitlines()[-1], f"engine=v/{REV}")
+
+    def test_unknown_value_fails_before_anything_moves(self):
+        r = run(self.root, threads="multi")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("WEB_SKWASM_THREADS", r.stderr)
+        self.assertTrue(os.path.isdir(os.path.join(self.root, "canvaskit")))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "v")))
 
 
 if __name__ == "__main__":

@@ -737,6 +737,16 @@ export const OWNER_WEB_SETTINGS = {
     'https://lawbid.dev',
     'https://www.lawbid.dev',
   ] as string[],
+  // Owner row 173 (2026-11-14): cross-origin isolation of the website, so
+  // the Flutter engine (skwasm) draws on a second thread. Off by default:
+  // under it a cross-origin frame without its own COEP (Cloudflare
+  // Turnstile, Stripe Elements) and a popup that talks back to its opener
+  // (Google / Apple sign-in popups) do not work — results in
+  // docs/dev/COOP_COEP_TEST_2026-11-14.md. On = the website's own service
+  // worker (apps/mobile/web/coi_sw.js) adds COOP `same-origin` + COEP
+  // `credentialless` to the app's pages from the next page load; off = the
+  // worker takes them away again and removes itself.
+  'web.cross_origin_isolation': false,
 };
 
 // Owner 2026-10-05 (automation principle, docs/AUTOMATION_PRINCIPLE.md):
@@ -1361,10 +1371,15 @@ export const OWNER_STORAGE_SETTINGS = {
    * upload; they are served only to clients that send
    * `X-Image-Formats: avif`, and only for files uploaded after
    * `images.avif_since` (ISO time, empty = serve none). Qualities 1-100,
-   * effort 0-9 (higher = smaller but slower to make). */
+   * effort 0-9 (higher = smaller but slower to make).
+   * Row 202 (16.11): quality 60 -> 75. Measured on 10 photo sizes against
+   * the WebP q88 it twins (sharp 0.35.5 / libvips 8.18.7 / aom 3.15.1, SSIM
+   * and PSNR via ffmpeg, docs/architecture/IMAGES_AVIF.md): q60 lost detail
+   * on detailed photos and text (SSIM -0.012, PSNR -4..5 dB); q75 is equal or
+   * better on all of them at 84 % of the WebP bytes. */
   'images.avif_enabled': false,
   'images.avif_since': '',
-  'images.avif_quality': 60,
+  'images.avif_quality': 75,
   'images.avif_effort': 2,
   /** Owner row 106 (media audit 13.11): a post / chat photo already at most
    * 2048 px, upright, JPEG or WebP and without EXIF / XMP / IPTC is stored
@@ -1590,6 +1605,11 @@ export const OWNER_OPS_SETTINGS = {
   // and the biggest table the heap estimate may read (indexes are never read).
   'db.bloat_mode': 'auto',
   'db.bloat_scan_max_mb': 256,
+  /** 14.11 (DB scale review, finding 1): the nightly `sessions.cleanup` walk
+   * — rows scanned per statement (one short transaction each) and how long
+   * a signed-out / blocked session row is kept before it is removed. */
+  'sessions.cleanup_batch': 1000,
+  'sessions.revoked_retention_days': 30,
   /** AWS spend reached the monthly budget → api/worker autoscaling capped
    * at the minimum until the next month (or until the owner lifts it).
    * Owner 2026-11-09: off — no money stop he did not order; the AWS Budgets
@@ -1628,6 +1648,13 @@ export const OWNER_OPS_SETTINGS = {
   // Batch D (14.11): «Очереди задач» turns red when a job had no good run
   // for this many of its periods (0 = off).
   'ops.cron_stale_periods': 3,
+  // Row 181 (DB scale finding 5): jobs each cron lane runs at once in one
+  // process (jobs.runner CRON_LANE_CONCURRENCY_SETTING), 1..20, applied to
+  // the running workers within 30 s. Defaults = the built-in values.
+  'ops.cron_lane_concurrency_fast': 3,
+  'ops.cron_lane_concurrency_default': 1,
+  'ops.cron_lane_concurrency_heavy_frequent': 1,
+  'ops.cron_lane_concurrency_heavy': 1,
   // S20-8: ceiling of the message re-encryption pass, rows per minute
   // (0 = paused; the pass keeps its place).
   'ops.reencrypt_rows_per_min': 800,
@@ -1954,6 +1981,7 @@ export const OWNER_LEGAL_QA_SAFETY_SETTINGS = {
 
 import { OWNER_TEXT_LIMIT_SETTINGS } from './text-limits';
 import { OWNER_REALTIME_SETTINGS } from './realtime-settings';
+import { OWNER_HOTLINE_SETTINGS } from './hotline-settings';
 import { OWNER_STAFF_SETTINGS } from './staff-settings';
 import {
   OWNER_CHAT_PHOTO_SETTINGS,
@@ -2361,6 +2389,8 @@ export const APP_SETTINGS = {
   ...OWNER_TEXT_LIMIT_SETTINGS,
   ...OWNER_CACHE_SETTINGS,
   ...OWNER_REALTIME_SETTINGS,
+  // Owner row 87 (16.11): the call hotline numbers (flag `hotline` is the switch).
+  ...OWNER_HOTLINE_SETTINGS,
   ...OWNER_CLIENT_TUNING_SETTINGS,
   ...OWNER_CHAT_PHOTO_SETTINGS,
   ...OWNER_LEGAL_SECURITY_SETTINGS,
