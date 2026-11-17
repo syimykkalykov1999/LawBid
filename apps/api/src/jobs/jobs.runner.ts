@@ -32,6 +32,8 @@ import {
 import { CronProcessor } from './cron.processor';
 import { withWork } from '../common/ops/loop-stall';
 import { bullOptions } from '../redis/redis-connection';
+import type { AppSettingKey } from '../common/app-settings/app-settings.defaults';
+import { AppSettingsService } from '../common/app-settings/app-settings.service';
 
 export interface JobsModuleOptions {
   /** 'api': runs only when JOBS_ENABLED (default true, until the separate
@@ -53,6 +55,26 @@ export const CRON_FREQUENT_JOB_OPTS = {
   ...CRON_JOB_TEMPLATE_OPTS,
   attempts: 1,
 } as const;
+
+/**
+ * Row 181 (DB scale finding 5, owner rule 11): how many jobs each lane runs
+ * at once in one process is an owner setting, read at boot and again on
+ * every heartbeat (30 s) and applied to the running worker with BullMQ's
+ * own `worker.concurrency` setter (docs.bullmq.io "Concurrency": the value
+ * can be changed while the worker runs; a lower value just stops it taking
+ * new jobs until the running ones finish). CRON_LANE_CONCURRENCY is the
+ * default and the fallback when a value cannot be read or is out of range,
+ * so nothing changes until the owner moves a number.
+ */
+export const CRON_LANE_CONCURRENCY_SETTING: Record<CronLane, AppSettingKey> = {
+  'cron-fast': 'ops.cron_lane_concurrency_fast',
+  cron: 'ops.cron_lane_concurrency_default',
+  'cron-heavy-frequent': 'ops.cron_lane_concurrency_heavy_frequent',
+  'cron-heavy': 'ops.cron_lane_concurrency_heavy',
+};
+/** Ceiling of one lane per process (each running job holds one database
+ * connection of the pool). */
+export const CRON_LANE_CONCURRENCY_MAX = 20;
 
 /** Job options of one schedule (template for the scheduler, `runNow`). */
 export function cronJobOpts(pattern: string) {
@@ -78,6 +100,7 @@ export class JobsRunner
 {
   private readonly queues = new Map<CronLane, Queue>();
   private workers: Worker[] = [];
+  private readonly laneWorkers = new Map<CronLane, Worker>();
   private starting?: Promise<void>;
   private stopping = false;
   private heartbeat?: NodeJS.Timeout;
@@ -88,6 +111,7 @@ export class JobsRunner
     private readonly processor: CronProcessor,
     private readonly logger: PinoLogger,
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
     this.logger.setContext(JobsRunner.name);
   }
@@ -136,6 +160,7 @@ export class JobsRunner
     if (this.stopping) return;
 
     for (const lane of CRON_LANES) {
+      const concurrency = await this.laneConcurrency(lane);
       const run = outageProof((job: Job, signal?: AbortSignal) =>
         withWork(`job ${job.name}`, () =>
           this.processor.process(job.name, signal),
@@ -152,8 +177,9 @@ export class JobsRunner
           ...bullOptions(lane, url, { worker: true }),
           ...workerTuning(lane),
           // S10-2: one lane never waits for another; inside a lane the
-          // DB-heavy sweeps still run one (fast: three short) at a time.
-          concurrency: CRON_LANE_CONCURRENCY[lane],
+          // DB-heavy sweeps still run one (fast: three short) at a time by
+          // default. Row 181: the number is an owner setting.
+          concurrency,
         },
       );
       worker.on('failed', (job, error) => {
@@ -204,6 +230,7 @@ export class JobsRunner
         );
       });
       this.workers.push(worker);
+      this.laneWorkers.set(lane, worker);
     }
     this.logger.info(
       { mode: this.options.mode, jobs: CRON_SCHEDULES.map((s) => s.name) },
@@ -229,6 +256,7 @@ export class JobsRunner
           return;
         }
         await this.reconcileSchedules();
+        await this.applyLaneConcurrency();
         const at = new Date().toISOString();
         await writeFile(WORKER_HEARTBEAT_FILE, at).catch(() => undefined);
         await this.redis?.set(
@@ -249,6 +277,48 @@ export class JobsRunner
     void beat();
     this.heartbeat = setInterval(() => void beat(), 30_000);
     this.heartbeat.unref();
+  }
+
+  /** Row 181: the owner's number of parallel jobs for [lane], a whole
+   * number 1..CRON_LANE_CONCURRENCY_MAX; the built-in default otherwise. */
+  async laneConcurrency(lane: CronLane): Promise<number> {
+    const fallback = CRON_LANE_CONCURRENCY[lane];
+    const value = this.settings
+      ? await this.settings
+          .number(CRON_LANE_CONCURRENCY_SETTING[lane])
+          .catch(() => Number.NaN)
+      : Number.NaN;
+    return Number.isInteger(value) &&
+      value >= 1 &&
+      value <= CRON_LANE_CONCURRENCY_MAX
+      ? value
+      : fallback;
+  }
+
+  /** Row 181: puts a changed owner setting onto the running workers (BullMQ
+   * `worker.concurrency` setter). Returns the lanes that changed. Never
+   * throws: a failed read keeps the current value. */
+  async applyLaneConcurrency(): Promise<CronLane[]> {
+    const changed: CronLane[] = [];
+    for (const [lane, worker] of this.laneWorkers) {
+      try {
+        const want = await this.laneConcurrency(lane);
+        if (worker.concurrency === want) continue;
+        const from = worker.concurrency;
+        worker.concurrency = want;
+        changed.push(lane);
+        this.logger.info(
+          { lane, from, to: want, metric: 'cron_lane_concurrency' },
+          'cron lane concurrency changed',
+        );
+      } catch (error) {
+        this.logger.warn(
+          { lane, err: error instanceof Error ? error.message : String(error) },
+          'cron lane concurrency not applied',
+        );
+      }
+    }
+    return changed;
   }
 
   /**
@@ -350,6 +420,7 @@ export class JobsRunner
     // Workers first (in parallel, bounded by the shared drain deadline,
     // S10-9): they stop taking new jobs at once and let running ones finish.
     await Promise.all(this.workers.map((w) => closeWorker(w)));
+    this.laneWorkers.clear();
     await Promise.all([...this.queues.values()].map((q) => q.close()));
   }
 }

@@ -187,6 +187,10 @@ export class BidsService {
     user: RequestUser,
     caseId: string,
     dto: CreateBidDto,
+    /** Firms audit 16.11 (PR-1): who really sent it (`bids.sent_by`) and,
+     * when the firm owner sent it as this member, the owner (the member is
+     * told). */
+    origin: { sentBy?: string; firmOwnerId?: string | null } = {},
   ): Promise<BidDto> {
     if (user.role !== 'attorney') {
       throw new ForbiddenException({
@@ -428,6 +432,7 @@ export class BidsService {
             turn: 'client',
             outside_practice: outsidePractice,
             outside_licensed_states: outsideLicensedStates,
+            sent_by: origin.sentBy ?? user.assistant?.userId ?? user.sub,
           } satisfies Prisma.BidUncheckedUpdateInput;
           const previous = await tx.bid.findUnique({
             where: {
@@ -528,6 +533,23 @@ export class BidsService {
             },
             tx,
           );
+          // Firms audit 16.11 (PR-1, rest of row 167): the firm owner sent
+          // this bid in the member's name — the member hears it at once.
+          if (origin.firmOwnerId && origin.firmOwnerId !== user.sub) {
+            await this.notifications.emit(
+              {
+                type: 'firm_update',
+                recipientId: user.sub,
+                payload: {
+                  kind: 'bid_sent_for_you',
+                  caseId,
+                  bidId: created.id,
+                  actorId: origin.firmOwnerId,
+                },
+              },
+              tx,
+            );
+          }
           eventTickets.push(
             await this.events?.emit(
               tx,

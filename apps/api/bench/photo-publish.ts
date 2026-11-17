@@ -131,7 +131,7 @@ async function main(): Promise<void> {
       Promise.resolve(
         (
           {
-            'images.avif_quality': 60,
+            'images.avif_quality': 75,
             'images.avif_effort': 2,
             'images.webp_quality': 88,
             'images.jpeg_quality': 90,

@@ -124,7 +124,7 @@ class _CallsTabState extends ConsumerState<CallsTab> {
 
   void _nearEnd() {
     if (!_scroll.hasClients) return;
-    if (_scroll.position.extentAfter < 400) {
+    if (LoadAhead.nearEnd(_scroll.position)) {
       unawaited(ref.read(callHistoryProvider.notifier).loadMore());
     }
   }

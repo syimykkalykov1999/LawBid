@@ -330,7 +330,7 @@ class _QaPage extends ConsumerWidget {
               onRefresh: notifier.refresh,
               child: NotificationListener<ScrollNotification>(
                 onNotification: (n) {
-                  if (n.metrics.extentAfter < 400) {
+                  if (LoadAhead.nearEnd(n.metrics)) {
                     if (page.loadMoreError == null) {
                       unawaited(notifier.loadMore());
                     } else if (n is ScrollStartNotification &&

@@ -785,6 +785,13 @@ export const NOTIFICATION_TEMPLATES: Partial<
       body: 'Удаление через несколько дней. Ссылка для отмены — в письме на вашей почте.',
     },
   },
+  // Firms audit 16.11: the body says what happened (`notif.firm.<kind>`),
+  // this pair is the fallback.
+  firm_update: {
+    group: 'system',
+    en: { title: 'Your firm', body: 'There is news in your firm.' },
+    ru: { title: 'Ваша фирма', body: 'В вашей фирме есть новости.' },
+  },
   case_history_export_ready: {
     group: 'system',
     en: {

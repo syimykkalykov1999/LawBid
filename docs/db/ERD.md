@@ -539,6 +539,7 @@ erDiagram
     DateTime confirmation_required_at "nullable"
     DateTime confirmed_at "nullable"
     DateTime confirm_reminded_at "nullable"
+    String sent_by "nullable"
     Int shard_id
   }
   bid_offers {
@@ -1159,6 +1160,7 @@ erDiagram
     String id PK
     String user_id FK
     String session_id FK
+    String session_chain_id "nullable"
     String fcm_token UK
     String token_kind
     String platform
@@ -1173,6 +1175,7 @@ erDiagram
     String id PK
     String user_id FK
     String session_id FK
+    String session_chain_id "nullable"
     String token UK
     String topic
     String environment

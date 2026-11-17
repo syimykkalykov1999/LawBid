@@ -63,3 +63,9 @@ that run more often than hourly — and `cron-heavy`), `push`, `files`,
   `ops.cron_stale_periods` of its periods (last good run per job: Redis hash
   `ops:cron:runs`, also in `detail.lastSuccess`). Read the worker log for
   that job name.
+- A lane is behind (many jobs waiting on `cron-heavy` / `cron-heavy-frequent`
+  while the database is calm): raise its `ops.cron_lane_concurrency_*`
+  setting (1..20, default fast 3, the others 1). The running workers pick
+  the new number up within 30 s (`metric: cron_lane_concurrency`); the same
+  job never runs twice at once (per-job Redis lock). Lower it again if the
+  database gets busy.

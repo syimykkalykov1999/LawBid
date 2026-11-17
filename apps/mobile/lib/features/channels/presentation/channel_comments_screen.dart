@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -5,6 +7,7 @@ import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
+import 'package:lawbid/core/navigation/shell/desktop_input.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
@@ -143,15 +146,21 @@ class _ChannelCommentsScreenState extends ConsumerState<ChannelCommentsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Expanded(
-                      child: AppTextField(
-                        key: const ValueKey('channel-comment-field'),
+                      // Row 110 (desktop web): Enter sends, Shift+Enter
+                      // is a new line.
+                      child: DesktopSendOnEnter(
+                        onSend: () => unawaited(_send()),
                         controller: _text,
-                        hintText: t.t('channel.comment.hint'),
-                        semanticLabel: t.t('channel.comment.hint'),
-                        maxLines: 4,
-                        maxLength: kChannelCommentMax,
-                        textCapitalization: TextCapitalization.sentences,
-                        enabled: !_sending,
+                        child: AppTextField(
+                          key: const ValueKey('channel-comment-field'),
+                          controller: _text,
+                          hintText: t.t('channel.comment.hint'),
+                          semanticLabel: t.t('channel.comment.hint'),
+                          maxLines: 4,
+                          maxLength: kChannelCommentMax,
+                          textCapitalization: TextCapitalization.sentences,
+                          enabled: !_sending,
+                        ),
                       ),
                     ),
                     ValueListenableBuilder<TextEditingValue>(
