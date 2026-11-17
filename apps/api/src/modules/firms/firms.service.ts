@@ -7,8 +7,10 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LegalAcceptanceService } from '../legal-documents/legal-acceptance.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export const FIRMS_FLAG = 'firm_profiles';
 const MAX_MEMBERS = 50;
@@ -45,7 +47,25 @@ export class FirmsService {
     // R2B-1: the lawyer a bid is sent as must have accepted the current
     // legal documents themselves (the route guard checks only the caller).
     @Optional() private readonly acceptance?: LegalAcceptanceService,
+    // Firms audit 16.11: a firm's events reach its lawyers (`firm_update`).
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
+
+  /** One `firm_update` row (bell + push) per lawyer; `kind` picks the
+   * `notif.firm.<kind>` text. */
+  private async notify(
+    recipientIds: string[],
+    kind: string,
+    payload: Prisma.InputJsonObject,
+  ): Promise<void> {
+    for (const recipientId of recipientIds) {
+      await this.notifications?.emit({
+        type: 'firm_update',
+        recipientId,
+        payload: { kind, ...payload },
+      });
+    }
+  }
 
   private async assertEnabled(): Promise<void> {
     const f = await this.prisma.featureFlag.findUnique({
@@ -229,11 +249,142 @@ export class FirmsService {
       throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
     }
     if (target.role === 'owner') {
-      // The owner closes the firm instead of leaving it headless.
-      await this.prisma.firm.delete({ where: { id: mine.firm_id } });
+      // Firms audit 16.11 (PR-2): like a GitHub organisation or a WhatsApp
+      // community, the owner hands the firm over first. Alone (no other
+      // active lawyer) leaving closes it, and pending invitations are told.
+      const others = await this.prisma.firmMember.count({
+        where: {
+          firm_id: mine.firm_id,
+          status: 'active',
+          attorney_id: { not: userId },
+        },
+      });
+      if (others > 0) {
+        throw new ConflictException({
+          code: ErrorCode.FIRM_OWNER_MUST_TRANSFER,
+          message: 'Make another lawyer the owner, or close the firm.',
+        });
+      }
+      await this.closeFirm(mine.firm_id, userId);
       return;
     }
     await this.prisma.firmMember.delete({ where: { attorney_id: attorneyId } });
+  }
+
+  /** Firms audit 16.11 (PR-2): the owner makes an active member the owner
+   * and stays in the firm as a member. The new owner is told. */
+  async transferOwnership(
+    userId: string,
+    attorneyId: string,
+  ): Promise<FirmView> {
+    await this.assertEnabled();
+    const firmId = await this.ownedFirm(userId);
+    if (attorneyId === userId) {
+      throw new BadRequestException({ code: ErrorCode.VALIDATION_ERROR });
+    }
+    await this.prisma.$transaction((tx) =>
+      this.handOver(tx, firmId, userId, attorneyId),
+    );
+    await this.notify([attorneyId], 'owner_transferred', {
+      firmId,
+      actorId: userId,
+    });
+    return this.view(firmId, true, userId);
+  }
+
+  /** Firms audit 16.11 (PR-2): the owner closes the firm; every other
+   * lawyer in it (and anyone invited) is told. */
+  async close(userId: string): Promise<void> {
+    await this.assertEnabled();
+    const firmId = await this.ownedFirm(userId);
+    await this.closeFirm(firmId, userId);
+  }
+
+  /** Moves ownership inside one transaction. The conditional update makes
+   * two racing hand-overs safe: only the call that still sees [fromId] as
+   * the owner wins. */
+  private async handOver(
+    tx: Prisma.TransactionClient,
+    firmId: string,
+    fromId: string,
+    toId: string,
+  ): Promise<void> {
+    const target = await tx.firmMember.findUnique({
+      where: { attorney_id: toId },
+    });
+    if (!target || target.firm_id !== firmId || target.status !== 'active') {
+      throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
+    }
+    const moved = await tx.firm.updateMany({
+      where: { id: firmId, owner_id: fromId },
+      data: { owner_id: toId },
+    });
+    if (moved.count !== 1) {
+      throw new ForbiddenException({ code: ErrorCode.FORBIDDEN });
+    }
+    await tx.firmMember.updateMany({
+      where: { firm_id: firmId, attorney_id: fromId },
+      data: { role: 'member' },
+    });
+    await tx.firmMember.update({
+      where: { attorney_id: toId },
+      data: { role: 'owner' },
+    });
+  }
+
+  private async closeFirm(firmId: string, actorId: string | null) {
+    const others = await this.prisma.firmMember.findMany({
+      where: {
+        firm_id: firmId,
+        ...(actorId ? { attorney_id: { not: actorId } } : {}),
+      },
+      select: { attorney_id: true },
+    });
+    const gone = await this.prisma.firm.deleteMany({ where: { id: firmId } });
+    if (gone.count === 0) return;
+    await this.notify(
+      others.map((o) => o.attorney_id),
+      'closed',
+      actorId ? { firmId, actorId } : { firmId },
+    );
+  }
+
+  /**
+   * Firms audit 16.11 (PR-2): the account of a firm lawyer is erased. A
+   * member simply leaves. The owner's firm goes to the longest-standing
+   * active member (earliest to join), who is told; with nobody left it is
+   * closed. Runs whatever the `firm_profiles` switch says: a firm must
+   * never keep a deleted owner.
+   */
+  async onAccountErased(userId: string): Promise<void> {
+    const m = await this.myMembership(userId);
+    if (!m) return;
+    if (m.role !== 'owner') {
+      await this.prisma.firmMember.deleteMany({
+        where: { attorney_id: userId },
+      });
+      return;
+    }
+    const heir = await this.prisma.firmMember.findFirst({
+      where: {
+        firm_id: m.firm_id,
+        status: 'active',
+        attorney_id: { not: userId },
+      },
+      orderBy: [{ created_at: 'asc' }, { attorney_id: 'asc' }],
+      select: { attorney_id: true },
+    });
+    if (!heir) {
+      await this.closeFirm(m.firm_id, userId);
+      return;
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await this.handOver(tx, m.firm_id, userId, heir.attorney_id);
+      await tx.firmMember.deleteMany({ where: { attorney_id: userId } });
+    });
+    await this.notify([heir.attorney_id], 'owner_transferred', {
+      firmId: m.firm_id,
+    });
   }
 
   /** The lawyer a bid is sent as. R2B-1 (14.11): only the firm owner picks

@@ -15,7 +15,7 @@ import {
   ApiProperty,
   ApiTags,
 } from '@nestjs/swagger';
-import { IsString, MaxLength, MinLength } from 'class-validator';
+import { IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import {
   ApiEnvelopeResponse,
   ApiErrors,
@@ -61,6 +61,12 @@ export class InviteFirmMemberDto {
   @MinLength(2)
   @MaxLength(60)
   username!: string;
+}
+
+export class TransferFirmOwnerDto {
+  @ApiProperty({ description: 'An active lawyer of the firm' })
+  @IsUUID()
+  attorneyId!: string;
 }
 
 /** Owner 2026-10-14: a firm is its lawyers; behind the flag `firm_profiles`. */
@@ -128,13 +134,42 @@ export class FirmsController {
   @ApiErrors({
     403: [E.FORBIDDEN],
     404: [E.NOT_FOUND],
-    409: [E.FEATURE_DISABLED],
+    409: [E.FEATURE_DISABLED, E.FIRM_OWNER_MUST_TRANSFER],
   })
   removeFirmMember(
     @CurrentUser() user: RequestUser,
     @Param('attorneyId', ParseUUIDPipe) attorneyId: string,
   ): Promise<void> {
     return this.firms.remove(user.sub, attorneyId);
+  }
+
+  @AttorneyOnly()
+  @Post('me/owner')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Owner makes an active lawyer the owner (stays a member)',
+  })
+  @ApiEnvelopeResponse(FirmDto)
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN],
+    404: [E.NOT_FOUND],
+    409: [E.FEATURE_DISABLED],
+  })
+  transferFirmOwner(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: TransferFirmOwnerDto,
+  ): Promise<FirmDto> {
+    return this.firms.transferOwnership(user.sub, dto.attorneyId);
+  }
+
+  @AttorneyOnly()
+  @Delete('me')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Owner closes the firm; its lawyers are told' })
+  @ApiErrors({ 403: [E.FORBIDDEN], 409: [E.FEATURE_DISABLED] })
+  closeFirm(@CurrentUser() user: RequestUser): Promise<void> {
+    return this.firms.close(user.sub);
   }
 
   @AttorneyOnly()

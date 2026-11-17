@@ -413,5 +413,76 @@ void main() {
       expect(find.text('Bob Roe'), findsOneWidget);
       await _teardown(tester);
     });
+
+    // Firms audit 16.11 (PR-2): the owner hands the firm over or closes it,
+    // both confirmed first.
+    testWidgets(
+        'owner: «Transfer ownership» picks a lawyer and asks; '
+        '«Close firm» asks', (tester) async {
+      final me = attorneyMe();
+      final firm = api.FirmDto.fromJson({
+        'id': 'firm-1',
+        'name': 'Doe & Partners',
+        'ownerId': me.id,
+        'states': <String>[],
+        'members': [
+          {
+            'attorneyId': me.id,
+            'firstName': 'Jane',
+            'lastName': 'Doe',
+            'role': 'owner',
+            'status': 'active',
+            'states': <String>[],
+          },
+          {
+            'attorneyId': 'att-2',
+            'firstName': 'Bob',
+            'lastName': 'Roe',
+            'role': 'member',
+            'status': 'active',
+            'states': <String>['IL'],
+          },
+          {
+            'attorneyId': 'att-3',
+            'firstName': 'Ann',
+            'lastName': 'Poe',
+            'role': 'member',
+            'status': 'invited',
+            'states': <String>[],
+          },
+        ],
+      });
+      await _pump(
+        tester,
+        const FirmScreen(),
+        user: me,
+        overrides: [
+          ...profileOverrides(),
+          myFirmProvider.overrideWith((ref) async => firm),
+          sessionControllerProvider.overrideWith(_OwnerSession.new),
+        ],
+      );
+      await tester.ensureVisible(find.byKey(const ValueKey('firm-transfer')));
+      await tester.tap(find.byKey(const ValueKey('firm-transfer')));
+      await tester.pumpAndSettle();
+      expect(find.text('Choose the new owner'), findsOneWidget);
+      // Only an active lawyer can take the firm.
+      expect(find.byKey(const ValueKey('firm-heir-att-2')), findsOneWidget);
+      expect(find.byKey(const ValueKey('firm-heir-att-3')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('firm-heir-att-2')));
+      await tester.pumpAndSettle();
+      expect(find.text('Make Bob Roe the owner?'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.byKey(const ValueKey('firm-close')));
+      await tester.tap(find.byKey(const ValueKey('firm-close')));
+      await tester.pumpAndSettle();
+      expect(find.text('Close the firm?'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.text('Doe & Partners'), findsOneWidget);
+      await _teardown(tester);
+    });
   });
 }
