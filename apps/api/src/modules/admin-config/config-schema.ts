@@ -1288,6 +1288,26 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 1000,
   };
+  // Row 181 (DB scale finding 5): parallel jobs per cron lane.
+  const laneConcurrency = (key: string, description: string) => {
+    out[key] = { ...out[key], description, min: 1, max: 20 };
+  };
+  laneConcurrency(
+    'ops.cron_lane_concurrency_fast',
+    'Background jobs the every-minute lane (queue metrics, ops guard, calls) runs at once in one worker task. Default 3.',
+  );
+  laneConcurrency(
+    'ops.cron_lane_concurrency_default',
+    'Background jobs the main lane (hourly case, bid and reminder jobs) runs at once in one worker task. Default 1.',
+  );
+  laneConcurrency(
+    'ops.cron_lane_concurrency_heavy_frequent',
+    'Background jobs the frequent heavy lane (recommendations, trending tags, admin summaries, legal exports) runs at once in one worker task. Default 1. Each extra job is one more heavy database query at the same time.',
+  );
+  laneConcurrency(
+    'ops.cron_lane_concurrency_heavy',
+    'Background jobs the nightly heavy lane (retention, recounts, session cleanup, staff nightlies) runs at once in one worker task. Default 1. Each extra job is one more long database query at the same time.',
+  );
   out['ops.reencrypt_rows_per_min'] = {
     ...out['ops.reencrypt_rows_per_min'],
     description:

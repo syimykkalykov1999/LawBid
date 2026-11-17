@@ -53,6 +53,9 @@ class PasskeysWeb extends PasskeysPlatform {
     try {
       final requestJson = r.toJson();
       _applyPrf(requestJson, request.prf);
+      if (request.isConditional) {
+        requestJson['mediation'] = 'conditional';
+      }
 
       final serializedRequest = jsonEncode(requestJson);
       final response = await authenticatorRegister(
