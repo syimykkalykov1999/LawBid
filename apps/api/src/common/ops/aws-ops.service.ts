@@ -4,7 +4,9 @@ import {
   ApplicationAutoScalingClient,
   DescribeScalableTargetsCommand,
   DescribeScalingPoliciesCommand,
+  DescribeScheduledActionsCommand,
   PutScalingPolicyCommand,
+  PutScheduledActionCommand,
   RegisterScalableTargetCommand,
   type TargetTrackingScalingPolicyConfiguration,
 } from '@aws-sdk/client-application-auto-scaling';
@@ -15,6 +17,7 @@ import {
   UpdateServiceCommand,
 } from '@aws-sdk/client-ecs';
 import { taskPriceFactor } from '../economy/economy.rules';
+import { ECS_CAPACITY_KINDS, spotSplit, splitKinds } from './autoscale-tuning';
 import type { CostSnapshot } from './ops.constants';
 import { OpsStateService } from './ops-state.service';
 import { opsCredentials } from './ops-credentials';
@@ -27,12 +30,29 @@ export type OtherKind = 'api_admin' | 'admin' | 'pgbouncer';
 export type ServiceKind = TaskKind | OtherKind;
 
 /** One ECS service now (owner 15.11, «Сейчас» on «Масштаб»). `spot` null =
- * the service does not say (no strategy and no launch type). */
+ * the service does not say (no strategy and no launch type). Owner 15.11
+ * («сделай настраиваемыми»): the strategy numbers (null = launch type, no
+ * strategy) and the autoscaling floor / ceiling (null = not read). */
 export interface ServiceNow {
   kind: ServiceKind;
   running: number;
   desired: number;
   spot: boolean | null;
+  base?: number | null;
+  fargateWeight?: number | null;
+  spotWeight?: number | null;
+  min?: number | null;
+  max?: number | null;
+}
+
+/** Result of applying the admin's floors (owner 15.11). */
+export interface MinTasksApplied {
+  changed: string[];
+  missing: string[];
+  /** Morning-up scheduled actions moved to the admin's floor. */
+  morning: string[];
+  /** Calls AWS refused (e.g. a right the owner's apply has not added yet). */
+  failed: string[];
 }
 
 /** Pure: one DescribeServices entry as ServiceNow. Spot = the capacity
@@ -43,14 +63,24 @@ export function serviceNow(
     runningCount?: number;
     desiredCount?: number;
     launchType?: string;
-    capacityProviderStrategy?: { capacityProvider?: string; weight?: number }[];
+    capacityProviderStrategy?: {
+      capacityProvider?: string;
+      weight?: number;
+      base?: number;
+    }[];
   },
 ): ServiceNow {
   const strategy = sv.capacityProviderStrategy ?? [];
+  const item = (p: string) => strategy.find((c) => c.capacityProvider === p);
+  const fargate = item('FARGATE');
+  const spotItem = item('FARGATE_SPOT');
   return {
     kind,
     running: sv.runningCount ?? 0,
     desired: sv.desiredCount ?? 0,
+    base: strategy.length ? (fargate?.base ?? 0) + (spotItem?.base ?? 0) : null,
+    fargateWeight: strategy.length ? (fargate?.weight ?? 0) : null,
+    spotWeight: strategy.length ? (spotItem?.weight ?? 0) : null,
     spot: strategy.length
       ? strategy.some(
           (c) => c.capacityProvider === 'FARGATE_SPOT' && (c.weight ?? 0) > 0,
@@ -293,6 +323,132 @@ export class AwsOpsService {
     return max;
   }
 
+  /** The ECS service name of a kind here (OPS_*_SERVICE; undefined = not in
+   * this stack). */
+  serviceName(kind: ServiceKind): string | undefined {
+    if (kind === 'api') return this.env('OPS_API_SERVICE');
+    if (kind === 'worker') return this.env('OPS_WORKER_SERVICE');
+    return this.env(OTHER_SERVICE_ENV[kind]);
+  }
+
+  /**
+   * Owner 15.11 (Spot split from the admin): `{<service name>: {base,
+   * fargate, spot}}` of the services whose split the admin set. The API does
+   * not change the strategy itself: modules/spot-fallback is the one writer
+   * of capacityProviderStrategy (it already holds ecs:UpdateService on every
+   * Spot service and rolls a deployment), it reads this from
+   * ops/scale-controls.json and its tick brings each service to it. Two
+   * writers would undo each other ("weights differ" restore).
+   */
+  spotSplits(
+    tuning: Record<string, number>,
+  ): Record<string, { base: number; fargate: number; spot: number }> {
+    const out: Record<string, { base: number; fargate: number; spot: number }> =
+      {};
+    for (const kind of splitKinds(tuning)) {
+      const name = this.serviceName(kind);
+      if (name) out[name] = spotSplit(tuning, kind);
+    }
+    return out;
+  }
+
+  /**
+   * Owner 15.11 («сделай настраиваемыми»): the admin's floor per service
+   * (`<kind>.min_tasks`, SSM `ecs-scaling/tuning`), applied on save — never
+   * on the 5-minute tick, which would undo the night schedule (G1,
+   * 2026-11-08). RegisterScalableTarget with MinCapacity (and MaxCapacity
+   * raised to it when the live ceiling is lower: AWS keeps a parameter that
+   * is left out). A morning-up scheduled action (modules/ecs quiet hours)
+   * would put Terraform's floor back every morning, so its MinCapacity
+   * follows too (PutScheduledAction, schedule copied). A service that is not
+   * registered = `missing`; a refused call = `failed`, the rest go on.
+   */
+  async applyMinTasks(
+    tuning: Record<string, number>,
+  ): Promise<MinTasksApplied> {
+    const out: MinTasksApplied = {
+      changed: [],
+      missing: [],
+      morning: [],
+      failed: [],
+    };
+    if (!this.available) return out;
+    for (const kind of ECS_CAPACITY_KINDS) {
+      const min = tuning[`${kind}.min_tasks`];
+      const service = this.serviceName(kind);
+      if (typeof min !== 'number' || !service) continue;
+      const resourceId = `service/${this.cluster}/${service}`;
+      try {
+        const res = await this.scalingClient().send(
+          new DescribeScalableTargetsCommand({
+            ServiceNamespace: 'ecs',
+            ScalableDimension: 'ecs:service:DesiredCount',
+            ResourceIds: [resourceId],
+          }),
+        );
+        const live = (res.ScalableTargets ?? []).find(
+          (t) => t.ResourceId === resourceId,
+        );
+        if (!live) {
+          out.missing.push(kind);
+          continue;
+        }
+        if (live.MinCapacity !== min) {
+          await this.scalingClient().send(
+            new RegisterScalableTargetCommand({
+              ServiceNamespace: 'ecs',
+              ScalableDimension: 'ecs:service:DesiredCount',
+              ResourceId: resourceId,
+              MinCapacity: min,
+              ...(typeof live.MaxCapacity === 'number' && live.MaxCapacity < min
+                ? { MaxCapacity: min }
+                : {}),
+            }),
+          );
+          out.changed.push(kind);
+        }
+      } catch {
+        out.failed.push(kind);
+        continue;
+      }
+      try {
+        const sched = await this.scalingClient().send(
+          new DescribeScheduledActionsCommand({
+            ServiceNamespace: 'ecs',
+            ScalableDimension: 'ecs:service:DesiredCount',
+            ResourceId: resourceId,
+          }),
+        );
+        for (const a of sched.ScheduledActions ?? []) {
+          if (!a.ScheduledActionName?.endsWith('-morning-up')) continue;
+          if (a.ScalableTargetAction?.MinCapacity === min) continue;
+          await this.scalingClient().send(
+            new PutScheduledActionCommand({
+              ServiceNamespace: 'ecs',
+              ScalableDimension: 'ecs:service:DesiredCount',
+              ResourceId: resourceId,
+              ScheduledActionName: a.ScheduledActionName,
+              Schedule: a.Schedule,
+              Timezone: a.Timezone,
+              // "If you don't specify start and end times, the old values
+              // are deleted" (PutScheduledAction): keep them.
+              StartTime: a.StartTime,
+              EndTime: a.EndTime,
+              ScalableTargetAction: {
+                ...a.ScalableTargetAction,
+                MinCapacity: min,
+              },
+            }),
+          );
+          out.morning.push(kind);
+        }
+      } catch {
+        out.failed.push(`${kind}.morning`);
+      }
+    }
+    return out;
+  }
+
   /**
    * Owner 14.11: the admin's ECS target-tracking numbers
    * (`<policy>.target|in_s|out_s`, SSM `ecs-scaling/tuning`). Each policy of
@@ -409,10 +565,31 @@ export class AwsOpsService {
       ...others,
     ];
     const all = [...(res.services ?? []), ...(more?.services ?? [])];
+    // Owner 15.11: the floor / ceiling next to the counts (read only; a
+    // refused read leaves them out).
+    const targets = named.length
+      ? await this.scalingClient()
+          .send(
+            new DescribeScalableTargetsCommand({
+              ServiceNamespace: 'ecs',
+              ScalableDimension: 'ecs:service:DesiredCount',
+              ResourceIds: named.map(([, n]) => `service/${this.cluster}/${n}`),
+            }),
+          )
+          .catch(() => null)
+      : null;
     const services: ServiceNow[] = [];
     for (const [kind, name] of named) {
       const sv = all.find((x) => x.serviceName === name);
-      if (sv) services.push(serviceNow(kind, sv));
+      if (!sv) continue;
+      const t = targets?.ScalableTargets?.find(
+        (x) => x.ResourceId === `service/${this.cluster}/${name}`,
+      );
+      services.push({
+        ...serviceNow(kind, sv),
+        min: t?.MinCapacity ?? null,
+        max: t?.MaxCapacity ?? null,
+      });
     }
     return { api: find(api), worker: find(worker), services };
   }

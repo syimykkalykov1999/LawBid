@@ -3,6 +3,7 @@ import {
   netRevenueUsd,
   type StripeFee,
 } from '../economy/economy.rules';
+import { reportDayKey } from '../utils/report-day';
 
 /**
  * Owner 2026-10-25 («Прибыль»): the P&L math as pure functions.
@@ -26,7 +27,8 @@ export type PnlKind = (typeof PNL_KINDS)[number];
 /** One (day, kind) group, in cents: the payments paid that day (a later
  * full refund included) and the refunds MADE that day (R3A-1, 14.11). */
 export interface PaymentDayRow {
-  /** UTC day, YYYY-MM-DD, of paid_at (sales) / of the refund (refunds). */
+  /** Report-zone day, YYYY-MM-DD, of paid_at (sales) / of the refund
+   * (refunds) — `admin.report_timezone` (row 180, R3A-11). */
   day: string;
   kind: PnlKind;
   subtotalCents: number;
@@ -74,7 +76,7 @@ export interface PnlKindLine {
 }
 
 export interface PnlSnapshot {
-  /** UTC day the figures are counted to (today, partial). */
+  /** Report-zone day the figures are counted to (today, partial). */
   asOf: string;
   today: PnlPeriod;
   week: PnlPeriod;
@@ -94,7 +96,7 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
 const dayMs = (d: string) => Date.parse(`${d}T00:00:00Z`);
 const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
-/** The Monday (UTC) of the week [day] (YYYY-MM-DD) falls in. */
+/** The Monday of the week the calendar day [day] (YYYY-MM-DD) falls in. */
 export function weekStart(day: string): string {
   const ms = dayMs(day);
   const dow = (new Date(ms).getUTCDay() + 6) % 7; // Mon = 0
@@ -136,8 +138,11 @@ export function buildPnl(input: {
   now: Date;
   /** The Stripe fee from the admin settings (default 2.9 % + 30 ¢). */
   fee?: StripeFee;
+  /** Row 180 (R3A-11): «сегодня», the week and the month end where the
+   * owner's day ends (`admin.report_timezone`), not at UTC midnight. */
+  timeZone?: string;
 }): PnlSnapshot {
-  const today = isoDay(input.now.getTime());
+  const today = reportDayKey(input.now, input.timeZone ?? 'UTC');
   const week = weekStart(today);
   const monthFirst = `${today.slice(0, 8)}01`;
 

@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -52,6 +52,14 @@ class MediaPreviewScreen extends ConsumerStatefulWidget {
 
 class _MediaPreviewScreenState extends ConsumerState<MediaPreviewScreen> {
   late List<PickedChatFile> _files = [...widget.files];
+
+  /// Row 199 (WhatsApp / Telegram): each file as it was picked and all its
+  /// edits so far as one. An edit is drawn from the picked photo's original
+  /// (else from the picked file), never from the last edited JPEG, so the
+  /// photo sent is compressed once.
+  late List<PickedChatFile> _bases = [...widget.files];
+  late List<ImageEdit> _edits =
+      List.filled(widget.files.length, const ImageEdit());
   late final TextEditingController _caption =
       TextEditingController(text: widget.caption);
   final _page = PageController();
@@ -60,6 +68,9 @@ class _MediaPreviewScreenState extends ConsumerState<MediaPreviewScreen> {
 
   @override
   void dispose() {
+    for (final f in widget.files) {
+      forgetPhotoOriginal(f.bytes);
+    }
     _caption.dispose();
     _page.dispose();
     super.dispose();
@@ -75,35 +86,51 @@ class _MediaPreviewScreenState extends ConsumerState<MediaPreviewScreen> {
     }
     setState(() {
       _files = [..._files]..removeAt(_index);
+      _bases = [..._bases]..removeAt(_index);
+      _edits = [..._edits]..removeAt(_index);
       if (_index >= _files.length) _index = _files.length - 1;
     });
     _page.jumpToPage(_index);
   }
 
-  void _replace(Uint8List bytes) {
-    final f = _current;
+  void _replace(int at, PickedChatFile file, ImageEdit edits) {
     setState(() {
-      _files = [
-        for (var i = 0; i < _files.length; i++)
-          if (i == _index)
-            (
-              bytes: bytes,
-              name: editedName(f.name),
-              mime: 'image/jpeg',
-              path: null,
-              diskBytes: null,
-            )
-          else
-            _files[i],
-      ];
+      _files = [..._files]..[at] = file;
+      _edits = [..._edits]..[at] = edits;
     });
   }
 
   Future<void> _edit(ImageEdit edit) async {
     if (_busy || edit.isIdentity) return;
+    final at = _index;
+    final base = _bases[at];
+    final all = _edits[at].then(edit);
     setState(() => _busy = true);
     try {
-      _replace(await applyImageEdit(_current.bytes, edit));
+      if (all.isIdentity) {
+        // Turned all the way round: the picked file itself, untouched.
+        _replace(at, base, all);
+        return;
+      }
+      final original = photoOriginalOf(base.bytes);
+      final source = original == null ? base.bytes : await original();
+      final bytes = await applyImageEdit(
+        source,
+        all,
+        maxPx: ClientTuning.chatPhotoMaxPx.round(),
+      );
+      if (!mounted) return;
+      _replace(
+        at,
+        (
+          bytes: bytes,
+          name: editedName(base.name),
+          mime: 'image/jpeg',
+          path: null,
+          diskBytes: null,
+        ),
+        all,
+      );
     } on Object {
       // The picture stays as it was.
     } finally {

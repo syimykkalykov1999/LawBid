@@ -9,7 +9,7 @@ import {
   constants,
   monitorEventLoopDelay,
   PerformanceObserver,
-  type IntervalHistogram,
+  type ELDHistogram,
 } from 'node:perf_hooks';
 import { AppSettingsService } from '../app-settings/app-settings.service';
 
@@ -132,7 +132,7 @@ export class LoopStallService
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
   private readonly log = new Logger('LoopStall');
-  private histogram?: IntervalHistogram;
+  private histogram?: ELDHistogram;
   private observer?: PerformanceObserver;
   private timers: NodeJS.Timeout[] = [];
   private thresholdMs = 0;

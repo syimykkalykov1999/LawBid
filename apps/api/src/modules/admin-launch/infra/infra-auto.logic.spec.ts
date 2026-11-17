@@ -118,22 +118,25 @@ describe('autoWants', () => {
     ).toEqual([]);
   });
 
-  it('13.11 replay: a pooler the tasks connect through is never wanted off (poolSmall is false with a pooler)', () => {
+  it('16.11: the pooler is kept only by real load; calm, the one «Авто» switched on goes off (the drain moves the services first)', () => {
     const on = () => 'on' as const;
-    // prod 13.11: switched on by itself, DB_POOLER_HOST set, no pressure
+    // prod 16.11: switched on by itself, DB_POOLER_HOST set, zero users
     expect(
       autoWants(
         { ...calm, poolSmall: false, poolerLive: true },
         on,
         new Set(['aws.pgbouncer']),
-      ),
-    ).toEqual([]);
+      )
+        .filter((x) => x.id === 'aws.pgbouncer')
+        .map((x) => x.to),
+    ).toEqual(['off']);
+    // connections near the limit keep it on
     expect(
       autoWants(
-        { ...calm, poolerLive: true, pickedAuto: new Set(['aws.pgbouncer']) },
+        { ...calm, poolerLive: true, pressures: ['db_connections'] },
         on,
-        new Set(),
-      ),
+        new Set(['aws.pgbouncer']),
+      ).filter((x) => x.id === 'aws.pgbouncer'),
     ).toEqual([]);
   });
 
@@ -163,16 +166,19 @@ describe('autoWants', () => {
     ).toEqual([]);
   });
 
-  it('a small direct pool switches the pooler on, and keeps it on', () => {
+  it('16.11: a small direct pool alone does not switch the pooler on (true at zero users); connections near the limit do', () => {
     expect(
-      autoWants({ ...calm, poolSmall: true }, offAll, new Set()).map(
-        (x) => `${x.id}:${x.to}`,
+      autoWants({ ...calm, poolSmall: true }, offAll, new Set()).filter(
+        (x) => x.id === 'aws.pgbouncer',
       ),
-    ).toEqual(['aws.pgbouncer:on']);
-    const on = () => 'on' as const;
-    expect(
-      autoWants({ ...calm, poolSmall: true }, on, new Set(['aws.pgbouncer'])),
     ).toEqual([]);
+    expect(
+      autoWants(
+        { ...calm, pressures: ['db_connections'] },
+        offAll,
+        new Set(),
+      ).map((x) => `${x.id}:${x.to}`),
+    ).toContain('aws.pgbouncer:on');
   });
 
   it('the search line comes from infra.search_engine_on_people (lowered for a check, then back)', () => {
@@ -410,14 +416,14 @@ describe('autoApplyOk', () => {
       ),
     ).toBe(false);
   });
-  it('13.11: switching off what live services connect to always waits for the owner', () => {
+  it('16.11: the pooler switch-off goes without a tap (the drain runs first; was 13.11 «waits»)', () => {
     const pgb = 'module.stack.module.pgbouncer[0]';
     const plan = [
       { address: `${pgb}.aws_ecs_service.this`, action: 'delete' },
       { address: `${pgb}.aws_security_group.svc`, action: 'delete' },
       { address: td, action: 'create-delete' },
     ];
-    expect(autoApplyOk('off', plan, 'aws.pgbouncer')).toBe(false);
+    expect(autoApplyOk('off', plan, 'aws.pgbouncer')).toBe(true);
     // owner rows 8 / 85: the read copies still go without a tap
     expect(
       autoApplyOk(
@@ -1304,13 +1310,26 @@ describe('rows 8 / 85 / 9 (prod 14.11): whole-stack plans and the search domain'
       'module.stack.aws_sns_topic.t: create in a switch-off',
       'module.stack.module.growth.aws_opensearch_domain.search[0]: update outside aws.rds_replicas',
     ]);
-    // the pooler's switch-off still waits for the owner (KNOWN_ERRORS 144)
+    // 16.11: the pooler's own service goes without a tap (drain first,
+    // KNOWN_ERRORS 182); the api service never does
     expect(
       autoApplyOk(
         'off',
         [
           {
             address: 'module.stack.module.pgbouncer[0].aws_ecs_service.this',
+            action: 'delete',
+          },
+        ],
+        'aws.pgbouncer',
+      ),
+    ).toBe(true);
+    expect(
+      autoApplyOk(
+        'off',
+        [
+          {
+            address: 'module.stack.module.ecs.aws_ecs_service.api',
             action: 'delete',
           },
         ],
