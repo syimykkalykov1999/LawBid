@@ -8,6 +8,7 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { AppSettingsService } from '../src/common/app-settings/app-settings.service';
+import { bumpConfigVersion } from '../src/modules/feature-flags/services/config-version';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { buildTranslationsWorkbookBuffer } from '../src/modules/i18n/xlsx/i18n-workbook.util';
@@ -102,6 +103,10 @@ describe('stage 6.6 — flags, config, localization, legal documents (e2e)', () 
       'config:app_config',
       'config:bootstrap:content',
     );
+    // Row 214: direct table writes, so the config version moves like after
+    // an admin save; otherwise a bootstrap copy cached for the old version
+    // in the shared Valkey is answered to the next suite.
+    await bumpConfigVersion(redis);
   });
 
   afterAll(async () => {
@@ -123,6 +128,10 @@ describe('stage 6.6 — flags, config, localization, legal documents (e2e)', () 
       'config:app_config',
       'config:bootstrap:content',
     );
+    // Row 214: direct table writes, so the config version moves like after
+    // an admin save; otherwise a bootstrap copy cached for the old version
+    // in the shared Valkey is answered to the next suite.
+    await bumpConfigVersion(redis);
     await app.close();
   });
 
