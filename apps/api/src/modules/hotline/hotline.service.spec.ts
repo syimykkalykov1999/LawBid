@@ -234,10 +234,10 @@ describe('hotline use cases (real Valkey)', () => {
     ).rejects.toMatchObject({ response: { code: 'VALIDATION_ERROR' } });
   });
 
-  it('UC 3: billing per plan — free for all (start) / included / add-on / unavailable / trial', async () => {
+  it('UC 3: access in the plan builder’s 3 modes — Вкл для всех (start) / По подписке (included, add-on, unavailable, trial) / Выкл для всех', async () => {
     if (!up) return;
     expect((await goLine('L1')).via).toBe('free');
-    cfg['hotline.free_for_all_enabled'] = false;
+    cfg['hotline.mode'] = 'by_subscription';
     await expect(goLine('L2')).rejects.toMatchObject({
       response: {
         code: 'ENTITLEMENT_REQUIRED',
@@ -252,6 +252,10 @@ describe('hotline use cases (real Valkey)', () => {
     expect((await goLine('L2')).via).toBe('trial');
     entitlementValues = { hotline: true };
     expect((await goLine('L3')).via).toBe('plan');
+    cfg['hotline.mode'] = 'off_for_all';
+    await expect(goLine('L4')).rejects.toMatchObject({
+      response: { details: { reason: 'off_for_all' } },
+    });
   });
 
   it('UC 4: client, no attorney on the line → waits; the disclosure shows the FIRST time only', async () => {

@@ -2,6 +2,7 @@ import Redis from 'ioredis';
 import { bucketOf, HotlineKeys, HotlineStore } from './hotline.store';
 
 const URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
+jest.setTimeout(60_000);
 
 /**
  * The matching scripts against a real Valkey / Redis (dev docker, CI service

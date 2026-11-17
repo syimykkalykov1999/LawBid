@@ -15,6 +15,7 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import {
   bandOf,
   hotlineCounterBandsFrom,
+  hotlineModeFrom,
   hotlineSettingsFrom,
   type HotlineSettings,
 } from '../../common/app-settings/hotline-settings';
@@ -404,7 +405,8 @@ export class HotlineService {
     return this.lineView(lw, via);
   }
 
-  /** «Бесплатно для всех» / plan / add-on / trial (hotline-access.ts). */
+  /** «Вкл для всех» / «По подписке» (plan, add-on, trial) / «Выкл для всех»
+   * (hotline-access.ts). */
   private async access(
     lw: string,
     s: HotlineSettings,
@@ -413,14 +415,15 @@ export class HotlineService {
     const trial = await this.redis.hgetall(this.k.trial(lw));
     let included = false;
     let addonPrice: number | null = null;
-    if (raw['hotline.free_for_all_enabled'] === false && this.entitlements) {
+    const mode = hotlineModeFrom(raw);
+    if (mode === 'by_subscription' && this.entitlements) {
       const e = (await this.entitlements.forUser(lw)).values;
       included = e[HOTLINE_ENTITLEMENT] === true;
       const p = e[HOTLINE_ADDON_PRICE_ENTITLEMENT];
       addonPrice = typeof p === 'number' ? p : null;
     }
     const decision = decideHotlineAccess({
-      freeForAll: raw['hotline.free_for_all_enabled'] !== false,
+      mode,
       included,
       addonPriceCents: addonPrice,
       addonActive: false,
