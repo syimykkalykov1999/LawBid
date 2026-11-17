@@ -32,6 +32,7 @@ import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { RateLimitService } from '../auth/services/rate-limit.service';
+import { loadSignatureImage, storeSignatureImage } from './signature-image';
 import { S3StorageService } from './storage/s3-storage.service';
 import { FileScanRunner } from './jobs/file-scan.runner';
 import { ScanHandoff } from './jobs/scan-handoff';
@@ -1653,6 +1654,20 @@ export class FilesService {
     const raw = this.config.get<string>('S3_OBJECT_LOCK_RETENTION_DAYS');
     const days = Number.parseInt(raw ?? '', 10);
     return Number.isFinite(days) && days > 0 ? days : 0;
+  }
+
+  /** CONTENT_MEDIA_VERIFY 17.11 №7: a drawn signature picture → the
+   * private documents bucket; returns the key kept on the row. */
+  storeSignatureImage(requestId: string, png: Buffer): Promise<string> {
+    return storeSignatureImage(this.storage, requestId, png);
+  }
+
+  /** The picture of a case signature row (object first, old bytes after). */
+  signatureImage(row: {
+    image_key?: string | null;
+    image_png?: Uint8Array | null;
+  }): Promise<Buffer | null> {
+    return loadSignatureImage(this.storage, row);
   }
 
   /** The bytes of a live, clean file (server-side reads: hashing a PDF

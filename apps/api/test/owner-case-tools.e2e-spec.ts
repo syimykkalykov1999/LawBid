@@ -9,6 +9,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { S3StorageService } from '../src/modules/files/storage/s3-storage.service';
+import { runSignatureBackfill } from '../src/modules/files/signature-image-backfill';
 import { CaseJournalService } from '../src/modules/journal/case-journal.service';
 import { CaseSigningService } from '../src/modules/cases/tools/case-signing.service';
 import type { RequestUser } from '../src/modules/auth/decorators/current-user.decorator';
@@ -50,6 +51,10 @@ class FakeS3 {
   put(bucket: string, key: string, body: Buffer): Promise<void> {
     this.objects.set(`${bucket}/${key}`, Buffer.from(body));
     return Promise.resolve();
+  }
+  head(bucket: string, key: string): Promise<{ size: number } | null> {
+    const b = this.objects.get(`${bucket}/${key}`);
+    return Promise.resolve(b ? { size: b.length } : null);
   }
   read(bucket: string, key: string): Promise<Buffer> {
     const b = this.objects.get(`${bucket}/${key}`);
@@ -543,6 +548,17 @@ describe('Case tools (e2e, 2026-10-20)', () => {
     expect(sig.doc_sha256).toBe(req.sourceSha256);
     expect(sig.ip).toBeTruthy();
 
+    // CMV 17.11 №7: the drawn picture is an object in the private documents
+    // bucket and the row keeps its key (the bytes stay one release, N-1).
+    const drawn = await prisma.caseSignature.findFirstOrThrow({
+      where: { request_id: req.id, signer_role: 'attorney' },
+    });
+    expect(drawn.image_key).toMatch(new RegExp(`^case-signatures/${req.id}/`));
+    expect(
+      s3.objects.get(`fake-documents/${drawn.image_key}`)?.toString('base64'),
+    ).toBe(PNG_B64);
+    expect(sig.image_key).toBeNull(); // typed: no picture
+
     // a signature is never changed or removed on its own
     await expect(
       prisma.caseSignature.update({
@@ -596,11 +612,56 @@ describe('Case tools (e2e, 2026-10-20)', () => {
         .status,
     ).toBe(409);
 
+    // CMV 17.11 №7 backfill: a row from before (bytes, no key) is copied to
+    // the bucket; the guard trigger lets exactly that change through; step 2
+    // (--clear) empties the bytes only where the object is there.
+    const old = await prisma.caseSignature.create({
+      data: {
+        request_id: req.id,
+        signer_id: randomUUID(),
+        signer_role: 'client',
+        signed_name: 'Old Row',
+        method: 'drawn',
+        image_png: new Uint8Array(Buffer.from(PNG_B64, 'base64')),
+        doc_sha256: req.sourceSha256,
+      },
+    });
+    const quiet = { clear: false, limit: 0, batch: 50, log: () => undefined };
+    const copied = await runSignatureBackfill(
+      { prisma, storage: s3 },
+      { ...quiet, apply: true },
+    );
+    expect(copied.failed).toBe(0);
+    const moved = await prisma.caseSignature.findUniqueOrThrow({
+      where: { id: old.id },
+    });
+    expect(moved.image_key).toMatch(/^case-signatures\//);
+    expect(
+      s3.objects.get(`fake-documents/${moved.image_key}`)?.toString('base64'),
+    ).toBe(PNG_B64);
+    const emptied = await runSignatureBackfill(
+      { prisma, storage: s3 },
+      { ...quiet, apply: true, clear: true },
+    );
+    expect(emptied.failed).toBe(0);
+    for (const id of [old.id, drawn.id]) {
+      const r = await prisma.caseSignature.findUniqueOrThrow({ where: { id } });
+      expect(r.image_png).toBeNull();
+      expect(r.image_key).toBeTruthy();
+    }
+    // …and nothing else may change, the key included
+    await expect(
+      prisma.caseSignature.update({
+        where: { id: old.id },
+        data: { image_key: 'case-signatures/other.png' },
+      }),
+    ).rejects.toThrow(/immutable/);
+
     // purging the document takes its signatures with it: the guard trigger
     // lets the cascade through (and only the cascade)
     expect(
       await prisma.caseSignature.count({ where: { request_id: req.id } }),
-    ).toBe(2);
+    ).toBe(3);
     await prisma.caseSignRequest.delete({ where: { id: req.id } });
     expect(
       await prisma.caseSignature.count({ where: { request_id: req.id } }),

@@ -463,6 +463,11 @@ export class DealRecordsService {
     }
     const name = dto.name.trim();
     const requestId = row.sign_request_id;
+    // CMV 17.11 №7: the picture goes to the private bucket before the row.
+    const imageKey = await this.files.storeSignatureImage(
+      requestId ?? id,
+      image,
+    );
     const audit = await this.signerAudit(user, meta);
     const chat: ChatChange[] = [];
     let accepted: { case_id: string } | null = null;
@@ -492,7 +497,9 @@ export class DealRecordsService {
               signer_role: role,
               signed_name: name,
               method: 'drawn',
+              // Step 1 of files/signature-image.ts: the object + the old bytes.
               image_png: new Uint8Array(image),
+              image_key: imageKey,
               doc_sha256:
                 row.sign_request?.source_sha256 ?? row.snapshot_sha256,
               ip: meta.ip?.slice(0, 64) ?? null,

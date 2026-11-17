@@ -3281,6 +3281,7 @@ erDiagram
     String signed_name
     String method
     Bytes image_png "nullable"
+    String image_key "nullable"
     String doc_sha256
     String ip "nullable"
     String user_agent "nullable"
