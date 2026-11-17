@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/features/chat/domain/chat_models.dart' show kMuteForever;
 
 /// One option of [showGroupChoiceSheet].
 class GroupChoice<T> {
@@ -81,6 +82,7 @@ class _ChoiceSheet<T> extends StatelessWidget {
             ),
             for (final c in choices) ...[
               AppListRow(
+                key: ValueKey('group-choice-${c.value}'),
                 icon: c.icon,
                 label: c.label,
                 subtitle: c.subtitle,
@@ -330,7 +332,7 @@ Duration? muteDuration(MuteChoice c) => switch (c) {
       MuteChoice.hour => const Duration(hours: 1),
       MuteChoice.hours8 => const Duration(hours: 8),
       MuteChoice.days2 => const Duration(days: 2),
-      MuteChoice.forever => const Duration(days: 3650),
+      MuteChoice.forever => kMuteForever,
       MuteChoice.off => null,
     };
 

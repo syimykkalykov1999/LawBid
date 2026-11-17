@@ -104,11 +104,12 @@ bool pickedFileReadable(int size, int maxBytes, {required bool image}) {
 
 /// A picture picked as a file (told by its first bytes): shrunk and
 /// rewritten as JPEG with [photos], else only its location dropped. Other
-/// files come back unchanged.
+/// files come back unchanged. [chroma420]: see [encodeRgbaJpeg].
 Future<PickedFileBytes> cleanPickedPicture(
   Uint8List bytes,
   String name, {
   PhotoLimits? photos,
+  bool chroma420 = false,
 }) async {
   final mime = sniffImageMime(bytes);
   // A GIF stays as it is (it may move); anything else is not a photo.
@@ -120,6 +121,7 @@ Future<PickedFileBytes> cleanPickedPicture(
     bytes,
     maxPx: photos.maxPx.round(),
     quality: photos.quality,
+    chroma420: chroma420,
   );
   if (identical(out, bytes)) {
     // Small enough already (or not decodable here): only the location goes.
