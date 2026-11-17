@@ -34,6 +34,14 @@ class AuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
+    // R2-A #10: the server half of a finished local sign-out carries its
+    // own token; the current session (maybe already another account) is
+    // not used.
+    if (options.extra[RequestFlags.bearer] case final String token) {
+      options.headers['Authorization'] = 'Bearer $token';
+      handler.next(options);
+      return;
+    }
     final initial = _ref.read(sessionControllerProvider);
     final skipAuth = options.extra[RequestFlags.skipAuth] == true;
     if (!skipAuth && initial != null && initial.awaitsRefresh) {
@@ -97,6 +105,10 @@ class AuthInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
+    if (err.requestOptions.extra[RequestFlags.bearer] is String) {
+      handler.next(err);
+      return;
+    }
     final apiError = ApiException.fromDioException(err);
     final alreadyRetried =
         err.requestOptions.extra['retriedAfterRefresh'] == true;

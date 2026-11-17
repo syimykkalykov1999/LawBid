@@ -1981,6 +1981,7 @@ export const OWNER_LEGAL_QA_SAFETY_SETTINGS = {
 
 import { OWNER_TEXT_LIMIT_SETTINGS } from './text-limits';
 import { OWNER_REALTIME_SETTINGS } from './realtime-settings';
+import { OWNER_HOTLINE_SETTINGS } from './hotline-settings';
 import { OWNER_STAFF_SETTINGS } from './staff-settings';
 import {
   OWNER_CHAT_PHOTO_SETTINGS,
@@ -2388,6 +2389,8 @@ export const APP_SETTINGS = {
   ...OWNER_TEXT_LIMIT_SETTINGS,
   ...OWNER_CACHE_SETTINGS,
   ...OWNER_REALTIME_SETTINGS,
+  // Owner row 87 (16.11): the call hotline numbers (flag `hotline` is the switch).
+  ...OWNER_HOTLINE_SETTINGS,
   ...OWNER_CLIENT_TUNING_SETTINGS,
   ...OWNER_CHAT_PHOTO_SETTINGS,
   ...OWNER_LEGAL_SECURITY_SETTINGS,
