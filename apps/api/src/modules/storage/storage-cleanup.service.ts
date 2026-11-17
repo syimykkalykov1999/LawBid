@@ -375,9 +375,14 @@ export class StorageCleanupService {
         AND NOT EXISTS (SELECT 1 FROM deal_records dr WHERE dr.unsigned_file_id = f.id OR dr.sealed_file_id = f.id OR dr.agreement_file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM case_sign_requests sr WHERE sr.source_file_id = f.id OR sr.final_file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM case_expenses ce WHERE ce.receipt_file_id = f.id)
-        AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.file_id = f.id)
+        -- Audit 17.11 (problem 1): a message deleted for everyone (1:1
+        -- revoked, group deleted) no longer holds its file.
+        AND NOT EXISTS (
+          SELECT 1 FROM messages m WHERE m.file_id = f.id AND m.revoked_at IS NULL)
         AND NOT EXISTS (SELECT 1 FROM chat_groups cg WHERE cg.avatar_file_id = f.id)
-        AND NOT EXISTS (SELECT 1 FROM chat_group_messages cgm WHERE cgm.file_id = f.id)
+        AND NOT EXISTS (
+          SELECT 1 FROM chat_group_messages cgm
+          WHERE cgm.file_id = f.id AND cgm.deleted_at IS NULL)
         AND NOT EXISTS (SELECT 1 FROM support_message_files smf WHERE smf.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM stickers s WHERE s.file_id = f.id)
         AND NOT EXISTS (
@@ -462,11 +467,11 @@ export class StorageCleanupService {
           UNION SELECT receipt_file_id::TEXT FROM case_expenses
             WHERE receipt_file_id = ANY(${ids}::UUID[])
           UNION SELECT file_id::TEXT FROM messages
-            WHERE file_id = ANY(${ids}::UUID[])
+            WHERE file_id = ANY(${ids}::UUID[]) AND revoked_at IS NULL
           UNION SELECT avatar_file_id::TEXT FROM chat_groups
             WHERE avatar_file_id = ANY(${ids}::UUID[])
           UNION SELECT file_id::TEXT FROM chat_group_messages
-            WHERE file_id = ANY(${ids}::UUID[])
+            WHERE file_id = ANY(${ids}::UUID[]) AND deleted_at IS NULL
           UNION SELECT file_id::TEXT FROM stories
             WHERE file_id = ANY(${ids}::UUID[]) AND deleted_at IS NULL
           UNION SELECT avatar_file_id::TEXT FROM channels

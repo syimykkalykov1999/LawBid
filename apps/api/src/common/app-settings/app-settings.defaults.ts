@@ -88,6 +88,12 @@ export const FILE_03_SETTINGS = {
   'profile.reply_time_min_chats': 3,
   // Voice messages and other files outside «Загрузки и файлы» (bug 17).
   'files.max_size_mb': 10,
+  // Audit 17.11 (problem 13): when the antivirus is down on a file's last
+  // try, the file stays waiting and is checked again every this-many
+  // minutes, for this-many hours after the upload (0 hours = `failed` at
+  // once, as before).
+  'files.scan_outage_retry_minutes': 5,
+  'files.scan_outage_retry_hours': 24,
 } as const;
 
 // docs/04_CASES_BIDS.md §14 (stage 4.1 migration also inserts it): after
@@ -1414,6 +1420,11 @@ export const OWNER_STORAGE_SETTINGS = {
    * scan worker through Redis (up to this many KB, for this many seconds),
    * so the worker does not read it from storage again. 0 KB = off. */
   'files.scan_handoff_max_kb': 8192,
+  /** Audit 17.11 (problem 11): from this many MB `confirm` reads only the
+   * first 256 KB (type) and the scan worker checks the hash and the inside;
+   * smaller files are read whole by the API for an answer on the spot.
+   * 0 = every file the light way (the API never holds a whole upload). */
+  'files.light_confirm_min_mb': 8,
   'files.scan_handoff_ttl_s': 120,
   /** Owner 2026-10-26: hash partitioning of the big chat / notification
    * tables starts by itself only at `partition.auto_rows` (50M rows; at small

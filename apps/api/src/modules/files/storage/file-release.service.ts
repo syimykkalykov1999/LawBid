@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
+import { isHeld } from '../../../common/privacy/legal-hold';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { derivedKeys } from '../files.policy';
 import { S3StorageService } from './s3-storage.service';
@@ -73,6 +74,42 @@ export class FileReleaseService {
     }
     const removedObjects = await this.purge(ids, now);
     return { released, removedObjects };
+  }
+
+  /**
+   * Privacy round 13 (S13-4), shared by the 1:1 chat and groups (audit
+   * 17.11, problem 1): the file of a message deleted for everyone leaves
+   * storage when no other live 1:1 or group message points at it and no
+   * legal hold covers it. [except] is the message being deleted (its row is
+   * already revoked / deleted, or about to be). Returns true when released.
+   */
+  async releaseMessageFile(
+    fileId: string,
+    except: { messageId?: string; groupMessageId?: string } = {},
+  ): Promise<boolean> {
+    const [others, groupOthers] = await Promise.all([
+      this.prisma.message.count({
+        where: {
+          file_id: fileId,
+          ...(except.messageId ? { id: { not: except.messageId } } : {}),
+          revoked_at: null,
+          deleted_at: null,
+        },
+      }),
+      this.prisma.chatGroupMessage.count({
+        where: {
+          file_id: fileId,
+          ...(except.groupMessageId
+            ? { id: { not: except.groupMessageId } }
+            : {}),
+          deleted_at: null,
+        },
+      }),
+    ]);
+    if (others + groupOthers > 0) return false;
+    if (await isHeld(this.prisma, 'file', fileId)) return false;
+    await this.release([fileId], 'released');
+    return true;
   }
 
   /**

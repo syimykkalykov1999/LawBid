@@ -7,6 +7,10 @@ import {
   assertUploadCount,
   sanitizeUploadLimits,
 } from './upload-limits';
+import {
+  configSchema,
+  validateConfigValue,
+} from '../admin-config/config-schema';
 
 /** Owner 2026-10-07 (bug 17): admin upload limits stay safe. */
 describe('upload limits', () => {
@@ -95,6 +99,26 @@ describe('the antivirus limit covers every upload ceiling', () => {
     );
     expect(ceiling).toBeGreaterThan(0);
     expect(scannerMb).toBeGreaterThanOrEqual(ceiling);
+  });
+
+  // Audit 17.11 (problem 12): voice notes, stickers and document templates
+  // have their own size settings; a value above the scanner let a file
+  // upload that could never be cleared or sent.
+  it.each([
+    'files.max_size_mb',
+    'files.sticker_max_size_mb',
+    'files.document_template_max_size_mb',
+  ])('%s cannot be set above the antivirus limit', (key) => {
+    const m = /variable "clamav_max_file_mb" \{[^}]*?default\s*=\s*(\d+)/.exec(
+      tf,
+    );
+    const scannerMb = Number(m![1]);
+    const schema = configSchema()[key];
+    expect(schema).toBeDefined();
+    expect(schema.max).toBeDefined();
+    expect(schema.max!).toBeLessThanOrEqual(scannerMb);
+    expect(validateConfigValue(schema, scannerMb + 1)).not.toBeNull();
+    expect(validateConfigValue(schema, 10)).toBeNull();
   });
 
   it('clamd and the worker read that same variable', () => {
