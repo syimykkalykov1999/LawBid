@@ -1242,6 +1242,11 @@ locals {
   # as its default minor (18.3) and refused as a downgrade of 18.6
   # (KNOWN_ERRORS 174).
   database_engine_version = split(".", var.database_engine_version)[0] == local.database_running_major ? var.database_engine_version : (length(data.aws_db_instance.primary) > 0 ? data.aws_db_instance.primary[0].engine_version : local.database_running_major)
+  # Owner row 196 (16.11): the class the primary really runs right now (read
+  # from AWS on every plan; db-autoscale changes it by itself). The one source
+  # of truth for its read copies and for a new extra server. A fresh stack
+  # (no primary yet) or a database that is not ours falls back as before.
+  database_live_class = length(data.aws_db_instance.primary) > 0 ? data.aws_db_instance.primary[0].db_instance_class : try(data.aws_db_instance.existing[0].db_instance_class, var.database_instance_class)
 }
 
 module "postgres" {
@@ -1298,7 +1303,7 @@ variable "db_shard_instance_class" {
 }
 
 locals {
-  db_shard_class = var.db_shard_instance_class != "" ? var.db_shard_instance_class : try(data.aws_db_instance.existing[0].db_instance_class, var.database_instance_class)
+  db_shard_class = var.db_shard_instance_class != "" ? var.db_shard_instance_class : local.database_live_class
 }
 
 module "postgres_shard" {
@@ -1360,11 +1365,11 @@ module "growth_shard" {
   has_source_db           = true
   event_loop_p99_alarm_ms = 0
 
-  rds_read_replicas             = var.growth.rds_read_replicas
-  rds_source_identifier         = module.postgres_shard[count.index].instance_id
-  rds_source_arn                = module.postgres_shard[count.index].arn
-  rds_replica_instance_class    = var.growth.rds_replica_instance_class
-  rds_primary_instance_class    = local.db_shard_class
+  rds_read_replicas     = var.growth.rds_read_replicas
+  rds_source_identifier = module.postgres_shard[count.index].instance_id
+  rds_source_arn        = module.postgres_shard[count.index].arn
+  # Row 196: a server's copies take that server's own current class.
+  rds_primary_instance_class    = module.postgres_shard[count.index].instance_class
   rds_replica_lag_alarm_seconds = var.growth.rds_replica_lag_alarm_s
   rds_subnet_group_name         = "${local.name}-db${count.index + 1}-postgres"
   rds_security_group_ids        = [module.postgres_shard[count.index].security_group_id]
