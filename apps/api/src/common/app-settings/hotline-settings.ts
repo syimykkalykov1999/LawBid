@@ -25,21 +25,21 @@ export const HOTLINE_SETTING_DEFS: readonly HotlineSettingDef[] = [
   },
   {
     key: 'hotline.heartbeat_sec',
-    default: 15,
+    default: 25,
     min: 2,
     labelRu:
-      'Горячая линия: как часто открытый раздел линии подтверждает серверу «я здесь», секунд',
+      'Горячая линия: как часто открытый раздел линии подтверждает серверу «я здесь» по уже открытому сокету, секунд (25 — бережёт батарею; без отдельного опроса)',
   },
   {
     key: 'hotline.presence_ttl_sec',
-    default: 45,
+    default: 60,
     min: 5,
     labelRu:
       'Горячая линия: адвокат без подтверждения столько секунд снят с линии (свернул приложение, пропала связь)',
   },
   {
     key: 'hotline.client_ttl_sec',
-    default: 45,
+    default: 60,
     min: 5,
     labelRu:
       'Горячая линия: клиент без связи столько секунд — его место в очереди снято (кроме тех, кто нажал «Сообщите, когда появится адвокат»)',
@@ -204,9 +204,9 @@ export const HOTLINE_SETTING_DEFS: readonly HotlineSettingDef[] = [
  * real keys; hotline-settings.spec.ts checks it matches the list. */
 export const OWNER_HOTLINE_SETTINGS = {
   'hotline.offer_timeout_sec': 10,
-  'hotline.heartbeat_sec': 15,
-  'hotline.presence_ttl_sec': 45,
-  'hotline.client_ttl_sec': 45,
+  'hotline.heartbeat_sec': 25,
+  'hotline.presence_ttl_sec': 60,
+  'hotline.client_ttl_sec': 60,
   'hotline.queue_max_wait_sec': 1800,
   'hotline.notify_max_wait_sec': 86_400,
   'hotline.notify_claim_sec': 60,

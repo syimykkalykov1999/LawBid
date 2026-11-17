@@ -36,10 +36,10 @@ describe('hotline settings (owner row 87, 16.11)', () => {
     }
   });
 
-  it('plan defaults: 10 s to answer, 15 s heartbeat, 3 languages, 80 chars; owner-pending ones are off (0)', () => {
+  it('plan defaults: 10 s to answer, 25 s heartbeat (battery), 3 languages, 80 chars; owner-pending ones are off (0)', () => {
     const s = hotlineSettingsFrom({});
     expect(s['hotline.offer_timeout_sec']).toBe(10);
-    expect(s['hotline.heartbeat_sec']).toBe(15);
+    expect(s['hotline.heartbeat_sec']).toBe(25);
     expect(s['hotline.max_languages']).toBe(3);
     expect(s['hotline.topic_max_chars']).toBe(80);
     // Owner 16.11 ~19:30: «Сообщите мне» — a 60 s claim, dropped after 3
@@ -72,8 +72,8 @@ describe('hotline settings (owner row 87, 16.11)', () => {
       'hotline.presence_ttl_sec': 1,
     });
     expect(s['hotline.offer_timeout_sec']).toBe(20);
-    expect(s['hotline.heartbeat_sec']).toBe(15);
-    expect(s['hotline.presence_ttl_sec']).toBe(45);
+    expect(s['hotline.heartbeat_sec']).toBe(25);
+    expect(s['hotline.presence_ttl_sec']).toBe(60);
   });
 
   it('every key is editable in the admin with a Russian label, no ceiling (owner «no limits»)', () => {
