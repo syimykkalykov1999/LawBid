@@ -32,7 +32,7 @@ Future<PhotoSaveResult> savePhoto(String url) async {
     );
     return PhotoSaveResult.saved;
   } on GalException catch (e) {
-    return e.type == GalExceptionType.accessDenied
+    return e.type == GalExceptionType.permissionDenied
         ? PhotoSaveResult.noAccess
         : PhotoSaveResult.failed;
   } on Object {
