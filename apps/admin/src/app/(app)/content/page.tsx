@@ -32,7 +32,7 @@ import {
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
-import { collectIds, dayBounds, type Noun } from '@/lib/bulk';
+import { dayBounds, type Noun } from '@/lib/bulk';
 import { useMe } from '@/lib/hooks';
 import { can } from '@/lib/rbac';
 import { CONTENT_STATUS, StatusPill } from '@/lib/labels';
@@ -54,6 +54,24 @@ const REVIEW_SORT = ['rating', 'attorney', 'client', 'case', 'status'] as const;
 /** Owner 2026-10-04: one bulk endpoint for posts, comments and reviews. */
 async function sendBulk(action: BulkAction, type: BulkType, ids: string[], reason: string) {
   return bulkData(await api.POST('/admin/content/bulk', { body: { action, type, ids, reason } }));
+}
+
+type ContentFilter = components['schemas']['AdminContentBulkFilterDto'];
+
+/** Row 179 B6: the ids or the list filter of one bulk call. */
+function bulkScope(sel: { byFilter: { count: number } | null; selected: ReadonlySet<string> }, action: BulkAction, type: BulkType, filter: ContentFilter) {
+  return {
+    ids: sel.byFilter ? [] : [...sel.selected],
+    count: sel.byFilter?.count,
+    sendAll: sel.byFilter
+      ? async (reason: string) => bulkData(await api.POST('/admin/content/bulk', { body: { action, type, filter, reason } }))
+      : undefined,
+  };
+}
+
+/** Row 179 B6: «select all by filter» — the server counts the list filter. */
+async function previewBulk(type: BulkType, filter: ContentFilter) {
+  return (await api.POST('/admin/content/bulk/preview', { body: { type, filter } })).data!.data;
 }
 
 const filterQuery = (f: ListFilter) => ({ authorId: f.author?.id, ...dayBounds(f.from, f.to) });
@@ -179,21 +197,14 @@ function Posts({ ask }: { ask: Ask }) {
   const canWrite = useCanModerate();
   const sel = useSelection(`${text}|${kind}|${onlyVideo}|${contentClass}|${filterKey(filter)}`);
   const bulk = useBulkRun();
-  const fetchPage = async (cursor: string | undefined) =>
-    (
-      await api.GET('/admin/content/posts', {
-        params: {
-          query: {
-            q: text || undefined,
-            kind: kind || undefined,
-            media: onlyVideo ? 'video' : undefined,
-            contentClass: contentClass || undefined,
-            cursor,
-            ...filterQuery(filter),
-          },
-        },
-      })
-    ).data!;
+  const listQuery = {
+    q: text || undefined,
+    kind: kind || undefined,
+    media: onlyVideo ? ('video' as const) : undefined,
+    contentClass: contentClass || undefined,
+    ...filterQuery(filter),
+  };
+  const fetchPage = async (cursor: string | undefined) => (await api.GET('/admin/content/posts', { params: { query: { ...listQuery, cursor } } })).data!;
   const q = useInfiniteQuery({
     queryKey: ['admin-posts', text, kind, onlyVideo, contentClass, filterKey(filter)],
     initialPageParam: undefined as string | undefined,
@@ -203,7 +214,7 @@ function Posts({ ask }: { ask: Ask }) {
   const onBulk = (action: BulkAction) => {
     const t = ACTION_TEXT[action];
     bulk.run({
-      ids: [...sel.selected],
+      ...bulkScope(sel, action, 'post', listQuery),
       verb: t.verb,
       doneVerb: t.done,
       noun: POSTS,
@@ -218,8 +229,9 @@ function Posts({ ask }: { ask: Ask }) {
   };
   const classify = useMutation({
     mutationFn: async (to: 'legal' | 'general' | 'auto') => {
+      // Row 179 B6: «all by filter» sends the posts filter.
       const r = await api.POST('/admin/content/posts/classify', {
-        body: { ids: [...sel.selected], contentClass: to },
+        body: sel.byFilter ? { filter: listQuery, contentClass: to } : { ids: [...sel.selected], contentClass: to },
       });
       if (r.error) throw r.error;
       return { to, done: r.data!.data.done.length };
@@ -286,20 +298,13 @@ function Posts({ ask }: { ask: Ask }) {
       {bulk.dialog}
       {canWrite ? (
         <BulkBar
-          selectedCount={sel.selected.size}
+          selectedCount={sel.count}
           noun={POSTS}
           onClear={sel.clear}
-          onSelectAll={async (cap) => {
-            const r = await collectIds(
-              async (c) => {
-                const p = await fetchPage(c);
-                return { data: p.data, nextCursor: p.meta?.nextCursor };
-              },
-              undefined,
-              cap,
-            );
-            sel.replace(r.ids);
-            return r.capped;
+          onSelectAll={async () => {
+            const p = await previewBulk('post', listQuery);
+            sel.selectFilter(p);
+            return p.capped;
           }}
         >
           <BulkActions actions={['remove', 'hide', 'restore']} pending={bulk.pending} onAction={onBulk} />
@@ -405,12 +410,10 @@ function Comments({ ask }: { ask: Ask }) {
   const canWrite = useCanModerate();
   const sel = useSelection(`${text}|${thread}|${filterKey(filter)}`);
   const bulk = useBulkRun();
+  const listQuery = { q: text || undefined, ...filterQuery(filter) };
+  const bulkType: BulkType = thread === 'case' ? 'case_comment' : 'comment';
   const fetchPage = async (cursor: string | undefined) =>
-    (
-      await api.GET('/admin/content/comments', {
-        params: { query: { q: text || undefined, thread, cursor, ...filterQuery(filter) } },
-      })
-    ).data!;
+    (await api.GET('/admin/content/comments', { params: { query: { ...listQuery, thread, cursor } } })).data!;
   const q = useInfiniteQuery({
     queryKey: ['admin-comments', text, thread, filterKey(filter)],
     initialPageParam: undefined as string | undefined,
@@ -420,13 +423,13 @@ function Comments({ ask }: { ask: Ask }) {
   const onBulk = (action: BulkAction) => {
     const t = ACTION_TEXT[action];
     bulk.run({
-      ids: [...sel.selected],
+      ...bulkScope(sel, action, bulkType, listQuery),
       verb: t.verb,
       doneVerb: t.done,
       noun: COMMENTS,
       danger: t.danger,
       description: t.describe('Выбранные комментарии'),
-      send: (ids, reason) => sendBulk(action, thread === 'case' ? 'case_comment' : 'comment', ids, reason),
+      send: (ids, reason) => sendBulk(action, bulkType, ids, reason),
       onDone: () => {
         sel.clear();
         void qc.invalidateQueries({ queryKey: ['admin-comments'] });
@@ -470,20 +473,13 @@ function Comments({ ask }: { ask: Ask }) {
       {bulk.dialog}
       {canWrite ? (
         <BulkBar
-          selectedCount={sel.selected.size}
+          selectedCount={sel.count}
           noun={COMMENTS}
           onClear={sel.clear}
-          onSelectAll={async (cap) => {
-            const r = await collectIds(
-              async (c) => {
-                const p = await fetchPage(c);
-                return { data: p.data, nextCursor: p.meta?.nextCursor };
-              },
-              undefined,
-              cap,
-            );
-            sel.replace(r.ids);
-            return r.capped;
+          onSelectAll={async () => {
+            const p = await previewBulk(bulkType, listQuery);
+            sel.selectFilter(p);
+            return p.capped;
           }}
         >
           <BulkActions actions={['remove', 'hide', 'restore']} pending={bulk.pending} onAction={onBulk} />
@@ -569,8 +565,8 @@ function Reviews({ ask }: { ask: Ask }) {
   const canWrite = useCanModerate();
   const sel = useSelection(`${text}|${filterKey(filter)}`);
   const bulk = useBulkRun();
-  const fetchPage = async (cursor: string | undefined) =>
-    (await api.GET('/admin/content/reviews', { params: { query: { q: text || undefined, cursor, ...filterQuery(filter) } } })).data!;
+  const listQuery = { q: text || undefined, ...filterQuery(filter) };
+  const fetchPage = async (cursor: string | undefined) => (await api.GET('/admin/content/reviews', { params: { query: { ...listQuery, cursor } } })).data!;
   const q = useInfiniteQuery({
     queryKey: ['admin-reviews', text, filterKey(filter)],
     initialPageParam: undefined as string | undefined,
@@ -580,7 +576,7 @@ function Reviews({ ask }: { ask: Ask }) {
   const onBulk = (action: BulkAction) => {
     const t = ACTION_TEXT[action];
     bulk.run({
-      ids: [...sel.selected],
+      ...bulkScope(sel, action, 'review', listQuery),
       verb: t.verb,
       doneVerb: t.done,
       noun: REVIEWS,
@@ -632,20 +628,13 @@ function Reviews({ ask }: { ask: Ask }) {
       {bulk.dialog}
       {canWrite ? (
         <BulkBar
-          selectedCount={sel.selected.size}
+          selectedCount={sel.count}
           noun={REVIEWS}
           onClear={sel.clear}
-          onSelectAll={async (cap) => {
-            const r = await collectIds(
-              async (c) => {
-                const p = await fetchPage(c);
-                return { data: p.data, nextCursor: p.meta?.nextCursor };
-              },
-              undefined,
-              cap,
-            );
-            sel.replace(r.ids);
-            return r.capped;
+          onSelectAll={async () => {
+            const p = await previewBulk('review', listQuery);
+            sel.selectFilter(p);
+            return p.capped;
           }}
         >
           <BulkActions actions={['hide', 'restore']} pending={bulk.pending} onAction={onBulk} />

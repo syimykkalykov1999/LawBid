@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import { OWNER_BULK_MAX } from '../../common/admin-bulk/admin-bulk';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -18,6 +18,8 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 import {
   POST_CONTENT_CLASSES,
@@ -26,6 +28,14 @@ import {
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
+
+/** A query flag: 'true' / 'false' (or a real boolean) → boolean. */
+const toBool = ({ value }: { value: unknown }) =>
+  value === 'true' || value === true
+    ? true
+    : value === 'false' || value === false
+      ? false
+      : value;
 
 export class AdminIdParamDto {
   @ApiProperty({ format: 'uuid' })
@@ -97,25 +107,74 @@ export class AdminPostsQueryDto extends AdminContentFilterQueryDto {
   contentClass?: PostContentClass;
 }
 
+/**
+ * Row 179 B6: the filter of a content list for «select all by filter» —
+ * the same fields the list takes (each type uses its own: posts `q, kind,
+ * media, contentClass`; comments `q`; reviews `q`; client reviews `q,
+ * status`; all `authorId, from, to`). No paging.
+ */
+export class AdminContentBulkFilterDto extends OmitType(
+  AdminContentFilterQueryDto,
+  ['cursor'] as const,
+) {
+  @ApiPropertyOptional({ enum: ['post', 'news'], enumName: 'AdminPostKind' })
+  @IsOptional()
+  @IsIn(['post', 'news'])
+  kind?: 'post' | 'news';
+
+  @ApiPropertyOptional({ enum: ['video'] })
+  @IsOptional()
+  @IsIn(['video'])
+  media?: 'video';
+
+  @ApiPropertyOptional({
+    enum: POST_CONTENT_CLASSES,
+    enumName: 'PostContentClass',
+  })
+  @IsOptional()
+  @IsIn(POST_CONTENT_CLASSES)
+  contentClass?: PostContentClass;
+
+  @ApiPropertyOptional({
+    enum: ['published', 'hidden', 'removed'],
+    enumName: 'AdminReviewStatus',
+  })
+  @IsOptional()
+  @IsIn(['published', 'hidden', 'removed'])
+  status?: 'published' | 'hidden' | 'removed';
+}
+
 export const ADMIN_POST_CLASS_ACTIONS = ['legal', 'general', 'auto'] as const;
 export type AdminPostClassAction = (typeof ADMIN_POST_CLASS_ACTIONS)[number];
 
 /** Owner 2026-10-05: moderation reclassifies posts. legal / general sticks
  * (the author's edits no longer change it); auto = back to the topic rule. */
 export class AdminClassifyPostsDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: [String],
     format: 'uuid',
+    minItems: 1,
     maxItems: OWNER_BULK_MAX,
     description:
-      'Staff: at most 200; the owner: any number (processed in chunks).',
+      'Exactly one of `ids` or `filter`. Staff: at most 200; the owner: any number (processed in chunks).',
   })
+  @ValidateIf((o: AdminClassifyPostsDto) => o.filter === undefined)
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(OWNER_BULK_MAX)
   @ArrayUnique()
   @IsUUID('all', { each: true })
-  ids!: string[];
+  ids?: string[];
+
+  @ApiPropertyOptional({
+    type: () => AdminContentBulkFilterDto,
+    description:
+      'Row 179 B6: «select all by filter» — the posts list filter; the server resolves the ids (staff: at most `admin.bulk_select_cap`).',
+  })
+  @ValidateIf((o: AdminClassifyPostsDto) => o.ids === undefined)
+  @ValidateNested()
+  @Type(() => AdminContentBulkFilterDto)
+  filter?: AdminContentBulkFilterDto;
 
   @ApiProperty({
     enum: ADMIN_POST_CLASS_ACTIONS,
@@ -417,6 +476,32 @@ export class ExportQueryDto {
   @IsOptional()
   @IsISO8601()
   to?: string;
+
+  @ApiPropertyOptional({
+    description: 'Case payments: only disputed ones (the «Споры» tab).',
+  })
+  @IsOptional()
+  @Transform(toBool)
+  @IsBoolean()
+  disputed?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Cases: true = only with an open report («Только с жалобами»), false = without one.',
+  })
+  @IsOptional()
+  @Transform(toBool)
+  @IsBoolean()
+  hasReports?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Cases: only with a deadline from today on («С датой»; today in `admin.report_timezone`).',
+  })
+  @IsOptional()
+  @Transform(toBool)
+  @IsBoolean()
+  withDeadline?: boolean;
 }
 
 export class ExportParamDto {
@@ -524,7 +609,31 @@ export class AdminBulkReasonDto extends AdminReasonDto {
   ids!: string[];
 }
 
-export class AdminBulkContentDto extends AdminBulkReasonDto {
+export class AdminBulkContentDto extends AdminReasonDto {
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    minItems: 1,
+    maxItems: OWNER_BULK_MAX,
+    description: `Exactly one of \`ids\` or \`filter\`. Staff: at most ${BULK_MAX}; the owner: any number (processed in chunks).`,
+  })
+  @ValidateIf((o: AdminBulkContentDto) => o.filter === undefined)
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(OWNER_BULK_MAX)
+  @IsUUID('all', { each: true })
+  ids?: string[];
+
+  @ApiPropertyOptional({
+    type: () => AdminContentBulkFilterDto,
+    description:
+      'Row 179 B6: «select all by filter» — the list filter of `type`; the server resolves the ids (staff: at most `admin.bulk_select_cap`) and audits the filter.',
+  })
+  @ValidateIf((o: AdminBulkContentDto) => o.ids === undefined)
+  @ValidateNested()
+  @Type(() => AdminContentBulkFilterDto)
+  filter?: AdminContentBulkFilterDto;
+
   @ApiProperty({
     enum: BULK_CONTENT_ACTIONS,
     enumName: 'AdminBulkContentAction',
@@ -543,6 +652,38 @@ export class AdminBulkSkippedDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ enum: ['not_found', 'invalid_state', 'failed'] })
   reason!: string;
+}
+
+/** Row 179 B6: how many rows a list filter matches, before the action. */
+export class AdminBulkFilterPreviewDto {
+  @ApiProperty({
+    type: 'integer',
+    description: 'Rows the action would touch (at most `cap`; no live count).',
+  })
+  matched!: number;
+  @ApiProperty({
+    description:
+      'More rows match than `cap`; the action touches the first `cap`.',
+  })
+  capped!: boolean;
+  @ApiProperty({
+    type: 'integer',
+    nullable: true,
+    description:
+      'The most one call touches for this admin (`admin.bulk_select_cap`); null = no cap (the owner).',
+  })
+  cap!: number | null;
+}
+
+export class AdminContentBulkPreviewDto {
+  @ApiProperty({ enum: BULK_CONTENT_TYPES, enumName: 'AdminBulkContentType' })
+  @IsIn(BULK_CONTENT_TYPES)
+  type!: BulkContentType;
+
+  @ApiProperty({ type: () => AdminContentBulkFilterDto })
+  @ValidateNested()
+  @Type(() => AdminContentBulkFilterDto)
+  filter!: AdminContentBulkFilterDto;
 }
 
 export class AdminBulkResultDto {

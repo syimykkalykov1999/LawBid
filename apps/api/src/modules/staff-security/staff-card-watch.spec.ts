@@ -2,7 +2,6 @@ import type { AppSettingsService } from '../../common/app-settings/app-settings.
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import { StaffAnomalyService } from './staff-anomaly.service';
 import { StaffCardWatch } from './staff-card-watch';
-import { utcDay } from './staff-security.util';
 
 function fake(stored: Record<string, unknown> = {}, lease: unknown = null) {
   const counters = new Map<string, number>();
@@ -61,7 +60,7 @@ describe('StaffCardWatch (staff package T11 detector counters)', () => {
     for (let i = 0; i < 8; i++) {
       await watch.noteOpened('a', { area: 'users', id: 'x' });
     }
-    const day = (await watch.readDay(utcDay())).get('a');
+    const day = (await watch.readDay(await watch.today())).get('a');
     // 8 cards in one minute with a limit of 5: one burst minute (counted once)
     expect(day).toMatchObject({ opened: 8, burst: 1, outside: 0 });
   });
@@ -80,13 +79,17 @@ describe('StaffCardWatch (staff package T11 detector counters)', () => {
       }),
       select: { id: true },
     });
-    expect((await on.watch.readDay(utcDay())).get('a')?.outside).toBe(1);
+    expect(
+      (await on.watch.readDay(await on.watch.today())).get('a')?.outside,
+    ).toBe(1);
   });
 
   it('holding the lease is not outside; a section without a queue is never outside', async () => {
     const held = fake({ 'staff.lease_enabled': true }, { id: 'l1' });
     await held.watch.noteOpened('a', { area: 'support', id: 'x' });
-    expect((await held.watch.readDay(utcDay())).get('a')?.outside).toBe(0);
+    expect(
+      (await held.watch.readDay(await held.watch.today())).get('a')?.outside,
+    ).toBe(0);
     const users = fake({ 'staff.lease_enabled': true }, null);
     await users.watch.noteOpened('a', { area: 'users', id: 'x' });
     expect(users.workLease.findFirst).not.toHaveBeenCalled();
@@ -115,7 +118,7 @@ describe('StaffCardWatch (staff package T11 detector counters)', () => {
       { staffAnomaly: { upsert } } as never,
       staff,
     );
-    const r = await svc.computeDay(utcDay());
+    const r = await svc.computeDay(await watch.today());
     expect(r).toMatchObject({ admins: 1, rows: 1 });
     expect(r.digest).toContain('слишком быстро');
     expect(upsert).toHaveBeenCalledWith(
