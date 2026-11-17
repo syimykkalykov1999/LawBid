@@ -162,8 +162,10 @@ locals {
   max_index = index(var.ladder, var.max_class)
 
   # Owner row 6 (13.11): the read copies modules/growth names `<db>-replica-N`
-  # follow the primary's class (handler.follow_replicas). Nothing else.
-  replica_arns = "${local.db_arn}-replica-*"
+  # follow the primary's class (handler.follow_replicas); row 196 (16.11):
+  # the admin button's `<db>-readreplica` too. Nothing else.
+  replica_arns       = "${local.db_arn}-replica-*"
+  button_replica_arn = "${local.db_arn}-readreplica"
 }
 
 resource "terraform_data" "check_ladder" {
@@ -258,7 +260,7 @@ data "aws_iam_policy_document" "lambda" {
   statement {
     sid       = "RdsThisDatabaseAndItsCopiesOnly"
     actions   = ["rds:DescribeDBInstances", "rds:ModifyDBInstance"]
-    resources = [local.db_arn, local.replica_arns]
+    resources = [local.db_arn, local.replica_arns, local.button_replica_arn]
   }
   statement {
     sid       = "MetricsNoResourceScope"

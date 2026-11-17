@@ -136,11 +136,17 @@ export class BidsController {
           params.caseId,
         )
       : null;
-    // The bid is the firm lawyer's: their licence, plan and limits.
+    // The bid is the firm lawyer's: their licence, plan and limits. Firms
+    // audit 16.11 (PR-1): it records who really sent it, and a member the
+    // owner sent as is told so.
     return this.bids.create(
       sender ? { ...user, sub: sender } : user,
       params.caseId,
       dto,
+      {
+        sentBy: user.assistant?.userId ?? user.sub,
+        firmOwnerId: sender && sender !== user.sub ? user.sub : null,
+      },
     );
   }
 

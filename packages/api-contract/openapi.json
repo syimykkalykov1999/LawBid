@@ -1433,6 +1433,73 @@
         ]
       }
     },
+    "/auth/logout-others": {
+      "post": {
+        "operationId": "logoutOthers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggedOutEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "R2-A #9 (Telegram «Terminate all other sessions»): every other session\nof the account ends; the caller's stays, so its web cookie stays too.\n`logout-all` keeps its old meaning for the apps already out there.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/wasnt-me": {
       "post": {
         "operationId": "wasntMe",
@@ -15788,6 +15855,16 @@
               }
             }
           },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "426": {
             "description": "Upgrade required: APP_UPDATE_REQUIRED",
             "content": {
@@ -15876,7 +15953,7 @@
             }
           },
           "409": {
-            "description": "Conflict: FIRM_ALREADY_MEMBER, FIRM_FULL",
+            "description": "Conflict: FIRM_ALREADY_MEMBER, FIRM_FULL, FEATURE_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -15954,6 +16031,16 @@
           },
           "404": {
             "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -16051,6 +16138,16 @@
               }
             }
           },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "426": {
             "description": "Upgrade required: APP_UPDATE_REQUIRED",
             "content": {
@@ -16137,6 +16234,16 @@
               }
             }
           },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "426": {
             "description": "Upgrade required: APP_UPDATE_REQUIRED",
             "content": {
@@ -16215,6 +16322,16 @@
           },
           "404": {
             "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
             "content": {
               "application/json": {
                 "schema": {
@@ -110196,6 +110313,16 @@
               "maximum": 100,
               "default": 50,
               "type": "number"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Only members whose name or @username matches (one page, no cursor).",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
             }
           }
         ],

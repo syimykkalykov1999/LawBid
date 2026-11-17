@@ -6,6 +6,7 @@ import {
   HaAutoService,
   wantedHa,
   haWindow,
+  shardHaSteps,
   type HaFacts,
 } from './ha-auto.service';
 
@@ -483,5 +484,144 @@ describe('HaAutoService: live test on minute settings', () => {
     const { svc, sent } = setup(0);
     await expect(svc.check()).resolves.toEqual([]);
     expect(sent).toEqual([]);
+  });
+});
+
+describe('row 203: the extra database servers follow the primary Multi-AZ', () => {
+  const shard = (id: string, multiAz: boolean, extra: object = {}) => ({
+    id,
+    multiAz,
+    available: true,
+    pending: false,
+    ...extra,
+  });
+
+  it('turning the primary on turns every single-zone server on', () => {
+    expect(
+      shardHaSteps(
+        base,
+        ['db_multi_az_on'],
+        [shard('s1', false), shard('s2', true)],
+      ),
+    ).toEqual([{ id: 's1', multiAz: true }]);
+  });
+
+  it('a primary already on brings a server created single-zone in line', () => {
+    expect(
+      shardHaSteps({ ...base, ...full }, [], [shard('s1', false)]),
+    ).toEqual([{ id: 's1', multiAz: true }]);
+  });
+
+  it('turning the primary off turns the servers off', () => {
+    expect(
+      shardHaSteps(
+        { ...quiet, ...full },
+        ['db_multi_az_off'],
+        [shard('s1', true)],
+      ),
+    ).toEqual([{ id: 's1', multiAz: false }]);
+  });
+
+  it('mode off, no primary facts, or a busy server: nothing', () => {
+    const s = [shard('s1', false)];
+    expect(
+      shardHaSteps({ ...base, mode: 'off' }, ['db_multi_az_on'], s),
+    ).toEqual([]);
+    expect(shardHaSteps({ ...base, db: null }, ['db_multi_az_on'], s)).toEqual(
+      [],
+    );
+    expect(
+      shardHaSteps(
+        base,
+        ['db_multi_az_on'],
+        [
+          shard('s1', false, { available: false }),
+          shard('s2', false, { pending: true }),
+        ],
+      ),
+    ).toEqual([]);
+  });
+
+  it('money holds adding in Авто, never removing', () => {
+    const money = { limited: true, budgetLeftUsd: null };
+    expect(
+      shardHaSteps({ ...base, ...full, money }, [], [shard('s1', false)]),
+    ).toEqual([]);
+    expect(
+      shardHaSteps(
+        { ...quiet, ...full, money },
+        ['db_multi_az_off'],
+        [shard('s1', true)],
+      ),
+    ).toEqual([{ id: 's1', multiAz: false }]);
+  });
+
+  it('service: the primary and its extra servers get Multi-AZ in one pass', async () => {
+    const vals: Record<string, number | string> = {
+      'ha.mode': 'on',
+      'infra.auto_check_minutes': 10,
+    };
+    const settings = {
+      number: jest.fn((k: string) => Promise.resolve(Number(vals[k] ?? 0))),
+      string: jest.fn((k: string) => Promise.resolve(String(vals[k] ?? ''))),
+    };
+    const redis = {
+      set: jest.fn(() => Promise.resolve('OK')),
+      get: jest.fn(() => Promise.resolve(null)),
+    };
+    const env: Record<string, string> = {
+      OPS_DB_INSTANCE: 'p',
+      OPS_DB_SHARD_INSTANCES: 'p-db1, p-db2,missing',
+    };
+    const svc = new HaAutoService(
+      { get: (k: string) => env[k] } as never,
+      redis as never,
+      settings as never,
+    );
+    const multi: Record<string, boolean> = {
+      p: false,
+      'p-db1': false,
+      'p-db2': true,
+    };
+    const modified: [string, boolean][] = [];
+    Object.assign(svc as object, {
+      cw: { send: jest.fn(() => Promise.resolve({ Datapoints: [] })) },
+      rds: {
+        send: jest.fn(
+          (cmd: {
+            constructor: { name: string };
+            input: Record<string, unknown>;
+          }) => {
+            const id = String(cmd.input.DBInstanceIdentifier);
+            if (cmd.constructor.name === 'DescribeDBInstancesCommand') {
+              if (!(id in multi)) {
+                return Promise.reject(new Error('DBInstanceNotFound'));
+              }
+              return Promise.resolve({
+                DBInstances: [
+                  { MultiAZ: multi[id], DBInstanceStatus: 'available' },
+                ],
+              });
+            }
+            modified.push([id, Boolean(cmd.input.MultiAZ)]);
+            return Promise.resolve({});
+          },
+        ),
+      },
+    });
+    await expect(svc.check()).resolves.toEqual([
+      'db_multi_az_on',
+      'db_shard_multi_az_on',
+    ]);
+    expect(modified).toEqual([
+      ['p', true],
+      ['p-db1', true],
+    ]);
+    // Only the primary's step is remembered for the 24 h guard.
+    const keys = redis.set.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(keys).toContain('ops:ha-auto:last:db');
+    expect(keys.filter((k) => k.startsWith('ops:ha-auto:last:'))).toEqual([
+      'ops:ha-auto:last:db',
+    ]);
   });
 });

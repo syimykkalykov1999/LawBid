@@ -1237,6 +1237,10 @@ class _DownButton extends StatelessWidget {
   }
 }
 
+/// Row 38: groups whose older page is already queued for the next frame
+/// (one request per frame however many rows near the top get built).
+final _olderQueued = <String>{};
+
 /// The messages, newest at the bottom; unsent ones below them; the day
 /// separators, the runs of one sender and the older pages.
 class _MessageList extends ConsumerWidget {
@@ -1354,6 +1358,19 @@ class _MessageList extends ConsumerWidget {
                     ),
                   ),
                 );
+              }
+              // Row 38 (Telegram): the older page is asked for a few rows
+              // before the oldest one (`client.load_ahead_rows`), not when
+              // the spinner shows; once per frame, like the 1:1 chat.
+              if (k >= messages.length - LoadAhead.rows &&
+                  state.hasMore &&
+                  !state.loadingMore &&
+                  state.error == null &&
+                  _olderQueued.add(detail.id)) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _olderQueued.remove(detail.id);
+                  onMore();
+                });
               }
               final m = messages[k];
               final older = k + 1 < messages.length ? messages[k + 1] : null;
