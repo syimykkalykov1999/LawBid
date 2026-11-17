@@ -6,6 +6,7 @@ import { Prisma, type File } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import type { PinoLogger } from 'nestjs-pino';
 import { FilesService } from './files.service';
+import { CONFIDENTIAL_PURPOSES } from './file-access.service';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { S3StorageService } from './storage/s3-storage.service';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -1345,6 +1346,25 @@ describe('confirm without reading a big file (R-252, files_confirm_light)', () =
     expect(t.read).toHaveBeenCalledTimes(1);
   });
 
+  // Audit 17.11 (problem 11): the 8 MB threshold is an admin number; 0 =
+  // even a small photo is never read whole by the API (nor kept in Valkey).
+  it('files.light_confirm_min_mb = 0: a small file takes the light path too', async () => {
+    const t = setup({ flag: true, size: MIB });
+    const settings = (
+      t.service as unknown as { settings: { number: jest.Mock } }
+    ).settings;
+    settings.number.mockImplementation((k: string) =>
+      Promise.resolve(k === 'files.light_confirm_min_mb' ? 0 : 10),
+    );
+    await t.service.confirm('u1', 'f1').catch(() => undefined);
+    expect(t.read).not.toHaveBeenCalled();
+    expect(t.readStart).toHaveBeenCalledTimes(1);
+    const row = (
+      t.create.mock.calls[0] as [{ data: Record<string, unknown> }]
+    )[0].data;
+    expect(row.source_sha256).toBeNull();
+  });
+
   it('the start shows another type: refused at once', async () => {
     const t = setup({
       flag: true,
@@ -1708,6 +1728,47 @@ describe('confidential file links (security & legal pass 2026-10-24)', () => {
     expect(access.recordViews).toHaveBeenCalledWith([
       expect.objectContaining({ id: 'c1', owner_user_id: 'owner' }),
     ]);
+  });
+
+  // Audit 17.11 (problem 16): voice notes lived a fixed hour and never
+  // reached the access journal.
+  it('voice notes take the same short link and reach the journal', async () => {
+    const { deps } = withFiles(900);
+    (deps.prisma.file as unknown as { findMany: jest.Mock }).findMany = jest
+      .fn()
+      .mockResolvedValue([
+        {
+          id: 'v1',
+          owner_user_id: 'owner',
+          purpose: 'chat_voice',
+          s3_bucket: 'documents',
+          s3_key: 'chat_voice/owner/v1',
+        },
+      ]);
+    const access = { recordViews: jest.fn().mockResolvedValue(undefined) };
+    const service = new FilesService(
+      deps.prisma as unknown as PrismaService,
+      deps.redis as unknown as Redis,
+      deps.storage as unknown as S3StorageService,
+      deps.settings as unknown as AppSettingsService,
+      deps.costGuard as unknown as CostGuardService,
+      deps.rateLimit as unknown as RateLimitService,
+      deps.config as unknown as ConfigService,
+      deps.scans as unknown as FileScanRunner,
+      deps.logger as unknown as PinoLogger,
+      deps.flags as never,
+      undefined,
+      undefined,
+      undefined,
+      access as never,
+    );
+    const urls = await service.voiceUrls(['v1']);
+    expect(urls.has('v1')).toBe(true);
+    expect(ttlOf(deps)).toBe(900);
+    expect(access.recordViews).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'v1', purpose: 'chat_voice' }),
+    ]);
+    expect(CONFIDENTIAL_PURPOSES.has('chat_voice')).toBe(true);
   });
 });
 

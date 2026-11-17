@@ -504,6 +504,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 2,
     max: 5000,
   };
+  out['groups.fanout_partitions'] = {
+    ...out['groups.fanout_partitions'],
+    description:
+      'Groups whose new messages are delivered at the same moment across all servers (default 64, was a fixed 8). Each is one queue: a group keeps its order inside it; every worker runs one consumer per queue. A larger number takes effect within a minute.',
+    min: 1,
+  };
   out['channels.max_owned'] = {
     ...out['channels.max_owned'],
     description: 'Most channels one person may own (0 = no cap).',
@@ -774,9 +780,21 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['files.confidential_url_ttl_sec'] = {
     ...out['files.confidential_url_ttl_sec'],
     description:
-      'Seconds a link to a case file, chat document or support attachment stays valid (60–3600, default 900). The app asks for a new link on every open and access is re-checked each time.',
+      'Seconds a link to a case file, chat document, voice note or support attachment stays valid (60–3600, default 900). The app asks for a new link on every open and access is re-checked each time.',
     min: 60,
     max: 3600,
+  };
+  out['files.scan_outage_retry_minutes'] = {
+    ...out['files.scan_outage_retry_minutes'],
+    description:
+      "Antivirus down on a file's last try: minutes until that file is checked again (default 5). The file waits and is never sent unchecked.",
+    min: 1,
+  };
+  out['files.scan_outage_retry_hours'] = {
+    ...out['files.scan_outage_retry_hours'],
+    description:
+      'Hours after the upload the check is repeated while the antivirus is down (default 24). 0 = as before: the file fails at once.',
+    min: 0,
   };
   out['files.access_log_enabled'] = {
     ...out['files.access_log_enabled'],
@@ -791,6 +809,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'KB of a small upload handed from confirm to the virus check through Valkey, so the worker does not read it from storage again (0 = off, default 8192, max 32768).',
     min: 0,
     max: 32_768,
+  };
+  out['files.light_confirm_min_mb'] = {
+    ...out['files.light_confirm_min_mb'],
+    description:
+      'MB from which confirm reads only the start of an upload (its type) and the scan worker checks the hash and the inside; smaller files are read whole by the API for an instant answer (default 8). 0 = every file the light way.',
+    min: 0,
   };
   out['files.scan_handoff_ttl_s'] = {
     ...out['files.scan_handoff_ttl_s'],
@@ -2179,6 +2203,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     max: 10_000,
   };
   moderationTuning(out);
+  // Audit 17.11 (problem 12): a file bigger than the antivirus takes
+  // (Terraform clamav_max_file_mb, 110) uploads but is never cleared and
+  // never sent, so these sizes stop at the largest upload ceiling instead of
+  // the generic 10 000 000 (upload-limits.spec checks both numbers).
+  for (const k of SCANNED_SIZE_SETTINGS) {
+    if (out[k]) out[k] = { ...out[k], min: 1, max: SCANNED_UPLOAD_MAX_MB };
+  }
   // Owner 14.11 «remove ALL limits for me»: the «Авто» numbers keep only
   // their technical floor (set above) and no ceiling — also not the one the
   // generic inference gives every number.
@@ -2187,6 +2218,16 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   }
   return out;
 }
+
+/** Audit 17.11 (problem 12): MB sizes of scanned uploads outside
+ * «Загрузки и файлы»; the ceiling equals the largest per-file ceiling there
+ * (upload-limits PLACE_SPECS, chat 100 MB) and stays under the scanner. */
+export const SCANNED_SIZE_SETTINGS: readonly string[] = [
+  'files.max_size_mb',
+  'files.sticker_max_size_mb',
+  'files.document_template_max_size_mb',
+];
+export const SCANNED_UPLOAD_MAX_MB = 100;
 
 /** Owner 14.11: «Авто» numbers without a ceiling (config-schema.no-limits.spec). */
 export const NO_CEILING: readonly string[] = [
