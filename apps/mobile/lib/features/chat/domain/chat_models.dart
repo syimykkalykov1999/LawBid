@@ -237,7 +237,19 @@ enum ChatFolder { primary, general }
 /// The chat list's sub-tabs: All · Primary · General · Cases · Waiting ·
 /// Requests (owner 2026-10-21: «Cases» = only the chats tied to a case).
 /// `archive` (owner 2026-10-20) is the Archive screen, never a pill.
-enum ChatListFolder { all, primary, general, cases, waiting, requests, archive }
+/// `groups` (owner 2026-11-16, WhatsApp «Группы» filter): only my group
+/// chats, read from the groups list on the phone, never sent to the server
+/// as a folder of direct chats; a pill only while «Группы в чатах» is on.
+enum ChatListFolder {
+  all,
+  groups,
+  primary,
+  general,
+  cases,
+  waiting,
+  requests,
+  archive,
+}
 
 // OQ-047: `attachment` — a photo or a document after acceptance.
 // Owner 2026-10-20: `contact` — a shared attorney card, `place` — an address.

@@ -285,18 +285,42 @@ AsyncValue<PaginatedList<Conversation>> chatsOrMemory(
 
 /// The «All» view of Chats: direct chats + my groups.
 final mergedChatListProvider =
-    Provider.autoDispose<AsyncValue<PaginatedList<ChatListEntry>>>(
-  (ref) => combineChatLists(
-    chatsOrMemory(
-      ref.watch(conversationsProvider),
-      ref.watch(chatListCacheProvider).memory,
-    ),
-    ref.watch(groupsProvider),
-    // Owner 2026-10-21: groups live in «Channels», not in the chat list.
-    withGroups: false,
+    Provider.autoDispose<AsyncValue<PaginatedList<ChatListEntry>>>((ref) {
+  final live = ref.watch(conversationsProvider);
+  final groups = ref.watch(groupsProvider);
+  // R-404 (a): the first frame draws the chats kept in memory at once; the
+  // groups (their saved page is still being read) join a moment later
+  // instead of holding the whole list on a skeleton.
+  final fromMemory = !live.hasValue && !live.hasError;
+  return combineChatLists(
+    chatsOrMemory(live, ref.watch(chatListCacheProvider).memory),
+    groups,
+    // Owner 2026-11-16 (chat-groups plan, step 4, WhatsApp): my groups are
+    // rows of the chat list next to the 1:1 chats while «Группы в чатах»
+    // is on (was: only in «Channels», owner 2026-10-21).
+    withGroups: ref.watch(groupsEnabledProvider) &&
+        (groups.hasValue || groups.hasError || !fromMemory),
     onePerPerson: true,
-  ),
-);
+  );
+});
+
+/// Owner 2026-11-16 (WhatsApp «Группы» filter): the «Группы» pill of Chats
+/// — only my groups, pinned first, then the newest activity. Read from the
+/// groups list already on the phone (no extra request).
+final groupChatListProvider =
+    Provider.autoDispose<AsyncValue<PaginatedList<ChatListEntry>>>((ref) {
+  if (!ref.watch(groupsEnabledProvider)) {
+    return const AsyncData(PaginatedList<ChatListEntry>(items: []));
+  }
+  return ref.watch(groupsProvider).whenData(
+        (g) => PaginatedList(
+          items: mergeChatList(const [], g.items),
+          nextCursor: g.nextCursor,
+          isLoadingMore: g.isLoadingMore,
+          loadMoreError: g.loadMoreError,
+        ),
+      );
+});
 
 /// R-404 (b): the case chats with one person, from the chats list already
 /// in memory (the live «All» list, else its memory copy) — no request. The
@@ -318,12 +342,25 @@ final caseChatsWithProvider =
 /// The Chats search: server-filtered chats + the loaded groups by title.
 final mergedChatSearchProvider = Provider.autoDispose
     .family<AsyncValue<PaginatedList<ChatListEntry>>, ChatSearchKey>(
-  (ref, key) => combineChatLists(
-    ref.watch(searchConversationsProvider(key)),
-    ref.watch(groupsProvider),
-    query: key.q,
-    withGroups: false,
-  ),
+  (ref, key) {
+    final groupsOn = ref.watch(groupsEnabledProvider);
+    // The «Группы» pill searches only the group titles on the phone.
+    if (key.folder == ChatListFolder.groups) {
+      return combineChatLists(
+        const AsyncData(PaginatedList<Conversation>(items: [])),
+        ref.watch(groupsProvider),
+        query: key.q,
+        withGroups: groupsOn,
+      );
+    }
+    return combineChatLists(
+      ref.watch(searchConversationsProvider(key)),
+      ref.watch(groupsProvider),
+      query: key.q,
+      // Owner 2026-11-16 (step 4): «Все» finds groups by title too.
+      withGroups: groupsOn && key.folder == ChatListFolder.all,
+    );
+  },
 );
 
 /// How many of my loaded groups have something unread (the badge on the
@@ -342,23 +379,32 @@ Future<void> refreshChatList(
   ChatSearchKey? search,
 }) async {
   ref.invalidate(chatFolderCountsProvider);
-  final chats = search == null
-      ? ref.read(conversationsProvider.notifier).refresh()
-      : ref.read(searchConversationsProvider(search).notifier).refresh();
-  final groups = search != null && search.folder != ChatListFolder.all
+  final onlyGroups = search?.folder == ChatListFolder.groups;
+  final chats = onlyGroups
+      ? Future<void>.value()
+      : search == null
+          ? ref.read(conversationsProvider.notifier).refresh()
+          : ref.read(searchConversationsProvider(search).notifier).refresh();
+  final groups = !_withGroups(search)
       ? Future<void>.value()
       : ref.read(groupsProvider.notifier).refresh().catchError((Object _) {});
   await Future.wait([chats, groups]);
 }
 
+/// Whether the list for [search] (null = «Все») has the groups in it.
+bool _withGroups(ChatSearchKey? search) =>
+    search == null ||
+    search.folder == ChatListFolder.all ||
+    search.folder == ChatListFolder.groups;
+
 /// Loads the next page of whichever list has one.
 void loadMoreChatList(WidgetRef ref, {ChatSearchKey? search}) {
   if (search == null) {
     ref.read(conversationsProvider.notifier).loadMore();
-  } else {
+  } else if (search.folder != ChatListFolder.groups) {
     ref.read(searchConversationsProvider(search).notifier).loadMore();
   }
-  if (search == null || search.folder == ChatListFolder.all) {
+  if (_withGroups(search)) {
     ref.read(groupsProvider.notifier).loadMore();
   }
 }
@@ -367,10 +413,10 @@ void loadMoreChatList(WidgetRef ref, {ChatSearchKey? search}) {
 void retryChatListMore(WidgetRef ref, {ChatSearchKey? search}) {
   if (search == null) {
     ref.read(conversationsProvider.notifier).retryLoadMore();
-  } else {
+  } else if (search.folder != ChatListFolder.groups) {
     ref.read(searchConversationsProvider(search).notifier).retryLoadMore();
   }
-  if (search == null || search.folder == ChatListFolder.all) {
+  if (_withGroups(search)) {
     ref.read(groupsProvider.notifier).retryLoadMore();
   }
 }

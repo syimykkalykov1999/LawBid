@@ -139,6 +139,9 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
               ?.items ??
           const [];
     }
+    if (_folder == ChatListFolder.groups) {
+      return ref.watch(groupChatListProvider).value?.items ?? const [];
+    }
     if (_folder == ChatListFolder.all) {
       // R-404 (b): a person's row stands for all the chats behind it.
       return <ChatListEntry>[
@@ -805,6 +808,11 @@ class ConversationsView extends ConsumerWidget {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final attorney = ref.watch(actsAsAttorneyProvider);
     final searching = query.isNotEmpty;
+    // «Группы в чатах» switched off while its pill was chosen: «Все».
+    final folder = this.folder == ChatListFolder.groups &&
+            !ref.watch(groupsEnabledProvider)
+        ? ChatListFolder.all
+        : this.folder;
     final archived = ref.watch(
       chatFolderCountsProvider.select((c) => c.value?.archived ?? 0),
     );
@@ -829,6 +837,24 @@ class ConversationsView extends ConsumerWidget {
       );
     } else if (folder == ChatListFolder.requests) {
       body = const MessageRequestsView();
+    } else if (folder == ChatListFolder.groups) {
+      // Owner 2026-11-16 (WhatsApp «Группы» filter): only my groups.
+      final n = ref.read(groupsProvider.notifier);
+      body = PagedListBody<ChatListEntry>(
+        value: ref.watch(groupChatListProvider),
+        t: t,
+        itemKey: (e) => e.id,
+        edgeToEdge: true,
+        itemBuilder: (context, e, _) => _entryRow(e),
+        animateChanges: true,
+        empty: AppEmptyState(
+          icon: AppIcons.groupsOutlined,
+          message: t.t('channel.empty.groups'),
+        ),
+        onRefresh: n.refresh,
+        onLoadMore: n.loadMore,
+        onRetryMore: n.retryLoadMore,
+      );
     } else if (folder == ChatListFolder.all) {
       // R-404 (c): the newest chats' first pages are read into memory while
       // the list is on screen, so a tap opens on the messages at once.
