@@ -15,7 +15,11 @@ import { UNREAD_CAP } from '../notifications/badges.service';
 import { unreadMessagesSql } from './group-unread.sql';
 import { isImageMime } from '../files/files.policy';
 import { FilesService } from '../files/files.service';
-import type { ChatAttachmentDto } from '../chat/chat.dto';
+import type {
+  ChatAttachmentDto,
+  ReactionDto,
+  VoiceNoteDto,
+} from '../chat/chat.dto';
 import { GROUP_ADMIN_RIGHTS } from './groups.dto';
 import type {
   GroupDto,
@@ -54,6 +58,28 @@ export function isAdminRole(role: GroupRoleName | null | undefined): boolean {
 }
 
 type PollRow = ChatGroupPoll & { options: ChatGroupPollOption[] };
+
+/** One emoji with how many chose it and whether [viewerId] did, per
+ * message, in the order each emoji was first chosen — the 1:1 chat's
+ * ReactionDto (ChatService.toMessage). */
+export function groupReactions(
+  rows: { message_id: string; user_id: string; emoji: string }[],
+  viewerId: string,
+): Map<string, ReactionDto[]> {
+  const out = new Map<string, ReactionDto[]>();
+  for (const r of rows) {
+    const list = out.get(r.message_id) ?? [];
+    const have = list.find((x) => x.emoji === r.emoji);
+    if (have) {
+      have.count += 1;
+      have.mine ||= r.user_id === viewerId;
+    } else {
+      list.push({ emoji: r.emoji, count: 1, mine: r.user_id === viewerId });
+    }
+    out.set(r.message_id, list);
+  }
+  return out;
+}
 
 /**
  * Rows → DTOs for group chats, a fixed number of queries per page
@@ -285,14 +311,33 @@ export class GroupPresenter {
     const fileIds = rows.flatMap((m) =>
       m.type === 'attachment' && m.file_id && !m.deleted_at ? [m.file_id] : [],
     );
-    const [urls, polls] = await Promise.all([
+    // Groups WhatsApp parity (voice): short signed links, as for 1:1 notes.
+    const voiceIds = rows.flatMap((m) =>
+      m.type === 'voice' && m.file_id && !m.deleted_at ? [m.file_id] : [],
+    );
+    const reactable = rows.filter((m) => !m.deleted_at && m.type !== 'system');
+    const [urls, voiceUrls, polls, reactionRows] = await Promise.all([
       this.files.attachmentUrls(fileIds),
+      this.files.voiceUrls(voiceIds),
       this.polls(
         rows.flatMap((m) => (m.type === 'poll' && !m.deleted_at ? [m.id] : [])),
         viewerId,
       ),
+      // Groups WhatsApp parity: the page's reactions in one query (the
+      // groups named, so only their hash partitions are read).
+      reactable.length
+        ? this.prisma.chatGroupMessageReaction.findMany({
+            where: {
+              message_id: { in: reactable.map((m) => m.id) },
+              group_id: { in: [...new Set(reactable.map((m) => m.group_id))] },
+            },
+            select: { message_id: true, user_id: true, emoji: true },
+            orderBy: { created_at: 'asc' },
+          })
+        : Promise.resolve([]),
     ]);
     const replyOf = new Map(replies.map((r) => [r.id, r]));
+    const reactionsOf = groupReactions(reactionRows, viewerId);
 
     return rows.map((m) => {
       const deleted = m.deleted_at !== null;
@@ -333,6 +378,17 @@ export class GroupPresenter {
           blurhash: f?.blurhash ?? null,
         };
       }
+      const voice: VoiceNoteDto | null =
+        m.type === 'voice' && !deleted
+          ? {
+              url: m.file_id ? (voiceUrls.get(m.file_id) ?? null) : null,
+              durationMs: m.duration_ms ?? 0,
+              waveform: m.waveform,
+              // A group has many listeners: no «played» dot (WhatsApp
+              // shows who played it in Message info).
+              listened: false,
+            }
+          : null;
       const pick = (ids: string[]) =>
         ids.flatMap((id) => {
           const p = people.get(id);
@@ -360,6 +416,7 @@ export class GroupPresenter {
         mentions: deleted ? [] : pick(m.mention_ids),
         mentionsMe: !deleted && m.mention_ids.includes(viewerId),
         attachment,
+        voice,
         poll: polls.get(m.id) ?? null,
         editedAt: m.edited_at,
         deleted,
@@ -367,6 +424,7 @@ export class GroupPresenter {
         expiresAt: m.expires_at,
         forwarded: m.forwarded && !deleted,
         forwardedFrom: m.forwarded && !deleted ? m.forwarded_from_name : null,
+        reactions: deleted ? [] : (reactionsOf.get(m.id) ?? []),
       };
     });
   }

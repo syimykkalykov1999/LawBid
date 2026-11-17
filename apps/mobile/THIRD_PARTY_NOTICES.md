@@ -175,6 +175,9 @@ drag and `CupertinoSheetRoute` release logic (`material/bottom_sheet.dart`,
 the Flutter cookbook "Create a shimmer loading effect" (docs.flutter.dev) in
 `lib/core/design_system/widgets/feedback/app_skeleton.dart`;
 `SpringSimulation` springs in `reply_swipe.dart` and `photo_gallery.dart`.
+Row 89 (2026-11-16): the drag-written `_moveController` of `Dismissible`
+(`widgets/dismissible.dart`), painted by a transition instead of
+`setState`, in `lib/features/chat/presentation/reply_swipe.dart`.
 Row 88, second part: the floating, snapping header of
 `RenderSliverFloatingPersistentHeader` / `FloatingHeaderSnapConfiguration`
 (`rendering/sliver_persistent_header.dart`) in
@@ -786,16 +789,16 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-## Web release assets: drift 2.35.3, sqlite3.dart 3.9.0 — MIT; flutter-passkeys 2.5.0 — BSD-3-Clause
+## Web release assets: drift 2.35.4, sqlite3.dart 3.9.1 — MIT; flutter-passkeys 2.5.0 — BSD-3-Clause
 
 Copied unmodified from the upstream GitHub releases (D1-22 / D1-24, 13.11;
 `scripts/ci/check-web-assets-lock.sh` checks the first two against the
 versions in `pubspec.lock`):
 
-- `web/drift_worker.js` — `drift-2.35.3/drift_worker.js`
+- `web/drift_worker.js` — `drift-2.35.4/drift_worker.js`
   (https://github.com/simolus3/drift/releases), SHA-256
-  `a54b81412d4c4ab56653bb9e4c02912b0820bb37e2bba00722ddef4d78083d4a`;
-- `web/sqlite3.wasm` — `sqlite3-3.9.0/sqlite3.wasm`
+  `48c950cd8e3bc3cddb34816c860e228be8832bef07a297c27e9907c057ff8162`;
+- `web/sqlite3.wasm` — `sqlite3-3.9.1/sqlite3.wasm` (the same bytes as 3.9.0)
   (https://github.com/simolus3/sqlite3.dart/releases; SQLite itself is in
   the public domain), SHA-256
   `e7451780e78c56ff864fe9317a0fbcd6aeb2e8de3beba7f5efd963202f7ec3d9`;

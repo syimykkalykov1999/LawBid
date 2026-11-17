@@ -36,6 +36,9 @@ GroupMessageDto _$GroupMessageDtoFromJson(
   attachment: json['attachment'] == null
       ? null
       : ChatAttachmentDto.fromJson(json['attachment'] as Map<String, dynamic>),
+  voice: json['voice'] == null
+      ? null
+      : VoiceNoteDto.fromJson(json['voice'] as Map<String, dynamic>),
   poll: json['poll'] == null
       ? null
       : PollDto.fromJson(json['poll'] as Map<String, dynamic>),
@@ -47,6 +50,9 @@ GroupMessageDto _$GroupMessageDtoFromJson(
       : DateTime.parse(json['expiresAt'] as String),
   forwarded: json['forwarded'] as bool?,
   forwardedFrom: json['forwardedFrom'] as String?,
+  reactions: (json['reactions'] as List<dynamic>?)
+      ?.map((e) => ReactionDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$GroupMessageDtoToJson(GroupMessageDto instance) =>
@@ -66,6 +72,7 @@ Map<String, dynamic> _$GroupMessageDtoToJson(GroupMessageDto instance) =>
       'mentions': instance.mentions.map((e) => e.toJson()).toList(),
       'mentionsMe': instance.mentionsMe,
       'attachment': ?instance.attachment?.toJson(),
+      'voice': ?instance.voice?.toJson(),
       'poll': ?instance.poll?.toJson(),
       'editedAt': ?instance.editedAt?.toIso8601String(),
       'deleted': instance.deleted,
@@ -73,4 +80,5 @@ Map<String, dynamic> _$GroupMessageDtoToJson(GroupMessageDto instance) =>
       'expiresAt': ?instance.expiresAt?.toIso8601String(),
       'forwarded': ?instance.forwarded,
       'forwardedFrom': ?instance.forwardedFrom,
+      'reactions': ?instance.reactions?.map((e) => e.toJson()).toList(),
     };

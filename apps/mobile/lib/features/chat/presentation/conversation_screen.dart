@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,12 +37,9 @@ import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
 import 'package:lawbid/features/chat/application/link_preview_providers.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/application/send_picked.dart';
-import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
-import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/disappearing.dart';
-import 'package:lawbid/features/chat/domain/hold_gesture.dart';
 import 'package:lawbid/features/chat/domain/message_groups.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
@@ -63,6 +59,7 @@ import 'package:lawbid/features/chat/presentation/link_preview_card.dart';
 import 'package:lawbid/features/chat/presentation/media_preview_screen.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart';
 import 'package:lawbid/features/chat/presentation/quick_replies_sheet.dart';
+import 'package:lawbid/features/chat/presentation/voice_hold.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/consultations/presentation/consultation_chat_card.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart'
@@ -2669,7 +2666,8 @@ class _Composer extends ConsumerStatefulWidget {
   ConsumerState<_Composer> createState() => _ComposerState();
 }
 
-class _ComposerState extends ConsumerState<_Composer> {
+class _ComposerState extends ConsumerState<_Composer>
+    with VoiceHoldRecorder<_Composer> {
   /// The field's text before the last change (a fresh «/» is told from a
   /// backspace that leaves one).
   String _lastText = '';
@@ -2693,53 +2691,21 @@ class _ComposerState extends ConsumerState<_Composer> {
     widget.focusNode.requestFocus();
   }
 
-  bool _recording = false;
-  bool _locked = false;
+  @override
+  String get voiceDraftKey => widget.draftKey;
 
-  /// Lock mode: recording paused (the bars freeze, preview is offered).
-  bool _paused = false;
+  @override
+  Future<void> sendVoiceRecording(VoiceRecording r) => widget.onVoice(r);
 
-  /// The finished file: a recording left here earlier, or the paused note
-  /// once it was played back (a resume is no longer possible then — the
-  /// file is closed).
-  VoiceRecording? _held;
-
-  /// The finger is on the mic. Starting the recorder takes a moment; a
-  /// quick tap may lift the finger before it runs — then nothing records.
-  bool _pressed = false;
-  Offset _drag = Offset.zero;
-
-  /// A start is in flight: a second press must not start the recorder again
-  /// (owner inbox 32: that reset the clock and the bars mid-note).
-  bool _starting = false;
-
-  /// «recording a voice message…» pings (no rebuilds: the clock and the
-  /// bars of the strip tick by themselves).
-  Timer? _tick;
-
-  /// The length shown while paused or for a held draft.
-  Duration _elapsed = Duration.zero;
-
-  // Owned by the composer: lives exactly as long as the chat screen.
-  final VoiceRecorder _rec = VoiceRecorder();
-  late final VoiceDrafts _drafts;
-  late final VoicePlayer _player;
+  @override
+  void voiceTyping(bool active, {bool voice = false}) =>
+      widget.onTyping(active, voice: voice);
 
   @override
   void initState() {
     super.initState();
-    // Resolved now: dispose cannot read providers.
-    _drafts = ref.read(voiceDraftsProvider.notifier);
-    _player = ref.read(voicePlayerProvider.notifier);
     // A recording left here (call came in, screen left) is back, paused.
-    final draft = _drafts.of(widget.draftKey);
-    if (draft != null) {
-      _held = draft;
-      _recording = true;
-      _locked = true;
-      _paused = true;
-      _elapsed = Duration(milliseconds: draft.durationMs);
-    }
+    voiceInit();
     _lastText = widget.controller.text;
     widget.controller.addListener(_watchSlash);
   }
@@ -2759,237 +2725,8 @@ class _ComposerState extends ConsumerState<_Composer> {
   @override
   void dispose() {
     widget.controller.removeListener(_watchSlash);
-    _tick?.cancel();
-    unawaited(_player.stopDraft());
-    unawaited(_saveDraft());
+    voiceDispose();
     super.dispose();
-  }
-
-  /// Leaving the chat or a call coming in must not throw a recording away:
-  /// it is closed into a file and waits in the composer.
-  Future<void> _saveDraft() async {
-    if (!_recording) {
-      await _rec.dispose();
-      return;
-    }
-    var r = _held;
-    if (r == null && _rec.recording) {
-      r = await _rec.stop();
-    }
-    if (r != null) {
-      _drafts.put(widget.draftKey, r);
-    } else if (_rec.recording) {
-      await _rec.cancel();
-    }
-    await _rec.dispose();
-  }
-
-  bool get _callBusy => _player.callBusy;
-
-  /// A call rings or starts while recording: the microphone belongs to the
-  /// call. The note is closed into a paused draft the user can send later.
-  Future<void> _onCall() async {
-    if (!_recording || _held != null) return;
-    _tick?.cancel();
-    final r = await _rec.stop();
-    if (!mounted) return;
-    if (r == null) {
-      setState(_reset);
-      return;
-    }
-    setState(() {
-      _held = r;
-      _locked = true;
-      _paused = true;
-      _elapsed = Duration(milliseconds: r.durationMs);
-    });
-  }
-
-  Future<void> _start() async {
-    if (_starting || _recording) return;
-    _starting = true;
-    try {
-      await _startRecording();
-    } finally {
-      _starting = false;
-    }
-  }
-
-  Future<void> _startRecording() async {
-    final t = ref.read(translatorProvider);
-    if (_callBusy) {
-      showAppSnackBar(context, t.t('chat.voice.duringCall'));
-      return;
-    }
-    // One note at a time: stop whatever is playing.
-    unawaited(_player.stop());
-    // ignore: unawaited_futures
-    AppHaptics.medium();
-    // The buzz is over before the microphone opens, so it is not recorded.
-    await Future<void>.delayed(const Duration(milliseconds: 130));
-    if (!mounted) return;
-    final ok = await _rec.start(
-      onCap: () => _finish(send: true),
-      quality: voiceQualityOf(ref.read(featureFlagsControllerProvider)),
-    );
-    if (!mounted) {
-      // Left the chat while the recorder started: close the microphone.
-      if (ok) unawaited(_rec.cancel());
-      return;
-    }
-    if (!ok) {
-      // Sweep C-c12 W7: in a browser the permission lives in the site
-      // settings, not the phone's (Telegram Web / WhatsApp Web).
-      showAppSnackBar(
-        context,
-        t.t(kIsWeb ? 'chat.voice.noMicWeb' : 'chat.voice.noMic'),
-      );
-      return;
-    }
-    if (!_pressed) {
-      // Released before the recorder started: a tap, not a hold.
-      await _rec.cancel();
-      if (mounted) showAppSnackBar(context, t.t('chat.voice.hold'));
-      return;
-    }
-    _pingTyping();
-    setState(() {
-      _recording = true;
-      _locked = false;
-      _paused = false;
-      _drag = Offset.zero;
-      _elapsed = Duration.zero;
-    });
-  }
-
-  void _pingTyping() {
-    _tick?.cancel();
-    // Owner 2026-10-20: the other side sees «recording a voice
-    // message…» (re-sent every ~2 s; it fades 5 s after the last one).
-    widget.onTyping(true, voice: true);
-    _tick = Timer.periodic(const Duration(seconds: 2), (_) {
-      if (mounted) widget.onTyping(true, voice: true);
-    });
-  }
-
-  /// Back to an empty composer.
-  void _reset() {
-    if (_recording) widget.onTyping(false);
-    _drafts.clear(widget.draftKey);
-    _held = null;
-    _recording = false;
-    _locked = false;
-    _paused = false;
-    _drag = Offset.zero;
-  }
-
-  Future<void> _finish({required bool send}) async {
-    if (!_recording) return;
-    _tick?.cancel();
-    await _player.stop();
-    // Leaving the chat saves the note as a draft (dispose); nothing to do.
-    if (!mounted) return;
-    final held = _held;
-    setState(_reset);
-    if (!send) {
-      // ignore: unawaited_futures
-      AppHaptics.light();
-      if (held != null) {
-        await deleteVoiceFile(held.path);
-      } else {
-        await _rec.cancel();
-      }
-      return;
-    }
-    final r = held ?? await _rec.stop();
-    if (!mounted) return;
-    if (r == null) {
-      showAppSnackBar(
-        context,
-        ref.read(translatorProvider).t('chat.voice.hold'),
-      );
-      return;
-    }
-    // ignore: unawaited_futures
-    AppHaptics.light();
-    await widget.onVoice(r);
-  }
-
-  /// Lock mode: pause — the bars freeze, play-back and resume appear.
-  Future<void> _pauseRec() async {
-    await _rec.pause();
-    _tick?.cancel();
-    if (!mounted) return;
-    setState(() {
-      _paused = true;
-      _elapsed = _rec.elapsed;
-    });
-  }
-
-  Future<void> _resumeRec() async {
-    if (_held != null) return;
-    await _player.stop();
-    await _rec.resume();
-    if (!mounted) return;
-    _pingTyping();
-    setState(() => _paused = false);
-  }
-
-  /// Plays the paused note (closes the file the first time) through the
-  /// app's one voice player: same fades, never two sounds at once.
-  Future<void> _togglePreview() async {
-    if (_callBusy) {
-      showAppSnackBar(
-        context,
-        ref.read(translatorProvider).t('chat.voice.duringCall'),
-      );
-      return;
-    }
-    final r = _held ?? await _rec.stop();
-    if (!mounted) return;
-    if (r == null) {
-      showAppSnackBar(
-        context,
-        ref.read(translatorProvider).t('chat.voice.hold'),
-      );
-      return;
-    }
-    setState(() => _held = r);
-    await _player.toggleLocal(r.path, r.durationMs);
-  }
-
-  Future<void> _seekPreview(double f) async {
-    final h = _held;
-    if (h == null) return;
-    final playback = ref.read(voicePlayerProvider);
-    if (playback.messageId != kVoiceDraftId) await _togglePreview();
-    await _player.seekTo(Duration(milliseconds: (h.durationMs * f).round()));
-  }
-
-  Future<void> _sendLocked() async {
-    final h = _held;
-    if (h == null) return _finish(send: true);
-    _tick?.cancel();
-    await _player.stop();
-    if (!mounted) return;
-    setState(_reset);
-    // ignore: unawaited_futures
-    AppHaptics.light();
-    await widget.onVoice(h);
-  }
-
-  void _onMove(PointerMoveEvent e) {
-    if (!_recording || _locked) return;
-    setState(() => _drag += e.delta);
-    switch (HoldGesture.classify(_drag)) {
-      case HoldOutcome.cancel:
-        unawaited(_finish(send: false));
-      case HoldOutcome.lock:
-        // No buzz here: the microphone is open and would record it.
-        setState(() => _locked = true);
-      case HoldOutcome.none:
-        break;
-    }
   }
 
   @override
@@ -2998,13 +2735,7 @@ class _ComposerState extends ConsumerState<_Composer> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final motion = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
-    ref.listen(callControllerProvider.select((c) => c.phase), (_, phase) {
-      if (phase != CallPhase.idle) unawaited(_onCall());
-    });
-    final playback = ref.watch(voicePlayerProvider);
-    final onDraft = playback.messageId == kVoiceDraftId;
-    final previewPlaying = onDraft && playback.playing;
-    final previewAt = onDraft ? playback.position : Duration.zero;
+    voiceWatchCalls();
 
     // Owner 2026-10-15: the counter shows up near the limit (Telegram).
     // Owner 2026-10-19: inside the field, bottom right.
@@ -3080,23 +2811,7 @@ class _ComposerState extends ConsumerState<_Composer> {
       },
     );
 
-    final recordingRow = VoiceRecordingBar(
-      source: _rec,
-      locked: _locked,
-      paused: _paused,
-      pausedAt: previewAt > Duration.zero ? previewAt : _elapsed,
-      previewPlaying: previewPlaying,
-      waveform: _held?.waveform ?? _rec.waveformNow,
-      progress: _held == null || _held!.durationMs == 0
-          ? 0
-          : previewAt.inMilliseconds / _held!.durationMs,
-      onSeek: _held == null ? null : _seekPreview,
-      slideOpacity: HoldGesture.slideOpacity(_drag),
-      onCancel: () => _finish(send: false),
-      onTogglePreview: _togglePreview,
-      onPause: _pauseRec,
-      onResume: _held == null ? _resumeRec : null,
-    );
+    final recordingRow = voiceRecordingBar();
 
     Widget circle({
       required IconData icon,
@@ -3147,7 +2862,7 @@ class _ComposerState extends ConsumerState<_Composer> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                if (widget.onAttach != null && !_recording)
+                if (widget.onAttach != null && !voiceRecording)
                   Padding(
                     padding: EdgeInsets.zero,
                     child: AppIconButton(
@@ -3162,7 +2877,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                 Expanded(
                   child: AnimatedSwitcher(
                     duration: motion,
-                    child: _recording ? recordingRow : field,
+                    child: voiceRecording ? recordingRow : field,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.xs),
@@ -3170,7 +2885,7 @@ class _ComposerState extends ConsumerState<_Composer> {
                   valueListenable: widget.controller,
                   builder: (context, v, _) {
                     final hasText = v.text.trim().isNotEmpty;
-                    if (hasText && !_recording) {
+                    if (hasText && !voiceRecording) {
                       return AppPressable(
                         onTap: widget.onSend,
                         child: circle(
@@ -3180,9 +2895,9 @@ class _ComposerState extends ConsumerState<_Composer> {
                         ),
                       );
                     }
-                    if (_locked) {
+                    if (voiceLocked) {
                       return AppPressable(
-                        onTap: _sendLocked,
+                        onTap: voiceSendLocked,
                         child: circle(
                           icon: AppIcons.arrowUpwardRounded,
                           on: true,
@@ -3191,62 +2906,13 @@ class _ComposerState extends ConsumerState<_Composer> {
                       );
                     }
                     // Hold-to-record mic; a lock hint floats above it.
-                    final mic = Stack(
-                      clipBehavior: Clip.none,
-                      alignment: Alignment.bottomCenter,
-                      children: [
-                        if (_recording)
-                          Positioned(
-                            bottom: AppSizes.touchTarget + 16,
-                            child: Opacity(
-                              opacity: HoldGesture.lockHintOpacity(_drag),
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: colors.surface,
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadii.pill),
-                                  border: Border.all(color: colors.border),
-                                ),
-                                child: AppIcon(
-                                  AppIcons.lockOutlineRounded,
-                                  size: 18,
-                                  color: colors.iconTint,
-                                ),
-                              ),
-                            ),
-                          ),
-                        Listener(
-                          onPointerDown: (_) {
-                            _pressed = true;
-                            unawaited(_start());
-                          },
-                          onPointerMove: _onMove,
-                          onPointerUp: (_) {
-                            _pressed = false;
-                            if (!_locked) unawaited(_finish(send: true));
-                          },
-                          onPointerCancel: (_) {
-                            _pressed = false;
-                            if (!_locked) unawaited(_finish(send: false));
-                          },
-                          child: Transform.translate(
-                            offset: _recording && !_locked
-                                ? Offset(math.min(0, _drag.dx) * 0.5, 0)
-                                : Offset.zero,
-                            child: circle(
-                              icon: AppIcons.micRounded,
-                              on: true,
-                              label: t.t('chat.voice.record'),
-                              scale: _recording ? 1.25 : 1,
-                            ),
-                          ),
-                        ),
-                      ],
+                    final mic = voiceMic(
+                      circle: circle,
+                      label: t.t('chat.voice.record'),
                     );
                     // Owner 2026-10-22 (WhatsApp): the camera beside the mic
                     // while the field is empty.
-                    if (widget.onCamera == null || _recording) return mic;
+                    if (widget.onCamera == null || voiceRecording) return mic;
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [

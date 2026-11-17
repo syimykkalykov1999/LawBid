@@ -134,9 +134,13 @@ export const envSchema = z
     // enabled" group; every client becomes an ioredis Cluster, BullMQ queues
     // get a {queue} hash tag, Socket.IO is forced to the sharded adapter.
     REDIS_CLUSTER: envBoolean(false),
-    // Redis hardening (S6): ioredis auto-pipelining on REDIS_CLIENT (verify in
-    // the load test; false = old behaviour) and an optional single BullMQ
-    // hash-tag prefix for cluster mode (default: one `{queue}` tag each).
+    // Redis hardening (S6): ioredis auto-pipelining on REDIS_CLIENT and an
+    // optional single BullMQ hash-tag prefix for cluster mode (default: one
+    // `{queue}` tag each). OFF by default (KNOWN_ERRORS 194, 17.11): on, it
+    // was 1.7x faster on a cache burst (126.6 -> 73.8 ms), but the e2e suites
+    // owner-channel-calls / owner-crash-reports failed and ran 3-8x longer,
+    // also after the pub/sub and shutdown fixes. Turn on only with the whole
+    // e2e matrix green.
     REDIS_AUTOPIPELINE: envBoolean(false),
     REDIS_BULL_PREFIX: z.preprocess(blankToUndefined, z.string().optional()),
     // Local docker cluster only: JSON natMap for announced addresses.

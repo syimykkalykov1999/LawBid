@@ -40,6 +40,12 @@ replaced, uharfbuzz (Apache-2.0) shapes ~31 000 texts at 9 weights in the
 upstream file and in the web copy and the job fails on any difference in
 glyph outline, cluster, advance or offset. Needs: pip install
 fonttools==4.68.0 uharfbuzz==0.57.0.
+Row 128 (2026-11-17): with the FontManifest.json path as a third argument
+  tool/slim_fonts.py web build/web/assets/assets/fonts build/web/assets/FontManifest.json
+the web copies are written as WOFF2 (fontTools; needs brotli==1.2.1 too),
+the .ttf copies are removed and the manifest names the .woff2 files.
+Brotli of the .ttf 253 653 B -> WOFF2 234 000 B. Each file is decoded back
+and must give the same tables and glyphs, else the job fails.
 """
 import io
 import sys
@@ -168,10 +174,72 @@ def _shape_all(data: bytes, cps: list[int], corpus, weight: int) -> list:
     return out
 
 
-def web(fonts_dir: str) -> None:
+def _same_glyph(a, b) -> bool:
+    """The glyph a rasteriser sees: points, on-curve and overlap flags,
+    contours, components, instructions, bounding box."""
+    if a.numberOfContours != b.numberOfContours:
+        return False
+    for attr in ('xMin', 'yMin', 'xMax', 'yMax'):
+        if getattr(a, attr, None) != getattr(b, attr, None):
+            return False
+    if a.isComposite():
+        ca = [(c.glyphName, c.x, c.y, c.flags, getattr(c, 'transform', None)) for c in a.components]
+        cb = [(c.glyphName, c.x, c.y, c.flags, getattr(c, 'transform', None)) for c in b.components]
+        if ca != cb:
+            return False
+    elif a.numberOfContours > 0:
+        if (list(a.coordinates) != list(b.coordinates)
+                or list(a.endPtsOfContours) != list(b.endPtsOfContours)
+                or [f & 0x41 for f in a.flags] != [f & 0x41 for f in b.flags]):
+            return False
+    pa = a.program.getBytecode() if hasattr(a, 'program') else b''
+    pb = b.program.getBytecode() if hasattr(b, 'program') else b''
+    return pa == pb
+
+
+def _woff2(name: str, slim: bytes) -> bytes:
+    """Row 128 (2026-11-17): the web copy as WOFF2 (fontTools, MIT: the
+    glyf / loca transform and Brotli of the W3C WOFF2 format), ~8 % fewer
+    bytes than the Brotli of the .ttf. The web engine decodes WOFF2 itself
+    (its own Noto fallback fonts are .woff2 and go through the same
+    MakeFreeTypeFaceFromData / typefaceCreate call as our assets). Proof,
+    not trust: the file is decoded back and every table must be the same,
+    glyph by glyph for glyf, field by field for head / hmtx."""
+    f = TTFont(io.BytesIO(slim), recalcTimestamp=False)
+    f.flavor = 'woff2'
+    buf = io.BytesIO()
+    f.save(buf)
+    packed = buf.getvalue()
+    a, b = TTFont(io.BytesIO(slim)), TTFont(io.BytesIO(packed))
+    order = a.getGlyphOrder()
+    if order != b.getGlyphOrder() or sorted(a.keys()) != sorted(b.keys()):
+        sys.exit(f'{name}: WOFF2 changed the glyph order or the tables')
+    for tag in a.keys():
+        if tag in ('GlyphOrder', 'head', 'glyf', 'loca', 'hmtx'):
+            continue
+        if a.getTableData(tag) != b.getTableData(tag):
+            sys.exit(f'{name}: WOFF2 changed table {tag}')
+    ha, hb = vars(a['head']).copy(), vars(b['head']).copy()
+    for h in (ha, hb):
+        h.pop('checkSumAdjustment', None)
+        h['flags'] = h.get('flags', 0) & ~0x800  # "lossless transform" bit
+    if ha != hb:
+        sys.exit(f'{name}: WOFF2 changed head')
+    if a['hmtx'].metrics != b['hmtx'].metrics:
+        sys.exit(f'{name}: WOFF2 changed hmtx')
+    ga, gb = a['glyf'], b['glyf']
+    for g in order:
+        if not _same_glyph(ga[g], gb[g]):
+            sys.exit(f'{name}: WOFF2 changed glyph {g}')
+    return packed
+
+
+def web(fonts_dir: str, manifest: str | None = None) -> None:
+    import json
     import os
 
     corpus = _web_corpus()
+    renamed: dict[str, str] = {}
     for name in ('Inter-Variable.ttf', 'SourceSerif4-Variable.ttf'):
         path = os.path.join(fonts_dir, name)
         with open(path, 'rb') as fh:
@@ -211,18 +279,46 @@ def web(fonts_dir: str) -> None:
         for w in WEB_WEIGHTS:
             if _shape_all(original, cmap, corpus, w) != _shape_all(slim, cmap, corpus, w):
                 sys.exit(f'{name}: shaping differs from upstream at wght {w}')
-        with open(path, 'wb') as fh:
-            fh.write(slim)
+        data = slim
+        if manifest:
+            data = _woff2(name, slim)
+            woff2 = name[:-len('.ttf')] + '.woff2'
+            with open(os.path.join(fonts_dir, woff2), 'wb') as fh:
+                fh.write(data)
+            os.remove(path)
+            renamed[name] = woff2
+        else:
+            with open(path, 'wb') as fh:
+                fh.write(slim)
         print(
             f'{name}: opsz pinned at {opsz:g}, {len(src.getGlyphOrder())} -> '
-            f'{len(out.getGlyphOrder())} glyphs, {before} -> {len(slim)} bytes, '
+            f'{len(out.getGlyphOrder())} glyphs, {before} -> {len(slim)} bytes'
+            f'{f" (WOFF2 {len(data)}, decodes to the same tables)" if manifest else ""}, '
             f'{len(cmap) + len(corpus)} texts x {len(WEB_WEIGHTS)} weights shape the same'
         )
+    if manifest:
+        # The engine loads exactly the files FontManifest.json names.
+        with open(manifest, encoding='utf-8') as fh:
+            families = json.load(fh)
+        hits = 0
+        for family in families:
+            for font in family.get('fonts', []):
+                base = font['asset'].rsplit('/', 1)[-1]
+                if base in renamed:
+                    font['asset'] = font['asset'][: -len(base)] + renamed[base]
+                    hits += 1
+        if hits == 0 or any(
+            f['asset'].endswith(tuple(renamed)) for fam in families for f in fam.get('fonts', [])
+        ):
+            sys.exit(f'{manifest}: the text fonts were not renamed to .woff2')
+        with open(manifest, 'w', encoding='utf-8') as fh:
+            json.dump(families, fh, separators=(',', ':'))
+        print(f'{manifest}: {hits} font entries now name the .woff2 files')
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 3 and sys.argv[1] == 'web':
-        web(sys.argv[2])
+    if len(sys.argv) in (3, 4) and sys.argv[1] == 'web':
+        web(sys.argv[2], sys.argv[3] if len(sys.argv) == 4 else None)
         sys.exit(0)
     if len(sys.argv) < 4:
         sys.exit(__doc__)

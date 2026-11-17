@@ -113,7 +113,7 @@ const COMPONENT_TITLE: Record<string, string> = {
   api: 'Сервер приложения',
   worker: 'Фоновый обработчик',
   database: 'База данных',
-  redis: 'Redis (быстрая память)',
+  redis: 'Valkey (быстрая память)',
   storage: 'Хранилище файлов',
   video: 'Видео (Bunny)',
   queues: 'Очереди задач',
@@ -214,8 +214,8 @@ function capacityItems(cap: SystemSignals['capacity']): SystemItem[] {
     out.push({
       code: 'redis_memory',
       severity: cap.redisMemoryPercent >= 95 ? 'critical' : 'high',
-      title: 'Redis почти заполнен',
-      why: `Память Redis ${pct(cap.redisMemoryPercent)}. Автоувеличение сработает само, если включено; иначе «Увеличить» на «Масштабе».`,
+      title: 'Valkey почти заполнен',
+      why: `Память Valkey ${pct(cap.redisMemoryPercent)}. Автоувеличение сработает само, если включено; иначе «Увеличить» на «Масштабе».`,
       action: route('/scale', 'Открыть «Масштаб»'),
     });
   }

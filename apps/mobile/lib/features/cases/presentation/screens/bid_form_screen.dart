@@ -316,6 +316,13 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       }
       // Owner 2026-10-14: the month's offers are used up — say so and offer
       // the plans in the same bar.
+      // Firms audit 16.11 (PR-4, owner): one bid per firm per case — a
+      // colleague already sent it; offer to join it instead.
+      if (e is ApiException && e.code == ApiErrorCodes.firmBidExists) {
+        setState(() => _busy = false);
+        await _offerJoin(e);
+        return;
+      }
       if (e is ApiException &&
           (e.code == ApiErrorCodes.bidMonthlyLimitReached ||
               e.code == ApiErrorCodes.bidTrialLimitReached)) {
@@ -326,6 +333,42 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       setState(() {
         _busy = false;
         _error = errorText(t, e);
+      });
+    }
+  }
+
+  /// «Ваш коллега уже предложил ставку» + «Присоединиться» (the same
+  /// confirm sheet as elsewhere); joining tells the colleague.
+  Future<void> _offerJoin(ApiException e) async {
+    final t = ref.read(translatorProvider);
+    final d = e.details ?? const <String, dynamic>{};
+    final bidId = d['bidId'];
+    if (bidId is! String) {
+      setState(() => _error = errorText(t, e));
+      return;
+    }
+    final name =
+        [d['firstName'], d['lastName']].whereType<String>().join(' ').trim();
+    final join = await showConfirmSheet(
+      context,
+      t: t,
+      title: t.t('bid.firm.colleague.title'),
+      message: t.t('bid.firm.colleague.message', {'name': name}),
+      confirmLabel: t.t('bid.firm.join'),
+    );
+    if (!join || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(caseActionsProvider).joinFirmBid(widget.caseId, bidId);
+      if (!mounted) return;
+      showAppSnackBar(context, t.t('bid.firm.joined'));
+      setState(() => _leaving = true);
+      context.pop();
+    } on Object catch (err) {
+      if (!mounted) return;
+      setState(() {
+        _busy = false;
+        _error = errorText(t, err);
       });
     }
   }

@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-309 tables.
+312 tables.
 
 ```mermaid
 erDiagram
@@ -168,6 +168,7 @@ erDiagram
     String key PK
     Boolean enabled
     Int rollout_percent
+    Int hash_version
     String description "nullable"
     String updated_by FK "nullable"
     DateTime updated_at
@@ -539,6 +540,13 @@ erDiagram
     DateTime confirmation_required_at "nullable"
     DateTime confirmed_at "nullable"
     DateTime confirm_reminded_at "nullable"
+    String sent_by "nullable"
+    Int shard_id
+  }
+  bid_participants {
+    String bid_id PK,FK
+    String attorney_id PK
+    DateTime created_at
     Int shard_id
   }
   bid_offers {
@@ -1044,11 +1052,20 @@ erDiagram
     String reply_to_id FK "nullable"
     String file_id FK "nullable"
     String file_name "nullable"
+    Int duration_ms "nullable"
     DateTime edited_at "nullable"
     DateTime deleted_at "nullable"
     DateTime expires_at "nullable"
     Boolean forwarded
     String forwarded_from_name "nullable"
+    DateTime created_at
+    Int shard_id
+  }
+  chat_group_message_reactions {
+    String message_id PK,FK
+    String group_id FK
+    String user_id PK
+    String emoji
     DateTime created_at
     Int shard_id
   }
@@ -2932,12 +2949,19 @@ erDiagram
   firms {
     String id PK
     String name
-    String owner_id
+    String owner_id FK
     DateTime created_at
+  }
+  firm_invitations {
+    String firm_id PK,FK
+    String attorney_id PK,FK
+    String invited_by FK
+    DateTime created_at
+    DateTime expires_at
   }
   firm_members {
     String firm_id PK,FK
-    String attorney_id PK,UK
+    String attorney_id PK,FK,UK
     String role
     String status
     DateTime created_at
@@ -3640,6 +3664,7 @@ erDiagram
     String status
     Json variants
     Int traffic_percent
+    Int hash_version
     Json guardrails
     DateTime start_at "nullable"
     DateTime end_at "nullable"
@@ -4017,6 +4042,7 @@ erDiagram
   case_states }o--|| states : "state_code"
   bids }o--|| cases : "case_id"
   bids }o--|| users : "attorney_id"
+  bid_participants }o--|| bids : "bid_id"
   bid_offers }o--|| bids : "bid_id"
   case_journal }o--|| cases : "case_id"
   case_journal }o--|| users : "client_id"
@@ -4104,6 +4130,7 @@ erDiagram
   chat_group_messages }o--o| chat_group_topics : "topic_id"
   chat_group_messages }o--o| chat_group_messages : "group_id, reply_to_id"
   chat_group_messages }o--o| files : "file_id"
+  chat_group_message_reactions }o--|| chat_group_messages : "group_id, message_id"
   chat_group_topics }o--|| chat_groups : "group_id"
   chat_group_topic_reads }o--|| chat_group_topics : "topic_id"
   chat_group_topic_reads }o--|| users : "user_id"
@@ -4231,7 +4258,12 @@ erDiagram
   contact_matches }o--|| users : "matched_id"
   contact_sync_settings |o--|| users : "user_id"
   contact_book_hashes }o--|| users : "owner_id"
+  firms }o--|| users : "owner_id"
+  firm_invitations }o--|| firms : "firm_id"
+  firm_invitations }o--|| users : "attorney_id"
+  firm_invitations }o--|| users : "invited_by"
   firm_members }o--|| firms : "firm_id"
+  firm_members |o--|| users : "attorney_id"
   search_synonym_groups }o--o| practice_areas : "practice_area_id"
   search_synonym_terms }o--|| search_synonym_groups : "group_id"
   stories }o--|| users : "author_id"

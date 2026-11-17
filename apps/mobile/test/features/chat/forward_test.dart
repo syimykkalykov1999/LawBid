@@ -183,6 +183,8 @@ void main() {
                 listGroup('g-ro', canPost: false),
               ]),
             ),
+            // Row 183: the switch «Группы в чатах» held on.
+            groupsEnabledProvider.overrideWithValue(true),
             channelsEnabledProvider.overrideWithValue(false),
             currentUserIdProvider.overrideWithValue('me'),
             // Owner 2026-10-21 (inbox 25b): anyone in the app by name.

@@ -1,5 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { ClientBadgeService } from './client-badge.service';
+import { ClientBadgeAdminService } from './client-badge-admin.service';
+import { clientBadgeActive, NO_DOCUMENTS_NOTE } from './client-badge.util';
 import { sanitizeUploadLimits } from '../files/upload-limits';
 import { FakePaymentProvider } from '../billing/fake-payment.provider';
 
@@ -19,7 +21,11 @@ const row = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-function setup(current: ReturnType<typeof row> | null, autoApprove = true) {
+function setup(
+  current: ReturnType<typeof row> | null,
+  autoApprove = true,
+  documents = true,
+) {
   let stored = current;
   const prisma = {
     user: {
@@ -44,7 +50,11 @@ function setup(current: ReturnType<typeof row> | null, autoApprove = true) {
   };
   const settings = {
     number: jest.fn().mockResolvedValue(1000),
-    boolean: jest.fn().mockResolvedValue(autoApprove),
+    boolean: jest.fn((key: string) =>
+      Promise.resolve(
+        key === 'verification.client_badge_documents' ? documents : autoApprove,
+      ),
+    ),
   };
   const service = new ClientBadgeService(
     prisma as never,
@@ -63,8 +73,42 @@ describe('ClientBadgeService', () => {
       status: 'none',
       badgeActive: false,
       priceCents: 1000,
+      documentsRequired: true,
       canSubmit: true,
       canSubscribe: false,
+    });
+  });
+
+  // Owner 16.11: «Проверка документов клиента» off (the default) — the
+  // client pays, no document step.
+  it('documents off: no request yet → straight to payment, no document step', async () => {
+    const { service } = setup(null, true, false);
+    expect(await service.state('u1')).toMatchObject({
+      status: 'none',
+      documentsRequired: false,
+      canSubmit: false,
+      canSubscribe: true,
+    });
+  });
+
+  it('documents off: sending documents is refused (nothing to send)', async () => {
+    const { service, files } = setup(null, true, false);
+    await expect(
+      service.submit('u1', { fileIds: ['a'] }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(files.assertAttachable).not.toHaveBeenCalled();
+  });
+
+  it('documents off: a client the admin revoked cannot buy the badge back', async () => {
+    const { service } = setup(
+      row({ status: 'revoked', revoke_reason: 'spam' }),
+      true,
+      false,
+    );
+    expect(await service.state('u1')).toMatchObject({
+      status: 'revoked',
+      canSubscribe: false,
+      revokeReason: 'spam',
     });
   });
 
@@ -135,12 +179,15 @@ describe('ClientBadgeService', () => {
 // card is saved there (SetupIntent) and the $10/month subscription is made
 // on it, instead of Stripe's hosted page.
 describe('ClientBadgeService on the card page', () => {
-  function pageSetup() {
-    const provider = new FakePaymentProvider();
-    let stored: ReturnType<typeof row> = row({
+  function pageSetup(
+    documents = true,
+    initial: ReturnType<typeof row> | null = row({
       stripe_subscription_id: null,
       stripe_checkout_id: null,
-    });
+    }),
+  ) {
+    const provider = new FakePaymentProvider();
+    let stored = initial as ReturnType<typeof row>;
     const customers = new Map<string, string>();
     const prisma = {
       user: {
@@ -158,6 +205,14 @@ describe('ClientBadgeService on the card page', () => {
         updateMany: jest.fn().mockImplementation(({ data }) => {
           stored = { ...stored, ...data };
           return Promise.resolve({ count: 1 });
+        }),
+        upsert: jest.fn().mockImplementation(({ create }) => {
+          stored = row({
+            stripe_subscription_id: null,
+            stripe_checkout_id: null,
+            ...create,
+          });
+          return Promise.resolve(stored);
         }),
       },
       stripeCustomer: {
@@ -193,7 +248,11 @@ describe('ClientBadgeService on the card page', () => {
       { get: jest.fn() } as never,
       {
         number: jest.fn().mockResolvedValue(1000),
-        boolean: jest.fn().mockResolvedValue(true),
+        boolean: jest.fn((key: string) =>
+          Promise.resolve(
+            key === 'verification.client_badge_documents' ? documents : true,
+          ),
+        ),
       } as never,
       {} as never,
       { emit: jest.fn().mockResolvedValue(undefined) } as never,
@@ -201,12 +260,145 @@ describe('ClientBadgeService on the card page', () => {
       {
         priceId: jest.fn().mockResolvedValue('price_badge'),
         amount: jest.fn().mockResolvedValue(1000),
+        discount: jest.fn().mockResolvedValue(null),
       } as never,
       undefined,
       payLink as never,
     );
-    return { service, provider, payLink, stored: () => stored };
+    return { service, provider, payLink, prisma, stored: () => stored };
   }
+
+  /** Card saved on the page → the subscription is made on it. */
+  async function buy(
+    service: ClientBadgeService,
+    provider: FakePaymentProvider,
+  ): Promise<boolean> {
+    const s = await service.payPageSession('u1');
+    provider.confirmSetupIntent(s.setupIntentId, {
+      paymentMethodId: 'pm_badge',
+      fingerprint: 'fp',
+    });
+    return service.payPageConfirm('u1', s.setupIntentId);
+  }
+
+  // Owner 16.11: «Проверка документов клиента» off (default) — pay → badge.
+  it('documents off: a client with no request pays and the badge is on, no document step', async () => {
+    const { service, provider, stored } = pageSetup(false, null);
+    const before = await service.state('u1');
+    expect(before).toMatchObject({
+      documentsRequired: false,
+      canSubmit: false,
+      canSubscribe: true,
+    });
+    expect(await buy(service, provider)).toBe(true);
+    expect(stored()).toMatchObject({
+      status: 'approved',
+      sub_status: 'active',
+      document_file_ids: [],
+      note: NO_DOCUMENTS_NOTE,
+    });
+    expect(await service.state('u1')).toMatchObject({
+      badgeActive: true,
+      canSubscribe: false,
+    });
+  });
+
+  it('documents on (switch back): no request → the document step, payment refused', async () => {
+    const { service, provider } = pageSetup(true, null);
+    expect(await service.state('u1')).toMatchObject({
+      status: 'none',
+      documentsRequired: true,
+      canSubmit: true,
+      canSubscribe: false,
+    });
+    await expect(service.payPageSession('u1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    void provider;
+  });
+
+  it('documents off: cancel keeps the badge to the period end, resume keeps renewing, then it ends', async () => {
+    const { service, provider, stored } = pageSetup(false, null);
+    await buy(service, provider);
+    const subId = String(stored().stripe_subscription_id);
+    const periodEnd = stored().current_period_end as unknown as Date;
+    expect(periodEnd.getTime()).toBeGreaterThan(Date.now());
+
+    // Cancel: nothing renews, the badge (and plan features) stay till the end.
+    const cancelled = await service.setCancel('u1', true);
+    expect(cancelled.badgeActive).toBe(true);
+    expect(cancelled.subscription).toMatchObject({ cancelAtPeriodEnd: true });
+    expect(
+      (await provider.retrieveSubscription(subId))?.cancelAtPeriodEnd,
+    ).toBe(true);
+
+    // Resume before the end: renews again.
+    const resumed = await service.setCancel('u1', false);
+    expect(resumed.badgeActive).toBe(true);
+    expect(resumed.subscription).toMatchObject({ cancelAtPeriodEnd: false });
+
+    // Cancel again and let the period run out: Stripe ends it → badge off
+    // after the paid date, on before it.
+    await service.setCancel('u1', true);
+    await service.applySubscription(await provider.cancelNow(subId));
+    expect(stored().sub_status).toBe('canceled');
+    expect(clientBadgeActive(stored() as never)).toBe(true);
+    expect(
+      clientBadgeActive(
+        stored() as never,
+        new Date(periodEnd.getTime() + 1000),
+      ),
+    ).toBe(false);
+  });
+
+  it('documents off: the admin «cancel now» (revoke) stops Stripe charging and the client cannot re-buy', async () => {
+    const { service, provider, prisma, stored } = pageSetup(false, null);
+    await buy(service, provider);
+    const subId = String(stored().stripe_subscription_id);
+    const prismaAdmin: Record<string, unknown> = {
+      ...prisma,
+      clientVerification: {
+        ...prisma.clientVerification,
+        findUnique: jest.fn(() =>
+          Promise.resolve({
+            ...stored(),
+            user: {
+              first_name: 'A',
+              last_name: 'B',
+              client_profile: null,
+            },
+          }),
+        ),
+      },
+      $transaction: jest.fn((fn: (tx: unknown) => unknown): Promise<unknown> =>
+        Promise.resolve(fn(prismaAdmin)),
+      ),
+    };
+    const admin = new ClientBadgeAdminService(
+      prismaAdmin as never,
+      { verificationFileUrl: jest.fn() } as never,
+      { emit: jest.fn().mockResolvedValue(undefined) } as never,
+      { record: jest.fn().mockResolvedValue(undefined) } as never,
+      service,
+      provider,
+    );
+    await admin.revoke(
+      { id: 'admin1', ip: '127.0.0.1' } as never,
+      'v1',
+      'fake name',
+    );
+    expect((await provider.retrieveSubscription(subId))?.status).toBe(
+      'canceled',
+    );
+    expect(stored().status).toBe('revoked');
+    expect(await service.state('u1')).toMatchObject({
+      badgeActive: false,
+      canSubscribe: false,
+    });
+    await expect(service.payPageSession('u1')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
 
   it('checkout: the card page link, not a Stripe session', async () => {
     const { service, payLink } = pageSetup();

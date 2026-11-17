@@ -28,8 +28,8 @@ describe('read copies per server (real PostgreSQL)', () => {
   });
 
   afterAll(async () => {
-    await read.onModuleDestroy();
-    await prisma.onModuleDestroy();
+    await read.onApplicationShutdown();
+    await prisma.onApplicationShutdown();
     process.env = { ...saved };
   });
 

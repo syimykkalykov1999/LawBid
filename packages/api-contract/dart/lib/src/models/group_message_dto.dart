@@ -9,6 +9,8 @@ import 'group_message_dto_type.dart';
 import 'group_person_dto.dart';
 import 'group_reply_preview_dto.dart';
 import 'poll_dto.dart';
+import 'reaction_dto.dart';
+import 'voice_note_dto.dart';
 
 part 'group_message_dto.g.dart';
 
@@ -32,11 +34,13 @@ class GroupMessageDto {
     this.systemText,
     this.replyTo,
     this.attachment,
+    this.voice,
     this.poll,
     this.editedAt,
     this.expiresAt,
     this.forwarded,
     this.forwardedFrom,
+    this.reactions,
   });
 
   factory GroupMessageDto.fromJson(Map<String, Object?> json) =>
@@ -69,6 +73,7 @@ class GroupMessageDto {
   /// I am @mentioned.
   final bool mentionsMe;
   final ChatAttachmentDto? attachment;
+  final VoiceNoteDto? voice;
   final PollDto? poll;
   final DateTime? editedAt;
 
@@ -84,6 +89,9 @@ class GroupMessageDto {
 
   /// The first author (or channel) of a forwarded message.
   final String? forwardedFrom;
+
+  /// Emoji reactions, in the order they were first chosen.
+  final List<ReactionDto>? reactions;
 
   Map<String, Object?> toJson() => _$GroupMessageDtoToJson(this);
 }

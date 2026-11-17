@@ -428,11 +428,6 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                                 ? 'post.menu.showLikes'
                                 : 'post.menu.hideLikes',
                           ),
-                          // Owner 2026-10-28: the author sees the own number
-                          // either way — the row says it is hidden now.
-                          subtitle: post.likesHidden
-                              ? t.t('post.counts.hiddenForOthers')
-                              : null,
                           showChevron: false,
                           onTap: () async {
                             Navigator.of(sheet).pop();
@@ -458,9 +453,6 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                                   ? 'post.menu.showViews'
                                   : 'post.menu.hideViews',
                             ),
-                            subtitle: post.viewsHidden
-                                ? t.t('post.counts.hiddenForOthers')
-                                : null,
                             showChevron: false,
                             onTap: () async {
                               Navigator.of(sheet).pop();

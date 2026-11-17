@@ -15,6 +15,7 @@ import 'package:lawbid/features/calls/application/call_sound_prefs.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/notifications/application/notification_sounds.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
@@ -162,6 +163,8 @@ class _NotificationSettingsScreenState
     // An assistant's own settings have no «From assistants» block.
     final team = attorney && !ref.watch(isAssistantProvider);
     final channelsOn = ref.watch(channelsEnabledProvider);
+    // Row 183: no «Groups» switch while «Группы» is off.
+    final groupsOn = ref.watch(groupsEnabledProvider);
     final emailFlows = ref.watch(emailFlowsEnabledProvider);
 
     // A Material card, so the switch rows' ink shows on it.
@@ -240,6 +243,7 @@ class _NotificationSettingsScreenState
           // Owner 2026-11-04 (R-386): no «Channels» switch with the flag off.
           bool shown(TopicSetting x) =>
               (x.key != 'channels' || channelsOn) &&
+              (x.key != 'groups' || groupsOn) &&
               (!x.attorneyOnly || (x.block == 'assistants' ? team : attorney));
           return AbsorbPointer(
             absorbing: _saving,

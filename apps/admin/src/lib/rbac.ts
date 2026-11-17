@@ -324,7 +324,7 @@ export const GROUPS: readonly SectionGroup[] = [
     icon: 'sliders-horizontal',
     items: [
       // Batch D (2026-10-24): every part that grows by itself, its ceiling and buttons, and the open alarms.
-      { href: '/scale', label: 'Масштаб', icon: 'gauge', area: 'super', ownerOnly: true, hint: 'серверы, база, Redis, поиск: сколько сейчас, докуда растут, тревоги' },
+      { href: '/scale', label: 'Масштаб', icon: 'gauge', area: 'super', ownerOnly: true, hint: 'серверы, база, Valkey, поиск: сколько сейчас, докуда растут, тревоги' },
       // Owner 2026-10-25: what users see on status.lawbid.dev; post / close an incident.
       { href: '/status-page', label: 'Страница статуса', icon: 'megaphone', area: 'super', ownerOnly: true, hint: 'сообщить пользователям о сбое или работах' },
       // 09.11.2026: tasks for the AI assistant (GitHub workflow), their PRs and what each run cost.

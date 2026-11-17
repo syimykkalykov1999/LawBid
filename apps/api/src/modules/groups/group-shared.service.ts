@@ -68,6 +68,8 @@ export class GroupSharedService {
     cursor?: string,
     limit = PAGE,
   ): Promise<GroupMessagePage> {
+    // Row 183: the admin switch «Группы» (GroupsService.assertEnabled).
+    await this.groups.assertEnabled();
     await this.groups.requireMember(user.sub, groupId);
     const c = cursor ? decodeCursor(cursor) : undefined;
     const rows = await this.prisma.chatGroupMessage.findMany({

@@ -166,24 +166,51 @@ function errMsg(error: unknown): unknown {
  * (`mine`, `mentionsMe`). Members are grouped by those flags, so the event
  * goes out as at most four publishes (usually two: the sender, everyone
  * else) instead of one per member.
+ *
+ * Groups WhatsApp parity (reactions): with [reactedBy] (who reacted with
+ * which emoji) the reactors are grouped by their emoji too, so each one
+ * sees their own chip marked (`mine` of ReactionDto) — one more publish per
+ * distinct emoji, not one per person.
  */
 export function broadcastAudiences(
   memberIds: string[],
   senderId: string | null,
   mentionIds: string[],
   deleted: boolean,
-): { userIds: string[]; mine: boolean; mentionsMe: boolean }[] {
+  reactedBy?: ReadonlyMap<string, string>,
+): {
+  userIds: string[];
+  mine: boolean;
+  mentionsMe: boolean;
+  myEmoji?: string | null;
+}[] {
   const mentioned = new Set(deleted ? [] : mentionIds);
   const groups = new Map<
     string,
-    { userIds: string[]; mine: boolean; mentionsMe: boolean }
+    {
+      userIds: string[];
+      mine: boolean;
+      mentionsMe: boolean;
+      myEmoji?: string | null;
+    }
   >();
   for (const uid of memberIds) {
     const mine = senderId === uid;
     const mentionsMe = mentioned.has(uid);
-    const key = `${mine ? 1 : 0}${mentionsMe ? 1 : 0}`;
+    const myEmoji = reactedBy ? (reactedBy.get(uid) ?? null) : undefined;
+    const key = `${mine ? 1 : 0}${mentionsMe ? 1 : 0}${myEmoji ?? ''}`;
     let g = groups.get(key);
-    if (!g) groups.set(key, (g = { userIds: [], mine, mentionsMe }));
+    if (!g) {
+      groups.set(
+        key,
+        (g = {
+          userIds: [],
+          mine,
+          mentionsMe,
+          ...(reactedBy ? { myEmoji } : {}),
+        }),
+      );
+    }
     g.userIds.push(uid);
   }
   return [...groups.values()];

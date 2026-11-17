@@ -1,5 +1,6 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { REALTIME_SETTING_DEFS } from '../../common/app-settings/realtime-settings';
+import { HOTLINE_SETTING_DEFS } from '../../common/app-settings/hotline-settings';
 import {
   STAFF_NOT_BUILT,
   STAFF_NOT_BUILT_NOTE,
@@ -413,6 +414,48 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       max: def.max,
     };
   }
+  // Owner row 87 (16.11): the call hotline numbers (Russian label + key).
+  out['hotline.mode'] = {
+    type: 'string',
+    defaultValue: 'on_for_all',
+    description:
+      'Горячая линия: кто из адвокатов может ждать звонки — те же три режима, что у вложений в постах. on_for_all — «Вкл для всех» (по умолчанию, пока деньги выключены): любой адвокат с проверенной лицензией; by_subscription — «По подписке»: решает план адвоката в «Деньги → Планы» («Горячая линия входит в тариф» или «отдельное дополнение» с ценой рядом с ценой места помощника), пробный срок — hotline.trial_days / hotline.trial_minutes; off_for_all — «Выкл для всех»: ни один адвокат. Клиенту всегда бесплатно. Меняется сразу, без выката (hotline.mode).',
+    pattern: /^(by_subscription|off_for_all|on_for_all)$/,
+  };
+  out['hotline.counter_bands'] = {
+    type: 'integer[]',
+    defaultValue: [1, 10, 50, 100],
+    description:
+      'Горячая линия: как клиенту показывать число адвокатов на линии — ступени по возрастанию. 0 — «нет», меньше второй ступени — «есть», дальше «10+», «50+», «100+» (точное число клиент не видит). По умолчанию 1, 10, 50, 100 (hotline.counter_bands).',
+    min: 1,
+  };
+  out['hotline.review_enabled'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Горячая линия: после звонка клиенту предлагается короткий необязательный отзыв (как в Uber). Выкл. — отзыва нет (hotline.review_enabled).',
+  };
+  out['hotline.client_steps_enabled'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Горячая линия: клиент заполняет заявку по шагам с кнопками «Дальше / Назад» до соединения. Выкл. — одна страница (hotline.client_steps_enabled).',
+  };
+  out['hotline.short_notice_enabled'] = {
+    type: 'boolean',
+    defaultValue: false,
+    description:
+      'Горячая линия: после первого звонка (там предупреждение показывается один раз) в следующих звонках показывать короткую строку «Звонки не записываются». По умолчанию выкл. (hotline.short_notice_enabled).',
+  };
+  for (const def of HOTLINE_SETTING_DEFS) {
+    out[def.key] = {
+      type: 'integer',
+      defaultValue: def.default,
+      description: `${def.labelRu} (${def.key}). По умолчанию ${def.default}.`,
+      min: def.min,
+      ...(def.max === undefined ? {} : { max: def.max }),
+    };
+  }
   for (const key of ['post.max_chars_media', 'post.max_chars_brief']) {
     out[key] = { ...out[key], type: 'integer', min: 1, max: 5000 };
   }
@@ -739,14 +782,14 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['files.scan_handoff_max_kb'] = {
     ...out['files.scan_handoff_max_kb'],
     description:
-      'KB of a small upload handed from confirm to the virus check through Redis, so the worker does not read it from storage again (0 = off, default 8192, max 32768).',
+      'KB of a small upload handed from confirm to the virus check through Valkey, so the worker does not read it from storage again (0 = off, default 8192, max 32768).',
     min: 0,
     max: 32_768,
   };
   out['files.scan_handoff_ttl_s'] = {
     ...out['files.scan_handoff_ttl_s'],
     description:
-      'Seconds such bytes wait in Redis for the check (10-3600, default 120); after that the worker reads the file from storage.',
+      'Seconds such bytes wait in Valkey for the check (10-3600, default 120); after that the worker reads the file from storage.',
     min: 10,
     max: 3600,
   };
@@ -1545,7 +1588,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     type: 'string',
     defaultValue: 'off',
     description:
-      'Biggest database / Redis size the autoscalers may use: auto = what the allowed monthly spend pays for (Экономика), off = only the Terraform ceiling. Changed on the «Расходы» page.',
+      'Biggest database / Valkey size the autoscalers may use: auto = what the allowed monthly spend pays for (Экономика), off = only the Terraform ceiling. Changed on the «Расходы» page.',
     pattern: /^(off|auto)$/,
   };
   out['scale.bunny_hardstop.mode'] = {
@@ -1582,6 +1625,28 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'A Google sign-in token issued longer ago than this many seconds is refused (600; 0 = no check).',
     min: 0,
     max: 86400,
+  };
+  out['auth.social_nonce_ttl_sec'] = {
+    ...out['auth.social_nonce_ttl_sec'],
+    description:
+      'How long a Google sign-in nonce issued by POST /auth/social/nonce stays valid, seconds (600). It works once.',
+    min: 30,
+    max: 3600,
+  };
+  // R2B-9 / R2B-12 (14.11): stricter rules that need the new app, switched
+  // on per app version (empty = not enforced; older builds keep the old
+  // path, like min_app_version_* retires them).
+  out['security.google_nonce_min_app_version'] = {
+    ...out['security.google_nonce_min_app_version'],
+    description:
+      'From this app version on (semver), Google sign-in must use a nonce issued by the server; older builds keep their own. Empty = not enforced.',
+    pattern: /^(\d+\.\d+\.\d+)?$/,
+  };
+  out['security.export_reauth_min_app_version'] = {
+    ...out['security.export_reauth_min_app_version'],
+    description:
+      'From this app version on (semver), the data-export download link is given only with a fresh re-authentication (X-Reauth-Token); older builds still get it without. Empty = not enforced.',
+    pattern: /^(\d+\.\d+\.\d+)?$/,
   };
   out['verification.persona_webhook_tolerance_sec'] = {
     ...out['verification.persona_webhook_tolerance_sec'],

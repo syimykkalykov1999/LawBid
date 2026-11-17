@@ -19,6 +19,8 @@ class SendGroupMessageDto {
     this.mentionIds,
     this.fileId,
     this.fileName,
+    this.durationMs,
+    this.waveform,
   });
 
   factory SendGroupMessageDto.fromJson(Map<String, Object?> json) =>
@@ -40,11 +42,17 @@ class SendGroupMessageDto {
   /// @mentioned members (the app puts @username in the text).
   final List<String>? mentionIds;
 
-  /// type=attachment.
+  /// type=attachment: a clean `chat_attachment` file; type=voice: a clean `chat_voice` file of the sender.
   final String? fileId;
 
   /// type=attachment.
   final String? fileName;
+
+  /// type=voice.
+  final int? durationMs;
+
+  /// type=voice: up to 100 bars, each 0–100.
+  final List<int>? waveform;
 
   Map<String, Object?> toJson() => _$SendGroupMessageDtoToJson(this);
 }

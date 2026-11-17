@@ -11,6 +11,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   decodeCursor as decodeKeyset,
   encodeCursor as encodeKeyset,
+  createdBefore,
 } from '../../common/pagination/cursor.util';
 import { GUEST_USER_ID } from '../../common/viewer/guest';
 import { PrismaReadService } from '../../prisma/prisma-read.service';
@@ -90,6 +91,11 @@ function badCursor(): BadRequestException {
  * viewer's recently shown recommendations; followed posts are never
  * hidden by "seen" (the feed must still open on them next time).
  */
+/** Row 126 (#1084): the keyset condition of the feed. It moved to
+ * common/pagination (createdBefore) so every (created_at DESC, id DESC)
+ * list reads the index the same way; the name stays for the feed. */
+export const postsBefore = createdBefore;
+
 @Injectable()
 export class FeedService implements FeedProvider {
   private readonly log = new Logger(FeedService.name);
@@ -323,18 +329,18 @@ export class FeedService implements FeedProvider {
     const shownAuthors = streamOpen ? await this.shownAuthors(authorIds) : [];
     const following = shownAuthors.length
       ? await this.prisma.post.findMany({
+          // R2 review: postsBefore() is an `AND`; as its own array item it
+          // can never overwrite an `AND` of the visibility rule or the
+          // content mode (a spread would), like the other call site.
           where: {
-            ...POST_VISIBLE_WHERE,
-            ...only,
-            author_id: { in: shownAuthors },
-            ...(after
-              ? {
-                  OR: [
-                    { created_at: { lt: new Date(after.t) } },
-                    { created_at: new Date(after.t), id: { lt: after.id } },
-                  ],
-                }
-              : {}),
+            AND: [
+              {
+                ...POST_VISIBLE_WHERE,
+                ...only,
+                author_id: { in: shownAuthors },
+              },
+              ...(after ? [postsBefore(after)] : []),
+            ],
           },
           orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
           take: limit + 1,
@@ -728,16 +734,7 @@ export class FeedService implements FeedProvider {
           only,
           ...(authors.size > 0 ? [{ author_id: { notIn: [...authors] } }] : []),
           ...(ids.size > 0 ? [{ id: { notIn: [...ids] } }] : []),
-          ...(after
-            ? [
-                {
-                  OR: [
-                    { created_at: { lt: new Date(after.t) } },
-                    { created_at: new Date(after.t), id: { lt: after.id } },
-                  ],
-                },
-              ]
-            : []),
+          ...(after ? [postsBefore(after)] : []),
         ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],

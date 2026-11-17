@@ -16,6 +16,7 @@ class FirmDto {
     required this.ownerId,
     required this.states,
     required this.members,
+    required this.inviteExpiresAt,
   });
 
   factory FirmDto.fromJson(Map<String, Object?> json) =>
@@ -26,6 +27,9 @@ class FirmDto {
   final String ownerId;
   final List<String> states;
   final List<FirmMemberDto> members;
+
+  /// The viewer's own pending invitation to this firm is valid until then
+  final DateTime? inviteExpiresAt;
 
   Map<String, Object?> toJson() => _$FirmDtoToJson(this);
 }
