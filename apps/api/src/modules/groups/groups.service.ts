@@ -1804,12 +1804,26 @@ export class GroupsService {
     if (!(m.admin || m.group.who_can_post === 'all')) {
       throw forbidden('Only admins can write in this group.');
     }
-    const body = (dto.body ?? '').trim();
     const attachment = dto.type === 'attachment';
-    if (attachment && !(m.admin || m.group.who_can_media === 'all')) {
+    // Groups WhatsApp parity (voice): a note carries no text, like 1:1.
+    const voice = dto.type === 'voice';
+    const body = voice ? '' : (dto.body ?? '').trim();
+    // A voice note is media (WhatsApp / Telegram «Send media»).
+    if (
+      (attachment || voice) &&
+      !(m.admin || m.group.who_can_media === 'all')
+    ) {
       throw forbidden('Media is not allowed in this group.');
     }
-    if (attachment ? !dto.fileId || !dto.fileName : body.length === 0) {
+    if (voice) {
+      if (!dto.fileId || dto.durationMs === undefined) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'A voice message needs fileId and durationMs.',
+          details: { fields: ['fileId', 'durationMs'] },
+        });
+      }
+    } else if (attachment ? !dto.fileId || !dto.fileName : body.length === 0) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
         message: attachment
@@ -1826,10 +1840,13 @@ export class GroupsService {
     // After the duplicate check, so a resent message costs nothing.
     await this.limits?.consume('message', user.sub);
     const topic = await this.writableTopic(m, dto.topicId);
-    if (attachment) {
-      await this.files.assertAttachable(user.sub, dto.fileId!, [
-        'chat_attachment',
-      ]);
+    if (attachment || voice) {
+      await this.files.assertAttachable(
+        user.sub,
+        dto.fileId!,
+        voice ? ['chat_voice'] : ['chat_attachment'],
+      );
+      // One file, one message (1:1 or group): a file is never re-sent.
       const used =
         (await this.prisma.chatGroupMessage.findFirst({
           where: { file_id: dto.fileId, deleted_at: {} },
@@ -1880,7 +1897,7 @@ export class GroupsService {
           data: {
             group_id: id,
             sender_id: user.sub,
-            type: attachment ? 'attachment' : 'text',
+            type: voice ? 'voice' : attachment ? 'attachment' : 'text',
             body,
             client_message_id: dto.clientMessageId,
             topic_id: topic && !topic.is_general ? topic.id : null,
@@ -1888,8 +1905,11 @@ export class GroupsService {
             mention_ids: mentions,
             // Owner 2026-10-21: disappearing messages.
             expires_at: expiresAtFor(m.group.disappear_after_s),
-            file_id: attachment ? dto.fileId : null,
+            file_id: attachment || voice ? dto.fileId : null,
             file_name: attachment ? dto.fileName : null,
+            ...(voice
+              ? { duration_ms: dto.durationMs, waveform: dto.waveform ?? [] }
+              : {}),
             // Owner 2026-10-21 (Telegram): «Forwarded from <name>».
             ...(opts.forwardedFromName !== undefined
               ? {
@@ -2139,6 +2159,11 @@ export class GroupsService {
     const updated = await this.prisma.chatGroupMessage.update({
       where: { id_group_id: { id: messageId, group_id: id } },
       data: { deleted_at: new Date(), body: '', mention_ids: [] },
+    });
+    // As in the 1:1 chat (ChatActionsService.revoke): a message deleted for
+    // everyone keeps no reactions.
+    await this.prisma.chatGroupMessageReaction.deleteMany({
+      where: { message_id: messageId, group_id: id },
     });
     if (m.group.pinned_message_id === messageId) {
       await this.prisma.chatGroup.update({
@@ -2705,11 +2730,24 @@ export class GroupsService {
       this.presenter.messages([row], NOBODY),
     ]);
     if (!dto) return;
+    // Groups WhatsApp parity: who reacted with what, so each reactor sees
+    // their own chip marked (only read when the message has reactions).
+    const reactedBy = dto.reactions?.length
+      ? new Map(
+          (
+            await this.prisma.chatGroupMessageReaction.findMany({
+              where: { message_id: row.id, group_id: groupId },
+              select: { user_id: true, emoji: true },
+            })
+          ).map((r) => [r.user_id, r.emoji]),
+        )
+      : undefined;
     for (const a of broadcastAudiences(
       ids,
       row.sender_id,
       row.mention_ids,
       !!dto.deleted,
+      reactedBy,
     )) {
       // Owner 2026-10-22 (package B): groupId / lastMessageAt beside the
       // message, so the list row (last message, order, +1 unread when not
@@ -2717,7 +2755,17 @@ export class GroupsService {
       this.realtime.toUsers(a.userIds, 'group:message', {
         groupId,
         lastMessageAt: row.created_at,
-        message: { ...dto, mine: a.mine, mentionsMe: a.mentionsMe },
+        message: {
+          ...dto,
+          mine: a.mine,
+          mentionsMe: a.mentionsMe,
+          ...(dto.reactions && {
+            reactions: dto.reactions.map((r) => ({
+              ...r,
+              mine: r.emoji === a.myEmoji,
+            })),
+          }),
+        },
       });
     }
   }

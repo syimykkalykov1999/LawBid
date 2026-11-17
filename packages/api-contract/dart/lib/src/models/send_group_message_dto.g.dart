@@ -18,6 +18,10 @@ SendGroupMessageDto _$SendGroupMessageDtoFromJson(Map<String, dynamic> json) =>
           .toList(),
       fileId: json['fileId'] as String?,
       fileName: json['fileName'] as String?,
+      durationMs: (json['durationMs'] as num?)?.toInt(),
+      waveform: (json['waveform'] as List<dynamic>?)
+          ?.map((e) => (e as num).toInt())
+          .toList(),
     );
 
 Map<String, dynamic> _$SendGroupMessageDtoToJson(
@@ -31,4 +35,6 @@ Map<String, dynamic> _$SendGroupMessageDtoToJson(
   'mentionIds': ?instance.mentionIds,
   'fileId': ?instance.fileId,
   'fileName': ?instance.fileName,
+  'durationMs': ?instance.durationMs,
+  'waveform': ?instance.waveform,
 };

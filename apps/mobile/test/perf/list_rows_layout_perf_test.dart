@@ -4,6 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/presentation/chat_bubble_parts.dart';
+import 'package:lawbid/features/chat/presentation/chat_cards.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
@@ -139,6 +142,48 @@ void main() {
     await tester.pumpAndSettle();
     // ignore: avoid_print
     print('PERF comments ms: '
+        '${await _medianFrameMs(tester)}');
+    expect(tester.takeException(), isNull);
+  });
+
+  // Row 128 (2026-11-17): the fifth row keeps its IntrinsicHeight. A known
+  // height (padding + icon + fontSize x height) came out 0.4 px short of
+  // the real line (overflow), and the measured layout of 30 cards was the
+  // same either way (~0.8 ms median); this case guards that number.
+  testWidgets('contact card rows', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: uxOverrides(),
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: Column(
+                children: [
+                  for (var i = 0; i < 30; i++)
+                    ChatBubbleShell(
+                      mine: i.isEven,
+                      child: ContactCardBody(
+                        card: ContactCard(
+                          userId: 'u$i',
+                          username: 'nora$i',
+                          displayName: 'Nora Mills $i',
+                          verified: true,
+                          licensedStates: const ['NY'],
+                        ),
+                        mine: i.isEven,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    // ignore: avoid_print
+    print('PERF contact cards ms: '
         '${await _medianFrameMs(tester)}');
     expect(tester.takeException(), isNull);
   });

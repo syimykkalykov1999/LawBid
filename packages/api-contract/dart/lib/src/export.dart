@@ -2217,6 +2217,8 @@ export 'models/group_message_list_envelope.dart';
 export 'models/send_group_message_dto.dart';
 export 'models/group_message_envelope.dart';
 export 'models/edit_group_message_dto.dart';
+export 'models/group_message_readers_dto.dart';
+export 'models/group_message_readers_envelope.dart';
 export 'models/pin_group_message_dto.dart';
 export 'models/group_read_result_dto.dart';
 export 'models/read_group_dto.dart';
