@@ -374,6 +374,7 @@ export class BidsService {
     }
 
     let spent = false;
+    let trialSince: Date | null = null;
     // Owner 2026-10-14: the free trial ends by days or by the plan's number
     // of offers, whichever comes first.
     const trialBids = await this.entitlements?.limit(user.sub, 'trial_bids');
@@ -383,6 +384,7 @@ export class BidsService {
         select: { status: true, trial_started_at: true, created_at: true },
       });
       if (sub?.status === 'trialing') {
+        trialSince = sub.trial_started_at ?? sub.created_at;
         const used = await this.prisma.bid.count({
           where: {
             attorney_id: user.sub,
@@ -455,6 +457,20 @@ export class BidsService {
           // that can be raced (open offers, offers this month).
           await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`bid-limits:${user.sub}`}, 0))`;
           await this.assertNoFirmBid(tx, caseId, firm);
+          // Verify 17.11: the trial's number of offers too — two offers sent
+          // at once at limit-1 both passed the count above.
+          if (trialSince && trialBids && !spent) {
+            const used = await tx.bid.count({
+              where: { attorney_id: user.sub, created_at: { gte: trialSince } },
+            });
+            if (used >= trialBids) {
+              throw new ConflictException({
+                code: ErrorCode.BID_TRIAL_LIMIT_REACHED,
+                message: 'The offers of your free trial are used up.',
+                details: { limit: trialBids, used },
+              });
+            }
+          }
           if (maxActive && maxActive > 0) {
             const open = await tx.bid.count({
               where: { attorney_id: user.sub, status: 'active' },
@@ -508,6 +524,10 @@ export class BidsService {
           // through a second pool connection inside this transaction - ten
           // such transactions held all ten connections of a process, each
           // waiting for an eleventh, until the 5 s timeout.
+          // Verify 17.11: the case row is locked first, as accept does — an
+          // offer sent while the client accepted another one stayed active
+          // on a hired case (read-committed saw the old status).
+          await tx.$executeRaw`SELECT 1 FROM cases WHERE id = ${caseId}::UUID FOR NO KEY UPDATE`;
           const kase = await tx.case.findUnique({
             where: { id: caseId },
             select: {

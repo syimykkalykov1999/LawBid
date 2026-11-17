@@ -739,27 +739,36 @@ export class FilesService {
       // inside the container move to the scan worker, which holds the file
       // anyway. The file stays `pending`, and only `clean` files can be
       // attached. A start the prefix cannot settle goes the full way.
-      let prefix: Buffer | null = null;
-      if (
-        head.size >= LIGHT_CONFIRM_MIN_BYTES &&
-        (await this.flags.isEnabled('files_confirm_light', true))
-      ) {
-        const start = await this.storage.readStart(
-          intent.bucket,
-          key,
-          CONFIRM_PREFIX_BYTES,
-        );
-        if (detectMime(start, intent.mime) !== null) prefix = start;
-      }
-      if (prefix) {
-        lap('read');
-        checked = await checkData(prefix, true);
-      } else {
-        checked = await this.readBudget.run(head.size, async () => {
-          const whole = await this.storage.read(intent.bucket, key);
+      // Verify 17.11: the copy above is at a fresh random key that no row
+      // or pending list knows yet — a failed read below (a passing S3 error,
+      // a refused file) dropped it into the bucket for ever, and the app's
+      // retry made another one.
+      try {
+        let prefix: Buffer | null = null;
+        if (
+          head.size >= LIGHT_CONFIRM_MIN_BYTES &&
+          (await this.flags.isEnabled('files_confirm_light', true))
+        ) {
+          const start = await this.storage.readStart(
+            intent.bucket,
+            key,
+            CONFIRM_PREFIX_BYTES,
+          );
+          if (detectMime(start, intent.mime) !== null) prefix = start;
+        }
+        if (prefix) {
           lap('read');
-          return checkData(whole, false);
-        });
+          checked = await checkData(prefix, true);
+        } else {
+          checked = await this.readBudget.run(head.size, async () => {
+            const whole = await this.storage.read(intent.bucket, key);
+            lap('read');
+            return checkData(whole, false);
+          });
+        }
+      } catch (error) {
+        await this.dropObjects(fileId, intent.bucket, [key]);
+        throw error;
       }
     }
     const { sha256, detected } = checked;

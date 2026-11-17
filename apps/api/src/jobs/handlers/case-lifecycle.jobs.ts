@@ -411,7 +411,10 @@ export class CaseCompletionReminderJob {
         try {
           const emitted = await emitOnce(
             this.redis,
-            `reminder:completion:${row.id}`,
+            // Verify 17.11: per close request (its auto_close_at), not per
+            // case — a declined «Выполнено» asked again within 48 h was
+            // never reminded (the first claim was still there).
+            `reminder:completion:${row.id}:${row.at.getTime()}`,
             claimTtlSec,
             () =>
               this.notifications.emit({

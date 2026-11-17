@@ -145,16 +145,17 @@ class RichTermsEditor extends ConsumerWidget {
   /// The case's topics allow a percent (the server checks it too).
   final bool percentAllowed;
 
-  static String _hint(Translator t, api.PaymentTermsDtoType x) =>
-      t.t(switch (x) {
-        api.PaymentTermsDtoType.flat => 'cases.pay.fixedHint',
-        api.PaymentTermsDtoType.hourly => 'cases.pay.hourlyHint',
-        api.PaymentTermsDtoType.contingencyPct => 'cases.pay.percentHint',
-        api.PaymentTermsDtoType.retainerPlusInstallments =>
-          'cases.pay.retainerHint',
-        api.PaymentTermsDtoType.mixed => 'cases.pay.mixedHint',
-        _ => 'cases.pay.laterHint',
-      },);
+  static String _hint(Translator t, api.PaymentTermsDtoType x) => t.t(
+        switch (x) {
+          api.PaymentTermsDtoType.flat => 'cases.pay.fixedHint',
+          api.PaymentTermsDtoType.hourly => 'cases.pay.hourlyHint',
+          api.PaymentTermsDtoType.contingencyPct => 'cases.pay.percentHint',
+          api.PaymentTermsDtoType.retainerPlusInstallments =>
+            'cases.pay.retainerHint',
+          api.PaymentTermsDtoType.mixed => 'cases.pay.mixedHint',
+          _ => 'cases.pay.laterHint',
+        },
+      );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

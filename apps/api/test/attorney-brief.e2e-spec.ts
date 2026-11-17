@@ -349,4 +349,35 @@ describe('Attorney case brief (e2e, sweep A-c1)', () => {
       await prisma.file.count({ where: { id: briefFileIdOf(bidId) } }),
     ).toBe(1);
   });
+
+  it('verify 17.11: the brief set aside by the orphan cleanup comes back, not re-rendered', async () => {
+    const { client, att, caseId, bidId } = await hired();
+    await api()
+      .post(`/api/v1/bids/${bidId}/accept`)
+      .set(client.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({})
+      .expect(200);
+    const first = await pdf(att.auth, caseId);
+    expect(first.status).toBe(200);
+    const id = briefFileIdOf(bidId);
+    const before = await prisma.file.findUniqueOrThrow({ where: { id } });
+    // What storage-cleanup does to an unreferenced file after the grace.
+    await prisma.file.updateMany({
+      where: { id },
+      data: { deleted_at: new Date(), deleted_reason: 'orphan' },
+    });
+    const again = await pdf(att.auth, caseId);
+    expect(again.status).toBe(200);
+    const after = await prisma.file.findUniqueOrThrow({ where: { id } });
+    expect(after.deleted_at).toBeNull();
+    expect(after.s3_key).toBe(before.s3_key);
+    const list = await api()
+      .get(`/api/v1/cases/${caseId}/files`)
+      .set(att.auth)
+      .expect(200);
+    expect(
+      (list.body.data as { fileId: string }[]).map((f) => f.fileId),
+    ).toContain(id);
+  });
 });
