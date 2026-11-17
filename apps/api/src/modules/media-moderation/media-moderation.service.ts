@@ -21,7 +21,11 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withDeleted } from '../../prisma/soft-delete.extension';
 import { withTxRetry } from '../../prisma/tx-retry.util';
-import { FileReleaseService, S3StorageService } from '../files/files.public';
+import {
+  FileReleaseService,
+  MAX_INPUT_PIXELS,
+  S3StorageService,
+} from '../files/files.public';
 import {
   ModerationService,
   type ContentAction,
@@ -1047,7 +1051,8 @@ function csamEvent(
 /** Any image → JPEG ≤ CHECK_MAX_PX (Rekognition takes JPEG / PNG ≤ 5 MB;
  * smaller is also cheaper to send). */
 export async function toCheckJpeg(data: Buffer): Promise<Buffer> {
-  return sharp(data, { failOn: 'error' })
+  // Same decode cap as every other sharp reader (detective 16.11 A1-6).
+  return sharp(data, { failOn: 'error', limitInputPixels: MAX_INPUT_PIXELS })
     .rotate()
     .resize(CHECK_MAX_PX, CHECK_MAX_PX, {
       fit: 'inside',
