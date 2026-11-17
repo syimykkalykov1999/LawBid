@@ -33,7 +33,7 @@ const settingsWith = (stored: Record<string, unknown> = {}) =>
 
 describe('switch contract: defaults (a)', () => {
   const table: Array<[keyof typeof APP_SETTINGS, unknown]> = [
-    ['images.avif_enabled', false],
+    ['images.avif_enabled', true],
     ['case_fanout.enabled', 'auto'],
     ['billing.stripe_tax_enabled', false],
     ['rewards.enabled', false],
@@ -74,8 +74,16 @@ describe('switch contract: defaults (a)', () => {
 });
 
 describe('images.avif_enabled', () => {
+  it('default (nothing stored): on, twins served for uploads from 17.11', async () => {
+    const s = settingsWith();
+    expect((await imageQuality(s)).avif).toEqual({ quality: 75, effort: 2 });
+    expect(await avifSince(s)).toEqual(new Date('2026-11-17T00:00:00.000Z'));
+  });
   it('off: no AVIF twin quality, and none served', async () => {
-    const s = settingsWith({ 'images.avif_since': '2026-10-25T00:00:00Z' });
+    const s = settingsWith({
+      'images.avif_enabled': false,
+      'images.avif_since': '2026-10-25T00:00:00Z',
+    });
     expect((await imageQuality(s)).avif).toBeNull();
     expect(await avifSince(s)).toBeNull();
   });

@@ -78007,6 +78007,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotlineClaimDto"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Success envelope (docs/01 §7).",
@@ -78020,6 +78030,16 @@
           },
           "401": {
             "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
             "content": {
               "application/json": {
                 "schema": {
@@ -181123,6 +181143,16 @@
             "type": "boolean",
             "default": false,
             "description": "Notify at night too."
+          }
+        }
+      },
+      "HotlineClaimDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The notice’s claimToken (push data / `hotline:notify`); omit when the client taps «Позвонить сейчас» in the app itself."
           }
         }
       },

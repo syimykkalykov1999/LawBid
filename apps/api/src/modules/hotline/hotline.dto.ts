@@ -166,6 +166,18 @@ export class HotlineNotifyMeDto {
   allowNight?: boolean;
 }
 
+/** POST /hotline/requests/:id/claim — from the «Адвокат на линии» notice. */
+export class HotlineClaimDto {
+  @ApiPropertyOptional({
+    description:
+      'The notice’s claimToken (push data / `hotline:notify`); omit when the client taps «Позвонить сейчас» in the app itself.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  token?: string;
+}
+
 export class HotlineLawyerDto {
   @ApiProperty() id!: string;
   @ApiProperty() name!: string;

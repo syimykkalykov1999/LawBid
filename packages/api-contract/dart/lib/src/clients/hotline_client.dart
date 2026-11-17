@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/hotline_accepting_dto.dart';
+import '../models/hotline_claim_dto.dart';
 import '../models/hotline_config_envelope.dart';
 import '../models/hotline_counters_envelope.dart';
 import '../models/hotline_end_envelope.dart';
@@ -117,6 +118,7 @@ abstract class HotlineClient {
   @POST('/hotline/requests/{id}/claim')
   Future<HotlineRequestViewEnvelope> hotlineClaim({
     @Path('id') required String id,
+    @Body() HotlineClaimDto? body,
     @Extras() Map<String, dynamic>? extras,
   });
 

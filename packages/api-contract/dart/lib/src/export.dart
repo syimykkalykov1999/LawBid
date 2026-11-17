@@ -1513,6 +1513,7 @@ export 'models/hotline_request_dto.dart';
 export 'models/hotline_request_view_envelope.dart';
 export 'models/hotline_languages_dto.dart';
 export 'models/hotline_notify_me_dto.dart';
+export 'models/hotline_claim_dto.dart';
 export 'models/hotline_counter_dto.dart';
 export 'models/hotline_counters_dto.dart';
 export 'models/hotline_counters_envelope.dart';
