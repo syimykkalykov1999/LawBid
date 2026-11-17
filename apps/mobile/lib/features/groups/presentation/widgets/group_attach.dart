@@ -16,7 +16,7 @@ import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart'
     show kChatAttachmentMaxBytes, kChatFileExtensions;
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
-    show PickedChatFile;
+    show PickedChatFile, isPickedVideo;
 
 /// What the «+» menu of the composer offers.
 enum GroupAttachChoice { photos, camera, files, poll }
@@ -27,6 +27,9 @@ Future<GroupAttachChoice?> showGroupAttachMenu(
   Translator t, {
   bool media = true,
   bool poll = true,
+  // Groups WhatsApp parity: the gallery also offers videos (the 1:1
+  // chat's «Gallery» label, chat.attach.gallery).
+  bool video = false,
 }) =>
     showAppBottomSheet<GroupAttachChoice>(
       context: context,
@@ -38,7 +41,8 @@ Future<GroupAttachChoice?> showGroupAttachMenu(
             if (media) ...[
               AppListRow(
                 icon: AppIcons.photoLibraryOutlined,
-                label: t.t('chat.attach.photos'),
+                label:
+                    t.t(video ? 'chat.attach.gallery' : 'chat.attach.photos'),
                 showChevron: false,
                 onTap: () => Navigator.of(sheet).pop(GroupAttachChoice.photos),
               ),
@@ -80,8 +84,14 @@ Future<List<PickedChatFile>> pickGroupFiles(
   /// R-255: documents and videos stay on disk (ignored in the browser, which
   /// has no paths). A caller passes it only if it can send from a path.
   bool fromDisk = false,
+
+  /// Groups WhatsApp parity (the 1:1 chat's `pickChatFiles`): set → the
+  /// gallery also picks videos (when a video format is on); gets the
+  /// picked video, returns it ready to upload (compressed on the phone).
+  Future<XFile> Function(XFile video)? prepareVideo,
 }) async {
   final onDisk = fromDisk && !kIsWeb;
+  final videoOn = prepareVideo != null && (limits?.allowsVideo ?? true);
   final out = <PickedChatFile>[];
   var skipped = 0;
   final maxBytes = limits?.fileBytes ?? kChatAttachmentMaxBytes;
@@ -115,15 +125,52 @@ Future<List<PickedChatFile>> pickGroupFiles(
     case GroupAttachChoice.poll:
       return const [];
     case GroupAttachChoice.photos:
-      final picked = await ImagePicker().pickMultiImage(
-        maxWidth: ClientTuning.chatPhotoMaxPx,
-        maxHeight: ClientTuning.chatPhotoMaxPx,
-        imageQuality: ClientTuning.chatPhotoQuality,
-        requestFullMetadata: false,
-      );
+      // Groups WhatsApp parity: videos picked in the same gallery are
+      // compressed and sent too, as in the 1:1 chat (pickChatFiles).
+      final picked = videoOn
+          ? await ImagePicker().pickMultipleMedia(
+              maxWidth: ClientTuning.chatPhotoMaxPx,
+              maxHeight: ClientTuning.chatPhotoMaxPx,
+              imageQuality: ClientTuning.chatPhotoQuality,
+              requestFullMetadata: false,
+            )
+          : await ImagePicker().pickMultiImage(
+              maxWidth: ClientTuning.chatPhotoMaxPx,
+              maxHeight: ClientTuning.chatPhotoMaxPx,
+              imageQuality: ClientTuning.chatPhotoQuality,
+              requestFullMetadata: false,
+            );
       for (final f in picked) {
-        if (await f.length() > maxBytes) {
+        final video = videoOn && isPickedVideo(f);
+        // A phone video over the limit may still fit once compressed (the
+        // 1:1 rule); in the browser it is refused before it is read.
+        if (await f.length() > maxBytes && !(video && !kIsWeb)) {
           skipped++;
+          continue;
+        }
+        if (video) {
+          final ready = await prepareVideo(f);
+          final name =
+              ready.name.contains('.') ? ready.name : '${ready.name}.mp4';
+          final mime = mimeFor(name);
+          final size = await ready.length();
+          if (mime == null || size > maxBytes) {
+            skipped++;
+            continue;
+          }
+          if (onDisk) {
+            out.add(
+              (
+                bytes: Uint8List(0),
+                name: name,
+                mime: mime,
+                path: ready.path,
+                diskBytes: size,
+              ),
+            );
+          } else {
+            add(await ready.readAsBytes(), name);
+          }
           continue;
         }
         add(await readPickedPhoto(f), f.name);

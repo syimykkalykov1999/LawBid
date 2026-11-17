@@ -15,6 +15,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
@@ -343,6 +344,7 @@ class _GroupConversationScreenState
       t,
       media: d?.canSendMedia ?? true,
       poll: d?.canSendPolls ?? true,
+      video: ref.read(uploadLimitsProvider)[UploadPlace.chat].allowsVideo,
     );
     if (choice == null || !mounted) return;
     if (choice == GroupAttachChoice.poll) {
@@ -363,8 +365,24 @@ class _GroupConversationScreenState
       choice,
       limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
       fromDisk: fromDisk,
+      prepareVideo: _prepareVideo,
     );
     await _sendFiles(files, fromDisk: fromDisk);
+  }
+
+  /// Groups WhatsApp parity, copied from the 1:1 chat (ConversationScreen):
+  /// a video is re-encoded on the phone to at most the admin's
+  /// `media.chat_video_max_height` before upload — the one encode it gets;
+  /// the original goes when compressing fails or doesn't help.
+  Future<XFile> _prepareVideo(XFile video) async {
+    final t = ref.read(translatorProvider);
+    showAppSnackBar(context, t.t('chat.attach.videoPreparing'));
+    final limits = chatVideoLimitsOf(ref.read(featureFlagsControllerProvider));
+    final out =
+        await ref.read(videoCompressorProvider).compress(video, limits: limits);
+    return out == null
+        ? video
+        : XFile(out.path, name: 'video.mp4', mimeType: 'video/mp4');
   }
 
   /// Files dragged onto the group in the browser go out like picked ones.
