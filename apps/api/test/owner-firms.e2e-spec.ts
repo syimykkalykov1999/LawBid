@@ -7,6 +7,8 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { FirmsService } from '../src/modules/firms/firms.service';
+import { AccountAnonymizationService } from '../src/modules/privacy/account-anonymization.service';
 import { shardContext } from '../src/sharding/shard-context';
 
 /**
@@ -425,6 +427,191 @@ describe('Firm profile (e2e)', () => {
     ).toBe(false);
   });
 
+  // Firms audit 16.11 (PR-2): ownership moves, the owner leaves only after
+  // handing over, closing tells everyone, an erased owner hands over.
+  async function firmWith(
+    name: string,
+    owner: { auth: Record<string, string> },
+    ...members: { username: string; auth: Record<string, string> }[]
+  ): Promise<string> {
+    const made = await api()
+      .post('/api/v1/firms')
+      .set(owner.auth)
+      .send({ name })
+      .expect(201);
+    for (const m of members) {
+      await api()
+        .post('/api/v1/firms/me/members')
+        .set(owner.auth)
+        .send({ username: m.username })
+        .expect(200);
+      await api().post('/api/v1/firms/me/accept').set(m.auth).expect(200);
+    }
+    return made.body.data.id as string;
+  }
+
+  async function firmNotes(who: { auth: Record<string, string> }) {
+    const res = await api()
+      .get('/api/v1/notifications')
+      .set(who.auth)
+      .expect(200);
+    return (
+      res.body.data as { type: string; payload: Record<string, unknown> }[]
+    )
+      .filter((n) => n.type === 'firm_update')
+      .map((n) => n.payload);
+  }
+
+  it('the owner hands the firm to a member, stays as a member and can then leave', async () => {
+    const owner = await lawyer('NJ');
+    const m = await lawyer('NJ');
+    const firmId = await firmWith('Hand Over LLP', owner, m);
+
+    // Not to a stranger, not to himself.
+    const stranger = await lawyer('NJ');
+    await api()
+      .post('/api/v1/firms/me/owner')
+      .set(owner.auth)
+      .send({ attorneyId: stranger.id })
+      .expect(404);
+    await api()
+      .post('/api/v1/firms/me/owner')
+      .set(owner.auth)
+      .send({ attorneyId: owner.id })
+      .expect(400);
+    // A plain member cannot hand it over.
+    await api()
+      .post('/api/v1/firms/me/owner')
+      .set(m.auth)
+      .send({ attorneyId: owner.id })
+      .expect(403);
+
+    const moved = await api()
+      .post('/api/v1/firms/me/owner')
+      .set(owner.auth)
+      .send({ attorneyId: m.id })
+      .expect(200);
+    expect(moved.body.data.ownerId).toBe(m.id);
+    const roles = Object.fromEntries(
+      (moved.body.data.members as { attorneyId: string; role: string }[]).map(
+        (x) => [x.attorneyId, x.role],
+      ),
+    );
+    expect(roles).toEqual({ [owner.id]: 'member', [m.id]: 'owner' });
+    expect(await firmNotes(m)).toContainEqual(
+      expect.objectContaining({
+        kind: 'owner_transferred',
+        firmId,
+        actorId: owner.id,
+      }),
+    );
+    // The former owner is a member now and leaves like one.
+    await api()
+      .delete(`/api/v1/firms/me/members/${owner.id}`)
+      .set(owner.auth)
+      .expect(204);
+    await api().get('/api/v1/firms/me').set(owner.auth).expect(404);
+    const left = await api().get('/api/v1/firms/me').set(m.auth).expect(200);
+    expect(left.body.data.ownerId).toBe(m.id);
+  });
+
+  it('the owner leaves only after handing over; alone, leaving closes the firm', async () => {
+    const owner = await lawyer('NJ');
+    const m = await lawyer('NJ');
+    await firmWith('Stay LLP', owner, m);
+    const refused = await api()
+      .delete(`/api/v1/firms/me/members/${owner.id}`)
+      .set(owner.auth);
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.code).toBe('FIRM_OWNER_MUST_TRANSFER');
+    await api().get('/api/v1/firms/me').set(m.auth).expect(200);
+
+    const solo = await lawyer('NJ');
+    const invited = await lawyer('NJ');
+    await api()
+      .post('/api/v1/firms')
+      .set(solo.auth)
+      .send({ name: 'Solo LLP' })
+      .expect(201);
+    await api()
+      .post('/api/v1/firms/me/members')
+      .set(solo.auth)
+      .send({ username: invited.username })
+      .expect(200);
+    await api()
+      .delete(`/api/v1/firms/me/members/${solo.id}`)
+      .set(solo.auth)
+      .expect(204);
+    await api().get('/api/v1/firms/me').set(solo.auth).expect(404);
+    await api().get('/api/v1/firms/me').set(invited.auth).expect(404);
+    expect(await firmNotes(invited)).toContainEqual(
+      expect.objectContaining({ kind: 'closed' }),
+    );
+  });
+
+  it('closing the firm removes it for everyone and tells each lawyer', async () => {
+    const owner = await lawyer('NJ');
+    const a = await lawyer('NJ');
+    const b = await lawyer('IL');
+    const firmId = await firmWith('Closing LLP', owner, a, b);
+    await api().delete('/api/v1/firms/me').set(a.auth).expect(403);
+    await api().delete('/api/v1/firms/me').set(owner.auth).expect(204);
+    for (const who of [owner, a, b]) {
+      await api().get('/api/v1/firms/me').set(who.auth).expect(404);
+    }
+    await api().get(`/api/v1/firms/${firmId}`).set(a.auth).expect(404);
+    for (const who of [a, b]) {
+      expect(await firmNotes(who)).toContainEqual(
+        expect.objectContaining({ kind: 'closed', firmId, actorId: owner.id }),
+      );
+    }
+    expect(await firmNotes(owner)).toEqual([]);
+    // Everyone is free to start or join another firm.
+    await api()
+      .post('/api/v1/firms')
+      .set(a.auth)
+      .send({ name: 'After LLP' })
+      .expect(201);
+  });
+
+  it('an erased owner hands the firm to the longest-standing member, else it closes', async () => {
+    const owner = await lawyer('NJ');
+    const first = await lawyer('NJ');
+    const later = await lawyer('NJ');
+    const firmId = await firmWith('Heir LLP', owner, first, later);
+    await prisma.firmMember.update({
+      where: { attorney_id: later.id },
+      data: { created_at: new Date(Date.now() + 60_000) },
+    });
+    // The real account erasure of the owner.
+    expect(await app.get(AccountAnonymizationService).anonymize(owner.id)).toBe(
+      true,
+    );
+    const firms = app.get(FirmsService);
+    const firm = await prisma.firm.findUnique({
+      where: { id: firmId },
+      include: { members: true },
+    });
+    expect(firm?.owner_id).toBe(first.id);
+    expect(firm?.members.map((x) => x.attorney_id).sort()).toEqual(
+      [first.id, later.id].sort(),
+    );
+    expect(firm?.members.find((x) => x.attorney_id === first.id)?.role).toBe(
+      'owner',
+    );
+    expect(await firmNotes(first)).toContainEqual(
+      expect.objectContaining({ kind: 'owner_transferred', firmId }),
+    );
+    // A plain member erased just leaves.
+    await firms.onAccountErased(later.id);
+    expect(
+      await prisma.firmMember.findUnique({ where: { attorney_id: later.id } }),
+    ).toBeNull();
+    // The last lawyer erased closes the firm.
+    await firms.onAccountErased(first.id);
+    expect(await prisma.firm.findUnique({ where: { id: firmId } })).toBeNull();
+  });
+
   it('is off behind the flag: every firm route refuses', async () => {
     const owner = await lawyer('NJ');
     const m = await lawyer('NJ');
@@ -459,6 +646,11 @@ describe('Firm profile (e2e)', () => {
         api()
           .get(`/api/v1/firms/me/cases/${randomUUID()}/eligible`)
           .set(owner.auth),
+        api()
+          .post('/api/v1/firms/me/owner')
+          .set(owner.auth)
+          .send({ attorneyId: m.id }),
+        api().delete('/api/v1/firms/me').set(owner.auth),
       ];
       for (const r of await Promise.all(calls)) {
         expect(r.status).toBe(409);

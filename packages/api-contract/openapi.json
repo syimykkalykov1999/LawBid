@@ -15838,6 +15838,84 @@
         "tags": [
           "firms"
         ]
+      },
+      "delete": {
+        "operationId": "closeFirm",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner closes the firm; its lawyers are told",
+        "tags": [
+          "firms"
+        ]
       }
     },
     "/firms/me/members": {
@@ -16072,7 +16150,7 @@
             }
           },
           "409": {
-            "description": "Conflict: FEATURE_DISABLED",
+            "description": "Conflict: FEATURE_DISABLED, FIRM_OWNER_MUST_TRANSFER",
             "content": {
               "application/json": {
                 "schema": {
@@ -16118,6 +16196,123 @@
           }
         ],
         "summary": "Leave, decline, or (owner) remove a member",
+        "tags": [
+          "firms"
+        ]
+      }
+    },
+    "/firms/me/owner": {
+      "post": {
+        "operationId": "transferFirmOwner",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferFirmOwnerDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FirmEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Owner makes an active lawyer the owner (stays a member)",
         "tags": [
           "firms"
         ]
@@ -138073,6 +138268,7 @@
           "BAR_NUMBER_FORMAT_INVALID",
           "FIRM_ALREADY_MEMBER",
           "FIRM_FULL",
+          "FIRM_OWNER_MUST_TRANSFER",
           "BID_LICENSE_PENDING",
           "BAR_ATTEMPTS_COOLDOWN",
           "CASE_LIMIT_REACHED",
@@ -146168,6 +146364,18 @@
         },
         "required": [
           "username"
+        ]
+      },
+      "TransferFirmOwnerDto": {
+        "type": "object",
+        "properties": {
+          "attorneyId": {
+            "type": "string",
+            "description": "An active lawyer of the firm"
+          }
+        },
+        "required": [
+          "attorneyId"
         ]
       },
       "FirmMemberListEnvelope": {
