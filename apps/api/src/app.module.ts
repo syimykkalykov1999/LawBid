@@ -22,6 +22,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { HeavyHittersModule } from './common/heavy-hitters/heavy-hitters.module';
 import { HeavyHittersInterceptor } from './common/heavy-hitters/heavy-hitters.interceptor';
+import { IdempotencyInterceptor } from './idempotency/idempotency.interceptor';
 import { AdminSummaryModule } from './common/admin-summary/admin-summary.module';
 import { OpsModule } from './common/ops/ops.module';
 import { SeoGeneratorModule } from './common/seo/seo-generator.module';
@@ -509,6 +510,12 @@ const isDev =
     { provide: APP_INTERCEPTOR, useClass: ShardContextInterceptor },
     // WP-G: sampled per-user / per-case request and database-time counts.
     { provide: APP_INTERCEPTOR, useClass: HeavyHittersInterceptor },
+    // Verify 17.11 (Stripe: every POST takes an Idempotency-Key): the app
+    // stamps a key on each creating POST and RetryInterceptor re-sends it
+    // after a timeout; routes without their own @UseInterceptors (comments,
+    // stars gifts and packs, …) created the thing twice. Only POSTs that
+    // carry the header; a route's own copy of it runs once (see the class).
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
     // OQ-048: per signed-in user (assistants share an office IP).
     { provide: APP_GUARD, useClass: UserThrottlerGuard },
   ],

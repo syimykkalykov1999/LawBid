@@ -39,6 +39,7 @@ function context(
       name.toLowerCase() === 'idempotency-key' ? key : undefined,
   };
   const ctx = {
+    getType: () => 'http',
     switchToHttp: () => ({ getRequest: () => req, getResponse: () => res }),
   } as unknown as ExecutionContext;
   return { ctx, res };
@@ -50,6 +51,31 @@ function handler(result: () => Observable<unknown>) {
 }
 
 describe('IdempotencyInterceptor', () => {
+  it('verify 17.11: global + route copy on one request claims the key once', async () => {
+    const redis = new TestRedis();
+    const outer = new IdempotencyInterceptor(redis as never);
+    const inner = new IdempotencyInterceptor(redis as never);
+    let runs = 0;
+    const route = handler(() => defer(() => Promise.resolve({ n: ++runs })));
+    const { ctx } = context('k-nested', { a: 1 });
+    // The route's own copy runs inside the global one.
+    const chain = {
+      handle: () => inner.intercept(ctx, route),
+    } as unknown as CallHandler<unknown>;
+    await expect(lastValueFrom(outer.intercept(ctx, chain))).resolves.toEqual({
+      n: 1,
+    });
+    // A retry with the same key (a new request object) replays.
+    const again = context('k-nested', { a: 1 });
+    const chain2 = {
+      handle: () => inner.intercept(again.ctx, route),
+    } as unknown as CallHandler<unknown>;
+    await expect(
+      lastValueFrom(outer.intercept(again.ctx, chain2)),
+    ).resolves.toEqual({ n: 1 });
+    expect(runs).toBe(1);
+  });
+
   it('passes straight through without a key', async () => {
     const redis = new TestRedis();
     const interceptor = new IdempotencyInterceptor(redis as never);

@@ -30,6 +30,8 @@ export const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
  * blocking the client's retries for the full replay window. */
 export const IDEMPOTENCY_PENDING_TTL_SECONDS = 60;
 const HEADER = 'idempotency-key';
+/** Set on a request once an instance of the interceptor has taken it. */
+const IDEMPOTENCY_SEEN = Symbol('idempotency.seen');
 const MAX_KEY_LENGTH = 255;
 
 type StoredRecord =
@@ -51,8 +53,8 @@ return 0
 
 /**
  * docs/06_PRODUCTION.md §12 (.cursorrules): "Все POST, создающие
- * ресурс/деньги: Idempotency-Key." Opt-in per route via
- * `@UseInterceptors(IdempotencyInterceptor)`.
+ * ресурс/деньги: Idempotency-Key." Global for every POST that carries the
+ * header (verify 17.11); a route may still name it — it then runs once.
  *
  * Key: `idempotency:<userId-or-anon>:<METHOD>:<url>:<Idempotency-Key>`.
  *
@@ -86,11 +88,18 @@ export class IdempotencyInterceptor implements NestInterceptor {
     context: ExecutionContext,
     next: CallHandler<unknown>,
   ): Observable<unknown> {
+    if (context.getType() !== 'http') return next.handle();
     const req = context.switchToHttp().getRequest<Request>();
     const res = context.switchToHttp().getResponse<Response>();
     const key = req.header(HEADER);
+    // Verify 17.11: registered globally AND still named on some routes —
+    // the first (outer) instance owns the request, an inner one only passes
+    // it on (a second claim would find its own pending record → 409).
+    const marked = req as { [IDEMPOTENCY_SEEN]?: true };
+    if (marked[IDEMPOTENCY_SEEN]) return next.handle();
+    marked[IDEMPOTENCY_SEEN] = true;
 
-    if (!key) {
+    if (!key || req.method === 'GET' || req.method === 'HEAD') {
       // Enforcement (400 IDEMPOTENCY_KEY_REQUIRED) belongs to the route's
       // DTO/guard — this interceptor only handles replay when a key IS
       // present, to stay a single-purpose unit.

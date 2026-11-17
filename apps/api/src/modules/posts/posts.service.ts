@@ -359,16 +359,28 @@ export class PostsService {
             throw e;
           });
         if (files.length > 0) {
-          await tx.postMedia.createMany({
-            data: files.map((f, i) => ({
-              post_id: created.id,
-              file_id: f.id,
-              media_type: 'image' as const,
-              position: i,
-              width: f.width,
-              height: f.height,
-            })),
-          });
+          await tx.postMedia
+            .createMany({
+              data: files.map((f, i) => ({
+                post_id: created.id,
+                file_id: f.id,
+                media_type: 'image' as const,
+                position: i,
+                width: f.width,
+                height: f.height,
+              })),
+            })
+            .catch((e: unknown) => {
+              // Verify 17.11: the unique post_media_file_id_one_post_key
+              // (prisma/concurrent) — a parallel create took this photo.
+              if ((e as { code?: string }).code === 'P2002') {
+                throw new ConflictException({
+                  code: ErrorCode.FILE_NOT_ATTACHABLE,
+                  message: 'This photo is already used in another post.',
+                });
+              }
+              throw e;
+            });
         }
         if (attachments.length > 0) {
           await tx.postAttachment.createMany({
