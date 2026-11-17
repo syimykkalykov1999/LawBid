@@ -18,6 +18,18 @@ const screens25Ru = <String, String>{
   'cpay.req.cancel.message': 'Клиент больше не сможет его оплатить.',
   'firm.leave.title': 'Выйти из фирмы?',
   'firm.leave.message': 'Чтобы вернуться, понадобится новое приглашение.',
+  'firm.transfer': 'Передать владение',
+  'firm.transfer.pick': 'Кому передать фирму',
+  'firm.transfer.title': 'Сделать {name} владельцем?',
+  'firm.transfer.message':
+      '{name} станет владельцем фирмы, а вы останетесь в ней адвокатом.',
+  'firm.transfer.confirm': 'Передать',
+  'firm.transfer.none':
+      'Сначала пригласите адвоката: передать фирму можно только тому, кто уже в ней.',
+  'firm.close': 'Закрыть фирму',
+  'firm.close.title': 'Закрыть фирму?',
+  'firm.close.message':
+      'Фирма пропадёт у всех её адвокатов, каждому придёт уведомление. Отменить это нельзя.',
   'review.photo.remove.title': 'Убрать фото?',
   'review.photo.remove.message': 'Фото не попадёт в отзыв.',
   'chat.archived': 'Чат в архиве',
@@ -52,6 +64,18 @@ const screens25En = <String, String>{
   'cpay.req.cancel.message': 'The client will no longer be able to pay it.',
   'firm.leave.title': 'Leave the firm?',
   'firm.leave.message': "To come back, you'll need a new invitation.",
+  'firm.transfer': 'Transfer ownership',
+  'firm.transfer.pick': 'Choose the new owner',
+  'firm.transfer.title': 'Make {name} the owner?',
+  'firm.transfer.message':
+      '{name} will own the firm, and you will stay in it as a lawyer.',
+  'firm.transfer.confirm': 'Transfer',
+  'firm.transfer.none':
+      'Invite a lawyer first: you can hand the firm only to someone already in it.',
+  'firm.close': 'Close firm',
+  'firm.close.title': 'Close the firm?',
+  'firm.close.message':
+      "The firm disappears for all its lawyers, and each of them is notified. This can't be undone.",
   'review.photo.remove.title': 'Remove photo?',
   'review.photo.remove.message': "The photo won't be added to the review.",
   'chat.archived': 'Chat archived',

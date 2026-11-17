@@ -148,6 +148,9 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'VideoAsset',
       'File',
       'ConnectedCustomer',
+      // Firms audit 16.11 (PR-2): the lawyer leaves the firm
+      // (FirmsService.onAccountErased).
+      'FirmMember',
     ),
     scrub: list(
       'VerificationRequest',
@@ -238,8 +241,9 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'AssistantActivity',
       'AssistantLiabilityAcceptance',
       'AssistantSeatChange',
+      // Firms audit 16.11 (PR-2): an erased owner hands the firm over first
+      // (FirmsService.onAccountErased); the firm row stays.
       'Firm',
-      'FirmMember',
       'OutreachActivity',
       'AttorneyTrust',
       'Report',
