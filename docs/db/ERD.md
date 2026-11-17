@@ -539,6 +539,7 @@ erDiagram
     DateTime confirmation_required_at "nullable"
     DateTime confirmed_at "nullable"
     DateTime confirm_reminded_at "nullable"
+    String sent_by "nullable"
     Int shard_id
   }
   bid_offers {

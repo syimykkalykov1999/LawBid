@@ -632,6 +632,10 @@ enum NotificationType {
   // Owner 2026-10-25 (privacy round 13, S13-14): "your account will be
   // deleted on <date>" at day 0 and day 13 of the grace period.
   account_deletion_scheduled
+  // Firms audit 16.11: one type for a firm's events; payload.kind says which
+  // (bid_sent_for_you, invite, owner_transferred, closed, bid_joined) and
+  // picks the `notif.firm.<kind>` text.
+  firm_update
 
   @@map("notification_type")
 }
@@ -2183,6 +2187,10 @@ model Bid {
   confirmed_at             DateTime?         @db.Timestamptz
   /// The one reminder has gone out for the current wait.
   confirm_reminded_at      DateTime?         @db.Timestamptz
+  /// Firms audit 16.11 (PR-1, rest of row 167): who really sent the bid: the
+  /// attorney, or the firm owner sending as a member (`sendAsAttorneyId`).
+  /// Null on bids sent before this column existed.
+  sent_by                  String?           @db.Uuid
 
   accepted_for_case  Case?                @relation("CaseAcceptedBid")
   offers             BidOffer[]

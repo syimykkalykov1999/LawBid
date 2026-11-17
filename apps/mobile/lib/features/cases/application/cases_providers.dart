@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/cache/keep_alive_for.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/platform/review_prompter.dart';
@@ -21,10 +22,14 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 Duration? _noRetry(int retryCount, Object error) => null;
 
 /// Owner 2026-10-14: the lawyers of my firm whose licence fits the case
-/// (empty without a firm or when the feature is off).
+/// (empty without a firm or when the feature is off). Firms audit 16.11
+/// (PR-1): with the feature off the server is not asked at all.
 final firmSendersProvider =
     FutureProvider.autoDispose.family<List<api.FirmMemberDto>, String>(
   (ref, caseId) async {
+    if (!ref.watch(featureFlagsControllerProvider).isEnabled('firm_profiles')) {
+      return const [];
+    }
     try {
       return (await guardApiCall(
         () => api.FirmsClient(ref.watch(dioProvider))
