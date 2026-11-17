@@ -397,29 +397,20 @@ class PushService {
     await send();
   }
 
-  /// Sign-out: this device stops receiving pushes.
-  Future<void> unregister() async {
+  /// Sign-out: this device stops receiving pushes. The local half runs at
+  /// once; the tokens it returns are deleted on the server by the caller
+  /// in the background (R2-A #10, sign_out.dart), with the bearer of the
+  /// session that just ended.
+  ({String? voip, String? push}) detachForSignOut() {
     _startedFor = null;
     // Owner 2026-10-22: no chat of this account stays in the shade.
     unawaited(chatNotificationsChannel.clearAll());
     final voip = _voipToken;
     _voipToken = null;
-    if (voip != null) {
-      try {
-        await _ref.read(notificationsRepositoryProvider).deleteVoipToken(voip);
-      } on Object {
-        // The server also drops tokens of signed-out sessions.
-      }
-    }
     final token = _registrar?.token;
     _registrar?.stop();
     _registrar = null;
-    if (token == null) return;
-    try {
-      await _ref.read(notificationsRepositoryProvider).deletePushToken(token);
-    } on Object {
-      // The server also drops tokens of signed-out sessions.
-    }
+    return (voip: voip, push: token);
   }
 
   /// A call from a group chat: a light prompt in the app, not a ring.

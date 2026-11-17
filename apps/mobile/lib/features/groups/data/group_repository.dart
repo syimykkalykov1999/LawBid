@@ -199,6 +199,15 @@ class GroupRepository {
     return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
   }
 
+  /// Row 110 (Telegram «Search members»): the members whose name or
+  /// @username matches [q] (one page, any alphabet).
+  Future<List<api.GroupMemberDto>> searchMembers(String id, String q) async {
+    final env = await guardApiCall(
+      () => _c.listGroupMembers(id: id, q: q.trim()),
+    );
+    return env.data;
+  }
+
   // --- messages -------------------------------------------------------------
 
   Future<CursorPage<api.GroupMessageDto>> messages(

@@ -156,11 +156,14 @@ abstract class GroupsClient {
   /// Sweep B-c1: members page by page (owner, admins, then by join time).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [q] - Only members whose name or @username matches (one page, no cursor).
   @GET('/groups/{id}/members')
   Future<GroupMemberListEnvelope> listGroupMembers({
     @Path('id') required String id,
     @Query('limit') num? limit = 50,
     @Query('cursor') String? cursor,
+    @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });
 

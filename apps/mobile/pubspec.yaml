@@ -81,7 +81,7 @@ dependencies:
   drift_flutter: ^0.3.1
   # The web build's in-tab fallback database (core/persistence/
   # drift_memory_web.dart); the same version drift already uses.
-  sqlite3: ^3.5.2
+  sqlite3: ^3.9.0
 
   # CLDR plural rules + date/number/currency formatting per interface
   # language (file 01 §9.2/§9.4 — core/l10n/plural_rules.dart,
@@ -131,7 +131,7 @@ dependencies:
   firebase_messaging: ^17.0.1
   # Owner 2026-10-22: native crashes / ANRs in Sentry (prod release only,
   # core/diagnostics/sentry_native.dart).
-  sentry_flutter: ^10.1.0
+  sentry_flutter: ^10.3.0
   app_badge_plus: ^1.4.0
   flutter_timezone: ^5.1.1
   flutter_stripe: ^14.2.0
@@ -156,7 +156,7 @@ dependencies:
   proximity_sensor: ^2.0.0
   video_compress: ^3.1.4
   device_info_plus: ^13.3.0
-  flutter_local_notifications: ^22.3.2
+  flutter_local_notifications: ^23.0.0
   timezone: ^0.11.2
   phone_numbers_parser: ^9.0.29
   # Owner 2026-10-20: the system dialogs (date, time, OK / Cancel) speak the
@@ -192,7 +192,7 @@ dependencies:
   # docs/runbooks/APP_CHECK.md). Official FlutterFire; the version pairs
   # with the pinned firebase_core.
   firebase_app_check: ^0.5.1
-  passkeys: ^2.23.1
+  passkeys: ^2.24.1
   # Its availability query (features/auth/data/passkey_authenticator.dart).
   passkeys_platform_interface: ^2.11.0
   in_app_review: ^2.0.12

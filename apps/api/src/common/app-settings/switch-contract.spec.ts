@@ -58,6 +58,11 @@ describe('switch contract: defaults (a)', () => {
     ['auth.additional_identifiers_enabled', false],
     ['today.sentry_enabled', false],
     ['scale.db_split_enabled', false],
+    // Owner 16.11: the hotline is free for every attorney while payments are off.
+    ['hotline.mode', 'on_for_all'],
+    ['hotline.short_notice_enabled', false],
+    ['hotline.review_enabled', true],
+    ['hotline.client_steps_enabled', true],
   ];
   it.each(table)('%s defaults to %p with nothing stored', async (key, want) => {
     expect(APP_SETTINGS[key]).toBe(want);

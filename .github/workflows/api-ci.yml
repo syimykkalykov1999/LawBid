@@ -217,7 +217,7 @@ jobs:
         # Ready-made linter used by many Postgres teams (https://squawkhq.com);
         # version pinned. No install scripts: the binary ships in an
         # optional platform package.
-        run: npm install -g --ignore-scripts squawk-cli@2.70.0
+        run: npm install -g --ignore-scripts squawk-cli@2.72.0
 
       - name: Shared registries - generators and sort order (conflict-proof lists)
         # docs/dev/SHARED_REGISTRIES.md: hand-kept lists are sorted by

@@ -157,11 +157,13 @@ def read_mode(name):
 
 
 def own_replicas(db_id, ids):
-    """Only the copies modules/growth creates (`<db>-replica-N`, same Region).
-    A cross-Region copy is listed by ARN and anything else by another name:
-    neither is ours to resize (the IAM policy allows only this name pattern)."""
-    prefix = db_id + "-replica-"
-    return tuple(sorted(x for x in ids or () if ":" not in x and x.startswith(prefix)))
+    """Only our own copies, same Region: `<db>-replica-N` (modules/growth,
+    «Авто» aws.rds_replicas) and `<db>-readreplica` (the admin button,
+    replica-admin.service.ts; row 196, 16.11). A cross-Region copy is listed
+    by ARN and anything else by another name: neither is ours to resize (the
+    IAM policy allows only these names)."""
+    prefix, button = db_id + "-replica-", db_id + "-readreplica"
+    return tuple(sorted(x for x in ids or () if ":" not in x and (x.startswith(prefix) or x == button)))
 
 
 def describe(db_id):
