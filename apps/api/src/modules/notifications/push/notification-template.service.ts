@@ -76,7 +76,9 @@ export class NotificationTemplateService {
       return this.workspaceText(base, kind, lang);
     }
     if (
-      (type === 'consultation_update' || type === 'legal_answer_update') &&
+      (type === 'consultation_update' ||
+        type === 'legal_answer_update' ||
+        type === 'firm_update') &&
       typeof kind === 'string'
     ) {
       return this.kindText(base, type, kind, lang);
@@ -134,7 +136,8 @@ export class NotificationTemplateService {
   }
 
   /** Owner 2026-10-20: booking / Q&A pushes say what happened
-   * (`notif.consult.<kind>`, `notif.qa.<kind>`). */
+   * (`notif.consult.<kind>`, `notif.qa.<kind>`); firms audit 16.11: so do
+   * the firm's (`notif.firm.<kind>`). */
   private async kindText(
     base: TemplateText,
     type: NotificationType,
@@ -142,7 +145,12 @@ export class NotificationTemplateService {
     lang: string,
   ): Promise<TemplateText> {
     if (!/^[a-z_]{1,40}$/.test(kind)) return base;
-    const scope = type === 'consultation_update' ? 'consult' : 'qa';
+    const scope =
+      type === 'consultation_update'
+        ? 'consult'
+        : type === 'firm_update'
+          ? 'firm'
+          : 'qa';
     const body = await this.lookup(lang, `notif.${scope}.${kind}`);
     return body ? { title: base.title, body } : base;
   }

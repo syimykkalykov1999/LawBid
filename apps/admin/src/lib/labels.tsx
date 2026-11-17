@@ -652,6 +652,7 @@ const AUDIT_ACTION: Record<string, string> = {
   'admin.sticker.remove': 'Стикер удалён',
   'config.app_config': 'Изменена настройка',
   'config.flag': 'Изменена функция (флаг)',
+  'config.flag_rebucketed': 'Функция: сменилось деление людей (у кого она включена)',
   'config.language': 'Изменён язык',
   'legal.create': 'Создан юр. документ',
   'legal.publish': 'Опубликован юр. документ',

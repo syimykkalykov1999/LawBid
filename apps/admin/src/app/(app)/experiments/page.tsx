@@ -8,13 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Badge, Card } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/empty';
-import { Input, Label, Textarea } from '@/components/ui/input';
+import { Input, Label, Select, Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { ApiError, api, errorText } from '@/lib/api/client';
 import { formatDateTime } from '@/lib/utils';
 import {
   asReport,
   formatMetric,
+  HASH_VERSION_OPTIONS,
+  hashVersionLabel,
   parseVariantWeights,
   statusLabel,
   SURFACE_WEIGHTS,
@@ -152,7 +154,7 @@ function ExperimentCard({
             {e.stoppedBySystem ? <Badge tone="warning">остановлен защитой</Badge> : null}
           </div>
           <p className="mt-1 break-words text-xs text-faint">
-            ключ <code>{e.key}</code> · где: {e.surface} · варианты: {e.variants.map((v) => `${v.key} ${v.weight}%${v.weights && Object.keys(v.weights).length ? ` (${Object.entries(v.weights).map(([k, w]) => `${k}=${w}`).join(', ')})` : ''}`).join(', ')}
+            ключ <code>{e.key}</code> · где: {e.surface} · деление людей: {hashVersionLabel(e.hashVersion)} · варианты: {e.variants.map((v) => `${v.key} ${v.weight}%${v.weights && Object.keys(v.weights).length ? ` (${Object.entries(v.weights).map(([k, w]) => `${k}=${w}`).join(', ')})` : ''}`).join(', ')}
           </p>
           {e.hypothesis ? <p className="mt-1.5 text-sm text-muted">{e.hypothesis}</p> : null}
           {e.stopReason ? <p className="mt-1.5 text-sm text-muted">Причина остановки: {e.stopReason}</p> : null}
@@ -304,6 +306,7 @@ function CreateDialog({
   const newWeights = 'weights' in parsedWeights ? parsedWeights.weights : {};
   const [reportsPct, setReportsPct] = useState(25);
   const [errorsPct, setErrorsPct] = useState(25);
+  const [hashVersion, setHashVersion] = useState<number>(HASH_VERSION_OPTIONS[0].value);
 
   const create = useMutation({
     mutationFn: async () =>
@@ -321,6 +324,7 @@ function CreateDialog({
                 : { key: variantKey, weight: newWeight },
             ],
             guardrails: { reportsRelIncreasePct: reportsPct, errorsRelIncreasePct: errorsPct },
+            hashVersion,
           },
         })
       ).data,
@@ -364,6 +368,17 @@ function CreateDialog({
         <div>
           <Label>Доля нового варианта среди попавших в тест, %</Label>
           <Input type="number" min={1} max={99} value={newWeight} onChange={(e) => setNewWeight(Number(e.target.value))} />
+        </div>
+        <div>
+          <Label htmlFor="exp-hash">Как делить людей на группы</Label>
+          <Select id="exp-hash" value={hashVersion} onChange={(e) => setHashVersion(Number(e.target.value))}>
+            {HASH_VERSION_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </Select>
+          <p className="mt-1 text-xs text-faint">Новое делит ровно и независимо от других тестов. Старое — только чтобы повторить прежний тест на тех же людях. После создания не меняется.</p>
         </div>
         <div>
           <Label>Что хотим проверить (по желанию)</Label>
