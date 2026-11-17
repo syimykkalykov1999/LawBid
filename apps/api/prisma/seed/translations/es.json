@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "El archivo no pasó la verificación. Elija otra foto.",
   "cbadge.hint": "Una insignia dorada junto a su nombre",
   "cbadge.lead": "La insignia dorada muestra que su cuenta fue verificada. Envíe documentos y los revisamos manualmente. Tras la aprobación, la insignia se activa con una suscripción.",
+  "cbadge.lead.pay": "La insignia dorada junto a tu nombre y las ventajas de la suscripción. No se necesitan documentos: suscríbete y se activa al instante.",
   "cbadge.pay": "Suscribirse por {price} al mes",
   "cbadge.pending.text": "Estamos revisando sus documentos. Recibirá una notificación cuando terminemos.",
   "cbadge.pending.title": "En revisión",

@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "Fayil ɗin bai ci bincike ba. Zaɓi wani hoto.",
   "cbadge.hint": "Alamar zinariya kusa da sunanku",
   "cbadge.lead": "Alamar zinariya tana nuna cewa an tabbatar da asusunku. Ku aika takardu kuma za mu duba su da hannu. Bayan amincewa alamar tana kunnuwa da biyan kuɗin sabis.",
+  "cbadge.lead.pay": "Alamar zinariya kusa da sunanka da fa'idodin biyan kuɗi. Ba a buƙatar takardu: yi rajista kuma zai kunna nan take.",
   "cbadge.pay": "Yi rajista da {price} a wata",
   "cbadge.pending.text": "Muna duba takardunku. Za ku sami sanarwa idan mun gama.",
   "cbadge.pending.title": "Ana dubawa",

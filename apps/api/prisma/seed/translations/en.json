@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "The file did not pass the check. Pick another photo.",
   "cbadge.hint": "A gold check next to your name",
   "cbadge.lead": "The gold check shows your account was verified. Send documents and we review them by hand. After approval the check turns on with a subscription.",
+  "cbadge.lead.pay": "The gold check next to your name and the extras of the subscription. No documents needed: subscribe and it turns on at once.",
   "cbadge.pay": "Subscribe for {price} a month",
   "cbadge.pending.text": "We are looking at your documents. You get a notification when we are done.",
   "cbadge.pending.title": "Under review",

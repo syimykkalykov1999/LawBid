@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "Ni phasiodd y ffeil y gwiriad. Dewiswch lun arall.",
   "cbadge.hint": "Tic aur wrth ymyl eich enw",
   "cbadge.lead": "Mae'r tic aur yn dangos bod eich cyfrif wedi'i ddilysu. Anfonwch ddogfennau a byddwn yn eu hadolygu â llaw. Ar ôl eu cymeradwyo, mae'r tic yn troi ymlaen gyda thanysgrifiad.",
+  "cbadge.lead.pay": "Y tic aur wrth eich enw a manteision y tanysgrifiad. Dim angen dogfennau: tanysgrifiwch ac mae'n troi ymlaen ar unwaith.",
   "cbadge.pay": "Tanysgrifio am {price} y mis",
   "cbadge.pending.text": "Rydym yn edrych ar eich dogfennau. Cewch hysbysiad pan fyddwn wedi gorffen.",
   "cbadge.pending.title": "Yn cael ei adolygu",
