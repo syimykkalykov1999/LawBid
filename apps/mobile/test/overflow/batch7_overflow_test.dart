@@ -189,6 +189,8 @@ void main() {
               listGroup('a2', pinned: true),
             ],
         ),
+        // Row 183: the switch «Группы в чатах» held on.
+        groupsEnabledProvider.overrideWithValue(true),
       ],
     ),
     'channels archive': (

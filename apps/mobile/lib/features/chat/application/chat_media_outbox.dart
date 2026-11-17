@@ -18,6 +18,10 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 // Owner row 106: group chats keep their sent media the same way.
 export 'package:lawbid/features/chat/data/chat_media_seed.dart'
     show adoptSentChatMedia;
+// Group voice notes keep the recorded file as their cache (groups goes
+// through this layer, test/architecture/feature_boundaries_test.dart).
+export 'package:lawbid/features/chat/data/voice_files.dart'
+    show adoptVoiceFileAsCache;
 
 /// The queue kinds of chat media (core/uploads/upload_queue.dart).
 abstract final class ChatMediaKind {
@@ -56,32 +60,7 @@ class ChatMediaHandler extends UploadJobHandler {
     if (kind == ChatMediaKind.sticker || job.fileId != null) return;
     final String fileId;
     if (kind == ChatMediaKind.voice) {
-      // A note is small: read it whole to tell m4a from a browser's webm.
-      final bytes = await scope.bytes();
-      if (bytes == null) {
-        throw const ApiException(
-          code: UploadQueue.localFileMissing,
-          message: 'voice',
-        );
-      }
-      if (bytes.length > kVoiceMaxBytes) {
-        throw const ApiException(
-          code: ApiErrorCodes.fileTooLarge,
-          message: 'size',
-        );
-      }
-      final webm = isWebmVoice(bytes);
-      fileId = await scope.uploader.upload(
-        purpose: api.FilePurpose.chatVoice,
-        body: await scope.body(),
-        mime: webm ? 'audio/webm' : 'audio/mp4',
-        filename: webm ? 'voice.webm' : 'voice.m4a',
-        onProgress: scope.reportProgress,
-        cancel: scope.cancelToken,
-        taskId: job.id,
-        savedTarget: StorageTarget.fromJson(job.progress['target']),
-        onTarget: (t) => scope.saveProgress({'target': t.toJson()}),
-      );
+      fileId = await uploadChatVoiceJob(job, scope);
     } else {
       fileId = await uploadChatAttachmentJob(job, scope);
     }
@@ -156,6 +135,37 @@ class ChatMediaHandler extends UploadJobHandler {
         n == null ? null : await _ref.read(uploadFilesProvider).pathOf(n);
     await adoptVoiceFileAsCache(path, messageId);
   }
+}
+
+/// Sends the note of a chat or group voice job to storage (`chat_voice`,
+/// m4a, or webm from a browser) and returns its file id.
+Future<String> uploadChatVoiceJob(UploadJob job, UploadJobScope scope) async {
+  // A note is small: read it whole to tell m4a from a browser's webm.
+  final bytes = await scope.bytes();
+  if (bytes == null) {
+    throw const ApiException(
+      code: UploadQueue.localFileMissing,
+      message: 'voice',
+    );
+  }
+  if (bytes.length > kVoiceMaxBytes) {
+    throw const ApiException(
+      code: ApiErrorCodes.fileTooLarge,
+      message: 'size',
+    );
+  }
+  final webm = isWebmVoice(bytes);
+  return scope.uploader.upload(
+    purpose: api.FilePurpose.chatVoice,
+    body: await scope.body(),
+    mime: webm ? 'audio/webm' : 'audio/mp4',
+    filename: webm ? 'voice.webm' : 'voice.m4a',
+    onProgress: scope.reportProgress,
+    cancel: scope.cancelToken,
+    taskId: job.id,
+    savedTarget: StorageTarget.fromJson(job.progress['target']),
+    onTarget: (t) => scope.saveProgress({'target': t.toJson()}),
+  );
 }
 
 /// Sends the file of a chat or group attachment job to storage (streamed

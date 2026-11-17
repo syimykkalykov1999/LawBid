@@ -25,6 +25,7 @@ import 'package:lawbid/core/platform/high_refresh_rate.dart';
 import 'package:lawbid/core/platform/spotlight_index.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_gate.dart';
+import 'package:lawbid/core/platform/web_isolation.dart';
 import 'package:lawbid/core/platform/web_lifecycle.dart';
 import 'package:lawbid/core/platform/web_semantics.dart';
 import 'package:lawbid/core/security/app_check.dart';
@@ -38,7 +39,10 @@ import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid/features/channels/application/channel_forward_port.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
+import 'package:lawbid/features/contacts_sync/application/contacts_book_sync.dart';
+import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
+import 'package:lawbid/features/groups/application/people_candidates.dart';
 import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid/features/notifications/presentation/qa_notify_switch.dart';
@@ -113,6 +117,9 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // D1-49 (13.11): screen readers on the website get the semantics tree
   // from the first frame (admin switch client.web_semantics_enabled).
   WebSemantics.start(prefs);
+  // Row 173: the website's cross-origin isolation (admin switch
+  // web.cross_origin_isolation), kept for boot_head.js.
+  WebIsolation.start(prefs);
   AppEvents.install(prefs, AppEnvironment.current);
   // Security research #5 (2026-10-22), B1: Firebase App Check starts now so
   // the first code request already carries its token; a build without the
@@ -139,6 +146,24 @@ Future<void> runLawBid(AppFlavor flavor) async {
       groupCallsProvider.overrideWith(
         (ref) => ref.watch(groupCallsEnabledProvider),
       ),
+      // Owner 2026-11-16 (WhatsApp «Контакты»): the «Новая группа» picker
+      // offers my phone book's LawBid people from the last contacts sync
+      // kept on the phone; never fails the picker.
+      groupContactPeopleProvider.overrideWith((ref) async {
+        try {
+          final saved = await ref.read(contactsBookSyncProvider).loadSaved();
+          return peopleFromContacts([
+            for (final c in saved?.people ?? const <ContactPerson>[])
+              (
+                userId: c.userId,
+                displayName: c.displayName,
+                avatarUrl: c.avatarUrl,
+              ),
+          ]);
+        } on Object {
+          return const [];
+        }
+      }),
       // Owner 2026-10-23: the Q&A's notification switch.
       qaNotifySwitchProvider.overrideWithValue(() => const QaNotifySwitch()),
       // Owner 2026-10-21 (Telegram «Переслать»): a channel post into chats.

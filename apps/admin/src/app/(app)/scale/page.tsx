@@ -221,7 +221,7 @@ export default function ScalePage() {
       <PageHeader
         eyebrow="Система"
         title="Масштаб"
-        subtitle="Всё, что растёт само: серверы, база, Redis, пулер, поиск. Сколько сейчас, докуда может вырасти и какими кнопками это двигать. Сверху — тревоги: что случилось, что система сделала сама и что нажать."
+        subtitle="Всё, что растёт само: серверы, база, Valkey, пулер, поиск. Сколько сейчас, докуда может вырасти и какими кнопками это двигать. Сверху — тревоги: что случилось, что система сделала сама и что нажать."
         actions={e ? <UpdatedAgo at={economy.dataUpdatedAt} /> : null}
       />
       <ErrorNote text={economy.error ? errorText(economy.error) : health.error ? errorText(health.error) : null} />
@@ -349,7 +349,7 @@ export default function ScalePage() {
           </>
           )}
 
-          <SectionTitle>База данных и Redis</SectionTitle>
+          <SectionTitle>База данных и Valkey</SectionTitle>
           {!e ? (
             <Skeleton className="mb-6 h-32 rounded-[var(--radius-lg)]" />
           ) : (
@@ -361,7 +361,7 @@ export default function ScalePage() {
             {(
               [
                 ['База данных (PostgreSQL)', 'db', e.capacity.dbClass, dbL, x?.dbAutoscale],
-                ['Redis', 'redis', e.capacity.redisClass, redisL, x?.redisAutoscale],
+                ['Valkey', 'redis', e.capacity.redisClass, redisL, x?.redisAutoscale],
               ] as const
             ).map(([title, target, cls, l, mode]) => {
               const auto = autoscaleWord(mode);
@@ -681,7 +681,7 @@ export default function ScalePage() {
 
       <StepUpDialog
         open={stepUp !== null}
-        description="Это действие меняет сервер, базу данных или Redis на AWS. Подтвердите, что это вы."
+        description="Это действие меняет сервер, базу данных или Valkey на AWS. Подтвердите, что это вы."
         onCancel={() => setStepUp(null)}
         onDone={() => {
           const a = stepUp;
@@ -730,9 +730,9 @@ function doneText(a: Action): string {
     case 'scale':
       return a.mode === 'min' ? 'Сервер держится на минимуме' : 'Обычный режим: сервер снова растёт с нагрузкой';
     case 'increase':
-      return a.target === 'db' ? 'База увеличивается: 1–5 минут' : 'Redis увеличивается: 1–5 минут';
+      return a.target === 'db' ? 'База увеличивается: 1–5 минут' : 'Valkey увеличивается: 1–5 минут';
     case 'decrease':
-      return a.target === 'db' ? 'База уменьшается: 1–5 минут' : 'Redis уменьшается: 1–5 минут';
+      return a.target === 'db' ? 'База уменьшается: 1–5 минут' : 'Valkey уменьшается: 1–5 минут';
     default:
       return 'Готово';
   }
@@ -740,7 +740,7 @@ function doneText(a: Action): string {
 
 function confirmTitle(a: Action | null): string {
   if (!a || (a.kind !== 'increase' && a.kind !== 'decrease')) return '';
-  const what = a.target === 'db' ? 'базу данных' : 'Redis';
+  const what = a.target === 'db' ? 'базу данных' : 'Valkey';
   return `${a.kind === 'increase' ? 'Увеличить' : 'Уменьшить'} ${what}?`;
 }
 
@@ -752,7 +752,7 @@ function confirmText(a: Action | null, e: Economy): string {
   const to = (a.kind === 'increase' ? l.next : l.prev)?.name ?? '';
   const restart = db
     ? 'База переключится на запасную копию: около минуты приложение может отвечать с ошибками.'
-    : 'Redis перезапустится на 1–5 минут: вход и чаты могут подвисать.';
+    : 'Valkey перезапустится на 1–5 минут: вход и чаты могут подвисать.';
   return a.kind === 'increase'
     ? `Размер ${from} → ${to}. ${restart} Счёт вырастет примерно на разницу цен ступеней.`
     : `Размер ${from} → ${to}. ${restart} Сервер разрешит уменьшение, только если нагрузка низкая; иначе откажет и скажет почему. Счёт уменьшится.`;

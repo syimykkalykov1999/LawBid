@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { asReport, formatMetric, parseVariantWeights, statusLabel, verdictLabel } from './experiments';
+import { asReport, formatMetric, hashVersionLabel, HASH_VERSION_OPTIONS, parseVariantWeights, statusLabel, verdictLabel } from './experiments';
 import { SECTIONS, canOpen } from './rbac';
 
 describe('experiments page helpers', () => {
+  it('names the two ways of splitting people, the new one first (row 150)', () => {
+    expect(HASH_VERSION_OPTIONS.map((o) => o.value)).toEqual([2, 1]);
+    expect(hashVersionLabel(2)).toBe('новое');
+    expect(hashVersionLabel(1)).toBe('старое');
+  });
+
   it('speaks plain Russian', () => {
     expect(statusLabel('running')).toBe('идёт');
     expect(verdictLabel('few')).toBe('мало данных');

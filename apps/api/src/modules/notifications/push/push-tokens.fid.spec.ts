@@ -46,8 +46,11 @@ describe('PushTokensService FID transition', () => {
       where: {
         user_id: 'u',
         token_kind: 'token',
-        session_id: { in: ['s1', 's2'] },
         fcm_token: { not: 'fid-00000000000000000000' },
+        OR: [
+          { session_chain_id: 'chain' },
+          { session_chain_id: null, session_id: { in: ['s1', 's2'] } },
+        ],
       },
     });
   });
@@ -72,21 +75,42 @@ describe('PushTokensService FID transition', () => {
       where: {
         user_id: 'u',
         token_kind: 'token',
-        session_id: { in: ['s1', 's2'] },
         fcm_token: { not: 'fid-00000000000000000000' },
+        OR: [
+          { session_chain_id: 'chain' },
+          { session_chain_id: null, session_id: { in: ['s1', 's2'] } },
+        ],
       },
     });
   });
 
   it('activeDevices marks FIDs and drops signed-out devices', async () => {
     const { prisma, service } = build();
-    Object.assign(prisma, {
-      $queryRaw: jest.fn().mockResolvedValue([
-        { token: 'fid-a', kind: 'fid', alive: true },
-        { token: 'tok-b', kind: 'token', alive: true },
-        { token: 'tok-dead', kind: 'token', alive: false },
-      ]),
-    });
+    // Two chains signed in, one signed out (no live session row).
+    prisma.pushToken.findMany.mockResolvedValue([
+      {
+        fcm_token: 'fid-a',
+        token_kind: 'fid',
+        session_id: null,
+        session_chain_id: 'c1',
+      },
+      {
+        fcm_token: 'tok-b',
+        token_kind: 'token',
+        session_id: null,
+        session_chain_id: 'c2',
+      },
+      {
+        fcm_token: 'tok-dead',
+        token_kind: 'token',
+        session_id: null,
+        session_chain_id: 'c3',
+      },
+    ] as never);
+    prisma.session.findMany.mockResolvedValue([
+      { id: 's1', session_chain_id: 'c1' },
+      { id: 's2', session_chain_id: 'c2' },
+    ] as never);
     expect(await service.activeDevices('u')).toEqual([
       { token: 'fid-a', fid: true },
       { token: 'tok-b', fid: false },

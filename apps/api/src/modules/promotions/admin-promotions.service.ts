@@ -8,6 +8,7 @@ import {
 import type { CasePromotion, Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -181,12 +182,7 @@ export class AdminPromotionsService {
         ...(q.postId ? { post_id: q.postId } : {}),
         ...(q.userId ? { user_id: q.userId } : {}),
         ...(cursor
-          ? {
-              OR: [
-                { created_at: { lt: cursor.createdAt } },
-                { created_at: cursor.createdAt, id: { lt: cursor.id } },
-              ],
-            }
+          ? createdBefore({ t: cursor.createdAt, id: cursor.id })
           : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],

@@ -1,4 +1,8 @@
 import {
+  FeatureFlagsService,
+  GROUPS_FLAG,
+} from '../feature-flags/feature-flags.public';
+import {
   TextLimitsService,
   textLimit,
 } from '../../common/app-settings/text-limits.service';
@@ -32,6 +36,7 @@ import {
 } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -204,7 +209,15 @@ export class ChatService {
     @Optional() private readonly heavy?: HeavyHittersService,
     // Owner 2026-10-27: a new chat counts for the author's boost paid per action.
     @Optional() private readonly boostActions?: BoostActions,
+    // Owner 2026-11-16 (row 183): with «Группы» off the folder counters
+    // leave group invitations and archived groups out.
+    @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
+
+  /** The admin switch «Группы» (a missing row reads as on, as in GroupsService). */
+  private async groupsOn(): Promise<boolean> {
+    return !this.flags || (await this.flags.isEnabled(GROUPS_FLAG, true));
+  }
 
   /**
    * Owner 2026-10-01: the folder filter. "all" = everything but requests
@@ -618,6 +631,10 @@ export class ChatService {
             pinned_at: dto.pinned ? (current?.pinned_at ?? new Date()) : null,
           }
         : {}),
+      // Row 110: my own unread mark (Telegram «Mark as unread»).
+      ...(dto.unread !== undefined
+        ? { marked_unread_at: dto.unread ? new Date() : null }
+        : {}),
     };
     await this.prisma.conversationParticipant.upsert({
       where: {
@@ -633,7 +650,11 @@ export class ChatService {
     // A hidden chat leaves the unread badge (and comes back when unhidden).
     // The write is done: a failing badge refresh (Redis / socket blip) must
     // not turn into a 500 «something went wrong» on a chat that did move.
-    if (dto.hidden !== undefined || dto.archived !== undefined)
+    if (
+      dto.hidden !== undefined ||
+      dto.archived !== undefined ||
+      dto.unread !== undefined
+    )
       await this.badges.chatsChanged(user.sub).catch(() => undefined);
     return this.get(user, id);
   }
@@ -643,6 +664,7 @@ export class ChatService {
     if (!this.sideOf(user)) {
       return { waiting: 0, requests: 0, cases: 0, archived: 0 };
     }
+    const groupsOn = await this.groupsOn();
     const [waiting, requests, casesAwaiting, archivedChats, archivedGroups] =
       await Promise.all([
         this.prisma.conversation.count({
@@ -664,15 +686,17 @@ export class ChatService {
             ],
           },
         }),
-        this.prisma.chatGroupMember.count({
-          where: {
-            user_id: user.sub,
-            left_at: null,
-            hidden_at: null,
-            archived_at: { not: null },
-            group: { deleted_at: null, last_message_at: { not: null } },
-          },
-        }),
+        groupsOn
+          ? this.prisma.chatGroupMember.count({
+              where: {
+                user_id: user.sub,
+                left_at: null,
+                hidden_at: null,
+                archived_at: { not: null },
+                group: { deleted_at: null, last_message_at: { not: null } },
+              },
+            })
+          : 0,
       ]);
     return {
       waiting,
@@ -723,8 +747,10 @@ export class ChatService {
     cursor?: string,
     afterId?: string,
     only?: 'attachment',
+    q?: string,
   ): Promise<MessagePage> {
     const conv = await this.load(user, id);
+    if (q?.trim()) return this.searchInChat(user, conv, q, cursor);
     if (afterId) {
       const anchor = await this.prisma.message.findFirst({
         where: { id: afterId, conversation_id: id },
@@ -764,16 +790,7 @@ export class ChatService {
         ...(only ? { type: only } : {}),
         AND: [
           notExpired(),
-          ...(c
-            ? [
-                {
-                  OR: [
-                    { created_at: { lt: c.createdAt } },
-                    { created_at: c.createdAt, id: { lt: c.id } },
-                  ],
-                },
-              ]
-            : []),
+          ...(c ? [createdBefore({ t: c.createdAt, id: c.id })] : []),
         ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
@@ -786,6 +803,65 @@ export class ChatService {
       items: page.map((m) => this.toMessage(m, user.sub, conv, urls)),
       nextCursor:
         rows.length > MESSAGES_PAGE && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.id })
+          : null,
+    };
+  }
+
+  /**
+   * Row 110 (Telegram 🔍 in a chat, WhatsApp «Search»): the text messages of
+   * one chat that hold every typed word, newest first, a page at a time.
+   * The words are matched the same way as the chats list search
+   * ([messageTextMatch]: the blind index for sealed bodies), then the page
+   * is read with the same visibility rules as [messages] (not deleted, not
+   * hidden for me, not expired).
+   */
+  private async searchInChat(
+    user: RequestUser,
+    conv: Conversation,
+    q: string,
+    cursor?: string,
+  ): Promise<MessagePage> {
+    const words = typedWords(q);
+    if (!words.length) return { items: [], nextCursor: null };
+    const textMatch = await this.messageTextMatch(q, words);
+    const c = cursor ? decodeCursor(cursor) : undefined;
+    const hits = await this.prisma.$queryRaw<
+      { id: string; created_at: Date }[]
+    >`
+      SELECT m.id::TEXT AS id, m.created_at FROM messages m
+      JOIN conversations c ON c.id = m.conversation_id
+      WHERE m.conversation_id = ${conv.id}::UUID
+        AND m.deleted_at IS NULL
+        AND m.type IN ('text', 'attachment')
+        AND ${textMatch}
+        ${
+          c
+            ? Prisma.sql`AND (m.created_at, m.id) < (${c.createdAt}, ${c.id}::UUID)`
+            : Prisma.empty
+        }
+      ORDER BY m.created_at DESC, m.id DESC
+      LIMIT ${MESSAGES_PAGE + 1}`;
+    if (!hits.length) return { items: [], nextCursor: null };
+    const page = hits.slice(0, MESSAGES_PAGE);
+    const rows = await this.prisma.message.findMany({
+      where: {
+        conversation_id: conv.id,
+        id: { in: page.map((h) => h.id) },
+        deleted_at: null,
+        hidden_for: { none: { user_id: user.sub } },
+        AND: [notExpired()],
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+    });
+    // The cursor follows the last hit, so a page whose hits were all
+    // hidden for me still leads on.
+    const last = page[page.length - 1];
+    const urls = await this.mediaLinks(rows);
+    return {
+      items: rows.map((m) => this.toMessage(m, user.sub, conv, urls)),
+      nextCursor:
+        hits.length > MESSAGES_PAGE && last
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
     };
@@ -1649,14 +1725,19 @@ export class ChatService {
           last_message_at: { not: null },
         },
       }),
-      // Owner 2026-10-21: group invitations wait in Requests too.
-      this.prisma.chatGroupInvite.count({
-        where: {
-          invitee_id: user.sub,
-          status: 'pending',
-          group: { deleted_at: null },
-        },
-      }),
+      // Owner 2026-10-21: group invitations wait in Requests too
+      // (row 183: not while «Группы» is off).
+      this.groupsOn().then((on) =>
+        on
+          ? this.prisma.chatGroupInvite.count({
+              where: {
+                invitee_id: user.sub,
+                status: 'pending',
+                group: { deleted_at: null },
+              },
+            })
+          : 0,
+      ),
     ]);
     return { count: chats + invites };
   }
@@ -1717,7 +1798,11 @@ export class ChatService {
         where: {
           conversation_id_user_id: { conversation_id: id, user_id: user.sub },
         },
-        select: { last_read_message_id: true, last_delivered_message_id: true },
+        select: {
+          last_read_message_id: true,
+          last_delivered_message_id: true,
+          marked_unread_at: true,
+        },
       });
       const current = me.last_read_message_id
         ? await tx.message.findUnique({
@@ -1731,6 +1816,19 @@ export class ChatService {
           })
         : null;
       if (current && !isAfter(target, current)) {
+        // Row 110: reading the chat takes my own unread mark off (a write
+        // only when the mark is there).
+        if (me.marked_unread_at) {
+          await tx.conversationParticipant.update({
+            where: {
+              conversation_id_user_id: {
+                conversation_id: id,
+                user_id: user.sub,
+              },
+            },
+            data: { marked_unread_at: null },
+          });
+        }
         return { lastReadMessageId: current.id, moved: false };
       }
       await tx.conversationParticipant.update({
@@ -1740,6 +1838,7 @@ export class ChatService {
         data: {
           last_read_message_id: target.id,
           last_read_at: new Date(),
+          marked_unread_at: null,
           // Reading it means it got there (the grey ticks never lag the blue).
           ...(await this.deliveredPatch(
             tx,
@@ -2654,6 +2753,7 @@ export class ChatService {
             waiting_since: true,
             note: true,
             pinned_at: true,
+            marked_unread_at: true,
           },
         }),
         this.prisma.$queryRaw<{ id: string; n: bigint }[]>`
@@ -2774,6 +2874,7 @@ export class ChatService {
             waitingSince: me?.waiting_since ?? null,
             note: me?.note ?? null,
             pinnedAt: me?.pinned_at ?? null,
+            markedUnread: me?.marked_unread_at != null,
           };
         })(),
       });

@@ -20,11 +20,17 @@ import 'package:lawbid/core/media/photo_jpeg_canvas_stub.dart'
 ///
 /// A picture with see-through pixels returns null: JPEG has no alpha, so
 /// the caller keeps its PNG (a sticker-like post photo stays as it was).
+///
+/// [chroma420] (row 199): colour at half size, the way the phones' own
+/// photo encoders (and the gallery picker) write a photo; otherwise full
+/// colour (4:4:4, sharper colour edges, more bytes). The browser's encoder
+/// decides by itself.
 Future<Uint8List?> encodeRgbaJpeg(
   Uint8List rgba,
   int width,
   int height, {
   required int quality,
+  bool chroma420 = false,
 }) async {
   if (width <= 0 || height <= 0 || rgba.length < width * height * 4) {
     return null;
@@ -38,11 +44,11 @@ Future<Uint8List?> encodeRgbaJpeg(
     } on Object {
       // An old browser without OffscreenCanvas: the Dart encoder below.
     }
-    return encodeJpegSync((rgba, width, height, q));
+    return encodeJpegSync((rgba, width, height, q, chroma420));
   }
   return compute(
     encodeJpegSync,
-    (rgba, width, height, q),
+    (rgba, width, height, q, chroma420),
     debugLabel: 'encodeRgbaJpeg',
   );
 }
@@ -52,6 +58,7 @@ Future<Uint8List?> encodeRgbaJpeg(
 Future<Uint8List?> encodeImageJpeg(
   ui.Image image, {
   required int quality,
+  bool chroma420 = false,
 }) async {
   final data =
       await image.toByteData(format: ui.ImageByteFormat.rawStraightRgba);
@@ -61,6 +68,7 @@ Future<Uint8List?> encodeImageJpeg(
     image.width,
     image.height,
     quality: quality,
+    chroma420: chroma420,
   );
 }
 
@@ -72,10 +80,11 @@ bool isOpaqueRgba(Uint8List rgba) {
   return true;
 }
 
-/// The isolate half of [encodeRgbaJpeg]: `(rgba, width, height, quality)`;
-/// null when the picture is not opaque.
-Uint8List? encodeJpegSync((Uint8List, int, int, int) a) {
-  final (rgba, width, height, quality) = a;
+/// The isolate half of [encodeRgbaJpeg]:
+/// `(rgba, width, height, quality, chroma420)`; null when the picture is
+/// not opaque.
+Uint8List? encodeJpegSync((Uint8List, int, int, int, bool) a) {
+  final (rgba, width, height, quality, chroma420) = a;
   if (!isOpaqueRgba(rgba)) return null;
   final image = img.Image.fromBytes(
     width: width,
@@ -85,7 +94,11 @@ Uint8List? encodeJpegSync((Uint8List, int, int, int) a) {
     numChannels: 4,
     order: img.ChannelOrder.rgba,
   );
-  return img.encodeJpg(image, quality: quality);
+  return img.encodeJpg(
+    image,
+    quality: quality,
+    chroma: chroma420 ? img.JpegChroma.yuv420 : img.JpegChroma.yuv444,
+  );
 }
 
 /// A photo at most [maxPx] on its long side, as a JPEG at [quality]: a photo
@@ -103,6 +116,7 @@ Future<Uint8List> shrinkPhotoToJpeg(
   required int maxPx,
   required int quality,
   bool always = false,
+  bool chroma420 = false,
 }) async {
   if (maxPx <= 0) return bytes;
   ui.ImmutableBuffer? buffer;
@@ -122,7 +136,12 @@ Future<Uint8List> shrinkPhotoToJpeg(
       targetHeight: big && w < h ? maxPx : null,
     );
     image = (await codec.getNextFrame()).image;
-    return await encodeImageJpeg(image, quality: quality) ?? bytes;
+    return await encodeImageJpeg(
+          image,
+          quality: quality,
+          chroma420: chroma420,
+        ) ??
+        bytes;
   } on Object {
     return bytes;
   } finally {

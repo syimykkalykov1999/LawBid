@@ -37,7 +37,7 @@ class AssistantActivityList extends ConsumerWidget {
       onRefresh: () => ref.read(teamActivityProvider.notifier).refresh(),
       child: NotificationListener<ScrollNotification>(
         onNotification: (n) {
-          if (n.metrics.extentAfter < 400) {
+          if (LoadAhead.nearEnd(n.metrics)) {
             ref.read(teamActivityProvider.notifier).loadMore();
           }
           return false;

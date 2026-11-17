@@ -1,5 +1,7 @@
+import { encodeFeedCursor } from './feed-mixer';
 import {
   FeedService,
+  postsBefore,
   recoAuthorsKey,
   recoCurrentKey,
   recoKey,
@@ -295,6 +297,19 @@ function postWheres(prisma: {
   );
 }
 
+/** The followed-stream read: its rule is the first `AND` item (R2 review:
+ * the cursor is a separate item, never spread into the rule). */
+function streamWhere(prisma: {
+  post: { findMany: { mock: { calls: unknown[][] } } };
+}): Record<string, unknown> | undefined {
+  for (const w of postWheres(prisma)) {
+    if (w.author_id) return w;
+    const first = (w.AND as Record<string, unknown>[] | undefined)?.[0];
+    if (first?.author_id) return first;
+  }
+  return undefined;
+}
+
 describe('FeedService followed stream (row 64)', () => {
   it('checks the author rule once per followed author, posts without the join', async () => {
     const { svc, prisma } = build({ redis: fakeRedis({}) });
@@ -311,7 +326,7 @@ describe('FeedService followed stream (row 64)', () => {
       ...(VISIBLE_POST_WHERE.author as object),
       id: { in: ['att-1', 'suspended-2'] },
     });
-    const stream = postWheres(prisma).find((w) => w.author_id);
+    const stream = streamWhere(prisma);
     expect(stream?.author_id).toEqual({ in: ['att-1'] });
     expect(stream?.author).toBeUndefined();
     expect(stream).toMatchObject({
@@ -325,7 +340,7 @@ describe('FeedService followed stream (row 64)', () => {
     const { svc, prisma } = build({ redis: fakeRedis({}) });
     prisma.follow.findMany.mockResolvedValue([{ followee_id: 'suspended-1' }]);
     await svc.page(viewer, undefined, 10);
-    const stream = postWheres(prisma).find((w) => w.author_id);
+    const stream = streamWhere(prisma);
     expect(stream).toBeUndefined();
   });
 });
@@ -391,5 +406,105 @@ describe('FeedService reposts per page (CONTENT M-4)', () => {
       },
       select: { id: true },
     });
+  });
+});
+
+describe('FeedService keyset cursor is an index range (row 126)', () => {
+  // EXPLAIN ANALYZE, 300 000 posts (docs/perf/FEED_TAIL_2026-11-14.md):
+  // `created_at < t OR (created_at = t AND id < id)` alone is a Filter on
+  // posts_visible_created_idx — every tail page read the index from the
+  // newest post down to the cursor (290 001 rows removed, 259 ms at depth
+  // 290 000). With `created_at <= t` next to it the same rows come from an
+  // Index Cond range (2.2 ms).
+  const t = '2026-10-01T12:00:00.000Z';
+  const bounded = (w: unknown) =>
+    JSON.stringify(w).includes(
+      JSON.stringify({ created_at: { lte: new Date(t) } }),
+    );
+
+  it('a tail page bounds created_at by the cursor time', async () => {
+    const { svc, prisma } = build({ redis: fakeRedis({}) });
+    const cursor = encodeFeedCursor({
+      f: null,
+      r: 0,
+      v: null,
+      l: { t, id: 'p9' },
+    });
+    await svc.page(viewer, cursor, 10);
+    const tail = postWheres(prisma).find((w) => 'AND' in w);
+    expect(tail).toBeDefined();
+    expect(bounded(tail)).toBe(true);
+  });
+
+  it('a later page of the followed stream bounds created_at too', async () => {
+    const { svc, prisma } = build({ redis: fakeRedis({}) });
+    prisma.follow.findMany.mockResolvedValue([{ followee_id: 'att-1' }]);
+    const cursor = encodeFeedCursor({ f: { t, id: 'p9' }, r: 0, v: null });
+    await svc.page(viewer, cursor, 10);
+    const stream = postWheres(prisma).find(
+      (w) =>
+        (w.AND as Record<string, unknown>[] | undefined)?.[0]?.author_id !==
+        undefined,
+    );
+    expect(bounded(stream)).toBe(true);
+  });
+
+  it('R2 review: the cursor is its own AND item next to the visibility rule, never spread into it', async () => {
+    const { svc, prisma } = build({ redis: fakeRedis({}) });
+    prisma.follow.findMany.mockResolvedValue([{ followee_id: 'att-1' }]);
+    const cursor = encodeFeedCursor({ f: { t, id: 'p9' }, r: 0, v: null });
+    await svc.page(viewer, cursor, 10);
+    const stream = postWheres(prisma).find(
+      (w) =>
+        (w.AND as Record<string, unknown>[] | undefined)?.[0]?.author_id !==
+        undefined,
+    );
+    const and = stream?.AND as Record<string, unknown>[];
+    expect(Object.keys(stream ?? {})).toEqual(['AND']);
+    expect(and).toHaveLength(2);
+    expect(and[0]).toMatchObject({
+      status: 'published',
+      deleted_at: null,
+      archived_at: null,
+      author_id: { in: ['att-1'] },
+    });
+    expect(and[1]).toEqual(postsBefore({ t, id: 'p9' }));
+  });
+
+  it('selects exactly the rows of the old OR rule', () => {
+    const when = (h: number) => new Date(Date.UTC(2026, 9, 1, h));
+    const rows = Array.from({ length: 400 }, (_, i) => ({
+      created_at: when(i % 7),
+      id: `id-${String((i * 37) % 400).padStart(3, '0')}`,
+    }));
+    const matches = (
+      w: Record<string, unknown>,
+      r: { created_at: Date; id: string },
+    ): boolean => {
+      if (Array.isArray(w.AND))
+        return (w.AND as Record<string, unknown>[]).every((x) => matches(x, r));
+      if (Array.isArray(w.OR))
+        return (w.OR as Record<string, unknown>[]).some((x) => matches(x, r));
+      const c = w.created_at as Date | { lt?: Date; lte?: Date };
+      const ok =
+        c instanceof Date
+          ? r.created_at.getTime() === c.getTime()
+          : (c.lt === undefined || r.created_at < c.lt) &&
+            (c.lte === undefined || r.created_at <= c.lte);
+      const id = w.id as { lt: string } | undefined;
+      return ok && (id === undefined || r.id < id.lt);
+    };
+    for (let h = 0; h < 7; h++) {
+      for (const id of ['id-000', 'id-150', 'id-399']) {
+        const after = { t: when(h).toISOString(), id };
+        const old = rows.filter(
+          (r) =>
+            r.created_at < when(h) ||
+            (r.created_at.getTime() === when(h).getTime() && r.id < id),
+        );
+        const now = rows.filter((r) => matches(postsBefore(after), r));
+        expect(now).toEqual(old);
+      }
+    }
   });
 });

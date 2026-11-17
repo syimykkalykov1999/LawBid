@@ -4,6 +4,8 @@ import type Redis from 'ioredis';
 import {
   closeSharedProducers,
   createRedisClient,
+  drainAutoPipeline,
+  quitGracefully,
   requestPathOptions,
   waitForReady,
 } from './redis-connection';
@@ -34,7 +36,7 @@ const cacheOwn = new Set<Redis>();
             config.get<number>('REDIS_COMMAND_TIMEOUT_MS') ?? 1000,
           ),
           // Same-tick commands share one round trip (REDIS_AUTOPIPELINE,
-          // default on; verify in the load test, turn off to roll back).
+          // default OFF: KNOWN_ERRORS 194).
           enableAutoPipelining:
             config.get<boolean>('REDIS_AUTOPIPELINE') ?? false,
         });
@@ -86,15 +88,14 @@ export class RedisModule implements OnApplicationShutdown {
    * jest-e2e.json maxWorkers: 1). Tolerates test doubles without quit(). */
   async onApplicationShutdown(): Promise<void> {
     for (const c of cacheOwn) {
-      try {
-        await c.quit();
-      } catch {
-        c.disconnect();
-      }
+      await quitGracefully(c);
     }
     cacheOwn.clear();
     await closeSharedProducers();
     if (typeof this.redis.quit !== 'function') return;
+    // KNOWN_ERRORS 194: commands still queued by auto-pipelining are written
+    // before QUIT, not overtaken by it.
+    await drainAutoPipeline(this.redis);
     try {
       await this.redis.quit();
     } catch {

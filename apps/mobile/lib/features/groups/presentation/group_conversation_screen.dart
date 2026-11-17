@@ -6,25 +6,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/connectivity/connection_title.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/chat/application/chat_providers.dart';
+import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show PickedChatFile, droppedChatFiles;
 import 'package:lawbid/features/chat/presentation/chat_list_controller.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
+import 'package:lawbid/features/chat/presentation/in_chat_search.dart';
+import 'package:lawbid/features/chat/presentation/voice_widgets.dart'
+    show VoiceThread;
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/application/group_typing.dart';
@@ -35,15 +43,19 @@ import 'package:lawbid/features/groups/presentation/poll/create_poll_sheet.dart'
 import 'package:lawbid/features/groups/presentation/widgets/group_attach.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_composer.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart'
+    show muteDuration, pickMute;
 import 'package:lawbid/features/groups/presentation/widgets/group_message_bubble.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_message_menu.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_pin_banner.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_readers_sheet.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_selection_bar.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_system_line.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_topic_list.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show GoldRingAvatar;
+import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -92,11 +104,49 @@ class _GroupConversationScreenState
 
   GroupThread get _thread => ref.read(groupThreadProvider(_key).notifier);
 
+  /// Groups WhatsApp parity, the 1:1 chat's drafts (chatTextDraftsProvider,
+  /// kept on the device per account): the unsent text of this group (or
+  /// topic) survives leaving the chat and killing the app.
+  String get _draftKey => groupDraftKey(widget.groupId, widget.topicId);
+
+  /// The draft that waits while an old message is being edited.
+  String _heldDraft = '';
+
+  void _saveDraft() {
+    // The field holds the edited message's text then, not a draft.
+    if (_editing != null) return;
+    ref.read(chatTextDraftsProvider.notifier).set(_draftKey, _text.text);
+  }
+
+  /// Leaves edit mode (the composer clears the field); the draft that
+  /// waited comes back right after.
+  void _stopEditing() {
+    if (_editing == null) return;
+    _editing = null;
+    final held = _heldDraft;
+    _heldDraft = '';
+    if (held.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _editing == null && _text.text.isEmpty) {
+        _text.value = TextEditingValue(
+          text: held,
+          selection: TextSelection.collapsed(offset: held.length),
+        );
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
-    _text.addListener(_onTyping);
+    // Groups WhatsApp parity (1:1 ConversationScreen): the unsent text is
+    // back.
+    final draft = ref.read(chatTextDraftsProvider.notifier).of(_draftKey);
+    if (draft != null) _text.text = draft;
+    _text
+      ..addListener(_saveDraft)
+      ..addListener(_onTyping);
     // A call may start or end in the group while this chat is open:
     // groupRunningCallProvider follows the server's `call:ongoing` events
     // (owner 2026-10-22, load audit finding 3: no 10 s polling).
@@ -120,14 +170,54 @@ class _GroupConversationScreenState
     ref.read(groupTypingProvider(widget.groupId).notifier).send(true);
   }
 
+  // Row 110 (Telegram 🔍 in a chat): the search, while it is open.
+  InChatSearch? _search;
+  final _searchText = TextEditingController();
+
+  void _openSearch() {
+    final repo = ref.read(groupRepositoryProvider);
+    setState(() {
+      _search = InChatSearch(
+        search: (q, {cursor}) async {
+          final page = await repo.searchMessages(
+            widget.groupId,
+            q,
+            topicId: widget.topicId,
+            cursor: cursor,
+          );
+          return CursorPage(
+            items: [for (final m in page.items) m.id],
+            nextCursor: page.nextCursor,
+          );
+        },
+        jump: (id) async {
+          await _jumpTo(id);
+          return true;
+        },
+      );
+    });
+  }
+
+  void _closeSearch() {
+    final s = _search;
+    if (s == null) return;
+    setState(() => _search = null);
+    _searchText.clear();
+    s.dispose();
+  }
+
   @override
   void dispose() {
+    _search?.dispose();
+    _searchText.dispose();
     _events?.cancel();
     _highlightTimer?.cancel();
     _scroll
       ..removeListener(_onScroll)
       ..dispose();
-    _text.dispose();
+    _text
+      ..removeListener(_saveDraft)
+      ..dispose();
     super.dispose();
   }
 
@@ -263,6 +353,24 @@ class _GroupConversationScreenState
     showAppSnackBar(context, errorText(ref.read(translatorProvider), e));
   }
 
+  /// Groups WhatsApp parity: a recorded note goes through the queue (the
+  /// 1:1 chat's), as a reply when one is open.
+  Future<void> _sendVoice(VoiceRecording r) async {
+    final reply = _replyTo;
+    setState(() => _replyTo = null);
+    _toBottom();
+    try {
+      await _thread.sendVoice(
+        path: r.path,
+        durationMs: r.durationMs,
+        waveform: r.waveform,
+        replyToId: reply?.id,
+      );
+    } on Object catch (e) {
+      _error(e);
+    }
+  }
+
   void _send(String text, List<String> mentionIds) {
     ref.read(groupTypingProvider(widget.groupId).notifier).send(false);
     final reply = _replyTo;
@@ -277,13 +385,13 @@ class _GroupConversationScreenState
     final m = _editing;
     if (m == null) return;
     if (text == m.body.trim()) {
-      setState(() => _editing = null);
+      setState(_stopEditing);
       return;
     }
     try {
       await _thread.edit(m.id, text);
       // Leaving edit mode also clears the field; a failure keeps the text.
-      if (mounted && _editing?.id == m.id) setState(() => _editing = null);
+      if (mounted && _editing?.id == m.id) setState(_stopEditing);
     } on Object catch (e) {
       if (!mounted) return;
       _error(e);
@@ -298,6 +406,7 @@ class _GroupConversationScreenState
       t,
       media: d?.canSendMedia ?? true,
       poll: d?.canSendPolls ?? true,
+      video: ref.read(uploadLimitsProvider)[UploadPlace.chat].allowsVideo,
     );
     if (choice == null || !mounted) return;
     if (choice == GroupAttachChoice.poll) {
@@ -318,8 +427,24 @@ class _GroupConversationScreenState
       choice,
       limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
       fromDisk: fromDisk,
+      prepareVideo: _prepareVideo,
     );
     await _sendFiles(files, fromDisk: fromDisk);
+  }
+
+  /// Groups WhatsApp parity, copied from the 1:1 chat (ConversationScreen):
+  /// a video is re-encoded on the phone to at most the admin's
+  /// `media.chat_video_max_height` before upload — the one encode it gets;
+  /// the original goes when compressing fails or doesn't help.
+  Future<XFile> _prepareVideo(XFile video) async {
+    final t = ref.read(translatorProvider);
+    showAppSnackBar(context, t.t('chat.attach.videoPreparing'));
+    final limits = chatVideoLimitsOf(ref.read(featureFlagsControllerProvider));
+    final out =
+        await ref.read(videoCompressorProvider).compress(video, limits: limits);
+    return out == null
+        ? video
+        : XFile(out.path, name: 'video.mp4', mimeType: 'video/mp4');
   }
 
   /// Files dragged onto the group in the browser go out like picked ones.
@@ -359,9 +484,8 @@ class _GroupConversationScreenState
             path: f.path,
             name: f.name,
             mime: f.mime,
-            caption: i == files.length - 1 && caption.isNotEmpty
-                ? caption
-                : null,
+            caption:
+                i == files.length - 1 && caption.isNotEmpty ? caption : null,
             replyToId: i == 0 ? reply?.id : null,
           );
         }
@@ -372,8 +496,7 @@ class _GroupConversationScreenState
       // the flag off, one after another as before.
       await thread.uploadAndSend(
         items: files,
-        atOnce:
-            ref
+        atOnce: ref
                 .read(featureFlagsControllerProvider)
                 .isEnabled('chat_upload_parallel')
             ? ClientTuning.uploadsAtOnce
@@ -436,16 +559,15 @@ class _GroupConversationScreenState
 
   /// A protected group shares its link instead of its messages.
   Future<void> _shareLink(api.GroupDetailDto detail) => forwardWithSheet(
-    context,
-    ref,
-    [ForwardSource(ForwardSourceKind.groupLink, detail.id)],
-  );
+        context,
+        ref,
+        [ForwardSource(ForwardSourceKind.groupLink, detail.id)],
+      );
 
   PreferredSizeWidget _selectionBar(api.GroupDetailDto detail) {
     final picked = _picked();
     final protected = detail.isProtected;
-    final canCopy =
-        !protected &&
+    final canCopy = !protected &&
         picked.any((m) => !m.deleted && !m.isPoll && m.body.trim().isNotEmpty);
     final canForward =
         !protected && picked.isNotEmpty && picked.every((m) => m.canForward);
@@ -497,13 +619,22 @@ class _GroupConversationScreenState
       canPin: detail.canPinMessages,
       pinned: pinned,
       canDelete: m.mine || detail.canDeleteOthers,
+      canSeeReaders: m.mine && !m.deleted && !m.isSystem,
+      // Groups WhatsApp parity: the 1:1 quick reactions (not on a message
+      // that is still sending or deleted).
+      myReaction: m.myReaction,
+      onReact: m.deleted || m.isSystem
+          ? null
+          : (e) => _react(m, e == m.myReaction ? null : e),
     );
     if (action == null || !mounted) return;
     switch (action) {
+      case GroupMessageAction.readers:
+        await showGroupReadersSheet(context, groupId: detail.id, message: m);
       case GroupMessageAction.reply:
         setState(() {
           _replyTo = m;
-          _editing = null;
+          _stopEditing();
         });
       case GroupMessageAction.copy:
         await Clipboard.setData(ClipboardData(text: m.body));
@@ -515,6 +646,9 @@ class _GroupConversationScreenState
       case GroupMessageAction.select:
         setState(() => _selected = {m.id});
       case GroupMessageAction.edit:
+        // The unsent text waits while an old message is edited, and comes
+        // back in the field afterwards (WhatsApp).
+        _heldDraft = _text.text;
         setState(() {
           _editing = m;
           _replyTo = null;
@@ -544,6 +678,15 @@ class _GroupConversationScreenState
     }
   }
 
+  Future<void> _react(api.GroupMessageDto m, String? emoji) async {
+    unawaited(AppHaptics.selection());
+    try {
+      await _thread.react(m.id, emoji);
+    } on Object catch (e) {
+      _error(e);
+    }
+  }
+
   Future<void> _headerMenu(api.GroupDetailDto detail) async {
     final t = ref.read(translatorProvider);
     final muted = detail.mutedUntil?.isAfter(DateTime.now()) ?? false;
@@ -554,6 +697,14 @@ class _GroupConversationScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
+            // Row 110 (Telegram 🔍): search this group.
+            AppListRow(
+              key: const ValueKey('group-menu-search'),
+              icon: AppIcons.searchRounded,
+              label: t.t('common.search'),
+              showChevron: false,
+              onTap: () => Navigator.of(sheet).pop('search'),
+            ),
             AppListRow(
               icon: AppIcons.infoOutlineRounded,
               label: t.t('group.conv.info'),
@@ -582,6 +733,8 @@ class _GroupConversationScreenState
     );
     if (choice == null || !mounted) return;
     switch (choice) {
+      case 'search':
+        _openSearch();
       case 'info':
         unawaited(context.push(GroupRoutes.info(detail.id)));
       case 'mute':
@@ -596,17 +749,23 @@ class _GroupConversationScreenState
     required bool muted,
   }) async {
     final t = ref.read(translatorProvider);
+    // Row 110: how long (1 h · 8 h · 2 d · forever), as in group info.
+    Duration? span;
+    if (!muted) {
+      final pick = await pickMute(context, t, muted: false);
+      if (pick == null || !mounted) return;
+      span = muteDuration(pick);
+      if (span == null) return;
+    }
     try {
-      final updated = await ref
-          .read(groupRepositoryProvider)
-          .updateMine(
+      final updated = await ref.read(groupRepositoryProvider).updateMine(
             detail.id,
             api.UpdateGroupMeDto(
               // The client cannot send an explicit null, so «unmute» is a
               // moment in the past: the mute has already ended.
-              mutedUntil: muted
+              mutedUntil: span == null
                   ? DateTime.now().toUtc().subtract(const Duration(seconds: 1))
-                  : DateTime.now().toUtc().add(const Duration(days: 3650)),
+                  : DateTime.now().toUtc().add(span),
             ),
           );
       if (!mounted) return;
@@ -659,14 +818,14 @@ class _GroupConversationScreenState
   }
 
   Widget _plain(Translator t, Widget body) => Scaffold(
-    appBar: AppTopBar(
-      leading: AppBackButton(
-        semanticLabel: t.t('common.back'),
-        onPressed: _back,
-      ),
-    ),
-    body: body,
-  );
+        appBar: AppTopBar(
+          leading: AppBackButton(
+            semanticLabel: t.t('common.back'),
+            onPressed: _back,
+          ),
+        ),
+        body: body,
+      );
 
   bool _isGone(Object? e) =>
       e is ApiException &&
@@ -737,13 +896,24 @@ class _GroupConversationScreenState
             : AppTopBar(
                 leading: AppBackButton(
                   semanticLabel: t.t('common.back'),
-                  onPressed: _back,
+                  // Row 110: while searching the arrow closes the search.
+                  onPressed: _search != null ? _closeSearch : _back,
                 ),
-                title: _Header(detail: detail, topic: topic),
+                title: switch (_search) {
+                  final InChatSearch s => InChatSearchField(
+                      search: s,
+                      controller: _searchText,
+                      t: t,
+                    ),
+                  null => _Header(detail: detail, topic: topic),
+                },
                 actions: [
                   // Like WhatsApp: video and phone, tight, before the menu.
-                  if (detail.canCall &&
+                  if (_search == null &&
+                      detail.canCall &&
                       ref.watch(groupCallsProvider) &&
+                      // Row 183: «Звонки в группах».
+                      ref.watch(groupChatCallsEnabledProvider) &&
                       ref.watch(groupCallPortProvider) != null) ...[
                     if (ref.watch(groupVideoCallsProvider))
                       AppIconButton(
@@ -763,24 +933,23 @@ class _GroupConversationScreenState
                       icon: AppIcon(
                         AppIcons.callOutlined,
                         size: 22,
-                        color: Theme.of(context)
-                            .extension<AppColorTokens>()!
-                            .text,
+                        color:
+                            Theme.of(context).extension<AppColorTokens>()!.text,
                       ),
                       semanticLabel: t.t('call.button'),
                       onPressed: () => _startCall(detail, video: false),
                     ),
                   ],
-                  AppIconButton(
-                    icon: AppIcon(
-                      AppIcons.moreVertRounded,
-                      color: Theme.of(context)
-                          .extension<AppColorTokens>()!
-                          .text,
+                  if (_search == null)
+                    AppIconButton(
+                      icon: AppIcon(
+                        AppIcons.moreVertRounded,
+                        color:
+                            Theme.of(context).extension<AppColorTokens>()!.text,
+                      ),
+                      semanticLabel: t.t('chat.menu'),
+                      onPressed: () => _headerMenu(detail),
                     ),
-                    semanticLabel: t.t('chat.menu'),
-                    onPressed: () => _headerMenu(detail),
-                  ),
                 ],
               ),
         body: topicList
@@ -815,8 +984,7 @@ class _GroupConversationScreenState
     final closed = topic?.closed ?? false;
     final canWrite = detail.canPost && (!closed || detail.isAdmin);
     final pinned = detail.pinnedMessage;
-    final showPin =
-        pinned != null &&
+    final showPin = pinned != null &&
         !pinned.deleted &&
         (widget.topicId == null ||
             pinned.topicId == null ||
@@ -847,12 +1015,13 @@ class _GroupConversationScreenState
         onToggle: _selected.isEmpty ? null : _toggle,
         onReply: (m) => setState(() {
           _replyTo = m;
-          _editing = null;
+          _stopEditing();
         }),
         onJump: _jumpTo,
         onRetry: _thread.retry,
         onDiscard: _thread.dropPending,
         onPollChanged: (m, p) => _thread.applyPoll(m.id, p),
+        onReact: _react,
       );
     }
 
@@ -901,7 +1070,10 @@ class _GroupConversationScreenState
             ),
           ),
         ),
-        if (canWrite)
+        // Row 110: while searching, «N of M» and ↑ / ↓ (Telegram).
+        if (_search != null)
+          InChatSearchBar(search: _search!, t: t)
+        else if (canWrite)
           GroupComposer(
             controller: _text,
             members: detail.members,
@@ -912,9 +1084,15 @@ class _GroupConversationScreenState
             onSaveEdit: _saveEdit,
             onAttach: _attach,
             canAttach: detail.canSendMedia || detail.canSendPolls,
+            draftKey: _draftKey,
+            // Groups WhatsApp parity: a voice note is media, like a photo.
+            onVoice: detail.canSendMedia ? _sendVoice : null,
+            onVoiceTyping: (active, {voice = false}) => ref
+                .read(groupTypingProvider(widget.groupId).notifier)
+                .send(active, voice: voice),
             onCancelReply: () => setState(() => _replyTo = null),
             onCancelEdit: () {
-              setState(() => _editing = null);
+              setState(_stopEditing);
               _text.clear();
             },
           )
@@ -948,11 +1126,15 @@ class _Header extends ConsumerWidget {
     final typerName = typer == null
         ? null
         : detail.members
-              .where((m) => m.userId == typer.userId)
-              .map((m) => m.displayName?.trim() ?? '')
-              .firstOrNull;
+            .where((m) => m.userId == typer.userId)
+            .map((m) => m.displayName?.trim() ?? '')
+            .firstOrNull;
+    // Row 110 (Telegram): no network / no server → the status line says so.
+    final offline = connectionTitle(t, watchOfflineReason(ref));
     final String subtitle;
-    if (typer != null) {
+    if (offline != null) {
+      subtitle = offline;
+    } else if (typer != null) {
       final name = (typerName == null || typerName.isEmpty)
           ? t.t('group.someone')
           : typerName;
@@ -1148,6 +1330,10 @@ class _DownButton extends StatelessWidget {
   }
 }
 
+/// Row 38: groups whose older page is already queued for the next frame
+/// (one request per frame however many rows near the top get built).
+final _olderQueued = <String>{};
+
 /// The messages, newest at the bottom; unsent ones below them; the day
 /// separators, the runs of one sender and the older pages.
 class _MessageList extends ConsumerWidget {
@@ -1166,6 +1352,7 @@ class _MessageList extends ConsumerWidget {
     required this.onRetry,
     required this.onDiscard,
     required this.onPollChanged,
+    this.onReact,
     this.selected = const {},
     this.onToggle,
   });
@@ -1184,6 +1371,9 @@ class _MessageList extends ConsumerWidget {
   final void Function(String clientMessageId) onRetry;
   final void Function(String clientMessageId) onDiscard;
   final void Function(api.GroupMessageDto m, api.PollDto p) onPollChanged;
+
+  /// Groups WhatsApp parity: a reaction chip tapped (null = mine removed).
+  final void Function(api.GroupMessageDto m, String? emoji)? onReact;
 
   /// «Select» mode: the picked ids; a tap on a message calls [onToggle].
   final Set<String> selected;
@@ -1214,6 +1404,15 @@ class _MessageList extends ConsumerWidget {
     final pending = state.pending;
     final extra = state.hasMore ? 1 : 0;
     Map<Key, int>? byKey;
+    // Groups WhatsApp parity: the next voice notes in a row play by
+    // themselves (the 1:1 bubble); a group has no «played» mark to report.
+    final voiceThread = VoiceThread(
+      messages: () => [
+        for (final m in messages)
+          if (m.voiceMessage case final v?) v,
+      ],
+      played: (_) async {},
+    );
     // Audit 26.10 B3: a custom scroll view so the anchor sliver can keep
     // what is read in place; rows are found by key when a message comes in
     // below (the rest move one index, their elements are kept).
@@ -1240,6 +1439,7 @@ class _MessageList extends ConsumerWidget {
                 final p = pending[pending.length - 1 - i];
                 return GroupPendingBubble(
                   pending: p,
+                  groupId: detail.id,
                   onRetry: () => onRetry(p.clientMessageId),
                   onDiscard: () => onDiscard(p.clientMessageId),
                 );
@@ -1262,11 +1462,23 @@ class _MessageList extends ConsumerWidget {
                   ),
                 );
               }
+              // Row 38 (Telegram): the older page is asked for a few rows
+              // before the oldest one (`client.load_ahead_rows`), not when
+              // the spinner shows; once per frame, like the 1:1 chat.
+              if (k >= messages.length - LoadAhead.rows &&
+                  state.hasMore &&
+                  !state.loadingMore &&
+                  state.error == null &&
+                  _olderQueued.add(detail.id)) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _olderQueued.remove(detail.id);
+                  onMore();
+                });
+              }
               final m = messages[k];
               final older = k + 1 < messages.length ? messages[k + 1] : null;
               final newer = k > 0 ? messages[k - 1] : null;
-              final newDay =
-                  older == null ||
+              final newDay = older == null ||
                   !DateUtils.isSameDay(
                     older.createdAt.toLocal(),
                     m.createdAt.toLocal(),
@@ -1299,6 +1511,10 @@ class _MessageList extends ConsumerWidget {
                       : null,
                   onJump: onJump,
                   onPollChanged: (p) => onPollChanged(m, p),
+                  voiceThread: voiceThread,
+                  onReact: onReact == null || onToggle != null
+                      ? null
+                      : (e) => onReact!(m, e),
                 );
               }
               return Column(

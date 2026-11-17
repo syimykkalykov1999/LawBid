@@ -21,6 +21,7 @@ import {
 } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -392,14 +393,7 @@ export class StarsService {
     const rows = await this.prisma.starLedger.findMany({
       where: {
         ...where,
-        ...(c
-          ? {
-              OR: [
-                { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, id: { lt: c.id } },
-              ],
-            }
-          : {}),
+        ...(c ? createdBefore({ t: c.createdAt, id: c.id }) : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,
@@ -902,14 +896,7 @@ export class StarsService {
     const rows = await this.prisma.giftSend.findMany({
       where: {
         ...base,
-        ...(c
-          ? {
-              OR: [
-                { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, id: { lt: c.id } },
-              ],
-            }
-          : {}),
+        ...(c ? createdBefore({ t: c.createdAt, id: c.id }) : {}),
       },
       include: { gift: true },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],

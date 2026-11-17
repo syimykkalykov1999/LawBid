@@ -200,3 +200,9 @@ export class BidCaseChangeDto {
   @ApiProperty({ format: 'date-time' })
   at!: string;
 }
+
+/** Firms audit 16.11 (PR-4): the firm's bid the lawyer joined. */
+export class BidJoinDto {
+  @ApiProperty({ format: 'uuid' })
+  bidId!: string;
+}

@@ -10,13 +10,18 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
+import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
 import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
 import 'package:lawbid/features/chat/presentation/chat_undo.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart'
+    show groupDraftKey;
 import 'package:lawbid/features/groups/domain/ongoing_call.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart'
+    show muteDuration, pickMute;
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
@@ -57,6 +62,12 @@ class GroupChatTile extends ConsumerWidget {
     final mentions = g.unreadMentions.toInt();
     final last = g.lastMessage;
     final at = g.lastMessageAt;
+    // Groups WhatsApp parity (the 1:1 inbox row): an unsent text shows as
+    // a red «Drafts: …».
+    final draft = ref.watch(
+      chatTextDraftsProvider.select((m) => m[groupDraftKey(g.id, null)]),
+    );
+    final draftLabel = '${t.t('mine.tab.drafts')}: ';
     final canOrganize = picking == null && !ref.watch(isAssistantProvider);
     void organize() =>
         showGroupOrganizeSheet(context, ref, g, inArchive: inArchive);
@@ -163,22 +174,41 @@ class GroupChatTile extends ConsumerWidget {
                               Expanded(
                                 child: call != null
                                     ? OngoingCallLine(call: call)
-                                    : Text(
-                                        last == null
-                                            ? t.t('group.empty.preview')
-                                            : groupMessagePreview(
-                                                t,
-                                                last,
-                                                withSender: true,
-                                              ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: unread > 0
-                                            ? secondary.copyWith(
-                                                color: colors.text,
-                                              )
-                                            : secondary,
-                                      ),
+                                    : draft != null && highlight.isEmpty
+                                        ? Text.rich(
+                                            key:
+                                                ValueKey('group-draft-${g.id}'),
+                                            TextSpan(
+                                              children: [
+                                                TextSpan(
+                                                  text: draftLabel,
+                                                  style: TextStyle(
+                                                    color: colors.dangerText,
+                                                  ),
+                                                ),
+                                                TextSpan(text: draft),
+                                              ],
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: secondary,
+                                          )
+                                        : Text(
+                                            last == null
+                                                ? t.t('group.empty.preview')
+                                                : groupMessagePreview(
+                                                    t,
+                                                    last,
+                                                    withSender: true,
+                                                  ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: unread > 0
+                                                ? secondary.copyWith(
+                                                    color: colors.text,
+                                                  )
+                                                : secondary,
+                                          ),
                               ),
                               if (muted) ...[
                                 const SizedBox(width: AppSpacing.sm),
@@ -262,12 +292,22 @@ class GroupChatTile extends ConsumerWidget {
           g.pinned ? 'chat.organize.unpinned' : 'chat.organize.pinned',
         ),
       ),
-      onMute: () => unawaited(
-        act(
-          () => updateMyGroup(ref, g.id, muted: !muted),
-          muted ? 'chat.select.unmuted' : 'chat.select.muted',
-        ),
-      ),
+      // Row 110: a swipe on a loud group asks for how long, like a chat.
+      onMute: () => unawaited(() async {
+        if (muted) {
+          return act(
+            () => updateMyGroup(ref, g.id, muted: false),
+            'chat.select.unmuted',
+          );
+        }
+        final pick = await pickMute(context, t, muted: false);
+        final span = pick == null ? null : muteDuration(pick);
+        if (span == null || !context.mounted) return;
+        await act(
+          () => updateMyGroup(ref, g.id, mutedFor: span),
+          'chat.select.muted',
+        );
+      }()),
       onDelete: () => unawaited(
         confirmDeleteChat(
           context,
@@ -435,7 +475,14 @@ Future<void> showGroupOrganizeSheet(
       case 'pin':
         await updateMyGroup(ref, g.id, pinned: !g.pinned);
       case 'mute':
-        await updateMyGroup(ref, g.id, muted: !muted);
+        if (muted) {
+          await updateMyGroup(ref, g.id, muted: false);
+        } else {
+          final span = await pickMute(context, t, muted: false)
+              .then((p) => p == null ? null : muteDuration(p));
+          if (span == null) return;
+          await updateMyGroup(ref, g.id, mutedFor: span);
+        }
       case 'archive':
         await updateMyGroup(ref, g.id, archived: !inArchive);
         // Row 109 (Gmail «Archived · Undo»).

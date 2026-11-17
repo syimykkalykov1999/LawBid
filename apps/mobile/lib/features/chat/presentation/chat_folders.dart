@@ -14,9 +14,15 @@ import 'package:lawbid/features/chat/application/awaiting_reply.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_undo.dart';
+import 'package:lawbid/features/groups/application/chat_list_merge.dart'
+    show unreadGroupsProvider;
+import 'package:lawbid/features/groups/application/group_providers.dart'
+    show groupsEnabledProvider;
+import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart'
+    show muteDuration, pickMute;
 
 /// Owner 2026-10-01: small Instagram-like sub-tabs inside Chats —
-/// All · Primary · General · Waiting · Requests (with counts).
+/// All · Unread · Groups · Cases · Waiting · Requests (with counts).
 class ChatFolderPills extends ConsumerWidget {
   const ChatFolderPills({
     required this.value,
@@ -33,12 +39,16 @@ class ChatFolderPills extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final counts = ref.watch(chatFolderCountsProvider).value;
+    final groupsOn = ref.watch(groupsEnabledProvider);
+    final unreadGroups = groupsOn ? ref.watch(unreadGroupsProvider) : 0;
     final dur = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
     int? countOf(ChatListFolder f) => switch (f) {
           ChatListFolder.waiting => counts?.waiting,
           ChatListFolder.requests => counts?.requests,
           // Owner 2026-10-21: how many case chats wait for my answer.
           ChatListFolder.cases => counts?.cases,
+          // Owner 2026-11-16 (Telegram folder badge): groups with unread.
+          ChatListFolder.groups => unreadGroups,
           _ => null,
         };
     // Owner 2026-10-22 (Instagram DM tabs): the pills share the whole row in
@@ -51,7 +61,10 @@ class ChatFolderPills extends ConsumerWidget {
       for (final f in ChatListFolder.values)
         if (f != ChatListFolder.general &&
             f != ChatListFolder.primary &&
-            f != ChatListFolder.archive)
+            f != ChatListFolder.archive &&
+            // Owner 2026-11-16 (WhatsApp «Группы» filter): only while
+            // «Группы в чатах» is on.
+            (f != ChatListFolder.groups || groupsOn))
           f,
     ];
     return SizedBox(
@@ -116,7 +129,12 @@ class ChatFolderPills extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  t.t('chat.folder.${f.name}'),
+                  // «Группы»: the existing string, already in 85 languages.
+                  t.t(
+                    f == ChatListFolder.groups
+                        ? 'chat.forward.groups'
+                        : 'chat.folder.${f.name}',
+                  ),
                   maxLines: 1,
                   style: type.bodySmall.copyWith(
                     color: fg,
@@ -335,21 +353,28 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
               key: const ValueKey('organize-mute'),
               icon: AppIcons.notificationsOffOutlined,
               label: t.t(c.muted ? 'chat.unmute' : 'chat.mute'),
+              // Row 110: how long, the same choice as in the chat's info.
               onTap: _busy
                   ? null
-                  : () => _run(
+                  : () async {
+                      Duration? span;
+                      if (!c.muted) {
+                        final pick = await pickMute(context, t, muted: false);
+                        if (pick == null || !mounted) return;
+                        span = muteDuration(pick);
+                      }
+                      await _run(
                         () => repo.mute(
                           c.id,
-                          c.muted
-                              ? null
-                              : DateTime.now().add(const Duration(days: 3650)),
+                          span == null ? null : DateTime.now().add(span),
                         ),
-                        done: c.muted
+                        done: span == null
                             ? 'chat.select.unmuted'
                             : 'chat.select.muted',
-                      ),
+                      );
+                    },
             ),
-            if (c.unreadCount > 0 && c.lastMessage != null)
+            if (c.hasUnread && c.lastMessage != null)
               AppListRow(
                 key: const ValueKey('organize-read'),
                 icon: AppIcons.doneAllRounded,
@@ -360,6 +385,17 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                           await repo.read(c.id, c.lastMessage!.id);
                           return c;
                         }),
+              )
+            // Row 110 (Telegram, WhatsApp «Mark as unread»): a read chat
+            // gets the unread mark back; opening it takes the mark off.
+            else if (c.lastMessage != null)
+              AppListRow(
+                key: const ValueKey('organize-unread'),
+                icon: AppIcons.markEmailUnreadOutlined,
+                label: t.t('chat.markUnread'),
+                onTap: _busy
+                    ? null
+                    : () => _run(() => repo.organize(c.id, unread: true)),
               ),
             AppListRow(
               key: const ValueKey('organize-archive'),

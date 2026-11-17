@@ -129,7 +129,8 @@ export class CaseHistoryExportRunner
         isStalledFailure(error)
       ) {
         void this.setState(exportId, { userId, status: 'failed', key: null });
-        void this.redis.del(activeKey(userId));
+        // Fire-and-forget: a closed connection must not be an unhandled rejection.
+        void this.redis.del(activeKey(userId)).catch(() => undefined);
         void this.prisma.dataExportJob.updateMany({
           where: { id: exportId },
           data: { status: 'failed', error: error.message.slice(0, 500) },

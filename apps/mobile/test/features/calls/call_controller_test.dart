@@ -10,6 +10,8 @@ import 'package:flutter_webrtc/flutter_webrtc.dart' show MediaStream;
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/audio/proximity_screen.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/connectivity/connectivity_providers.dart';
+import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -24,6 +26,7 @@ import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 
 import '../../core/audio/fake_proximity.dart';
+import '../../helpers/ux_harness.dart' show FakeNetworkMonitor;
 import 'call_audio_fakes.dart';
 
 /// OQ-041: the call state machine — ring out, pick-up, signaling,
@@ -562,7 +565,8 @@ class _Harness {
         proximityScreenProvider.overrideWithValue(ProximityScreen(proximity)),
         systemCallUiProvider.overrideWithValue(systemUi),
         callMyIdProvider.overrideWithValue(me),
-        callMicPermissionProvider.overrideWithValue(() async => true),
+        callMicPermissionProvider.overrideWithValue(() async => micOk),
+        networkInterfaceMonitorProvider.overrideWithValue(net),
         callScreenAwakeProvider.overrideWithValue(({required on}) async {
           awake.add(on);
         }),
@@ -597,6 +601,10 @@ class _Harness {
   final events = StreamController<RealtimeEvent>.broadcast();
   final signals = <Map<String, Object?>>[];
   final signalTargets = <String?>[];
+
+  /// Row 36: the microphone permission answer and the phone's network.
+  bool micOk = true;
+  final net = FakeNetworkMonitor();
 
   /// Row 166: every «keep the screen on» switch, in order.
   final awake = <bool>[];
@@ -3246,6 +3254,119 @@ void main() {
       expect(h.repo.accepted, ['d5']);
       await h.c.hangUp();
       expect(h.repo.endedIds, contains('d5'));
+    });
+  });
+
+  // Owner row 36 (08.11 «все ~21 ситуация»): the situations that had no test
+  // of their own. The table: docs/dev/CALLS_SITUATIONS_TESTS_2026-11-14.md.
+  group('row 36 situations', () {
+    test('S-mic: the microphone refused — nobody is rung, the reason shows',
+        () async {
+      final h = _Harness()..micOk = false;
+      addTearDown(h.dispose);
+      await h.c.call('conv', peer: _peer);
+      expect(h.repo.startedVideo, isEmpty);
+      expect(h.s.phase, CallPhase.ended);
+      expect(h.s.errorCode, kMicDenied);
+      expect(h.sounds.played, isNot(contains('ringback')));
+    });
+
+    test('S-blocked: calling someone who blocked us ends with its reason',
+        () async {
+      final h = _Harness()
+        ..repo.refuse = const ApiException(
+          code: 'USER_BLOCKED',
+          message: 'blocked',
+          statusCode: 403,
+        );
+      addTearDown(h.dispose);
+      await h.c.call('conv', peer: _peer);
+      expect(h.s.phase, CallPhase.ended);
+      expect(h.s.errorCode, 'USER_BLOCKED');
+      expect(h.media.opened, isFalse);
+      // The ended screen names it in words, not a code.
+      final text = const StaticTranslatorEn().t('error.api.USER_BLOCKED');
+      expect(text, isNot('error.api.USER_BLOCKED'));
+    });
+
+    test(
+        'S-push-busy: a push ring while talking in another call is declined '
+        '(the caller hears busy) and the running call is untouched', () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.c.call('conv', peer: _peer);
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true)),
+      );
+      await _settle();
+      h.media.onState!(CallMediaState.connected);
+      expect(h.s.phase, CallPhase.active);
+
+      await h.c.ringFromPush('c2', showSystemUi: true);
+      await _settle();
+      expect(h.repo.declined, ['c2']);
+      expect(h.systemUi.dismissed, contains('c2'));
+      expect(h.s.call?.id, 'c1');
+      expect(h.s.phase, CallPhase.active);
+      expect(h.media.closed, isFalse);
+      await h.c.hangUp();
+    });
+
+    test('S-socket-busy: a socket ring while talking is not shown here',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.c.call('conv', peer: _peer);
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true)),
+      );
+      await _settle();
+      h.media.onState!(CallMediaState.connected);
+      h.emit(
+        'call:incoming',
+        _event(_call('c9', CallStatus.ringing, outgoing: false)),
+      );
+      await _settle();
+      expect(h.s.call?.id, 'c1');
+      expect(h.s.phase, CallPhase.active);
+      expect(h.systemUi.shown, isEmpty);
+      expect(h.sounds.rings, isNot(contains('ring')));
+      await h.c.hangUp();
+    });
+
+    test(
+        'S-net-switch: Wi-Fi → 4G mid-call takes a fresh relay list and new '
+        'routes after the 1 s settle, the call goes on', () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.emit(
+          'call:accepted',
+          _event(_call('c1', CallStatus.active, outgoing: true)),
+        );
+        async.flushMicrotasks();
+        h.media.onState!(CallMediaState.connected);
+        async.flushMicrotasks();
+        final asks = h.repo.iceAsks.length;
+        final restarts = h.media.iceRestarts;
+
+        h.net.set(false);
+        async.flushMicrotasks();
+        expect(h.repo.iceAsks.length, asks, reason: 'no network: nothing');
+        h.net.set(true);
+        async.elapse(const Duration(milliseconds: 500));
+        expect(h.media.iceRestarts, restarts, reason: 'settles first');
+        async.elapse(const Duration(seconds: 3));
+        expect(h.repo.iceAsks.length, greaterThan(asks));
+        expect(h.media.iceRestarts, greaterThan(restarts));
+        expect(h.s.phase, CallPhase.active);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
     });
   });
 

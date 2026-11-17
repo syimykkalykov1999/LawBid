@@ -149,6 +149,14 @@ export class OrganizeConversationDto {
   @MaxLength(280)
   note?: string | null;
 
+  @ApiPropertyOptional({
+    description:
+      'Row 110 (Telegram / WhatsApp «Mark as unread»): my own unread mark; reading the chat takes it off.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  unread?: boolean;
+
   @ApiPropertyOptional({ description: 'Pinned to the top of my list.' })
   @IsOptional()
   @IsBoolean()
@@ -203,6 +211,21 @@ export class MessagesQueryDto {
   @IsOptional()
   @IsIn(['attachment'])
   only?: 'attachment';
+
+  /**
+   * Row 110 (Telegram 🔍 in a chat, WhatsApp «Search» in contact info): only
+   * the text messages holding every typed word, newest first, paged by
+   * `cursor`. Sealed bodies are matched through the blind index, as in the
+   * chats list search.
+   */
+  @ApiPropertyOptional({
+    maxLength: 200,
+    description: 'Search inside this chat: every word must be in the text.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
 }
 
 /** Owner 2026-10-05: what the chat's files take (the "Files" screen
@@ -880,6 +903,12 @@ export class ConversationDto {
 
   @ApiPropertyOptional({ type: Date, nullable: true })
   pinnedAt!: Date | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Row 110: I marked the chat unread myself (Telegram / WhatsApp); cleared when I read it.',
+  })
+  markedUnread?: boolean;
 
   @ApiProperty({
     enum: ['case', 'direct'],

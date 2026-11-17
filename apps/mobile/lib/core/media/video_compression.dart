@@ -94,19 +94,39 @@ VideoLimits chatVideoLimitsOf(FeatureFlagsState flags) {
   );
 }
 
+/// Owner row 199 (16.11, WhatsApp / Telegram: one encode, not two): Bunny
+/// re-encodes every reel, story and channel video, so one no taller than
+/// the admin's limit goes up as recorded and Bunny's encode is the only
+/// one (Система → Настройки: `media.bunny_one_encode`, on by default; off
+/// = the phone re-encodes above [videoReencodeAboveKbpsOf] as before).
+bool bunnyOneEncodeOf(FeatureFlagsState flags) {
+  final v = flags.appConfig['media.bunny_one_encode']?.trim().toLowerCase();
+  return v != 'false' && v != '0';
+}
+
+/// The server's upload limit of a reel / story / channel video, bytes
+/// (`video.max_size_mb`, 1000); a video over it is shrunk on the phone so
+/// that it is accepted.
+int videoMaxBytesOf(FeatureFlagsState flags) =>
+    flags.configInt('video.max_size_mb', 1000).clamp(1, 1 << 20) * 1024 * 1024;
+
 /// Whether a video of [shortSide] px (the smaller of width / height),
 /// [bytes] and [durationMs] is worth re-encoding under [limits]; at or
 /// under [reencodeAboveKbps] (the admin's [videoReencodeAboveKbpsOf]) it
-/// is kept.
+/// is kept. [oneEncode] ([bunnyOneEncodeOf]): only a taller one, or one
+/// over [maxBytes], is re-encoded.
 bool needsVideoCompression({
   required int shortSide,
   required int bytes,
   required int durationMs,
   required VideoLimits limits,
   int reencodeAboveKbps = 8000,
+  bool oneEncode = false,
+  int? maxBytes,
 }) {
   if (limits.maxHeight <= 0) return false;
   if (shortSide > limits.maxHeight) return true;
+  if (oneEncode) return maxBytes != null && bytes > maxBytes;
   if (durationMs <= 0) return false;
   // bytes per ms × 8 = kbit/s.
   return bytes * 8 / durationMs > reencodeAboveKbps;

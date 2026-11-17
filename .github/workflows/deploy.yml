@@ -75,7 +75,10 @@ jobs:
   gate:
     name: Wait for green CI
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    # 17.11 (KNOWN_ERRORS 195): with the Actions queue at 60-100 runs, main's
+    # own CI took longer than 45 min, every gate timed out and prod stayed on
+    # 16.11's build. Wait up to 3 h; the green rule itself is unchanged.
+    timeout-minutes: 190
     if: ${{ vars.DEPLOY_ENABLED == 'true' && !inputs.image_tag }}
     permissions:
       contents: read
@@ -85,6 +88,8 @@ jobs:
       - name: Every CI check of this commit is green
         env:
           GH_TOKEN: ${{ github.token }}
+          REQUIRE_GREEN_TIMEOUT: "10800"
+          REQUIRE_GREEN_POLL: "60"
         run: |
           scripts/ci/require-green.sh "$GITHUB_SHA" \
             '^(API |Admin CI|Build image \+ Trivy|gitleaks|CodeQL)' \

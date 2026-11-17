@@ -24,6 +24,7 @@ import { LoginMethodPolicy } from '../services/login-method-policy.service';
 import { ClientFraudService } from '../../client-fraud/client-fraud.service';
 import { AccountBansService } from '../../account-bans/account-bans.service';
 import { AuthService } from '../auth.service';
+import { SocialNonceService } from './social-nonce.service';
 
 /**
  * Dispatches to the right SocialTokenVerifier, resolves-or-creates the
@@ -53,6 +54,8 @@ export class SocialAuthService {
     @Optional() private readonly fraud?: ClientFraudService,
     // Privacy round 13 (S13-14): `privacy.login_cancels_deletion`.
     @Optional() private readonly settings?: AppSettingsService,
+    // Detective R2B-9 (14.11): the Google nonce issued by the server.
+    @Optional() private readonly nonces?: SocialNonceService,
   ) {}
 
   private async loginCancelsDeletion(): Promise<boolean> {
@@ -71,6 +74,11 @@ export class SocialAuthService {
     await this.loginMethods.assertEnabled(dto.provider);
     await this.loginMethods.assertPlatformAllowed(dto.deviceInfo?.platform);
     await this.assertIpLimit(meta);
+    // R2B-9: an issued nonce burns here; a self-made one only from an
+    // older app (security.google_nonce_min_app_version).
+    if (dto.provider === 'google') {
+      await this.nonces?.assertIssued(dto.nonce, meta.appVersion);
+    }
 
     const verifier = dto.provider === 'apple' ? this.apple : this.google;
     const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};

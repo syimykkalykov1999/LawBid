@@ -703,3 +703,11 @@ PUT /admin/spend/autoscale-tuning/{target} added the new `endpoints` enum value 
 # PR #1120 (owner 15.11, row 20): admin-only «Числа «Авто»» gains the spot-fallback numbers; only the admin reads it and it shows every target it gets (the Dart enum has $unknown)
 GET /admin/spend/autoscale-tuning added the new `spot` enum value to the `data/targets/items/target` response property for the response status `200`
 PUT /admin/spend/autoscale-tuning/{target} added the new `spot` enum value to the `data/targets/items/target` response property for the response status `200`
+# Groups WhatsApp parity (voice, 16.11): group messages gain type `voice`; the Dart enum has $unknown, so builds before it draw an empty bubble instead of failing
+GET /groups/invites/{inviteId}/preview added the new `voice` enum value to the `data/messages/items/type` response property for the response status `200`
+GET /groups/{id}/messages added the new `voice` enum value to the `data/items/type` response property for the response status `200`
+POST /groups/{id}/messages added the new `voice` enum value to the `data/type` response property for the response status `200`
+PATCH /groups/{id}/messages/{messageId} added the new `voice` enum value to the `data/type` response property for the response status `200`
+PUT /groups/{id}/messages/{messageId}/reaction added the new `voice` enum value to the `data/type` response property for the response status `200`
+POST /groups/{id}/polls added the new `voice` enum value to the `data/type` response property for the response status `200`
+GET /groups/{id}/shared added the new `voice` enum value to the `data/items/type` response property for the response status `200`

@@ -236,6 +236,33 @@ void main() {
       expect(repo.calls, isEmpty);
     });
 
+    // Row 110 review: «Отметить как непрочитанное» → the chat is opened and
+    // read → back in the list the pill is gone and «Непрочитанные» drops it.
+    test('a read takes my own unread mark off the row, no request', () async {
+      final marked = rows().map(
+        (r) => r.id == 'a'
+            ? Conversation(
+                id: r.id,
+                caseId: null,
+                caseTitle: null,
+                status: r.status,
+                contactsUnlocked: true,
+                counterpart: r.counterpart,
+                unreadCount: 0,
+                lastMessageAt: r.lastMessageAt,
+                updatedAt: r.updatedAt,
+                markedUnread: true,
+              )
+            : r,
+      );
+      final next = applyReadByMe(marked.toList(), 'a')!;
+      final a = next.firstWhere((r) => r.id == 'a');
+      expect(a.markedUnread, isFalse);
+      expect(a.hasUnread, isFalse);
+      expect(next.where((r) => r.hasUnread), isEmpty);
+      expect(repo.calls, isEmpty);
+    });
+
     test('a reconnect asks only for what changed (updatedSince)', () async {
       repo.changed = [_conv('x', at: t0.add(const Duration(hours: 1)))];
       events.add(const RealtimeEvent(RealtimeEvent.reconnected, null));

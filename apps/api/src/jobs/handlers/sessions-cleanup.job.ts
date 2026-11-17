@@ -1,17 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
+import type { AppSettingKey } from '../../common/app-settings/app-settings.defaults';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { heldSqlFor } from '../../common/privacy/legal-hold';
 import { PrismaService } from '../../prisma/prisma.service';
 
-/** Terminally revoked rows (logout, logout_all, reuse_detected, admin
- * block, account deletion) are kept this long for incident review and the
- * new-device signal, then removed even if their refresh expiry is later.
- * Engineering judgment — docs/02 §6.4 only fixes the daily cadence. */
+/** Default of `sessions.revoked_retention_days`: terminally revoked rows
+ * (logout, logout_all, reuse_detected, admin block, account deletion) are
+ * kept this long for incident review and the new-device signal, then
+ * removed even if their refresh expiry is later. docs/02 §6.4 only fixes
+ * the daily cadence. */
 export const REVOKED_SESSION_RETENTION_DAYS = 30;
 
-/** Rows scanned per statement: one short implicit transaction each
- * (docs/02 §1.1 "Транзакции короткие", backfills in 1000-5000 batches). */
+/** Default of `sessions.cleanup_batch`: rows scanned per statement, one
+ * short implicit transaction each (docs/02 §1.1 "Транзакции короткие",
+ * backfills in 1000-5000 batches). */
 export const SESSION_CLEANUP_BATCH = 1000;
 
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
@@ -22,7 +26,6 @@ export interface SessionsCleanupResult {
 }
 
 interface BatchRow {
-  doomed_ids: string[] | null;
   last_id: string | null;
   scanned: bigint;
   deleted: bigint;
@@ -45,8 +48,15 @@ interface BatchRow {
  * expires_at is monotonic, so a plain index on it would be a write
  * hot-spot (§1.1) — the same trade-off a row-level TTL
  * makes. Each batch is one statement: scan ≤ N rows by PK range, delete
- * the doomed ones among them. push_tokens rows go with their session
- * (FK ON DELETE CASCADE, stage 2.5).
+ * the doomed ones among them. Push and VoIP tokens are never removed here:
+ * every refresh moves them to the chain's newest row (SessionService.
+ * rotate, DB scale review 14.11), so the foreign-key cascade (indexed since
+ * then) only takes the tokens of a chain that has ended. With the families
+ * in different databases there is no key: the token of an ended chain is
+ * dropped when the next push finds it dead (push-tokens / voip-tokens).
+ *
+ * Runs on the `cron-heavy` lane (jobs.constants HEAVY_JOBS): it reads the
+ * whole table every night and must not hold the hourly jobs of `cron`.
  *
  * Idempotent and safe to run concurrently: a second runner only finds
  * fewer rows to delete.
@@ -56,17 +66,28 @@ export class SessionsCleanupJob {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: PinoLogger,
+    private readonly settings: AppSettingsService,
   ) {
     this.logger.setContext(SessionsCleanupJob.name);
   }
 
+  /** [now] and [batchSize] are for tests; the job reads its owner settings
+   * `sessions.cleanup_batch` and `sessions.revoked_retention_days`. */
   async run(
     now: Date = new Date(),
-    batchSize: number = SESSION_CLEANUP_BATCH,
+    batchSize?: number,
   ): Promise<SessionsCleanupResult> {
+    const [batchSetting, retentionDays] = await Promise.all([
+      this.setting('sessions.cleanup_batch', SESSION_CLEANUP_BATCH),
+      this.setting(
+        'sessions.revoked_retention_days',
+        REVOKED_SESSION_RETENTION_DAYS,
+      ),
+    ]);
+    batchSize ??= batchSetting;
     const held = await heldSqlFor(this.prisma);
     const revokedBefore = new Date(
-      now.getTime() - REVOKED_SESSION_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+      now.getTime() - retentionDays * 24 * 60 * 60 * 1000,
     );
     let cursor = ZERO_UUID;
     let scanned = 0;
@@ -92,19 +113,10 @@ export class SessionsCleanupJob {
           )
           RETURNING id
         )
-        SELECT (SELECT array_agg(id::TEXT) FROM doomed) AS doomed_ids,
-               (SELECT id FROM batch ORDER BY id DESC LIMIT 1)::TEXT AS last_id,
+        SELECT (SELECT id FROM batch ORDER BY id DESC LIMIT 1)::TEXT AS last_id,
                (SELECT count(*) FROM batch) AS scanned,
                (SELECT count(*) FROM doomed) AS deleted`);
 
-      // Shard-ready step 8: push_tokens (user family) went with their session
-      // through a foreign key; between families that key is gone, so they
-      // are removed here (no-op rows with one database: already cascaded).
-      if (row?.doomed_ids?.length) {
-        await this.prisma.pushToken.deleteMany({
-          where: { session_id: { in: row.doomed_ids } },
-        });
-      }
       const batchScanned = Number(row?.scanned ?? 0);
       scanned += batchScanned;
       deleted += Number(row?.deleted ?? 0);
@@ -112,7 +124,16 @@ export class SessionsCleanupJob {
       cursor = row.last_id;
     }
 
-    this.logger.info({ scanned, deleted }, 'sessions cleanup finished');
+    this.logger.info(
+      { scanned, deleted, batchSize },
+      'sessions cleanup finished',
+    );
     return { scanned, deleted };
+  }
+
+  /** A positive whole number from the owner settings, else [fallback]. */
+  private async setting(key: AppSettingKey, fallback: number): Promise<number> {
+    const v = await this.settings.number(key).catch(() => Number.NaN);
+    return Number.isFinite(v) && v >= 1 ? Math.floor(v) : fallback;
   }
 }

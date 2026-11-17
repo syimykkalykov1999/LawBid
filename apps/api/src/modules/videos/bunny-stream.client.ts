@@ -359,7 +359,11 @@ export class BunnyStreamClient {
       if (!res.ok && !(allow404 && res.status === 404)) {
         throw new Error(`Bunny answered HTTP ${res.status}`);
       }
-      return res;
+      // Infra audit 14.11: the body is read under the same time limit (the
+      // callers' res.json() used to run after the timer was cleared, so a
+      // stalled body had none).
+      const text = await res.text();
+      return new Response(text, { status: res.status, headers: res.headers });
     } finally {
       clearTimeout(timer);
     }

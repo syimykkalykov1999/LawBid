@@ -10,7 +10,11 @@ import { CircuitBreaker } from '../../../common/resilience/resilience';
 import { FLAG_CATALOG } from '../flag-catalog';
 import { lockFlags } from '../../../common/feature-flags/locked-flags';
 import { bumpConfigVersion } from './config-version';
-import { inRollout } from '../../experiments/experiment-math';
+import {
+  inRollout,
+  toHashVersion,
+  type HashVersion,
+} from '../../experiments/experiment-math';
 
 /** Same reasoning as I18nBundleService's bundle-version TTL
  * (i18n-bundle.service.ts): the admin's flag toggle writes straight to
@@ -25,8 +29,17 @@ import { inRollout } from '../../experiments/experiment-math';
  * hits Redis, not the DB, for all but one of them. */
 const FLAGS_CACHE_TTL_SECONDS = 30;
 export const FLAGS_CACHE_KEY = 'config:feature_flags';
-/** `{key: percent}` of the enabled flags that are on for only part of the users. */
+/** `{key: percent}` of the enabled flags that are on for only part of the
+ * users — the shape before hash versions (row 150). Still dropped on every
+ * change so a pod of the previous release refills it during a deploy. */
 export const ROLLOUT_CACHE_KEY = 'config:feature_flag_rollout';
+/** `{key: [percent, hashVersion]}`: the same set with each flag's bucketing
+ * hash (row 150). A new key, so the two releases never read each other's
+ * shape. */
+export const ROLLOUT_V2_CACHE_KEY = 'config:feature_flag_rollout:v2';
+
+/** A partial rollout: the share of users and the hash that picks them. */
+type Rollout = [percent: number, hashVersion: HashVersion];
 
 /**
  * Reads the full `feature_flags` table as a flat `{key: enabled}` map —
@@ -130,9 +143,9 @@ export class FeatureFlagsService implements OnModuleInit {
     return (await this.fill()).flags;
   }
 
-  private async readRollouts(): Promise<Record<string, number>> {
-    const cached = await this.redis.get(ROLLOUT_CACHE_KEY);
-    if (cached !== null) return JSON.parse(cached) as Record<string, number>;
+  private async readRollouts(): Promise<Record<string, Rollout>> {
+    const cached = await this.redis.get(ROLLOUT_V2_CACHE_KEY);
+    if (cached !== null) return JSON.parse(cached) as Record<string, Rollout>;
     return (await this.fill()).rollouts;
   }
 
@@ -140,24 +153,31 @@ export class FeatureFlagsService implements OnModuleInit {
   // read the table; one refill per pod instead.
   private fill(): Promise<{
     flags: Record<string, boolean>;
-    rollouts: Record<string, number>;
+    rollouts: Record<string, Rollout>;
   }> {
     return singleFlight(FLAGS_CACHE_KEY, async () => {
       const rows = await this.prisma.featureFlag.findMany({
-        select: { key: true, enabled: true, rollout_percent: true },
+        select: {
+          key: true,
+          enabled: true,
+          rollout_percent: true,
+          hash_version: true,
+        },
       });
       const flags: Record<string, boolean> = {};
-      const rollouts: Record<string, number> = {};
+      const rollouts: Record<string, Rollout> = {};
       for (const row of rows) {
         const pct = row.rollout_percent ?? 100;
         // Partly rolled out: unknown without a user, so off here.
         flags[row.key] = row.enabled && pct >= 100;
-        if (row.enabled && pct > 0 && pct < 100) rollouts[row.key] = pct;
+        if (row.enabled && pct > 0 && pct < 100) {
+          rollouts[row.key] = [pct, toHashVersion(row.hash_version)];
+        }
       }
       const ttl = jitterTtl(FLAGS_CACHE_TTL_SECONDS);
       await this.redis.set(FLAGS_CACHE_KEY, JSON.stringify(flags), 'EX', ttl);
       await this.redis.set(
-        ROLLOUT_CACHE_KEY,
+        ROLLOUT_V2_CACHE_KEY,
         JSON.stringify(rollouts),
         'EX',
         ttl,
@@ -171,8 +191,8 @@ export class FeatureFlagsService implements OnModuleInit {
     const flags = await this.readFlags();
     const rollouts = await this.readRollouts();
     const out = { ...flags };
-    for (const [key, pct] of Object.entries(rollouts)) {
-      out[key] = inRollout(key, userId, pct);
+    for (const [key, [pct, hashVersion]] of Object.entries(rollouts)) {
+      out[key] = inRollout(key, userId, pct, hashVersion);
     }
     return lockFlags(out);
   }
@@ -202,6 +222,7 @@ export class FeatureFlagsService implements OnModuleInit {
     this.l1.clear();
     await this.redis.del(FLAGS_CACHE_KEY);
     await this.redis.del(ROLLOUT_CACHE_KEY);
+    await this.redis.del(ROLLOUT_V2_CACHE_KEY);
     await bumpConfigVersion(this.redis);
   }
 }

@@ -282,7 +282,8 @@ describe('Recommendations + experiments wiring (e2e)', () => {
     let inControl: { id: string; auth: Record<string, string> } | null = null;
     for (let i = 0; i < 30 && (!inNew || !inControl); i++) {
       const a = await attorney();
-      const v = assignVariant(a.id, key, variants, 100);
+      // A new experiment row gets hash version 2 (the column default).
+      const v = assignVariant(a.id, key, variants, 100, 2);
       if (v === 'urgent_first' && !inNew) inNew = a;
       if (v === 'control' && !inControl) inControl = a;
     }

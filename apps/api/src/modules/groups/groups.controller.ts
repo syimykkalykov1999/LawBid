@@ -49,6 +49,7 @@ import {
   GroupMemberParamDto,
   GroupMessageDto,
   GroupMessageParamDto,
+  GroupMessageReadersDto,
   GroupMessagesQueryDto,
   GroupPollParamDto,
   GroupReadResultDto,
@@ -65,6 +66,7 @@ import {
   UpdateGroupMeDto,
   VotePollDto,
   GroupMemberDto,
+  GroupMembersQueryDto,
   GroupPageQueryDto,
   GroupPersonDto,
   GroupPollOptionParamDto,
@@ -74,6 +76,9 @@ import {
   type GroupPersonPage,
 } from './groups.dto';
 import { GroupsService } from './groups.service';
+import { GroupReactionsService } from './group-reactions.service';
+import { GroupReceiptsService } from './group-receipts.service';
+import { ReactMessageDto } from '../chat/chat.dto';
 import type { SyncPage } from '../../common/sync/sync.util';
 
 const GROUP_ERRORS = {
@@ -94,6 +99,8 @@ export class GroupsController {
   constructor(
     private readonly groups: GroupsService,
     private readonly polls: GroupPollsService,
+    private readonly reactions: GroupReactionsService,
+    private readonly receipts: GroupReceiptsService,
   ) {}
 
   @Get()
@@ -247,9 +254,9 @@ export class GroupsController {
   listGroupMembers(
     @CurrentUser() user: RequestUser,
     @Param() p: GroupIdParamDto,
-    @Query() q: GroupPageQueryDto,
+    @Query() q: GroupMembersQueryDto,
   ): Promise<GroupMemberPage> {
-    return this.groups.memberList(user, p.id, q.cursor, q.limit);
+    return this.groups.memberList(user, p.id, q.cursor, q.limit, q.q);
   }
 
   @Patch(':id')
@@ -363,7 +370,7 @@ export class GroupsController {
     if (q.afterId) {
       return this.groups.messagesAfter(user, p.id, q.afterId, q.topicId);
     }
-    return this.groups.messages(user, p.id, q.cursor, q.limit, q.topicId);
+    return this.groups.messages(user, p.id, q.cursor, q.limit, q.topicId, q.q);
   }
 
   @Post(':id/messages')
@@ -401,6 +408,35 @@ export class GroupsController {
     @Param() p: GroupMessageParamDto,
   ): Promise<void> {
     await this.groups.remove(user, p.id, p.messageId);
+  }
+
+  // Groups WhatsApp parity: «Данные» of my message — who has read it.
+  @Get(':id/messages/:messageId/readers')
+  @ApiOperation({ summary: 'Who has read my message (the author only)' })
+  @ApiEnvelopeResponse(GroupMessageReadersDto)
+  @ApiErrors(GROUP_ERRORS)
+  groupMessageReaders(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupMessageParamDto,
+  ): Promise<GroupMessageReadersDto> {
+    return this.receipts.readers(user, p.id, p.messageId);
+  }
+
+  // Groups WhatsApp parity: the 1:1 chat's reactions (one emoji each).
+  @Put(':id/messages/:messageId/reaction')
+  @ApiOperation({ summary: 'React with one emoji (null removes it)' })
+  @ApiEnvelopeResponse(GroupMessageDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    402: [ErrorCode.INSUFFICIENT_STARS],
+    ...GROUP_ERRORS,
+  })
+  reactToGroupMessage(
+    @CurrentUser() user: RequestUser,
+    @Param() p: GroupMessageParamDto,
+    @Body() dto: ReactMessageDto,
+  ): Promise<GroupMessageDto> {
+    return this.reactions.react(user, p.id, p.messageId, dto.emoji);
   }
 
   @Put(':id/pin')

@@ -239,12 +239,18 @@ jobs:
       # Row 128 (2026-11-15): plus only the OpenType features the web shaper
       # can apply (~300 -> ~254 KB); the step shapes ~31 000 texts at 9
       # weights with HarfBuzz in both files and fails on any difference.
+      # Row 128 (2026-11-17): shipped as WOFF2 (~254 -> ~234 KB), the
+      # manifest names the .woff2 files; the step decodes each one back and
+      # fails unless every table and glyph is the same.
       - name: Web text fonts without the optical-size axis
         working-directory: apps/mobile
         run: |
           python3 -m venv "$RUNNER_TEMP/fonttools"
-          "$RUNNER_TEMP/fonttools/bin/pip" install -q fonttools==4.68.0 uharfbuzz==0.57.0
-          "$RUNNER_TEMP/fonttools/bin/python" tool/slim_fonts.py web build/web/assets/assets/fonts
+          "$RUNNER_TEMP/fonttools/bin/pip" install -q fonttools==4.68.0 uharfbuzz==0.57.0 brotli==1.2.1
+          "$RUNNER_TEMP/fonttools/bin/python" tool/slim_fonts.py web build/web/assets/assets/fonts build/web/assets/FontManifest.json
+          test -s build/web/assets/assets/fonts/Inter-Variable.woff2
+          test -s build/web/assets/assets/fonts/SourceSerif4-Variable.woff2
+          grep -q 'Inter-Variable.woff2' build/web/assets/FontManifest.json
 
       # The push worker needs the same keys (it cannot read the build's).
       - name: Fill the push worker's keys
@@ -305,9 +311,13 @@ jobs:
 
       # Owner 2026-10-23: app and assets under v/<sha>/ (see above); row 170:
       # the engine under v/<engineRevision>/ (`engine` output, v/<...>).
+      # Row 173: WEB_SKWASM_THREADS (repository variable) = auto | single;
+      # single forces one drawing thread even on a cross-origin isolated page.
       - name: Move the heavy files under v/<sha>/ (engine under v/<engineRevision>/)
         id: imm
         working-directory: apps/mobile
+        env:
+          WEB_SKWASM_THREADS: ${{ vars.WEB_SKWASM_THREADS || 'auto' }}
         run: |
           python3 ../../scripts/deploy/web-immutable.py build/web "${{ env.RELEASE_SHA }}" "${{ steps.fonts.outputs.base }}" | tee "$RUNNER_TEMP/imm.log"
           E=$(sed -n 's/^engine=//p' "$RUNNER_TEMP/imm.log" | tail -1)
@@ -330,6 +340,10 @@ jobs:
           # Owner 2026-10-22: the page's scripts are files (strict CSP).
           test -s build/web/boot_head.js
           test -s build/web/boot_end.js
+          # Row 173: the isolation worker, and no deprecated Flutter worker
+          # that would replace it (web/flutter_bootstrap.js).
+          test -s build/web/coi_sw.js
+          ! grep -q 'serviceWorkerVersion: "' build/web/flutter_bootstrap.js
           test -s build/web/pay.js
           test -s $V/main.dart.wasm
           test -s $V/main.dart.js
@@ -526,7 +540,7 @@ jobs:
         run: >-
           aws cloudfront create-invalidation
           --distribution-id "${{ secrets.WEB_DISTRIBUTION_ID }}"
-          --paths "/index.html" "/icons/*" "/favicon.png" "/flutter_bootstrap.js" "/boot_head.js" "/boot_end.js" "/version.json" "/manifest.json"
+          --paths "/index.html" "/icons/*" "/favicon.png" "/flutter_bootstrap.js" "/boot_head.js" "/boot_end.js" "/coi_sw.js" "/version.json" "/manifest.json"
 
   notify:
     name: Tell the owner

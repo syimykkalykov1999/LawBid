@@ -22,6 +22,12 @@ export interface FlagDef {
   retired?: boolean;
 }
 
+/** Owner 2026-11-16 (row 183): the switch «Группы в чатах» (entry below). */
+export const GROUPS_FLAG = 'groups';
+/** Owner 2026-11-16 18:25 CT (row 183): «Звонки в группах», the second
+ * switch of the «Группы в чатах» card. */
+export const GROUP_CHAT_CALLS_FLAG = 'groups_calls';
+
 export const FLAG_CATALOG: readonly FlagDef[] = [
   {
     // Owner 2026-10-16: the app must never run at a loss paying third
@@ -114,6 +120,27 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: false,
     app: true,
     description: 'Channels: posts from admins to subscribers',
+  },
+  {
+    // Owner 2026-11-16 (row 183): chat groups (WhatsApp-style group chats)
+    // get their own switch «Группы в чатах», ON by default and independent
+    // of «Сообщества» (`channels`). Off = no groups anywhere for users (app,
+    // web) and the API refuses every group request; the groups' data stays.
+    key: GROUPS_FLAG,
+    enabled: true,
+    app: true,
+    description: 'Group chats: create, join, messages, polls, invitations',
+  },
+  {
+    // Owner 2026-11-16 18:25 CT (row 183): «Звонки в группах», the second
+    // switch on the «Группы в чатах» card, ON by default. Off = no call
+    // button in group chats and the API refuses a group chat's call (via
+    // GroupsService.assertMember); the groups stay; 1:1 calls and channel
+    // calls are not touched.
+    key: GROUP_CHAT_CALLS_FLAG,
+    enabled: true,
+    app: true,
+    description: 'Calls in group chats (start / join a group chat call)',
   },
   {
     // Owner 2026-10-20: attorneys publish free slots, clients book a
@@ -486,6 +513,17 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: true,
     app: true,
     description: 'Sign in with a passkey (WebAuthn)',
+  },
+  {
+    // Owner row 87 (16.11, docs/dev/HOTLINE_PLAN_2026-11-16.md): the call
+    // hotline — a client calls «a free attorney» who chose to wait for calls
+    // (licensed in the client's state, matching topic and language). Off
+    // (default): every /hotline route answers 403 FEATURE_DISABLED and no
+    // attorney is offered a call; existing 1:1 calls are not touched.
+    key: 'hotline',
+    enabled: false,
+    description:
+      'Call hotline: clients reach a free attorney licensed in their state (topic, language); attorneys opt in with «Ожидать звонки»',
   },
   {
     // R-237 (owner 2026-11-05): REAL MONEY. On: a bank inquiry on a

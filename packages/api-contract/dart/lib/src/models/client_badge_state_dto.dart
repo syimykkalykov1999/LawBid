@@ -18,6 +18,7 @@ class ClientBadgeStateDto {
     required this.priceCents,
     required this.discount,
     required this.currency,
+    required this.documentsRequired,
     required this.canSubmit,
     required this.canSubscribe,
     required this.includedInPlan,
@@ -43,10 +44,13 @@ class ClientBadgeStateDto {
   final PriceDiscountDto? discount;
   final String currency;
 
-  /// Documents can be sent (none / rejected / revoked).
+  /// Owner 16.11: the admin switch «Проверка документов клиента». false (default) = the client pays and gets the badge at once, no documents; true = documents → approval → payment.
+  final bool documentsRequired;
+
+  /// Documents can be sent (none / rejected / revoked); always false while documents are not required.
   final bool canSubmit;
 
-  /// Approved and not paid: the checkout can start.
+  /// The checkout can start: approved and not paid, or — documents not required — any client not paid and not revoked.
   final bool canSubscribe;
 
   /// Owner 2026-10-05: the client's plan includes the badge — no separate payment; the badge shows once the documents are approved.

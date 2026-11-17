@@ -13,6 +13,7 @@ import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
@@ -169,9 +170,11 @@ List<Override> _overrides(
   UserRole role = UserRole.attorney,
   Translator? translator,
   bool channelsOn = true,
+  bool groupsOn = true,
 }) =>
     [
       channelsEnabledProvider.overrideWithValue(channelsOn),
+      groupsEnabledProvider.overrideWithValue(groupsOn),
       ...uxOverrides(translator: translator ?? const StaticTranslatorEn()),
       notificationsRepositoryProvider.overrideWithValue(repo),
       currentUserIdProvider.overrideWithValue('u1'),
@@ -367,6 +370,19 @@ void main() {
     await t.pumpAndSettle();
     expect(find.byKey(const ValueKey('notif-topic-groups')), findsOneWidget);
     expect(find.byKey(const ValueKey('notif-topic-channels')), findsNothing);
+  });
+
+  // Owner 2026-11-16 (row 183): «Группы» off = no Groups switch either.
+  testWidgets('groups flag off: no Groups switch (row 183)', (t) async {
+    _tall(t);
+    final c = ProviderContainer(
+      overrides: _overrides(_Repo(), groupsOn: false),
+    );
+    addTearDown(c.dispose);
+    await t.pumpWidget(_app(c));
+    await t.pumpAndSettle();
+    expect(find.byKey(const ValueKey('notif-topic-groups')), findsNothing);
+    expect(find.byKey(const ValueKey('notif-topic-channels')), findsOneWidget);
   });
 
   testWidgets('channels flag on: the Channels switch is there (R-386)',

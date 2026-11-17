@@ -195,4 +195,22 @@ void main() {
       'firstName': 'Ann',
     });
   });
+
+  test('socialNonce: POST /auth/social/nonce without a session (R2B-9)',
+      () async {
+    adapter = FakeHttpAdapter(
+      (o) async => ok({
+        'nonce': 'test-server-nonce',
+        'expiresAt': '2026-11-14T12:10:00.000Z',
+      }),
+    );
+    final dio = Dio(BaseOptions(baseUrl: 'http://test/api/v1'))
+      ..httpClientAdapter = adapter;
+    final nonce = await AuthApiClient(dio).socialNonce();
+    final req = adapter.requests.single;
+    expect(req.method, 'POST');
+    expect(req.path, '/auth/social/nonce');
+    expect(req.extra[RequestFlags.skipAuth], isTrue);
+    expect(nonce, 'test-server-nonce');
+  });
 }

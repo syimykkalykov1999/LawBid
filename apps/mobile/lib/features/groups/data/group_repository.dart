@@ -199,6 +199,15 @@ class GroupRepository {
     return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
   }
 
+  /// Row 110 (Telegram «Search members»): the members whose name or
+  /// @username matches [q] (one page, any alphabet).
+  Future<List<api.GroupMemberDto>> searchMembers(String id, String q) async {
+    final env = await guardApiCall(
+      () => _c.listGroupMembers(id: id, q: q.trim()),
+    );
+    return env.data;
+  }
+
   // --- messages -------------------------------------------------------------
 
   Future<CursorPage<api.GroupMessageDto>> messages(
@@ -210,6 +219,25 @@ class GroupRepository {
       () => _c.listGroupMessages(id: id, topicId: topicId, cursor: cursor),
     );
     _noteImages(id, env.data);
+    return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
+  }
+
+  /// Row 110 (Telegram 🔍 in a chat): the text messages holding every word
+  /// of [q], newest first, a page at a time.
+  Future<CursorPage<api.GroupMessageDto>> searchMessages(
+    String id,
+    String q, {
+    String? topicId,
+    String? cursor,
+  }) async {
+    final env = await guardApiCall(
+      () => _c.listGroupMessages(
+        id: id,
+        topicId: topicId,
+        cursor: cursor,
+        q: q.trim(),
+      ),
+    );
     return CursorPage(items: env.data, nextCursor: env.meta?.nextCursor);
   }
 
@@ -245,6 +273,32 @@ class GroupRepository {
     api.SendGroupMessageDto body,
   ) async =>
       (await guardApiCall(() => _c.sendGroupMessage(id: id, body: body))).data;
+
+  /// Groups WhatsApp parity («Данные»): who has read my message.
+  Future<api.GroupMessageReadersDto> readers(
+    String id,
+    String messageId,
+  ) async =>
+      (await guardApiCall(
+        () => _c.groupMessageReaders(id: id, messageId: messageId),
+      ))
+          .data;
+
+  /// Groups WhatsApp parity: one emoji of mine on a message (the 1:1
+  /// chat's PUT …/reaction); null takes it away.
+  Future<api.GroupMessageDto> react(
+    String id,
+    String messageId,
+    String? emoji,
+  ) async =>
+      (await guardApiCall(
+        () => _c.reactToGroupMessage(
+          id: id,
+          messageId: messageId,
+          body: api.ReactMessageDto(emoji: emoji),
+        ),
+      ))
+          .data;
 
   Future<api.GroupMessageDto> edit(
     String id,
