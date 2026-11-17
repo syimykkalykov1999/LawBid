@@ -95,6 +95,24 @@ void main() {
     await settle(tester);
   });
 
+  testWidgets('my message: reactions and every row fit (the sheet scrolls)',
+      (tester) async {
+    final repo = FakeGroupRepository(
+      const [],
+      groupDetail(withPinned: false),
+      [message('m1', body: 'My own note', mine: true)],
+    );
+    await pump(tester, repo);
+    await tester.longPress(find.text('My own note'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const ValueKey('group-react-❤️')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('group-react-❤️')));
+    await tester.pumpAndSettle();
+    expect(repo.reacted, ['m1:❤️']);
+    await settle(tester);
+  });
+
   testWidgets('someone else’s chip: a tap puts the same emoji on',
       (tester) async {
     final repo = FakeGroupRepository(
