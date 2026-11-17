@@ -215,13 +215,19 @@ jobs:
       # repository variable AWS_APPLY_SESSION_SECONDS (default 3600, the
       # role's current maximum; owner: raise the deploy role's
       # max_session_duration in infra/bootstrap, then set it to 10800).
+      # Owner 15.11 (aws.opensearch_2_19 / aws.opensearch_3): Terraform waits
+      # inside the apply for the AWS in-place engine upgrade (up to the
+      # module's 240 min update timeout). The deploy role allows 14400 s
+      # (aws iam get-role lawbid-prod-github-deploy, 15.11), so these two
+      # items always take the full 4 h; a shorter session would end the
+      # apply with ExpiredToken while AWS keeps upgrading.
       - name: Fresh AWS session for the apply
         if: steps.wait.outputs.go == 'true'
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
-          role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
+          role-duration-seconds: ${{ (contains(fromJSON('["aws.opensearch_2_19","aws.opensearch_3"]'), steps.job.outputs.item) && '14400') || vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
 
       # KNOWN_ERRORS 182 (16.11, ~25 min outage): «Выкл» of aws.pgbouncer
       # destroyed the pooler while api / api-admin / worker still ran task

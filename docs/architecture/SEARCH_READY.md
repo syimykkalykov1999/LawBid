@@ -316,7 +316,7 @@ OpenSearchProvider:  движок → кандидаты (id)  ──►  Postgr
   повтор, сбой движка и откладывание, очистка при возврате на postgres,
   возобновляемая переиндексация, три режима).
 - Необязательный тест на настоящем OpenSearch (официальный образ
-  `opensearchproject/opensearch:2.15.0`): `engine/opensearch.integration.spec.ts`,
+  `opensearchproject/opensearch:3.7.0`): `engine/opensearch.integration.spec.ts`,
   пропускается, пока не задан `OPENSEARCH_TEST_URL` (команда запуска — в
   шапке файла). Проверено: схемы индексов принимаются, запросы находят слова,
   префикс, ё/е, акценты, опечатки, имена, штат/город, практики.

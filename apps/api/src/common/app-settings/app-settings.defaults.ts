@@ -1545,6 +1545,13 @@ export const OWNER_STORAGE_SETTINGS = {
   'infra.mode.opensearch': 'auto',
   'infra.mode.opensearch_nodes_2': 'auto',
   'infra.mode.opensearch_nodes_4': 'auto',
+  // Owner 15.11: the search node steps past four (rows aws.opensearch_nodes_6,
+  // _8, _10) and how many data nodes «Авто» may reach in all, 1..10 (AWS T3
+  // limit; common/ops/infra-switches.ts SEARCH_NODES_HARD_MAX). 4 = as before.
+  'infra.mode.opensearch_nodes_6': 'auto',
+  'infra.mode.opensearch_nodes_8': 'auto',
+  'infra.mode.opensearch_nodes_10': 'auto',
+  'search.max_nodes': 4,
   'infra.mode.waf_bot_control': 'auto',
   'infra.mode.waf_extra_rules': 'auto',
   'infra.mode.events_stream': 'auto',

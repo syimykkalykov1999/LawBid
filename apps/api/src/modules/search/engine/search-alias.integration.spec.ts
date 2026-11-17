@@ -8,7 +8,7 @@ import type { SearchEntity } from './search-engine.mappings';
  * OpenSearch (owner 2026-10-25): skipped unless OPENSEARCH_TEST_URL is set.
  *   docker run -d --name lb-os -p 9200:9200 -e discovery.type=single-node \
  *     -e DISABLE_SECURITY_PLUGIN=true -e DISABLE_INSTALL_DEMO_CONFIG=true \
- *     opensearchproject/opensearch:2.15.0
+ *     opensearchproject/opensearch:3.7.0
  *   OPENSEARCH_TEST_URL=http://localhost:9200 npx jest search-alias.integration
  * The database is replaced by an in-memory "table" so the test needs no
  * Postgres; everything on the engine side (templates, aliases, atomic
