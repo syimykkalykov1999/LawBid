@@ -136,6 +136,7 @@ void main() {
                   ownerId: ownerId,
                   states: const ['NY'],
                   members: members,
+                  inviteExpiresAt: null,
                 ),
         ),
       ],

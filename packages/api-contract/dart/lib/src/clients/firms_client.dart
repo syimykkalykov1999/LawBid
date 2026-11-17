@@ -5,6 +5,7 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
+import '../models/accept_firm_invite_dto.dart';
 import '../models/create_firm_dto.dart';
 import '../models/firm_envelope.dart';
 import '../models/firm_member_list_envelope.dart';
@@ -42,6 +43,7 @@ abstract class FirmsClient {
   /// Accept the invitation to a firm
   @POST('/firms/me/accept')
   Future<FirmEnvelope> acceptFirmInvite({
+    @Body() required AcceptFirmInviteDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
