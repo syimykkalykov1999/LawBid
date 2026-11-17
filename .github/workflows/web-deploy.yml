@@ -236,11 +236,14 @@ jobs:
       # get the optical-size axis pinned at its default (the web engine never
       # moves it, so the pixels stay the same): brotli 546 -> ~300 KB before
       # the first frame. Phones keep the full files from assets/.
+      # Row 128 (2026-11-15): plus only the OpenType features the web shaper
+      # can apply (~300 -> ~254 KB); the step shapes ~31 000 texts at 9
+      # weights with HarfBuzz in both files and fails on any difference.
       - name: Web text fonts without the optical-size axis
         working-directory: apps/mobile
         run: |
           python3 -m venv "$RUNNER_TEMP/fonttools"
-          "$RUNNER_TEMP/fonttools/bin/pip" install -q fonttools==4.68.0
+          "$RUNNER_TEMP/fonttools/bin/pip" install -q fonttools==4.68.0 uharfbuzz==0.57.0
           "$RUNNER_TEMP/fonttools/bin/python" tool/slim_fonts.py web build/web/assets/assets/fonts
 
       # The push worker needs the same keys (it cannot read the build's).

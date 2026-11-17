@@ -8,7 +8,10 @@ import { CallHistoryService } from './call-history.service';
  * (tombstones = call_log_hidden rows with their time), as /groups does.
  */
 const user = { sub: 'me' } as never;
-const T = (ms: number) => new Date(Date.UTC(2026, 10, 9, 8, 0, 0, ms));
+// 16.11: a day before the run, not a fixed date: the API refuses an
+// updatedSince older than 7 days, so a fixed 09.11 broke on 16.11.
+const BASE = Date.now() - 86_400_000;
+const T = (ms: number) => new Date(BASE + ms);
 
 function build(opts: {
   calls?: Array<Record<string, unknown>>;

@@ -42,6 +42,7 @@ class ConversationDto {
     this.waitingSince,
     this.note,
     this.pinnedAt,
+    this.markedUnread,
   });
 
   factory ConversationDto.fromJson(Map<String, Object?> json) =>
@@ -85,6 +86,9 @@ class ConversationDto {
   final DateTime? waitingSince;
   final String? note;
   final DateTime? pinnedAt;
+
+  /// Row 110: I marked the chat unread myself (Telegram / WhatsApp); cleared when I read it.
+  final bool? markedUnread;
 
   /// OQ-043: a case chat or a direct chat from a profile.
   final ConversationKind kind;

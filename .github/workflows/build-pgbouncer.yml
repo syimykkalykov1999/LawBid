@@ -1,5 +1,5 @@
 # Builds our own connection pooler image (infra/pgbouncer: official Alpine +
-# Alpine's pgbouncer package) for amd64 AND arm64 and pushes it to ECR
+# PgBouncer from the official pgbouncer.org tarball, sha256-pinned) for amd64 AND arm64 and pushes it to ECR
 # `lawbid-pgbouncer` (docs/architecture/DB_POOLER.md). Fargate never pulls
 # from Docker Hub, hence ECR.
 #
@@ -21,9 +21,7 @@ on:
       tag:
         description: "Tag in ECR lawbid-pgbouncer (immutable)"
         required: false
-        # 1.25.2-1: Alpine 3.24.4 + PgBouncer 1.25.2 (row 120, 2026-11-14).
-        # Prod keeps 1.24.0-3 until pgbouncer_image in the tfvars is changed.
-        default: "1.25.2-1"
+        default: "1.26.1-1"
   pull_request:
     paths:
       - "infra/pgbouncer/**"

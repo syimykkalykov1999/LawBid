@@ -46,6 +46,7 @@ import { growthError } from "@/components/growth/errors";
 import { api, errorText } from "@/lib/api/client";
 import { partnersExtApi } from "@/lib/api/demo";
 import { useMe } from "@/lib/hooks";
+import { optimistic } from "@/lib/optimistic";
 import { REASON_MIN, useReasonRequired } from "@/lib/reason-policy";
 import {
   PARTNER_STATUS,
@@ -203,7 +204,7 @@ export default function PartnerPage() {
       <ComplianceCard partner={p} canEdit={canWrite} requireW9={settings.data?.requireW9 ?? true} onSaved={refresh} />
 
       <SectionTitle>Демо-доступ</SectionTitle>
-      <DemoAccessCard partner={p} canEdit={canWrite} onSaved={refresh} />
+      <DemoAccessCard partner={p} canEdit={canWrite} onSaved={refresh} queryKey={["partner", id]} />
 
       {canWrite ? (
         <>
@@ -482,13 +483,18 @@ function DemoAccessCard({
   partner: p,
   canEdit,
   onSaved,
+  queryKey,
 }: {
   partner: PartnerRow;
   canEdit: boolean;
   onSaved: () => void;
+  /** The page's own query of this partner (`["partner", id]`). */
+  queryKey: readonly unknown[];
 }) {
   const toast = useToast();
+  const qc = useQueryClient();
   const on = !!p.demoAccess;
+  type PartnerPage = { partner: PartnerRow };
   const toggle = useMutation({
     mutationFn: (next: boolean) =>
       partnersExtApi.setDemoAccess(
@@ -496,11 +502,18 @@ function DemoAccessCard({
         next,
         next ? "Демо-доступ включён из админки" : "Демо-доступ выключен из админки",
       ),
+    // Row 192 (detective R4-C №5): the switch flips at once, a refusal
+    // flips it back (lib/optimistic.ts, as on «Функции»).
+    ...optimistic<PartnerPage, boolean>(
+      qc,
+      queryKey,
+      (cur, next) => (cur ? { ...cur, partner: { ...cur.partner, demoAccess: next } } : cur),
+      { onError: (e) => toast.error(growthError(e)) },
+    ),
     onSuccess: (_, next) => {
       toast.success(next ? "Демо-доступ включён" : "Демо-доступ выключен");
       onSaved();
     },
-    onError: (e) => toast.error(growthError(e)),
   });
   return (
     <Card className="p-5">

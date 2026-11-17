@@ -2,6 +2,7 @@ import {
   communityQuery,
   rankCommunities,
 } from '../../common/search/community-search';
+import { typedWords } from '../../common/search/name-match.sql';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { UsernamePolicyService } from '../usernames/username-policy.service';
@@ -433,8 +434,13 @@ export class GroupsService {
     cursor?: string,
     limit = MESSAGES_PAGE,
     topicId?: string,
+    q?: string,
   ): Promise<GroupMessagePage> {
     await this.requireMember(user.sub, id);
+    // Row 110: the in-chat search — text messages with every typed word
+    // (group bodies are plain text; the same word rule as chat search).
+    const words = q?.trim() ? typedWords(q) : [];
+    if (q?.trim() && !words.length) return { items: [], nextCursor: null };
     const c = cursor ? decodeCursor(cursor) : undefined;
     const topic = topicId ? await this.topicOf(id, topicId) : null;
     const hideService = !(await this.requireMember(user.sub, id)).group
@@ -444,6 +450,12 @@ export class GroupsService {
         group_id: id,
         deleted_at: {},
         ...(hideService ? { type: { not: 'system' as const } } : {}),
+        ...(words.length
+          ? {
+              deleted_at: null,
+              type: 'text' as const,
+            }
+          : {}),
         // «General» also holds the chat from before topics (topic_id null).
         ...(topic
           ? topic.is_general
@@ -452,6 +464,9 @@ export class GroupsService {
           : {}),
         AND: [
           notExpired(),
+          ...words.map((w) => ({
+            body: { contains: w, mode: 'insensitive' as const },
+          })),
           ...(c
             ? [
                 {

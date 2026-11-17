@@ -69,6 +69,7 @@ class _Chats implements ChatRepository {
     bool? pinned,
     bool? hidden,
     bool? archived,
+    bool? unread,
   }) async {
     calls.add('organize pinned=$pinned hidden=$hidden');
     if (archived != null) calls.add('archive $archived');
@@ -176,6 +177,10 @@ void main() {
       const Offset(-100, 0),
     );
     await tester.pumpAndSettle();
+    // Row 110: a swipe on a loud chat asks for how long (Telegram).
+    await tester
+        .tap(find.byKey(const ValueKey('group-choice-MuteChoice.hour')));
+    await tester.pumpAndSettle();
     expect(repo.calls, contains('mute on'));
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 5));
@@ -260,6 +265,10 @@ void main() {
       Offset(rect.right - 8, rect.center.dy),
       const Offset(-100, 0),
     );
+    await tester.pumpAndSettle();
+    // Row 110: a swipe on a loud chat asks for how long (Telegram).
+    await tester
+        .tap(find.byKey(const ValueKey('group-choice-MuteChoice.hour')));
     await tester.pumpAndSettle();
     expect(lastGroups.updates.any((u) => u.contains('muted=true')), isTrue);
     await tester.longPress(find.byKey(const ValueKey('group-tile-g1')));

@@ -22,6 +22,7 @@ import 'package:lawbid/core/l10n/strings/case_workspace_strings.dart';
 import 'package:lawbid/core/l10n/strings/cases_filter_strings.dart';
 import 'package:lawbid/core/l10n/strings/channels_strings.dart';
 import 'package:lawbid/core/l10n/strings/chat_note_strings.dart';
+import 'package:lawbid/core/l10n/strings/chat_pack3_strings.dart';
 import 'package:lawbid/core/l10n/strings/chat_ux_strings.dart';
 import 'package:lawbid/core/l10n/strings/checklist_strings.dart';
 import 'package:lawbid/core/l10n/strings/client_fraud_strings.dart';
@@ -62,6 +63,7 @@ import 'package:lawbid/core/l10n/strings/quick_replies_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_docs_strings.dart';
 import 'package:lawbid/core/l10n/strings/reels_strings.dart';
 import 'package:lawbid/core/l10n/strings/role_switch_strings.dart';
+import 'package:lawbid/core/l10n/strings/router_strings.dart';
 import 'package:lawbid/core/l10n/strings/saved_cards_strings.dart';
 import 'package:lawbid/core/l10n/strings/screens25_strings.dart';
 import 'package:lawbid/core/l10n/strings/seat_roles_strings.dart';
@@ -1196,6 +1198,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...contingencyRu,
         ...staleCaseRu,
         ...usernameRu,
+        ...chatPack3Ru,
         ...privacyRu,
         ...checklistRu,
         ...contactInfoRu,
@@ -1263,6 +1266,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...caseCloseRu,
         ...themeRu,
         ...bidLeaveRu,
+        ...routerRu,
         ...postInnerRu,
         ...emailFlowsRu,
         ...storiesRu,
@@ -2664,6 +2668,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...contingencyEn,
         ...staleCaseEn,
         ...usernameEn,
+        ...chatPack3En,
         ...privacyEn,
         ...checklistEn,
         ...contactInfoEn,
@@ -2731,6 +2736,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...caseCloseEn,
         ...themeEn,
         ...bidLeaveEn,
+        ...routerEn,
         ...postInnerEn,
         ...storiesEn,
         ...screens25En,

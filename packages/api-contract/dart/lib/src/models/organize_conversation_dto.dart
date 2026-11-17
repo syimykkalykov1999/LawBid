@@ -14,6 +14,7 @@ class OrganizeConversationDto {
     this.folder,
     this.waiting,
     this.note,
+    this.unread,
     this.pinned,
     this.hidden,
     this.archived,
@@ -30,6 +31,9 @@ class OrganizeConversationDto {
 
   /// A note pinned on the chat; "" or null clears it.
   final String? note;
+
+  /// Row 110 (Telegram / WhatsApp «Mark as unread»): my own unread mark; reading the chat takes it off.
+  final bool? unread;
 
   /// Pinned to the top of my list.
   final bool? pinned;

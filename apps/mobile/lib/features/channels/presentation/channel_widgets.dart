@@ -1,13 +1,13 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
@@ -65,9 +65,7 @@ class ChannelsGate extends ConsumerWidget {
             padding: const EdgeInsetsDirectional.only(start: AppSpacing.xs),
             child: AppBackButton(
               semanticLabel: t.t('common.back'),
-              onPressed: () => context.canPop()
-                  ? context.pop()
-                  : Navigator.of(context).maybePop(),
+              onPressed: () => context.safeBack(),
             ),
           ),
         ),

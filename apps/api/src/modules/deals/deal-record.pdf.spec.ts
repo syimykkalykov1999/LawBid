@@ -769,6 +769,17 @@ describe('deal record PDF speed (13.11: 1.2–1.5 s per record, CI timeouts)', (
     expect(otherShaped.length).toBeLessThan(10);
   });
 
+  it('row 145 review: a total far below one record still gives identical bytes and never exceeds the total', async () => {
+    // One record has far more than 200 distinct words: the cache evicts
+    // all through the render (across Inter and the script fonts).
+    const plain = await renderDealRecordPdf(v2);
+    const wordCache = new PdfWordCache(200);
+    expect(hex(await renderDealRecordPdf({ ...v2, wordCache }))).toBe(
+      hex(plain),
+    );
+    expect(wordCache.size).toBe(200);
+  });
+
   it('row 145: a word cache of 0 words keeps nothing between records (each record shapes its words as before)', async () => {
     const wordCache = new PdfWordCache(0);
     await renderDealRecordPdf({ ...v2, wordCache });

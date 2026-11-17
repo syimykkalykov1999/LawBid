@@ -13,6 +13,6 @@ module "signing_guard" {
   name                = local.name
   cluster_arn         = module.ecs.cluster_arn
   alerts_topic_arn    = module.monitoring.alerts_topic_arn
-  ecr_registry_host   = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com"
-  ecr_repository_arns = [for r in ["lawbid-api", "lawbid-admin"] : "arn:aws:ecr:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:repository/${r}"]
+  ecr_registry_host   = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.region}.amazonaws.com"
+  ecr_repository_arns = [for r in ["lawbid-api", "lawbid-admin"] : "arn:aws:ecr:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:repository/${r}"]
 }

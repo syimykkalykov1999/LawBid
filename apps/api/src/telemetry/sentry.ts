@@ -18,6 +18,30 @@ export function isClientError(hint: { originalException?: unknown }): boolean {
   return e instanceof HttpException && e.getStatus() < 500;
 }
 
+/**
+ * Sentry 11 removed `sendDefaultPii`; an unset `dataCollection` now sends
+ * cookies, request/response bodies, headers, the user, SQL query data,
+ * GenAI inputs/outputs and queue payloads. This is the v10 restrictive
+ * baseline, copied from the SDK's MIGRATION.md («If you want to keep the
+ * v10 default behavior», getsentry/sentry-javascript, MIT). Kept on top of
+ * scrubSentryEvent, which only sees error events, not spans.
+ */
+const HEADER_DENY = ['forwarded', '-ip', 'remote-', 'via', '-user'];
+export const SENTRY_DATA_COLLECTION = {
+  userInfo: false,
+  cookies: false,
+  httpHeaders: {
+    request: { deny: HEADER_DENY },
+    response: { deny: HEADER_DENY },
+  },
+  httpBodies: [],
+  urlQueryParams: { deny: HEADER_DENY },
+  genAI: { inputs: false, outputs: false },
+  databaseQueryData: false,
+  queues: false,
+  graphQL: { document: false, variables: false },
+} satisfies NonNullable<Parameters<typeof Sentry.init>[0]>['dataCollection'];
+
 /** S12-6: env knobs with safe defaults (errors 100 %, traces off). */
 export function sentryRates(env: NodeJS.ProcessEnv = process.env): {
   sampleRate: number;
@@ -53,6 +77,10 @@ export async function startSentry(
     release: process.env.APP_VERSION,
     ...sentryRates(),
     maxBreadcrumbs: 50,
+    dataCollection: SENTRY_DATA_COLLECTION,
+    // v11 turned this on by default; v10 sent captureMessage (journal chain,
+    // contacts-sync alarms) without a synthetic stack, grouped as before.
+    attachStacktrace: false,
     // Cost registry V9: a crash loop cannot eat the monthly quota in an hour.
     beforeSend: (event, hint) =>
       isClientError(hint) ? null : throttled(event),

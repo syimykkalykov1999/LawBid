@@ -13,10 +13,12 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/media/video_frames.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
@@ -348,7 +350,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       case LeaveChoice.discard:
         if (!_editing) await _drafts.clear();
     }
-    if (mounted) Navigator.of(context).pop();
+    if (mounted) context.safeLeave();
   }
 
   /// Owner 2026-10-02: Instagram-style — one gallery for photos AND videos
@@ -599,7 +601,13 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
   }
 
   Future<void> _loadCoverFrame(_VideoPick pick) async {
-    final bytes = await videoFrame(pick.file, pick.cut.coverMs, quality: 60);
+    // Row 199: the cover (uploaded as the post's poster) in the admin's
+    // photo quality, not 60.
+    final bytes = await videoFrame(
+      pick.file,
+      pick.cut.coverMs,
+      quality: photoLimitsOf(ref.read(featureFlagsControllerProvider)).quality,
+    );
     if (mounted && bytes != null && identical(_video, pick)) {
       setState(() => pick.frame = bytes);
     }
@@ -838,7 +846,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         // ignore: only_throw_errors
         if (error != null) throw error;
         if (!mounted) return;
-        Navigator.of(context).pop();
+        context.safeLeave();
         return;
       }
       // Owner 2026-10-15: a video makes it a reel — the upload runs in the
@@ -869,7 +877,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         );
         // ignore: unawaited_futures
         AppHaptics.medium();
-        if (mounted) Navigator.of(context).pop();
+        if (mounted) context.safeLeave();
         return;
       }
       // OQ-048: an assistant's post goes to the attorney for approval.
@@ -896,7 +904,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         // ignore: unawaited_futures
         AppHaptics.medium();
         showAppSnackBar(context, t.t('request.sent'));
-        Navigator.of(context).pop();
+        context.safeLeave();
         return;
       }
       // Owner 2026-10-23 (Instagram): the form closes at once; the post is a
@@ -939,7 +947,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
       // ignore: unawaited_futures
       AppHaptics.light();
       if (!mounted) return;
-      Navigator.of(context).pop();
+      context.safeLeave();
     } on Object catch (e) {
       if (mounted) {
         setState(() => _publishing = false);
@@ -982,7 +990,7 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
         leading: AppIconButton(
           icon: const AppIcon(AppIcons.closeRounded),
           semanticLabel: t.t('common.close'),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => context.safeBack(),
         ),
         title: Text(
           t.t(

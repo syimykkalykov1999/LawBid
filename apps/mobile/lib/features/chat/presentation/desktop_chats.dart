@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/navigation/shell/desktop_input.dart';
 import 'package:lawbid/core/navigation/shell/desktop_layouts.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
@@ -92,7 +93,8 @@ void closeChat(BuildContext context) {
   if (DesktopChatScope.inPage(context)) {
     _swap(context, ChatRoutes.inbox);
   } else {
-    Navigator.of(context).maybePop();
+    // Row 161: a chat opened by its link goes back to the chats.
+    context.safeBack(fallback: ChatRoutes.inbox);
   }
 }
 
