@@ -222,6 +222,26 @@ class FakeGroupRepository implements GroupRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
+
+  /// Groups WhatsApp parity: every `react` call (`messageId:emoji`, an
+  /// empty emoji = taken away); the answer is the message with my emoji.
+  final reacted = <String>[];
+
+  @override
+  Future<api.GroupMessageDto> react(
+    String id,
+    String messageId,
+    String? emoji,
+  ) async {
+    reacted.add('$messageId:${emoji ?? ''}');
+    final m = thread.firstWhere((x) => x.id == messageId);
+    return api.GroupMessageDto.fromJson({
+      ...m.toJson(),
+      'reactions': [
+        if (emoji != null) {'emoji': emoji, 'count': 1, 'mine': true},
+      ],
+    });
+  }
 }
 
 // --- Long-ish realistic data for the overflow tests ----------------------
@@ -292,6 +312,7 @@ api.GroupMessageDto message(
   DateTime? expiresAt,
   String? forwardedFrom,
   String? clientMessageId,
+  List<api.ReactionDto>? reactions,
 }) =>
     api.GroupMessageDto(
       id: id,
@@ -315,6 +336,7 @@ api.GroupMessageDto message(
       expiresAt: expiresAt,
       forwarded: forwardedFrom != null,
       forwardedFrom: forwardedFrom,
+      reactions: reactions,
     );
 
 api.PollDto poll(

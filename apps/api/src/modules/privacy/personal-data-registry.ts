@@ -233,6 +233,7 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'ChatGroupTopic',
       'ChatGroupPoll',
       'ChatGroupPollVote',
+      'ChatGroupMessageReaction',
       'CaseSignRequest',
       'DealRecord',
       'CaseBilling',

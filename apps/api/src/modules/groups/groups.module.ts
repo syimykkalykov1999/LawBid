@@ -12,6 +12,8 @@ import { PrivacySettingsModule } from '../privacy-settings/privacy-settings.modu
 import { AdminGroupsController } from './admin-groups.controller';
 import { AdminGroupsService } from './admin-groups.service';
 import { GroupPollsService } from './group-polls.service';
+import { GroupReactionsService } from './group-reactions.service';
+import { StarsCoreModule } from '../stars/stars.module';
 import { GroupPresenter } from './group-presenter.service';
 import { GroupSharedController } from './group-shared.controller';
 import { GroupSharedService } from './group-shared.service';
@@ -33,12 +35,15 @@ import { GroupFanoutQueue } from './group-fanout.queue';
     PrivacySettingsModule,
     UsernamesModule,
     RecommendationsModule,
+    // Groups WhatsApp parity: premium reactions cost stars, as in 1:1 chats.
+    StarsCoreModule,
   ],
   controllers: [GroupsController, GroupSharedController, AdminGroupsController],
   providers: [
     GroupAddPolicy,
     GroupsService,
     GroupPollsService,
+    GroupReactionsService,
     GroupPresenter,
     GroupSharedService,
     AdminGroupsService,
