@@ -422,6 +422,18 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Горячая линия: как клиенту показывать число адвокатов на линии — ступени по возрастанию. 0 — «нет», меньше второй ступени — «есть», дальше «10+», «50+», «100+» (точное число клиент не видит). По умолчанию 1, 10, 50, 100 (hotline.counter_bands).',
     min: 1,
   };
+  out['hotline.review_enabled'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Горячая линия: после звонка клиенту предлагается короткий необязательный отзыв (как в Uber). Выкл. — отзыва нет (hotline.review_enabled).',
+  };
+  out['hotline.client_steps_enabled'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Горячая линия: клиент заполняет заявку по шагам с кнопками «Дальше / Назад» до соединения. Выкл. — одна страница (hotline.client_steps_enabled).',
+  };
   for (const def of HOTLINE_SETTING_DEFS) {
     out[def.key] = {
       type: 'integer',

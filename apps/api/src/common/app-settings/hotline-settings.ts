@@ -42,7 +42,7 @@ export const HOTLINE_SETTING_DEFS: readonly HotlineSettingDef[] = [
     default: 45,
     min: 5,
     labelRu:
-      'Горячая линия: клиент без связи столько секунд — его заявка снята (кроме «Позвоните мне»)',
+      'Горячая линия: клиент без связи столько секунд — его место в очереди снято (кроме тех, кто нажал «Сообщите, когда появится адвокат»)',
   },
   {
     key: 'hotline.queue_max_wait_sec',
@@ -52,36 +52,50 @@ export const HOTLINE_SETTING_DEFS: readonly HotlineSettingDef[] = [
       'Горячая линия: сколько секунд клиент может ждать в очереди, потом заявка закрывается (0 — без предела)',
   },
   {
-    key: 'hotline.callback_max_wait_sec',
+    key: 'hotline.notify_max_wait_sec',
     default: 86_400,
     min: 0,
     labelRu:
-      'Горячая линия: заявка «Позвоните мне, когда появится адвокат» живёт не дольше, секунд (по умолчанию сутки; 0 — без предела)',
+      'Горячая линия: подписка «Сообщите, когда появится адвокат» живёт не дольше, секунд (по умолчанию сутки; 0 — без предела)',
   },
   {
-    key: 'hotline.callback_ring_sec',
-    default: 10,
-    min: 3,
+    key: 'hotline.notify_claim_sec',
+    default: 60,
+    min: 5,
     labelRu:
-      'Горячая линия: «Позвоните мне» — сколько секунд звонит телефон клиента, потом попытка засчитана и звоним следующему в очереди',
+      'Горячая линия: сколько секунд действует уведомление «Адвокат на линии — позвонить сейчас?»; клиент нажал вовремя — встаёт в очередь со своим прежним временем',
   },
   {
-    key: 'hotline.callback_max_attempts',
+    key: 'hotline.notify_max_attempts',
     default: 3,
     min: 1,
     labelRu:
-      'Горячая линия: «Позвоните мне» — после стольких недозвонов заявка закрывается («Мы не дозвонились, оставьте заявку снова»)',
+      'Горячая линия: после стольких уведомлений без ответа подписка закрывается («Мы не дозвонились, оставьте заявку снова»)',
   },
   {
-    key: 'hotline.callback_quiet_start_hour',
+    key: 'hotline.notify_overbook_pct',
+    default: 150,
+    min: 100,
+    labelRu:
+      'Горячая линия: сколько ждущих «Сообщите мне» уведомлять на одного свободного адвоката, процентов (150 = 1,5 клиента на адвоката; не меньше 100)',
+  },
+  {
+    key: 'hotline.notify_rate_per_sec',
+    default: 200,
+    min: 1,
+    labelRu:
+      'Горячая линия: не больше стольких уведомлений «Адвокат на линии» в секунду на весь сервер',
+  },
+  {
+    key: 'hotline.notify_quiet_start_hour',
     default: 21,
     min: 0,
     max: 23,
     labelRu:
-      'Горячая линия: ночью по времени клиента не звоним с этого часа (0–23; равен концу — ночного окна нет), если клиент сам не разрешил',
+      'Горячая линия: ночью по времени клиента уведомлений «Адвокат на линии» нет с этого часа (0–23; равен концу — ночного окна нет), если клиент сам не разрешил',
   },
   {
-    key: 'hotline.callback_quiet_end_hour',
+    key: 'hotline.notify_quiet_end_hour',
     default: 8,
     min: 0,
     max: 23,
@@ -97,10 +111,10 @@ export const HOTLINE_SETTING_DEFS: readonly HotlineSettingDef[] = [
   },
   {
     key: 'hotline.max_no_answer',
-    default: 0,
+    default: 3,
     min: 0,
     labelRu:
-      'Горячая линия: после стольких пропущенных подряд адвоката снимает с линии (0 — никогда; вопрос 9 владельцу)',
+      'Горячая линия: после стольких пропущенных подряд звонков адвоката снимает с линии (0 — никогда)',
   },
   {
     key: 'hotline.no_answer_pause_sec',
@@ -161,7 +175,14 @@ export const HOTLINE_SETTING_DEFS: readonly HotlineSettingDef[] = [
     default: 0,
     min: 0,
     labelRu:
-      'Горячая линия: предел длины одного звонка с линии, минут (0 — без предела; вопрос 12 владельцу)',
+      'Горячая линия: предел длины одного звонка с линии, минут (0 — без предела)',
+  },
+  {
+    key: 'hotline.refund_short_call_sec',
+    default: 30,
+    min: 0,
+    labelRu:
+      'Горячая линия: звонок короче стольких секунд не засчитывается адвокату (минуты пробного срока и оплата возвращаются сами; 0 — выкл.)',
   },
   {
     key: 'hotline.addon_price_cents',
@@ -194,13 +215,15 @@ export const OWNER_HOTLINE_SETTINGS = {
   'hotline.presence_ttl_sec': 45,
   'hotline.client_ttl_sec': 45,
   'hotline.queue_max_wait_sec': 1800,
-  'hotline.callback_max_wait_sec': 86_400,
-  'hotline.callback_ring_sec': 10,
-  'hotline.callback_max_attempts': 3,
-  'hotline.callback_quiet_start_hour': 21,
-  'hotline.callback_quiet_end_hour': 8,
+  'hotline.notify_max_wait_sec': 86_400,
+  'hotline.notify_claim_sec': 60,
+  'hotline.notify_max_attempts': 3,
+  'hotline.notify_overbook_pct': 150,
+  'hotline.notify_rate_per_sec': 200,
+  'hotline.notify_quiet_start_hour': 21,
+  'hotline.notify_quiet_end_hour': 8,
   'hotline.max_queue_per_bucket': 500,
-  'hotline.max_no_answer': 0,
+  'hotline.max_no_answer': 3,
   'hotline.no_answer_pause_sec': 0,
   'hotline.counters_interval_sec': 5,
   'hotline.max_languages': 3,
@@ -213,7 +236,12 @@ export const OWNER_HOTLINE_SETTINGS = {
   'hotline.addon_price_cents': 0,
   'hotline.trial_days': 0,
   'hotline.trial_minutes': 0,
+  'hotline.refund_short_call_sec': 30,
   'hotline.billing_mode': 'free',
+  /** Owner answers 16.11 (q. 7, 8): a short optional review after the call
+   * (like Uber) and «Дальше / Назад» steps for the client before connecting. */
+  'hotline.review_enabled': true,
+  'hotline.client_steps_enabled': true,
   /** Owner 16.11 ~18:45: clients see bands, never exact counts (like Uber's
    * «cars nearby»): 0 = «нет», below the 2nd band = «есть», then «10+», «50+»… */
   'hotline.counter_bands': [1, 10, 50, 100] as number[],
@@ -229,7 +257,10 @@ export type HotlineBillingMode = (typeof HOTLINE_BILLING_MODES)[number];
 
 export type HotlineSettingKey = Exclude<
   keyof typeof OWNER_HOTLINE_SETTINGS,
-  'hotline.billing_mode' | 'hotline.counter_bands'
+  | 'hotline.billing_mode'
+  | 'hotline.counter_bands'
+  | 'hotline.review_enabled'
+  | 'hotline.client_steps_enabled'
 >;
 
 /** The hotline numbers out of the stored app_config: a missing, non-numeric

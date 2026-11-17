@@ -60,6 +60,8 @@ describe('switch contract: defaults (a)', () => {
     ['scale.db_split_enabled', false],
     // Owner 16.11: the hotline is free for attorneys while payments are off.
     ['hotline.billing_mode', 'free'],
+    ['hotline.review_enabled', true],
+    ['hotline.client_steps_enabled', true],
   ];
   it.each(table)('%s defaults to %p with nothing stored', async (key, want) => {
     expect(APP_SETTINGS[key]).toBe(want);

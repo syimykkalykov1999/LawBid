@@ -20,11 +20,15 @@ describe('hotline settings (owner row 87, 16.11)', () => {
     const {
       'hotline.billing_mode': mode,
       'hotline.counter_bands': bands,
+      'hotline.review_enabled': review,
+      'hotline.client_steps_enabled': steps,
       ...numbers
     } = OWNER_HOTLINE_SETTINGS;
     expect(numbers).toEqual(fromList);
     expect(mode).toBe('free');
     expect(bands).toEqual([1, 10, 50, 100]);
+    expect(review).toBe(true);
+    expect(steps).toBe(true);
     for (const [k, v] of Object.entries(OWNER_HOTLINE_SETTINGS)) {
       expect((APP_SETTINGS as Record<string, unknown>)[k]).toEqual(v);
     }
@@ -36,18 +40,23 @@ describe('hotline settings (owner row 87, 16.11)', () => {
     expect(s['hotline.heartbeat_sec']).toBe(15);
     expect(s['hotline.max_languages']).toBe(3);
     expect(s['hotline.topic_max_chars']).toBe(80);
-    // Owner 16.11 ~19:15: ring the client 10 s, close after 3 misses, a
-    // callback lives a day, counters every 5 s, night 21–8.
-    expect(s['hotline.callback_ring_sec']).toBe(10);
-    expect(s['hotline.callback_max_attempts']).toBe(3);
-    expect(s['hotline.callback_max_wait_sec']).toBe(86_400);
+    // Owner 16.11 ~19:30: «Сообщите мне» — a 60 s claim, dropped after 3
+    // unanswered notices, lives a day, 1.5 notices per free attorney, 200/s,
+    // never at night (21–8 client time); counters every 5 s.
+    expect(s['hotline.notify_claim_sec']).toBe(60);
+    expect(s['hotline.notify_max_attempts']).toBe(3);
+    expect(s['hotline.notify_max_wait_sec']).toBe(86_400);
+    expect(s['hotline.notify_overbook_pct']).toBe(150);
+    expect(s['hotline.notify_rate_per_sec']).toBe(200);
     expect(s['hotline.counters_interval_sec']).toBe(5);
-    expect(s['hotline.callback_quiet_start_hour']).toBe(21);
-    expect(s['hotline.callback_quiet_end_hour']).toBe(8);
+    expect(s['hotline.notify_quiet_start_hour']).toBe(21);
+    expect(s['hotline.notify_quiet_end_hour']).toBe(8);
     expect(s['hotline.max_queue_per_bucket']).toBe(500);
-    // Questions 9 and 12 to the owner: nothing happens until he sets them.
-    expect(s['hotline.max_no_answer']).toBe(0);
+    // Owner answers 16.11: off the line after 3 misses in a row, no call
+    // length limit, a call under 30 s is not counted.
+    expect(s['hotline.max_no_answer']).toBe(3);
     expect(s['hotline.call_max_minutes']).toBe(0);
+    expect(s['hotline.refund_short_call_sec']).toBe(30);
     // The TTL outlives two missed heartbeats.
     expect(s['hotline.presence_ttl_sec']).toBeGreaterThan(
       2 * s['hotline.heartbeat_sec'],
