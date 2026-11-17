@@ -43,7 +43,7 @@ abstract class FirmsClient {
   /// Accept the invitation to a firm
   @POST('/firms/me/accept')
   Future<FirmEnvelope> acceptFirmInvite({
-    @Body() required AcceptFirmInviteDto body,
+    @Body() AcceptFirmInviteDto? body,
     @Extras() Map<String, dynamic>? extras,
   });
 

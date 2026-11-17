@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiProperty,
   ApiPropertyOptional,
@@ -150,6 +151,8 @@ export class FirmsController {
     404: [E.NOT_FOUND],
     409: [E.FEATURE_DISABLED, E.FIRM_ALREADY_MEMBER, E.FIRM_FULL],
   })
+  // Optional: an older app sends no body (the newest invitation).
+  @ApiBody({ type: AcceptFirmInviteDto, required: false })
   acceptFirmInvite(
     @CurrentUser() user: RequestUser,
     @Body() dto: AcceptFirmInviteDto,
