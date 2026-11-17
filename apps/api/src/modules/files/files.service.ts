@@ -614,6 +614,18 @@ export class FilesService {
     return { sizeBytes: intent.size };
   }
 
+  /** Audit 17.11 (problem 11): `files.light_confirm_min_mb` in bytes
+   * (default 8 MB, the old fixed number); unreadable → the default. */
+  private async lightConfirmMinBytes(): Promise<number> {
+    try {
+      const mb = await this.settings.number('files.light_confirm_min_mb');
+      if (Number.isFinite(mb) && mb >= 0) return mb * MB;
+    } catch {
+      // the default below
+    }
+    return LIGHT_CONFIRM_MIN_BYTES;
+  }
+
   async confirm(userId: string, fileId: string): Promise<FileDto> {
     const raw = await this.redis.get(intentKey(fileId));
     const intent = raw ? (JSON.parse(raw) as UploadIntent) : null;
@@ -637,8 +649,13 @@ export class FilesService {
     // is what was checked, nothing a link can still write is ever read
     // again). Flag `files_confirm_direct`; off = HEAD + copy as before.
     const maxBytes = await this.maxBytes(intent.purpose);
+    // Audit 17.11 (problem 11): the size from which confirm reads only the
+    // start of the file is `files.light_confirm_min_mb` (was a fixed 8 MB);
+    // 0 = every file the light way (no whole read in the API, no copy of
+    // the bytes in Valkey; the worker does the hash and the deep check).
+    const lightMin = await this.lightConfirmMinBytes();
     const direct =
-      intent.size < LIGHT_CONFIRM_MIN_BYTES &&
+      intent.size < lightMin &&
       (await this.flags.isEnabled('files_confirm_direct', true));
     const key = storedKey(intent.key, randomUUID().slice(0, 8));
     // The content checks, on the whole file or (light confirm) on its start.
@@ -744,7 +761,7 @@ export class FilesService {
       // attached. A start the prefix cannot settle goes the full way.
       let prefix: Buffer | null = null;
       if (
-        head.size >= LIGHT_CONFIRM_MIN_BYTES &&
+        head.size >= lightMin &&
         (await this.flags.isEnabled('files_confirm_light', true))
       ) {
         const start = await this.storage.readStart(
@@ -1729,21 +1746,25 @@ export class FilesService {
         scan_status: 'clean',
         deleted_at: null,
       },
-      select: { id: true, s3_bucket: true, s3_key: true, voice_m4a: true },
+      select: {
+        id: true,
+        s3_bucket: true,
+        s3_key: true,
+        owner_user_id: true,
+        purpose: true,
+        voice_m4a: true,
+      },
     });
+    // Audit 17.11 (problem 16): a voice note is as private as an attachment
+    // — the same short link (`files.confidential_url_ttl_sec`, 15 min, was a
+    // fixed hour) and a row in the owner's access journal.
+    const ttl = await this.confidentialTtl();
+    this.noteViews(files);
     for (const f of files) {
       const [url, m4aUrl] = await Promise.all([
-        this.storage.signedGetUrl(
-          f.s3_bucket,
-          f.s3_key,
-          MEDIA_SIGNED_URL_TTL_SEC,
-        ),
+        this.storage.signedGetUrl(f.s3_bucket, f.s3_key, ttl),
         f.voice_m4a
-          ? this.storage.signedGetUrl(
-              f.s3_bucket,
-              voiceM4aKey(f.s3_key),
-              MEDIA_SIGNED_URL_TTL_SEC,
-            )
+          ? this.storage.signedGetUrl(f.s3_bucket, voiceM4aKey(f.s3_key), ttl)
           : null,
       ]);
       out.set(f.id, { url, m4aUrl });

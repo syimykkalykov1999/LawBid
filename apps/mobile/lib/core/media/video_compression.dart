@@ -1,5 +1,4 @@
-import 'dart:convert' show jsonDecode;
-import 'dart:io' show File, Platform;
+import 'dart:io' show File;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -13,7 +12,8 @@ import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:lawbid/core/media/browser_video_compressor.dart';
 import 'package:lawbid/core/media/browser_video_encoder_stub.dart'
     if (dart.library.js_interop) 'package:lawbid/core/media/browser_video_encoder_web.dart';
-import 'package:video_compress/video_compress.dart';
+import 'package:lawbid/core/media/video_thumbnail_bytes.dart';
+import 'package:v_video_compressor/v_video_compressor.dart';
 
 /// Owner 2026-10-05: a reel is re-encoded on the phone before upload — at
 /// most Full HD (no visible loss on a phone screen), much smaller files
@@ -132,12 +132,31 @@ bool needsVideoCompression({
   return bytes * 8 / durationMs > reencodeAboveKbps;
 }
 
-/// The plugin preset for a target short side.
-VideoQuality videoQualityFor(int maxHeight) => maxHeight <= 540
-    ? VideoQuality.Res960x540Quality
-    : maxHeight <= 720
-        ? VideoQuality.Res1280x720Quality
-        : VideoQuality.Res1920x1080Quality;
+/// The fallback plugin's preset for a target short side (CMV 17.11 №5:
+/// v_video_compressor has 1080p / 720p / 480p; the main hardware path above
+/// keeps the admin's exact height, 540 included).
+VVideoCompressQuality videoQualityFor(int maxHeight) => maxHeight < 720
+    ? VVideoCompressQuality.low
+    : maxHeight < 1080
+        ? VVideoCompressQuality.medium
+        : VVideoCompressQuality.high;
+
+/// The fallback plugin's settings: the admin's preset height, frame rate and
+/// bitrate (the same ladder as the hardware path), H.264 + AAC MP4, moov
+/// first; the original is never deleted and is kept when not smaller.
+VVideoCompressionConfig pluginConfigFor(VideoLimits limits, int bitrateKbps) =>
+    VVideoCompressionConfig(
+      quality: videoQualityFor(limits.maxHeight),
+      includeMetadata: false,
+      copyMetadata: false,
+      advanced: VVideoAdvancedConfig(
+        videoBitrate: bitrateKbps * 1000,
+        frameRate: limits.frameRate.toDouble(),
+        videoCodec: VVideoCodec.h264,
+        audioCodec: VAudioCodec.aac,
+        autoCorrectOrientation: true,
+      ),
+    );
 
 /// Re-encodes a video on the device; null = keep the original (failed,
 /// cancelled, not smaller, or the browser build — no encoder there, the
@@ -171,25 +190,29 @@ bool keepOriginalForPower({required bool lowPower, required int bytes}) =>
 /// (ios/Runner/VideoEncoder.swift, NextLevelSessionExporter, MIT): the
 /// admin's bitrate instead of the export preset's own, H.264 High, moov
 /// first, HDR → SDR, and an already light H.264 file is kept as it is.
-/// When that path fails (an old phone, an odd file) the `video_compress`
-/// plugin (Transcoder / MediaCodec on Android, the AVAssetExportSession
-/// preset on iOS) runs as before. Same output as before: H.264 + AAC MP4,
-/// at most the admin's height and frame rate.
+/// When that path fails (an old phone, an odd file) the fallback plugin
+/// runs: v_video_compressor (MIT, maintained; CMV 17.11 №5 replaced the
+/// abandoned video_compress 3.1.4 of 13.02.2025) — Media3 Transformer on
+/// Android and AVFoundation on iOS, both hardware encoders. Same output as
+/// before: H.264 + AAC MP4, at most the admin's height and frame rate.
 class PluginVideoCompressor implements VideoCompressor {
   PluginVideoCompressor({
     MethodChannel hardwareChannel = const MethodChannel('lawbid/video_encoder'),
     TargetPlatform? platform,
     Future<XFile?> Function(XFile source, VideoLimits limits)? fallback,
     VideoBitrateLadder Function()? ladder,
+    VVideoCompressor? plugin,
   })  : _hw = hardwareChannel,
         _platform = platform,
         _fallback = fallback,
-        _ladder = ladder;
+        _ladder = ladder,
+        _plugin = plugin ?? VVideoCompressor();
 
   final MethodChannel _hw;
   final TargetPlatform? _platform;
   final Future<XFile?> Function(XFile source, VideoLimits limits)? _fallback;
   final VideoBitrateLadder Function()? _ladder;
+  final VVideoCompressor _plugin;
 
   /// The videos this compressor runs now, by id: each its own progress
   /// (the encoder queues them, one hardware encoder at a time).
@@ -269,34 +292,31 @@ class PluginVideoCompressor implements VideoCompressor {
     if (p is num) _progress[a['id']]?.call(p.toDouble().clamp(0, 1));
   }
 
-  /// The `video_compress` plugin (the fallback on both phones).
+  /// The fallback plugin (both phones), with the admin's settings.
   Future<XFile?> _compressPlugin(
     XFile source,
     VideoLimits limits,
     void Function(double progress)? onProgress,
   ) async {
-    final sub = VideoCompress.compressProgress$.subscribe(
-      (p) => onProgress?.call((p / 100).clamp(0, 1)),
-    );
     try {
-      final info = !kIsWeb && Platform.isIOS
-          ? await _compressIos(source.path, limits)
-          : await VideoCompress.compressVideo(
-              source.path,
-              quality: videoQualityFor(limits.maxHeight),
-              includeAudio: true,
-              frameRate: limits.frameRate,
-            );
-      final out = info?.file;
-      if (out == null || (info!.isCancel ?? false)) return null;
+      final ladder =
+          _ladder?.call() ?? (kbps1080: 4500, kbps720: 2000, kbps540: 1200);
+      final info = await _plugin.compressVideo(
+        source.path,
+        pluginConfigFor(limits, videoBitrateKbpsFor(limits, ladder)),
+        onProgress: (p) => onProgress?.call(p.clamp(0, 1).toDouble()),
+      );
+      if (info == null ||
+          info.usedOriginalFile ||
+          info.compressedFilePath == source.path) {
+        return null;
+      }
       return await _acceptOrNull(
         source,
-        XFile(out.path, mimeType: 'video/mp4'),
+        XFile(info.compressedFilePath, mimeType: 'video/mp4'),
       );
     } on Object {
       return null;
-    } finally {
-      sub.unsubscribe();
     }
   }
 
@@ -335,42 +355,20 @@ class PluginVideoCompressor implements VideoCompressor {
       }
     }
     try {
-      await VideoCompress.cancelCompression();
+      await _plugin.cancelCompression();
     } on Object {
       // nothing of the plugin running
     }
   }
 
-  static const _channel = MethodChannel('video_compress');
-
-  /// Owner 2026-10-17: on iOS the plugin's frame-rate path builds its video
-  /// composition from the source asset but exports a different one (the
-  /// trimmed composition), so every frame comes out black. Its Dart API
-  /// always sends a frame rate; called directly without one, iOS exports
-  /// with the 720p/1080p preset only (picture and rotation kept).
-  static Future<MediaInfo?> _compressIos(
-    String path,
-    VideoLimits limits,
-  ) async {
-    final json = await _channel.invokeMethod<String>('compressVideo', {
-      'path': path,
-      'quality': videoQualityFor(limits.maxHeight).index,
-      'deleteOrigin': false,
-      'startTime': null,
-      'duration': null,
-      'includeAudio': true,
-    });
-    if (json == null) return null;
-    return MediaInfo.fromJson(jsonDecode(json) as Map<String, dynamic>);
-  }
-
   /// A frame near the start is (almost) pure black.
   static Future<bool> _isBlack(String path) async {
     try {
-      final jpg = await VideoCompress.getByteThumbnail(
+      final jpg = await videoThumbnailBytes(
         path,
+        positionMs: 500,
         quality: 30,
-        position: 500,
+        maxWidth: 64,
       );
       if (jpg == null || jpg.isEmpty) return false;
       final codec = await ui.instantiateImageCodec(jpg, targetWidth: 32);

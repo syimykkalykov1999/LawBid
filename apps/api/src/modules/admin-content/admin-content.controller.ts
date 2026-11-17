@@ -8,6 +8,7 @@ import {
   HttpException,
   HttpStatus,
   Param,
+  Optional,
   Patch,
   Post,
   Query,
@@ -19,7 +20,12 @@ import {
   ApiEnvelopeResponse,
   ApiErrors,
 } from '../../common/dto/api-docs.decorators';
-import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
+import {
+  bulkFilterPreview,
+  bulkTargets,
+} from '../../common/admin-bulk/bulk-filter';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { AuditLogService } from '../admin-access/audit-log.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { exportWhere } from './export-filter';
 import {
@@ -31,6 +37,9 @@ import {
 } from '../admin-auth/admin-auth.decorators';
 import {
   AdminBulkContentDto,
+  AdminBulkFilterPreviewDto,
+  AdminContentBulkPreviewDto,
+  BULK_MAX,
   ExportQueryDto,
   AdminBulkResultDto,
   AdminBidRowDto,
@@ -60,7 +69,10 @@ import {
 import { AdminContentService } from './admin-content.service';
 import { AdminOverviewService } from './admin-overview.service';
 import { AdminContentExtrasService } from './admin-content-extras.service';
-import { AdminContentBulkService } from './admin-content-bulk.service';
+import {
+  AdminContentBulkService,
+  assertBulkAllowed,
+} from './admin-content-bulk.service';
 import {
   decodeJustification,
   readJustification,
@@ -79,6 +91,9 @@ export class AdminContentController {
     private readonly extras: AdminContentExtrasService,
     private readonly bulk: AdminContentBulkService,
     private readonly overview: AdminOverviewService,
+    // Row 179 B6: «select all by filter» audits the filter once.
+    private readonly audit: AuditLogService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   @Get('overview')
@@ -121,13 +136,25 @@ export class AdminContentController {
   })
   @ApiEnvelopeResponse(AdminBulkResultDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  classifyAdminPosts(
+  async classifyAdminPosts(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminClassifyPostsDto,
   ): Promise<AdminBulkResultDto> {
     // Owner 2026-11-12: staff keep 200 a request; the owner has no cap.
-    assertStaffBulkCap(admin, dto.ids, CLASSIFY_MAX);
-    return this.content.classifyPosts(dto.ids, dto.contentClass);
+    // Row 179 B6: or the posts filter, resolved here.
+    const ids = await bulkTargets({
+      admin,
+      ids: dto.ids,
+      filter: dto.filter,
+      staffMax: CLASSIFY_MAX,
+      settings: this.settings,
+      resolve: (cap) => this.bulk.idsByFilter('post', dto.filter!, cap),
+      audit: this.audit,
+      auditAction: 'admin.content.classify_filter',
+      targetType: 'post_filter',
+      bulkAction: dto.contentClass,
+    });
+    return this.content.classifyPosts(ids, dto.contentClass);
   }
 
   @Roles('super_admin', 'moderator')
@@ -296,11 +323,45 @@ export class AdminContentController {
   })
   @ApiEnvelopeResponse(AdminBulkResultDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  bulkAdminContent(
+  async bulkAdminContent(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminBulkContentDto,
   ): Promise<AdminBulkResultDto> {
-    return this.bulk.apply(admin, dto.action, dto.type, dto.ids, dto.reason);
+    assertBulkAllowed(dto.action, dto.type);
+    // Row 179 B6: explicit ids, or the list's filter resolved here.
+    const ids = await bulkTargets({
+      admin,
+      ids: dto.ids,
+      filter: dto.filter,
+      staffMax: BULK_MAX,
+      settings: this.settings,
+      resolve: (cap) => this.bulk.idsByFilter(dto.type, dto.filter!, cap),
+      audit: this.audit,
+      auditAction: 'admin.content.bulk_filter',
+      targetType: `${dto.type}_filter`,
+      bulkAction: dto.action,
+    });
+    return this.bulk.apply(admin, dto.action, dto.type, ids, dto.reason, {
+      byFilter: dto.filter !== undefined,
+    });
+  }
+
+  @Roles('super_admin', 'moderator')
+  @Post('content/bulk/preview')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Row 179 B6: how many posts / comments / reviews a list filter matches (read-only, before a bulk action)',
+  })
+  @ApiEnvelopeResponse(AdminBulkFilterPreviewDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  previewAdminContentBulk(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminContentBulkPreviewDto,
+  ): Promise<AdminBulkFilterPreviewDto> {
+    return bulkFilterPreview(admin, this.settings, (cap) =>
+      this.bulk.idsByFilter(dto.type, dto.filter, cap),
+    );
   }
 
   // --- bids --------------------------------------------------------------------

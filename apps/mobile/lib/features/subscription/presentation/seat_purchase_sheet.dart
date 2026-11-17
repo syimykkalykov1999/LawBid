@@ -86,12 +86,28 @@ Future<bool> buyAssistantSeats(
   return bought ?? false;
 }
 
+/// Owner row 87 (16.11, plan PR 8): adding the «Горячая линия» add-on —
+/// the same sheet as seats without the stepper: «К оплате сейчас: $X (до
+/// {date}), затем +$Y/мес», the card the subscription uses, 3-D Secure
+/// when asked; the iPhone pays on our card page. Returns true when it was
+/// added (or is being confirmed).
+Future<bool> buyHotlineAddon(BuildContext context, WidgetRef ref) async {
+  final added = await showAppBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) =>
+        const SeatPurchaseSheet(current: 0, max: 0, initial: 0, hotline: true),
+  );
+  return added ?? false;
+}
+
 /// The stepper, the price and the pay button (owner 2026-10-22).
 class SeatPurchaseSheet extends ConsumerStatefulWidget {
   const SeatPurchaseSheet({
     required this.current,
     required this.max,
     required this.initial,
+    this.hotline = false,
     super.key,
   });
 
@@ -99,6 +115,10 @@ class SeatPurchaseSheet extends ConsumerStatefulWidget {
   final int current;
   final int max;
   final int initial;
+
+  /// Owner row 87 (plan PR 8): the «Горячая линия» add-on instead of seats
+  /// (no stepper; the server's add-on preview and purchase).
+  final bool hotline;
 
   @override
   ConsumerState<SeatPurchaseSheet> createState() => _SeatPurchaseSheetState();
@@ -126,8 +146,10 @@ class _SeatPurchaseSheetState extends ConsumerState<SeatPurchaseSheet> {
       _error = null;
     });
     try {
-      final p =
-          await ref.read(subscriptionRepositoryProvider).previewSeats(_seats);
+      final repo = ref.read(subscriptionRepositoryProvider);
+      final p = widget.hotline
+          ? await repo.previewHotlineAddon()
+          : await repo.previewSeats(_seats);
       if (mounted && seq == _seq) setState(() => _preview = p);
     } on Object catch (e) {
       if (mounted && seq == _seq) {
@@ -155,7 +177,13 @@ class _SeatPurchaseSheetState extends ConsumerState<SeatPurchaseSheet> {
     try {
       final url = withAppPayPageLook(
         ref.read,
-        await ref.read(subscriptionRepositoryProvider).seatsCheckoutUrl(_seats),
+        widget.hotline
+            ? await ref
+                .read(subscriptionRepositoryProvider)
+                .hotlineAddonCheckoutUrl()
+            : await ref
+                .read(subscriptionRepositoryProvider)
+                .seatsCheckoutUrl(_seats),
       );
       if (!await ref.read(checkoutLauncherProvider)(url)) {
         if (mounted) setState(() => _error = t.t('payments.openFailed'));
@@ -180,15 +208,21 @@ class _SeatPurchaseSheetState extends ConsumerState<SeatPurchaseSheet> {
       _error = null;
     });
     try {
-      final r = await ref
-          .read(subscriptionRepositoryProvider)
-          .setSeats(_seats, prorationDate: p.prorationDate);
+      final repo = ref.read(subscriptionRepositoryProvider);
+      final r = widget.hotline
+          ? await repo.setHotlineAddon(
+              enabled: true,
+              prorationDate: p.prorationDate,
+            )
+          : await repo.setSeats(_seats, prorationDate: p.prorationDate);
       if (!mounted) return;
       ref.read(subscriptionOverviewProvider.notifier).apply(r.overview);
       switch (r.status) {
         case SeatChangeStatus.applied:
         case SeatChangeStatus.scheduled:
-          _finish(t.t('seats.buy.done'));
+          _finish(
+            t.t(widget.hotline ? 'plans.hotline.done' : 'seats.buy.done'),
+          );
         case SeatChangeStatus.requiresAction:
           final secret = r.clientSecret;
           if (secret == null) {
@@ -198,7 +232,13 @@ class _SeatPurchaseSheetState extends ConsumerState<SeatPurchaseSheet> {
           await ref.read(paymentConfirmerProvider).confirm(secret);
           // The webhook adds the seats once Stripe has the payment.
           unawaited(_refreshSoon());
-          if (mounted) _finish(t.t('seats.buy.pending'));
+          if (mounted) {
+            _finish(
+              t.t(
+                widget.hotline ? 'plans.hotline.pending' : 'seats.buy.pending',
+              ),
+            );
+          }
         case SeatChangeStatus.failed:
           setState(() => _error = t.t('seats.buy.failed'));
       }
@@ -278,6 +318,7 @@ class _SeatPurchaseSheetState extends ConsumerState<SeatPurchaseSheet> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final p = _preview;
+    final title = widget.hotline ? 'plans.hotline.title' : 'seats.buy.title';
     String price(int cents) => subscriptionPrice(formats, cents);
     return SafeArea(
       top: false,
@@ -293,45 +334,49 @@ class _SeatPurchaseSheetState extends ConsumerState<SeatPurchaseSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              t.t('seats.buy.title'),
+              t.t(title),
               style: typography.titleMedium.copyWith(color: colors.text),
             ),
             const SizedBox(height: AppSpacing.lg),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    t.t('seats.buy.count'),
-                    style: typography.body.copyWith(color: colors.text),
+            if (!widget.hotline) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      t.t('seats.buy.count'),
+                      style: typography.body.copyWith(color: colors.text),
+                    ),
                   ),
-                ),
-                AppIconButton(
-                  key: const ValueKey('seats-buy-minus'),
-                  icon: AppIcon(AppIcons.removeRounded, color: colors.text),
-                  semanticLabel: '−',
-                  onPressed: _seats > widget.current + 1 && !_paying
-                      ? () => _step(-1)
-                      : null,
-                ),
-                SizedBox(
-                  width: 40,
-                  child: Text(
-                    formats.digits('$_seats'),
-                    key: const ValueKey('seats-buy-count'),
-                    textAlign: TextAlign.center,
-                    style: typography.titleMedium.copyWith(color: colors.text),
+                  AppIconButton(
+                    key: const ValueKey('seats-buy-minus'),
+                    icon: AppIcon(AppIcons.removeRounded, color: colors.text),
+                    semanticLabel: '−',
+                    onPressed: _seats > widget.current + 1 && !_paying
+                        ? () => _step(-1)
+                        : null,
                   ),
-                ),
-                AppIconButton(
-                  key: const ValueKey('seats-buy-plus'),
-                  icon: AppIcon(AppIcons.addRounded, color: colors.text),
-                  semanticLabel: '+',
-                  onPressed:
-                      _seats < widget.max && !_paying ? () => _step(1) : null,
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
+                  SizedBox(
+                    width: 40,
+                    child: Text(
+                      formats.digits('$_seats'),
+                      key: const ValueKey('seats-buy-count'),
+                      textAlign: TextAlign.center,
+                      style: typography.titleMedium.copyWith(
+                        color: colors.text,
+                      ),
+                    ),
+                  ),
+                  AppIconButton(
+                    key: const ValueKey('seats-buy-plus'),
+                    icon: AppIcon(AppIcons.addRounded, color: colors.text),
+                    semanticLabel: '+',
+                    onPressed:
+                        _seats < widget.max && !_paying ? () => _step(1) : null,
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+            ],
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
@@ -390,7 +435,7 @@ class _SeatPurchaseSheetState extends ConsumerState<SeatPurchaseSheet> {
             AppButton(
               key: const ValueKey('seats-buy-pay'),
               label: p == null
-                  ? t.t('seats.buy.title')
+                  ? t.t(title)
                   : t.t('seats.buy.pay', {'price': price(p.amountNowCents)}),
               icon: AppIcons.creditCardRounded,
               isLoading: _paying,

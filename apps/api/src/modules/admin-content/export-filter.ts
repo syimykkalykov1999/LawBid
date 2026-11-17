@@ -27,6 +27,21 @@ export interface ExportFilter {
   kind?: string;
   from?: string;
   to?: string;
+  /** Case payments: only disputed ones (the «Споры» tab). */
+  disputed?: boolean;
+  /** Cases: «Только с жалобами» (true) / without an open report (false). */
+  hasReports?: boolean;
+  /** Cases: «С датой» — a deadline from today (report time zone) on. */
+  withDeadline?: boolean;
+}
+
+/** What some filters need from the database / clock, resolved before the
+ * export by the service (row 180 follow-up B7). Missing = only validated. */
+export interface ExportFilterContext {
+  /** Case ids with an open report (the cases list's own lookup). */
+  reportedCaseIds?: string[];
+  /** Local midnight of today in the report time zone. */
+  deadlineFrom?: Date;
 }
 
 const STATUS: Record<string, readonly string[] | null> = {
@@ -54,6 +69,7 @@ function bad(field: string): BadRequestException {
 export function exportWhere(
   entity: string,
   f: ExportFilter = {},
+  ctx: ExportFilterContext = {},
 ): { AND: Record<string, unknown>[] } | undefined {
   const and: Record<string, unknown>[] = [];
   const like = (v: string) => ({ contains: v, mode: 'insensitive' });
@@ -113,6 +129,24 @@ export function exportWhere(
       and.push({ kind: f.kind });
     else if (entity === 'case_payments') and.push({ kind: f.kind });
     else throw bad('kind');
+  }
+  if (f.disputed) {
+    if (entity !== 'case_payments') throw bad('disputed');
+    and.push({ dispute_status: { not: null } });
+  }
+  if (f.hasReports !== undefined) {
+    if (entity !== 'cases') throw bad('hasReports');
+    if (ctx.reportedCaseIds) {
+      and.push(
+        f.hasReports
+          ? { id: { in: ctx.reportedCaseIds } }
+          : { id: { notIn: ctx.reportedCaseIds } },
+      );
+    }
+  }
+  if (f.withDeadline) {
+    if (entity !== 'cases') throw bad('withDeadline');
+    if (ctx.deadlineFrom) and.push({ deadline_at: { gte: ctx.deadlineFrom } });
   }
   if (f.from || f.to) {
     and.push({

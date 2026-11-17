@@ -4,7 +4,7 @@ import {
   CASE_URGENCY_LEVELS,
 } from '../cases/domain/case-urgency';
 import { DOSSIER_ITEMS } from '../cases/domain/case-dossier';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import { OWNER_BULK_MAX } from '../../common/admin-bulk/admin-bulk';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -21,6 +21,8 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 
 class CursorDto {
@@ -247,6 +249,12 @@ export class AdminCasesQueryDto extends CursorDto {
   withDeadline?: boolean;
 }
 
+/** Row 179 B6: the cases list filter of «select all by filter» (no paging). */
+export class AdminCasesFilterDto extends OmitType(AdminCasesQueryDto, [
+  'cursor',
+  'limit',
+] as const) {}
+
 export class AdminCaseActionDto {
   @ApiPropertyOptional({ type: String, maxLength: 500 })
   @IsOptional()
@@ -272,19 +280,38 @@ export class AdminCasesBulkDto extends AdminCaseActionDto {
   @IsIn(CASES_BULK_ACTIONS)
   action!: (typeof CASES_BULK_ACTIONS)[number];
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: [String],
     format: 'uuid',
     minItems: 1,
     maxItems: OWNER_BULK_MAX,
     description:
-      'Staff: at most 500; the owner: any number (processed in chunks).',
+      'Exactly one of `ids` or `filter`. Staff: at most 500; the owner: any number (processed in chunks).',
   })
+  @ValidateIf((o: AdminCasesBulkDto) => o.filter === undefined)
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(OWNER_BULK_MAX)
   @IsUUID('all', { each: true })
-  ids!: string[];
+  ids?: string[];
+
+  @ApiPropertyOptional({
+    type: () => AdminCasesFilterDto,
+    description:
+      'Row 179 B6: «select all by filter» — the cases list filter; the server resolves the ids (staff: at most `admin.bulk_select_cap`) and audits the filter.',
+  })
+  @ValidateIf((o: AdminCasesBulkDto) => o.ids === undefined)
+  @ValidateNested()
+  @Type(() => AdminCasesFilterDto)
+  filter?: AdminCasesFilterDto;
+}
+
+/** Row 179 B6: how many cases the list filter matches, before the action. */
+export class AdminCasesBulkPreviewDto {
+  @ApiProperty({ type: () => AdminCasesFilterDto })
+  @ValidateNested()
+  @Type(() => AdminCasesFilterDto)
+  filter!: AdminCasesFilterDto;
 }
 
 export class AdminCaseRowDto {

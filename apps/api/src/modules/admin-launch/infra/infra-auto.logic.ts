@@ -840,6 +840,25 @@ export function resourceType(address: string): string {
 }
 
 /**
+ * The addresses a plan deletes or replaces of live-serving infrastructure
+ * (NEVER_AUTO_DESTROY). The TS twin of servingDestroys in
+ * scripts/infra/plan-summary.mjs for a plan with no switch (no drain).
+ * Owner 17.11: «Применить изменения из кода» refuses such a plan, because
+ * no switch says the owner wanted that part gone.
+ */
+export function servingDestroys(
+  resources: readonly { address: string; action: string }[],
+): string[] {
+  return resources
+    .filter(
+      (r) =>
+        r.action.includes('delete') &&
+        NEVER_AUTO_DESTROY.includes(resourceType(r.address)),
+    )
+    .map((r) => r.address);
+}
+
+/**
  * Why the plan of an automatic request must wait for the owner's 2FA
  * (empty = it may be applied without a tap). Rules, all at once:
  *  - a switch-on removes nothing but replaced task definitions (a new

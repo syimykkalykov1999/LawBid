@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Optional,
   Param,
   Post,
   Query,
@@ -24,12 +25,17 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import {
-  AdminBulkReasonDto,
+  AdminBulkFilterPreviewDto,
   AdminBulkResultDto,
   BULK_MAX,
 } from '../admin-content/admin-content.dto';
 import { eachIdInChunks } from '../admin-content/bulk.util';
-import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
+import {
+  type BulkFilterMatch,
+  bulkFilterPreview,
+  bulkTargets,
+} from '../../common/admin-bulk/bulk-filter';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import { FileDto, PresignedFileDto } from '../files/dto/files.dto';
 import {
@@ -39,11 +45,15 @@ import {
   AdminMediaReasonDto,
   AdminStickerPackDto,
   AdminStickerPackRowDto,
+  AdminStickerPacksBulkDto,
+  AdminStickerPacksBulkPreviewDto,
   AdminStickerPacksQueryDto,
   AdminStickerParamDto,
   AdminStickerUploadDto,
   AdminVideoRowDto,
   AdminVideoStatsDto,
+  AdminVideosBulkDto,
+  AdminVideosBulkPreviewDto,
   AdminVideosQueryDto,
   CreateOfficialStickerPackDto,
   SetStickerPackPriceDto,
@@ -65,6 +75,7 @@ export class AdminMediaController {
     private readonly videos: AdminVideosService,
     private readonly stickers: AdminStickersService,
     private readonly audit: AuditLogService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   /** Owner 2026-10-04 (bulk moderation): each item keeps the audit row
@@ -73,13 +84,26 @@ export class AdminMediaController {
     admin: AdminActor,
     action: string,
     targetType: string,
-    dto: AdminBulkReasonDto,
+    dto: { ids?: string[]; filter?: object; reason: string },
+    resolve: (cap: number | null) => Promise<BulkFilterMatch>,
     fn: (id: string) => Promise<unknown>,
   ): Promise<AdminBulkResultDto> {
     // Owner 2026-11-12: staff keep BULK_MAX; the owner sends any number,
-    // worked through in chunks, one batch audit row per chunk.
-    assertStaffBulkCap(admin, dto.ids, BULK_MAX);
-    return eachIdInChunks(dto.ids, fn, (part, chunk) =>
+    // worked through in chunks, one batch audit row per chunk. Row 179
+    // B6: or the list's filter, resolved here (staff: bulk_select_cap).
+    const ids = await bulkTargets({
+      admin,
+      ids: dto.ids,
+      filter: dto.filter,
+      staffMax: BULK_MAX,
+      settings: this.settings,
+      resolve,
+      audit: this.audit,
+      auditAction: 'admin.media.bulk_filter',
+      targetType: `${targetType}_filter`,
+      bulkAction: action,
+    });
+    return eachIdInChunks(ids, fn, (part, chunk) =>
       this.audit.record({
         adminId: admin.id,
         action: `admin.media.${action}`,
@@ -87,7 +111,7 @@ export class AdminMediaController {
         targetId: null,
         after: {
           reason: dto.reason,
-          requested: dto.ids.length,
+          requested: ids.length,
           done: part.done,
           skipped: part.skipped.map((s) => ({ id: s.id, reason: s.reason })),
           ...(chunk.of > 1 ? { chunk } : {}),
@@ -145,10 +169,32 @@ export class AdminMediaController {
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
   bulkTakedownAdminVideos(
     @CurrentAdmin() admin: AdminActor,
-    @Body() dto: AdminBulkReasonDto,
+    @Body() dto: AdminVideosBulkDto,
   ): Promise<AdminBulkResultDto> {
-    return this.bulk(admin, 'bulk_takedown', 'video_asset', dto, (id) =>
-      this.videos.takedown(admin, id, dto.reason),
+    return this.bulk(
+      admin,
+      'bulk_takedown',
+      'video_asset',
+      dto,
+      (cap) => this.videos.idsByFilter(dto.filter!, cap),
+      (id) => this.videos.takedown(admin, id, dto.reason),
+    );
+  }
+
+  @Post('videos/bulk/preview')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Row 179 B6: how many videos the list filter matches that can be taken down (read-only)',
+  })
+  @ApiEnvelopeResponse(AdminBulkFilterPreviewDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  previewAdminVideosBulk(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminVideosBulkPreviewDto,
+  ): Promise<AdminBulkFilterPreviewDto> {
+    return bulkFilterPreview(admin, this.settings, (cap) =>
+      this.videos.idsByFilter(dto.filter, cap),
     );
   }
 
@@ -199,10 +245,32 @@ export class AdminMediaController {
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
   bulkHideAdminStickerPacks(
     @CurrentAdmin() admin: AdminActor,
-    @Body() dto: AdminBulkReasonDto,
+    @Body() dto: AdminStickerPacksBulkDto,
   ): Promise<AdminBulkResultDto> {
-    return this.bulk(admin, 'bulk_hide', 'sticker_pack', dto, (id) =>
-      this.stickers.setHidden(admin, id, true, dto.reason),
+    return this.bulk(
+      admin,
+      'bulk_hide',
+      'sticker_pack',
+      dto,
+      (cap) => this.stickers.idsByFilter(dto.filter!, cap),
+      (id) => this.stickers.setHidden(admin, id, true, dto.reason),
+    );
+  }
+
+  @Post('sticker-packs/bulk/preview')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Row 179 B6: how many sticker packs the list filter matches (read-only)',
+  })
+  @ApiEnvelopeResponse(AdminBulkFilterPreviewDto)
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  previewAdminStickerPacksBulk(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: AdminStickerPacksBulkPreviewDto,
+  ): Promise<AdminBulkFilterPreviewDto> {
+    return bulkFilterPreview(admin, this.settings, (cap) =>
+      this.stickers.idsByFilter(dto.filter, cap),
     );
   }
 
@@ -213,10 +281,15 @@ export class AdminMediaController {
   @ApiErrors({ 400: [E.VALIDATION_ERROR] })
   bulkUnhideAdminStickerPacks(
     @CurrentAdmin() admin: AdminActor,
-    @Body() dto: AdminBulkReasonDto,
+    @Body() dto: AdminStickerPacksBulkDto,
   ): Promise<AdminBulkResultDto> {
-    return this.bulk(admin, 'bulk_unhide', 'sticker_pack', dto, (id) =>
-      this.stickers.setHidden(admin, id, false, dto.reason),
+    return this.bulk(
+      admin,
+      'bulk_unhide',
+      'sticker_pack',
+      dto,
+      (cap) => this.stickers.idsByFilter(dto.filter!, cap),
+      (id) => this.stickers.setHidden(admin, id, false, dto.reason),
     );
   }
 

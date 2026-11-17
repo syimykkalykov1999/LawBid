@@ -27,6 +27,7 @@ import type Redis from 'ioredis';
 import { AppSettingsService } from '../app-settings/app-settings.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { autoCheckMs, autoLockTtlS } from './auto-check';
+import { infraWritesOff } from './infra-writes';
 import { opsCredentials } from './ops-credentials';
 import { OpsStateService } from './ops-state.service';
 
@@ -336,6 +337,9 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
     if (process.env.JEST_WORKER_ID || process.argv[1]?.includes('worker')) {
       return;
     }
+    // Row 204 (task_role_split): the public api's task role cannot change the
+    // database or Redis; only api-admin (no such flag) runs this loop.
+    if (infraWritesOff()) return;
     if (!this.env('OPS_DB_INSTANCE') && !this.env('OPS_REDIS_GROUP')) return;
     // 15.11: the pause between passes is infra.auto_check_minutes, read
     // after every pass (a setTimeout chain instead of a fixed interval).

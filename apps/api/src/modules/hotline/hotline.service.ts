@@ -26,7 +26,10 @@ import { incrWithTtl } from '../../redis/incr-with-ttl';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { KNOWN_LANGUAGE_NATIVE_NAMES } from '../i18n/language-names';
-import { EntitlementsService } from '../plans/entitlements.service';
+import {
+  EntitlementsService,
+  hotlineAddonActive,
+} from '../plans/entitlements.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import {
   assertHotlineOn,
@@ -50,6 +53,11 @@ import {
   type HotlineNotifier,
   RealtimeHotlineNotifier,
 } from './hotline-notifier';
+import {
+  HOTLINE_CALL_BRIDGE,
+  type HotlineCallBridge,
+  type HotlineCallState,
+} from './hotline-call-bridge';
 
 const CODE = /^[a-z0-9][a-z0-9_.-]{0,63}$/i;
 const STATE = /^[A-Z]{2}$/;
@@ -103,6 +111,10 @@ export interface RequestView {
   } | null;
   notifyUntil: number | null;
   disclosure: HotlineDisclosure | null;
+  /** The 1:1 call carrying the voice (GET /calls/:id), while connected. */
+  callId: string | null;
+  /** The direct chat of the two, once the call is over (WhatsApp-style). */
+  conversationId: string | null;
 }
 
 /** «Ещё звонят: N» and the counters: bands, never exact. */
@@ -119,6 +131,16 @@ export function waitBand(minutes: number): string {
   if (minutes < 15) return '5to15';
   if (minutes < 30) return '15to30';
   return 'gt30';
+}
+
+/** Whether the voice of an ended 1:1 call ever came up. The calls API
+ * records an answered call whose link died as `ended` / `link_lost`; one
+ * that died this soon after the answer never had media (R-404: the calls'
+ * CALL_NEVER_UP_WITHIN_MS, 60 s — the app gives up after 45 s). */
+export function callVoiceUp(c: HotlineCallState): boolean {
+  if (c.status === 'failed') return false;
+  if (c.endReason === 'link_lost' && (c.durationSec ?? 0) < 60) return false;
+  return true;
 }
 
 /** The client's UTC offset now, minutes (DST of today). */
@@ -175,6 +197,11 @@ export class HotlineService {
     @Optional() @Inject(HOTLINE_NOTIFIER) notifier?: HotlineNotifier,
     @Optional() @Inject(HOTLINE_KEYS) keys?: HotlineKeys,
     @Optional() @Inject(HOTLINE_CLOCK) clock?: () => number,
+    /** Plan PR 4: the real 1:1 voice call behind «Взять» (absent in the
+     * engine's unit tests — then the hotline runs on its own state). */
+    @Optional()
+    @Inject(HOTLINE_CALL_BRIDGE)
+    readonly bridge?: HotlineCallBridge,
   ) {
     this.k = keys ?? new HotlineKeys();
     this.store = new HotlineStore(redis, this.k);
@@ -415,9 +442,13 @@ export class HotlineService {
     const trial = await this.redis.hgetall(this.k.trial(lw));
     let included = false;
     let addonPrice: number | null = null;
+    let addonActive = false;
     const mode = hotlineModeFrom(raw);
     if (mode === 'by_subscription' && this.entitlements) {
-      const e = (await this.entitlements.forUser(lw)).values;
+      const resolved = await this.entitlements.forUser(lw);
+      const e = resolved.values;
+      // Plan PR 8: the add-on bought on the subscription card.
+      addonActive = hotlineAddonActive(resolved, this.now());
       included = e[HOTLINE_ENTITLEMENT] === true;
       const p = e[HOTLINE_ADDON_PRICE_ENTITLEMENT];
       addonPrice = typeof p === 'number' ? p : null;
@@ -426,7 +457,7 @@ export class HotlineService {
       mode,
       included,
       addonPriceCents: addonPrice,
-      addonActive: false,
+      addonActive,
       trialDays: s['hotline.trial_days'],
       trialMinutes: s['hotline.trial_minutes'],
       firstOnlineAt: trial.first ? Number(trial.first) : null,
@@ -677,10 +708,12 @@ export class HotlineService {
       return { ok: false, state: 'late' as const };
     }
     if (res === 'gone') return { ok: false, state: 'gone' as const };
+    let callId: string | null;
     if (res === 'ok') {
       const { s } = await this.cfg();
       const now = this.now();
-      await this.redis.hset(this.k.lawyer(lw), 'misses', '0');
+      // The «no answer» row is broken by a real conversation (endCall), not
+      // by «Взять» alone: a call whose voice never comes up is a miss too.
       await this.redis.hset(this.k.request(req), {
         lawyer: lw,
         answeredAt: String(now),
@@ -699,16 +732,96 @@ export class HotlineService {
         );
       }
       await this.bumpAgg('accepted');
+      callId = await this.ensureCall(req, s);
       const r = await this.requestDetail(req);
       if (r) {
         this.realtime.toUsers([r.client, lw], 'hotline:connected', {
           requestId: req,
           clientId: r.client,
           lawyerId: lw,
+          callId,
+          video: false,
         });
       }
+    } else {
+      // a repeated «Взять»: the same call (opened now if the first try
+      // could not reach the database)
+      callId = await this.ensureCall(req, (await this.cfg()).s);
     }
-    return { ok: true, state: 'connected' as const };
+    return {
+      ok: true,
+      state: 'connected' as const,
+      ...(this.bridge ? { callId } : {}),
+    };
+  }
+
+  /** Plan PR 4: the real voice call of a connected request, opened once
+   * (idempotent); the sweeper then follows the call's own state. */
+  private async ensureCall(
+    req: string,
+    s: HotlineSettings,
+  ): Promise<string | null> {
+    if (!this.bridge) return null;
+    const r = await this.requestDetail(req);
+    const st = await this.store.requestState(req);
+    if (!r || !st?.startsWith('c|')) return null;
+    if (r.callId) return r.callId;
+    const { callId } = await this.bridge.open({
+      requestId: req,
+      clientId: r.client,
+      attorneyId: st.slice(2),
+      state: r.state,
+      practiceArea: r.practice,
+      answeredAt: Number(r.answeredAt ?? this.now()),
+    });
+    await this.redis.hset(this.k.request(req), 'callId', callId);
+    await this.redis.zadd(
+      this.k.callsync,
+      this.now() + s['hotline.call_sync_sec'] * 1000,
+      req,
+    );
+    return callId;
+  }
+
+  /** The sweeper's sync with the 1:1 calls: a call the phones hung up
+   * (`POST /calls/:id/end`) or the calls sweep closed ends the hotline call;
+   * a live call whose screens still beat keeps the hotline call alive. */
+  async syncCalls(reqs: string[]): Promise<void> {
+    if (!this.bridge || reqs.length === 0) return;
+    const { s } = await this.cfg();
+    const now = this.now();
+    const ids = new Map<string, string>();
+    for (const req of reqs) {
+      const callId = await this.redis.hget(this.k.request(req), 'callId');
+      if (callId) ids.set(req, callId);
+      else await this.redis.zrem(this.k.callsync, req);
+    }
+    const states = await this.bridge.states([...ids.values()]);
+    for (const [req, callId] of ids) {
+      const c = states.get(callId);
+      const st = await this.store.requestState(req);
+      if (!st?.startsWith('c|')) {
+        await this.redis.zrem(this.k.callsync, req);
+        continue;
+      }
+      if (c && !c.live) {
+        await this.endCall(
+          req,
+          callVoiceUp(c) ? 'ended' : 'failed',
+          undefined,
+          c,
+        );
+        continue;
+      }
+      if (c && c.heartbeatAt > now - s['hotline.presence_ttl_sec'] * 1000) {
+        await this.touchCall(req, s, now);
+      }
+      await this.redis.zadd(
+        this.k.callsync,
+        now + s['hotline.call_sync_sec'] * 1000,
+        req,
+      );
+    }
   }
 
   /** «Пропустить»: next attorney; the request keeps its original time. */
@@ -768,8 +881,14 @@ export class HotlineService {
     if (await this.store.cas(lw, 'p', 'i')) await this.freeLawyer(lw);
   }
 
-  /** The red button (either side) or a lost / over-long call. */
-  async endCall(req: string, reason: string, byUser?: string) {
+  /** The red button (either side) or a lost / over-long call; [fromCall]
+   * = the 1:1 call ended first (its state, read by the sync). */
+  async endCall(
+    req: string,
+    reason: string,
+    byUser?: string,
+    fromCall?: HotlineCallState,
+  ) {
     const st = await this.store.requestState(req);
     const r = await this.requestDetail(req);
     if (!r) throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
@@ -779,16 +898,36 @@ export class HotlineService {
     }
     if (!st?.startsWith('c|')) return { ok: true, seconds: 0 };
     const d = await this.lawyerDetail(lw);
+    const { s } = await this.cfg();
+    // Wired to the real call (plan PR 4): the voice never came up → a miss
+    // like an unanswered offer; `hotline.max_no_answer` in a row → off the
+    // line. A real conversation breaks the row.
+    const failed = reason === 'failed';
+    let missedOut = false;
+    if (d && failed) {
+      const misses = await this.redis.hincrby(this.k.lawyer(lw), 'misses', 1);
+      const max = s['hotline.max_no_answer'];
+      missedOut = max > 0 && misses >= max;
+    } else if (d) {
+      await this.redis.hset(this.k.lawyer(lw), 'misses', '0');
+    }
     const next =
-      !d || d.leaving === '1' ? 'x' : d.accepting === '0' ? 'n' : 'i';
+      !d || d.leaving === '1'
+        ? 'x'
+        : d.accepting === '0' || missedOut
+          ? 'n'
+          : 'i';
     if ((await this.store.endCall(req, lw, next)) !== 'ok') {
-      return { ok: true, seconds: 0 };
+      return {
+        ok: true,
+        seconds: 0,
+        ...(this.bridge ? { conversationId: r.conversationId ?? null } : {}),
+      };
     }
     const now = this.now();
-    const seconds = Math.max(
-      0,
-      Math.round((now - Number(r.answeredAt ?? now)) / 1000),
-    );
+    const seconds =
+      fromCall?.durationSec ??
+      Math.max(0, Math.round((now - Number(r.answeredAt ?? now)) / 1000));
     await this.redis.hincrby(this.k.trial(lw), 'seconds', seconds);
     await this.redis.hset(this.k.request(req), {
       status: 'ended',
@@ -798,19 +937,54 @@ export class HotlineService {
     });
     await this.redis.zrem(this.k.conn, req);
     await this.redis.zrem(`${this.k.p}:connmax`, req);
+    await this.redis.zrem(this.k.callsync, req);
     await this.redis.del(this.k.client(r.client));
     await this.bumpAgg('ended');
     await this.bumpAgg('talkSeconds', seconds);
+    let conversationId: string | null = null;
+    if (this.bridge && r.callId) {
+      // the hotline ended it first: the 1:1 call ends too (both screens
+      // close on `call:ended`)
+      if (!fromCall) {
+        await this.bridge.hangUp(
+          r.callId,
+          byUser ?? r.client,
+          failed ? 'failed' : 'hangup',
+        );
+      }
+      ({ conversationId } = await this.bridge.finish({
+        requestId: req,
+        clientId: r.client,
+        attorneyId: lw,
+        endedAt: now,
+        reason,
+        durationSec: seconds,
+      }));
+      if (conversationId) {
+        await this.redis.hset(
+          this.k.request(req),
+          'conversationId',
+          conversationId,
+        );
+      }
+    }
     const raw = await this.settings.all();
     this.realtime.toUsers([r.client, lw], 'hotline:ended', {
       requestId: req,
       seconds,
       reason,
+      callId: r.callId ?? null,
+      conversationId,
       review: raw['hotline.review_enabled'] !== false,
     });
     if (next === 'i') await this.freeLawyer(lw);
     if (next === 'x') await this.redis.del(this.k.lawyer(lw));
-    return { ok: true, seconds };
+    if (missedOut) await this.goOffline(lw, 'missed');
+    return {
+      ok: true,
+      seconds,
+      ...(this.bridge ? { conversationId } : {}),
+    };
   }
 
   // ── client ─────────────────────────────────────────────────────────
@@ -1174,6 +1348,8 @@ export class HotlineService {
       endReason: r.endReason ?? null,
       lawyer,
       notifyUntil: r.notifyUntil ? Number(r.notifyUntil) : null,
+      callId: status === 'connected' ? (r.callId ?? null) : null,
+      conversationId: r.conversationId ?? null,
       disclosure:
         status === 'searching' || status === 'queued'
           ? await this.disclosure(clientId, 'client', ackDisclosure)
@@ -1192,6 +1368,8 @@ export class HotlineService {
       v.waitBand,
       v.lawyer?.id,
       v.endReason,
+      v.callId,
+      v.conversationId,
     ].join('.');
   }
 

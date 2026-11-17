@@ -29,6 +29,7 @@ import {
   type ProviderTaxAddress,
 } from './payment-provider';
 import { SeatsService } from './seats.service';
+import { HotlineAddonService } from './hotline-addon.service';
 import {
   OWN_PAGE_SESSION_PREFIX,
   SubscriptionsService,
@@ -78,6 +79,7 @@ export interface PayPageSession {
 const RETURN_PATHS: Record<PayKind, string> = {
   subscription: '/subscription',
   seats: '/subscription',
+  hotline: '/subscription',
   promotion: '/promotion',
   stars: '/stars',
   bid_pack: '/bid-packs',
@@ -129,6 +131,8 @@ export class PayPageService {
     @Optional() private readonly bidPacks?: BidPacksService,
     @Optional() private readonly clientPlans?: ClientPlansService,
     @Optional() private readonly clientBadge?: ClientBadgeService,
+    // Owner row 87 (plan PR 8): the «Горячая линия» add-on (iPhone).
+    @Optional() private readonly hotlineAddon?: HotlineAddonService,
   ) {}
 
   /** The public Stripe key (admin card or the env). */
@@ -167,6 +171,17 @@ export class PayPageService {
       { kind: 'seats', seats },
       apiBase,
     );
+    return { url: l.url, id: l.id };
+  }
+
+  /** Owner row 87 (plan PR 8): the hotline add-on's link (iPhone). */
+  async hotlineLink(
+    user: RequestUser,
+    apiBase: string,
+  ): Promise<{ url: string; id: string }> {
+    // The same checks as the in-app purchase, before the browser opens.
+    await this.hotlineService().preview(user);
+    const l = await this.links.link(user.sub, { kind: 'hotline' }, apiBase);
     return { url: l.url, id: l.id };
   }
 
@@ -342,6 +357,26 @@ export class PayPageService {
         prorationDate: preview.prorationDate,
       };
     }
+    if (kind === 'hotline') {
+      const preview = await this.hotlineService().preview(user);
+      const customerId = await this.subscriptions.customerId(user.sub, null);
+      const si = await this.requireProvider().createSetupIntent(customerId, {
+        userId: user.sub,
+        kind: 'hotline_addon',
+      });
+      return {
+        ...common,
+        mode: 'setup',
+        clientSecret: si.clientSecret,
+        setupIntentId: si.id,
+        priceCents: preview.amountNowCents,
+        taxCents: this.seatTax(preview),
+        currency: preview.currency,
+        nextChargeCents: preview.nextChargeCents,
+        periodEnd: preview.periodEnd,
+        prorationDate: preview.prorationDate,
+      };
+    }
 
     const started = await this.subscriptions.start(user, p.r ?? {});
     return {
@@ -422,6 +457,25 @@ export class PayPageService {
         clientSecret: r.clientSecret,
       };
     }
+    if (kind === 'hotline') {
+      if (input.setupIntentId) {
+        await this.seatsService().useCard(user, input.setupIntentId);
+      }
+      const r = await this.hotlineService().set(
+        user,
+        true,
+        input.prorationDate,
+      );
+      return {
+        status:
+          r.status === 'requires_action'
+            ? 'requires_action'
+            : r.status === 'failed'
+              ? 'failed'
+              : 'ok',
+        clientSecret: r.clientSecret,
+      };
+    }
 
     if (!input.setupIntentId) {
       throw new BadRequestException({
@@ -460,6 +514,11 @@ export class PayPageService {
       verified: true,
       subscriptionStatus: 'none',
     };
+  }
+
+  private hotlineService(): HotlineAddonService {
+    if (!this.hotlineAddon) throw new Error('HotlineAddonService is not wired');
+    return this.hotlineAddon;
   }
 
   private seatsService(): SeatsService {

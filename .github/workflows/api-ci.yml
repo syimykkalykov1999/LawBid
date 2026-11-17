@@ -18,7 +18,7 @@
 # must finish, its result is what the deploy gate reads. `merge_group` makes the
 # workflow run on the merge queue's temporary branch.
 #
-# Service containers mirror docker-compose.yml's dev infra (PostgreSQL 16, Redis 7,
+# Service containers mirror prod's engines (PostgreSQL 18.6, Valkey 9.1; 17.11),
 # Mailpit, the multi-arch MailHog successor), all pinned by image digest. MinIO is built from source at a pinned
 # release (no image is published any more) and started on the runner for the
 # file suites.
@@ -118,11 +118,12 @@ jobs:
     # previous release) at ~10 min each, plus the e2e database.
     timeout-minutes: 60
     services:
-      # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
+      # 17.11 (CONTENT_MEDIA_VERIFY №1): the same engines as prod — RDS
+      # PostgreSQL 18.6 and ElastiCache Valkey 9.1 (infra/envs/prod). Images are
       # pinned by digest (S11-7); dependabot cannot bump a digest inside a
       # workflow, so the weekly "pins" review is in .github/workflows/README.md.
       postgres:
-        image: postgres:16.15@sha256:f9a7b9ebf6f56201f949db745e47bc423c0f0f8294bafe991cc10bf74b029657
+        image: postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
         env:
           POSTGRES_USER: root
           POSTGRES_PASSWORD: lawbid
@@ -136,11 +137,11 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       redis:
-        image: redis:7.4.12-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
+        image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
         ports:
           - 6379
         options: >-
-          --health-cmd "redis-cli ping"
+          --health-cmd "valkey-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -404,11 +405,12 @@ jobs:
       matrix:
         shard: [1, 2, 3]
     services:
-      # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
+      # 17.11 (CONTENT_MEDIA_VERIFY №1): the same engines as prod — RDS
+      # PostgreSQL 18.6 and ElastiCache Valkey 9.1 (infra/envs/prod). Images are
       # pinned by digest (S11-7); dependabot cannot bump a digest inside a
       # workflow, so the weekly "pins" review is in .github/workflows/README.md.
       postgres:
-        image: postgres:16.15@sha256:f9a7b9ebf6f56201f949db745e47bc423c0f0f8294bafe991cc10bf74b029657
+        image: postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
         env:
           POSTGRES_USER: root
           POSTGRES_PASSWORD: lawbid
@@ -422,11 +424,11 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       redis:
-        image: redis:7.4.12-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
+        image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
         ports:
           - 6379
         options: >-
-          --health-cmd "redis-cli ping"
+          --health-cmd "valkey-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -529,11 +531,12 @@ jobs:
     runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-24.04-arm' }}
     timeout-minutes: 60
     services:
-      # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
+      # 17.11 (CONTENT_MEDIA_VERIFY №1): the same engines as prod — RDS
+      # PostgreSQL 18.6 and ElastiCache Valkey 9.1 (infra/envs/prod). Images are
       # pinned by digest (S11-7); dependabot cannot bump a digest inside a
       # workflow, so the weekly "pins" review is in .github/workflows/README.md.
       postgres:
-        image: postgres:16.15@sha256:f9a7b9ebf6f56201f949db745e47bc423c0f0f8294bafe991cc10bf74b029657
+        image: postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
         env:
           POSTGRES_USER: root
           POSTGRES_PASSWORD: lawbid
@@ -547,11 +550,11 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       redis:
-        image: redis:7.4.12-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
+        image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
         ports:
           - 6379
         options: >-
-          --health-cmd "redis-cli ping"
+          --health-cmd "valkey-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -645,11 +648,12 @@ jobs:
     runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-24.04-arm' }}
     timeout-minutes: 60
     services:
-      # Owner 2026-10-14: the whole project runs on PostgreSQL 16. Images are
+      # 17.11 (CONTENT_MEDIA_VERIFY №1): the same engines as prod — RDS
+      # PostgreSQL 18.6 and ElastiCache Valkey 9.1 (infra/envs/prod). Images are
       # pinned by digest (S11-7); dependabot cannot bump a digest inside a
       # workflow, so the weekly "pins" review is in .github/workflows/README.md.
       postgres:
-        image: postgres:16.15@sha256:f9a7b9ebf6f56201f949db745e47bc423c0f0f8294bafe991cc10bf74b029657
+        image: postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
         env:
           POSTGRES_USER: root
           POSTGRES_PASSWORD: lawbid
@@ -663,11 +667,11 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       redis:
-        image: redis:7.4.12-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
+        image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
         ports:
           - 6379
         options: >-
-          --health-cmd "redis-cli ping"
+          --health-cmd "valkey-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -806,7 +810,7 @@ jobs:
     timeout-minutes: 40 # ~13 min: npm ci 1 + migrate 0.1 + seed ~7 + suite ~4 (API CI ~17)
     services:
       postgres:
-        image: postgres:16.15@sha256:f9a7b9ebf6f56201f949db745e47bc423c0f0f8294bafe991cc10bf74b029657
+        image: postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
         env:
           POSTGRES_USER: root
           POSTGRES_PASSWORD: lawbid
@@ -820,11 +824,11 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       redis:
-        image: redis:7.4.12-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
+        image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
         ports:
           - 6379
         options: >-
-          --health-cmd "redis-cli ping"
+          --health-cmd "valkey-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -902,7 +906,7 @@ jobs:
     timeout-minutes: 40 # ~15 min: npm ci 1 + migrate 0.1 + seed ~8 + pages ~4 + endpoints ~1
     services:
       postgres:
-        image: postgres:16.15@sha256:f9a7b9ebf6f56201f949db745e47bc423c0f0f8294bafe991cc10bf74b029657
+        image: postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
         env:
           POSTGRES_USER: root
           POSTGRES_PASSWORD: lawbid
@@ -916,11 +920,11 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       redis:
-        image: redis:7.4.12-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
+        image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
         ports:
           - 6379
         options: >-
-          --health-cmd "redis-cli ping"
+          --health-cmd "valkey-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10

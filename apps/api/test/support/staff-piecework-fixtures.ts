@@ -16,13 +16,17 @@ export interface Fx {
   rates: Array<Record<string, unknown>>;
   profiles: Array<{ user_id: string; workspace: string }>;
   stats: Array<{ admin_id: string }>;
-  /** `at`: when the decision was closed; without it, always in the day. */
-  leaseDone: Array<{ admin_id: string; kind: string; at?: Date }>;
+  /** `created_at` set: only counted inside the asked window (B9 specs). */
+  leaseDone: Array<{ admin_id: string; kind: string; created_at?: Date }>;
   overturned: Array<{ decided_by: string; decision_kind: string; n: number }>;
   snapshots: Array<{ admin_id: string; rating: number | null; status: string }>;
   days: Array<Record<string, any>>;
   employees: Array<Record<string, any>>;
   accruals: Array<Record<string, any>>;
+  /** app_config rows (the stored day schedule, row 180 B9). */
+  config?: Record<string, unknown>;
+  /** Every [gte, lt) window the lease events were read with. */
+  windows?: Array<{ gte: Date; lt: Date }>;
 }
 
 export const DAY = '2026-10-26';
@@ -64,7 +68,11 @@ export function rate(
 }
 
 export function done(admin_id: string, kind: string, n: number, at?: Date) {
-  return Array.from({ length: n }, () => ({ admin_id, kind, at }));
+  return Array.from({ length: n }, () => ({
+    admin_id,
+    kind,
+    created_at: at,
+  }));
 }
 
 export function makeDb(fx: Fx) {
@@ -80,13 +88,13 @@ export function makeDb(fx: Fx) {
     workLeaseEvent: {
       groupBy: async ({ by, where }: any) => {
         const w = where.created_at;
+        if (w && fx.windows) fx.windows.push({ gte: w.gte, lt: w.lt });
         const rows = fx.leaseDone.filter(
           (r) =>
             inList(where.admin_id, r.admin_id) &&
-            (!r.at ||
+            (!r.created_at ||
               !w ||
-              (r.at.getTime() >= w.gte.getTime() &&
-                r.at.getTime() < w.lt.getTime())),
+              (r.created_at >= w.gte && r.created_at < w.lt)),
         );
         const out = new Map<string, any>();
         for (const r of rows) {
@@ -193,6 +201,32 @@ export function makeDb(fx: Fx) {
         return { count: a ? 1 : 0 };
       },
     },
+    appConfig: {
+      findUnique: async ({ where }: any) => {
+        const cfg = (fx.config ??= {});
+        return where.key in cfg
+          ? { key: where.key, value: cfg[where.key] }
+          : null;
+      },
+      createMany: async ({ data }: any) => {
+        const cfg = (fx.config ??= {});
+        let count = 0;
+        for (const r of data) {
+          if (r.key in cfg) continue;
+          cfg[r.key] = r.value;
+          count += 1;
+        }
+        return { count };
+      },
+      updateMany: async ({ where, data }: any) => {
+        const cfg = (fx.config ??= {});
+        const same =
+          where.key in cfg &&
+          JSON.stringify(cfg[where.key]) === JSON.stringify(where.value.equals);
+        if (same) cfg[where.key] = data.value;
+        return { count: same ? 1 : 0 };
+      },
+    },
     $transaction: async (arg: any) =>
       typeof arg === 'function' ? arg(db) : Promise.all(arg),
   };
@@ -212,20 +246,23 @@ export function makeService(
   stored: Record<string, unknown> = { 'staff.piecework_enabled': true },
 ) {
   const prisma = makeDb(fx);
-  // `string` serves `admin.report_timezone` (unset → America/Los_Angeles).
-  const appSettings = {
+  const settings = new StaffSettingsService({
     all: () => Promise.resolve(stored),
-    string: (key: string) => Promise.resolve(stored[key] as string | undefined),
-  } as unknown as AppSettingsService;
-  const settings = new StaffSettingsService(appSettings);
+  } as unknown as AppSettingsService);
   const payroll = new PayrollAccrualsService(prisma);
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
+  // Row 180 B9: the owner's report time zone (default: Nevada).
+  const appSettings = {
+    all: () => Promise.resolve(stored),
+    string: async (key: string) =>
+      typeof stored[key] === 'string' ? stored[key] : 'America/Los_Angeles',
+  };
   const svc = new StaffPieceworkService(
     prisma,
     settings,
     payroll,
     audit as never,
-    appSettings,
+    appSettings as never,
   );
   return { svc, prisma, settings, appSettings, payroll, audit };
 }

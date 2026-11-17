@@ -14,12 +14,27 @@ import { ModerationService } from '../moderation/moderation.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { assertStaffBulkCap } from '../../common/admin-bulk/admin-bulk';
 import {
+  type BulkFilterMatch,
+  idsByFilter,
+  type IdPageReader,
+  NEWEST_FIRST,
+} from '../../common/admin-bulk/bulk-filter';
+import {
   type AdminBulkResultDto,
+  type AdminContentBulkFilterDto,
   BULK_MAX,
   type BulkContentAction,
   type BulkContentType,
 } from './admin-content.dto';
-import { AdminContentExtrasService } from './admin-content-extras.service';
+import {
+  AdminContentExtrasService,
+  clientReviewsWhere,
+} from './admin-content-extras.service';
+import {
+  commentsWhere,
+  postsWhere,
+  reviewsWhere,
+} from './admin-content.service';
 import { eachIdInChunks } from './bulk.util';
 
 /** What each bulk action may touch. Reviews are hidden, not removed (the
@@ -62,17 +77,14 @@ export class AdminContentBulkService {
     type: BulkContentType,
     ids: string[],
     reason: string,
+    { byFilter = false }: { byFilter?: boolean } = {},
   ): Promise<AdminBulkResultDto> {
-    if (!ALLOWED[action].includes(type)) {
-      throw new BadRequestException({
-        code: ErrorCode.VALIDATION_ERROR,
-        message: `Action "${action}" does not apply to ${type}.`,
-        details: { action, type },
-      });
-    }
+    assertBulkAllowed(action, type);
     // Owner 2026-11-12: staff keep BULK_MAX; the owner sends any number,
-    // worked through in chunks, one batch audit row per chunk.
-    assertStaffBulkCap(admin, ids, BULK_MAX);
+    // worked through in chunks, one batch audit row per chunk. Ids the
+    // server resolved from a filter (row 179 B6) were already capped by
+    // `admin.bulk_select_cap`.
+    if (!byFilter) assertStaffBulkCap(admin, ids, BULK_MAX);
     return eachIdInChunks(
       ids,
       (id) => this.one(admin, action, type, id, reason),
@@ -92,6 +104,76 @@ export class AdminContentBulkService {
           ip: admin.ip,
         }),
     );
+  }
+
+  /** Row 179 B6: the ids [filter] matches in the list of [type], with the
+   * list's own where (ids only, keyset pages); [cap] null = every match. */
+  async idsByFilter(
+    type: BulkContentType,
+    filter: AdminContentBulkFilterDto,
+    cap: number | null,
+  ): Promise<BulkFilterMatch> {
+    const page = <W>(
+      findMany: (a: {
+        where: W;
+        select: { id: true };
+        orderBy: typeof NEWEST_FIRST;
+        take: number;
+      }) => Promise<{ id: string }[]>,
+      where: W,
+    ): IdPageReader => {
+      return (p) =>
+        findMany({ where, select: { id: true }, orderBy: NEWEST_FIRST, ...p });
+    };
+    const none: BulkFilterMatch = { ids: [], matched: 0, capped: false };
+    switch (type) {
+      case 'post': {
+        const where = await postsWhere(
+          this.prisma,
+          filter.q,
+          filter.kind,
+          filter.media === 'video',
+          filter,
+        );
+        if (!where) return none;
+        return idsByFilter(
+          page((a) => this.prisma.post.findMany(a), where),
+          cap,
+        );
+      }
+      case 'comment':
+        return idsByFilter(
+          page(
+            (a) => this.prisma.comment.findMany(a),
+            commentsWhere(filter.q, filter),
+          ),
+          cap,
+        );
+      case 'case_comment':
+        return idsByFilter(
+          page(
+            (a) => this.prisma.caseComment.findMany(a),
+            commentsWhere(filter.q, filter),
+          ),
+          cap,
+        );
+      case 'review':
+        return idsByFilter(
+          page(
+            (a) => this.prisma.review.findMany(a),
+            reviewsWhere(filter.q, filter),
+          ),
+          cap,
+        );
+      case 'client_review':
+        return idsByFilter(
+          page(
+            (a) => this.prisma.clientReview.findMany(a),
+            clientReviewsWhere(filter.q, filter.status, filter),
+          ),
+          cap,
+        );
+    }
   }
 
   /** Each item runs in its own shard (its id carries it). */
@@ -158,6 +240,20 @@ export class AdminContentBulkService {
         payload: { reason, [NOTICE_KEY[type]]: id },
       });
     }
+  }
+}
+
+/** 400 when [action] does not apply to [type] (checked before anything). */
+export function assertBulkAllowed(
+  action: BulkContentAction,
+  type: BulkContentType,
+): void {
+  if (!ALLOWED[action].includes(type)) {
+    throw new BadRequestException({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: `Action "${action}" does not apply to ${type}.`,
+      details: { action, type },
+    });
   }
 }
 

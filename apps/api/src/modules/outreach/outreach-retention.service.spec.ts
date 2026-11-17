@@ -204,3 +204,46 @@ describe('outreach: retention job', () => {
     expect(RETENTION_STATUSES).toEqual(['new', 'working', 'contacted', 'lost']);
   });
 });
+
+// Detective R2B-14 (14.11): the raw unsubscribe token is cleared once its
+// hash is older than `outreach.raw_unsubscribe_token_keep_days`.
+describe('outreach: raw unsubscribe tokens are cleared', () => {
+  it('only rows hashed before the keep window, keeping the hash', async () => {
+    const updateMany = jest.fn((args: unknown) =>
+      Promise.resolve({ count: args ? 2 : 0 }),
+    );
+    const job = new OutreachRetentionService(
+      { outreachLead: { updateMany } } as unknown as PrismaService,
+      logger,
+      {
+        number: jest.fn(() => Promise.resolve(14)),
+        boolean: jest.fn(() => Promise.resolve(true)),
+      } as never,
+    );
+    expect(await job.clearRawUnsubscribeTokens(now)).toBe(2);
+    expect(updateMany).toHaveBeenCalledWith({
+      where: {
+        unsubscribe_token: { not: null },
+        unsubscribe_token_hash: { not: null },
+        unsubscribe_token_hashed_at: {
+          lte: new Date(now.getTime() - 14 * 86_400_000),
+        },
+      },
+      data: { unsubscribe_token: null },
+    });
+  });
+
+  it('nothing is cleared while the signed links are off (legacy token still printed)', async () => {
+    const updateMany = jest.fn(() => Promise.resolve({ count: 5 }));
+    const job = new OutreachRetentionService(
+      { outreachLead: { updateMany } } as unknown as PrismaService,
+      logger,
+      {
+        number: jest.fn(() => Promise.resolve(0)),
+        boolean: jest.fn(() => Promise.resolve(false)),
+      } as never,
+    );
+    expect(await job.clearRawUnsubscribeTokens(now)).toBe(0);
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+});

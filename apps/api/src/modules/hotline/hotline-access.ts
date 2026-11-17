@@ -31,7 +31,7 @@ export interface HotlineAccessInput {
   included: boolean;
   /** The attorney's plan: add-on price in cents, null = no add-on. */
   addonPriceCents: number | null;
-  /** He bought the add-on (plan PR 8; payments are off, so false today). */
+  /** He bought the add-on on the subscription card (plan PR 8). */
   addonActive: boolean;
   trialDays: number;
   trialMinutes: number;

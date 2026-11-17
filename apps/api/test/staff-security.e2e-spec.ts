@@ -6,7 +6,7 @@ import type Redis from 'ioredis';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { StaffAnomalyService } from '../src/modules/staff-security/staff-anomaly.service';
-import { utcDay } from '../src/modules/staff-security/staff-security.util';
+import { StaffCardWatch } from '../src/modules/staff-security/staff-card-watch';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { adminSession, type AdminSession } from './support/admin-login';
@@ -308,7 +308,9 @@ describe('Staff data security (e2e)', () => {
     const w = await worker();
     for (let i = 0; i < 7; i++) await getUser(w).expect(200);
     const svc = app.get(StaffAnomalyService);
-    const day = utcDay();
+    // counters are keyed by the report day (`admin.report_timezone`), not
+    // the UTC day: between 00:00 and 08:00 UTC they differ (CI 17.11 03:43Z).
+    const day = await app.get(StaffCardWatch).today();
     // the counter is fire-and-forget: wait for it
     let seen = 0;
     for (let i = 0; i < 40 && seen < 7; i++) {

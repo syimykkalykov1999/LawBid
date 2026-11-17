@@ -46,4 +46,18 @@ describe('outreach unsubscribe (R2B-14)', () => {
     expect(svc.unsubscribe).toHaveBeenCalledWith(TOKEN);
     expect(r.statusCode).toBe(200);
   });
+
+  // R2B-14 (14.11): signed links (`u1.<kid>.<id>.<mac>`) are longer and
+  // carry dots; the confirm page opens for them too.
+  it('GET shows the page for a signed link', () => {
+    const signed = `u1.k1.${'A'.repeat(22)}.${'B'.repeat(22)}`;
+    const svc = { unsubscribe: jest.fn(() => Promise.resolve(true)) };
+    const r = res();
+    new OutreachController(svc as never).outreachUnsubscribe(
+      signed,
+      r as never,
+    );
+    expect(r.statusCode).toBe(200);
+    expect(r.body).toContain(`/api/v1/outreach/unsubscribe/${signed}"`);
+  });
 });

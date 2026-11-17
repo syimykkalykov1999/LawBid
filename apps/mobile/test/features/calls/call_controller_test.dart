@@ -16,6 +16,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
+import 'package:lawbid/features/calls/application/call_hold.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_quality.dart';
 import 'package:lawbid/features/calls/application/call_screen_awake.dart';
@@ -24,6 +25,7 @@ import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/audio/fake_proximity.dart';
 import '../../helpers/ux_harness.dart' show FakeNetworkMonitor;
@@ -487,6 +489,9 @@ class _FakeForeground implements CallForeground {
   @override
   Stream<String> get actions => _actions.stream;
 
+  /// Row 216: what the Android call service sends (hold / unhold).
+  void emit(String action) => _actions.add(action);
+
   @override
   Future<String?> pendingAction() async => null;
 
@@ -575,10 +580,14 @@ class _Harness {
           signalTargets.add(to);
           return true;
         }),
+        callAudioInterruptionsProvider.overrideWithValue(interruptions.stream),
       ],
     );
     sub = container.listen(callControllerProvider, (_, __) {});
   }
+
+  /// Row 216: iOS audio interruptions (true = began).
+  final interruptions = StreamController<bool>.broadcast();
 
   final repo = _FakeRepo();
 
@@ -3290,8 +3299,10 @@ void main() {
     });
 
     test(
-        'S-push-busy: a push ring while talking in another call is declined '
-        '(the caller hears busy) and the running call is untouched', () async {
+        'S-push-busy: a push ring while talking in another call waits (row '
+        '216, call waiting) and the running call is untouched', () async {
+      // The decline marks are read (none here).
+      SharedPreferences.setMockInitialValues({});
       final h = _Harness();
       addTearDown(h.dispose);
       await h.c.call('conv', peer: _peer);
@@ -3305,16 +3316,17 @@ void main() {
 
       await h.c.ringFromPush('c2', showSystemUi: true);
       await _settle();
-      expect(h.repo.declined, ['c2']);
-      expect(h.systemUi.dismissed, contains('c2'));
+      expect(h.repo.declined, isEmpty);
+      expect(h.container.read(callWaitingProvider)?.call.id, 'c2');
       expect(h.s.call?.id, 'c1');
       expect(h.s.phase, CallPhase.active);
       expect(h.media.closed, isFalse);
       await h.c.hangUp();
     });
 
-    test('S-socket-busy: a socket ring while talking is not shown here',
-        () async {
+    test(
+        'S-socket-busy: a socket ring while talking is the waiting prompt, '
+        'not a second ring (row 216)', () async {
       final h = _Harness();
       addTearDown(h.dispose);
       await h.c.call('conv', peer: _peer);
@@ -3333,6 +3345,7 @@ void main() {
       expect(h.s.phase, CallPhase.active);
       expect(h.systemUi.shown, isEmpty);
       expect(h.sounds.rings, isNot(contains('ring')));
+      expect(h.container.read(callWaitingProvider)?.call.id, 'c9');
       await h.c.hangUp();
     });
 
@@ -3565,6 +3578,319 @@ void main() {
       await h.c.call('conv', peer: _peer);
       await Future<void>.delayed(const Duration(milliseconds: 700));
       expect(h.s.phase, CallPhase.idle);
+    });
+  });
+
+  // Row 216 (owner 17.11, «Исправляй оба»): a cellular call holds ours, and
+  // a second LawBid call waits with «Decline» / «End & Accept» (WhatsApp).
+  group('row 216 hold and call waiting', () {
+    Future<_Harness> talking() async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.c.call('conv', peer: _peer);
+      h.emit(
+        'call:accepted',
+        _event(_call('c1', CallStatus.active, outgoing: true)),
+      );
+      await _settle();
+      h.media.onState!(CallMediaState.connected);
+      await _settle();
+      expect(h.s.phase, CallPhase.active);
+      h.signals.clear();
+      return h;
+    }
+
+    void ringSecond(_Harness h, [String id = 'c2']) => h.emit(
+          'call:incoming',
+          _event(_call(id, CallStatus.ringing, outgoing: false)),
+        );
+
+    tearDown(() => debugDefaultTargetPlatformOverride = null);
+
+    test('hold: mic off, the link stays, the other phone hears «hold»',
+        () async {
+      final h = await talking();
+      h.c.setHold(CallHoldSource.system, on: true, callId: 'C1');
+      await _settle();
+      expect(h.s.held, isTrue);
+      expect(h.s.phase, CallPhase.active);
+      expect(h.media.muted, isTrue);
+      expect(h.media.closed, isFalse);
+      expect(h.signals, [
+        {'type': 'hold', 'on': true},
+      ]);
+      h.c.setHold(CallHoldSource.system, on: false, callId: 'c1');
+      await _settle();
+      expect(h.s.held, isFalse);
+      expect(h.media.muted, isFalse);
+      // The sound goes back where the call had it (earpiece here).
+      expect(h.media.speaker, isFalse);
+      expect(h.signals.last, {'type': 'hold', 'on': false});
+      await h.c.hangUp();
+    });
+
+    test("the person's own mute survives a hold", () async {
+      final h = await talking();
+      h.c.toggleMute();
+      h.c.setHold(CallHoldSource.phoneCall, on: true);
+      h.c.setHold(CallHoldSource.phoneCall, on: false);
+      await _settle();
+      expect(h.s.muted, isTrue);
+      expect(h.media.muted, isTrue);
+      await h.c.hangUp();
+    });
+
+    test('two holders: the call comes back only when both let go', () async {
+      final h = await talking();
+      h.c
+        ..setHold(CallHoldSource.system, on: true)
+        ..setHold(CallHoldSource.phoneCall, on: true)
+        ..setHold(CallHoldSource.system, on: false);
+      expect(h.s.held, isTrue);
+      h.c.setHold(CallHoldSource.phoneCall, on: false);
+      expect(h.s.held, isFalse);
+      await _settle();
+      // One «hold» and one «unhold», not four.
+      expect(h.signals.where((s) => s['type'] == 'hold'), hasLength(2));
+      await h.c.hangUp();
+    });
+
+    test('a hold for another call id or with no call changes nothing',
+        () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.c.setHold(CallHoldSource.system, on: true);
+      expect(h.s.held, isFalse);
+      final t = await talking();
+      t.c.setHold(CallHoldSource.system, on: true, callId: 'other');
+      expect(t.s.held, isFalse);
+      await t.c.hangUp();
+    });
+
+    test('Android: the call service says «hold» / «unhold»', () async {
+      final h = await talking();
+      h.foreground.emit('hold');
+      await _settle();
+      expect(h.s.held, isTrue);
+      h.foreground.emit('unhold');
+      await _settle();
+      expect(h.s.held, isFalse);
+      await h.c.hangUp();
+    });
+
+    test('iOS interruption: began holds, ended resumes; app back clears it',
+        () {
+      fakeAsync((async) {
+        final h = _Harness()..fakeClock(async);
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.emit(
+          'call:accepted',
+          _event(_call('c1', CallStatus.active, outgoing: true)),
+        );
+        async.flushMicrotasks();
+        h.media.onState!(CallMediaState.connected);
+        async.flushMicrotasks();
+        // Right as the call connects: CallKit handing the audio over.
+        h.interruptions.add(true);
+        async.flushMicrotasks();
+        expect(h.s.held, isFalse);
+        async.elapse(const Duration(seconds: 5));
+        h.interruptions.add(true);
+        async.flushMicrotasks();
+        expect(h.s.held, isTrue);
+        h.interruptions.add(false);
+        async.flushMicrotasks();
+        expect(h.s.held, isFalse);
+        h.interruptions.add(true);
+        async.flushMicrotasks();
+        h.c.audioBack();
+        expect(h.s.held, isFalse);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    test("the other phone's «hold» shows «On hold» here", () async {
+      final h = await talking();
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'hold', 'on': true},
+      });
+      await _settle();
+      expect(h.s.peerHeld, isTrue);
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'hold', 'on': false},
+      });
+      await _settle();
+      expect(h.s.peerHeld, isFalse);
+      await h.c.hangUp();
+    });
+
+    test('a second call while talking waits with a soft beep (Android)',
+        () async {
+      final h = await talking();
+      h.sounds.played.clear();
+      ringSecond(h);
+      await _settle();
+      final w = h.container.read(callWaitingProvider);
+      expect(w?.call.id, 'c2');
+      expect(w?.systemUi, isFalse);
+      expect(h.s.call?.id, 'c1');
+      expect(h.s.phase, CallPhase.active);
+      expect(h.sounds.played, contains('video'));
+      expect(h.sounds.rings, isNot(contains('ring')));
+      expect(h.systemUi.shown, isEmpty);
+      expect(h.repo.declined, isEmpty);
+      await h.c.hangUp();
+    });
+
+    test('Decline: the caller hears declined, our call goes on', () async {
+      final h = await talking();
+      ringSecond(h);
+      await _settle();
+      await h.c.declineWaiting();
+      expect(h.repo.declined, ['c2']);
+      expect(h.container.read(callWaitingProvider), isNull);
+      expect(h.systemUi.dismissed, contains('c2'));
+      expect(h.s.call?.id, 'c1');
+      expect(h.s.phase, CallPhase.active);
+      expect(h.media.closed, isFalse);
+      await h.c.hangUp();
+    });
+
+    test('End & accept: ours ends, the waiting call connects', () async {
+      final h = await talking();
+      ringSecond(h);
+      await _settle();
+      await h.c.endAndAcceptWaiting();
+      await _settle();
+      expect(h.repo.endedIds, contains('c1'));
+      expect(h.repo.accepted, ['c2']);
+      expect(h.s.call?.id, 'c2');
+      expect(h.s.phase, CallPhase.connecting);
+      expect(h.container.read(callWaitingProvider), isNull);
+      await h.c.hangUp();
+    });
+
+    test('the waiting caller gave up: the prompt goes', () async {
+      final h = await talking();
+      ringSecond(h);
+      await _settle();
+      h.emit(
+        'call:ended',
+        _event(_call('c2', CallStatus.canceled, outgoing: false)),
+      );
+      await _settle();
+      expect(h.container.read(callWaitingProvider), isNull);
+      expect(h.s.call?.id, 'c1');
+      expect(h.s.phase, CallPhase.active);
+      await h.c.hangUp();
+    });
+
+    test('answered on another of our devices: the prompt goes', () async {
+      final h = await talking();
+      ringSecond(h);
+      await _settle();
+      h.emit(
+        'call:accepted',
+        _event(_call('c2', CallStatus.active, outgoing: false)),
+      );
+      await _settle();
+      expect(h.container.read(callWaitingProvider), isNull);
+      expect(h.s.call?.id, 'c1');
+      await h.c.hangUp();
+    });
+
+    test('it rang out: the prompt goes after the ring length', () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.emit(
+          'call:accepted',
+          _event(_call('c1', CallStatus.active, outgoing: true)),
+        );
+        async.flushMicrotasks();
+        h.media.onState!(CallMediaState.connected);
+        ringSecond(h);
+        async.flushMicrotasks();
+        expect(h.container.read(callWaitingProvider), isNotNull);
+        final beeps = h.sounds.played.where((p) => p == 'video').length;
+        async.elapse(const Duration(seconds: 10));
+        expect(
+          h.sounds.played.where((p) => p == 'video').length,
+          greaterThan(beeps),
+          reason: 'the beep repeats while it waits',
+        );
+        async.elapse(kCallRingTimeout);
+        expect(h.container.read(callWaitingProvider), isNull);
+        expect(h.s.call?.id, 'c1');
+        h.c.hangUp();
+        async.flushMicrotasks();
+        h.close();
+      });
+    });
+
+    test('our call ends while one waits: it rings as a normal call', () async {
+      final h = await talking();
+      ringSecond(h);
+      await _settle();
+      h.emit(
+        'call:ended',
+        _event(_call('c1', CallStatus.ended, outgoing: true)),
+      );
+      await _settle();
+      expect(h.container.read(callWaitingProvider), isNull);
+      expect(h.s.phase, CallPhase.incoming);
+      expect(h.s.call?.id, 'c2');
+      await h.c.decline();
+    });
+
+    test('not talking yet (we ring out): a second ring stays away', () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      await h.c.call('conv', peer: _peer);
+      expect(h.s.phase, CallPhase.outgoing);
+      ringSecond(h);
+      await _settle();
+      expect(h.container.read(callWaitingProvider), isNull);
+      await h.c.ringFromPush('c3', showSystemUi: true);
+      await _settle();
+      expect(h.repo.declined, ['c3'], reason: 'busy, as before');
+      await h.c.hangUp();
+    });
+
+    test('a second waiting call while one waits is not shown', () async {
+      final h = await talking();
+      ringSecond(h);
+      ringSecond(h, 'c3');
+      await _settle();
+      expect(h.container.read(callWaitingProvider)?.call.id, 'c2');
+      await h.c.hangUp();
+    });
+
+    test('iOS: CallKit shows its own call waiting (no in-app prompt)',
+        () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      final h = await talking();
+      h.sounds.played.clear();
+      ringSecond(h);
+      await _settle();
+      expect(h.systemUi.shown, ['c2']);
+      expect(h.container.read(callWaitingProvider)?.systemUi, isTrue);
+      expect(h.sounds.played, isNot(contains('video')));
+      // CallKit «End & Accept»: its accept of c2 comes while c1 still runs.
+      await h.c.ringFromPush('c2', accept: true);
+      await _settle();
+      expect(h.repo.endedIds, contains('c1'));
+      expect(h.repo.accepted, ['c2']);
+      expect(h.s.call?.id, 'c2');
+      await h.c.hangUp();
     });
   });
 }

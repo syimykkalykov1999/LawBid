@@ -113,7 +113,7 @@ jobs:
         run: |
           set -eu
           if [ "$EVENT" = "workflow_run" ]; then
-            if [ "$CONCLUSION" = "success" ]; then echo "go=yes"; else echo "Mobile CI ended $CONCLUSION — no deploy"; echo "go=no"; fi | tee -a "$GITHUB_OUTPUT"
+            if [ "$CONCLUSION" = "success" ]; then echo "go=yes" >> "$GITHUB_OUTPUT"; else echo "Mobile CI ended $CONCLUSION — no deploy"; echo "go=no" >> "$GITHUB_OUTPUT"; fi
           elif [ "$EVENT" = "push" ]; then
             # The same paths Mobile CI listens to (.github/workflows/mobile-ci.yml):
             # if they changed, Mobile CI runs and ITS completion deploys this commit.

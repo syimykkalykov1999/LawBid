@@ -56,7 +56,16 @@ export type ScanOutcome =
   | 'failed'
   | 'skipped:too-large'
   | 'skipped:not-pending'
-  | 'skipped:no-scanner';
+  | 'skipped:no-scanner'
+  // Audit 17.11 (problem 13): the scanner was down on the last attempt;
+  // the file stays pending and is checked again later (FileScanRunner).
+  | 'deferred:scanner-down';
+
+/** Audit 17.11 (problem 13): defaults of the scanner-outage retry. */
+export const SCAN_OUTAGE_DEFAULTS = {
+  'files.scan_outage_retry_minutes': 5,
+  'files.scan_outage_retry_hours': 24,
+} as const;
 
 /**
  * `files.scan` job (docs/03 §2.2 "запускает антивирус-скан (`scan_status`)"):
@@ -68,7 +77,8 @@ export type ScanOutcome =
  *   attachable; size/sha256/mime/width/height describe the stored object;
  * - an image that can't be decoded → failed, object deleted;
  * - scanner/S3 errors → thrown for a BullMQ retry; on the last attempt
- *   the file becomes `failed`;
+ *   the file becomes `failed` — unless the scanner itself was down
+ *   (audit 17.11): then it stays pending and is checked again later;
  * - media batch A (R1): a file over the scanner's size limit is NEVER
  *   deleted. Like ClamAV's own «exceeds max» heuristic and Gmail's «this
  *   file was not scanned», it is kept and set aside: `failed` (never
@@ -105,6 +115,33 @@ export class FileScanProcessor {
 
   /** Audit 2026-11-08 (L6): bytes of whole files this worker holds at once. */
   private readonly readBudget = new ReadBudget(SCAN_READ_BUDGET_MB);
+
+  /** Audit 17.11 (problem 13): ms until a file the scanner could not check
+   * is tried again (`files.scan_outage_retry_minutes`, at least 1 min). */
+  async outageRetryDelayMs(): Promise<number> {
+    const min = await this.setting('files.scan_outage_retry_minutes');
+    return Math.max(1, min) * 60_000;
+  }
+
+  private async withinOutageWindow(file: File): Promise<boolean> {
+    const hours = await this.setting('files.scan_outage_retry_hours');
+    const at =
+      file.created_at instanceof Date ? file.created_at.getTime() : NaN;
+    if (hours <= 0 || !Number.isFinite(at)) return false;
+    return Date.now() - at < hours * 3_600_000;
+  }
+
+  private async setting(
+    key: keyof typeof SCAN_OUTAGE_DEFAULTS,
+  ): Promise<number> {
+    try {
+      const n = await this.settings?.number(key);
+      if (typeof n === 'number' && Number.isFinite(n)) return n;
+    } catch {
+      // settings unreadable: the default below
+    }
+    return SCAN_OUTAGE_DEFAULTS[key];
+  }
 
   async run(fileId: string, finalAttempt: boolean): Promise<ScanOutcome> {
     const started = Date.now();
@@ -157,12 +194,14 @@ export class FileScanProcessor {
     }
 
     let data: Buffer;
+    let scanning = false;
     try {
       data =
         held ??
         (await this.handoff?.take(file)) ??
         (await this.storage.read(file.s3_bucket, file.s3_key));
       lap('read');
+      scanning = true;
       const verdict = await this.scanner.scan(data);
       lap('scan');
       if (verdict.infected) {
@@ -182,6 +221,18 @@ export class FileScanProcessor {
         return this.setAsideTooLarge(file, scanMax);
       }
       if (!finalAttempt) throw err;
+      // Audit 17.11 (problem 13): the scan itself could not run (clamd down
+      // or restarting). Before, every upload of those minutes ended
+      // `failed` for good; now it stays pending and is checked again every
+      // `files.scan_outage_retry_minutes` for `files.scan_outage_retry_hours`
+      // after the upload (0 = as before).
+      if (scanning && (await this.withinOutageWindow(file))) {
+        this.logger.warn(
+          { fileId, err, alert: 'virus_scanner_down' },
+          'Virus scanner unavailable; the file is checked again later',
+        );
+        return 'deferred:scanner-down';
+      }
       this.logger.error(
         { fileId, err },
         'File scan failed on the last attempt',

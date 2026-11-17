@@ -2,7 +2,7 @@
 # Hot-query benchmark for migration 20261029300000 (hash partitioning of
 # messages / chat_group_messages / notifications).
 #   sh scripts/perf/hash-partition-bench.sh            # whole run (needs docker)
-# Starts its own throw-away PostgreSQL 16, applies every migration BEFORE the
+# Starts its own throw-away PostgreSQL 18 (prod engine), applies every migration BEFORE the
 # partition one, seeds 2M messages / 20k chats / 2M notifications, measures
 # (EXPLAIN + pgbench), applies the partition migration, measures again,
 # removes the container. Results: $OUT (default /tmp/hash-bench).
@@ -17,7 +17,7 @@ PARTMIG=20261107131300_partition_messages_notifications
 mkdir -p "$OUT"
 docker rm -fv "$NAME" >/dev/null 2>&1 || true
 [ -n "${BENCH_SEED_ONLY:-}" ] || trap 'docker rm -fv "$NAME" >/dev/null 2>&1 || true' EXIT
-docker run -d --name "$NAME" -e POSTGRES_PASSWORD=pw -e POSTGRES_DB=b -p "$PORT:5432" postgres:16 \
+docker run -d --name "$NAME" -e POSTGRES_PASSWORD=pw -e POSTGRES_DB=b -p "$PORT:5432" postgres:18.6 \
   -c shared_buffers=1GB -c max_wal_size=8GB -c fsync=off -c synchronous_commit=off -c work_mem=32MB >/dev/null
 until docker exec "$NAME" pg_isready -U postgres -d b >/dev/null 2>&1; do sleep 1; done
 sleep 3

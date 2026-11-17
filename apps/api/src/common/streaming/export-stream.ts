@@ -1,6 +1,6 @@
 import { createHash, type Hash } from 'node:crypto';
 import { Readable, Transform, type TransformCallback } from 'node:stream';
-import archiver, { type Archiver } from 'archiver';
+import { ZipArchive, type Archiver } from 'archiver';
 
 /**
  * Owner 2026-10-25 (WP-G, streaming exports): the building blocks every
@@ -243,6 +243,25 @@ export class HashThrough extends Transform {
   }
 }
 
+/**
+ * A ZIP archiver whose stream entries fail the archive when they fail.
+ * archiver 6+ pipes every stream source through its own PassThrough
+ * (lib/utils.js normalizeInputSource) and `pipe` does not carry errors, so a
+ * source that throws half way (the database went away) left the archive
+ * waiting forever. archiver 5 forwarded the error; this keeps that behaviour.
+ */
+export class ExportZipArchive extends ZipArchive {
+  override append(
+    source: Readable | Buffer | string,
+    data?: Parameters<ZipArchive['append']>[1],
+  ): this {
+    if (source instanceof Readable) {
+      source.once('error', (err) => this.emit('error', err));
+    }
+    return super.append(source, data);
+  }
+}
+
 export interface ZipExport {
   archive: Archiver;
   /** Pass this as the body of `S3StorageService.putStream`. */
@@ -263,7 +282,7 @@ export function createZipExport(
     level?: number;
   } = {},
 ): ZipExport {
-  const archive = archiver('zip', { zlib: { level: opts.level ?? 6 } });
+  const archive = new ExportZipArchive({ zlib: { level: opts.level ?? 6 } });
   const body = new CountingHash(
     {
       maxBytes: opts.maxBytes ?? EXPORT_MAX_BYTES_DEFAULT,

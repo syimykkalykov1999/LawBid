@@ -46,6 +46,7 @@ SubscriptionOverview makeOverview({
   List<PlanOffer> plans = const [],
   PlanOffer? plan,
   SeatSummary? seats,
+  HotlineAddon? hotlineAddon,
 }) =>
     SubscriptionOverview(
       subscription: subscription,
@@ -57,6 +58,7 @@ SubscriptionOverview makeOverview({
       plan: plan,
       entitlements: plan?.entitlements ?? PlanEntitlements.none,
       seats: seats,
+      hotlineAddon: hotlineAddon,
     );
 
 /// Owner 2026-10-05 (plan builder): two attorney plans — Solo (no seats)
@@ -265,6 +267,66 @@ class FakeSubscriptionRepository implements SubscriptionRepository {
           status == SeatChangeStatus.requiresAction ? 'pi_secret' : null,
       effectiveAt: status == SeatChangeStatus.scheduled ? day : null,
     );
+  }
+
+  /// Owner row 87 (plan PR 8): what adding the hotline add-on answers.
+  SeatChangeStatus hotlineStatus = SeatChangeStatus.applied;
+
+  @override
+  Future<SeatPreview> previewHotlineAddon() async {
+    calls.add('hotline:preview');
+    final price = current.hotlineAddon?.priceCents ?? 4900;
+    return SeatPreview(
+      seats: 0,
+      currentSeats: 0,
+      amountNowCents: 1633,
+      currency: 'usd',
+      prorationDate: 1792656000,
+      periodEnd: day,
+      seatCents: price,
+      monthlyIncreaseCents: price,
+      nextChargeCents: 39900 + price,
+    );
+  }
+
+  @override
+  Future<SeatChangeOutcome> setHotlineAddon({
+    required bool enabled,
+    int? prorationDate,
+  }) async {
+    calls.add('hotline:${enabled ? 'on' : 'off'}');
+    final had = current.hotlineAddon;
+    final status = enabled ? hotlineStatus : SeatChangeStatus.scheduled;
+    if (had != null && status != SeatChangeStatus.failed) {
+      current = makeOverview(
+        subscription: current.subscription,
+        trialEligible: false,
+        plans: current.plans,
+        plan: current.plan,
+        seats: current.seats,
+        hotlineAddon: HotlineAddon(
+          priceCents: had.priceCents,
+          canBuy: had.canBuy,
+          active: !enabled || status == SeatChangeStatus.applied,
+          renews: enabled && status == SeatChangeStatus.applied,
+          endsAt: enabled ? null : day,
+          pending: status == SeatChangeStatus.requiresAction,
+        ),
+      );
+    }
+    return SeatChangeOutcome(
+      status: status,
+      overview: current,
+      clientSecret:
+          status == SeatChangeStatus.requiresAction ? 'pi_secret' : null,
+      effectiveAt: enabled ? null : day,
+    );
+  }
+
+  @override
+  Future<Uri> hotlineAddonCheckoutUrl() async {
+    calls.add('hotline:checkout');
+    return Uri.parse('https://lawbid.dev/pay.html#t=hotline');
   }
 
   @override
