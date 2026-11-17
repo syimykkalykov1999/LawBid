@@ -69,6 +69,15 @@ export class ChatActionsService {
     return this.cipher?.seal(text, messageId) ?? text;
   }
 
+  /** Verify 17.11: a reaction is a change of the message for the offline
+   * catch-up (`updated_at` after the phone's newest message). */
+  private async touch(messageId: string): Promise<void> {
+    await this.prisma.message.updateMany({
+      where: { id: messageId },
+      data: { updated_at: new Date() },
+    });
+  }
+
   private async own(user: RequestUser, id: string, messageId: string) {
     const conv = await this.chat.load(user, id);
     const m = await this.prisma.message.findFirst({
@@ -95,7 +104,16 @@ export class ChatActionsService {
     });
     if (!row) return;
     const urls = await this.chat.mediaLinks([row]);
-    for (const uid of [conv.client_id, conv.attorney_id]) {
+    // Verify 17.11: the firm team of the chat sees edits, deletes for
+    // everyone and reactions too (it already got the new messages).
+    const team = (await this.chat.team?.teamOfChat(conv)) ?? [];
+    // A change of the chat's last message is a change of the chat (list
+    // preview after an offline stretch, `updatedSince`).
+    await this.prisma.conversation.updateMany({
+      where: { id: conv.id, last_message_id: row.id },
+      data: { updated_at: new Date() },
+    });
+    for (const uid of [conv.client_id, conv.attorney_id, ...team]) {
       this.realtime.toUsers([uid], 'message:updated', {
         message: this.chat.toMessage(row, uid, conv, urls),
       });
@@ -346,6 +364,7 @@ export class ChatActionsService {
       await this.prisma.messageReaction.deleteMany({
         where: { message_id: m.id, user_id: user.sub },
       });
+      await this.touch(m.id);
     } else {
       if (!isSingleEmoji(emoji)) {
         throw new BadRequestException({
@@ -371,6 +390,10 @@ export class ChatActionsService {
             emoji: clean,
           },
           update: { emoji: clean, created_at: new Date() },
+        });
+        await tx.message.updateMany({
+          where: { id: m.id, conversation_id: m.conversation_id },
+          data: { updated_at: new Date() },
         });
       });
       // Only the author of the message hears about a reaction.

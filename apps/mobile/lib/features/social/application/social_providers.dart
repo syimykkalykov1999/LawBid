@@ -938,14 +938,16 @@ class RepliesNotifier extends PagedNotifier<Comment> with CommentRows {
   Object idOf(Comment item) => item.id;
 
   /// My reply from the answer (package F: no reload of the thread); the
-  /// same one twice changes nothing.
+  /// same one twice changes nothing. Verify 17.11: on top, as the server
+  /// orders replies (newest first) — appended, it jumped after a reopen
+  /// and landed mid-list past the first page.
   @override
   void add(Comment c) {
     final current = state.value;
     if (current == null || current.items.any((x) => x.id == c.id)) return;
     state = AsyncData(
       PaginatedList(
-        items: [...current.items, c],
+        items: [c, ...current.items],
         nextCursor: current.nextCursor,
       ),
     );

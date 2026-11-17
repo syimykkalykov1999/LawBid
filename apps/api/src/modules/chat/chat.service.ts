@@ -51,6 +51,7 @@ import {
   typedWords,
 } from '../../common/search/name-match.sql';
 import { SYNC_TOO_OLD_ERROR } from '../../common/sync/sync.util';
+import { withDeleted } from '../../prisma/soft-delete.extension';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BoostActions } from '../promotions/boost-actions.service';
 import { randomUUID } from 'node:crypto';
@@ -215,7 +216,7 @@ export class ChatService {
     // leave group invitations and archived groups out.
     @Optional() private readonly flags?: FeatureFlagsService,
     // Firms audit 16.11 (PR-5): the firm's team on a bid works in its chat.
-    @Optional() private readonly team?: BidTeamService,
+    @Optional() readonly team?: BidTeamService,
   ) {}
 
   /** The admin switch «Группы» (a missing row reads as on, as in GroupsService). */
@@ -377,7 +378,7 @@ export class ChatService {
         AND: [
           mine,
           ...filters,
-          ...(updatedSince ? [this.changedSince(user.sub, updatedSince)] : []),
+          ...(updatedSince ? [this.changedSince(updatedSince)] : []),
           ...(updatedSince ? [] : [{ NOT: pinnedFilter }]),
         ],
         // A chat appears in the list once it has a message (§8.1).
@@ -416,15 +417,14 @@ export class ChatService {
    * status / request change) or when I read it on another device (my
    * participant row's `last_read_at`, which the row itself never sees).
    */
-  private changedSince(
-    me: string,
-    since: string,
-  ): Prisma.ConversationWhereInput {
+  private changedSince(since: string): Prisma.ConversationWhereInput {
     const at = new Date(since);
     return {
       OR: [
         { updated_at: { gte: at } },
-        { participants: { some: { user_id: me, last_read_at: { gte: at } } } },
+        // Verify 17.11: either side's read mark (my ticks turn blue when the
+        // other side reads), not only mine.
+        { participants: { some: { last_read_at: { gte: at } } } },
       ],
     };
   }
@@ -777,8 +777,11 @@ export class ChatService {
     const conv = await this.load(user, id);
     if (q?.trim()) return this.searchInChat(user, conv, q, cursor);
     if (afterId) {
+      // Verify 17.11: the phone's newest message only marks a position — one
+      // removed by moderation or a disappearing timer since is still that
+      // position (the soft-delete filter hid it: 404 on every reconnect).
       const anchor = await this.prisma.message.findFirst({
-        where: { id: afterId, conversation_id: id },
+        where: withDeleted({ id: afterId, conversation_id: id }),
         select: { id: true, created_at: true },
       });
       if (!anchor) throw notFound();
@@ -810,16 +813,11 @@ export class ChatService {
             deleted_at: null,
             updated_at: { gt: anchor.created_at },
             hidden_for: { none: { user_id: user.sub } },
-            AND: [
-              notExpired(),
-              seen,
-              {
-                OR: [
-                  { edited_at: { gt: anchor.created_at } },
-                  { revoked_at: { gt: anchor.created_at } },
-                ],
-              },
-            ],
+            // Verify 17.11: any change after the phone's newest message —
+            // edits, deletes for everyone, reactions and «voice played»
+            // (they all move updated_at); the old filter kept only the first
+            // two.
+            AND: [notExpired(), seen],
           },
           orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
           take: CATCH_UP_MAX + 1,

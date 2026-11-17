@@ -120,7 +120,9 @@ export class DisappearingSweepService {
       UPDATE conversations c SET last_message_id = (
         SELECT m.id FROM messages m
         WHERE m.conversation_id = c.id AND m.deleted_at IS NULL
-        ORDER BY m.created_at DESC, m.id DESC LIMIT 1)
+        ORDER BY m.created_at DESC, m.id DESC LIMIT 1),
+        -- Verify 17.11: a changed list preview is a change of the chat.
+        updated_at = now()
       WHERE c.id = ANY(${[...new Set(rows.map((r) => r.chat_id))]}::UUID[])
         AND c.last_message_id = ANY(${ids}::UUID[])`;
     return { count: rows.length, files: fileIdsOf(rows) };

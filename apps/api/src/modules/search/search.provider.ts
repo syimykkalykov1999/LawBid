@@ -112,10 +112,7 @@ export interface SearchProvider {
     max: number,
   ): Promise<string[]>;
   /** Type-ahead: topics, attorney handles and practice names by prefix. */
-  suggest(
-    prefix: string,
-    perKind: number,
-  ): Promise<{ kind: 'tag' | 'person' | 'practice'; text: string }[]>;
+  suggest(prefix: string, perKind: number): Promise<SuggestItem[]>;
   searchTags(prefix: string, limit: number): Promise<string[]>;
   /** «Вопрос юристу»: published question ids matching [text], newest
    * first, at most 500. */
@@ -125,4 +122,12 @@ export interface SearchProvider {
     q: string,
     limit: number,
   ): Promise<{ code: string; nameEn: string; hit: string | null }[]>;
+}
+
+/** One type-ahead row. [userId]: the person's account (server side only —
+ * Verify 17.11: blocks are applied per viewer after the shared cache). */
+export interface SuggestItem {
+  kind: 'tag' | 'person' | 'practice';
+  text: string;
+  userId?: string;
 }

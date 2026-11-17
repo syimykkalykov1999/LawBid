@@ -42,6 +42,7 @@ import {
   VISIBLE_POST_WHERE,
 } from '../posts/post-presenter.service';
 import { BlocksService } from '../blocks/blocks.service';
+import type { SuggestItem } from './search.provider';
 import { ClientProfilesService } from '../profiles/services/client-profiles.service';
 import { RecommendationsService } from '../recommendations/recommendations.service';
 import { reorderWithinTiers } from '../recommendations/ranking.math';
@@ -438,22 +439,22 @@ export class SearchService {
     const q = normalizeQuery(rawQ);
     if (q.length < 1) return [];
     const hash = createHash('sha256').update(q).digest('base64url');
-    const hit = await this.cache.get(`search:suggest:${hash}`);
-    if (hit)
-      return JSON.parse(hit) as {
-        kind: 'tag' | 'person' | 'practice';
-        text: string;
-      }[];
-    return singleFlight(`search:suggest:${hash}`, async () => {
-      const items = await this.provider.suggest(q, 4);
-      await this.cache.set(
-        `search:suggest:${hash}`,
-        JSON.stringify(items),
-        'EX',
-        jitterTtl(60),
-      );
-      return items;
-    });
+    // v2: rows carry the person's id (Verify 17.11).
+    const key = `search:suggest:v2:${hash}`;
+    const hit = await this.cache.get(key);
+    const items: SuggestItem[] = hit
+      ? (JSON.parse(hit) as SuggestItem[])
+      : await singleFlight(key, async () => {
+          const rows = await this.provider.suggest(q, 4);
+          await this.cache.set(key, JSON.stringify(rows), 'EX', jitterTtl(60));
+          return rows;
+        });
+    // Verify 17.11: the shared list is viewer-agnostic — people blocked
+    // either way leave it per viewer (as every other search list).
+    const hidden = await this.blocks.hiddenIds(user.sub);
+    return items
+      .filter((i) => !(i.userId && hidden.has(i.userId)))
+      .map(({ kind, text }) => ({ kind, text }));
   }
 
   async postsByText(

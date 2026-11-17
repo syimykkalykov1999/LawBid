@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +13,7 @@ import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/data/message_store.dart';
+import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
@@ -23,8 +26,15 @@ import '../../helpers/ux_harness.dart';
 /// opens from the phone's copy with no page request; the server is asked
 /// only for what came after the newest message; too much missed (409)
 /// reloads the page; the store evicts the chat opened longest ago.
-api.MessageDto dto(String id, String conv, {int minute = 0, String? body}) =>
+api.MessageDto dto(
+  String id,
+  String conv, {
+  int minute = 0,
+  String? body,
+  int? seq,
+}) =>
     api.MessageDto(
+      seq: seq,
       id: id,
       conversationId: conv,
       senderId: 'other',
@@ -41,6 +51,7 @@ api.MessageDto dto(String id, String conv, {int minute = 0, String? body}) =>
 class _FakeChat implements ChatRepository {
   int pageCalls = 0;
   int afterCalls = 0;
+  final afterIds = <String>[];
   bool tooOld = false;
   List<ChatMessage> after = const [];
   List<ChatMessage> page = const [];
@@ -66,6 +77,7 @@ class _FakeChat implements ChatRepository {
   @override
   Future<List<ChatMessage>> messagesAfter(String id, String afterId) async {
     afterCalls++;
+    afterIds.add(afterId);
     if (tooOld) {
       throw const ApiException(code: ApiErrorCodes.syncTooOld, message: '');
     }
@@ -102,7 +114,10 @@ void main() {
   });
   tearDown(() => cache.close());
 
-  ProviderContainer container({ChatListCache? saved}) {
+  ProviderContainer container({
+    ChatListCache? saved,
+    Stream<RealtimeEvent>? events,
+  }) {
     final social = SocialLocalDatabase(NativeDatabase.memory());
     final c = ProviderContainer(
       overrides: [
@@ -113,6 +128,7 @@ void main() {
         messageStoreProvider.overrideWithValue(store),
         currentUserIdProvider.overrideWithValue('me'),
         realtimeClientProvider.overrideWithValue(null),
+        if (events != null) realtimeEventsProvider.overrideWithValue(events),
         networkInterfaceMonitorProvider.overrideWithValue(FakeNetworkMonitor()),
         reachabilityProbeProvider.overrideWithValue(FakeProbe().call),
       ],
@@ -241,5 +257,29 @@ void main() {
     await store.put('c1', [dto('a', 'c1')]);
     final other = MessageStore(cache, 'someone', limitBytes: () => 1 << 20);
     expect(await other.page('c1'), isEmpty);
+  });
+
+  test(
+      'verify 17.11: a seq gap asks for what came after the newest message '
+      'held BEFORE the new one', () async {
+    await store.put('c1', [
+      dto('a', 'c1', minute: 1, seq: 1),
+      dto('b', 'c1', minute: 2, seq: 2),
+    ]);
+    final events = StreamController<RealtimeEvent>.broadcast();
+    addTearDown(events.close);
+    final c = container(events: events.stream);
+    final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+    addTearDown(sub.close);
+    await settle();
+    chat.afterIds.clear();
+    // seq 3 was lost; seq 4 arrives live.
+    events.add(
+      RealtimeEvent('message:new', {
+        'message': dto('d', 'c1', minute: 4, seq: 4).toJson(),
+      }),
+    );
+    await settle();
+    expect(chat.afterIds, ['b']);
   });
 }

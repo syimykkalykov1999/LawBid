@@ -56,7 +56,7 @@ function make(opts: { mode?: string; configured?: boolean } = {}) {
     loader as never,
     settings as never,
   );
-  return { svc, prisma, client, loader, store };
+  return { svc, prisma, client, loader, store, settings };
 }
 
 describe('backoffSeconds', () => {
@@ -74,6 +74,36 @@ describe('SearchIndexerService.tick', () => {
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(1); // DELETE FROM search_outbox
     expect(client.isConfigured).not.toHaveBeenCalled();
     expect(client.bulk).not.toHaveBeenCalled();
+  });
+
+  it('verify 17.11: changes dropped while off are refilled when the engine comes back', async () => {
+    const t = make();
+    await t.svc.tick(); // on: fills once
+    const filled = t.client.bulk.mock.calls.length;
+    // Off: a change arrives (its outbox event is pruned).
+    t.settings.string.mockResolvedValue('postgres');
+    t.prisma.$executeRaw.mockResolvedValueOnce(3);
+    t.prisma.searchIndexState.deleteMany.mockImplementation(() => {
+      t.store.clear();
+      return Promise.resolve();
+    });
+    expect(await t.svc.tick()).toMatchObject({ on: false, pruned: 3 });
+    // On again: the index is filled again from the rows.
+    t.settings.string.mockResolvedValue('engine');
+    await t.svc.tick();
+    expect(t.client.bulk.mock.calls.length).toBeGreaterThan(filled);
+  });
+
+  it('verify 17.11: off with nothing dropped keeps the finished fill (no needless refill)', async () => {
+    const t = make();
+    await t.svc.tick();
+    const filled = t.client.bulk.mock.calls.length;
+    t.settings.string.mockResolvedValue('postgres');
+    await t.svc.tick(); // pruned 0
+    t.settings.string.mockResolvedValue('engine');
+    await t.svc.tick();
+    expect(t.client.bulk.mock.calls.length).toBe(filled);
+    expect(t.prisma.searchIndexState.deleteMany).not.toHaveBeenCalled();
   });
 
   it('engine on but no address: does nothing (the events wait)', async () => {
