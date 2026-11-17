@@ -21,7 +21,7 @@
 | Кэш картинок на диске и в памяти | `app_image_cache.dart`, cached_network_image | 4.0.6 → 4.0.7 (11.11, < 7 дней — ждать до 18.11) | ✅ | `cache.limit_mb.images=0` (без потолка) | следующий обход |
 | `ImageCache` Flutter в памяти | по умолчанию Flutter 100 МБ / 1000 картинок | — | ⚠️ оставлено | поднимать без замера памяти на слабом Android опасно (OOM); не меняю без замера на телефоне | — |
 | Кэш Valkey в API (L1 в процессе + lease `SET NX`) | `common/cache/cached.ts` | ioredis 6.0.0 = 6.0.0; Valkey 9.1.0 = 9.1 | ✅ | живой ElastiCache valkey 9.1.0 (детектив A0) | — |
-| Автоконвейер Valkey (`enableAutoPipelining`) | `redis/redis.module.ts`, `REDIS_AUTOPIPELINE` | ioredis 6.0.0 | ❌ был ВЫКЛ (нет в task env) → **ВКЛ по умолчанию** | локально Redis: 2000 параллельных запросов × 4 GET **126,6 → 73,8 мс (×1,7)**, повтор 130,1 → 69,0. Lua лимитера из холодного кэша скриптов: 300 ударов, лимит 100 → 100 пропущено / 200 заблокировано и с конвейером, и без (новый тест на живом Redis) | PR А |
+| Автоконвейер Valkey (`enableAutoPipelining`) | `redis/redis.module.ts`, `REDIS_AUTOPIPELINE` | ioredis 6.0.0 | ⚠️ ВЫКЛ (оставлен) | локально чтения кэша 126,6 → 73,8 мс (×1,7), но с ним e2e `owner-channel-calls` / `owner-crash-reports` красные и в 3–8 раз дольше, без него 4/4 наборов и 27/27 тестов; причина остановки найдена и исправлена (KNOWN_ERRORS 194), вторая — нет | PR А (только защита, не включение) |
 | CDN веба: `immutable` для версионных файлов, Origin Shield | `infra/modules/web`, `web-immutable.py` | — | ✅ | `v/<sha>/main.dart.wasm` `public,max-age=31536000,immutable`; движок `v/<engineRevision>/canvaskit/` (меняется только с Flutter); 7 дней: 28 758 запросов, 60 ГБ | — |
 | Origin Shield у медиа-CDN | `infra/modules/s3/main.tf` | — | ❌ нет (`OriginShield.Enabled=false` живьём) → код готов | аватар: первый просмотр 0,50 с `Miss`, второй 0,25 с `Hit` | PR А, 👤 apply |
 | Кэш-доля медиа-CDN | CloudFront additional metrics | — | ✅ метрики включены | 9–16.11: 26 запросов, CacheHitRate 44 % — трафика почти нет, доля пока ни о чём не говорит | — |
@@ -90,14 +90,14 @@
 ## Список исправлений
 
 **PR А — сервер + infra (этот PR, ветка `claude/speed-switches-on`).**
-- `apps/api/src/config/env.schema.ts`, `redis/redis.module.ts`, `docs/runbooks/redis.md`: `REDIS_AUTOPIPELINE` по умолчанию `true`.
+- Автоконвейер Valkey НЕ включён (KNOWN_ERRORS 194): в CI и локально с ним падали e2e. В коде осталась защита на случай включения: клоны pub/sub без конвейера (`pubSubClient`), остановка через `quitGracefully()`, `.catch` у брошенного `del`; тесты `redis-autopipeline-quit.spec.ts` и `redis-throttler-storage.autopipeline.spec.ts` (живой Redis).
 - `apps/api/src/throttler/redis-throttler-storage.autopipeline.spec.ts` (новый): лимитер на живом Redis с конвейером и без, холодный кэш скриптов, 300 параллельных ударов.
 - `app-settings.defaults.ts` + `switch-contract.spec.ts`: `images.avif_enabled: true`, `images.avif_since: 2026-11-17T00:00:00.000Z`.
 - `files.public.ts` + `media-moderation.service.ts`: `limitInputPixels` в копии для модерации.
 - `infra/modules/s3/main.tf`: `media_origin_shield_region` + блок `origin_shield` (как у веба, #171).
 - Проверено 16–17.11 (heavy.sh, 2 воркера, Node 26): unit 25 наборов / 381 тест зелёные (throttler, switch-contract, redis-connection, files/processing, files.service, files/jobs, media-moderation, config); e2e `files`, `owner-case-photos`, `r2-public-store`, `auth-hardening` 4 / 63 зелёные; `tsc` чисто; eslint + prettier на затронутых файлах чисто; `terraform fmt` чисто. Новый спек реально шёл против Redis (ключи `throttle:default:autopipe-*` появились в Redis).
 - Перед пушем: commit с хуками, слияние свежего main, повтор затронутых проверок; полные e2e-шарды и two-db, `terraform validate` и `terraform test` — в CI.
-- Риск и откат: если на проде что-то не так с Valkey — `REDIS_AUTOPIPELINE=false` в задаче API; AVIF — `images.avif_enabled` Выкл в админке, ссылки сразу снова WebP.
+- Риск и откат: AVIF — `images.avif_enabled` Выкл в админке, ссылки сразу снова WebP; Origin Shield — `media_origin_shield_region = "off"`.
 
 **PR Б — версии (не начат, только список).** Все вышли ≥ 7 дней назад:
 - API: `@nestjs/common|core|platform-express|platform-socket.io|websockets|testing` 12.4.0 → 12.4.2; все `@aws-sdk/*` 3.1164.0 → 3.1165.0; `undici` 8.12.3 → 8.12.4 (`npm install --package-lock-only`, затем unit + e2e).

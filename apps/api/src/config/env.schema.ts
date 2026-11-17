@@ -136,12 +136,12 @@ export const envSchema = z
     REDIS_CLUSTER: envBoolean(false),
     // Redis hardening (S6): ioredis auto-pipelining on REDIS_CLIENT and an
     // optional single BullMQ hash-tag prefix for cluster mode (default: one
-    // `{queue}` tag each). Owner order 16.11 (speed mechanisms proof): ON by
-    // default. Measured on ioredis 6.0.0: 2000 parallel requests x 4 cache
-    // GETs 126.6 -> 73.8 ms (1.7x), and the throttler's defineCommand Lua
-    // gives the same hits / blocks with it on and off (the 25.10 e2e break
-    // was on ioredis 5). false = one round trip per command, as before.
-    REDIS_AUTOPIPELINE: envBoolean(true),
+    // `{queue}` tag each). OFF by default (KNOWN_ERRORS 194, 17.11): on, it
+    // was 1.7x faster on a cache burst (126.6 -> 73.8 ms), but the e2e suites
+    // owner-channel-calls / owner-crash-reports failed and ran 3-8x longer,
+    // also after the pub/sub and shutdown fixes. Turn on only with the whole
+    // e2e matrix green.
+    REDIS_AUTOPIPELINE: envBoolean(false),
     REDIS_BULL_PREFIX: z.preprocess(blankToUndefined, z.string().optional()),
     // Local docker cluster only: JSON natMap for announced addresses.
     REDIS_CLUSTER_NAT_MAP: z.string().optional(),
