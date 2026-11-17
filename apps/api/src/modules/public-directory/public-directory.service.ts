@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
+import { createdBefore } from '../../common/pagination/cursor.util';
 import { PrismaReadService } from '../../prisma/prisma-read.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { S3StorageService } from '../files/files.public';
@@ -339,14 +340,12 @@ export class PublicDirectoryService {
         media: { none: {} },
         attachments: { none: {} },
         author: LISTED_ATTORNEY,
-        ...(pos
-          ? {
-              OR: [
-                { created_at: { lt: new Date(pos.t) } },
-                { created_at: new Date(pos.t), id: { lt: pos.i } },
-              ],
-            }
-          : {}),
+        // Row 126 follow-up (EXPLAIN ANALYZE, 300 000 posts, a third legal):
+        // with the OR alone the cursor was only a Filter and a page 80 %
+        // down read every newer legal post first (1 438 ms);
+        // createdBefore() makes it an Index Cond on the author's
+        // (author_id, created_at) index: the same 101 rows in 102 ms.
+        ...(pos ? createdBefore({ t: pos.t, id: pos.i }) : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: limit + 1,
@@ -420,6 +419,9 @@ export class PublicDirectoryService {
         deleted_at: null,
         safety_flags: { isEmpty: true },
         answers: { some: REVIEWED_ANSWER },
+        // Row 126 follow-up: createdBefore() was measured here too and
+        // changes nothing (650 ms either way at 150 000 questions): the
+        // plan starts from the answers, not from a created_at index.
         ...(pos
           ? {
               OR: [
