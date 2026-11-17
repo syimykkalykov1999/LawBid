@@ -43,7 +43,7 @@ import { HeavyUsersCard } from './heavy-users-card';
 import { LIGHT_TONE } from '@/lib/system-health';
 import { InfraChip, InfraPlanSheet, InfraSuggestionCards, useInfra, useInfraModePick } from '@/components/infra-plan-sheet';
 import { StateControl } from '@/app/(app)/spend/registry';
-import { isActive, latestFor, requestDot, showsFailure } from '@/lib/infra';
+import { INFRA_PENDING_ID, isActive, latestFor, quietHoursNote, requestDot, showsFailure } from '@/lib/infra';
 
 type Target = 'db' | 'redis';
 type Action = AlarmAction | { kind: 'decrease'; target: Target };
@@ -464,8 +464,18 @@ export default function ScalePage() {
             busyId={infra.create.isPending ? (infra.create.variables?.itemId ?? null) : null}
             onPick={(sg) => infraPick(sg.id, sg.to === 'on' ? 'on' : 'off')}
           />
-          {infraRows.length > 0 ? (
-            <Card className="mb-6 flex flex-col divide-y divide-line p-0" data-testid="scale-infra">
+          <Card className="mb-6 flex flex-col divide-y divide-line p-0" data-testid="scale-infra">
+              <PendingInfraRow
+                request={latestFor(infra.data?.requests, INFRA_PENDING_ID)}
+                quietNote={quietHoursNote(infra.data?.guards)}
+                busy={infra.createPending.isPending}
+                onOpen={() => setInfraSheet(INFRA_PENDING_ID)}
+                onStart={(running) =>
+                  running
+                    ? setInfraSheet(INFRA_PENDING_ID)
+                    : infra.createPending.mutate(undefined, { onSuccess: () => setInfraSheet(INFRA_PENDING_ID) })
+                }
+              />
               {infraRows.map((row) => {
                 const req = latestFor(infra.data?.requests, row.id);
                 const running = isActive(req);
@@ -504,7 +514,6 @@ export default function ScalePage() {
                 );
               })}
             </Card>
-          ) : null}
 
           <SectionTitle>Бюджеты AWS (потолок расходов в месяц)</SectionTitle>
           <div className="mb-6 grid gap-3 md:grid-cols-2" data-testid="aws-budgets">
@@ -756,4 +765,55 @@ function confirmText(a: Action | null, e: Economy): string {
   return a.kind === 'increase'
     ? `Размер ${from} → ${to}. ${restart} Счёт вырастет примерно на разницу цен ступеней.`
     : `Размер ${from} → ${to}. ${restart} Сервер разрешит уменьшение, только если нагрузка низкая; иначе откажет и скажет почему. Счёт уменьшится.`;
+}
+
+/**
+ * Owner 17.11 «Применить изменения из кода»: one row of the cloud card for
+ * what main's Terraform holds but the cloud does not yet (Origin Shield of
+ * the media CDN, #1195). The same request list, plan sheet and 2FA confirm
+ * as a switch; no switch position changes.
+ */
+function PendingInfraRow({
+  request,
+  quietNote,
+  busy,
+  onOpen,
+  onStart,
+}: {
+  request: ReturnType<typeof latestFor>;
+  quietNote: string | null;
+  busy: boolean;
+  onOpen: () => void;
+  onStart: (running: boolean) => void;
+}) {
+  const running = isActive(request);
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2" data-testid="scale-infra-pending">
+      <span
+        className="min-w-[180px] flex-1 truncate text-sm text-heading"
+        title="То, что уже влито в main в Terraform, но ещё не в облаке. Переключатели не меняются."
+      >
+        Изменения из кода
+      </span>
+      {request && (running || showsFailure(request) || request.status === 'done') ? (
+        <button type="button" onClick={onOpen} aria-label="Открыть план изменения">
+          <InfraChip request={request} />
+        </button>
+      ) : null}
+      <Button
+        variant="outline"
+        size="sm"
+        loading={busy}
+        data-testid="infra-apply-pending"
+        onClick={() => onStart(running)}
+      >
+        {running ? 'Показать план' : 'Применить изменения из кода'}
+      </Button>
+      {quietNote ? (
+        <span className="basis-full break-words text-xs text-muted" data-testid="infra-pending-quiet">
+          {quietNote}
+        </span>
+      ) : null}
+    </div>
+  );
 }

@@ -16,6 +16,16 @@ Owner 2026-10-26. Guide for the owner: admin → Инструкции → «Ка
 Terraform refuses a stale saved plan) → commits the JSON to main (or opens a PR if main is protected) → `POST …/status done|failed`.
 «Откатить» = a new request to the opposite position (same flow); when it is done the original is `rolled_back`.
 
+«Применить изменения из кода» (owner 17.11, «Масштаб» → «Облако: включить и выключить по кнопке»):
+`POST /admin/infra/requests/pending` makes a request with `itemId = aws.pending`, `toState = pending`,
+`changes = {}`. The workflow skips `write-switch.mjs` (the file stays as on main) and plans main's
+Terraform with the current settings, so what is merged in code but not yet in the cloud (first case:
+Origin Shield of the media CDN, `media_origin_shield_region`, #1195) goes through the same plan → 2FA
+confirm → apply → status. Same guards (one at a time, daily cap, quiet hours, dry-run, protected data);
+on top, a plan from code that deletes or replaces a serving part (`NEVER_AUTO_DESTROY`: load balancer,
+services, CDN, DNS, network) is refused by the API at plan time and by the workflow. No «Откатить»:
+code is rolled back in code. The file did not change, so the record step only notes `main`.
+
 States: requested → planning → planned → confirmed → applying → done; failed / expired (plan 30 min) /
 cancelled / dry_run / rolled_back. One active request at a time (partial unique index
 `infra_change_requests_one_active`). Time limits are applied on every read (no cron).

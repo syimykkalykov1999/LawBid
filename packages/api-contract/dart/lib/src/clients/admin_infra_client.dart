@@ -28,6 +28,12 @@ abstract class AdminInfraClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// Apply what main's Terraform holds but the cloud does not yet (no switch changes; starts the GitHub plan)
+  @POST('/admin/infra/requests/pending')
+  Future<InfraRequestEnvelope> createPendingInfraRequest({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
   /// Apply the shown plan (needs a fresh 2FA code)
   @POST('/admin/infra/requests/{id}/confirm')
   Future<InfraRequestEnvelope> confirmInfraRequest({
