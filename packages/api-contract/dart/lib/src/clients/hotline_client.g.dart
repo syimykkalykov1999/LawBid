@@ -443,6 +443,7 @@ class _HotlineClient implements HotlineClient {
   @override
   Future<HotlineRequestViewEnvelope> hotlineClaim({
     required String id,
+    HotlineClaimDto? body,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -450,7 +451,8 @@ class _HotlineClient implements HotlineClient {
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
-    const Map<String, dynamic>? _data = null;
+    final _data = <String, dynamic>{};
+    _data.addAll(body?.toJson() ?? <String, dynamic>{});
     final _options = _setStreamType<HotlineRequestViewEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(

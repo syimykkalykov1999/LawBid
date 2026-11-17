@@ -636,6 +636,10 @@ enum NotificationType {
   // (bid_sent_for_you, invite, owner_transferred, closed, bid_joined) and
   // picks the `notif.firm.<kind>` text.
   firm_update
+  // Owner row 87 (hotline plan PR 5): «Адвокат на линии — позвонить
+  // сейчас?» to a client who pressed «Сообщите, когда появится адвокат»
+  // (payload: requestId, claimToken, expiresAt).
+  hotline_attorney_available
 
   @@map("notification_type")
 }

@@ -1017,7 +1017,11 @@ export class HotlineService {
     const max = s['hotline.notify_max_wait_sec'];
     const until = max > 0 ? Number(r.created) + max * 1000 : FAR;
     await this.redis.zadd(this.k.calive, until, req);
-    const off = timeZone ? utcOffsetMinutes(timeZone, this.now()) : null;
+    // No night notices (plan PR 5): the night is the client's own — the
+    // phone's zone, else the one the app keeps in his account (users.timezone,
+    // else his quiet-hours zone). `hotline.notify_quiet_*` say which hours.
+    const zone = timeZone ?? (await this.clientTimeZone(user.sub));
+    const off = zone ? utcOffsetMinutes(zone, this.now()) : null;
     if (!allowNight && off !== null) {
       await this.redis.hset(
         this.k.nq,
@@ -1033,11 +1037,40 @@ export class HotlineService {
     return this.view(req, user.sub);
   }
 
+  /** The client's own time zone from his account (the app sends it at
+   * sign-in): users.timezone, else his quiet-hours zone; null = unknown. */
+  private async clientTimeZone(userId: string): Promise<string | null> {
+    const u = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { timezone: true },
+    });
+    if (u?.timezone) return u.timezone;
+    const qh = await this.prisma.notificationQuietHours?.findUnique({
+      where: { user_id: userId },
+      select: { timezone: true },
+    });
+    return qh?.timezone ?? null;
+  }
+
   /** «Позвонить сейчас» (the notice, or the app): ONLINE again with the
-   * ORIGINAL time — before newer live callers; the next free attorney. */
-  async claim(user: RequestUser, req: string): Promise<RequestView> {
+   * ORIGINAL time — before newer live callers; the next free attorney.
+   * From the notice the app echoes its [token]: a token that is not this
+   * request's notice is refused (a late tap on the right notice is fine —
+   * the place is kept). */
+  async claim(
+    user: RequestUser,
+    req: string,
+    token?: string,
+  ): Promise<RequestView> {
     await assertHotlineOn(this.flags);
-    await this.ownRequest(user, req);
+    const r = await this.ownRequest(user, req);
+    if (token !== undefined && token !== r.notifyToken) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'This notice is not for this hotline request.',
+        details: { reason: 'claim_token' },
+      });
+    }
     const { s } = await this.cfg();
     if (await this.store.claim(req)) {
       await this.redis.zadd(
