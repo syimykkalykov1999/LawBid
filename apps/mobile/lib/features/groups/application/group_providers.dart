@@ -36,6 +36,15 @@ final groupsEnabledProvider = Provider<bool>(
   (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('groups'),
 );
 
+/// Owner 2026-11-16 18:25 CT (row 183): «Звонки в группах» (flag
+/// `groups_calls`, on by default): off = no call button in group chats.
+/// 1:1 calls and channel calls read their own switches.
+final groupChatCallsEnabledProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(groupsEnabledProvider) &&
+      ref.watch(featureFlagsControllerProvider).isEnabled('groups_calls'),
+);
+
 final groupRepositoryProvider = Provider<GroupRepository>(
   (ref) => GroupRepository(
     ref.watch(dioProvider),

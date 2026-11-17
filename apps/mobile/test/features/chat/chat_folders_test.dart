@@ -114,6 +114,7 @@ class _Chats implements ChatRepository {
     bool? pinned,
     bool? hidden,
     bool? archived,
+    bool? unread,
   }) async {
     if (hidden ?? false) hiddenIds.add(id);
     organized.add('$id:${folder?.name}:$waiting:$note:$pinned');

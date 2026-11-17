@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   createCipheriv,
@@ -78,6 +78,43 @@ export class SessionService {
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
 
+  private readonly logger = new Logger(SessionService.name);
+
+  /**
+   * 14.11 (DB scale review, finding 8): the device's push and VoIP tokens
+   * follow the chain to its new row. They pointed at the row current when
+   * they registered; an app that refreshes without registering again (an
+   * iPhone woken only by VoIP calls, a phone opened rarely) lost them when
+   * sessions.cleanup removed that row (ON DELETE CASCADE). Now the cascade
+   * fires only when the chain itself ends. Outside the rotation
+   * transaction (tokens are another family) and best-effort: a refresh
+   * never fails for it; the next one moves them.
+   */
+  private async moveDeviceTokens(
+    userId: string,
+    chainId: string,
+    fromId: string,
+    toId: string,
+  ): Promise<void> {
+    const move = {
+      where: {
+        user_id: userId,
+        OR: [{ session_chain_id: chainId }, { session_id: fromId }],
+      },
+      data: { session_id: toId, session_chain_id: chainId },
+    };
+    try {
+      await Promise.all([
+        this.prisma.pushToken.updateMany(move),
+        this.prisma.voipToken.updateMany(move),
+      ]);
+    } catch (err) {
+      this.logger.warn(
+        `device tokens not moved to the new session row: ${String(err)}`,
+      );
+    }
+  }
+
   async createSession(
     userId: string,
     device: DeviceInfo,
@@ -103,7 +140,14 @@ export class SessionService {
       await this.prisma.pushToken.deleteMany({
         where: {
           user_id: userId,
-          session: { session_chain_id: { in: ended } },
+          OR: [
+            { session_chain_id: { in: ended } },
+            // a row of an older release: its chain through its session row
+            {
+              session_chain_id: null,
+              session: { session_chain_id: { in: ended } },
+            },
+          ],
         },
       });
     }
@@ -343,6 +387,12 @@ export class SessionService {
       );
     }
     await this.cacheReplay(hash, session.id, raw);
+    await this.moveDeviceTokens(
+      found.user_id,
+      found.session_chain_id,
+      found.id,
+      session.id,
+    );
 
     // The audit row is best-effort and outside the transaction: a slow
     // database must not turn a good rotation into a 500.

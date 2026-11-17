@@ -154,11 +154,14 @@ abstract class GroupsClient {
   /// Sweep B-c1: members page by page (owner, admins, then by join time).
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [q] - Only members whose name or @username matches (one page, no cursor).
   @GET('/groups/{id}/members')
   Future<GroupMemberListEnvelope> listGroupMembers({
     @Path('id') required String id,
     @Query('limit') num? limit = 50,
     @Query('cursor') String? cursor,
+    @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -216,6 +219,8 @@ abstract class GroupsClient {
   /// [afterId] - Owner 2026-10-22 (client economy plan, package B): everything after this message (oldest first, up to 200; more than that → 409 SYNC_TOO_OLD, reload the page). Catch-up after a reconnect instead of reloading. `cursor` and `limit` are ignored with it.
   ///
   /// [cursor] - meta.nextCursor of the previous page.
+  ///
+  /// [q] - Search inside this group: every word must be in the text.
   @GET('/groups/{id}/messages')
   Future<GroupMessageListEnvelope> listGroupMessages({
     @Path('id') required String id,
@@ -223,6 +228,7 @@ abstract class GroupsClient {
     @Query('topicId') String? topicId,
     @Query('afterId') String? afterId,
     @Query('cursor') String? cursor,
+    @Query('q') String? q,
     @Extras() Map<String, dynamic>? extras,
   });
 

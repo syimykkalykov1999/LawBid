@@ -8,6 +8,7 @@ import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:lawbid/core/connectivity/connection_title.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -56,6 +57,7 @@ import 'package:lawbid/features/chat/presentation/chat_post_card.dart';
 import 'package:lawbid/features/chat/presentation/chat_translation.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/desktop_chats.dart';
+import 'package:lawbid/features/chat/presentation/in_chat_search.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/link_preview_card.dart';
 import 'package:lawbid/features/chat/presentation/media_preview_screen.dart';
@@ -77,6 +79,7 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/presentation/templates_screen.dart';
+import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 
@@ -171,6 +174,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     _text.removeListener(_saveDraft);
     _text.dispose();
     _focus.dispose();
+    _search?.dispose();
+    _searchText.dispose();
     super.dispose();
   }
 
@@ -201,6 +206,38 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   }
 
   final _listKey = GlobalKey<_MessageListState>();
+
+  // Row 110 (Telegram 🔍 in a chat): the search, while it is open.
+  InChatSearch? _search;
+  final _searchText = TextEditingController();
+
+  void _openSearch() {
+    final repo = ref.read(chatRepositoryProvider);
+    final id = widget.conversationId;
+    _focus.unfocus();
+    setState(() {
+      _search = InChatSearch(
+        search: (q, {cursor}) async {
+          final page = await repo.searchMessages(id, q, cursor: cursor);
+          return CursorPage(
+            items: [for (final m in page.items) m.id],
+            nextCursor: page.nextCursor,
+          );
+        },
+        jump: (messageId) =>
+            _listKey.currentState?.jumpToMessage(messageId) ??
+            Future<bool>.value(false),
+      );
+    });
+  }
+
+  void _closeSearch() {
+    final s = _search;
+    if (s == null) return;
+    setState(() => _search = null);
+    _searchText.clear();
+    s.dispose();
+  }
 
   Future<void> _send() async {
     final text = _text.text;
@@ -280,6 +317,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       onPlace: () => unawaited(_sendPlace()),
       limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
       prepareVideo: _prepareVideo,
+      // Row 199: photos open in the preview's editor, one compression.
+      keepOriginals: true,
       fromDisk: ref
           .read(featureFlagsControllerProvider)
           .isEnabled('chat_files_from_disk'),
@@ -375,6 +414,16 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
+            // Row 110 (Telegram 🔍, WhatsApp «Search»): search this chat.
+            AppListRow(
+              key: const ValueKey('chat-menu-search'),
+              icon: AppIcons.searchRounded,
+              label: t.t('common.search'),
+              onTap: () {
+                Navigator.of(sheet).pop();
+                _openSearch();
+              },
+            ),
             // Owner 2026-10-18: the contact screen holds the media, mute,
             // block and report rows; the menu keeps what it does not.
             AppListRow(
@@ -490,15 +539,23 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                 semanticLabel: t.t('common.back'),
                 // Desktop web plan 2026-10-28: next to the chats list the
                 // arrow empties the right pane (a phone pops as before).
-                onPressed: () => closeChat(context),
+                // Row 110: while searching the arrow closes the search.
+                onPressed:
+                    _search != null ? _closeSearch : () => closeChat(context),
               ),
-              title: c == null
-                  ? null
-                  : _Header(
-                      conversation: c,
-                      onCall: () => _call(c),
-                      onVideoCall: () => _call(c, video: true),
-                    ),
+              title: switch ((_search, c)) {
+                (final InChatSearch s, _) => InChatSearchField(
+                    search: s,
+                    controller: _searchText,
+                    t: t,
+                  ),
+                (_, null) => null,
+                (_, final Conversation c) => _Header(
+                    conversation: c,
+                    onCall: () => _call(c),
+                    onVideoCall: () => _call(c, video: true),
+                  ),
+              },
               actions: [
                 // OQ-041: an in-app audio call (after acceptance).
                 // OQ-043: a direct chat gets calls once the request
@@ -507,7 +564,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                 // Audit 2026-10-02: no call button across a block or for an
                 // assistant without the "calls" duty (the server refuses both).
                 // Audit 2026-10-04: nor in a case chat before acceptance.
-                if (c != null && chatAudioCallAllowed(ref, c))
+                if (_search == null &&
+                    c != null &&
+                    chatAudioCallAllowed(ref, c))
                   AppIconButton(
                     icon: AppIcon(
                       AppIcons.callOutlined,
@@ -518,7 +577,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                   ),
                 // Owner 2026-10-05: "Видеозвонок" next to the call — only while
                 // the owner has video calls on (flag + TURN configured).
-                if (c != null &&
+                if (_search == null &&
+                    c != null &&
                     !c.closed &&
                     !c.blockedHere &&
                     !c.myRequestPending &&
@@ -541,7 +601,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                     semanticLabel: t.t('call.videoButton'),
                     onPressed: () => _call(c, video: true),
                   ),
-                if (c != null)
+                if (_search == null && c != null)
                   AppIconButton(
                     icon:
                         AppIcon(AppIcons.moreHorizRounded, color: colors.text),
@@ -608,9 +668,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                         );
                       },
                     ),
+                    // Row 110: while searching, «N of M» and ↑ / ↓ stand
+                    // where the composer is (Telegram).
+                    if (_search != null)
+                      InChatSearchBar(search: _search!, t: t)
                     // OQ-043: a request sent to me — accept / delete /
                     // block before anything else.
-                    if (c != null && c.awaitingMyAnswer)
+                    else if (c != null && c.awaitingMyAnswer)
                       _RequestPanel(conversation: c, thread: _thread)
                     else if (c != null && c.blockedHere && !c.closed)
                       _Banner(
@@ -755,6 +819,7 @@ class _Header extends ConsumerWidget {
     final formats = ref.watch(l10nFormatsProvider);
     // Owner 2026-10-01: online / last seen, live while the chat is open.
     final presence = chatPresenceOf(ref, c);
+    final offline = connectionTitle(t, watchOfflineReason(ref));
     // Owner 2026-10-18 (WhatsApp): the name and the status only; the
     // "@username" and the case live on the contact screen.
     return Semantics(
@@ -806,7 +871,19 @@ class _Header extends ConsumerWidget {
                       ],
                     ],
                   ),
-                  if (presence != null)
+                  // Row 110 (Telegram): «Ожидание сети…» / «Соединение…»
+                  // in place of online / last seen while offline.
+                  if (offline != null)
+                    Text(
+                      offline,
+                      key: const ValueKey('chat-connection'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: type.caption.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    )
+                  else if (presence != null)
                     Text(
                       presenceLabel(
                         t,
@@ -929,6 +1006,16 @@ class _MessageListState extends ConsumerState<_MessageList> {
   }
 
   Future<void> toBottom() => _c.toBottom();
+
+  /// Row 110: the in-chat search walks to a hit and flashes it.
+  Future<bool> jumpToMessage(String id) async {
+    final ok = await _c.jumpTo(id, (i) => _entries[i].newest.id);
+    if (!ok && mounted) {
+      final t = ref.read(translatorProvider);
+      showAppSnackBar(context, t.t('chat.jump.gone'));
+    }
+    return ok;
+  }
 
   // Memo of the merged list: it is rebuilt only when the
   // messages / outbox lists change (not on typing or upload-progress ticks
@@ -1196,9 +1283,10 @@ class _MessageListState extends ConsumerState<_MessageList> {
                     );
                   }
                   BuildCounter.hit('chat.row');
-                  // Prefetch the older page ~8 rows before the top, so history
-                  // is already there when the user scrolls up (Telegram-style).
-                  if (i >= entries.length - 8 &&
+                  // Prefetch the older page a few rows before the top, so
+                  // history is already there when the user scrolls up
+                  // (Telegram-style). Row 38: `client.load_ahead_rows`.
+                  if (i >= entries.length - LoadAhead.rows &&
                       state.nextCursor != null &&
                       !state.loadingMore &&
                       !state.loadMoreFailed &&

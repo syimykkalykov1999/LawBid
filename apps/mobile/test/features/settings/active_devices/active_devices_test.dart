@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -59,8 +60,15 @@ class _PagedRepo implements ActiveDevicesRepository {
   @override
   Future<void> revoke(String sessionId) async => revoked.add(sessionId);
 
+  int logoutOthersCalls = 0;
+  Completer<void>? holdLogoutOthers;
+
   @override
-  Future<void> logoutAll() async {}
+  Future<void> logoutOthers() async {
+    logoutOthersCalls++;
+    final gate = holdLogoutOthers;
+    if (gate != null) await gate.future;
+  }
 }
 
 const _network = ApiException(
@@ -276,6 +284,16 @@ void main() {
       expect(value().items.single.sessionId, '1');
     });
 
+    test(
+        'R2-A #9: «sign out of other devices» keeps only this device in the '
+        'list', () async {
+      await container.read(activeDevicesControllerProvider.future);
+      await ctrl().logoutOthers();
+      expect(repo.logoutOthersCalls, 1);
+      expect(value().items.map((s) => s.sessionId), ['1']);
+      expect(value().hasMore, isFalse);
+    });
+
     test('revoke ends the session and drops just that row', () async {
       await container.read(activeDevicesControllerProvider.future);
       await ctrl().revoke('2');
@@ -300,6 +318,44 @@ void main() {
       await tester.pump();
       await tester.pump();
     }
+
+    testWidgets(
+        'R2-A #9: the button is at the top, asks first, and a second tap '
+        'while it runs does nothing', (tester) async {
+      final repo = _PagedRepo({
+        null: CursorPage(
+          items: [_session('1', current: true), _session('2'), _session('3')],
+          nextCursor: 'c2',
+        ),
+        'c2': CursorPage(items: [_session('4')]),
+      })
+        ..holdLogoutOthers = Completer<void>();
+      await pumpScreen(tester, repo);
+      final button = find.byKey(const ValueKey('devices-logout-others'));
+      expect(button, findsOneWidget);
+      // Above the first device row, not after every page.
+      expect(
+        tester.getTopLeft(button).dy,
+        lessThan(tester.getTopLeft(find.text('Device 1')).dy),
+      );
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      // The question first; nothing is sent yet.
+      expect(repo.logoutOthersCalls, 0);
+      await tester.tap(find.byType(TextButton).last);
+      await tester.pump();
+      expect(repo.logoutOthersCalls, 1);
+      await tester.tap(button, warnIfMissed: false);
+      await tester.pump();
+      expect(find.byType(AppAlertDialog), findsNothing);
+      expect(repo.logoutOthersCalls, 1);
+      repo.holdLogoutOthers!.complete();
+      await tester.pumpAndSettle();
+      // This phone stays, the others are gone.
+      expect(find.text('Device 1'), findsOneWidget);
+      expect(find.text('Device 2'), findsNothing);
+      expect(button, findsNothing);
+    });
 
     testWidgets('loading shows skeleton cards, not a spinner', (tester) async {
       final repo = _PagedRepo({

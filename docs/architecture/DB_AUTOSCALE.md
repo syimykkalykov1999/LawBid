@@ -140,7 +140,18 @@ re-fetched in this session, treat the numbers as approximate):
   dry-run, rollout, one-off task, ECS unknown, copy busy). While a copy restarts
   (a few minutes) the API reads from the primary (`PrismaReadService` marks the
   copy down for 15 s on connection errors and retries later). IAM: the Lambda may
-  describe/modify only `db:<db>` and `db:<db>-replica-*`.
+  describe/modify only `db:<db>`, `db:<db>-replica-*` and `db:<db>-readreplica`.
+- **Row 196 (16.11): a copy is CREATED with the primary's current class.** The
+  stack used to take the copy's class from tfvars `database_instance_class`,
+  which goes stale as soon as the Lambda resizes the primary (modules/postgres
+  ignores `instance_class`), so a «Авто» copy came up `db.t4g.micro` next to a
+  `db.t4g.medium` primary and stayed small until the next calm tick. One source
+  of truth now: `local.database_live_class` in modules/stack = the class AWS
+  reports for the primary on every plan (fresh stack: the class it is created
+  with). `growth.rds_replica_instance_class` is refused (validation); an extra
+  server's copies take that server's class. The admin button's
+  `<db>-readreplica` follows like the others. Proof:
+  `infra/modules/stack/tests/replica_class.tftest.hcl` (red on the old code).
 - `FreeableMemory` on RDS includes reclaimable OS cache but not shared buffers;
   on a 1 GiB instance it normally sits at 15-40 % free, so the 10 % trigger is
   tight on micro. This is the likeliest source of a "too early" up-step and it is

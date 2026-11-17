@@ -149,6 +149,24 @@ describe('Chat search over sealed texts (e2e, BUG-1)', () => {
     expect(await search('invoice garage')).toEqual([]);
     expect(await search('invoice nonexistentword')).toEqual([]);
 
+    // Row 110: the search inside this chat uses the same blind index and
+    // gives the opened texts back.
+    const inChat = async (q: string) =>
+      (
+        (
+          await request(base)
+            .get(`/api/v1/conversations/${conv.id}/messages`)
+            .query({ q })
+            .set(auth)
+            .expect(200)
+        ).body as { data: { id: string; body: string }[] }
+      ).data;
+    const found = await inChat('елка INVOICE');
+    expect(found.map((m) => m.id)).toEqual([old.id]);
+    expect(found[0].body).toContain('invoice');
+    expect((await inChat('garage')).map((m) => m.id)).toEqual([fresh.id]);
+    expect(await inChat('invoice garage')).toEqual([]);
+
     // Gone from the index → gone from the search.
     await prisma.messageSearchToken.deleteMany({
       where: { message_id: old.id },

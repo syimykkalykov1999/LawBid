@@ -2,6 +2,12 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import { Prisma, type ChatGroupMember } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { PrismaService } from '../../prisma/prisma.service';
+import {
+  escapeLike,
+  nameKeys,
+  nameMatchSql,
+  nameStrictSql,
+} from '../../common/search/name-match.sql';
 
 /** Sweep B-c1 (2026-11-09): the most members GET /groups/:id carries;
  * a bigger group pages through GET /groups/:id/members. */
@@ -103,4 +109,52 @@ export async function memberPage(
       ? { role: last.role, joinedAt: last.joined_at, userId: last.user_id }
       : null;
   return { rows, next };
+}
+
+/**
+ * Row 110 (Telegram «Search members»): the live members whose name (any
+ * alphabet, typos — the same rule as every name search) or @username
+ * matches [q], in the page order (owner, admins, then by join time), at
+ * most [limit]. Strong matches first: a typo-only hit shows only when no
+ * member matched strongly.
+ */
+export async function memberSearch(
+  prisma: PrismaService,
+  groupId: string,
+  q: string,
+  limit: number,
+): Promise<ChatGroupMember[]> {
+  const keys = await nameKeys(prisma, q);
+  const handle = `${escapeLike(q.trim().replace(/^@+/, '').toLowerCase())}%`;
+  const ids = await prisma.$queryRaw<{ user_id: string }[]>`
+    SELECT user_id FROM (
+      SELECT m.user_id::TEXT AS user_id, m.role, m.joined_at,
+             COALESCE(${nameStrictSql(keys, 'u')}
+               OR coalesce(ap.username_lower, cp.username_lower) LIKE ${handle},
+               FALSE) AS strong,
+             COALESCE(${nameMatchSql(keys, 'u')}, FALSE) AS loose
+      FROM chat_group_members m
+      JOIN users u ON u.id = m.user_id
+      LEFT JOIN attorney_profiles ap ON ap.user_id = u.id
+      LEFT JOIN client_profiles cp ON cp.user_id = u.id
+      WHERE m.group_id = ${groupId}::uuid AND m.left_at IS NULL) t
+    WHERE t.strong OR (t.loose AND NOT EXISTS (
+      SELECT 1 FROM chat_group_members m2
+      JOIN users u2 ON u2.id = m2.user_id
+      LEFT JOIN attorney_profiles ap2 ON ap2.user_id = u2.id
+      LEFT JOIN client_profiles cp2 ON cp2.user_id = u2.id
+      WHERE m2.group_id = ${groupId}::uuid AND m2.left_at IS NULL
+        AND (${nameStrictSql(keys, 'u2')}
+          OR coalesce(ap2.username_lower, cp2.username_lower) LIKE ${handle})))
+    ORDER BY t.role, t.joined_at, t.user_id
+    LIMIT ${limit}`;
+  if (!ids.length) return [];
+  const found = await prisma.chatGroupMember.findMany({
+    where: { group_id: groupId, user_id: { in: ids.map((r) => r.user_id) } },
+  });
+  const byId = new Map(found.map((r) => [r.user_id, r]));
+  return ids.flatMap((r) => {
+    const row = byId.get(r.user_id);
+    return row ? [row] : [];
+  });
 }

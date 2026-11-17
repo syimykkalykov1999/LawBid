@@ -69,6 +69,11 @@ abstract interface class AuthRepository {
   /// whether the call itself succeeds.
   Future<void> logoutAll();
 
+  /// Ends every session of the account except this one (`POST
+  /// /auth/logout-others`, R2-A #9). This device stays signed in, so there
+  /// is no local state to clear.
+  Future<void> logoutOthers();
+
   /// Lists every active session/device for the current user (`GET
   /// /auth/sessions`, file 01 §10.4's "Активные устройства").
   Future<List<DeviceSession>> listSessions();

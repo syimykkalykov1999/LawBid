@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/connectivity/connection_title.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
@@ -25,6 +26,7 @@ import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show PickedChatFile, droppedChatFiles;
 import 'package:lawbid/features/chat/presentation/chat_list_controller.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
+import 'package:lawbid/features/chat/presentation/in_chat_search.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/application/group_typing.dart';
@@ -35,6 +37,8 @@ import 'package:lawbid/features/groups/presentation/poll/create_poll_sheet.dart'
 import 'package:lawbid/features/groups/presentation/widgets/group_attach.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_composer.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart'
+    show muteDuration, pickMute;
 import 'package:lawbid/features/groups/presentation/widgets/group_message_bubble.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_message_menu.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_pin_banner.dart';
@@ -44,6 +48,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_topic_list.dar
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show GoldRingAvatar;
+import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -120,8 +125,46 @@ class _GroupConversationScreenState
     ref.read(groupTypingProvider(widget.groupId).notifier).send(true);
   }
 
+  // Row 110 (Telegram 🔍 in a chat): the search, while it is open.
+  InChatSearch? _search;
+  final _searchText = TextEditingController();
+
+  void _openSearch() {
+    final repo = ref.read(groupRepositoryProvider);
+    setState(() {
+      _search = InChatSearch(
+        search: (q, {cursor}) async {
+          final page = await repo.searchMessages(
+            widget.groupId,
+            q,
+            topicId: widget.topicId,
+            cursor: cursor,
+          );
+          return CursorPage(
+            items: [for (final m in page.items) m.id],
+            nextCursor: page.nextCursor,
+          );
+        },
+        jump: (id) async {
+          await _jumpTo(id);
+          return true;
+        },
+      );
+    });
+  }
+
+  void _closeSearch() {
+    final s = _search;
+    if (s == null) return;
+    setState(() => _search = null);
+    _searchText.clear();
+    s.dispose();
+  }
+
   @override
   void dispose() {
+    _search?.dispose();
+    _searchText.dispose();
     _events?.cancel();
     _highlightTimer?.cancel();
     _scroll
@@ -554,6 +597,14 @@ class _GroupConversationScreenState
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
+            // Row 110 (Telegram 🔍): search this group.
+            AppListRow(
+              key: const ValueKey('group-menu-search'),
+              icon: AppIcons.searchRounded,
+              label: t.t('common.search'),
+              showChevron: false,
+              onTap: () => Navigator.of(sheet).pop('search'),
+            ),
             AppListRow(
               icon: AppIcons.infoOutlineRounded,
               label: t.t('group.conv.info'),
@@ -582,6 +633,8 @@ class _GroupConversationScreenState
     );
     if (choice == null || !mounted) return;
     switch (choice) {
+      case 'search':
+        _openSearch();
       case 'info':
         unawaited(context.push(GroupRoutes.info(detail.id)));
       case 'mute':
@@ -596,6 +649,14 @@ class _GroupConversationScreenState
     required bool muted,
   }) async {
     final t = ref.read(translatorProvider);
+    // Row 110: how long (1 h · 8 h · 2 d · forever), as in group info.
+    Duration? span;
+    if (!muted) {
+      final pick = await pickMute(context, t, muted: false);
+      if (pick == null || !mounted) return;
+      span = muteDuration(pick);
+      if (span == null) return;
+    }
     try {
       final updated = await ref
           .read(groupRepositoryProvider)
@@ -604,9 +665,9 @@ class _GroupConversationScreenState
             api.UpdateGroupMeDto(
               // The client cannot send an explicit null, so «unmute» is a
               // moment in the past: the mute has already ended.
-              mutedUntil: muted
+              mutedUntil: span == null
                   ? DateTime.now().toUtc().subtract(const Duration(seconds: 1))
-                  : DateTime.now().toUtc().add(const Duration(days: 3650)),
+                  : DateTime.now().toUtc().add(span),
             ),
           );
       if (!mounted) return;
@@ -737,13 +798,24 @@ class _GroupConversationScreenState
             : AppTopBar(
                 leading: AppBackButton(
                   semanticLabel: t.t('common.back'),
-                  onPressed: _back,
+                  // Row 110: while searching the arrow closes the search.
+                  onPressed: _search != null ? _closeSearch : _back,
                 ),
-                title: _Header(detail: detail, topic: topic),
+                title: switch (_search) {
+                  final InChatSearch s => InChatSearchField(
+                      search: s,
+                      controller: _searchText,
+                      t: t,
+                    ),
+                  null => _Header(detail: detail, topic: topic),
+                },
                 actions: [
                   // Like WhatsApp: video and phone, tight, before the menu.
-                  if (detail.canCall &&
+                  if (_search == null &&
+                      detail.canCall &&
                       ref.watch(groupCallsProvider) &&
+                      // Row 183: «Звонки в группах».
+                      ref.watch(groupChatCallsEnabledProvider) &&
                       ref.watch(groupCallPortProvider) != null) ...[
                     if (ref.watch(groupVideoCallsProvider))
                       AppIconButton(
@@ -771,16 +843,17 @@ class _GroupConversationScreenState
                       onPressed: () => _startCall(detail, video: false),
                     ),
                   ],
-                  AppIconButton(
-                    icon: AppIcon(
-                      AppIcons.moreVertRounded,
-                      color: Theme.of(context)
-                          .extension<AppColorTokens>()!
-                          .text,
+                  if (_search == null)
+                    AppIconButton(
+                      icon: AppIcon(
+                        AppIcons.moreVertRounded,
+                        color: Theme.of(context)
+                            .extension<AppColorTokens>()!
+                            .text,
+                      ),
+                      semanticLabel: t.t('chat.menu'),
+                      onPressed: () => _headerMenu(detail),
                     ),
-                    semanticLabel: t.t('chat.menu'),
-                    onPressed: () => _headerMenu(detail),
-                  ),
                 ],
               ),
         body: topicList
@@ -901,7 +974,10 @@ class _GroupConversationScreenState
             ),
           ),
         ),
-        if (canWrite)
+        // Row 110: while searching, «N of M» and ↑ / ↓ (Telegram).
+        if (_search != null)
+          InChatSearchBar(search: _search!, t: t)
+        else if (canWrite)
           GroupComposer(
             controller: _text,
             members: detail.members,
@@ -951,8 +1027,12 @@ class _Header extends ConsumerWidget {
               .where((m) => m.userId == typer.userId)
               .map((m) => m.displayName?.trim() ?? '')
               .firstOrNull;
+    // Row 110 (Telegram): no network / no server → the status line says so.
+    final offline = connectionTitle(t, watchOfflineReason(ref));
     final String subtitle;
-    if (typer != null) {
+    if (offline != null) {
+      subtitle = offline;
+    } else if (typer != null) {
       final name = (typerName == null || typerName.isEmpty)
           ? t.t('group.someone')
           : typerName;
@@ -1148,6 +1228,10 @@ class _DownButton extends StatelessWidget {
   }
 }
 
+/// Row 38: groups whose older page is already queued for the next frame
+/// (one request per frame however many rows near the top get built).
+final _olderQueued = <String>{};
+
 /// The messages, newest at the bottom; unsent ones below them; the day
 /// separators, the runs of one sender and the older pages.
 class _MessageList extends ConsumerWidget {
@@ -1261,6 +1345,19 @@ class _MessageList extends ConsumerWidget {
                     ),
                   ),
                 );
+              }
+              // Row 38 (Telegram): the older page is asked for a few rows
+              // before the oldest one (`client.load_ahead_rows`), not when
+              // the spinner shows; once per frame, like the 1:1 chat.
+              if (k >= messages.length - LoadAhead.rows &&
+                  state.hasMore &&
+                  !state.loadingMore &&
+                  state.error == null &&
+                  _olderQueued.add(detail.id)) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _olderQueued.remove(detail.id);
+                  onMore();
+                });
               }
               final m = messages[k];
               final older = k + 1 < messages.length ? messages[k + 1] : null;

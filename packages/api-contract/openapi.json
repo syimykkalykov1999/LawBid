@@ -1433,6 +1433,73 @@
         ]
       }
     },
+    "/auth/logout-others": {
+      "post": {
+        "operationId": "logoutOthers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggedOutEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "R2-A #9 (Telegram «Terminate all other sessions»): every other session\nof the account ends; the caller's stays, so its web cookie stays too.\n`logout-all` keeps its old meaning for the apps already out there.",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/wasnt-me": {
       "post": {
         "operationId": "wasntMe",
@@ -103286,6 +103353,16 @@
             "schema": {
               "$ref": "#/components/schemas/MessagesFilter"
             }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Search inside this chat: every word must be in the text.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -110187,6 +110264,16 @@
               "default": 50,
               "type": "number"
             }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Only members whose name or @username matches (one page, no cursor).",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -110954,6 +111041,16 @@
               "maximum": 50,
               "default": 30,
               "type": "number"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "Search inside this group: every word must be in the text.",
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
             }
           }
         ],
@@ -195591,6 +195688,10 @@
             "type": "string",
             "nullable": true
           },
+          "markedUnread": {
+            "type": "boolean",
+            "description": "Row 110: I marked the chat unread myself (Telegram / WhatsApp); cleared when I read it."
+          },
           "kind": {
             "description": "OQ-043: a case chat or a direct chat from a profile.",
             "allOf": [
@@ -196076,6 +196177,10 @@
             "nullable": true,
             "maxLength": 280,
             "description": "A note pinned on the chat; \"\" or null clears it."
+          },
+          "unread": {
+            "type": "boolean",
+            "description": "Row 110 (Telegram / WhatsApp «Mark as unread»): my own unread mark; reading the chat takes it off."
           },
           "pinned": {
             "type": "boolean",

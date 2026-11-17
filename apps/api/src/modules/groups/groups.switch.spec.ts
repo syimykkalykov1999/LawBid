@@ -1,6 +1,10 @@
 import { ForbiddenException } from '@nestjs/common';
 import { ErrorCode } from '../../common/errors/error-code.enum';
-import { FLAG_CATALOG, GROUPS_FLAG } from '../feature-flags/flag-catalog';
+import {
+  FLAG_CATALOG,
+  GROUP_CHAT_CALLS_FLAG,
+  GROUPS_FLAG,
+} from '../feature-flags/flag-catalog';
 import { GroupsService } from './groups.service';
 
 /**
@@ -11,7 +15,7 @@ import { GroupsService } from './groups.service';
  */
 const user = { sub: 'u1', role: 'client' } as never;
 
-function service(enabled: boolean | null) {
+function service(enabled: boolean | null, calls: boolean | null = true) {
   // prisma that fails the test if any query runs while the switch is off.
   const prisma = new Proxy(
     {},
@@ -21,9 +25,10 @@ function service(enabled: boolean | null) {
       },
     },
   );
-  const isEnabled = jest.fn((_key: string, fallback: boolean) =>
-    Promise.resolve(enabled === null ? fallback : enabled),
-  );
+  const isEnabled = jest.fn((key: string, fallback: boolean) => {
+    const v = key === GROUP_CHAT_CALLS_FLAG ? calls : enabled;
+    return Promise.resolve(v === null ? fallback : v);
+  });
   const svc = new GroupsService(
     prisma as never,
     {} as never,
@@ -85,6 +90,41 @@ describe('GroupsService — the switch «Группы» (row 183)', () => {
     await expect(svc.enabled()).resolves.toBe(true);
     // past the switch it reaches the database (here: the throwing proxy)
     await expect(svc.myInvites(user)).rejects.toThrow(
+      'the database was touched',
+    );
+  });
+
+  it('«Звонки в группах» is in the catalog, ON by default, for the app', () => {
+    const def = FLAG_CATALOG.find((f) => f.key === GROUP_CHAT_CALLS_FLAG);
+    expect(def).toMatchObject({ enabled: true, app: true });
+  });
+
+  it('groups on, calls off: a group call is refused, the groups work', async () => {
+    const { svc } = service(true, false);
+    const e = await svc.assertMember('u1', 'g1').then(
+      () => null,
+      (err: unknown) => err,
+    );
+    expect(e).toBeInstanceOf(ForbiddenException);
+    expect((e as ForbiddenException).getResponse()).toMatchObject({
+      code: ErrorCode.FEATURE_DISABLED,
+      details: { flag: GROUP_CHAT_CALLS_FLAG },
+    });
+    // the group itself still answers (reaches the database here)
+    await expect(svc.myInvites(user)).rejects.toThrow(
+      'the database was touched',
+    );
+  });
+
+  it('groups off, calls on: everything is refused (groups first)', async () => {
+    const { svc } = service(false, true);
+    await refused(svc.assertMember('u1', 'g1'));
+    await refused(svc.myInvites(user));
+  });
+
+  it('both on: a group call goes past both switches', async () => {
+    const { svc } = service(true, true);
+    await expect(svc.assertMember('u1', 'g1')).rejects.toThrow(
       'the database was touched',
     );
   });
