@@ -6,6 +6,7 @@ import {
   TextLimitsService,
   textLimit,
 } from '../../common/app-settings/text-limits.service';
+import { BidTeamService } from '../firms/bid-team.service';
 import { readsAreSplit } from '../../sharding/split-reads';
 import { forEachDatabase } from '../../sharding/for-each-database';
 import { StickersService } from '../stickers/stickers.service';
@@ -212,6 +213,8 @@ export class ChatService {
     // Owner 2026-11-16 (row 183): with «Группы» off the folder counters
     // leave group invitations and archived groups out.
     @Optional() private readonly flags?: FeatureFlagsService,
+    // Firms audit 16.11 (PR-5): the firm's team on a bid works in its chat.
+    @Optional() private readonly team?: BidTeamService,
   ) {}
 
   /** The admin switch «Группы» (a missing row reads as on, as in GroupsService). */
@@ -302,6 +305,30 @@ export class ChatService {
     }
   }
 
+  /** The chats that are the caller's: their own two-sided ones and (Firms
+   * audit 16.11, PR-5) the case chats of the firm bids they joined. */
+  private async mineWhere(
+    user: RequestUser,
+  ): Promise<Prisma.ConversationWhereInput> {
+    const own: Prisma.ConversationWhereInput[] = [
+      { client_id: user.sub },
+      { attorney_id: user.sub },
+    ];
+    const teamChats =
+      user.role === 'attorney' && this.team
+        ? await this.team.chatIdsOf(user.sub)
+        : [];
+    return {
+      OR: teamChats.length ? [...own, { id: { in: teamChats } }] : own,
+    };
+  }
+
+  /** Whether the caller works in any firm bid's chat (PR-5). */
+  async hasTeamChats(user: RequestUser): Promise<boolean> {
+    if (user.role !== 'attorney' || !this.team) return false;
+    return (await this.team.chatIdsOf(user.sub)).length > 0;
+  }
+
   async list(
     user: RequestUser,
     cursor?: string,
@@ -311,6 +338,7 @@ export class ChatService {
   ): Promise<ConversationPage> {
     if (!this.sideOf(user)) return { items: [], nextCursor: null };
     const c = cursor ? decodeCursor(cursor) : undefined;
+    const mine = await this.mineWhere(user);
     const filters = this.folderWhere(user.sub, folder);
     // Owner 2026-10-18: search — only the chats the typed text found.
     const found = q ? await this.searchHits(user.sub, q) : null;
@@ -323,11 +351,7 @@ export class ChatService {
     const pinned = firstPage
       ? await this.prisma.conversation.findMany({
           where: {
-            AND: [
-              { OR: [{ client_id: user.sub }, { attorney_id: user.sub }] },
-              ...filters,
-              pinnedFilter,
-            ],
+            AND: [mine, ...filters, pinnedFilter],
             last_message_at: { not: null },
           },
           take: 50,
@@ -350,7 +374,7 @@ export class ChatService {
     const rows = await this.prisma.conversation.findMany({
       where: {
         AND: [
-          { OR: [{ client_id: user.sub }, { attorney_id: user.sub }] },
+          mine,
           ...filters,
           ...(updatedSince ? [this.changedSince(user.sub, updatedSince)] : []),
           ...(updatedSince ? [] : [{ NOT: pinnedFilter }]),
@@ -1280,10 +1304,11 @@ export class ChatService {
       });
     }
     await this.assertNotBlockedIn(user.sub, conv);
-    // Only an attorney writing to a client pays (owner 2026-10-17).
+    // Only an attorney writing to a client pays (owner 2026-10-17) — the
+    // firm's team on the bid too (PR-5), each on their own subscription.
     if (
       conv.pair_kind === 'attorney_client' &&
-      user.sub === conv.attorney_id &&
+      user.sub !== conv.client_id &&
       !(await this.subscriptions.isActive(user.sub))
     ) {
       throw new ForbiddenException({
@@ -1602,7 +1627,8 @@ export class ChatService {
       where: { conversation_id: m.conversation_id, hidden_at: { not: null } },
       data: { hidden_at: null },
     });
-    for (const uid of [conv.client_id, conv.attorney_id]) {
+    const team = (await this.team?.teamOfChat(conv)) ?? [];
+    for (const uid of [conv.client_id, conv.attorney_id, ...team]) {
       this.realtime.toUsers([uid], 'message:new', {
         message: this.toMessage(m, uid, conv),
       });
@@ -2074,7 +2100,7 @@ export class ChatService {
     if (await caseWorkOngoing(this.prisma, conv)) return;
     await this.blocks.assertNotBlocked(
       userId,
-      userId === conv.attorney_id ? conv.client_id : conv.attorney_id,
+      userId === conv.client_id ? conv.attorney_id : conv.client_id,
     );
   }
 
@@ -2296,34 +2322,42 @@ export class ChatService {
     senderId: string,
     flags: { silent: boolean; requestFirst: boolean; recount?: boolean },
   ): Promise<MediaLinks> {
-    const other =
-      senderId === conv.client_id ? conv.attorney_id : conv.client_id;
+    // Firms audit 16.11 (PR-5): the firm's team on the bid gets the chat's
+    // messages like its attorney does ([] for every other chat).
+    const team = (await this.team?.teamOfChat(conv)) ?? [];
+    const others = [
+      ...new Set([conv.client_id, conv.attorney_id, ...team]),
+    ].filter((id) => id !== senderId);
     // The first delivery runs right after the insert (no reactions / pins
     // can exist yet); a re-run after a crash reads them like any page.
     const urls = await this.mediaLinks([message], { fresh: !flags.recount });
     this.realtime.toUsers([senderId], 'message:new', {
       message: this.toMessage(message, senderId, undefined, urls),
     });
-    this.realtime.toUsers([other], 'message:new', {
-      message: this.toMessage(message, other, conv, urls),
-    });
+    for (const other of others) {
+      this.realtime.toUsers([other], 'message:new', {
+        message: this.toMessage(message, other, conv, urls),
+      });
+    }
     // §8.4: badge + push to the recipient (the dispatcher skips it while
     // the chat is open on their device or muted). OQ-043: a pending
     // request pings once (its first message) and never bumps the badge.
     const pendingRequest =
       conv.request_status === 'pending' && conv.requested_by === senderId;
-    if (!pendingRequest) {
-      // A re-run after a crash recounts instead of adding one more.
-      if (flags.recount) await this.badges.chatsChanged(other);
-      else await this.badges.messageArrived(other);
-    }
-    // Owner 2026-10-21: a forwarded batch rings once (its last message).
-    if ((!pendingRequest || flags.requestFirst) && !flags.silent) {
-      await this.notifications.emit({
-        type: 'new_message',
-        recipientId: other,
-        payload: { conversationId: conv.id, messageId: message.id },
-      });
+    for (const other of others) {
+      if (!pendingRequest) {
+        // A re-run after a crash recounts instead of adding one more.
+        if (flags.recount) await this.badges.chatsChanged(other);
+        else await this.badges.messageArrived(other);
+      }
+      // Owner 2026-10-21: a forwarded batch rings once (its last message).
+      if ((!pendingRequest || flags.requestFirst) && !flags.silent) {
+        await this.notifications.emit({
+          type: 'new_message',
+          recipientId: other,
+          payload: { conversationId: conv.id, messageId: message.id },
+        });
+      }
     }
     return urls;
   }
@@ -2388,13 +2422,26 @@ export class ChatService {
 
   async load(user: RequestUser, id: string): Promise<Conversation> {
     const conv = await this.prisma.conversation.findUnique({ where: { id } });
-    if (
-      !conv ||
-      (conv.client_id !== user.sub && conv.attorney_id !== user.sub)
-    ) {
-      throw notFound();
+    if (!conv) throw notFound();
+    if (conv.client_id === user.sub || conv.attorney_id === user.sub) {
+      return conv;
     }
-    return conv;
+    // Firms audit 16.11 (PR-5): a lawyer who joined the firm's bid works in
+    // its chat on the attorney's side (read and post), while still in the
+    // firm. Their own row (read marks, folders) is made on first open.
+    if (
+      user.role === 'attorney' &&
+      conv.pair_kind === 'attorney_client' &&
+      this.team &&
+      (await this.team.inChat(user.sub, conv))
+    ) {
+      await this.prisma.conversationParticipant.createMany({
+        data: [{ conversation_id: conv.id, user_id: user.sub }],
+        skipDuplicates: true,
+      });
+      return conv;
+    }
+    throw notFound();
   }
 
   /** Signed links for the voice notes and attachments among [rows]. */
@@ -2568,7 +2615,8 @@ export class ChatService {
     const hideSender =
       conv !== undefined &&
       conv.case_id !== null &&
-      viewerId === conv.attorney_id &&
+      // The attorney's side: the attorney and the firm's team (PR-5).
+      viewerId !== conv.client_id &&
       !conv.contacts_unlocked &&
       m.sender_id === conv.client_id;
     const revoked = m.revoked_at !== null;

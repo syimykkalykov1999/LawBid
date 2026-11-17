@@ -147834,6 +147834,28 @@
           "rating"
         ]
       },
+      "BidTeamMemberDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "firstName",
+          "lastName"
+        ]
+      },
       "BidDto": {
         "type": "object",
         "properties": {
@@ -147952,6 +147974,13 @@
                 "$ref": "#/components/schemas/BidAttorneySummaryDto"
               }
             ]
+          },
+          "team": {
+            "description": "Firms audit 16.11 (PR-5): the firm's team on the bid (the lawyers who\njoined it, still in the firm) — only on GET /bids/:id; empty with the\n`firm_profiles` switch off.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BidTeamMemberDto"
+            }
           }
         },
         "required": [
@@ -160824,6 +160853,13 @@
             "type": "string",
             "format": "date-time"
           },
+          "team": {
+            "description": "Firms audit 16.11 (PR-5): the firm's team on the bid (the lawyers who\njoined it, still in the firm) — only on GET /bids/:id; empty with the\n`firm_profiles` switch off.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BidTeamMemberDto"
+            }
+          },
           "attorney": {
             "$ref": "#/components/schemas/BidAttorneySummaryDto"
           },
@@ -162601,6 +162637,13 @@
                 "$ref": "#/components/schemas/BidAttorneySummaryDto"
               }
             ]
+          },
+          "team": {
+            "description": "Firms audit 16.11 (PR-5): the firm's team on the bid (the lawyers who\njoined it, still in the firm) — only on GET /bids/:id; empty with the\n`firm_profiles` switch off.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BidTeamMemberDto"
+            }
           },
           "case": {
             "$ref": "#/components/schemas/BidCaseRefDto"

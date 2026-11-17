@@ -12,6 +12,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LegalAcceptanceService } from '../legal-documents/legal-acceptance.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { BidTeamService } from './bid-team.service';
 
 export const FIRMS_FLAG = 'firm_profiles';
 /** Firms audit 16.11 (PR-3): the admin settings' defaults (rule 11). */
@@ -58,6 +59,8 @@ export class FirmsService {
     @Optional() private readonly notifications?: NotificationsService,
     // Firms audit 16.11 (PR-3): `firms.max_members`, `firms.invite_expiry_days`.
     @Optional() private readonly settings?: AppSettingsService,
+    // Firms audit 16.11 (PR-5): leaving the firm ends the bid-team access.
+    @Optional() private readonly bidTeam?: BidTeamService,
   ) {}
 
   private async maxMembers(): Promise<number> {
@@ -418,6 +421,7 @@ export class FirmsService {
       return;
     }
     await this.prisma.firmMember.delete({ where: { attorney_id: attorneyId } });
+    await this.bidTeam?.revoke([attorneyId]);
   }
 
   /** Firms audit 16.11 (PR-2): the owner makes an active member the owner
@@ -496,8 +500,13 @@ export class FirmsService {
     const others = [
       ...new Set([...members, ...invited].map((o) => o.attorney_id)),
     ];
+    const all = await this.prisma.firmMember.findMany({
+      where: { firm_id: firmId },
+      select: { attorney_id: true },
+    });
     const gone = await this.prisma.firm.deleteMany({ where: { id: firmId } });
     if (gone.count === 0) return;
+    await this.bidTeam?.revoke(all.map((m) => m.attorney_id));
     await this.notify(
       others,
       'closed',
@@ -523,6 +532,7 @@ export class FirmsService {
       await this.prisma.firmMember.deleteMany({
         where: { attorney_id: userId },
       });
+      await this.bidTeam?.revoke([userId]);
       return;
     }
     const heir = await this.prisma.firmMember.findFirst({
@@ -542,6 +552,7 @@ export class FirmsService {
       await this.handOver(tx, m.firm_id, userId, heir.attorney_id);
       await tx.firmMember.deleteMany({ where: { attorney_id: userId } });
     });
+    await this.bidTeam?.revoke([userId]);
     await this.notify([heir.attorney_id], 'owner_transferred', {
       firmId: m.firm_id,
     });
