@@ -32,7 +32,12 @@ if (!process.argv[2] || !existsSync(join(prev, 'apps/api'))) {
   process.exit(2);
 }
 const prevApi = join(prev, 'apps/api');
-const run = (cmd, args, opts = {}) => spawnSync(cmd, args, { stdio: 'inherit', ...opts });
+// A missing binary (ENOENT) gives status null and no output: say so (#1084).
+const run = (cmd, args, opts = {}) => {
+  const r = spawnSync(cmd, args, { stdio: 'inherit', ...opts });
+  if (r.error) console.error(`N-1: ${cmd} could not start: ${r.error.message}`);
+  return r;
+};
 
 // 1. overlay the new migrations
 const prevMig = join(prevApi, 'prisma/migrations');

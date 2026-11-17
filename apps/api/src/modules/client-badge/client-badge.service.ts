@@ -32,14 +32,21 @@ import type {
   ClientBadgeStatus,
   SubmitClientBadgeDto,
 } from './client-badge.dto';
-import { clientBadgeActive } from './client-badge.util';
+import {
+  approveClientBadgeWithoutDocuments,
+  CLIENT_BADGE_DOCUMENTS_SETTING,
+  clientBadgeActive,
+} from './client-badge.util';
 
 export const CLIENT_BADGE_CHECKOUT_KIND = 'client_badge';
 const CURRENCY = 'usd';
 
 /**
  * Owner 2026-10-02 — the paid verified badge of a client (gold):
- * documents → approval in the admin → $10/month on Stripe. The badge is on
+ * documents → approval in the admin → $10/month on Stripe.
+ * Owner 16.11: documents only while «Проверка документов клиента»
+ * (`verification.client_badge_documents`) is on — off by default: the
+ * client pays and the badge is on (X Premium / Meta Verified basic). The badge is on
  * only while the approval stands AND the subscription is paid; a cancel,
  * a failed payment or a revoke turns it off (see clientBadgeActive).
  */
@@ -70,6 +77,16 @@ export class ClientBadgeService {
     let row = await this.prisma.clientVerification.findUnique({
       where: { user_id: userId },
     });
+    // Owner 16.11: no documents asked — a plan that includes the badge
+    // turns it on by itself (a plan bought before the switch, too).
+    if (
+      row?.status !== 'approved' &&
+      row?.status !== 'revoked' &&
+      !(await this.documentsRequired()) &&
+      (await this.includedInPlan(userId))
+    ) {
+      row = await approveClientBadgeWithoutDocuments(this.prisma, userId);
+    }
     // Back from the checkout page: pick up the payment without waiting
     // for the webhook.
     if (
@@ -91,6 +108,13 @@ export class ClientBadgeService {
     dto: SubmitClientBadgeDto,
   ): Promise<ClientBadgeStateDto> {
     await this.requireClient(userId);
+    if (!(await this.documentsRequired())) {
+      throw new ConflictException({
+        code: ErrorCode.CONTENT_INVALID_STATE,
+        message: 'Documents are not needed: subscribe to get the badge.',
+        details: { documentsRequired: false },
+      });
+    }
     const fileIds = [...new Set(dto.fileIds)];
     // Owner 2026-10-07 (bug 17): how many files — admin «Значок клиента».
     assertUploadCount(
@@ -261,9 +285,13 @@ export class ClientBadgeService {
     provider: PaymentProvider;
   }> {
     const user = await this.requireClient(userId);
-    const row = await this.prisma.clientVerification.findUnique({
-      where: { user_id: userId },
-    });
+    // Owner 16.11: documents off → the row is approved right here, with
+    // no documents (a revoked one stays revoked: null).
+    const row = (await this.documentsRequired())
+      ? await this.prisma.clientVerification.findUnique({
+          where: { user_id: userId },
+        })
+      : await this.withoutDocuments(userId);
     if (!row || row.status !== 'approved') {
       throw new ConflictException({
         code: ErrorCode.CONTENT_INVALID_STATE,
@@ -424,6 +452,23 @@ export class ClientBadgeService {
     return this.settings.number('verification.client_badge_cents');
   }
 
+  /** Owner 16.11: «Проверка документов клиента» (off by default). */
+  async documentsRequired(): Promise<boolean> {
+    return this.settings.boolean(CLIENT_BADGE_DOCUMENTS_SETTING);
+  }
+
+  /** The row approved without documents, or the revoked row as it is. */
+  private async withoutDocuments(
+    userId: string,
+  ): Promise<ClientVerification | null> {
+    return (
+      (await approveClientBadgeWithoutDocuments(this.prisma, userId)) ??
+      this.prisma.clientVerification.findUnique({
+        where: { user_id: userId },
+      })
+    );
+  }
+
   /** Owner 2026-10-05: the client's live plan carries `verified_badge`. */
   private async includedInPlan(userId: string): Promise<boolean> {
     if (!this.entitlements) return false;
@@ -439,6 +484,7 @@ export class ClientBadgeService {
     const included = userId ? await this.includedInPlan(userId) : false;
     const active =
       clientBadgeActive(row) || (included && row?.status === 'approved');
+    const documentsRequired = await this.documentsRequired();
     return {
       status,
       badgeActive: active,
@@ -448,9 +494,16 @@ export class ClientBadgeService {
         ? await this.pricing.discount('client_badge')
         : null,
       currency: CURRENCY,
+      documentsRequired,
       canSubmit:
-        status === 'none' || status === 'rejected' || status === 'revoked',
-      canSubscribe: status === 'approved' && !active && !included,
+        documentsRequired &&
+        (status === 'none' || status === 'rejected' || status === 'revoked'),
+      // Owner 16.11: no documents → any client may pay, except one the
+      // admin revoked (only the admin gives the badge back).
+      canSubscribe:
+        (documentsRequired ? status === 'approved' : status !== 'revoked') &&
+        !active &&
+        !included,
       subscription:
         row && row.sub_status !== 'none'
           ? {

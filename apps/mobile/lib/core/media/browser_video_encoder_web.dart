@@ -48,11 +48,14 @@ class _JsEncoder implements BrowserVideoEncoder {
         )
         .toDart;
     if (blob == null) return null;
+    // A re-muxed fast-start file comes as a File named [kBrowserFastStartName].
+    final remuxed = blob.isA<web.File>() &&
+        (blob as web.File).name == kBrowserFastStartName;
     return XFile(
       web.URL.createObjectURL(blob),
       mimeType: 'video/mp4',
       length: blob.size,
-      name: 'video.mp4',
+      name: remuxed ? kBrowserFastStartName : 'video.mp4',
     );
   }
 

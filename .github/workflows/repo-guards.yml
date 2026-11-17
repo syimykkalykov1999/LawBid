@@ -17,6 +17,9 @@ on:
     types: [checks_requested]
   pull_request:
     branches: [main, master]
+    # «edited»: fixing the PR body re-runs the web-parity guard (a rerun keeps
+    # the old body from the first event payload, KNOWN_ERRORS 192).
+    types: [opened, synchronize, reopened, edited]
 
 concurrency:
   group: repo-guards-${{ github.event_name == 'pull_request' && github.ref || github.sha }}

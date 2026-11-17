@@ -1107,6 +1107,7 @@
   "cbadge.fileRejected": "Het bestand heeft de controle niet doorstaan. Kies een andere foto.",
   "cbadge.hint": "Een gouden vinkje naast uw naam",
   "cbadge.lead": "Het gouden vinkje laat zien dat uw account is geverifieerd. Stuur documenten in en we beoordelen ze handmatig. Na goedkeuring wordt het vinkje geactiveerd met een abonnement.",
+  "cbadge.lead.pay": "Het gouden vinkje naast je naam en de extra's van het abonnement. Geen documenten nodig: neem een abonnement en het staat meteen aan.",
   "cbadge.pay": "Abonneren voor {price} per maand",
   "cbadge.pending.text": "We bekijken uw documenten. U ontvangt een melding zodra we klaar zijn.",
   "cbadge.pending.title": "In beoordeling",
