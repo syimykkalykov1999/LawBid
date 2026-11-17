@@ -442,7 +442,9 @@ describe('Hotline: «Взять» → a real 1:1 voice call (e2e, plan PR 4)', (
     expect(row.duration_sec).toBe(end.body.data.seconds);
     expect(row.ended_at).not.toBeNull();
 
-    // WhatsApp-style: their ordinary direct chat, open for both
+    // WhatsApp-style: their ordinary direct chat, open for messages both
+    // ways — but NOT accepted on the attorney's behalf (audit 17.11 #6):
+    // contacts stay masked, so neither side has the 1:1 call button
     const conv = await prisma.conversation.findUniqueOrThrow({
       where: { id: conversationId },
     });
@@ -450,12 +452,51 @@ describe('Hotline: «Взять» → a real 1:1 voice call (e2e, plan PR 4)', (
       client_id: caller.id,
       attorney_id: lawyer.id,
       case_id: null,
-      contacts_unlocked: true,
+      contacts_unlocked: false,
+      request_status: 'accepted',
+      requested_by: caller.id,
       status: 'active',
     });
     await api()
       .get(`/api/v1/conversations/${conversationId}`)
       .set(lawyer.auth)
+      .expect(200);
+    // owner rule: an attorney never calls a client
+    const lawyerCalls = await api()
+      .post(`/api/v1/conversations/${conversationId}/calls`)
+      .set(lawyer.auth)
+      .send({});
+    expect(lawyerCalls.status).toBe(409);
+    expect(lawyerCalls.body.error.code).toBe('CALL_NOT_ALLOWED');
+    // the client writes the follow-up…
+    await api()
+      .post(`/api/v1/conversations/${conversationId}/messages`)
+      .set(caller.auth)
+      .send({ body: 'Thank you, one more question', clientMessageId: 'hl-1' })
+      .expect(201);
+    // …and calls back through the hotline: the offer goes to THIS attorney
+    // (he is still on the line), with «Взять» like any hotline call
+    const back = once<{ requestId: string }>(lSock, 'hotline:offer');
+    const cb = await api()
+      .post('/api/v1/hotline/call-back')
+      .set(caller.auth)
+      .send({
+        attorneyId: lawyer.id,
+        languages: ['en'],
+        topic: 'Follow-up',
+      })
+      .expect(201);
+    expect((await back).requestId).toBe(cb.body.data.id);
+    // a stranger cannot «call back» an attorney he never talked to
+    const stranger = await client();
+    await api()
+      .post('/api/v1/hotline/call-back')
+      .set(stranger.auth)
+      .send({ attorneyId: lawyer.id, languages: ['en'], topic: 'x' })
+      .expect(403);
+    await api()
+      .delete(`/api/v1/hotline/requests/${cb.body.data.id}`)
+      .set(caller.auth)
       .expect(200);
     // a second hotline call of the same pair reuses that chat
     // (startDirect finds the pair's one direct chat)
@@ -557,5 +598,338 @@ describe('Hotline: «Взять» → a real 1:1 voice call (e2e, plan PR 4)', (
     expect(await prisma.call.count({ where: { callee_id: lawyer.id } })).toBe(
       0,
     );
+  });
+
+  // ── audit 17.11, proved live (owner rule 17.11): two real accounts, real
+  // sockets and HTTP against the running app on local Postgres + Valkey;
+  // every time-based admin setting is shortened to seconds for the case and
+  // put back afterwards (before → during → after in the PR body) ──────────
+
+  describe('audit 17.11 — live, with the admin numbers shortened', () => {
+    const SHORT = [
+      'hotline.presence_ttl_sec',
+      'hotline.client_ttl_sec',
+      'hotline.queue_max_wait_sec',
+      'hotline.notify_max_wait_sec',
+      'hotline.notify_claim_sec',
+      'hotline.notify_quiet_start_hour',
+      'hotline.notify_quiet_end_hour',
+      'hotline.access_check_beats',
+      'hotline.mode',
+    ];
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const beat = async (
+      s: Socket,
+    ): Promise<{ ok: boolean; line: boolean | null; resumable?: boolean }> => {
+      await wait(1050); // the gateway ignores beats faster than 1 s
+      return (await s.emitWithAck('hotline:heartbeat', {})) as {
+        ok: boolean;
+        line: boolean | null;
+        resumable?: boolean;
+      };
+    };
+
+    afterEach(async () => {
+      // back to the defaults (nothing stored = the default)
+      for (const key of SHORT) await setConfig(key, null);
+      await setFlag(true);
+      const left = await prisma.appConfig.count({
+        where: { key: { in: SHORT } },
+      });
+      expect(left).toBe(0);
+    });
+
+    it('#3 presence 60 → 5 s: a socket drop (deploy) keeps the attorney; after the window he is off but resumes with his choice; «away» is off at once', async () => {
+      await setConfig('hotline.presence_ttl_sec', 5);
+      const lawyer = await attorney();
+      let sock = await connect(lawyer.token);
+      await goLine(lawyer);
+      expect(await sock.emitWithAck('hotline:heartbeat', {})).toMatchObject({
+        line: true,
+      });
+      sock.disconnect(); // the deploy closes every socket
+      await wait(1500);
+      await sweeper.sweep(redis, Date.now());
+      expect((await hotline.lineView(lawyer.id, null)).online).toBe(true);
+      sock = await connect(lawyer.token); // back within the window
+      expect(await beat(sock)).toMatchObject({ ok: true, line: true });
+      // now the app is killed: no socket for longer than the window
+      sock.disconnect();
+      const watcher = await connect(lawyer.token); // hears his events only
+      const off = once<{ reason: string; resumable: boolean }>(
+        watcher,
+        'hotline:line',
+      );
+      await wait(5600);
+      await sweeper.sweep(redis, Date.now());
+      expect(await off).toMatchObject({ reason: 'lost', resumable: true });
+      // the reopened screen: the heartbeat says «resumable», one event back
+      sock = await connect(lawyer.token);
+      expect(await beat(sock)).toMatchObject({ line: false, resumable: true });
+      expect(await sock.emitWithAck('hotline:resume', {})).toEqual({
+        ok: true,
+        line: true,
+      });
+      expect(await hotline.lineView(lawyer.id, null)).toMatchObject({
+        online: true,
+        states: ['CA'],
+        practiceAreas: ['hotline_e2e'],
+      });
+      // REST twin of the same path
+      await api()
+        .post('/api/v1/hotline/line/resume')
+        .set(lawyer.auth)
+        .expect(200);
+      // leaving the section = off at once, nothing kept
+      await sock.emitWithAck('hotline:away', {});
+      expect((await hotline.lineView(lawyer.id, null)).online).toBe(false);
+      const r = await api()
+        .post('/api/v1/hotline/line/resume')
+        .set(lawyer.auth)
+        .expect(200);
+      expect(r.body.data.online).toBe(false);
+    });
+
+    it('#2 (P1) presence 60 → 5 s: both phones gone after ~2 s of talk → billed ~2 s, not 2 + 5 s', async () => {
+      await setConfig('hotline.presence_ttl_sec', 5);
+      const lawyer = await attorney();
+      const caller = await client();
+      const lSock = await connect(lawyer.token);
+      const cSock = await connect(caller.token);
+      await goLine(lawyer);
+      await lSock.emitWithAck('hotline:heartbeat', {});
+      const id = (await ask(caller)).body.data.id as string;
+      await api()
+        .post(`/api/v1/hotline/offers/${id}/accept`)
+        .set(lawyer.auth)
+        .expect(200);
+      await beat(cSock);
+      await beat(lSock); // ~2 s into the call: the last sign of life
+      lSock.disconnect();
+      cSock.disconnect();
+      await wait(5600);
+      await sweeper.sweep(redis, Date.now());
+      const row = await prisma.hotlineCall.findUniqueOrThrow({
+        where: { request_id: id },
+      });
+      expect(row.end_reason).toBe('lost');
+      expect(row.duration_sec).toBeGreaterThanOrEqual(1);
+      expect(row.duration_sec).toBeLessThanOrEqual(3);
+    });
+
+    it('#2 (P2) the switch off while the call is hung up on the call screen → after «on» the call’s own seconds, not the whole gap', async () => {
+      const lawyer = await attorney();
+      const caller = await client();
+      const lSock = await connect(lawyer.token);
+      await goLine(lawyer);
+      await lSock.emitWithAck('hotline:heartbeat', {});
+      const id = (await ask(caller)).body.data.id as string;
+      const take = await api()
+        .post(`/api/v1/hotline/offers/${id}/accept`)
+        .set(lawyer.auth)
+        .expect(200);
+      await setFlag(false);
+      await redis.del('hl:{hl}:tick');
+      expect(await sweeper.tick()).toBe(false); // off: nothing runs
+      await wait(1100);
+      await api()
+        .post(`/api/v1/calls/${take.body.data.callId as string}/end`)
+        .set(caller.auth)
+        .send({})
+        .expect(200);
+      await wait(4000); // the gap
+      await setFlag(true);
+      await redis.del('hl:{hl}:tick');
+      expect(await sweeper.tick()).toBe(true);
+      const call = await prisma.call.findUniqueOrThrow({
+        where: { id: take.body.data.callId as string },
+      });
+      const row = await prisma.hotlineCall.findUniqueOrThrow({
+        where: { request_id: id },
+      });
+      expect(row.end_reason).toBe('ended');
+      expect(row.duration_sec).toBe(call.duration_sec);
+      expect(row.duration_sec).toBeLessThanOrEqual(2);
+    });
+
+    it('#5 (P7) two «Взять» at the same instant → one call row, one id', async () => {
+      const lawyer = await attorney();
+      const caller = await client();
+      const lSock = await connect(lawyer.token);
+      await goLine(lawyer);
+      await lSock.emitWithAck('hotline:heartbeat', {});
+      const id = (await ask(caller)).body.data.id as string;
+      const [a, b] = await Promise.all([
+        api().post(`/api/v1/hotline/offers/${id}/accept`).set(lawyer.auth),
+        api().post(`/api/v1/hotline/offers/${id}/accept`).set(lawyer.auth),
+      ]);
+      expect(a.status).toBe(200);
+      expect(b.status).toBe(200);
+      expect(a.body.data.callId).toBe(b.body.data.callId);
+      expect(
+        await prisma.call.count({
+          where: { caller_id: caller.id, callee_id: lawyer.id },
+        }),
+      ).toBe(1);
+    });
+
+    it('#4 (P9) access re-check every 2 beats: «Выкл для всех» while waiting → off with the reason', async () => {
+      await setConfig('hotline.access_check_beats', 2);
+      const lawyer = await attorney();
+      const lSock = await connect(lawyer.token);
+      await goLine(lawyer);
+      await lSock.emitWithAck('hotline:heartbeat', {});
+      await setConfig('hotline.mode', 'off_for_all');
+      const off = once<{ reason: string; detail: string }>(
+        lSock,
+        'hotline:line',
+      );
+      await beat(lSock);
+      await beat(lSock);
+      expect(await off).toMatchObject({
+        reason: 'access',
+        detail: 'off_for_all',
+      });
+      expect((await hotline.lineView(lawyer.id, null)).online).toBe(false);
+    });
+
+    it('#8 (P4) queue wait 1800 → 3 s: an online waiter is closed «queue_timeout»', async () => {
+      await setConfig('hotline.queue_max_wait_sec', 3);
+      const caller = await client();
+      const cSock = await connect(caller.token);
+      const id = (await ask(caller)).body.data.id as string;
+      await beat(cSock);
+      await beat(cSock);
+      await wait(1200);
+      await beat(cSock);
+      await sweeper.sweep(redis, Date.now());
+      const v = await api()
+        .get(`/api/v1/hotline/requests/${id}`)
+        .set(caller.auth)
+        .expect(200);
+      expect(v.body.data).toMatchObject({
+        status: 'cancelled',
+        endReason: 'queue_timeout',
+      });
+      expect(v.headers['cache-control']).toBe('private, max-age=5');
+    });
+
+    it('«Сообщите мне» 24 h → 3 s: the subscription ends «notify_expired»', async () => {
+      await setConfig('hotline.notify_max_wait_sec', 3);
+      const caller = await client();
+      const id = (await ask(caller)).body.data.id as string;
+      await api()
+        .post(`/api/v1/hotline/requests/${id}/notify-me`)
+        .set(caller.auth)
+        .send({ timeZone: 'UTC', allowNight: true })
+        .expect(200);
+      await wait(3200);
+      await sweeper.sweep(redis, Date.now());
+      const v = await api()
+        .get(`/api/v1/hotline/requests/${id}`)
+        .set(caller.auth)
+        .expect(200);
+      expect(v.body.data).toMatchObject({
+        status: 'cancelled',
+        endReason: 'notify_expired',
+      });
+    });
+
+    it('#10 (P6) claim window 60 → 5 s: two notices; a tap on the OLDER one still works', async () => {
+      await setConfig('hotline.notify_claim_sec', 5);
+      const caller = await client();
+      const cSock = await connect(caller.token);
+      const id = (await ask(caller)).body.data.id as string;
+      await api()
+        .post(`/api/v1/hotline/requests/${id}/notify-me`)
+        .set(caller.auth)
+        .send({ timeZone: 'UTC', allowNight: true })
+        .expect(200);
+      const lawyer = await attorney();
+      const lSock = await connect(lawyer.token);
+      await goLine(lawyer);
+      await lSock.emitWithAck('hotline:heartbeat', {});
+      const n1 = once<{ token: string }>(cSock, 'hotline:notify');
+      await sweeper.sweep(redis, Date.now());
+      const first = (await n1).token;
+      await wait(5200); // the first notice ran out, the attorney is free
+      await beat(lSock);
+      const n2 = once<{ token: string }>(cSock, 'hotline:notify');
+      await sweeper.sweep(redis, Date.now()); // the notice expires
+      await sweeper.sweep(redis, Date.now()); // the bucket is looked at again
+      expect((await n2).token).not.toBe(first);
+      const offer = once<{ requestId: string }>(lSock, 'hotline:offer');
+      const v = await api()
+        .post(`/api/v1/hotline/requests/${id}/claim`)
+        .set(caller.auth)
+        .send({ token: first })
+        .expect(200);
+      expect(v.body.data.status).not.toBe('cancelled');
+      expect((await offer).requestId).toBe(id);
+    });
+
+    it('#7 (P5a) night window = the hour now in California: no zone sent → the request’s state zone, no notice; «можно ночью» → notice', async () => {
+      const hourLA = Number(
+        new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/Los_Angeles',
+          hour: '2-digit',
+          hourCycle: 'h23',
+        }).format(new Date()),
+      );
+      await setConfig('hotline.notify_quiet_start_hour', hourLA);
+      await setConfig('hotline.notify_quiet_end_hour', (hourLA + 1) % 24);
+      const sleeper = await client();
+      const sSock = await connect(sleeper.token);
+      const night = (await ask(sleeper)).body.data.id as string;
+      await api()
+        .post(`/api/v1/hotline/requests/${night}/notify-me`)
+        .set(sleeper.auth)
+        .send({}) // the phone sent no zone, the account has none
+        .expect(200);
+      const owl = await client();
+      const oSock = await connect(owl.token);
+      const ok = (await ask(owl)).body.data.id as string;
+      await api()
+        .post(`/api/v1/hotline/requests/${ok}/notify-me`)
+        .set(owl.auth)
+        .send({ allowNight: true })
+        .expect(200);
+      let woke = false;
+      sSock.on('hotline:notify', () => (woke = true));
+      const n = once<{ requestId: string }>(oSock, 'hotline:notify');
+      const lawyer = await attorney();
+      const lSock = await connect(lawyer.token);
+      await goLine(lawyer);
+      await lSock.emitWithAck('hotline:heartbeat', {});
+      await sweeper.sweep(redis, Date.now());
+      expect((await n).requestId).toBe(ok);
+      await wait(500);
+      expect(woke).toBe(false);
+    });
+
+    it('#11 the disclosure counts as seen only after «Понятно»', async () => {
+      const caller = await client();
+      const before = await api()
+        .get('/api/v1/hotline/config')
+        .set(caller.auth)
+        .expect(200);
+      expect(before.body.data.disclosure.kind).toBe('full');
+      await ask(caller); // the answer carried the text — not «seen» yet
+      const still = await api()
+        .get('/api/v1/hotline/config')
+        .set(caller.auth)
+        .expect(200);
+      expect(still.body.data.disclosure.kind).toBe('full');
+      await api()
+        .post('/api/v1/hotline/disclosure/ack')
+        .set(caller.auth)
+        .send({ version: before.body.data.disclosure.version })
+        .expect(200);
+      const after = await api()
+        .get('/api/v1/hotline/config')
+        .set(caller.auth)
+        .expect(200);
+      expect(after.body.data.disclosure.key).toBeNull();
+    });
   });
 });

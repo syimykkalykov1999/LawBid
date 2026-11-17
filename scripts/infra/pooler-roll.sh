@@ -107,10 +107,14 @@ case "$MODE" in
         TD=$(running_td "$r" 2>/dev/null || echo None)
         [ "$TD" = None ] && continue
         HAVE=$(td_json "$TD" | pooler_vars "$r")
-        if [ "$HAVE" != "$WANT" ]; then
-          echo "$r: runs $TD with pooler settings [${HAVE//$'\n'/ }], Terraform's revision has [${WANT//$'\n'/ }]"
+        W="$WANT"
+        # Row 204 (task_role_split): api-admin on its own family is compared
+        # with that family's newest (Terraform's) revision.
+        case "$r:$TD" in api-admin:*/"$CLUSTER-api-admin":*) W=$(td_json "$CLUSTER-api-admin" | pooler_vars api-admin) ;; esac
+        if [ "$HAVE" != "$W" ]; then
+          echo "$r: runs $TD with pooler settings [${HAVE//$'\n'/ }], Terraform's revision has [${W//$'\n'/ }]"
           case " $LIST " in *" $s "*) ;; *) LIST="$LIST $s" ;; esac
-          [ -n "$WANT" ] && NEEDS_POOLER=1
+          [ -n "$W" ] && NEEDS_POOLER=1
         fi
       done
     done

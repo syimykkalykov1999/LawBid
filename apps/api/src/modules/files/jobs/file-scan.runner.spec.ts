@@ -120,3 +120,56 @@ describe('FileScanRunner.enqueueScan', () => {
     expect(mocked.__queue.add).toHaveBeenCalledTimes(1);
   });
 });
+
+// Audit 17.11 (problem 13): the scanner down on the last attempt → the file
+// is checked again later instead of failing for good.
+describe('FileScanRunner: scanner outage', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const bull = require('bullmq') as { Worker: jest.Mock };
+
+  function worker(outcome: string) {
+    jest.clearAllMocks();
+    const processor = {
+      run: jest.fn().mockResolvedValue(outcome),
+      outageRetryDelayMs: jest.fn().mockResolvedValue(300_000),
+    };
+    const r = new FileScanRunner(
+      { mode: 'worker' },
+      { getOrThrow: () => 'redis://x', get: () => true } as never,
+      processor as never,
+      { setContext: jest.fn(), error: jest.fn() } as never,
+      mocked.__redis as never,
+    );
+    r.onApplicationBootstrap();
+    const fn = bull.Worker.mock.calls[0][1] as (
+      job: unknown,
+    ) => Promise<string>;
+    return { fn, processor };
+  }
+
+  const job = {
+    data: { fileId: 'f1' },
+    attemptsMade: 2,
+    opts: { attempts: 3 },
+  };
+
+  it('re-queues the file with a delay and fresh attempts', async () => {
+    const { fn } = worker('deferred:scanner-down');
+    expect(await fn(job)).toBe('deferred:scanner-down');
+    expect(mocked.__queue.add).toHaveBeenCalledWith(
+      'files.scan',
+      { fileId: 'f1' },
+      expect.objectContaining({
+        delay: 300_000,
+        attempts: 3,
+        jobId: expect.stringMatching(/^f1-outage-\d+$/),
+      }),
+    );
+  });
+
+  it('any other outcome is not re-queued', async () => {
+    const { fn } = worker('failed');
+    await fn(job);
+    expect(mocked.__queue.add).not.toHaveBeenCalled();
+  });
+});

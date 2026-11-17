@@ -53,6 +53,7 @@ import {
   GROUP_CHAT_CALLS_FLAG,
   GROUPS_FLAG,
 } from '../feature-flags/feature-flags.public';
+import { FileReleaseService } from '../files/files.public';
 import { FilesService } from '../files/files.service';
 import { decodeOffset, encodeOffset } from '../recommendations/offset-cursor';
 import { RecommendationsService } from '../recommendations/recommendations.service';
@@ -180,6 +181,7 @@ export interface Membership {
 @Injectable()
 export class GroupsService {
   private readonly slowLog = new Logger('GroupSlowMode');
+  private readonly log = new Logger('GroupsService');
 
   readonly membershipEnded$ = new Subject<MembershipEnded>();
 
@@ -206,6 +208,9 @@ export class GroupsService {
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
     // Owner 2026-11-16 (row 183): the admin switch «Группы».
     @Optional() private readonly flags?: FeatureFlagsService,
+    // Audit 17.11 (problem 1): «delete for everyone» frees the file, as in
+    // the 1:1 chat (ChatActionsService.revoke).
+    @Optional() private readonly releases?: FileReleaseService,
   ) {}
 
   /** Owner 2026-11-16 (row 183): the admin switch «Группы в чатах» (on by
@@ -2163,8 +2168,28 @@ export class GroupsService {
         data: { pinned_message_id: null },
       });
     }
+    if (row.file_id) await this.releaseFile(row.file_id, messageId);
     await this.broadcast(id, updated);
     await this.groupChanged(id, 'pinned');
+  }
+
+  /**
+   * Audit 17.11 (problem 1), as ChatActionsService.releaseFile: the file of
+   * a group message deleted for everyone leaves storage when no other live
+   * message points at it and no legal hold covers it. The message is already
+   * deleted: a failure is logged and the storage cleanup collects it later.
+   */
+  private async releaseFile(fileId: string, messageId: string): Promise<void> {
+    if (!this.releases) return;
+    try {
+      await this.releases.releaseMessageFile(fileId, {
+        groupMessageId: messageId,
+      });
+    } catch (err) {
+      this.log.warn(
+        `file of a deleted group message not released: ${String(err)}`,
+      );
+    }
   }
 
   async pin(

@@ -79,7 +79,15 @@
         "opensearch_instance_count": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 4
+          "maximum": 10
+        },
+        "opensearch_engine_version": {
+          "type": "string",
+          "enum": [
+            "OpenSearch_2.15",
+            "OpenSearch_2.19",
+            "OpenSearch_3.7"
+          ]
         },
         "events_stream_enabled": {
           "type": "boolean"

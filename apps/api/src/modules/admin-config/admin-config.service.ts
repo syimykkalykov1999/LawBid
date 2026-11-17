@@ -72,6 +72,8 @@ export const OWNER_ONLY_CONFIG_KEYS: ReadonlySet<string> = new Set([
   'admin.step_up_ttl_seconds',
   // Owner 15.11: how many database servers «Авто» may reach.
   'db.max_servers',
+  // Owner 15.11: how many search engine nodes «Авто» may reach.
+  'search.max_nodes',
 ]);
 export const PAID_FLAGS: Record<
   string,

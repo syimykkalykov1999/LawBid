@@ -34,6 +34,7 @@ import {
   TaskItemIdParamDto,
   TaskSubmissionDto,
   WorkspaceFileDto,
+  CASE_FILES_PAGE_MAX,
 } from './dto/workspace.dto';
 import { AssistantAllowed } from '../../auth/assistant/assistant-context';
 
@@ -68,7 +69,7 @@ export class CaseWorkspaceController {
   @ApiOperation({
     summary: 'Case files with notes and where they came from',
     description:
-      'With `limit`: one page, oldest first, meta.nextCursor for the next one; filters `kind`, `source`, `sample`. Without it: every file (apps released before 2026-11-10).',
+      'One page, oldest first (`limit`, default and max CASE_FILES_PAGE_MAX), meta.nextCursor for the next one; filters `kind`, `source`, `sample`.',
   })
   @ApiEnvelopeResponse(WorkspaceFileDto, { isArray: true })
   @ApiErrors(ERR)
@@ -77,9 +78,12 @@ export class CaseWorkspaceController {
     @Param() p: CaseIdParamDto,
     @Query() q: CaseFilesQueryDto,
   ) {
-    return q.limit
-      ? this.ws.listFilesPage(u, p.id, { ...q, limit: q.limit })
-      : this.ws.listFiles(u, p.id);
+    // Verify 17.11: always one keyset page, at most CASE_FILES_PAGE_MAX —
+    // without `limit` it read and signed every file of the case at once.
+    return this.ws.listFilesPage(u, p.id, {
+      ...q,
+      limit: q.limit ?? CASE_FILES_PAGE_MAX,
+    });
   }
 
   @AssistantAllowed()

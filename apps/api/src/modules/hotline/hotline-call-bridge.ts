@@ -185,8 +185,16 @@ export class CallsHotlineBridge implements HotlineCallBridge {
     });
     // WhatsApp-style: after the call they go on in their ordinary direct
     // chat — the one chat of the pair, opened if new (the public chat API:
-    // blocks and «who may message me» apply). Both agreed to talk, so the
-    // attorney accepts the chat request the client's side created.
+    // blocks and «who may message me» apply), started by the CLIENT.
+    // Audit 17.11 #6 (owner rule: an attorney never calls a client): the
+    // chat is NOT accepted on the attorney's behalf — accepting unlocks
+    // contacts and 1:1 calls both ways. Like Uber / Lyft after a ride (the
+    // rider reaches the driver through the app, numbers stay masked, the
+    // driver cannot call the rider): the chat is open for messages both
+    // ways, contacts stay masked (no 1:1 call button for either side), and
+    // the client calls back through the hotline (POST /hotline/call-back),
+    // which only he can start. A chat the pair already had unlocked (a
+    // case, an earlier accepted chat) stays as it was.
     let conversationId: string | null = null;
     try {
       const conv = await this.chat.startDirect(
@@ -195,11 +203,17 @@ export class CallsHotlineBridge implements HotlineCallBridge {
       );
       conversationId = conv.id;
       if (!conv.contactsUnlocked) {
-        await this.chat.answerRequest(
-          as(i.attorneyId, 'attorney'),
-          conv.id,
-          true,
-        );
+        await this.prisma.conversation.updateMany({
+          where: {
+            id: conv.id,
+            request_status: 'pending',
+            requested_by: i.clientId,
+            contacts_unlocked: false,
+          },
+          // messages both ways (no «request» for the attorney to accept by
+          // replying, which would unlock his calls), contacts locked
+          data: { request_status: 'accepted' },
+        });
       }
     } catch (err) {
       this.logger.info(

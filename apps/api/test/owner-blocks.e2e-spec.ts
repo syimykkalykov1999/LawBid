@@ -312,6 +312,55 @@ describe('User blocks (e2e, OQ-028)', () => {
     ).toBe(before);
   });
 
+  // CONTENT_MEDIA_VERIFY 17.11 №5 (probe P7: viewPost 200): a post by direct
+  // link follows the feed's rule — nobody blocked either way sees it (404, as
+  // on Instagram), also from a cached ETag (no 304); unblock shows it again.
+  it("a blocked user opening the blocker's post by link gets 404, both ways, also with an ETag", async () => {
+    const att = await attorney(`${token}.lnk`);
+    const cli = await client(`${token}.lnkc`);
+    const attPost = await prisma.post.create({
+      data: { author_id: att.id, body: 'Deposit returns after moving out' },
+    });
+    const cliPost = await prisma.post.create({
+      data: { author_id: cli.id, body: 'Looking for a tenant lawyer' },
+    });
+    const first = await api().get(`/api/v1/posts/${attPost.id}`).set(cli.auth);
+    expect(first.status).toBe(200);
+    const etag = first.headers.etag;
+    expect(etag).toBeTruthy();
+
+    expect(
+      (await api().put(`/api/v1/users/${cli.id}/block`).set(att.auth)).status,
+    ).toBe(204);
+    const byLink = await api().get(`/api/v1/posts/${attPost.id}`).set(cli.auth);
+    expect(byLink.status).toBe(404);
+    expect(byLink.body.error?.code).toBe('POST_NOT_FOUND');
+    expect(
+      (
+        await api()
+          .get(`/api/v1/posts/${attPost.id}`)
+          .set(cli.auth)
+          .set('If-None-Match', etag)
+      ).status,
+    ).toBe(404);
+    // The other way too (the feed hides both ways).
+    expect(
+      (await api().get(`/api/v1/posts/${cliPost.id}`).set(att.auth)).status,
+    ).toBe(404);
+    // The authors still see their own posts.
+    expect(
+      (await api().get(`/api/v1/posts/${attPost.id}`).set(att.auth)).status,
+    ).toBe(200);
+
+    expect(
+      (await api().delete(`/api/v1/users/${cli.id}/block`).set(att.auth))
+        .status,
+    ).toBe(204);
+    expect(
+      (await api().get(`/api/v1/posts/${attPost.id}`).set(cli.auth)).status,
+    ).toBe(200);
+  });
+
   it('cannot block yourself; unknown user is 404', async () => {
     const cli = await client(`${token}.self`);
     expect(

@@ -167,6 +167,7 @@ module "stack" {
   nat_traffic_alarm_gb_per_day     = var.nat_traffic_alarm_gb_per_day
   media_replication_max_gb_per_day = var.media_replication_max_gb_per_day
   ops_role_split                   = var.ops_role_split
+  task_role_split                  = var.task_role_split
   ops_role_external_id             = var.ops_role_external_id
   budget_forecast_thresholds       = var.budget_forecast_thresholds
   budget_to_alerts_topic           = var.budget_to_alerts_topic

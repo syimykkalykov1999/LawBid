@@ -152,6 +152,36 @@ export class RealtimeEventLog {
     await pipe.exec();
   }
 
+  /** Audit 17.11 (problem 9): a different [event] payload per person under
+   * one cursor [seq], in ONE pipeline (a 5000-member group's badges were
+   * 5000 separate scripts). */
+  async appendEach(
+    items: readonly { userId: string; data: unknown }[],
+    seq: number,
+    event: string,
+  ): Promise<void> {
+    const floor = windowStartSeq(Date.now());
+    const ttlSec = Math.ceil(EVENT_LOG_WINDOW_MS / 1000) + 30;
+    const pipe = pipeline(this.redis);
+    for (const { userId, data } of items) {
+      let member = JSON.stringify({ seq, event, data });
+      if (member.length > EVENT_LOG_MAX_BYTES) {
+        member = JSON.stringify({ seq, event, truncated: true });
+      }
+      pipe.eval(
+        APPEND_LUA,
+        1,
+        logKey(userId),
+        seq,
+        member,
+        floor,
+        EVENT_LOG_MAX,
+        ttlSec,
+      );
+    }
+    await pipe.exec();
+  }
+
   /** Everything logged for [userIds] after [since], oldest first. */
   async since(
     userIds: string[],

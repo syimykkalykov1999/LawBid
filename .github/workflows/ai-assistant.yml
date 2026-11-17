@@ -230,7 +230,7 @@ jobs:
       - name: Claude Code
         if: steps.gate.outputs.allowed == 'true'
         id: claude
-        uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1.0.269
+        uses: anthropics/claude-code-action@cc98b3ae241b0fcfb6a42a2690751afffecb4452 # v1.0.278
         with:
           # Owner 12.11: his Claude Max subscription first (official path:
           # `claude setup-token` → secret CLAUDE_CODE_OAUTH_TOKEN); the API key

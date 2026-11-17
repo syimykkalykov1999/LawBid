@@ -70,6 +70,10 @@ export interface DealRecordSnapshot {
   terms: SnapshotTerms;
   history: SnapshotOffer[];
   texts: SnapshotTexts;
+  /** Verify 17.11: the bid's version the first signer accepted — sealing
+   * accepts only that version (a counter while signing used to seal other
+   * terms than the PDF). Absent on records made before. */
+  bidVersion?: number;
 }
 
 /** JSON with every object's keys sorted, recursively; arrays keep order. */

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { uuidV5 } from '../../../common/uuid-v5';
+import { withDeleted } from '../../../prisma/soft-delete.extension';
 import { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
@@ -70,11 +71,30 @@ export class AttorneyBriefService {
     const c = await this.acceptedOf(caseId);
     if (!c) return null;
     const id = briefFileIdOf(c.bid.id);
+    // Verify 17.11: nothing references the brief, so the orphan cleanup
+    // sets it aside after storage.orphan_grace_hours; the soft-delete filter
+    // then hid the row here, the PDF was rendered and PUT again on every
+    // open (P2002 swallowed) and the Files tab lost it. It is ours and
+    // re-creatable: set aside → put back; purged → stored again.
     const had = await this.prisma.file.findUnique({
-      where: { id },
-      select: { deleted_at: true },
+      where: withDeleted({ id }),
+      select: { deleted_at: true, deleted_reason: true, purged_at: true },
     });
-    if (had) return had.deleted_at ? null : id;
+    if (had && !had.deleted_at) return id;
+    if (had && had.deleted_reason !== 'orphan') return null;
+    if (had && !had.purged_at) {
+      const back = await this.prisma.file.updateMany({
+        where: { id, deleted_reason: 'orphan', purged_at: null },
+        data: { deleted_at: null, deleted_reason: null },
+      });
+      if (back.count === 1) return id;
+    }
+    if (had) {
+      // Its object is gone: the row goes, a fresh copy is stored below.
+      await this.prisma.file.deleteMany({
+        where: withDeleted({ id, deleted_reason: 'orphan' }),
+      });
+    }
     const pdf = await this.render(c);
     try {
       await this.files.storeGenerated(
