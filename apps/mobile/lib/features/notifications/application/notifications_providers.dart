@@ -12,6 +12,7 @@ import 'package:lawbid/core/startup/app_session.dart';
 import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -316,12 +317,22 @@ final notificationsProvider = AsyncNotifierProvider.autoDispose<
 final visibleNotificationsProvider =
     Provider.autoDispose<AsyncValue<PaginatedList<AppNotification>>>((ref) {
   final value = ref.watch(notificationsProvider);
-  if (ref.watch(channelsEnabledProvider)) return value;
+  final channelsOn = ref.watch(channelsEnabledProvider);
+  // Owner 2026-11-16 (row 183): the same for groups with «Группы» off —
+  // invitations, group messages and group calls are left out.
+  final groupsOn = ref.watch(groupsEnabledProvider);
+  if (channelsOn && groupsOn) return value;
+  bool shown(AppNotification n) =>
+      (channelsOn || n.type != 'channel_post') &&
+      (groupsOn ||
+          (n.type != 'group_invite' &&
+              n.category != NotifCategory.groups &&
+              n.payload['groupId'] == null));
   return value.whenData(
     (list) => PaginatedList(
       items: [
         for (final n in list.items)
-          if (n.type != 'channel_post') n,
+          if (shown(n)) n,
       ],
       nextCursor: list.nextCursor,
       isLoadingMore: list.isLoadingMore,

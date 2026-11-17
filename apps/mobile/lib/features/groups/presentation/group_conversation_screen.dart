@@ -814,6 +814,8 @@ class _GroupConversationScreenState
                   if (_search == null &&
                       detail.canCall &&
                       ref.watch(groupCallsProvider) &&
+                      // Row 183: «Звонки в группах».
+                      ref.watch(groupChatCallsEnabledProvider) &&
                       ref.watch(groupCallPortProvider) != null) ...[
                     if (ref.watch(groupVideoCallsProvider))
                       AppIconButton(

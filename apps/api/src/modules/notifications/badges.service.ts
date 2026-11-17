@@ -1,6 +1,6 @@
 import { unreadMessagesSql } from '../groups/group-unread.sql';
 import { shardContext } from '../../sharding/shard-context';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type {
   NotificationCategory,
   NotificationType,
@@ -15,6 +15,10 @@ import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import {
+  FeatureFlagsService,
+  GROUPS_FLAG,
+} from '../feature-flags/feature-flags.public';
 import { pipeline } from '../../redis/redis-cluster-safe';
 
 export interface Badges {
@@ -65,6 +69,8 @@ export class BadgesService {
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly realtime: RealtimePublisher,
+    // Owner 2026-11-16 (row 183): «Группы» off = group chats count nowhere.
+    @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
 
   async get(userId: string): Promise<Badges> {
@@ -412,6 +418,11 @@ export class BadgesService {
         AND (c.request_status::TEXT IN ('none', 'accepted')
              OR c.requested_by = ${userId}::UUID)`;
     // Owner 2026-10-20: group chats count the same way.
+    // Row 183: not while the admin switch «Группы» is off (a missing row
+    // reads as on, as in GroupsService).
+    if (this.flags && !(await this.flags.isEnabled(GROUPS_FLAG, true))) {
+      return Number(row?.n ?? 0);
+    }
     const [groups] = await this.prisma.$queryRaw<{ n: bigint }[]>`
       SELECT coalesce(sum((
         SELECT count(*) FROM (

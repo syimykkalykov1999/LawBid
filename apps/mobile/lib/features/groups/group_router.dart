@@ -16,37 +16,45 @@ import 'package:lawbid/features/groups/presentation/group_invite_screen.dart'
     deferred as d_group_invite_screen;
 import 'package:lawbid/features/groups/presentation/join_group_screen.dart'
     deferred as d_join_group_screen;
+import 'package:lawbid/features/groups/presentation/widgets/groups_gate.dart';
 
 /// Owner 2026-10-20: the routes of the group chats feature. `/group/new`
 /// is declared before `/group/:id` so it is not read as an id.
+/// Owner 2026-11-16 (row 183): each one shows nothing while «Группы» is off.
 List<RouteBase> groupRoutes(GlobalKey<NavigatorState> root) => [
       GoRoute(
         path: GroupRoutes.create,
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'create_group_screen',
-            load: d_create_group_screen.loadLibrary,
-            builder: (_) => d_create_group_screen.CreateGroupScreen(),
+          GroupsGate(
+            child: DeferredScreen(
+              id: 'create_group_screen',
+              load: d_create_group_screen.loadLibrary,
+              builder: (_) => d_create_group_screen.CreateGroupScreen(),
+            ),
           ),
         ),
       ),
       GoRoute(
         path: GroupRoutes.archive,
         parentNavigatorKey: root,
-        pageBuilder: (context, state) =>
-            AppPageTransitions.push(state, const GroupsArchiveScreen()),
+        pageBuilder: (context, state) => AppPageTransitions.push(
+          state,
+          const GroupsGate(child: GroupsArchiveScreen()),
+        ),
       ),
       GoRoute(
         path: GroupRoutes.find,
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'find_groups_screen',
-            load: d_find_groups_screen.loadLibrary,
-            builder: (_) => d_find_groups_screen.FindGroupsScreen(),
+          GroupsGate(
+            child: DeferredScreen(
+              id: 'find_groups_screen',
+              load: d_find_groups_screen.loadLibrary,
+              builder: (_) => d_find_groups_screen.FindGroupsScreen(),
+            ),
           ),
         ),
       ),
@@ -55,11 +63,13 @@ List<RouteBase> groupRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'join_group_screen',
-            load: d_join_group_screen.loadLibrary,
-            builder: (_) => d_join_group_screen.JoinGroupScreen(
-              code: state.pathParameters['code'] ?? '',
+          GroupsGate(
+            child: DeferredScreen(
+              id: 'join_group_screen',
+              load: d_join_group_screen.loadLibrary,
+              builder: (_) => d_join_group_screen.JoinGroupScreen(
+                code: state.pathParameters['code'] ?? '',
+              ),
             ),
           ),
         ),
@@ -69,11 +79,13 @@ List<RouteBase> groupRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'group_invite_screen',
-            load: d_group_invite_screen.loadLibrary,
-            builder: (_) => d_group_invite_screen.GroupInviteScreen(
-              inviteId: state.pathParameters['id'] ?? '',
+          GroupsGate(
+            child: DeferredScreen(
+              id: 'group_invite_screen',
+              load: d_group_invite_screen.loadLibrary,
+              builder: (_) => d_group_invite_screen.GroupInviteScreen(
+                inviteId: state.pathParameters['id'] ?? '',
+              ),
             ),
           ),
         ),
@@ -83,11 +95,13 @@ List<RouteBase> groupRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'group_info_screen',
-            load: d_group_info_screen.loadLibrary,
-            builder: (_) => d_group_info_screen.GroupInfoScreen(
-              groupId: state.pathParameters['id'] ?? '',
+          GroupsGate(
+            child: DeferredScreen(
+              id: 'group_info_screen',
+              load: d_group_info_screen.loadLibrary,
+              builder: (_) => d_group_info_screen.GroupInfoScreen(
+                groupId: state.pathParameters['id'] ?? '',
+              ),
             ),
           ),
         ),
@@ -97,12 +111,15 @@ List<RouteBase> groupRoutes(GlobalKey<NavigatorState> root) => [
         parentNavigatorKey: root,
         pageBuilder: (context, state) => AppPageTransitions.push(
           state,
-          DeferredScreen(
-            id: 'group_conversation_screen',
-            load: d_group_conversation_screen.loadLibrary,
-            builder: (_) => d_group_conversation_screen.GroupConversationScreen(
-              groupId: state.pathParameters['id'] ?? '',
-              topicId: state.uri.queryParameters['topic'],
+          GroupsGate(
+            child: DeferredScreen(
+              id: 'group_conversation_screen',
+              load: d_group_conversation_screen.loadLibrary,
+              builder: (_) =>
+                  d_group_conversation_screen.GroupConversationScreen(
+                groupId: state.pathParameters['id'] ?? '',
+                topicId: state.uri.queryParameters['topic'],
+              ),
             ),
           ),
         ),
