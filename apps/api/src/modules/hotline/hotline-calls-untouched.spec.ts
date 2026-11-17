@@ -52,13 +52,18 @@ function current(): Record<string, string> {
 describe('hotline: the 1:1 calls are untouched (owner rule)', () => {
   it('every calls / TURN / app-calls file matches its pinned SHA-256', () => {
     const now = current();
+    // «<sha256> <path>» lines (not path: hash pairs, which secret scanners
+    // read as `token: <hex>` for file names like *-token.spec.ts)
     if (process.env.UPDATE_CALLS_BASELINE === '1') {
-      writeFileSync(BASELINE, `${JSON.stringify(now, null, 2)}\n`);
+      const lines = Object.entries(now).map(([f, h]) => `${h} ${f}`);
+      writeFileSync(BASELINE, `${JSON.stringify(lines, null, 2)}\n`);
     }
-    const pinned = JSON.parse(readFileSync(BASELINE, 'utf8')) as Record<
-      string,
-      string
-    >;
+    const pinned = Object.fromEntries(
+      (JSON.parse(readFileSync(BASELINE, 'utf8')) as string[]).map((l) => {
+        const i = l.indexOf(' ');
+        return [l.slice(i + 1), l.slice(0, i)];
+      }),
+    );
     const changed = Object.keys({ ...pinned, ...now }).filter(
       (f) => pinned[f] !== now[f],
     );
