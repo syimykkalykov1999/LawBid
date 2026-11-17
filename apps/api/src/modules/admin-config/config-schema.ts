@@ -435,6 +435,27 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Горячая линия: как клиенту показывать число адвокатов на линии — ступени по возрастанию. 0 — «нет», меньше второй ступени — «есть», дальше «10+», «50+», «100+» (точное число клиент не видит). По умолчанию 1, 10, 50, 100 (hotline.counter_bands).',
     min: 1,
   };
+  out['hotline.waiting_more_bands'] = {
+    type: 'integer[]',
+    defaultValue: [1, 2, 5, 10, 50],
+    description:
+      'Горячая линия: как адвокату в предложении показывать «Ещё звонят: N» — ступени по возрастанию, точное число не показывается. По умолчанию 1, 2, 5, 10, 50 (hotline.waiting_more_bands).',
+    min: 1,
+  };
+  out['hotline.position_bands'] = {
+    type: 'integer[]',
+    defaultValue: [1, 5, 20],
+    description:
+      'Горячая линия: как клиенту показывать его место в очереди — верхние границы ступеней по возрастанию. По умолчанию 1, 5, 20 = «1», «2–5», «6–20», «20+» (hotline.position_bands).',
+    min: 1,
+  };
+  out['hotline.wait_band_minutes'] = {
+    type: 'integer[]',
+    defaultValue: [5, 15, 30],
+    description:
+      'Горячая линия: как клиенту показывать примерное ожидание — границы ступеней в минутах по возрастанию. По умолчанию 5, 15, 30 = «до 5», «5–15», «15–30», «больше 30 минут» (hotline.wait_band_minutes).',
+    min: 1,
+  };
   out['hotline.review_enabled'] = {
     type: 'boolean',
     defaultValue: true,
