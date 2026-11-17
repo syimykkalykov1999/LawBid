@@ -214,15 +214,20 @@ export class StarsService {
 
   /** GET /stars */
   async overview(userId: string): Promise<StarsOverviewDto> {
-    const enabled = await this.enabled();
+    // Verify 17.11: the settings once, not four reads of app_config.
+    const [enabled, balance, c] = await Promise.all([
+      this.enabled(),
+      this.balance(userId),
+      this.cfg(),
+    ]);
     return {
       enabled,
-      balance: await this.balance(userId),
+      balance,
       packs: enabled ? await this.packs() : [],
-      giftConvertPercent: (await this.cfg()).giftConvertPercent,
-      starCents: (await this.cfg()).starCents,
-      reactionStars: (await this.cfg()).reactionStars,
-      premiumReactions: (await this.cfg()).premiumReactions,
+      giftConvertPercent: c.giftConvertPercent,
+      starCents: c.starCents,
+      reactionStars: c.reactionStars,
+      premiumReactions: c.premiumReactions,
       freeReactions: [...FREE_REACTIONS],
     };
   }
@@ -271,9 +276,11 @@ export class StarsService {
     opts: { refId?: string; note?: string; bought?: boolean } = {},
   ): Promise<boolean> {
     const ins = await tx.$queryRaw<{ id: string }[]>`
-      INSERT INTO star_ledger (user_id, delta, balance_after, kind, ref_id, note, idem_key)
+      INSERT INTO star_ledger (user_id, delta, balance_after, kind, ref_id, note, idem_key, created_at)
       VALUES (${userId}::uuid, ${amount}, 0, ${kind}, ${opts.refId ?? null}::uuid,
-              ${opts.note ?? null}, ${idemKey})
+              ${opts.note ?? null}, ${idemKey},
+              -- Verify 17.11: ms, like the ledger page cursor (a JS date).
+              date_trunc('milliseconds', now()))
       ON CONFLICT (idem_key) DO NOTHING
       RETURNING id`;
     if (ins.length === 0) return false;
@@ -330,9 +337,11 @@ export class StarsService {
     opts: { refId?: string; note?: string } = {},
   ): Promise<boolean> {
     const ins = await tx.$queryRaw<{ id: string }[]>`
-      INSERT INTO star_ledger (user_id, delta, balance_after, kind, ref_id, note, idem_key)
+      INSERT INTO star_ledger (user_id, delta, balance_after, kind, ref_id, note, idem_key, created_at)
       VALUES (${userId}::uuid, ${-amount}, 0, ${kind}, ${opts.refId ?? null}::uuid,
-              ${opts.note ?? null}, ${idemKey})
+              ${opts.note ?? null}, ${idemKey},
+              -- Verify 17.11: ms, like the ledger page cursor (a JS date).
+              date_trunc('milliseconds', now()))
       ON CONFLICT (idem_key) DO NOTHING
       RETURNING id`;
     if (ins.length === 0) return false;
@@ -606,9 +615,10 @@ export class StarsService {
         const take = Math.min(w?.balance ?? 0, p.stars);
         const owed = p.stars - take;
         const ins = await tx.$queryRaw<{ id: string }[]>`
-          INSERT INTO star_ledger (user_id, delta, balance_after, kind, ref_id, note, idem_key)
+          INSERT INTO star_ledger (user_id, delta, balance_after, kind, ref_id, note, idem_key, created_at)
           VALUES (${p.user_id}::uuid, ${-take}, 0, 'refund', ${p.id}::uuid,
-                  ${owed > 0 ? `debt ${owed}` : null}, ${`refund:${p.id}`})
+                  ${owed > 0 ? `debt ${owed}` : null}, ${`refund:${p.id}`},
+                  date_trunc('milliseconds', now()))
           ON CONFLICT (idem_key) DO NOTHING
           RETURNING id`;
         if (ins.length === 0) return false;

@@ -21,6 +21,10 @@ class _Server implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     requests.add('${options.method} ${options.path}');
+    if (options.path.endsWith('/archive')) {
+      // Archive / show again: the post itself comes back.
+      return _json({'data': _post(options.path.split('/')[2])});
+    }
     if (options.method == 'DELETE') {
       return _json({
         'data': {'deleted': true},
@@ -82,6 +86,26 @@ void main() {
 
     final page = await _repo(db, server).attorneyPosts('a1');
     expect(page.items.map((p) => p.id), ['p2']);
+  });
+  test('verify 17.11: an archived post stays out of the saved feed copy',
+      () async {
+    final db = SocialLocalDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    await db.savePage(
+      'feed:u1',
+      jsonEncode({
+        'data': [_post('p1'), _post('p2')],
+      }),
+    );
+    final server = _Server();
+    await _repo(db, server).setPostArchived('p1', archived: true);
+    var copy = await _repo(db, server).cachedFeed();
+    expect(copy!.items.map((p) => p.id), ['p2']);
+
+    // «Показать в профиле»: it is back in the copy.
+    await _repo(db, server).setPostArchived('p1', archived: false);
+    copy = await _repo(db, server).cachedFeed();
+    expect(copy!.items.map((p) => p.id), ['p1', 'p2']);
   });
 }
 

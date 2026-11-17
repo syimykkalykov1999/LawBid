@@ -91,7 +91,8 @@ describe('PostEngagementService like', () => {
     expect(createMany).not.toHaveBeenCalled();
     const { text, values } = sqlOf(executeRaw);
     expect(text).toBe(
-      'INSERT INTO post_likes (post_id, user_id, shard_id) VALUES (?::UUID, ?::UUID, ?::SMALLINT) ON CONFLICT DO NOTHING',
+      // Verify 17.11: created_at in ms, like the likers cursor.
+      "INSERT INTO post_likes (post_id, user_id, shard_id, created_at) VALUES (?::UUID, ?::UUID, ?::SMALLINT, date_trunc('milliseconds', now())) ON CONFLICT DO NOTHING",
     );
     expect(values).toEqual(['p1', 'me', 7]);
     expect(bump).toHaveBeenCalledWith('post', 'p1', 'like_count', 1);
