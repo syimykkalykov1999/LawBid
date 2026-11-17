@@ -16,6 +16,7 @@ import { privateDetailsAad } from '../../common/secrets/field-aad';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import type { Prisma } from '../../generated/prisma/client';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -138,12 +139,7 @@ export class AdminCaseManagementService {
     if (!filtered) return { items: [], nextCursor: null };
     const and = [...filtered];
     if (c) {
-      and.push({
-        OR: [
-          { created_at: { lt: c.createdAt } },
-          { created_at: c.createdAt, id: { lt: c.id } },
-        ],
-      });
+      and.push(createdBefore({ t: c.createdAt, id: c.id }));
     }
     const rows = await this.prisma.case.findMany({
       where: { AND: and },

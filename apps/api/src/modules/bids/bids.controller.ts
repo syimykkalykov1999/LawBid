@@ -3,6 +3,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  HttpCode,
   HttpStatus,
   Param,
   Post,
@@ -45,7 +46,7 @@ import {
   CounterOfferDto,
   CreateBidDto,
 } from './dto/bid-requests.dto';
-import { BidCaseChangeDto, BidDto } from './dto/bid-responses.dto';
+import { BidCaseChangeDto, BidDto, BidJoinDto } from './dto/bid-responses.dto';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
@@ -122,6 +123,7 @@ export class BidsController {
       E.CASE_INVALID_STATE,
       E.BID_ALREADY_EXISTS,
       E.IDEMPOTENCY_KEY_CONFLICT,
+      E.FIRM_BID_EXISTS,
     ],
   })
   async createBid(
@@ -136,12 +138,39 @@ export class BidsController {
           params.caseId,
         )
       : null;
-    // The bid is the firm lawyer's: their licence, plan and limits.
+    // The bid is the firm lawyer's: their licence, plan and limits. Firms
+    // audit 16.11 (PR-1): it records who really sent it, and a member the
+    // owner sent as is told so.
     return this.bids.create(
       sender ? { ...user, sub: sender } : user,
       params.caseId,
       dto,
+      {
+        sentBy: user.assistant?.userId ?? user.sub,
+        firmOwnerId: sender && sender !== user.sub ? user.sub : null,
+      },
     );
+  }
+
+  /** Firms audit 16.11 (PR-4, owner): one bid per firm per case — a
+   * colleague joins the firm's bid instead of sending another. */
+  @AttorneyOnly('bids')
+  @Post('bids/:id/join')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Join a colleague's bid of the firm (one bid per firm per case)",
+  })
+  @ApiEnvelopeResponse(BidJoinDto)
+  @ApiErrors({
+    403: [E.FORBIDDEN],
+    404: [E.NOT_FOUND],
+    409: [E.BID_INVALID_STATE],
+  })
+  joinBid(
+    @CurrentUser() user: RequestUser,
+    @Param() params: BidIdParamDto,
+  ): Promise<BidJoinDto> {
+    return this.bids.join(user, params.id);
   }
 
   // OQ-049: or an assistant the attorney trusted (their responsibility).

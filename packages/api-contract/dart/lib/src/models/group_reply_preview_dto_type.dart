@@ -14,6 +14,8 @@ enum GroupReplyPreviewDtoType {
   poll('poll'),
   @JsonValue('attachment')
   attachment('attachment'),
+  @JsonValue('voice')
+  voice('voice'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

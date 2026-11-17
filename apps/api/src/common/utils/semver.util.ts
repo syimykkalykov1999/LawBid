@@ -36,6 +36,26 @@ export function isVersionBelow(version: string, minVersion: string): boolean {
   return cmp !== null && cmp < 0;
 }
 
+/**
+ * Detective R2B-12 / R2B-9 (14.11): a stricter rule that needs an app
+ * update ships behind an admin «from this app version on» setting, the
+ * way Telegram and WhatsApp retire old clients: until the setting is
+ * filled in everyone keeps the old path; once it is, only a build that
+ * reports a lower `X-App-Version` keeps it. Unlike [isVersionBelow] this
+ * fails closed: no header or an unreadable one (curl, a script with a
+ * stolen token) must follow the new rule.
+ */
+export function legacyClientAllowed(
+  appVersion: string | undefined,
+  minVersion: string,
+): boolean {
+  const min = minVersion.trim();
+  if (min.length === 0) return true;
+  if (!appVersion) return false;
+  const cmp = compareVersions(appVersion.trim(), min);
+  return cmp !== null && cmp < 0;
+}
+
 function parseVersion(raw: string): number[] | null {
   // Drop a `+buildNumber`/`-prerelease` suffix if present (pubspec.yaml
   // style, e.g. `0.1.0+1`) before splitting on `.`.

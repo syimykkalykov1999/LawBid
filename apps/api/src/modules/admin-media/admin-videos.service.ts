@@ -14,6 +14,7 @@ import {
 } from '../../common/admin-bulk/bulk-filter';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -69,14 +70,7 @@ export class AdminVideosService {
     // withDeleted: the admin sees taken-down / deleted assets too.
     const where: Prisma.VideoAssetWhereInput = withDeleted({
       ...videosWhere(status, ownerId, window),
-      ...(c
-        ? {
-            OR: [
-              { created_at: { lt: c.createdAt } },
-              { created_at: c.createdAt, id: { lt: c.id } },
-            ],
-          }
-        : {}),
+      ...(c ? createdBefore({ t: c.createdAt, id: c.id }) : {}),
     });
     const rows = await this.prisma.videoAsset.findMany({
       where,

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -51,12 +52,7 @@ export class AdminLegalQaService {
     }
     if (q.cursor) {
       const c = decodeCursor(q.cursor);
-      and.push({
-        OR: [
-          { created_at: { lt: c.createdAt } },
-          { created_at: c.createdAt, id: { lt: c.id } },
-        ],
-      });
+      and.push(createdBefore({ t: c.createdAt, id: c.id }));
     }
     const rows = await this.prisma.legalQuestion.findMany({
       where: withDeleted({ AND: and }),

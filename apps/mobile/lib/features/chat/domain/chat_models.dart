@@ -245,20 +245,24 @@ class Conversation {
 /// Owner 2026-10-01: Instagram-like folders of the chat list.
 enum ChatFolder { primary, general }
 
-/// The chat list's sub-tabs: All · Primary · General · Cases · Waiting ·
-/// Requests (owner 2026-10-21: «Cases» = only the chats tied to a case).
-/// `archive` (owner 2026-10-20) is the Archive screen, never a pill.
 /// «Forever» (Telegram's «Disable», WhatsApp's «Always»): the server keeps
 /// a moment, so forever is a moment ten years away. One name for it in the
 /// whole app.
 const kMuteForever = Duration(days: 3650);
 
+/// The chat list's sub-tabs: All · Unread · Groups · Cases · Waiting ·
+/// Requests (owner 2026-10-21: «Cases» = only the chats tied to a case).
+/// `archive` (owner 2026-10-20) is the Archive screen, never a pill.
 /// Row 110 (WhatsApp «Unread» filter, 2024; Telegram «Unread» folder):
 /// [unread] is filtered on the device from the «All» list in memory, it is
 /// never sent to the server.
+/// `groups` (owner 2026-11-16, WhatsApp «Группы» filter): only my group
+/// chats, read from the groups list on the phone, never sent to the server
+/// as a folder of direct chats; a pill only while «Группы в чатах» is on.
 enum ChatListFolder {
   all,
   unread,
+  groups,
   primary,
   general,
   cases,

@@ -6,7 +6,7 @@ export type IncidentEventKind = 'opened' | 'reminder' | 'resolved';
 const NAMES: Record<string, { ru: string; en: string }> = {
   worker: { ru: 'Фоновый сервер (worker)', en: 'Background worker' },
   database: { ru: 'База данных', en: 'Database' },
-  redis: { ru: 'Redis (кэш и очереди)', en: 'Redis (cache and queues)' },
+  redis: { ru: 'Valkey (кэш и очереди)', en: 'Valkey (cache and queues)' },
   queues: { ru: 'Очереди задач', en: 'Job queues' },
   stripe_webhooks: { ru: 'Платежи Stripe (вебхуки)', en: 'Stripe webhooks' },
   push: { ru: 'Доставка пушей', en: 'Push delivery' },

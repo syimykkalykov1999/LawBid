@@ -4,6 +4,11 @@ import 'package:lawbid/core/media/video_compression.dart';
 /// The browser side of a video re-encode (WebCodecs through Mediabunny,
 /// web/js/video_compress.js). Behind an interface so the decisions below
 /// are tested without a browser.
+/// The name web/js/video_compress.js gives a re-muxed result
+/// (`FAST_START_NAME`): a light H.264 file whose moov box was at the end,
+/// copied with moov first and no second encode (media check 14.11).
+const kBrowserFastStartName = 'faststart.mp4';
+
 abstract interface class BrowserVideoEncoder {
   /// The browser has the encoders (WebCodecs) at all.
   bool get supported;
@@ -55,6 +60,9 @@ class BrowserVideoCompressor implements VideoCompressor {
         onProgress: onProgress,
       );
       if (out == null) return null;
+      // A re-mux keeps every packet, so it is about the source's size; it
+      // is kept for its fast start. A re-encode must be smaller.
+      if (out.name == kBrowserFastStartName) return out;
       if (await out.length() >= await source.length()) return null;
       return out;
     } on Object {

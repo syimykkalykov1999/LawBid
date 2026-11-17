@@ -277,8 +277,16 @@ export function requestPathOptions(timeoutMs: number): RedisClientOptions {
  * at `afterInit`) would be refused; pub/sub clients are not on the request
  * path, so they queue commands and wait. */
 export function pubSubClient(client: Redis): Redis {
+  // KNOWN_ERRORS 194: never auto-pipeline a pub/sub connection. ioredis 6
+  // keeps (un)subscribe / p(un)subscribe out of the auto-pipeline, but not
+  // the sharded SSUBSCRIBE / SUNSUBSCRIBE that the socket.io sharded adapter
+  // sends; its close() fires SUNSUBSCRIBE without awaiting, the queued
+  // command is written after our QUIT and rejects unhandled («Connection is
+  // closed.», perf-user e2e of #1195). Pub/sub traffic gains nothing from
+  // pipelining anyway.
   const queueing = {
     enableOfflineQueue: true,
+    enableAutoPipelining: false,
     maxRetriesPerRequest: null,
     commandTimeout: undefined,
     socketTimeout: undefined,
@@ -290,6 +298,7 @@ export function pubSubClient(client: Redis): Redis {
     asCluster instanceof Cluster
       ? asCluster.duplicate(undefined, {
           enableOfflineQueue: true,
+          enableAutoPipelining: false,
           redisOptions: queueing,
         })
       : client.duplicate(queueing);
@@ -347,16 +356,50 @@ export function sharedProducer(
   return c;
 }
 
+/**
+ * KNOWN_ERRORS 194 (17.11, #1195): with `enableAutoPipelining` ioredis
+ * holds commands in a per-node queue and writes them on the next
+ * `setImmediate`, while QUIT is never auto-pipelined and goes to the socket
+ * at once. A `quit()` in the same tick as a few last commands therefore
+ * overtakes them: they are rejected with «Connection is closed.» (lost, and
+ * an unhandled rejection where nobody awaited them). Measured on ioredis
+ * 6.0.0: 50 queued INCRs + quit() -> 50 rejected with auto-pipelining,
+ * 0 without. This waits (bounded) until the documented
+ * `autoPipelineQueueSize` is 0, i.e. every queued command was written,
+ * so a QUIT sent afterwards is answered after them. No-op without
+ * auto-pipelining (the size is always 0) and for test doubles.
+ */
+export async function drainAutoPipeline(
+  client: Pick<Redis, 'autoPipelineQueueSize'> | object,
+  maxTicks = 100,
+): Promise<void> {
+  const size = () =>
+    (client as { autoPipelineQueueSize?: number }).autoPipelineQueueSize ?? 0;
+  for (let i = 0; i < maxTicks && size() > 0; i++) {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+  }
+}
+
+/** Graceful close for app shutdown: drain the auto-pipeline queue, then
+ * QUIT (waits for every written reply); a failing QUIT falls back to an
+ * immediate disconnect. */
+export async function quitGracefully(
+  client: Pick<Redis, 'quit' | 'disconnect'>,
+): Promise<void> {
+  await drainAutoPipeline(client);
+  try {
+    await client.quit();
+  } catch {
+    client.disconnect();
+  }
+}
+
 /** Closes the shared producers (app shutdown). */
 export async function closeSharedProducers(): Promise<void> {
   const all = [...producers.values()];
   producers.clear();
   for (const c of all) {
-    try {
-      await c.quit();
-    } catch {
-      c.disconnect();
-    }
+    await quitGracefully(c);
   }
 }
 

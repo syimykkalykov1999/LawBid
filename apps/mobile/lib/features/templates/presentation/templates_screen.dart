@@ -239,7 +239,7 @@ class _TemplatesScreenState extends ConsumerState<TemplatesScreen> {
                         onRefresh: notifier.refresh,
                         child: NotificationListener<ScrollNotification>(
                           onNotification: (n) {
-                            if (n.metrics.extentAfter < 400) {
+                            if (LoadAhead.nearEnd(n.metrics)) {
                               unawaited(notifier.loadMore());
                             }
                             return false;

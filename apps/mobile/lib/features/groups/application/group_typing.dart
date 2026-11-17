@@ -68,9 +68,10 @@ class GroupTyping extends Notifier<GroupTyper?> {
         : (userId: _typers.keys.last, voice: _typers.values.last);
   }
 
-  /// My own «typing…» to the group, at most every 2 s (as in 1:1 chats).
+  /// My own «typing…» to the group, at most every 2 s (as in 1:1 chats);
+  /// [voice]: «recording a voice message…» (groups WhatsApp parity).
   // ignore: avoid_positional_boolean_parameters
-  void send(bool active) {
+  void send(bool active, {bool voice = false}) {
     final rt = ref.read(realtimeClientProvider);
     if (rt == null) return;
     final now = DateTime.now();
@@ -78,7 +79,7 @@ class GroupTyping extends Notifier<GroupTyper?> {
       return;
     }
     _lastSent = active ? now : DateTime.fromMillisecondsSinceEpoch(0);
-    rt.typing(groupId, active: active);
+    rt.typing(groupId, active: active, voice: voice);
   }
 }
 

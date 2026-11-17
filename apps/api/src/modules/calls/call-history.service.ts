@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Call, Prisma } from '../../generated/prisma/client';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -101,14 +102,7 @@ export class CallHistoryService {
     const c = cursor ? decodeCursor(cursor) : undefined;
     const after: Prisma.CallWhereInput = c
       ? {
-          AND: [
-            {
-              OR: [
-                { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, id: { lt: c.id } },
-              ],
-            },
-          ],
+          AND: [createdBefore({ t: c.createdAt, id: c.id })],
         }
       : {};
     const rows = await this.newestMine(me, after, limit + 1, (where) =>

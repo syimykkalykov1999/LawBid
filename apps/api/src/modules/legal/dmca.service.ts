@@ -13,6 +13,7 @@ import {
 } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -285,12 +286,7 @@ export class DmcaService {
     const filters: Prisma.DmcaNoticeWhereInput[] = [];
     if (q.status) filters.push({ status: q.status });
     if (cursor) {
-      filters.push({
-        OR: [
-          { created_at: { lt: cursor.createdAt } },
-          { created_at: cursor.createdAt, id: { lt: cursor.id } },
-        ],
-      });
+      filters.push(createdBefore({ t: cursor.createdAt, id: cursor.id }));
     }
     const rows = await this.prisma.dmcaNotice.findMany({
       where: { AND: filters },

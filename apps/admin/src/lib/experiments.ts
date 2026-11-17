@@ -88,6 +88,8 @@ export interface Experiment {
   status: 'draft' | 'running' | 'stopped';
   variants: ExperimentVariant[];
   trafficPercent: number;
+  /** Bucketing hash (row 150): 1 = old FNV-1a, 2 = GrowthBook v2. */
+  hashVersion: number;
   startedAt: string | null;
   endAt: string | null;
   stoppedAt: string | null;
@@ -102,6 +104,19 @@ export interface Experiment {
     summary: string[];
     report: Record<string, unknown>;
   } | null;
+}
+
+/**
+ * How people are split into groups (row 150). 2 is the default for new
+ * tests and flags; 1 is kept on everything created before, so nobody moves.
+ */
+export const HASH_VERSION_OPTIONS = [
+  { value: 2, label: 'Новое (ровное, как в GrowthBook)' },
+  { value: 1, label: 'Старое (как у прежних тестов)' },
+] as const;
+
+export function hashVersionLabel(v: number): string {
+  return v === 2 ? 'новое' : 'старое';
 }
 
 export function statusLabel(s: Experiment['status']): string {

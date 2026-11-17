@@ -518,6 +518,9 @@ export const HEAVY_JOBS: readonly CronJobName[] = [
   // 13.11 (owner list row 76): ~900 000 attorneys at 10M held the `cron`
   // lane for ~21 minutes (partition.tick and 64 jobs waited).
   CRON_JOBS.bidSubscriptionLapse,
+  // 14.11 (DB scale review, finding 1): walks the whole sessions table every
+  // night in PK batches; on `cron` it held the hourly case / bid jobs.
+  CRON_JOBS.sessionsCleanup,
   // Staff package: the nightly aggregates.
   CRON_JOBS.staffDailyStats,
   CRON_JOBS.staffRatingNightly,

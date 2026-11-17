@@ -1,9 +1,13 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/audio/app_sounds.dart';
+import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/cache/chat_media_providers.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/media/stable_network_image.dart'
     show stableImageCacheKey;
 import 'package:lawbid/core/network/api_error.dart';
@@ -14,7 +18,10 @@ import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/core/uploads/upload_queue_database.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
+import 'package:lawbid/features/chat/application/chat_thread_memory.dart'
+    show CachedMessageStore, ThreadMemory;
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/chat/domain/chat_models.dart' show VoiceNote;
 import 'package:lawbid/features/groups/application/group_media_outbox.dart';
 import 'package:lawbid/features/groups/data/group_list_cache.dart';
 import 'package:lawbid/features/groups/data/group_repository.dart';
@@ -25,6 +32,24 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 Duration? _noRetry(int retryCount, Object error) => null;
+
+/// Owner 2026-11-16 (row 183): the admin switch «Группы в чатах» (flag
+/// `groups`, on by default, independent of `channelsEnabledProvider`; the
+/// same pattern). Off = no
+/// group anywhere: the lists below are empty without a request, the saved
+/// copy is not shown, the group routes show nothing (GroupsGate).
+final groupsEnabledProvider = Provider<bool>(
+  (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('groups'),
+);
+
+/// Owner 2026-11-16 18:25 CT (row 183): «Звонки в группах» (flag
+/// `groups_calls`, on by default): off = no call button in group chats.
+/// 1:1 calls and channel calls read their own switches.
+final groupChatCallsEnabledProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(groupsEnabledProvider) &&
+      ref.watch(featureFlagsControllerProvider).isEnabled('groups_calls'),
+);
 
 final groupRepositoryProvider = Provider<GroupRepository>(
   (ref) => GroupRepository(
@@ -83,6 +108,10 @@ class GroupsNotifier extends SyncedListNotifier<api.GroupDto> {
 
   @override
   Future<PaginatedList<api.GroupDto>> build() {
+    // Row 183: «Группы» off = no groups, no request, no saved copy.
+    if (!ref.watch(groupsEnabledProvider)) {
+      return Future.value(const PaginatedList<api.GroupDto>(items: []));
+    }
     // Owner 2026-10-21: remember which groups have their calls muted.
     listenSelf((_, AsyncValue<PaginatedList<api.GroupDto>> next) {
       for (final g in next.value?.items ?? const <api.GroupDto>[]) {
@@ -143,10 +172,16 @@ class GroupsNotifier extends SyncedListNotifier<api.GroupDto> {
   // and catches up with `updatedSince` (SyncedListNotifier).
   @override
   Future<CursorPage<api.GroupDto>?> cachedFirstPage() =>
-      archived ? Future.value() : ref.read(groupListCacheProvider).read();
+      archived || !ref.read(groupsEnabledProvider)
+          ? Future.value()
+          : ref.read(groupListCacheProvider).read();
 
   @override
   Future<CursorPage<api.GroupDto>> fetchPage(String? cursor) async {
+    // Row 183: a refresh / catch-up while «Группы» is off asks nothing.
+    if (!ref.read(groupsEnabledProvider)) {
+      return const CursorPage<api.GroupDto>(items: []);
+    }
     final page = await ref
         .read(groupRepositoryProvider)
         .groups(cursor: cursor, archived: archived);
@@ -169,9 +204,12 @@ class GroupsNotifier extends SyncedListNotifier<api.GroupDto> {
   }
 
   @override
-  Future<SyncedPage<api.GroupDto>> fetchChanged(DateTime since) => ref
-      .read(groupRepositoryProvider)
-      .groupsChangedSince(since, archived: archived);
+  Future<SyncedPage<api.GroupDto>> fetchChanged(DateTime since) =>
+      ref.read(groupsEnabledProvider)
+          ? ref
+              .read(groupRepositoryProvider)
+              .groupsChangedSince(since, archived: archived)
+          : Future.value(const SyncedPage<api.GroupDto>(items: []));
 
   @override
   Object idOf(api.GroupDto item) => item.id;
@@ -280,6 +318,17 @@ final archivedGroupsProvider = AsyncNotifierProvider.autoDispose<
 class RecommendedGroupsNotifier
     extends PagedNotifier<api.GroupInvitePreviewDto> {
   @override
+  Future<PaginatedList<api.GroupInvitePreviewDto>> build() {
+    // Row 183: «Группы» off = nothing to recommend, no request.
+    if (!ref.watch(groupsEnabledProvider)) {
+      return Future.value(
+        const PaginatedList<api.GroupInvitePreviewDto>(items: []),
+      );
+    }
+    return super.build();
+  }
+
+  @override
   Future<CursorPage<api.GroupInvitePreviewDto>> fetch(String? cursor) =>
       ref.read(groupRepositoryProvider).discover(cursor: cursor);
 
@@ -299,6 +348,8 @@ final recommendedGroupsProvider = AsyncNotifierProvider.autoDispose<
 final groupInvitesProvider =
     FutureProvider.autoDispose<List<api.GroupInviteDto>>(
   (ref) {
+    // Row 183: «Группы» off = no invitations shown, no request.
+    if (!ref.watch(groupsEnabledProvider)) return const [];
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
       if (e.name == 'group:invite' ||
           e.name == 'badge:update' ||
@@ -457,6 +508,58 @@ final groupRequestsProvider =
 
 typedef GroupThreadKey = ({String groupId, String? topicId});
 
+/// Groups WhatsApp parity: where the unsent text of a group (or of one of
+/// its topics) waits in the 1:1 chat's drafts (chatTextDraftsProvider).
+/// Group ids never clash with chat ids (both are server UUIDs).
+String groupDraftKey(String groupId, String? topicId) =>
+    topicId == null ? groupId : '$groupId/$topicId';
+
+/// Groups WhatsApp parity (the 1:1 `MessageStore`): where a group thread
+/// (the group, or one topic of a forum group) keeps its copy on the phone.
+/// A prefix of its own, so a group never shares rows with a 1:1 chat.
+String groupThreadStoreKey(GroupThreadKey key) => key.topicId == null
+    ? 'group:${key.groupId}'
+    : 'group:${key.groupId}/${key.topicId}';
+
+api.GroupMessageDto _groupMessageOf(Object? json) =>
+    api.GroupMessageDto.fromJson(Map<String, dynamic>.from(json! as Map));
+
+/// Groups WhatsApp parity: the group threads on the phone — the same store
+/// as the 1:1 chats' (`cached_messages`, the «Сообщения» limit and LRU of
+/// Settings → Data and storage), rows are the server's `GroupMessageDto`.
+final groupMessageStoreProvider =
+    Provider<CachedMessageStore<api.GroupMessageDto>?>((ref) {
+  final owner = ref.watch(currentUserIdProvider);
+  if (owner == null) return null;
+  final store = CachedMessageStore<api.GroupMessageDto>(
+    ref.watch(cacheDatabaseProvider),
+    owner,
+    limitBytes: () =>
+        ref.read(cacheLimitsProvider).limitBytes(CacheStore.messages),
+    decode: _groupMessageOf,
+    encode: (m) => m.toJson(),
+    idOf: (m) => m.id,
+    createdAtOf: (m) => m.createdAt,
+    imageUrlsOf: (m) => [
+      if (m.attachment?.isImage ?? false) ...[
+        m.attachment!.url,
+        m.attachment!.previewUrl,
+      ],
+    ],
+  );
+  ref.onDispose(store.dispose);
+  return store;
+});
+
+/// Groups WhatsApp parity (R-404 (c) of 1:1 chats): the newest page of the
+/// group threads opened recently, in memory — a group opened again draws
+/// its messages in the same first frame as its header.
+final groupThreadMemoryProvider =
+    Provider<ThreadMemory<api.GroupMessageDto>>((ref) {
+  ref.watch(currentUserIdProvider);
+  return ThreadMemory<api.GroupMessageDto>();
+});
+
 /// A message I wrote that the server has not confirmed yet.
 class PendingGroupMessage {
   const PendingGroupMessage({
@@ -468,6 +571,7 @@ class PendingGroupMessage {
     this.fileName,
     this.fileId,
     this.slowWaitS,
+    this.voice,
   });
 
   final String clientMessageId;
@@ -483,6 +587,10 @@ class PendingGroupMessage {
   /// Audit 26.10 B9: the uploaded file of an attachment sent without the
   /// queue, so Retry sends it again (queued files retry in the queue).
   final String? fileId;
+
+  /// Groups WhatsApp parity: a queued voice note (its recording plays from
+  /// the phone while it is being sent, as in 1:1).
+  final VoiceNote? voice;
 }
 
 class GroupThreadState {
@@ -543,6 +651,13 @@ class GroupThread extends Notifier<GroupThreadState> {
 
   GroupRepository get _repo => ref.read(groupRepositoryProvider);
 
+  CachedMessageStore<api.GroupMessageDto>? get _store =>
+      ref.read(groupMessageStoreProvider);
+  String get _storeKey => groupThreadStoreKey(key);
+
+  /// The marker cursor while older pages still come from the phone (1:1).
+  static const localCursor = 'local';
+
   @override
   GroupThreadState build() {
     // The server only sends group events to the members; joining the room
@@ -572,11 +687,29 @@ class GroupThread extends Notifier<GroupThreadState> {
       realtime?.leave(key.groupId);
     });
     // Owner 2026-10-21: disappearing messages leave the list by the clock.
+    final memory = ref.read(groupThreadMemoryProvider);
     listenSelf((prev, next) {
-      if (!identical(prev?.messages, next.messages)) _armExpiry();
+      if (!identical(prev?.messages, next.messages)) {
+        _armExpiry();
+        // Groups WhatsApp parity: the newest page stays in memory.
+        memory.put(_storeKey, next.messages);
+      }
     });
     unawaited(load());
-    return const GroupThreadState();
+    // The page this group left in memory is drawn in the first frame;
+    // load() brings the phone's copy and the server's delta on top.
+    final now = DateTime.now();
+    final warm = [
+      for (final m in memory.take(_storeKey) ?? const <api.GroupMessageDto>[])
+        if (!m.isExpired(now)) m,
+    ];
+    return warm.isEmpty
+        ? const GroupThreadState()
+        : GroupThreadState(
+            messages: warm,
+            nextCursor: localCursor,
+            loading: false,
+          );
   }
 
   /// Drops the messages that ran out and arms one timer for the next one.
@@ -606,7 +739,46 @@ class GroupThread extends Notifier<GroupThreadState> {
     );
   }
 
+  /// Groups WhatsApp parity (the 1:1 `ChatThread.load`, package C): the
+  /// group opens on the phone's copy at once, the server is asked only for
+  /// what came after the newest message on the phone (`afterId`); a group
+  /// without a copy reads its first page (and saves it).
   Future<void> load() async {
+    final store = _store;
+    if (store != null) {
+      final local = await store.page(_storeKey);
+      if (!ref.mounted) return;
+      final now = DateTime.now();
+      final shown = [
+        for (final m in local)
+          if (!m.isExpired(now)) m,
+      ];
+      if (shown.isNotEmpty) {
+        unawaited(store.touch(_storeKey));
+        // What came meanwhile (realtime, the memory page) is at least as
+        // fresh as the disk: it wins for the same id.
+        final byId = {for (final m in shown) m.id: m};
+        for (final m in state.messages) {
+          byId[m.id] = m;
+        }
+        final merged = byId.values.toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        state = state.copyWith(
+          messages: merged,
+          nextCursor: state.nextCursor ?? localCursor,
+          loading: false,
+          error: null,
+        );
+        unawaited(catchUp());
+        return;
+      }
+    }
+    await _loadPage();
+  }
+
+  /// The newest page from the server (it replaces the list: a stale copy
+  /// goes) and onto the phone.
+  Future<void> _loadPage() async {
     try {
       final page = await _repo.messages(key.groupId, topicId: key.topicId);
       if (!ref.mounted) return;
@@ -616,6 +788,15 @@ class GroupThread extends Notifier<GroupThreadState> {
         loading: false,
         error: null,
       );
+      unawaited(
+        _store?.put(
+              _storeKey,
+              page.items,
+              nextCursor: page.nextCursor,
+              complete: page.nextCursor == null,
+            ) ??
+            Future.value(),
+      );
       unawaited(markRead());
     } on ApiException catch (e) {
       if (!ref.mounted) return;
@@ -623,12 +804,14 @@ class GroupThread extends Notifier<GroupThreadState> {
     }
   }
 
-  /// Owner 2026-10-22 (package B): after a reconnect only what came after
-  /// the newest message is asked for (`afterId`); more than the server
-  /// gives at once (409) → the page again.
+  /// Owner 2026-10-22 (package B): after a reconnect (and after opening on
+  /// the phone's copy) only what came after the newest message is asked
+  /// for (`afterId`); more than the server gives at once (409) or a newest
+  /// message the server no longer has (404) → the copy goes, the page
+  /// again. No network: the copy stays as it is (the next reconnect asks).
   Future<void> catchUp() async {
     final newest = state.messages.firstOrNull;
-    if (newest == null) return load();
+    if (newest == null) return _loadPage();
     try {
       final fresh = await _repo.messagesAfter(
         key.groupId,
@@ -640,8 +823,14 @@ class GroupThread extends Notifier<GroupThreadState> {
         if (_inThisThread(m)) _upsert(m);
       }
       if (fresh.any((m) => !m.mine)) unawaited(markRead());
-    } on ApiException {
-      if (ref.mounted) unawaited(load());
+    } on ApiException catch (e) {
+      if (!ref.mounted) return;
+      if (e.code == ApiException.networkErrorCode) return;
+      if (e.code == ApiErrorCodes.syncTooOld || e.statusCode == 404) {
+        await _store?.forget(_storeKey);
+        if (!ref.mounted) return;
+      }
+      unawaited(_loadPage());
     }
   }
 
@@ -666,6 +855,7 @@ class GroupThread extends Notifier<GroupThreadState> {
     final retryAt = _loadMoreRetryAt;
     if (retryAt != null && DateTime.now().isBefore(retryAt)) return;
     state = state.copyWith(loadingMore: true);
+    if (cursor == localCursor) return _loadMoreLocal();
     try {
       final page = await _repo.messages(
         key.groupId,
@@ -683,6 +873,78 @@ class GroupThread extends Notifier<GroupThreadState> {
         loadingMore: false,
       );
       _loadMoreRetryAt = null;
+      unawaited(
+        _store?.put(
+              _storeKey,
+              page.items,
+              nextCursor: page.nextCursor,
+              complete: page.nextCursor == null,
+            ) ??
+            Future.value(),
+      );
+    } on Object {
+      _loadMoreRetryAt = DateTime.now().add(const Duration(seconds: 5));
+      if (ref.mounted) state = state.copyWith(loadingMore: false);
+    }
+  }
+
+  /// Older messages from the phone; when it has no more, the server's page
+  /// after the oldest one on the phone (its cursor was saved with it) — the
+  /// 1:1 `ChatThread._loadMoreLocal`.
+  Future<void> _loadMoreLocal() async {
+    final store = _store;
+    final oldest = state.messages.lastOrNull;
+    try {
+      final older = store == null || oldest == null
+          ? const <api.GroupMessageDto>[]
+          : await store.page(_storeKey, before: oldest.createdAt);
+      if (!ref.mounted) return;
+      final now = DateTime.now();
+      final known = state.messages.map((m) => m.id).toSet();
+      final shown = [
+        for (final m in older)
+          if (!known.contains(m.id) && !m.isExpired(now)) m,
+      ];
+      if (shown.isNotEmpty) {
+        state = state.copyWith(
+          messages: [...state.messages, ...shown],
+          loadingMore: false,
+        );
+        return;
+      }
+      final history = await store?.history(_storeKey);
+      if (!ref.mounted) return;
+      if (history != null && history.complete) {
+        state = state.copyWith(nextCursor: null, loadingMore: false);
+        return;
+      }
+      // No saved cursor (the copy grew from events only): the first page
+      // again — it merges by id and brings the cursor for the rest.
+      final page = await _repo.messages(
+        key.groupId,
+        topicId: key.topicId,
+        cursor: history?.nextCursor,
+      );
+      if (!ref.mounted) return;
+      final have = state.messages.map((m) => m.id).toSet();
+      state = state.copyWith(
+        messages: [
+          ...state.messages,
+          ...page.items.where((m) => !have.contains(m.id)),
+        ]..sort((a, b) => b.createdAt.compareTo(a.createdAt)),
+        nextCursor: page.nextCursor,
+        loadingMore: false,
+      );
+      _loadMoreRetryAt = null;
+      unawaited(
+        store?.put(
+              _storeKey,
+              page.items,
+              nextCursor: page.nextCursor,
+              complete: page.nextCursor == null,
+            ) ??
+            Future.value(),
+      );
     } on Object {
       _loadMoreRetryAt = DateTime.now().add(const Duration(seconds: 5));
       if (ref.mounted) state = state.copyWith(loadingMore: false);
@@ -724,9 +986,16 @@ class GroupThread extends Notifier<GroupThreadState> {
               m,
         ],
       );
+      final changed =
+          state.messages.where((m) => m.id == messageId).firstOrNull;
+      if (changed != null) {
+        unawaited(_store?.put(_storeKey, [changed]) ?? Future.value());
+      }
     } else if (e.name == 'group:member_removed' &&
         data is Map &&
         data['groupId'] == key.groupId) {
+      // Out of the group: its copy on the phone goes too.
+      unawaited(_store?.forget(_storeKey) ?? Future.value());
       state = state.copyWith(removed: true);
     }
   }
@@ -784,6 +1053,9 @@ class GroupThread extends Notifier<GroupThreadState> {
           if (p.clientMessageId != m.clientMessageId) p,
       ],
     );
+    // Groups WhatsApp parity: every new or changed message is on the phone
+    // for the next open (1:1: the repository and the sync ledger).
+    unawaited(_store?.put(_storeKey, [m]) ?? Future.value());
   }
 
   String _newClientId() =>
@@ -911,11 +1183,46 @@ class GroupThread extends Notifier<GroupThreadState> {
     );
   }
 
+  /// Groups WhatsApp parity (voice): a recorded note goes through the
+  /// persistent queue like a 1:1 one (ChatThread.sendVoice): the file is
+  /// moved into the queue folder, the job uploads it and sends it.
+  Future<void> sendVoice({
+    required String path,
+    required int durationMs,
+    required List<int> waveform,
+    String? replyToId,
+  }) async {
+    // Read before the first await: the screen may be left meanwhile.
+    final queue = ref.read(groupMediaOutboxProvider);
+    final files = ref.read(uploadFilesProvider);
+    final sounds = ref.read(appSoundsProvider);
+    if (queue.ownerId == null) return;
+    final cmid = _newClientId();
+    final ext = path.toLowerCase().endsWith('.webm') || kIsWeb ? 'webm' : 'm4a';
+    final name = await files.keep('$cmid.$ext', fromPath: path, move: true);
+    unawaited(sounds.messageOut());
+    await queue.enqueue(
+      id: cmid,
+      kind: GroupMediaKind.voice,
+      target: key.groupId,
+      payload: {
+        'durationMs': durationMs,
+        'waveform': waveform,
+        if (key.topicId != null) 'topicId': key.topicId,
+        if (replyToId != null) 'replyToId': replyToId,
+      },
+      fileName: name,
+    );
+  }
+
   /// Client ids of this thread's queued files, shown as pending bubbles.
   Set<String> _mediaIds = const {};
 
+  /// The recordings of queued voice notes, by clientMessageId.
+  final _voicePaths = <String, String?>{};
+
   /// The queue's jobs of this group → pending bubbles of this thread.
-  void _onMediaJobs(List<UploadJobRow> rows) {
+  Future<void> _onMediaJobs(List<UploadJobRow> rows) async {
     if (!ref.mounted) return;
     final jobs = [
       for (final r in rows)
@@ -923,6 +1230,18 @@ class GroupThread extends Notifier<GroupThreadState> {
             when key.topicId == null || j.payload['topicId'] == key.topicId)
           j,
     ];
+    final files = ref.read(uploadFilesProvider);
+    for (final j in jobs) {
+      final n = j.fileName;
+      if (j.kind == GroupMediaKind.voice &&
+          n != null &&
+          !_voicePaths.containsKey(j.id)) {
+        _voicePaths[j.id] = await files.pathOf(n);
+      }
+    }
+    if (!ref.mounted) return;
+    final live = {for (final j in jobs) j.id};
+    _voicePaths.removeWhere((k, _) => !live.contains(k));
     final old = _mediaIds;
     _mediaIds = {for (final j in jobs) j.id};
     final delivered = {for (final m in state.messages) m.clientMessageId};
@@ -931,7 +1250,23 @@ class GroupThread extends Notifier<GroupThreadState> {
         for (final p in state.pending)
           if (!old.contains(p.clientMessageId)) p,
         for (final j in jobs)
-          if (!delivered.contains(j.id))
+          if (!delivered.contains(j.id) && j.kind == GroupMediaKind.voice)
+            PendingGroupMessage(
+              clientMessageId: j.id,
+              body: '',
+              replyToId: j.payload['replyToId'] as String?,
+              failed: j.failed,
+              voice: VoiceNote(
+                localPath: _voicePaths[j.id],
+                durationMs: (j.payload['durationMs'] as num?)?.toInt() ?? 0,
+                waveform: [
+                  for (final v in (j.payload['waveform'] as List?) ?? const [])
+                    (v as num).toInt(),
+                ],
+                listened: false,
+              ),
+            )
+          else if (!delivered.contains(j.id))
             PendingGroupMessage(
               clientMessageId: j.id,
               body: j.payload['caption'] as String? ?? '',
@@ -1042,6 +1377,13 @@ class GroupThread extends Notifier<GroupThreadState> {
     if (ref.mounted) _upsert(m);
   }
 
+  /// Groups WhatsApp parity (the 1:1 `ChatThread.react`): my emoji on a
+  /// message, null takes it away; the answer replaces the message.
+  Future<void> react(String messageId, String? emoji) async {
+    final m = await _repo.react(key.groupId, messageId, emoji);
+    if (ref.mounted) _upsert(m);
+  }
+
   Future<void> deleteForEveryone(String messageId) async {
     await _repo.deleteMessage(key.groupId, messageId);
     if (!ref.mounted) return;
@@ -1052,6 +1394,7 @@ class GroupThread extends Notifier<GroupThreadState> {
     final list = [...state.messages];
     list[at] = list[at].asTombstone();
     state = state.copyWith(messages: list);
+    unawaited(_store?.put(_storeKey, [list[at]]) ?? Future.value());
   }
 
   Future<void> pin(String? messageId) async {
@@ -1067,6 +1410,10 @@ class GroupThread extends Notifier<GroupThreadState> {
           if (m.id == messageId) m.withPoll(poll) else m,
       ],
     );
+    final m = state.messages.where((x) => x.id == messageId).firstOrNull;
+    if (m != null) {
+      unawaited(_store?.put(_storeKey, [m]) ?? Future.value());
+    }
   }
 
   /// Marks everything up to the newest message read (debounced by value).

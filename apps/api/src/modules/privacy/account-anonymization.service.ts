@@ -29,6 +29,7 @@ import { SubscriptionSyncService } from '../billing/subscription-sync.service';
 import { CaseLifecycleService } from '../cases/lifecycle/case-lifecycle.service';
 import { derivedKeys } from '../files/files.policy';
 import { FileReleaseService } from '../files/storage/file-release.service';
+import { FirmsService } from '../firms/firms.service';
 import { CaseJournalService } from '../journal/case-journal.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { VideosService } from '../videos/videos.service';
@@ -112,6 +113,8 @@ export class AccountAnonymizationService implements AccountEraser {
     // Owner 2026-10-29: the personal-data registry walk (every database,
     // every external store, certificate).
     @Optional() private readonly erasure?: PersonalDataErasureService,
+    // Firms audit 16.11 (PR-2): an erased firm owner hands the firm over.
+    @Optional() private readonly firms?: FirmsService,
   ) {
     this.logger.setContext(AccountAnonymizationService.name);
   }
@@ -528,6 +531,9 @@ export class AccountAnonymizationService implements AccountEraser {
     // counterpart is notified (one transaction per case, before the
     // identity is scrubbed so the journal rows keep their actor ids).
     await this.lifecycle.closeCasesOfDeletedUser(userId, now);
+    // Firms audit 16.11 (PR-2): a member leaves their firm; an owner's firm
+    // goes to the longest-standing member, or is closed when nobody is left.
+    await this.firms?.onAccountErased(userId);
     if (user.role === 'client') {
       await this.lifecycle.archiveOpenCasesOfClient(userId, now);
     }
