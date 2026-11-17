@@ -447,7 +447,12 @@ class CaseBid {
     this.paymentTerms,
     this.version = 0,
     this.confirmationRequiredAt,
+    this.teamNames = const [],
   });
+
+  /// Firms audit 16.11 (PR-5): names of the firm's lawyers who joined this
+  /// bid (GET /bids/:id); the client sees them under «Lawyers».
+  final List<String> teamNames;
 
   /// Owner 2026-09-30: the case's practice is outside the attorney's own —
   /// the client is told to discuss it before accepting.
@@ -512,6 +517,7 @@ class CaseBid {
         offers: offers,
         outsidePractice: outsidePractice,
         outsideLicensedStates: outsideLicensedStates,
+        teamNames: teamNames,
       );
 
   /// §6.1: counters are possible below the cap and never for free

@@ -1,3 +1,4 @@
+import { BidTeamService } from '../../firms/bid-team.service';
 import { assertExpectedVersion } from '../../../common/concurrency/optimistic-lock';
 import { assertNoBlockBetween } from '../../blocks/block-check';
 import { ConflictException, Injectable, Optional } from '@nestjs/common';
@@ -81,6 +82,8 @@ export class BidAcceptanceService {
     @Optional() private readonly referrals?: ReferralsService,
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly rankingEvents?: RankingEventsService,
+    // Firms audit 16.11 (PR-5): the firm's team on the bid hears it too.
+    @Optional() private readonly team?: BidTeamService,
   ) {}
 
   /** Deal record 2026-10-27: while `deal_record.enabled` the plain accept
@@ -421,6 +424,21 @@ export class BidAcceptanceService {
           },
       tx,
     );
+    // PR-5: the lawyers on the firm's team of this bid get the attorney's
+    // own news (a tap opens the chat they now work in).
+    for (const recipientId of (await this.team?.teamIds({
+      id: bidId,
+      attorney_id: attorneyId,
+    })) ?? []) {
+      await this.notifications.emit(
+        {
+          type: 'bid_accepted',
+          recipientId,
+          payload: { caseId, bidId, conversationId: conversation.id },
+        },
+        tx,
+      );
+    }
     for (const r of rejected) {
       await this.notifications.emit(
         {

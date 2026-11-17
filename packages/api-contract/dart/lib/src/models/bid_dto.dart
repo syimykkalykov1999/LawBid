@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'bid_attorney_summary_dto.dart';
 import 'bid_offer_dto.dart';
 import 'bid_status.dart';
+import 'bid_team_member_dto.dart';
 import 'fee_type.dart';
 import 'party_role.dart';
 import 'payment_terms_dto.dart';
@@ -39,6 +40,7 @@ class BidDto {
     this.percentBps,
     this.confirmationRequiredAt,
     this.attorney,
+    this.team,
   });
 
   factory BidDto.fromJson(Map<String, Object?> json) => _$BidDtoFromJson(json);
@@ -81,6 +83,11 @@ class BidDto {
 
   /// The attorney summary — only on GET /bids/:id.
   final BidAttorneySummaryDto? attorney;
+
+  /// Firms audit 16.11 (PR-5): the firm's team on the bid (the lawyers who.
+  /// joined it, still in the firm) — only on GET /bids/:id; empty with the.
+  /// `firm_profiles` switch off.
+  final List<BidTeamMemberDto>? team;
 
   Map<String, Object?> toJson() => _$BidDtoToJson(this);
 }
