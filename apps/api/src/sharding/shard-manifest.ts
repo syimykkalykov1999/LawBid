@@ -60,6 +60,8 @@ export const SHARDED_MODELS: Readonly<Record<string, ShardedModelSpec>> = {
   CaseExtraPractice: spec('case', parent('case_id', 'Case')),
   Bid: spec('case', parent('case_id', 'Case')),
   BidOffer: spec('case', parent('bid_id', 'Bid')),
+  // Firms audit 16.11 (PR-4): colleagues who joined the firm's bid.
+  BidParticipant: spec('case', parent('bid_id', 'Bid')),
   CaseJournal: spec('case', parent('case_id', 'Case')),
   ContactDisclosure: spec('case', parent('case_id', 'Case')),
   ContactIssueReport: spec('case', parent('case_id', 'Case')),
@@ -171,6 +173,7 @@ export const SHARDED_MODELS: Readonly<Record<string, ShardedModelSpec>> = {
   ChatGroup: spec('content', owner('created_by')),
   ChatGroupMember: spec('content', parent('group_id', 'ChatGroup')),
   ChatGroupMessage: spec('content', parent('group_id', 'ChatGroup')),
+  ChatGroupMessageReaction: spec('content', parent('group_id', 'ChatGroup')),
   ChatGroupTopic: spec('content', parent('group_id', 'ChatGroup')),
   ChatGroupTopicRead: spec('content', parent('topic_id', 'ChatGroupTopic')),
   ChatGroupJoinRequest: spec('content', parent('group_id', 'ChatGroup')),
@@ -384,6 +387,8 @@ export const GLOBAL_MODELS: readonly string[] = [
   'BidCredit',
   'Firm',
   'FirmMember',
+  // Firms audit 16.11 (PR-3).
+  'FirmInvitation',
   'SearchSynonymGroup',
   'SearchSynonymTerm',
   'SearchQueryLog',

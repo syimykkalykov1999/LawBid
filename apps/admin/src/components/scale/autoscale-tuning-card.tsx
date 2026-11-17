@@ -11,7 +11,7 @@ import { api } from '@/lib/api/client';
 import { tuningChanges, type TuningTarget } from '@/lib/autoscale-tuning';
 
 const KEY = ['autoscale-tuning'] as const;
-const TITLE: Record<string, string> = { redis: 'Redis', db: 'База', endpoints: 'Точки доступа AWS', ecs: 'Серверы ECS (цель, паузы, минимум, Spot)', spot: 'Запасные серверы вместо Spot' };
+const TITLE: Record<string, string> = { redis: 'Valkey', db: 'База', endpoints: 'Точки доступа AWS', ecs: 'Серверы ECS (цель, паузы, минимум, Spot)', spot: 'Запасные серверы вместо Spot' };
 /** Owner 15.11: what changing the minimum and the Spot split does. */
 export const ECS_HINT =
   'Минимум серверов применяется сразу (не выше максимума «Масштаб»). Доли Spot: первые N серверов всегда обычные, остальные делятся по весам обычные:Spot. ' +
@@ -46,7 +46,7 @@ export function AutoscaleTuningCard({ nowLine }: { nowLine?: (target: TuningTarg
   });
   return (
     <>
-      <SectionTitle>Числа «Авто»: Redis, база, точки доступа, серверы</SectionTitle>
+      <SectionTitle>Числа «Авто»: Valkey, база, точки доступа, серверы</SectionTitle>
       <div className="grid gap-4 lg:grid-cols-2">
         {(q.data ?? []).map((t) => {
           const d = drafts[t.target] ?? {};

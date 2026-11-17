@@ -204,6 +204,10 @@ export class FileScanProcessor {
         format: await this.imageFormat(),
         quality: await imageQuality(this.settings),
         keepSmallOriginal: await this.keepSmallOriginals(),
+        // Media check 14.11: images kept at their size lose EXIF/GPS too
+        // (a sticker is public on the CDN).
+        stripMetadata:
+          file.purpose === 'sticker' || file.purpose === 'task_attachment',
       });
     } catch (err) {
       // Undecodable image: permanent, retrying won't help.

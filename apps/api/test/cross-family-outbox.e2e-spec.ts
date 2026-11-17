@@ -41,7 +41,7 @@ describe('cross-family outbox (real PostgreSQL)', () => {
   });
   afterAll(async () => {
     delete effects['test.fail'];
-    await prisma.onModuleDestroy();
+    await prisma.onApplicationShutdown();
     await primaryRaw.$disconnect();
     if (twoDb) await db1Raw.$disconnect();
   });

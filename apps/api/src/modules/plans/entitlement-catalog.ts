@@ -43,6 +43,8 @@ export const ENTITLEMENT_KEYS = [
   'priority_search',
   'calls',
   'video_calls',
+  'hotline',
+  'hotline_addon_price_cents',
   'document_templates',
   'chat_translate',
   'translations_per_day',
@@ -192,6 +194,39 @@ export const ENTITLEMENT_CATALOG: readonly EntitlementDef[] = [
     },
   },
   {
+    // Owner row 87 (16.11 ~19:45): per plan the hotline is «Входит в тариф»
+    // (this switch), «Отдельное дополнение $N» (the price below) or
+    // «Недоступно» (neither). Read only in `hotline.mode` = by_subscription
+    // («По подписке»), like attachments_in_posts.
+    key: 'hotline',
+    type: 'boolean',
+    audiences: ['attorney'],
+    group: 'features',
+    label: { en: 'Call hotline included', ru: 'Горячая линия входит в тариф' },
+    description: {
+      en: 'The plan includes «Wait for calls»: hotline calls from clients in the states of the attorney’s verified licences.',
+      ru: 'В тариф входит «Ожидать звонки»: звонки с горячей линии от клиентов из штатов проверенных лицензий адвоката.',
+    },
+  },
+  {
+    // Owner 16.11 ~19:45: «Отдельное дополнение $N» of this plan, cents a
+    // month; empty = the plan offers no add-on (payments are off today, the
+    // purchase itself comes with the subscription card, plan PR 8).
+    key: 'hotline_addon_price_cents',
+    type: 'price',
+    audiences: ['attorney'],
+    group: 'billing',
+    label: {
+      en: 'Call hotline add-on, price',
+      ru: 'Горячая линия — отдельное дополнение, цена',
+    },
+    description: {
+      en: 'Monthly price of the hotline add-on on this plan (cents). Empty = no add-on: the hotline is included or unavailable.',
+      ru: 'Цена дополнения «Горячая линия» в месяц на этом тарифе (центы). Пусто — дополнения нет: линия входит в тариф или недоступна.',
+    },
+    min: 0,
+  },
+  {
     key: 'document_templates',
     type: 'boolean',
     audiences: ['attorney', 'client'],
@@ -322,8 +357,8 @@ export const ENTITLEMENT_CATALOG: readonly EntitlementDef[] = [
     group: 'visibility',
     label: { en: 'Verified badge', ru: 'Галочка верификации' },
     description: {
-      en: 'The gold badge once the documents are approved — no separate badge payment.',
-      ru: 'Золотая галочка после проверки документов — без отдельной оплаты галочки.',
+      en: 'The gold badge right after payment — no separate badge payment. Documents are asked only while «Проверка документов клиента» is on.',
+      ru: 'Золотая галочка сразу после оплаты — без отдельной оплаты галочки. Документы спрашиваются, только если включена «Проверка документов клиента».',
     },
   },
   {
@@ -406,6 +441,10 @@ export const BASELINE_DEFAULTS: Record<Audience, Entitlements> = {
     priority_search: false,
     calls: true,
     video_calls: true,
+    // Owner 16.11: read only in «По подписке» — then unavailable unless the
+    // owner sets it on a plan.
+    hotline: false,
+    hotline_addon_price_cents: null,
     // Owner 2026-10-05: templates come with a paid attorney plan.
     document_templates: false,
     chat_translate: true,

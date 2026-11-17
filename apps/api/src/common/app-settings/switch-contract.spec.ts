@@ -33,7 +33,7 @@ const settingsWith = (stored: Record<string, unknown> = {}) =>
 
 describe('switch contract: defaults (a)', () => {
   const table: Array<[keyof typeof APP_SETTINGS, unknown]> = [
-    ['images.avif_enabled', false],
+    ['images.avif_enabled', true],
     ['case_fanout.enabled', 'auto'],
     ['billing.stripe_tax_enabled', false],
     ['rewards.enabled', false],
@@ -58,6 +58,11 @@ describe('switch contract: defaults (a)', () => {
     ['auth.additional_identifiers_enabled', false],
     ['today.sentry_enabled', false],
     ['scale.db_split_enabled', false],
+    // Owner 16.11: the hotline is free for every attorney while payments are off.
+    ['hotline.mode', 'on_for_all'],
+    ['hotline.short_notice_enabled', false],
+    ['hotline.review_enabled', true],
+    ['hotline.client_steps_enabled', true],
   ];
   it.each(table)('%s defaults to %p with nothing stored', async (key, want) => {
     expect(APP_SETTINGS[key]).toBe(want);
@@ -69,8 +74,16 @@ describe('switch contract: defaults (a)', () => {
 });
 
 describe('images.avif_enabled', () => {
+  it('default (nothing stored): on, twins served for uploads from 17.11', async () => {
+    const s = settingsWith();
+    expect((await imageQuality(s)).avif).toEqual({ quality: 75, effort: 2 });
+    expect(await avifSince(s)).toEqual(new Date('2026-11-17T00:00:00.000Z'));
+  });
   it('off: no AVIF twin quality, and none served', async () => {
-    const s = settingsWith({ 'images.avif_since': '2026-10-25T00:00:00Z' });
+    const s = settingsWith({
+      'images.avif_enabled': false,
+      'images.avif_since': '2026-10-25T00:00:00Z',
+    });
     expect((await imageQuality(s)).avif).toBeNull();
     expect(await avifSince(s)).toBeNull();
   });

@@ -16,6 +16,7 @@ class CreateExperimentDto {
     required this.name,
     required this.surface,
     required this.variants,
+    this.hashVersion = 2,
     this.hypothesis,
     this.guardrails,
     this.endAt,
@@ -33,6 +34,9 @@ class CreateExperimentDto {
 
   /// Stops by itself at this moment.
   final DateTime? endAt;
+
+  /// Bucketing hash (row 150): 2 = GrowthBook v2, even and independent between tests (default); 1 = the old FNV-1a. Fixed for the life of the test.
+  final int hashVersion;
 
   Map<String, Object?> toJson() => _$CreateExperimentDtoToJson(this);
 }

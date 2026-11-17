@@ -17,6 +17,7 @@ import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/network/headers_interceptor.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/platform/web_isolation.dart';
 import 'package:lawbid/core/platform/web_semantics.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -125,6 +126,8 @@ class FeatureFlagsController extends _$FeatureFlagsController {
       ClientTuning.apply(state.appConfig);
       // D1-49: the website's screen-reader tree follows the admin switch.
       WebSemantics.apply(state.appConfig);
+      // Row 173: the website's COOP/COEP worker follows the admin switch.
+      WebIsolation.apply(state.appConfig);
       LowPowerMonitor.instance.setEnabled(
         enabled: state.isEnabled('low_power_mode'),
       );

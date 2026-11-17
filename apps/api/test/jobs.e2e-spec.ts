@@ -15,6 +15,8 @@ import {
   type CronLane,
 } from '../src/jobs/jobs.constants';
 import { DISPOSABLE_MIN_DOMAINS } from '../src/jobs/disposable-domains/disposable-domains-refresh.job';
+import { PushTokensService } from '../src/modules/notifications/push/push-tokens.service';
+import { VoipTokensService } from '../src/modules/notifications/push/voip-tokens.service';
 
 /**
  * BullMQ `cron` queue end to end (real Redis + PostgreSQL): schedules
@@ -118,7 +120,7 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
     expect(total).toBe(CRON_SCHEDULES.length);
   });
 
-  it('sessions.cleanup removes expired and long-revoked sessions, keeps live and rotated ones', async () => {
+  it('sessions.cleanup removes expired and long-revoked sessions, keeps live and rotated ones, keeps the tokens of a signed-in device', async () => {
     const user = await prisma.user.create({ data: {} });
     const day = 86_400_000;
     const now = Date.now();
@@ -126,11 +128,12 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
       label: string,
       expiresIn: number,
       revoked?: { ago: number; reason: string },
+      chain: string = randomUUID(),
     ) =>
       prisma.session.create({
         data: {
           user_id: user.id,
-          session_chain_id: randomUUID(),
+          session_chain_id: chain,
           device_id: label,
           refresh_hash: randomBytes(24).toString('hex'),
           expires_at: new Date(now + expiresIn),
@@ -157,13 +160,50 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
       ago: 40 * day,
       reason: 'rotated',
     });
-    // FK ON DELETE CASCADE: the expired session's push token goes too.
+    // 14.11 (DB scale review, finding 8): the phone registered its tokens
+    // on an older row of its sign-in chain, then refreshed in the background
+    // without registering again; the refresh moved its tokens to the new
+    // `active` row (SessionService.rotate). The old row expires and is
+    // removed; the device is still signed in, so its push and VoIP tokens
+    // must stay and keep receiving.
+    const oldGeneration = await mk(
+      'old-generation',
+      -day,
+      { ago: 40 * day, reason: 'rotated' },
+      active.session_chain_id,
+    );
+    const pushes = new PushTokensService(prisma);
+    const voip = new VoipTokensService(prisma);
+    const fcm = `fcm-${randomUUID()}`;
+    const voipToken = `voip-${randomUUID()}`;
+    await prisma.pushToken.create({
+      data: {
+        user_id: user.id,
+        session_id: active.id,
+        session_chain_id: active.session_chain_id,
+        fcm_token: fcm,
+        platform: 'ios',
+      },
+    });
+    await prisma.voipToken.create({
+      data: {
+        user_id: user.id,
+        session_id: active.id,
+        session_chain_id: active.session_chain_id,
+        token: voipToken,
+        topic: 'test.voip',
+        environment: 'production',
+      },
+    });
+    // A token of a device whose only row expired: signed out for good.
+    const deadFcm = `fcm-${randomUUID()}`;
     await prisma.pushToken.create({
       data: {
         user_id: user.id,
         session_id: expired.id,
-        fcm_token: `fcm-${randomUUID()}`,
-        platform: 'ios',
+        session_chain_id: expired.session_chain_id,
+        fcm_token: deadFcm,
+        platform: 'android',
       },
     });
 
@@ -181,11 +221,29 @@ describe('Background jobs (e2e) — BullMQ cron queue', () => {
     );
     expect(left.map((s) => s.id)).not.toContain(expiredRevoked.id);
     expect(left.map((s) => s.id)).not.toContain(oldLogout.id);
-    expect(result.deleted).toBeGreaterThanOrEqual(3);
-    expect(result.scanned).toBeGreaterThanOrEqual(6);
-    expect(await prisma.pushToken.count({ where: { user_id: user.id } })).toBe(
-      0,
-    );
+    expect(left.map((s) => s.id)).not.toContain(oldGeneration.id);
+    expect(result.deleted).toBeGreaterThanOrEqual(4);
+    expect(result.scanned).toBeGreaterThanOrEqual(7);
+    expect(
+      await prisma.pushToken.findUnique({
+        where: { fcm_token: fcm },
+        select: { session_id: true },
+      }),
+    ).toEqual({ session_id: active.id });
+    expect(await pushes.activeTokens(user.id)).toEqual([fcm]);
+    const ringing = await voip.activeDevices(user.id);
+    expect(ringing.map((d) => d.token)).toEqual([voipToken]);
+    // The live row of the chain, so the FCM call alert of this iPhone is
+    // skipped when it rang by VoIP.
+    expect(ringing[0].sessionId).toBe(active.id);
+    await expect(
+      voip.fcmTokensCoveredBy([ringing[0].sessionId]),
+    ).resolves.toEqual([fcm]);
+    // The signed-out device's token went with its chain (one database: the
+    // cascade; two databases: when the push found it dead).
+    expect(
+      await prisma.pushToken.count({ where: { fcm_token: deadFcm } }),
+    ).toBe(0);
 
     // Idempotent: a second run finds nothing more of this user's.
     await runJob(CRON_JOBS.sessionsCleanup);

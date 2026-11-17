@@ -182,6 +182,7 @@ void main() {
     TextDirection dir = TextDirection.ltr,
     double scale = 1,
     bool communities = true,
+    bool groups = true,
   }) async {
     useNarrowPhone(tester);
     final sender = _Sender();
@@ -203,6 +204,8 @@ void main() {
           _group('g2', 'Read-only announcements', canPost: false),
         ]),
       ),
+      // Row 183: the switch «Группы в чатах» (on by default).
+      groupsEnabledProvider.overrideWithValue(groups),
       channelListProvider.overrideWith((ref, key) async {
         keys.add(key);
         if (key.scope != ChannelScope.managed) return const [];
@@ -324,6 +327,24 @@ void main() {
     expect(r.social.shares, ['p1']);
     // The sheet is closed.
     expect(find.byKey(const ValueKey('share-to-send')), findsNothing);
+  });
+
+  // Owner 2026-11-16 (row 183): «Группы» off = no group anywhere here.
+  testWidgets('groups flag off: Communities is the channels only (row 183)',
+      (tester) async {
+    await open(tester, groups: false);
+    await tester.tap(find.text('Communities'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('share-to-groups')), findsNothing);
+    expect(find.byKey(const ValueKey('share-to-group-g1')), findsNothing);
+    expect(find.byKey(const ValueKey('share-to-channel-ch-1')), findsOneWidget);
+  });
+
+  testWidgets('groups and channels off: no group rows on Chats (row 183)',
+      (tester) async {
+    await open(tester, communities: false, groups: false);
+    expect(chat('a'), findsOneWidget);
+    expect(find.byKey(const ValueKey('share-to-group-g1')), findsNothing);
   });
 
   testWidgets('channels flag off: only the Chats tab, no Communities (R-386)',

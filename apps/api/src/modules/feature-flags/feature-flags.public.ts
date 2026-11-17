@@ -12,3 +12,5 @@ export {
   configTag,
   readConfigVersion,
 } from './services/config-version';
+// Owner 2026-11-16 (row 183): the admin switch «Группы» (groups, chat, badges).
+export { GROUP_CHAT_CALLS_FLAG, GROUPS_FLAG } from './flag-catalog';

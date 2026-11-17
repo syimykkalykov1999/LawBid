@@ -10,9 +10,12 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
+import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
 import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
 import 'package:lawbid/features/chat/presentation/chat_undo.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart'
+    show groupDraftKey;
 import 'package:lawbid/features/groups/domain/ongoing_call.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
@@ -59,6 +62,12 @@ class GroupChatTile extends ConsumerWidget {
     final mentions = g.unreadMentions.toInt();
     final last = g.lastMessage;
     final at = g.lastMessageAt;
+    // Groups WhatsApp parity (the 1:1 inbox row): an unsent text shows as
+    // a red «Drafts: …».
+    final draft = ref.watch(
+      chatTextDraftsProvider.select((m) => m[groupDraftKey(g.id, null)]),
+    );
+    final draftLabel = '${t.t('mine.tab.drafts')}: ';
     final canOrganize = picking == null && !ref.watch(isAssistantProvider);
     void organize() =>
         showGroupOrganizeSheet(context, ref, g, inArchive: inArchive);
@@ -165,22 +174,41 @@ class GroupChatTile extends ConsumerWidget {
                               Expanded(
                                 child: call != null
                                     ? OngoingCallLine(call: call)
-                                    : Text(
-                                        last == null
-                                            ? t.t('group.empty.preview')
-                                            : groupMessagePreview(
-                                                t,
-                                                last,
-                                                withSender: true,
-                                              ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: unread > 0
-                                            ? secondary.copyWith(
-                                                color: colors.text,
-                                              )
-                                            : secondary,
-                                      ),
+                                    : draft != null && highlight.isEmpty
+                                        ? Text.rich(
+                                            key:
+                                                ValueKey('group-draft-${g.id}'),
+                                            TextSpan(
+                                              children: [
+                                                TextSpan(
+                                                  text: draftLabel,
+                                                  style: TextStyle(
+                                                    color: colors.dangerText,
+                                                  ),
+                                                ),
+                                                TextSpan(text: draft),
+                                              ],
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: secondary,
+                                          )
+                                        : Text(
+                                            last == null
+                                                ? t.t('group.empty.preview')
+                                                : groupMessagePreview(
+                                                    t,
+                                                    last,
+                                                    withSender: true,
+                                                  ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: unread > 0
+                                                ? secondary.copyWith(
+                                                    color: colors.text,
+                                                  )
+                                                : secondary,
+                                          ),
                               ),
                               if (muted) ...[
                                 const SizedBox(width: AppSpacing.sm),

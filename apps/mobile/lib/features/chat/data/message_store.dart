@@ -32,18 +32,75 @@ class ConversationHistory {
 /// (`afterId`), and older pages go to disk as they are read. Bounded by
 /// the `messages` store limit, least recently opened chat out first (plan
 /// §5.1). Rows are the server's `MessageDto` JSON as received.
-class MessageStore {
-  MessageStore(this._db, this.owner, {required int Function() limitBytes})
-      : _limitBytes = limitBytes;
+class MessageStore extends CachedMessageStore<api.MessageDto> {
+  MessageStore(super.db, super.owner, {required super.limitBytes})
+      : super(
+          decode: _messageOf,
+          encode: (m) => m.toJson(),
+          idOf: (m) => m.id,
+          createdAtOf: (m) => m.createdAt,
+          imageUrlsOf: (m) => [
+            if (m.attachment?.isImage ?? false) ...[
+              m.attachment!.url,
+              m.attachment!.previewUrl,
+            ],
+          ],
+        );
+
+  /// A realtime payload (`message:new` / `message:updated`, same shape as
+  /// `MessageDto`).
+  Future<void> putRaw(String conversationId, Object? raw) {
+    if (raw is! Map) return Future.value();
+    try {
+      final m = api.MessageDto.fromJson(Map<String, dynamic>.from(raw));
+      return put(conversationId, [m]);
+    } on Object {
+      return Future.value();
+    }
+  }
+
+  static api.MessageDto _messageOf(Object? json) =>
+      api.MessageDto.fromJson(Map<String, dynamic>.from(json! as Map));
+
+  /// «Leave the cursor as it is» marker for [put].
+  static const Object keep = CachedMessageStore.keep;
+}
+
+/// The phone's copy of one kind of chat message (the 1:1 [MessageStore];
+/// groups WhatsApp parity: the group thread's copy, `GroupMessageStore`):
+/// the same table, the same LRU limit and trimming, rows are the server's
+/// DTO JSON as received.
+class CachedMessageStore<T> {
+  CachedMessageStore(
+    CacheDatabase db,
+    this.owner, {
+    required int Function() limitBytes,
+    required T Function(Object? json) decode,
+    required Map<String, dynamic> Function(T m) encode,
+    required String Function(T m) idOf,
+    required DateTime Function(T m) createdAtOf,
+    List<String?> Function(T m)? imageUrlsOf,
+  })  : _db = db,
+        _limitBytes = limitBytes,
+        _decode = decode,
+        _encode = encode,
+        _idOf = idOf,
+        _createdAtOf = createdAtOf,
+        _imageUrlsOf = imageUrlsOf;
 
   final CacheDatabase _db;
   final String owner;
   final int Function() _limitBytes;
+  final T Function(Object? json) _decode;
+  final Map<String, dynamic> Function(T m) _encode;
+  final String Function(T m) _idOf;
+  final DateTime Function(T m) _createdAtOf;
+  final List<String?> Function(T m)? _imageUrlsOf;
   Timer? _trim;
 
   /// The newest [limit] messages (newest first), older than [before] when
   /// given — the next «page» from the disk.
-  Future<List<api.MessageDto>> page(
+  Future<List<T>> page(
     String conversationId, {
     int limit = 50,
     DateTime? before,
@@ -59,7 +116,7 @@ class MessageStore {
       // thread (web: in slices), so opening a chat does not stutter.
       return await decodeJsonRows(
         [for (final r in rows) r.json],
-        _messageOf,
+        _decode,
       );
     } on Object catch (e) {
       debugPrint('messages read: $e');
@@ -84,7 +141,7 @@ class MessageStore {
   /// Messages from a page, a catch-up, a write or an event.
   Future<void> put(
     String conversationId,
-    Iterable<api.MessageDto> messages, {
+    Iterable<T> messages, {
     Object? nextCursor = keep,
     bool? complete,
   }) async {
@@ -94,18 +151,23 @@ class MessageStore {
         conversationId,
         [
           for (final m in messages)
-            (id: m.id, createdAt: m.createdAt, json: jsonEncode(m.toJson())),
+            (
+              id: _idOf(m),
+              createdAt: _createdAtOf(m),
+              json: jsonEncode(_encode(m)),
+            ),
         ],
       );
       // «Данные и память» по чатам: which chat these pictures belong to. An
       // auxiliary index: its failure must not stop the history bookkeeping.
       try {
+        final imagesOf = _imageUrlsOf;
         await _db.noteChatMedia(
           conversationId,
           {
-            for (final m in messages)
-              if (m.attachment?.isImage ?? false)
-                for (final u in [m.attachment!.url, m.attachment!.previewUrl])
+            if (imagesOf != null)
+              for (final m in messages)
+                for (final u in imagesOf(m))
                   if (u != null) stableImageCacheKey(u) ?? u,
           },
           DateTime.now(),
@@ -129,18 +191,6 @@ class MessageStore {
     }
   }
 
-  /// A realtime payload (`message:new` / `message:updated`, same shape as
-  /// `MessageDto`).
-  Future<void> putRaw(String conversationId, Object? raw) {
-    if (raw is! Map) return Future.value();
-    try {
-      final m = api.MessageDto.fromJson(Map<String, dynamic>.from(raw));
-      return put(conversationId, [m]);
-    } on Object {
-      return Future.value();
-    }
-  }
-
   Future<void> remove(String conversationId, String id) =>
       _db.deleteMessage(owner, conversationId, id).catchError((Object _) {});
 
@@ -158,6 +208,9 @@ class MessageStore {
       )
       .catchError((Object _) {});
 
+  /// Stops a pending trim (the owner of this store is gone).
+  void dispose() => _trim?.cancel();
+
   void _scheduleTrim(String keepConversation) {
     _trim?.cancel();
     _trim = Timer(const Duration(seconds: 2), () {
@@ -169,9 +222,6 @@ class MessageStore {
       });
     });
   }
-
-  static api.MessageDto _messageOf(Object? json) =>
-      api.MessageDto.fromJson(Map<String, dynamic>.from(json! as Map));
 
   /// «Leave the cursor as it is» marker for [put].
   static const Object keep = Object();

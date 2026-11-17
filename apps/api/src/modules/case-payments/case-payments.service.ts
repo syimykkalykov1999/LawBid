@@ -26,6 +26,7 @@ import type {
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { uuidV5 } from '../../common/uuid-v5';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -223,12 +224,7 @@ export function strip(p: Party | undefined): CasePaymentPartyDto | null {
 function afterCursor(cursor?: string): Prisma.CasePaymentWhereInput {
   if (!cursor) return {};
   const c = decodeCursor(cursor);
-  return {
-    OR: [
-      { created_at: { lt: c.createdAt } },
-      { created_at: c.createdAt, id: { lt: c.id } },
-    ],
-  };
+  return createdBefore({ t: c.createdAt, id: c.id });
 }
 
 /**

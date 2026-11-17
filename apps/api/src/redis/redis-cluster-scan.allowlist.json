@@ -105,6 +105,16 @@
     "reason": "MULTI over the single seen:<user> key."
   },
   {
+    "file": "modules/hotline/hotline-match.lua.ts",
+    "kind": "lua-multi-key",
+    "reason": "Every hotline key passed in KEYS[] starts with the hl:{hl} prefix (HotlineKeys), so all of a script's keys share one hash slot."
+  },
+  {
+    "file": "modules/hotline/hotline.store.ts",
+    "kind": "eval-spread-keys",
+    "reason": "The spread keys are HotlineKeys of one prefix carrying the {hl} hash tag (lst, alive, buckets, queues of one request or attorney): one slot."
+  },
+  {
     "file": "modules/moderation/text-detector.service.ts",
     "kind": "multi",
     "reason": "INCR+EXPIRE on the single daily detect counter key."

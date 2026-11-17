@@ -24,7 +24,8 @@ is automatic by default.
 
 | Step | Setting | Default |
 |---|---|---|
-| Client gold badge request | `verification.client_badge_auto_approve` | on (approved on upload; staff can revoke) |
+| Client gold badge: documents asked at all («Проверка документов клиента», owner 16.11) | `verification.client_badge_documents` | off (the client pays and gets the badge + plan features; staff can revoke) |
+| Client gold badge request (only while documents are asked) | `verification.client_badge_auto_approve` | on (approved on upload; staff can revoke) |
 | Attorney self-attestation | `verification.self_attestation_auto_approve` | on |
 | Undecided review appeals removed after 30 days | `reviews.auto_remove_undecided_appeals` | off (decided 2026-10-01, Google-style) |
 | Content hidden after N reports | `moderation.auto_hide_reports` | 3 |

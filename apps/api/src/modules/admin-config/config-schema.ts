@@ -1,5 +1,6 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { REALTIME_SETTING_DEFS } from '../../common/app-settings/realtime-settings';
+import { HOTLINE_SETTING_DEFS } from '../../common/app-settings/hotline-settings';
 import {
   STAFF_NOT_BUILT,
   STAFF_NOT_BUILT_NOTE,
@@ -63,6 +64,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Where new PUBLIC media (avatars, post and review photos, stickers) is stored: aws or r2 (Cloudflare R2; needs Integrations → Cloudflare R2). Private files (chats, cases, documents, verification) always stay on AWS.',
     pattern: /^(aws|r2)$/,
+  };
+  // Owner row 173 (2026-11-14): website multi-threading (COOP/COEP).
+  out['web.cross_origin_isolation'] = {
+    type: 'boolean',
+    defaultValue: false,
+    description:
+      'Website: cross-origin isolation (COOP same-origin + COEP credentialless, added by the site’s own service worker from the next page load), so the drawing engine uses a second thread in Chrome, Edge and Firefox. Off by default: under it Cloudflare Turnstile and Stripe frames on app pages and sign-in popups that talk back to the page stop working (docs/dev/COOP_COEP_TEST_2026-11-14.md). The card page /pay.html and the company site never get it.',
   };
   // Owner 2026-10-24 (search-ready): checked again on save (engine keys).
   out['ledger.reconcile_mode'] = {
@@ -406,6 +414,48 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       max: def.max,
     };
   }
+  // Owner row 87 (16.11): the call hotline numbers (Russian label + key).
+  out['hotline.mode'] = {
+    type: 'string',
+    defaultValue: 'on_for_all',
+    description:
+      'Горячая линия: кто из адвокатов может ждать звонки — те же три режима, что у вложений в постах. on_for_all — «Вкл для всех» (по умолчанию, пока деньги выключены): любой адвокат с проверенной лицензией; by_subscription — «По подписке»: решает план адвоката в «Деньги → Планы» («Горячая линия входит в тариф» или «отдельное дополнение» с ценой рядом с ценой места помощника), пробный срок — hotline.trial_days / hotline.trial_minutes; off_for_all — «Выкл для всех»: ни один адвокат. Клиенту всегда бесплатно. Меняется сразу, без выката (hotline.mode).',
+    pattern: /^(by_subscription|off_for_all|on_for_all)$/,
+  };
+  out['hotline.counter_bands'] = {
+    type: 'integer[]',
+    defaultValue: [1, 10, 50, 100],
+    description:
+      'Горячая линия: как клиенту показывать число адвокатов на линии — ступени по возрастанию. 0 — «нет», меньше второй ступени — «есть», дальше «10+», «50+», «100+» (точное число клиент не видит). По умолчанию 1, 10, 50, 100 (hotline.counter_bands).',
+    min: 1,
+  };
+  out['hotline.review_enabled'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Горячая линия: после звонка клиенту предлагается короткий необязательный отзыв (как в Uber). Выкл. — отзыва нет (hotline.review_enabled).',
+  };
+  out['hotline.client_steps_enabled'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Горячая линия: клиент заполняет заявку по шагам с кнопками «Дальше / Назад» до соединения. Выкл. — одна страница (hotline.client_steps_enabled).',
+  };
+  out['hotline.short_notice_enabled'] = {
+    type: 'boolean',
+    defaultValue: false,
+    description:
+      'Горячая линия: после первого звонка (там предупреждение показывается один раз) в следующих звонках показывать короткую строку «Звонки не записываются». По умолчанию выкл. (hotline.short_notice_enabled).',
+  };
+  for (const def of HOTLINE_SETTING_DEFS) {
+    out[def.key] = {
+      type: 'integer',
+      defaultValue: def.default,
+      description: `${def.labelRu} (${def.key}). По умолчанию ${def.default}.`,
+      min: def.min,
+      ...(def.max === undefined ? {} : { max: def.max }),
+    };
+  }
   for (const key of ['post.max_chars_media', 'post.max_chars_brief']) {
     out[key] = { ...out[key], type: 'integer', min: 1, max: 5000 };
   }
@@ -732,14 +782,14 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['files.scan_handoff_max_kb'] = {
     ...out['files.scan_handoff_max_kb'],
     description:
-      'KB of a small upload handed from confirm to the virus check through Redis, so the worker does not read it from storage again (0 = off, default 8192, max 32768).',
+      'KB of a small upload handed from confirm to the virus check through Valkey, so the worker does not read it from storage again (0 = off, default 8192, max 32768).',
     min: 0,
     max: 32_768,
   };
   out['files.scan_handoff_ttl_s'] = {
     ...out['files.scan_handoff_ttl_s'],
     description:
-      'Seconds such bytes wait in Redis for the check (10-3600, default 120); after that the worker reads the file from storage.',
+      'Seconds such bytes wait in Valkey for the check (10-3600, default 120); after that the worker reads the file from storage.',
     min: 10,
     max: 3600,
   };
@@ -1186,6 +1236,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100000,
   };
+  out['sessions.cleanup_batch'] = {
+    ...out['sessions.cleanup_batch'],
+    description:
+      'Sessions cleanup (nightly): session rows scanned per statement (one short transaction each).',
+    min: 100,
+    max: 50000,
+  };
+  out['sessions.revoked_retention_days'] = {
+    ...out['sessions.revoked_retention_days'],
+    description:
+      'Sessions cleanup: days a signed-out or blocked session row is kept (incident review, new-device signal).',
+    min: 1,
+    max: 3650,
+  };
   out['privacy.retention_batch'] = {
     ...out['privacy.retention_batch'],
     description: 'Privacy retention: rows per statement (short transactions).',
@@ -1308,6 +1372,26 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 1000,
   };
+  // Row 181 (DB scale finding 5): parallel jobs per cron lane.
+  const laneConcurrency = (key: string, description: string) => {
+    out[key] = { ...out[key], description, min: 1, max: 20 };
+  };
+  laneConcurrency(
+    'ops.cron_lane_concurrency_fast',
+    'Background jobs the every-minute lane (queue metrics, ops guard, calls) runs at once in one worker task. Default 3.',
+  );
+  laneConcurrency(
+    'ops.cron_lane_concurrency_default',
+    'Background jobs the main lane (hourly case, bid and reminder jobs) runs at once in one worker task. Default 1.',
+  );
+  laneConcurrency(
+    'ops.cron_lane_concurrency_heavy_frequent',
+    'Background jobs the frequent heavy lane (recommendations, trending tags, admin summaries, legal exports) runs at once in one worker task. Default 1. Each extra job is one more heavy database query at the same time.',
+  );
+  laneConcurrency(
+    'ops.cron_lane_concurrency_heavy',
+    'Background jobs the nightly heavy lane (retention, recounts, session cleanup, staff nightlies) runs at once in one worker task. Default 1. Each extra job is one more long database query at the same time.',
+  );
   out['ops.reencrypt_rows_per_min'] = {
     ...out['ops.reencrypt_rows_per_min'],
     description:
@@ -1533,7 +1617,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     type: 'string',
     defaultValue: 'off',
     description:
-      'Biggest database / Redis size the autoscalers may use: auto = what the allowed monthly spend pays for (Экономика), off = only the Terraform ceiling. Changed on the «Расходы» page.',
+      'Biggest database / Valkey size the autoscalers may use: auto = what the allowed monthly spend pays for (Экономика), off = only the Terraform ceiling. Changed on the «Расходы» page.',
     pattern: /^(off|auto)$/,
   };
   out['scale.bunny_hardstop.mode'] = {
@@ -1570,6 +1654,28 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'A Google sign-in token issued longer ago than this many seconds is refused (600; 0 = no check).',
     min: 0,
     max: 86400,
+  };
+  out['auth.social_nonce_ttl_sec'] = {
+    ...out['auth.social_nonce_ttl_sec'],
+    description:
+      'How long a Google sign-in nonce issued by POST /auth/social/nonce stays valid, seconds (600). It works once.',
+    min: 30,
+    max: 3600,
+  };
+  // R2B-9 / R2B-12 (14.11): stricter rules that need the new app, switched
+  // on per app version (empty = not enforced; older builds keep the old
+  // path, like min_app_version_* retires them).
+  out['security.google_nonce_min_app_version'] = {
+    ...out['security.google_nonce_min_app_version'],
+    description:
+      'From this app version on (semver), Google sign-in must use a nonce issued by the server; older builds keep their own. Empty = not enforced.',
+    pattern: /^(\d+\.\d+\.\d+)?$/,
+  };
+  out['security.export_reauth_min_app_version'] = {
+    ...out['security.export_reauth_min_app_version'],
+    description:
+      'From this app version on (semver), the data-export download link is given only with a fresh re-authentication (X-Reauth-Token); older builds still get it without. Empty = not enforced.',
+    pattern: /^(\d+\.\d+\.\d+)?$/,
   };
   out['verification.persona_webhook_tolerance_sec'] = {
     ...out['verification.persona_webhook_tolerance_sec'],

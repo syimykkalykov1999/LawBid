@@ -25,7 +25,7 @@ npm run precheck:full   # минуты, перед ПОСЛЕДНИМ пушем
 | 7 | flutter analyze / test (22) | CI падает даже на `info`; тест по всему приложению, а не по изменённым файлам; флаки `voice_test` | `cd apps/mobile && flutter analyze` (всё приложение); `dart format <свои файлы>` |
 | 8 | Lint (9) / Typecheck (admin 16) | Забытые типы, неиспользуемое | `npm run lint:fast --workspace apps/api`; `npx tsc --noEmit` в `apps/admin` |
 | 9 | Gitleaks (5+5) | Случайно выглядящий фейковый токен в тесте; закоммичен `graphify-out/` (кэш с именами `sentry_*.dart` → правило sentry-access-token) | `gitleaks git --log-opts="origin/main..HEAD" .`; фейки называть `test-…-token`; `graphify-out/` не коммитить |
-| 10 | Squawk online-DDL (2) | Миграция без `SET LOCAL lock_timeout = '5s';` первой строкой, индекс без `CONCURRENTLY` | `npx squawk-cli@2.70.0 -c .squawk.toml <файл>` |
+| 10 | Squawk online-DDL (2) | Миграция без `SET LOCAL lock_timeout = '5s';` первой строкой, индекс без `CONCURRENTLY` | `npx squawk-cli@2.72.0 -c .squawk.toml <файл>` |
 | 11 | i18n (2) | Ключ используется в коде, но его нет в xlsx (`post.counts.hiddenForOthers`) | `node scripts/i18n-add.mjs …` затем `node scripts/i18n-audit.mjs --ci` |
 | 12 | module-boundaries | Новый кросс-модульный импорт | `UPDATE_BOUNDARIES=1 npx jest architecture/module-boundaries` (обновить baseline сознательно) |
 | 13 | Build iOS/Android (6) | Сеть раннера: `cdn.cocoapods.org` не резолвится; отмена из-за нового пуша | Не код. Перезапустить **только упавший job** один раз (`gh run rerun <id> --failed`) |

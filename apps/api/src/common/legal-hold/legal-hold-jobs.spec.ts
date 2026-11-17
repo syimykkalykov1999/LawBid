@@ -101,10 +101,12 @@ describe('every deletion job respects a legal hold', () => {
   it('sessions.cleanup', async () => {
     const $queryRaw = jest
       .fn()
-      .mockResolvedValue([
-        { doomed_ids: null, last_id: null, scanned: 0n, deleted: 0n },
-      ]);
-    const job = new SessionsCleanupJob(prismaWith({ $queryRaw }), logger);
+      .mockResolvedValue([{ last_id: null, scanned: 0n, deleted: 0n }]);
+    const job = new SessionsCleanupJob(
+      prismaWith({ $queryRaw }),
+      logger,
+      settings({}),
+    );
     await job.run();
     expect(heldInSql($queryRaw.mock.calls[0])).toBe(true);
   });

@@ -190,6 +190,25 @@ describe('FileScanProcessor', () => {
     expect(await run).toBe('clean');
   });
 
+  // Media check 14.11: kept-size images lose EXIF/GPS (sticker = public).
+  it.each([
+    ['sticker', true],
+    ['task_attachment', true],
+    ['verification_document', false],
+    ['post_image', false],
+  ])('%s → stripMetadata %s', async (purpose, strip) => {
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0]);
+    const { processor, images } = make({
+      scanner: new DevEicarScanner(),
+      data: jpeg,
+      purpose,
+    });
+    await processor.run('f1', false);
+    expect(images.process).toHaveBeenCalledWith(
+      expect.objectContaining({ stripMetadata: strip }),
+    );
+  });
+
   describe('after a light confirm (R-252): source_sha256 is empty', () => {
     const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
     const row = (over: Record<string, unknown>) => ({

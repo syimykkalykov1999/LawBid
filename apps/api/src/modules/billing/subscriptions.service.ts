@@ -22,6 +22,7 @@ import type {
 import { Queue } from 'bullmq';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -1007,14 +1008,7 @@ export class SubscriptionsService implements OnModuleDestroy {
     const rows = await this.prisma.payment.findMany({
       where: {
         user_id: user.sub,
-        ...(c
-          ? {
-              OR: [
-                { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, id: { lt: c.id } },
-              ],
-            }
-          : {}),
+        ...(c ? createdBefore({ t: c.createdAt, id: c.id }) : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAYMENTS_PAGE + 1,

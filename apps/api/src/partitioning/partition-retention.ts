@@ -4,7 +4,8 @@ import { Prisma } from '../generated/prisma/client';
  * DB scale batch B: retention by whole month for the monthly-partitioned
  * tables (idea of pg_partman's `retention`: drop the child table whose whole
  * range is past the retention instead of deleting its rows one by one; code
- * our own, the SQL is in migration 20261129093700). Before this,
+ * our own, the SQL is in migration
+ * 20261212120000_retention_partition_drop_counter_base). Before this,
  * PARTITION_RETENTION_MONTHS was empty and the drop path was never used.
  *
  * The SQL function drops AT MOST ONE month per call (one short transaction

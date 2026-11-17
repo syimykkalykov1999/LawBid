@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/session/session_state.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
@@ -40,9 +41,13 @@ class _Session extends SessionController {
 class _Placed extends FakeCasesRepository {
   BidInput? placed;
 
+  /// Firms audit 16.11 (PR-4): the server's answer instead of a bid.
+  ApiException? fail;
+
   @override
   Future<CaseBid> placeBid(String caseId, BidInput input) async {
     placed = input;
+    if (fail != null) throw fail!;
     return CaseBid(
       id: 'bid-1',
       caseId: caseId,
@@ -136,6 +141,7 @@ void main() {
                   ownerId: ownerId,
                   states: const ['NY'],
                   members: members,
+                  inviteExpiresAt: null,
                 ),
         ),
       ],
@@ -312,6 +318,40 @@ void main() {
       await t.tap(find.byType(GavelStrikeButton));
       await t.pumpAndSettle();
       expect(r.cases.placed!.sendAsAttorneyId, 'colleague');
+    });
+
+    // Firms audit 16.11 (PR-4, owner): one bid per firm per case.
+    testWidgets('a colleague already bid: «Присоединиться» joins his bid',
+        (t) async {
+      final r = await pump(t);
+      r.cases.fail = const ApiException(
+        code: ApiErrorCodes.firmBidExists,
+        message: 'A colleague from your firm has already bid on this case.',
+        statusCode: 409,
+        details: {
+          'bidId': 'bid-9',
+          'attorneyId': 'att-2',
+          'firstName': 'Bob',
+          'lastName': 'Roe',
+        },
+      );
+      await t.enterText(key('pay-field-amount'), '3000');
+      await t.pump();
+      await typeMessage(t);
+      await t.ensureVisible(find.byType(GavelStrikeButton));
+      await t.tap(find.byType(GavelStrikeButton));
+      await t.pumpAndSettle();
+      expect(
+        find.text('Your colleague has already placed a bid'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Bob Roe has already sent it'),
+        findsOneWidget,
+      );
+      await t.tap(find.text('Join'));
+      await t.pumpAndSettle();
+      expect(r.cases.calls, contains('joinFirmBid:bid-9'));
     });
   });
 }

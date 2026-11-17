@@ -33,6 +33,7 @@ import {
 } from '../chat/chat-system.service';
 import { CaseJournalService } from '../journal/case-journal.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { FirmsService } from '../firms/firms.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { AttorneyTrustService } from '../attorney-trust/attorney-trust.service';
 import { EntitlementsService } from '../plans/entitlements.service';
@@ -149,7 +150,103 @@ export class BidsService {
     // Owner 2026-10-27: a bid counts for the case's boost paid per action.
     @Optional() private readonly boostActions?: BoostActions,
     @Optional() private readonly rankingEvents?: RankingEventsService,
+    // Firms audit 16.11 (PR-4, owner): one bid per firm per case.
+    @Optional() private readonly firms?: FirmsService,
   ) {}
+
+  /** Firms audit 16.11 (PR-4, owner): a live bid of a colleague of the
+   * firm on this case means the firm has bid — 409 FIRM_BID_EXISTS with
+   * the bid and who sent it; the lawyer joins it (`join`) instead. */
+  private async assertNoFirmBid(
+    tx: Prisma.TransactionClient,
+    caseId: string,
+    firm: Awaited<ReturnType<FirmsService['colleaguesOf']>>,
+  ): Promise<void> {
+    if (!firm || firm.colleagues.length === 0) return;
+    // Two lawyers of one firm bidding at the same moment: the second waits
+    // here for the first to commit, then sees its bid (read committed).
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`firm-bid:${firm.firmId}:${caseId}`}, 0))`;
+    const other = await tx.bid.findFirst({
+      where: {
+        case_id: caseId,
+        attorney_id: { in: firm.colleagues.map((c) => c.id) },
+        status: { in: ['active', 'accepted'] },
+      },
+      orderBy: { created_at: 'asc' },
+      select: { id: true, attorney_id: true },
+    });
+    if (!other) return;
+    const who = firm.colleagues.find((c) => c.id === other.attorney_id);
+    throw new ConflictException({
+      code: ErrorCode.FIRM_BID_EXISTS,
+      message: 'A colleague from your firm has already bid on this case.',
+      details: {
+        bidId: other.id,
+        attorneyId: other.attorney_id,
+        firstName: who?.firstName ?? null,
+        lastName: who?.lastName ?? null,
+      },
+    });
+  }
+
+  /**
+   * Firms audit 16.11 (PR-4, owner): a lawyer of the firm joins the firm's
+   * bid on a case instead of sending a second one. The bid's lawyer and
+   * whoever sent it are told (`firm_update` / `bid_joined`). Joining twice
+   * is a no-op.
+   */
+  async join(user: RequestUser, bidId: string): Promise<{ bidId: string }> {
+    if (user.role !== 'attorney') {
+      throw new ForbiddenException({ code: ErrorCode.FORBIDDEN });
+    }
+    const bid = await this.prisma.bid.findUnique({
+      where: { id: bidId },
+      select: {
+        id: true,
+        case_id: true,
+        attorney_id: true,
+        sent_by: true,
+        status: true,
+      },
+    });
+    const firm = await this.firms?.colleaguesOf(user.sub);
+    if (
+      !bid ||
+      !firm ||
+      bid.attorney_id === user.sub ||
+      !firm.colleagues.some((c) => c.id === bid.attorney_id)
+    ) {
+      throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
+    }
+    if (bid.status !== 'active' && bid.status !== 'accepted') {
+      throw new ConflictException({
+        code: ErrorCode.BID_INVALID_STATE,
+        details: { status: bid.status },
+      });
+    }
+    const made = await this.prisma.bidParticipant.createMany({
+      data: [{ bid_id: bid.id, attorney_id: user.sub }],
+      skipDuplicates: true,
+    });
+    if (made.count > 0) {
+      const tell = [
+        ...new Set([bid.attorney_id, bid.sent_by].filter(Boolean)),
+      ].filter((id): id is string => !!id && id !== user.sub);
+      for (const recipientId of tell) {
+        await this.notifications.emit({
+          type: 'firm_update',
+          recipientId,
+          payload: {
+            kind: 'bid_joined',
+            bidId: bid.id,
+            caseId: bid.case_id,
+            actorId: user.sub,
+          },
+        });
+      }
+    }
+    return { bidId: bid.id };
+  }
 
   /** Codes of the case's topics (the first and the extras). */
   private async casePracticeCodes(caseId: string): Promise<string[]> {
@@ -187,6 +284,10 @@ export class BidsService {
     user: RequestUser,
     caseId: string,
     dto: CreateBidDto,
+    /** Firms audit 16.11 (PR-1): who really sent it (`bids.sent_by`) and,
+     * when the firm owner sent it as this member, the owner (the member is
+     * told). */
+    origin: { sentBy?: string; firmOwnerId?: string | null } = {},
   ): Promise<BidDto> {
     if (user.role !== 'attorney') {
       throw new ForbiddenException({
@@ -332,6 +433,10 @@ export class BidsService {
       }
     }
 
+    // Firms audit 16.11 (PR-4): the firm's other lawyers (global database,
+    // read before the case's transaction).
+    const firm = (await this.firms?.colleaguesOf(user.sub)) ?? null;
+
     try {
       const eventTickets: Array<DomainEventTicket | null | undefined> = [];
       const bid = await withTxRetry(
@@ -343,6 +448,7 @@ export class BidsService {
           // attorney's bids on an advisory lock and re-check the two counters
           // that can be raced (open offers, offers this month).
           await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`bid-limits:${user.sub}`}, 0))`;
+          await this.assertNoFirmBid(tx, caseId, firm);
           if (maxActive && maxActive > 0) {
             const open = await tx.bid.count({
               where: { attorney_id: user.sub, status: 'active' },
@@ -428,6 +534,7 @@ export class BidsService {
             turn: 'client',
             outside_practice: outsidePractice,
             outside_licensed_states: outsideLicensedStates,
+            sent_by: origin.sentBy ?? user.assistant?.userId ?? user.sub,
           } satisfies Prisma.BidUncheckedUpdateInput;
           const previous = await tx.bid.findUnique({
             where: {
@@ -528,6 +635,23 @@ export class BidsService {
             },
             tx,
           );
+          // Firms audit 16.11 (PR-1, rest of row 167): the firm owner sent
+          // this bid in the member's name — the member hears it at once.
+          if (origin.firmOwnerId && origin.firmOwnerId !== user.sub) {
+            await this.notifications.emit(
+              {
+                type: 'firm_update',
+                recipientId: user.sub,
+                payload: {
+                  kind: 'bid_sent_for_you',
+                  caseId,
+                  bidId: created.id,
+                  actorId: origin.firmOwnerId,
+                },
+              },
+              tx,
+            );
+          }
           eventTickets.push(
             await this.events?.emit(
               tx,

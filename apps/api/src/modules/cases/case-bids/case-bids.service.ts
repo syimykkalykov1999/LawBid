@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import type { Prisma } from '../../../generated/prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
+import { createdBefore } from '../../../common/pagination/cursor.util';
 import { parseUpdatedSince, syncedAt } from '../../../common/sync/sync.util';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -496,12 +497,7 @@ function afterCursor(cursor: BidListCursor): Prisma.BidWhereInput {
           details: { field: 'cursor' },
         });
       }
-      return {
-        OR: [
-          { created_at: { lt: t } },
-          { created_at: t, id: { lt: cursor.id } },
-        ],
-      };
+      return createdBefore({ t, id: cursor.id });
     }
     case 'lowest_price': {
       const amount = Number(cursor.key);

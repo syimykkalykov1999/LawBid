@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,6 +14,7 @@ import 'package:lawbid/features/cases/application/case_history_controller.dart';
 import 'package:lawbid/features/cases/presentation/widgets/reauth_gate_view.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/profile/application/delete_account_controller.dart';
+import 'package:lawbid/features/profile/domain/delete_account_flow_state.dart';
 import 'package:lawbid/features/profile/domain/delete_account_step.dart';
 import 'package:lawbid/features/profile/presentation/screens/delete_account_screen.dart';
 import 'package:lawbid/features/settings/data_export/application/data_export_providers.dart';
@@ -49,13 +52,25 @@ class _Repo extends StubAuthRepository {
     otpRequests.add(identifier);
   }
 
+  /// R2-A #5: holds `DELETE /users/me` until the test completes it.
+  Completer<void>? holdDeletion;
+
   @override
   Future<AccountDeletionResult> deleteAccount({
     required String reauthToken,
   }) async {
     deletedWith = reauthToken;
+    final gate = holdDeletion;
+    if (gate != null) await gate.future;
     return deletion;
   }
+}
+
+/// R2-A #5: the flow parked on «deleting…».
+class _Submitting extends DeleteAccountController {
+  @override
+  DeleteAccountFlowState build() =>
+      const DeleteAccountFlowState(step: DeleteAccountStep.submitting);
 }
 
 class _NoBiometric extends BiometricAuthService {
@@ -77,7 +92,8 @@ class _ExportRepo implements DataExportRepository {
   }
 
   @override
-  Future<DataExport> status(String exportId) async => DataExport(
+  Future<DataExport> status(String exportId, {String? reauthToken}) async =>
+      DataExport(
         id: exportId,
         status: DataExportStatus.processing,
         createdAt: DateTime.utc(2026, 10, 8),
@@ -200,6 +216,58 @@ void main() {
         c.read(deleteAccountControllerProvider).step,
         DeleteAccountStep.done,
       );
+    });
+
+    test('R2-A #5: leaving mid-request still signs the deleted account out',
+        () async {
+      final repo = _Repo()..holdDeletion = Completer<void>();
+      final c = container(repo, demo: true);
+      final sub = c.listen(deleteAccountControllerProvider, (_, __) {});
+      final ctrl = c.read(deleteAccountControllerProvider.notifier);
+      await ctrl.acknowledgeWarning();
+      final pending = ctrl.submitDeletion();
+      // The person leaves: the screen's listener goes, the autoDispose
+      // controller is disposed while the request is still on the way.
+      sub.close();
+      await Future<void>.delayed(Duration.zero);
+      repo.holdDeletion!.complete();
+      expect(await pending, isTrue);
+      expect(repo.clearedAfterDeletion, 1);
+    });
+
+    testWidgets('R2-A #5: no back or swipe while the deletion is on the way',
+        (tester) async {
+      await tester.pumpWidget(
+        uxApp(
+          Builder(
+            builder: (context) => TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const DeleteAccountScreen(),
+                ),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+          theme: AppTheme.light(),
+          disableAnimations: true,
+          overrides: uxOverrides(
+            extra: [
+              authRepositoryProvider.overrideWithValue(_Repo()),
+              deleteAccountControllerProvider.overrideWith(_Submitting.new),
+            ],
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      // The «deleting…» spinner never settles.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(DeleteAccountScreen), findsOneWidget);
+      await tester.binding.handlePopRoute();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(DeleteAccountScreen), findsOneWidget);
+      expect(find.byType(AppBackButton), findsNothing);
     });
 
     test(

@@ -50,7 +50,8 @@ class _ExportRepo implements DataExportRepository {
   }
 
   @override
-  Future<DataExport> status(String exportId) async => DataExport(
+  Future<DataExport> status(String exportId, {String? reauthToken}) async =>
+      DataExport(
         id: exportId,
         status: DataExportStatus.processing,
         createdAt: DateTime.utc(2026, 10, 28),

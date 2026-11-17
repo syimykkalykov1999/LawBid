@@ -35,6 +35,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { BucketKind } from '../files.policy';
 import {
+  STORAGE_REQUEST_HANDLER,
   createR2Client,
   presignR2Put,
   webOriginOf,
@@ -210,6 +211,8 @@ export class S3StorageService implements OnModuleDestroy {
       endpoint,
       // MinIO serves buckets by path, not by virtual-host subdomain.
       forcePathStyle: endpoint !== undefined,
+      // Infra audit 14.11: the same time limits as R2 (no limit before).
+      requestHandler: STORAGE_REQUEST_HANDLER,
       credentials:
         f.accessKeyId && f.secretAccessKey
           ? { accessKeyId: f.accessKeyId, secretAccessKey: f.secretAccessKey }
@@ -845,7 +848,9 @@ export class S3StorageService implements OnModuleDestroy {
         Key: key,
         Body: Readable.from(counted(), { objectMode: false }),
         ContentType: contentType,
-        CacheControl: IMMUTABLE_CACHE_CONTROL,
+        // Media check 14.11: the bucket's own header — a documents-bucket
+        // stream (data / legal export) is private, never public-immutable.
+        CacheControl: this.cacheControlFor(bucket),
       },
       partSize: opts.partSizeBytes ?? MULTIPART_PART_BYTES,
       queueSize: opts.queueSize ?? 2,

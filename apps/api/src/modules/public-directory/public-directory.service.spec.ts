@@ -289,21 +289,27 @@ describe('PublicDirectoryService.seoPosts / seoQuestions (static pages of posts 
     expect(page.nextCursor).toEqual(expect.any(String));
     await svc.seoPosts({ limit: 2, cursor: page.nextCursor ?? '' });
     const arg = prisma.post.findMany.mock.calls[1][0] as {
-      where: { OR: unknown[] };
+      where: { AND: unknown[] };
     };
-    expect(arg.where.OR).toEqual([
-      { created_at: { lt: at } },
-      { created_at: at, id: { lt: second } },
+    // Row 126 follow-up: the index range form of the keyset (createdBefore).
+    expect(arg.where.AND).toEqual([
+      { created_at: { lte: at } },
+      {
+        OR: [
+          { created_at: { lt: at } },
+          { created_at: at, id: { lt: second } },
+        ],
+      },
     ]);
     // a garbage cursor starts from the top instead of failing
     await svc.seoPosts({ cursor: 'zzz' });
-    expect(
-      (
-        prisma.post.findMany.mock.calls[2][0] as {
-          where: Record<string, unknown>;
-        }
-      ).where.OR,
-    ).toBeUndefined();
+    const top = (
+      prisma.post.findMany.mock.calls[2][0] as {
+        where: Record<string, unknown>;
+      }
+    ).where;
+    expect(top.OR).toBeUndefined();
+    expect(top.AND).toBeUndefined();
   });
 
   const answerRow = (attorneyId: string) => ({
