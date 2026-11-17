@@ -7,7 +7,7 @@ import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/media/video_probe_stub.dart'
     if (dart.library.js_interop) 'package:lawbid/core/media/video_probe_web.dart'
     as web_probe;
-import 'package:video_compress/video_compress.dart';
+import 'package:lawbid/core/media/video_thumbnail_bytes.dart';
 import 'package:video_player/video_player.dart';
 
 /// Owner 2026-10-15: what the post screen and the video editor need from a
@@ -36,13 +36,5 @@ Future<VideoInfo?> probeVideo(XFile file) async {
 /// it from the video, the phone asks the plugin).
 Future<Uint8List?> videoFrame(XFile file, int ms, {int quality = 45}) async {
   if (kIsWeb) return web_probe.videoFrameUrl(file.path, ms, quality: quality);
-  try {
-    return await VideoCompress.getByteThumbnail(
-      file.path,
-      quality: quality,
-      position: ms,
-    );
-  } on Object {
-    return null;
-  }
+  return videoThumbnailBytes(file.path, positionMs: ms, quality: quality);
 }

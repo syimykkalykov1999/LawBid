@@ -154,7 +154,7 @@ dependencies:
   # Voice notes held to the ear (WhatsApp): near the face the sound moves to
   # the earpiece and the screen goes dark.
   proximity_sensor: ^2.0.0
-  video_compress: ^3.1.4
+  v_video_compressor: ^3.0.1
   device_info_plus: ^13.3.0
   flutter_local_notifications: ^23.0.0
   timezone: ^0.11.2

@@ -40,6 +40,17 @@ variable "api_admin_max_tasks" {
   default     = 100
   description = "Start ceiling of the api-admin service (CPU 70 %). Owner 2026-11-12: 100, then the admin setting scale.max_tasks.api_admin (no upper bound) moves it."
 }
+variable "task_role_split" {
+  type        = bool
+  default     = false
+  description = "Row 204 (detective R4B-2, 17.11): one task role per service (AWS ECS Developer Guide «Task IAM role», Well-Architected SEC03-BP02). true = the internet-facing api keeps the role <name>-ecs-task (the stack gives it no infra-changing rights), api-admin runs its own task definition <name>-api-admin with the role <name>-ecs-task-admin, and the worker runs with <name>-ecs-task-worker. The api container also gets OPS_INFRA_WRITES=off, so the API process loops that change infrastructure (ha-auto, replica auto) run only in api-admin. false = one shared role, as before."
+  validation {
+    # Without api-admin the admin pages are served by the public api, whose
+    # role has no infra-changing rights after the split.
+    condition     = !var.task_role_split || var.api_admin_enabled
+    error_message = "task_role_split needs api_admin_enabled = true (the admin pages must reach the api-admin service)."
+  }
+}
 variable "api_ws_target_group_arn" {
   type        = string
   default     = ""
@@ -529,6 +540,57 @@ resource "aws_iam_role" "task_minimal" {
   tags               = var.tags
 }
 
+# Row 204 (detective R4B-2): with var.task_role_split the admin panel's API
+# (api-admin) and the background jobs (worker) get roles of their own; what
+# each role may do is attached by the stack (data.aws_iam_policy_document
+# task / task_admin / task_worker). The public api keeps aws_iam_role.task.
+resource "aws_iam_role" "task_admin" {
+  count              = var.task_role_split ? 1 : 0
+  name               = "${var.name}-ecs-task-admin"
+  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
+  tags               = var.tags
+}
+
+resource "aws_iam_role" "task_worker" {
+  count              = var.task_role_split ? 1 : 0
+  name               = "${var.name}-ecs-task-worker"
+  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
+  tags               = var.tags
+}
+
+locals {
+  # The extra roles that run the app image; the module's own small grants
+  # (media CDN invalidation, address suggestions, face match, X-Ray) are
+  # copied onto them, so no feature loses a right after the split.
+  split_task_role_ids = var.task_role_split ? {
+    admin  = aws_iam_role.task_admin[0].id
+    worker = aws_iam_role.task_worker[0].id
+  } : {}
+  split_task_role_keys = var.task_role_split ? toset(["admin", "worker"]) : toset([])
+  worker_task_role_arn = var.task_role_split ? aws_iam_role.task_worker[0].arn : aws_iam_role.task.arn
+}
+
+resource "aws_iam_role_policy" "split_cloudfront_invalidate" {
+  for_each = var.cloudfront_invalidation_enabled ? local.split_task_role_keys : toset([])
+  name     = "cloudfront-invalidate"
+  role     = local.split_task_role_ids[each.key]
+  policy   = data.aws_iam_policy_document.task_cloudfront_invalidate[0].json
+}
+
+resource "aws_iam_role_policy" "split_geo_places" {
+  for_each = local.split_task_role_keys
+  name     = "geo-places-autocomplete"
+  role     = local.split_task_role_ids[each.key]
+  policy   = data.aws_iam_policy_document.task_geo_places.json
+}
+
+resource "aws_iam_role_policy" "split_rekognition_compare_faces" {
+  for_each = local.split_task_role_keys
+  name     = "rekognition-compare-faces"
+  role     = local.split_task_role_ids[each.key]
+  policy   = data.aws_iam_policy_document.task_rekognition_compare_faces.json
+}
+
 # --- task definitions ----------------------------------------------------
 locals {
   api_environment = [for k, v in var.api_env : { name = k, value = v }]
@@ -630,21 +692,16 @@ resource "aws_iam_role_policy" "xray" {
   role   = aws_iam_role.task.id
   policy = data.aws_iam_policy_document.xray.json
 }
+resource "aws_iam_role_policy" "split_xray" {
+  for_each = var.tracing_enabled ? local.split_task_role_keys : toset([])
+  name     = "xray-write"
+  role     = local.split_task_role_ids[each.key]
+  policy   = data.aws_iam_policy_document.xray.json
+}
 
-resource "aws_ecs_task_definition" "api" {
-  family = "${var.name}-api"
-  runtime_platform {
-    operating_system_family = "LINUX"
-    cpu_architecture        = var.cpu_architecture
-  }
-  requires_compatibilities = ["FARGATE"]
-  network_mode             = "awsvpc"
-  cpu                      = var.api_cpu
-  memory                   = var.api_memory
-  execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
-  volume { name = "tmp" }
-  container_definitions = jsonencode(concat([{
+# The api container, shared by the api and api-admin task definitions.
+locals {
+  api_container = {
     name         = "api"
     image        = var.api_image
     essential    = true
@@ -672,8 +729,50 @@ resource "aws_ecs_task_definition" "api" {
     # Keep >= the ALB deregistration_delay of the api target group.
     stopTimeout      = 60
     logConfiguration = local.log_config["api"]
-  }], local.adot_container))
+  }
+}
+
+resource "aws_ecs_task_definition" "api" {
+  family = "${var.name}-api"
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = var.cpu_architecture
+  }
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.api_cpu
+  memory                   = var.api_memory
+  execution_role_arn       = aws_iam_role.execution.arn
+  task_role_arn            = aws_iam_role.task.arn
+  volume { name = "tmp" }
+  # Row 204: the public api must not run the loops that change infrastructure
+  # (ha-auto, replica auto); api-admin (same container, no such flag) does.
+  container_definitions = jsonencode(concat([merge(local.api_container, {
+    environment = concat(local.api_container.environment, var.task_role_split ? [{ name = "OPS_INFRA_WRITES", value = "off" }] : [])
+  })], local.adot_container))
   tags = var.tags
+}
+
+# Row 204 (detective R4B-2): the admin panel's API. The same container as api
+# (scripts/deploy/roll-services.sh gives it api's image on every deploy) under
+# its own role, so the infra rights of the admin «Авто» / «Масштаб» / «Запуск»
+# pages never sit on the task that serves the internet.
+resource "aws_ecs_task_definition" "api_admin" {
+  count  = var.task_role_split && var.api_admin_enabled ? 1 : 0
+  family = "${var.name}-api-admin"
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = var.cpu_architecture
+  }
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.api_cpu
+  memory                   = var.api_memory
+  execution_role_arn       = aws_iam_role.execution.arn
+  task_role_arn            = aws_iam_role.task_admin[0].arn
+  volume { name = "tmp" }
+  container_definitions = jsonencode(concat([local.api_container], local.adot_container))
+  tags                  = var.tags
 }
 
 resource "aws_ecs_task_definition" "worker" {
@@ -687,7 +786,7 @@ resource "aws_ecs_task_definition" "worker" {
   cpu                      = var.worker_cpu
   memory                   = var.worker_memory
   execution_role_arn       = aws_iam_role.execution.arn
-  task_role_arn            = aws_iam_role.task.arn
+  task_role_arn            = local.worker_task_role_arn
   volume { name = "tmp" }
   container_definitions = jsonencode(concat([{
     name      = "worker"
@@ -927,14 +1026,15 @@ resource "aws_ecs_service" "api" {
 }
 
 # Owner 2026-11-11 («А»): the API for the admin panel only (bulkhead). Same
-# image and task definition as api; the ALB sends /api/v1/admin/* here, so
+# image as api; with task_role_split its own task definition and role (row
+# 204), else api's task definition; the ALB sends /api/v1/admin/* here, so
 # admin pages never take CPU or database connections from the app's users.
 # The deploy rolls it with api (scripts/deploy/roll-services.sh).
 resource "aws_ecs_service" "api_admin" {
   count                             = var.api_admin_enabled ? 1 : 0
   name                              = "api-admin"
   cluster                           = aws_ecs_cluster.this.id
-  task_definition                   = aws_ecs_task_definition.api.arn
+  task_definition                   = var.task_role_split ? aws_ecs_task_definition.api_admin[0].arn : aws_ecs_task_definition.api.arn
   desired_count                     = var.api_admin_tasks
   launch_type                       = var.api_admin_spot ? null : "FARGATE"
   force_new_deployment              = true
@@ -1287,6 +1387,13 @@ output "cluster_name" { value = aws_ecs_cluster.this.name }
 output "cluster_arn" { value = aws_ecs_cluster.this.arn }
 output "task_role_name" { value = aws_iam_role.task.name }
 output "task_role_arn" { value = aws_iam_role.task.arn }
+# Row 204: the roles of api-admin and the worker (null while task_role_split is off).
+output "task_admin_role_name" { value = one(aws_iam_role.task_admin[*].name) }
+output "task_admin_role_arn" { value = one(aws_iam_role.task_admin[*].arn) }
+output "task_worker_role_name" { value = one(aws_iam_role.task_worker[*].name) }
+output "task_worker_role_arn" { value = one(aws_iam_role.task_worker[*].arn) }
+# Every role that runs the app image (data-plane grants such as OpenSearch).
+output "app_task_role_arns" { value = concat([aws_iam_role.task.arn], aws_iam_role.task_admin[*].arn, aws_iam_role.task_worker[*].arn) }
 output "api_service_name" { value = aws_ecs_service.api.name }
 output "api_service_arn" { value = aws_ecs_service.api.id }
 output "worker_service_arn" { value = aws_ecs_service.worker.id }

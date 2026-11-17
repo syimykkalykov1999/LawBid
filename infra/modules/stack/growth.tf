@@ -148,7 +148,9 @@ module "opensearch_serverless" {
   tasks_security_group_id = aws_security_group.tasks.id
   kms_key_arn             = module.kms.key_arn
   task_role_arn           = module.ecs.task_role_arn
-  standby_replicas        = var.growth.opensearch_serverless_standby
+  # Row 204: api-admin and the worker search / index too.
+  extra_task_role_arns = var.task_role_split ? { admin = module.ecs.task_admin_role_arn, worker = module.ecs.task_worker_role_arn } : {}
+  standby_replicas     = var.growth.opensearch_serverless_standby
 }
 
 output "growth_opensearch_serverless_endpoint" { value = one(module.opensearch_serverless[*].endpoint) }
