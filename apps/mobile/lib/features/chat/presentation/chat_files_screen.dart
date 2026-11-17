@@ -176,7 +176,7 @@ class _ChatFilesScreenState extends ConsumerState<ChatFilesScreen>
 
   bool _onScroll(ScrollNotification n) {
     // After an error only the retry button asks again (not every scroll).
-    if (n.metrics.extentAfter < 400 && !_loading && !_done && _error == null) {
+    if (LoadAhead.nearEnd(n.metrics) && !_loading && !_done && _error == null) {
       _load();
     }
     return false;

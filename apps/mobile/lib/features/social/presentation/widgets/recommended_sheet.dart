@@ -41,7 +41,7 @@ class _RecommendedSheetState extends ConsumerState<RecommendedSheet> {
   void initState() {
     super.initState();
     _scroll.addListener(() {
-      if (_scroll.position.extentAfter < 600) {
+      if (LoadAhead.nearEnd(_scroll.position)) {
         ref.read(suggestionsProvider.notifier).loadMore();
       }
     });

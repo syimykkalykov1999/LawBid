@@ -11,6 +11,7 @@ import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/app_button.dart';
 import 'package:lawbid/core/design_system/widgets/feedback/app_refresh_indicator.dart';
+import 'package:lawbid/core/design_system/widgets/lists/load_ahead.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 
 /// State of the "next page" slot at the end of a paginated list
@@ -214,7 +215,8 @@ class _Hairline extends StatelessWidget {
 ///
 /// Presentational: the caller's controller owns the items and cursor. This
 /// widget asks for the next page ([onLoadMore]) when the user scrolls within
-/// [loadMoreExtent] of the end — or right after layout when the first page
+/// [loadMoreExtent] of the end (row 38: by default [LoadAhead] — about one
+/// screen, from the admin) — or right after layout when the first page
 /// does not even fill the viewport — but only while [status] is
 /// [AppPaginationStatus.idle], so a failed page is never auto-retried in a
 /// loop (the footer's Retry does that explicitly). Optional [onRefresh]
@@ -239,7 +241,8 @@ class AppPaginatedListView<T> extends StatefulWidget {
       AppSpacing.xxl,
     ),
     this.itemSpacing = AppSpacing.md,
-    this.loadMoreExtent = 320,
+    this.loadMoreExtent,
+    this.cards = false,
     this.controller,
     this.scrollCacheExtent,
     this.animateChanges = false,
@@ -279,7 +282,12 @@ class AppPaginatedListView<T> extends StatefulWidget {
   final Future<void> Function()? onRefresh;
   final EdgeInsetsGeometry padding;
   final double itemSpacing;
-  final double loadMoreExtent;
+
+  /// Fixed distance from the end in pixels; null = [LoadAhead.extent].
+  final double? loadMoreExtent;
+
+  /// Full-width cards (the feed): [LoadAhead] uses the feed distance.
+  final bool cards;
   final ScrollController? controller;
 
   @override
@@ -323,6 +331,8 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.items.length != widget.items.length ||
         oldWidget.status != widget.status) {
+      // A new page or a new state: the next request may go out again.
+      _gate.reset();
       _scheduleFillCheck();
     }
     if (widget.animateChanges &&
@@ -502,9 +512,16 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>>
     });
   }
 
+  /// Row 38: one request per page however fast the list is flung.
+  final _gate = LoadAheadGate();
+
   void _maybeLoadMore(ScrollMetrics metrics) {
     if (widget.status != AppPaginationStatus.idle) return;
-    if (metrics.extentAfter <= widget.loadMoreExtent) widget.onLoadMore();
+    final ahead =
+        widget.loadMoreExtent ?? LoadAhead.extent(metrics, cards: widget.cards);
+    if (metrics.extentAfter <= ahead) {
+      _gate.ask(widget.items.length, widget.onLoadMore);
+    }
   }
 
   bool _onScroll(ScrollNotification notification) {

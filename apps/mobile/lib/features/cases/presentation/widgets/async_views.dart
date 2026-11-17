@@ -209,10 +209,10 @@ class PagedListBody<T> extends ConsumerWidget {
           ),
           onLoadMore: onLoadMore,
           // Owner 2026-10-20 (speed, Instagram): the next page is asked for
-          // well before the end — about three screen-tall cards on a feed,
-          // five or six rows elsewhere — so the end of the list never waits.
-          loadMoreExtent:
-              edgeToEdge ? MediaQuery.sizeOf(context).height * 2 : 640,
+          // well before the end. Row 38: the distance is the admin's
+          // (`client.feed_load_ahead_percent` for full-width cards, two
+          // screens by default; `client.load_ahead_percent` elsewhere).
+          cards: edgeToEdge,
           onRetry: onRetryMore,
           onRefresh: pull,
           // Edge-to-edge feeds: cards touch (hairline borders only).
@@ -233,8 +233,10 @@ class PagedListBody<T> extends ConsumerWidget {
               final items = value.items;
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!context.mounted) return;
+                // Row 38: `client.media_prefetch_ahead` next rows.
+                final ahead = LoadAhead.media;
                 for (var k = index + 1;
-                    k <= index + 3 && k < items.length;
+                    k <= index + ahead && k < items.length;
                     k++) {
                   prefetch!(context, items[k]);
                 }

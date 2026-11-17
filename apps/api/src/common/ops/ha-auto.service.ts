@@ -33,6 +33,9 @@ import { OpsStateService } from './ops-state.service';
 export type HaAction =
   | 'db_multi_az_on'
   | 'db_multi_az_off'
+  // Row 203: an extra database server followed the primary (reported only).
+  | 'db_shard_multi_az_on'
+  | 'db_shard_multi_az_off'
   | 'redis_replica_up'
   | 'redis_failover_on'
   | 'redis_failover_off'
@@ -85,6 +88,47 @@ export interface HaFacts {
    * unknown). Read from the economy job's and the cost check's snapshots.
    */
   money?: { limited: boolean; budgetLeftUsd: number | null };
+}
+
+/** Row 203 (16.11): an extra database server («Авто», aws.db_shards). */
+export interface HaShard {
+  id: string;
+  multiAz: boolean;
+  available: boolean;
+  pending: boolean;
+}
+
+/** One Multi-AZ change of an extra database server. */
+export interface HaShardStep {
+  id: string;
+  multiAz: boolean;
+}
+
+/**
+ * Row 203 (16.11), pure: the extra database servers keep the primary's
+ * Multi-AZ. They were created with the tfvars number (database_multi_az,
+ * false on prod) and modules/postgres ignores multi_az afterwards, so when
+ * «Авто» turned the primary's standby on, the servers holding the other
+ * parts of the data stayed on one zone. Target = the primary's Multi-AZ
+ * after this pass's own step. Same rules as the primary: «Выкл» = hands off,
+ * AWS must be idle with the server, and in «Авто» nothing is ADDED while
+ * money says no (haMoneyHold); removing is never held back.
+ */
+export function shardHaSteps(
+  f: HaFacts,
+  primarySteps: HaAction[],
+  shards: HaShard[],
+): HaShardStep[] {
+  if (f.mode === 'off' || !f.db) return [];
+  const target = primarySteps.includes('db_multi_az_on')
+    ? true
+    : primarySteps.includes('db_multi_az_off')
+      ? false
+      : f.db.multiAz;
+  if (target && haMoneyHold(f)) return [];
+  return shards
+    .filter((s) => s.available && !s.pending && s.multiAz !== target)
+    .map((s) => ({ id: s.id, multiAz: target }));
 }
 
 /** What the copies cost a month (Multi-AZ of db.t4g.micro + one Redis node). */
@@ -366,18 +410,22 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
         return fb;
       }
     };
-    const [online, onlineUp, db, redis, dbBusy, redisBusy] = await Promise.all([
-      soft('online users', [] as (number | null)[], () =>
-        this.onlineSeries(down, nowMs),
-      ),
-      soft('online users (busy window)', [] as (number | null)[], () =>
-        this.onlineSeries(up, nowMs),
-      ),
-      soft('database', null as HaFacts['db'], () => this.dbFacts()),
-      soft('redis', null as HaFacts['redis'], () => this.redisFacts()),
-      soft('database load', false, () => this.dbBusy(nowMs)),
-      soft('redis load', false, () => this.redisBusy(nowMs)),
-    ]);
+    const [online, onlineUp, db, redis, dbBusy, redisBusy, shards] =
+      await Promise.all([
+        soft('online users', [] as (number | null)[], () =>
+          this.onlineSeries(down, nowMs),
+        ),
+        soft('online users (busy window)', [] as (number | null)[], () =>
+          this.onlineSeries(up, nowMs),
+        ),
+        soft('database', null as HaFacts['db'], () => this.dbFacts()),
+        soft('redis', null as HaFacts['redis'], () => this.redisFacts()),
+        soft('database load', false, () => this.dbBusy(nowMs)),
+        soft('redis load', false, () => this.redisBusy(nowMs)),
+        soft('extra database servers', [] as HaShard[], () =>
+          this.shardFacts(),
+        ),
+      ]);
     const facts: HaFacts = {
       mode: mode === 'on' ? 'on' : 'auto',
       threshold,
@@ -402,7 +450,8 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
       this.log.warn(`ha-auto: copies wanted but held back: ${hold}`);
     }
     const done: HaAction[] = [];
-    for (const a of decideHa(facts)) {
+    const steps = decideHa(facts);
+    for (const a of steps) {
       try {
         await this.run(a);
         done.push(a);
@@ -421,7 +470,57 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
         this.log.error(`${a} failed: ${(e as Error).message}`);
       }
     }
+    // Row 203: the extra database servers follow the primary's Multi-AZ
+    // (also when the primary's own step failed: the target is then what
+    // AWS reported for it this pass, never a guess).
+    const primary = steps.filter((a) => done.includes(a));
+    for (const s of shardHaSteps(facts, primary, shards)) {
+      try {
+        await this.rdsClient().send(
+          new ModifyDBInstanceCommand({
+            DBInstanceIdentifier: s.id,
+            MultiAZ: s.multiAz,
+            ApplyImmediately: true,
+          }),
+        );
+        done.push(s.multiAz ? 'db_shard_multi_az_on' : 'db_shard_multi_az_off');
+        this.log.warn(
+          `ha-auto: extra database server ${s.id} Multi-AZ ${s.multiAz ? 'on' : 'off'} (follows the primary)`,
+        );
+      } catch (e) {
+        this.log.error(
+          `extra database server ${s.id} Multi-AZ failed: ${(e as Error).message}`,
+        );
+      }
+    }
     return done;
+  }
+
+  /** Row 203: the extra database servers (OPS_DB_SHARD_INSTANCES, set by
+   * the stack when aws.db_shards > 0). One missing server is skipped. */
+  private async shardFacts(): Promise<HaShard[]> {
+    const ids = (this.env('OPS_DB_SHARD_INSTANCES') ?? '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+    const out: HaShard[] = [];
+    for (const id of ids) {
+      const r = await this.rdsClient()
+        .send(new DescribeDBInstancesCommand({ DBInstanceIdentifier: id }))
+        .catch((e: Error) => {
+          this.log.warn(`ha-auto: reading ${id} failed: ${e.message}`);
+          return null;
+        });
+      const i = r?.DBInstances?.[0];
+      if (!i) continue;
+      out.push({
+        id,
+        multiAz: !!i.MultiAZ,
+        available: i.DBInstanceStatus === 'available',
+        pending: Object.keys(i.PendingModifiedValues ?? {}).length > 0,
+      });
+    }
+    return out;
   }
 
   /** G10: the money facts from the snapshots the other jobs keep. */
