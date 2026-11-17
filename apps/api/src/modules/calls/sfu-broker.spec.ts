@@ -48,10 +48,16 @@ function withClock(broker: SfuBrokerService, now: () => number) {
 }
 
 const USERS = ['u1', 'u2', 'u3', 'u4'];
-const ctx = (userId: string, joined = USERS, canPublish = true): SfuCtx => ({
+const ctx = (
+  userId: string,
+  joined = USERS,
+  canPublish = true,
+  video = true,
+): SfuCtx => ({
   callId: 'call-1',
   userId,
   canPublish,
+  video,
   joinedUserIds: joined,
 });
 
@@ -175,6 +181,27 @@ describe('SfuBrokerService: a call of four on a mocked Cloudflare', () => {
         tracks: [{ mid: '2', trackName: 'mic' }],
       }),
     ).rejects.toMatchObject({ status: 409 });
+  });
+
+  // Audit 17.11 (problem 5): video could be pushed into an audio call.
+  it('an audio call refuses the camera track (403), the mic still goes', async () => {
+    const { broker } = setup();
+    await broker.createSession(ctx('u1', USERS, true, false));
+    await expect(
+      broker.publish(ctx('u1', USERS, true, false), {
+        sdp: SDP,
+        tracks: [
+          { mid: '0', trackName: 'mic' },
+          { mid: '1', trackName: 'cam' },
+        ],
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      broker.publish(ctx('u1', USERS, true, false), {
+        sdp: SDP,
+        tracks: [{ mid: '0', trackName: 'mic' }],
+      }),
+    ).resolves.toMatchObject({ type: 'answer' });
   });
 
   it('no session yet = conflict, never a Cloudflare call', async () => {
@@ -355,6 +382,7 @@ describe('SfuBrokerService.decide (owner 2026-10-26: Cloudflare primary)', () =>
       callId: 'c-x',
       userId: 'u1',
       canPublish: true,
+      video: true,
       joinedUserIds: ['u1'],
     };
     for (let i = 0; i < 3; i++) {
