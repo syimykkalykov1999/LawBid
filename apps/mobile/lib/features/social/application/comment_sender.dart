@@ -46,6 +46,8 @@ class CommentSender extends Notifier<void> {
   /// Sends `body` as a comment on `postId` (a reply when `parentId` is
   /// given): the pending row is shown at once, the live comment comes
   /// back. Throws what the server threw after taking the pending row away.
+  /// [replyToId]: the comment answered when it is a reply inside the thread
+  /// [parentId] (the server attaches it to the thread and tells its author).
   CommentRows _rowsOf(String postId, String? parentId) => parentId == null
       ? ref.read(commentsProvider(postId).notifier)
       : ref.read(repliesProvider(parentId).notifier);
@@ -54,6 +56,7 @@ class CommentSender extends Notifier<void> {
     required String postId,
     required String body,
     String? parentId,
+    String? replyToId,
   }) async {
     final pending = Comment(
       id: '$kPendingCommentPrefix${generateIdempotencyKey()}',
@@ -72,7 +75,7 @@ class CommentSender extends Notifier<void> {
     try {
       final live = await ref
           .read(socialRepositoryProvider)
-          .addComment(postId, body, parentId: parentId);
+          .addComment(postId, body, parentId: replyToId ?? parentId);
       list.settle(pending.id, live);
       return live;
     } on Object {

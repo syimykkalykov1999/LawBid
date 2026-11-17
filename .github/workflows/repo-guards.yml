@@ -85,6 +85,8 @@ jobs:
           bash scripts/deploy/web-gzip-big.test.sh
           bash scripts/deploy/web-prune-releases.test.sh
           node --test scripts/ci/migration-role-check.test.mjs
+          # CONTENT_MEDIA_VERIFY 17.11 №1: CI and the Mac run prod's engines (PostgreSQL 18, Valkey 9.1).
+          node --test scripts/ci/ci-engines-match-prod.test.mjs
 
       # OPEN_ITEMS_SWEEP 2026-11-09 C-c9: the docs name the DB user migrations
       # really run under (infra/postgres/migration-role.txt); drift fails here.

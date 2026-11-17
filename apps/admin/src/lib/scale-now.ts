@@ -80,8 +80,11 @@ function dbServers(f: NowFacts): number | null {
 function searchNodes(f: NowFacts): number | null {
   const domain = live(f, 'aws.opensearch');
   if (domain !== 'on') return domain === 'off' ? 0 : null;
-  if (live(f, 'aws.opensearch_nodes_4') === 'on') return 4;
-  if (live(f, 'aws.opensearch_nodes_2') === 'on') return 2;
+  // Owner 15.11: steps of two up to 10 nodes (search.max_nodes); the
+  // highest step that is on wins.
+  for (const n of [10, 8, 6, 4, 2]) {
+    if (live(f, `aws.opensearch_nodes_${n}`) === 'on') return n;
+  }
   return 1;
 }
 

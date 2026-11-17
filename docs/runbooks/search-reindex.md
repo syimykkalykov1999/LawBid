@@ -99,7 +99,7 @@ fill / `--sync`); it is not zero-downtime.
 ```sh
 docker run -d --name lb-os -p 9200:9200 -e discovery.type=single-node \
   -e DISABLE_SECURITY_PLUGIN=true -e DISABLE_INSTALL_DEMO_CONFIG=true \
-  opensearchproject/opensearch:2.15.0
+  opensearchproject/opensearch:3.7.0
 OPENSEARCH_TEST_URL=http://localhost:9200 npx jest search-alias.integration opensearch.integration
 docker rm -f lb-os
 ```

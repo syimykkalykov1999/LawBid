@@ -26,6 +26,10 @@ export const HOTLINE_PREFIX = 'hl:{hl}';
 export const bucketOf = (state: string, practice: string, lang: string) =>
   `${state}~${practice}~${lang}`;
 
+/** Audit 17.11 #6: every attorney on the line is also in his own private
+ * bucket, the only queue of a client's «Перезвонить» to him. */
+export const callbackBucket = (attorneyId: string) => `cb~${attorneyId}`;
+
 export class HotlineKeys {
   constructor(readonly p: string = HOTLINE_PREFIX) {}
   get lst(): string {
@@ -101,6 +105,16 @@ export class HotlineKeys {
   get lastCounters(): string {
     return `${this.p}:tick:counters`;
   }
+  /** Set while the switch is off (the sweeper saw it): the first pass after
+   * it syncs the calls before any is closed as lost (audit 17.11 #2). */
+  get offSince(): string {
+    return `${this.p}:tick:off`;
+  }
+  /** Online waiters (s / q, not «Сообщите мне»): req → since when (ms), for
+   * `hotline.queue_max_wait_sec` (audit 17.11 #8). */
+  get qwait(): string {
+    return `${this.p}:qwait`;
+  }
   bucket = (b: string) => `${this.p}:b:${b}`;
   queue = (b: string) => `${this.p}:q:${b}`;
   /** Attorneys on the line in a bucket (busy too) — the counters. */
@@ -108,8 +122,19 @@ export class HotlineKeys {
   langLawyers = (l: string) => `${this.p}:ll:${l}`;
   langClients = (l: string) => `${this.p}:lq:${l}`;
   lawyer = (id: string) => `${this.p}:lw:${id}`;
-  /** Trial bookkeeping (first «Ожидать звонки», minutes talked); no TTL. */
+  /** Trial bookkeeping (first «Ожидать звонки», minutes talked); lives
+   * `hotline.trial_memory_days` from the last use. */
   trial = (id: string) => `${this.p}:lwt:${id}`;
+  /** The attorney's line choice kept after a dropped socket / lost heartbeat
+   * (audit 17.11 #3): `POST /hotline/line/resume` puts him back. */
+  saved = (id: string) => `${this.p}:lws:${id}`;
+  /** Disclosures this person confirmed («Понятно»): field role|version. */
+  ack = (id: string) => `${this.p}:ack:${id}`;
+  /** Every «Адвокат на линии» token issued for a request (an older notice
+   * works too, audit 17.11 #10). */
+  tokens = (req: string) => `${this.p}:tok:${req}`;
+  /** One «Взять» opens the call; a second waits for it (audit 17.11 #5). */
+  callLock = (req: string) => `${this.p}:clk:${req}`;
   request = (id: string) => `${this.p}:rq:${id}`;
   client = (id: string) => `${this.p}:cl:${id}`;
   rate = (id: string, hour: number) => `${this.p}:rl:${id}:${hour}`;
@@ -369,7 +394,8 @@ export class HotlineStore {
     for (const l of remove.langs) p.srem(this.k.langLawyers(l), lw);
     for (const b of add.buckets) {
       p.sadd(this.k.bucketLawyers(b), lw);
-      p.sadd(this.k.buckets, b);
+      // a private «Перезвонить» queue is not a filter the admin lists
+      if (!b.startsWith('cb~')) p.sadd(this.k.buckets, b);
     }
     for (const l of add.langs) p.sadd(this.k.langLawyers(l), lw);
     await p.exec();

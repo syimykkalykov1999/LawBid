@@ -140,4 +140,27 @@ void main() {
       ['r-live'],
     );
   });
+
+  test('a reply to a reply names the answered comment, lands in the thread',
+      () async {
+    // Verify 17.11: the server must learn which reply was answered so its
+    // author is notified (Instagram); the row still lands in the thread.
+    final repo = _CommentingRepo();
+    final c = _container(repo);
+    await c.read(repliesProvider('c-parent').future);
+    final keep = c.listen(repliesProvider('c-parent'), (_, __) {});
+    addTearDown(keep.close);
+
+    await c.read(commentSenderProvider.notifier).send(
+          postId: 'p1',
+          body: 'Thanks',
+          parentId: 'c-parent',
+          replyToId: 'r-other',
+        );
+    expect(repo.sent, [('p1', 'Thanks', 'r-other')]);
+    expect(
+      c.read(repliesProvider('c-parent')).value!.items.map((x) => x.id),
+      ['c-live'],
+    );
+  });
 }

@@ -96,25 +96,25 @@ class CaseFilesHandler extends UploadJobHandler {
     final ids = QueuedPhotos.idsOf(job);
     await guardApiCall(
       () => _ref.read(caseWorkspaceClientProvider).addCaseUpdate(
-            id: caseId,
-            body: api.CreateCaseUpdateDto(
-              body: job.payload['body'] as String? ?? '',
-              files: [
-                for (var i = 0; i < ids.length; i++)
-                  api.CaseFileInputDto(
-                    fileId: ids[i]!,
-                    description: _description(files, i),
-                    sample: i < files.length && files[i]['sample'] == true
-                        ? true
-                        : null,
-                  ),
-              ],
-            ),
-            extras: {
-              RequestFlags.createsResource: true,
-              RequestFlags.idempotencyKey: job.id,
-            },
-          ),
+        id: caseId,
+        body: api.CreateCaseUpdateDto(
+          body: job.payload['body'] as String? ?? '',
+          files: [
+            for (var i = 0; i < ids.length; i++)
+              api.CaseFileInputDto(
+                fileId: ids[i]!,
+                description: _description(files, i),
+                sample: i < files.length && files[i]['sample'] == true
+                    ? true
+                    : null,
+              ),
+          ],
+        ),
+        extras: {
+          RequestFlags.createsResource: true,
+          RequestFlags.idempotencyKey: job.id,
+        },
+      ),
     );
     _ref.read(caseWorkspaceActionsProvider).refresh(caseId);
   }
@@ -136,8 +136,7 @@ class CaseFilesHandler extends UploadJobHandler {
 /// The case-files outbox on the app's queue (read at start by the shell, so
 /// an update left by the last run goes on).
 final caseFilesOutboxProvider = Provider<CaseFilesOutbox>((ref) {
-  final queue = ref.watch(uploadQueueProvider)
-    ..register(CaseFilesHandler(ref));
+  final queue = ref.watch(uploadQueueProvider)..register(CaseFilesHandler(ref));
   unawaited(showRefusedAtStart(ref, queue, kCaseFilesJobKind));
   return CaseFilesOutbox(ref, queue);
 });

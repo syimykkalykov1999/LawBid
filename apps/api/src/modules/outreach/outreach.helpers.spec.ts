@@ -255,6 +255,8 @@ describe('outreach: compliance (TCPA / DNC)', () => {
       partner_id: null,
       converted_user_id: null,
       unsubscribe_token: 't',
+      unsubscribe_token_hash: null,
+      unsubscribe_token_hashed_at: null,
       unsubscribed_at: null,
       last_activity_at: null,
       next_action_at: null,

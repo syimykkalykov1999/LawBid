@@ -53,9 +53,13 @@ export class PostEngagementService {
     // createMany, which ran BEGIN + INSERT + COMMIT and, for a post with a
     // legacy v4 id, a SELECT of the post's shard_id (already read above).
     // Same idempotency: the primary key (post_id, user_id) + DO NOTHING.
+    // Verify 17.11: created_at in milliseconds — the likers cursor is a JS
+    // date (ms); a microsecond now() made `created_at < cursor` skip the
+    // likes of the same millisecond at a page edge.
     const count = await this.prisma.$executeRaw`
-      INSERT INTO post_likes (post_id, user_id, shard_id)
-      VALUES (${postId}::UUID, ${userId}::UUID, ${post.shard_id}::SMALLINT)
+      INSERT INTO post_likes (post_id, user_id, shard_id, created_at)
+      VALUES (${postId}::UUID, ${userId}::UUID, ${post.shard_id}::SMALLINT,
+              date_trunc('milliseconds', now()))
       ON CONFLICT DO NOTHING`;
     if (count === 0) return;
     await this.counters.bump('post', postId, 'like_count', 1);

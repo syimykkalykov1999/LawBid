@@ -834,6 +834,13 @@ variable "ops_role_split" {
   type    = bool
   default = false
 }
+
+# Row 204 (17.11, detective R4B-2): one ECS task role per service — public
+# api / api-admin / worker. Replaces ops_role_split while on. Rollback: false.
+variable "task_role_split" {
+  type    = bool
+  default = true
+}
 variable "ops_role_external_id" {
   type      = string
   default   = ""

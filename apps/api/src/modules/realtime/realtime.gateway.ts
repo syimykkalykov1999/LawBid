@@ -161,7 +161,13 @@ interface SocketState {
   /** Owner 2026-10-01: the other members of each open chat — "typing…"
    * also reaches their chat list. */
   peers?: Map<string, string[]>;
+  /** Audit 17.11 (problem 7): per open 1:1 chat, whether a block stands
+   * between the two (either way) and when that was read. */
+  blockedChat?: Map<string, { at: number; blocked: boolean }>;
 }
+
+/** Audit 17.11 (problem 7): how long a read block bit is trusted. */
+const TYPING_BLOCK_RECHECK_MS = 30_000;
 
 const presenceRoom = (userId: string) => `presence:${userId}`;
 
@@ -1296,28 +1302,70 @@ export class RealtimeGateway
   }
 
   @SubscribeMessage('typing:start')
-  typingStart(
+  async typingStart(
     @ConnectedSocket() socket: Socket,
     @MessageBody() body: { conversationId?: unknown; kind?: unknown },
-  ): void {
-    this.relayTyping(socket, body, true);
+  ): Promise<void> {
+    await this.relayTyping(socket, body, true);
   }
 
   @SubscribeMessage('typing:stop')
-  typingStop(
+  async typingStop(
     @ConnectedSocket() socket: Socket,
     @MessageBody() body: { conversationId?: unknown },
-  ): void {
-    this.relayTyping(socket, body, false);
+  ): Promise<void> {
+    await this.relayTyping(socket, body, false);
+  }
+
+  /**
+   * Audit 17.11 (problem 7): «typing…» and «recording a voice…» never
+   * cross a block in a 1:1 chat, either way — as presence:watch. The bit is
+   * read once per chat and re-read after TYPING_BLOCK_RECHECK_MS, so a block
+   * made while the chat is open takes effect within that time. Group chats
+   * have no peers here (as WhatsApp, a block does not hide group typing).
+   */
+  private async typingBlocked(
+    s: SocketState,
+    id: string,
+    peers: string[],
+    now: number,
+  ): Promise<boolean> {
+    if (peers.length === 0) return false;
+    const seen = s.blockedChat?.get(id);
+    if (seen && now - seen.at < TYPING_BLOCK_RECHECK_MS) return seen.blocked;
+    let blocked = seen?.blocked ?? false;
+    try {
+      const me = s.user.sub;
+      blocked = !!(await this.prisma.userBlock.findFirst({
+        where: {
+          OR: [
+            { blocker_id: me, blocked_id: { in: peers } },
+            { blocker_id: { in: peers }, blocked_id: me },
+          ],
+        },
+        select: { blocker_id: true },
+      }));
+    } catch {
+      // database busy: keep the last known bit (none = not blocked)
+    }
+    const map = (s.blockedChat ??= new Map<
+      string,
+      { at: number; blocked: boolean }
+    >());
+    map.delete(id);
+    if (map.size >= MAX_VIEWING_PER_SOCKET)
+      map.delete(map.keys().next().value!);
+    map.set(id, { at: now, blocked });
+    return blocked;
   }
 
   /** Only inside a joined conversation; the app hides the indicator after
    * 5 s without a new `typing` (§8.5 TTL). */
-  private relayTyping(
+  private async relayTyping(
     socket: Socket,
     body: { conversationId?: unknown; kind?: unknown },
     typing: boolean,
-  ): void {
+  ): Promise<void> {
     const id = this.conversationIdOf(body);
     const s = state(socket);
     if (!id || !s.viewing.has(id)) return;
@@ -1342,6 +1390,7 @@ export class RealtimeGateway
     // The open chat and the other members' chat lists (one delivery per
     // socket even when it is in both rooms).
     const peers = s.peers?.get(id) ?? [];
+    if (await this.typingBlocked(s, id, peers, now)) return;
     if (!this.typingAllowed(id, s.user.sub, now)) return;
     socket
       .to([conversationRoom(id), ...peers.map(userRoom)])
