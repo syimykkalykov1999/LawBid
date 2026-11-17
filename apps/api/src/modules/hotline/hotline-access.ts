@@ -1,11 +1,12 @@
 import { ForbiddenException } from '@nestjs/common';
 import { ErrorCode } from '../../common/errors/error-code.enum';
-import type { HotlineBillingMode } from '../../common/app-settings/hotline-settings';
 
 /** Owner row 87 (16.11): the master switch (Флаги → «Горячая линия»). */
 export const HOTLINE_FLAG = 'hotline';
-/** Деньги → Планы: the plans the owner ticked (billing mode `plan`). */
+/** Деньги → Планы, per plan: «Входит в тариф». */
 export const HOTLINE_ENTITLEMENT = 'hotline';
+/** Деньги → Планы, per plan: «Отдельное дополнение $N» (cents; null = none). */
+export const HOTLINE_ADDON_PRICE_ENTITLEMENT = 'hotline_addon_price_cents';
 
 interface FlagReader {
   isEnabled(key: string, defaultValue: boolean): Promise<boolean>;
@@ -23,11 +24,13 @@ export async function assertHotlineOn(flags: FlagReader): Promise<void> {
 }
 
 export interface HotlineAccessInput {
-  mode: HotlineBillingMode;
-  /** The `hotline` entitlement of the attorney's plan (or an admin grant). */
-  entitled: boolean;
-  /** A paid «Горячая линия» add-on is active (plan PR 8; payments are off,
-   * so today only an admin grant of the entitlement counts). */
+  /** `hotline.free_for_all_enabled` — «Бесплатно для всех» (start: on). */
+  freeForAll: boolean;
+  /** The attorney's plan: «Входит в тариф» (or an admin grant). */
+  included: boolean;
+  /** The attorney's plan: add-on price in cents, null = no add-on. */
+  addonPriceCents: number | null;
+  /** He bought the add-on (plan PR 8; payments are off, so false today). */
   addonActive: boolean;
   trialDays: number;
   trialMinutes: number;
@@ -44,9 +47,8 @@ export type HotlineAccess =
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Inside the trial: days count from the first «Ожидать звонки», minutes are
- * talked minutes; with both set, both must still be left. Never used = the
- * trial is still whole. */
+/** Inside the one-time trial: days count from the first «Ожидать звонки»,
+ * minutes are talked minutes; with both set, both must still be left. */
 export function inHotlineTrial(i: HotlineAccessInput): boolean {
   if (i.trialDays <= 0 && i.trialMinutes <= 0) return false;
   const daysOk =
@@ -58,19 +60,21 @@ export function inHotlineTrial(i: HotlineAccessInput): boolean {
 }
 
 /**
- * Owner 16.11 ~18:35: «Бесплатно» (default) / «Входит в подписку» /
- * «Отдельное дополнение» + an optional trial. The client never pays. Pure, so
- * every mode is a unit test; the caller reads the inputs (one cached
- * app_config read, one cached entitlement read, two Valkey fields).
+ * Owner 16.11 ~19:45: all three ways at once, per plan — «Входит в тариф» /
+ * «Отдельное дополнение $N» / «Недоступно» — plus the global «Бесплатно для
+ * всех» and a one-time trial. The client never pays. Pure, so every case is
+ * a unit test; the caller reads the inputs (cached app_config, cached plan
+ * entitlements, two Valkey fields).
  */
 export function decideHotlineAccess(i: HotlineAccessInput): HotlineAccess {
-  if (i.mode === 'free') return { allowed: true, via: 'free' };
-  if (i.mode === 'plan') {
-    if (i.entitled) return { allowed: true, via: 'plan' };
-    if (inHotlineTrial(i)) return { allowed: true, via: 'trial' };
-    return { allowed: false, reason: 'not_in_plan' };
+  if (i.freeForAll) return { allowed: true, via: 'free' };
+  if (i.included) return { allowed: true, via: 'plan' };
+  if (i.addonPriceCents !== null && i.addonActive) {
+    return { allowed: true, via: 'addon' };
   }
-  if (i.addonActive || i.entitled) return { allowed: true, via: 'addon' };
   if (inHotlineTrial(i)) return { allowed: true, via: 'trial' };
-  return { allowed: false, reason: 'addon_required' };
+  return {
+    allowed: false,
+    reason: i.addonPriceCents !== null ? 'addon_required' : 'not_in_plan',
+  };
 }

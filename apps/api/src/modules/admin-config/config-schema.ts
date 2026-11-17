@@ -408,12 +408,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     };
   }
   // Owner row 87 (16.11): the call hotline numbers (Russian label + key).
-  out['hotline.billing_mode'] = {
-    type: 'string',
-    defaultValue: 'free',
+  out['hotline.free_for_all_enabled'] = {
+    type: 'boolean',
+    defaultValue: true,
     description:
-      'Горячая линия: кто из адвокатов может ждать звонки. free — бесплатно всем с проверенной лицензией (по умолчанию, деньги выключены); plan — входит в подписку: только планы, где в «Деньги → Планы» отмечено «Горячая линия»; addon — отдельное дополнение за hotline.addon_price_cents в месяц. Пробный срок — hotline.trial_days / hotline.trial_minutes. Клиенту всегда бесплатно. Меняется сразу, без выката (hotline.billing_mode).',
-    pattern: /^(free|plan|addon)$/,
+      'Горячая линия: «Бесплатно для всех» — любой адвокат с проверенной лицензией может ждать звонки, что бы ни стояло в планах (по умолчанию вкл., пока деньги выключены). Выкл. — решает план адвоката в «Деньги → Планы»: «Входит в тариф», «Отдельное дополнение» (цена в плане) или «Недоступно»; пробный срок — hotline.trial_days / hotline.trial_minutes. Клиенту всегда бесплатно. Меняется сразу, без выката (hotline.free_for_all_enabled).',
   };
   out['hotline.counter_bands'] = {
     type: 'integer[]',
@@ -433,6 +432,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     defaultValue: true,
     description:
       'Горячая линия: клиент заполняет заявку по шагам с кнопками «Дальше / Назад» до соединения. Выкл. — одна страница (hotline.client_steps_enabled).',
+  };
+  out['hotline.short_notice_enabled'] = {
+    type: 'boolean',
+    defaultValue: false,
+    description:
+      'Горячая линия: после первого звонка (там предупреждение показывается один раз) в следующих звонках показывать короткую строку «Звонки не записываются». По умолчанию выкл. (hotline.short_notice_enabled).',
   };
   for (const def of HOTLINE_SETTING_DEFS) {
     out[def.key] = {

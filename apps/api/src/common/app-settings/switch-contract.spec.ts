@@ -58,8 +58,9 @@ describe('switch contract: defaults (a)', () => {
     ['auth.additional_identifiers_enabled', false],
     ['today.sentry_enabled', false],
     ['scale.db_split_enabled', false],
-    // Owner 16.11: the hotline is free for attorneys while payments are off.
-    ['hotline.billing_mode', 'free'],
+    // Owner 16.11: the hotline is free for every attorney while payments are off.
+    ['hotline.free_for_all_enabled', true],
+    ['hotline.short_notice_enabled', false],
     ['hotline.review_enabled', true],
     ['hotline.client_steps_enabled', true],
   ];

@@ -3,7 +3,6 @@ import {
   HOTLINE_SETTING_DEFS,
   OWNER_HOTLINE_SETTINGS,
   bandOf,
-  hotlineBillingModeFrom,
   hotlineCounterBandsFrom,
   hotlineSettingsFrom,
 } from './hotline-settings';
@@ -18,14 +17,16 @@ describe('hotline settings (owner row 87, 16.11)', () => {
       HOTLINE_SETTING_DEFS.map((d) => [d.key, d.default]),
     );
     const {
-      'hotline.billing_mode': mode,
+      'hotline.free_for_all_enabled': freeForAll,
+      'hotline.short_notice_enabled': shortNotice,
       'hotline.counter_bands': bands,
       'hotline.review_enabled': review,
       'hotline.client_steps_enabled': steps,
       ...numbers
     } = OWNER_HOTLINE_SETTINGS;
     expect(numbers).toEqual(fromList);
-    expect(mode).toBe('free');
+    expect(freeForAll).toBe(true);
+    expect(shortNotice).toBe(false);
     expect(bands).toEqual([1, 10, 50, 100]);
     expect(review).toBe(true);
     expect(steps).toBe(true);
@@ -53,10 +54,10 @@ describe('hotline settings (owner row 87, 16.11)', () => {
     expect(s['hotline.notify_quiet_end_hour']).toBe(8);
     expect(s['hotline.max_queue_per_bucket']).toBe(500);
     // Owner answers 16.11: off the line after 3 misses in a row, no call
-    // length limit, a call under 30 s is not counted.
+    // length limit, the disclosure text is version 1.
     expect(s['hotline.max_no_answer']).toBe(3);
     expect(s['hotline.call_max_minutes']).toBe(0);
-    expect(s['hotline.refund_short_call_sec']).toBe(30);
+    expect(s['hotline.disclosure_version']).toBe(1);
     // The TTL outlives two missed heartbeats.
     expect(s['hotline.presence_ttl_sec']).toBeGreaterThan(
       2 * s['hotline.heartbeat_sec'],
@@ -87,19 +88,11 @@ describe('hotline settings (owner row 87, 16.11)', () => {
     }
   });
 
-  it('billing mode: free (default) / plan / addon, anything else refused and read as free', () => {
+  it('«Бесплатно для всех» is a switch, on at start (payments off)', () => {
     const schema = configSchema();
-    for (const m of ['free', 'plan', 'addon']) {
-      expect(validateConfigValue(schema['hotline.billing_mode'], m)).toBeNull();
-      expect(hotlineBillingModeFrom({ 'hotline.billing_mode': m })).toBe(m);
-    }
-    expect(
-      validateConfigValue(schema['hotline.billing_mode'], 'per_minute'),
-    ).not.toBeNull();
-    expect(hotlineBillingModeFrom({})).toBe('free');
-    expect(hotlineBillingModeFrom({ 'hotline.billing_mode': 'x' })).toBe(
-      'free',
-    );
+    expect(schema['hotline.free_for_all_enabled'].type).toBe('boolean');
+    expect(schema['hotline.free_for_all_enabled'].defaultValue).toBe(true);
+    expect(schema['hotline.short_notice_enabled'].defaultValue).toBe(false);
   });
 
   it('counter bands: clients see «нет / есть / 10+ / 50+ / 100+», never the exact count', () => {
