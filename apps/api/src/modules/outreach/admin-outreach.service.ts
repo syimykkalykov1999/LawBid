@@ -16,6 +16,7 @@ import {
 } from '../../common/admin-bulk/admin-bulk';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -245,12 +246,7 @@ export class AdminOutreachService {
     const cursor = q.cursor ? decodeCursor(q.cursor) : undefined;
     const filters = this.leadFilters(scope, q);
     if (cursor) {
-      filters.push({
-        OR: [
-          { created_at: { lt: cursor.createdAt } },
-          { created_at: cursor.createdAt, id: { lt: cursor.id } },
-        ],
-      });
+      filters.push(createdBefore({ t: cursor.createdAt, id: cursor.id }));
     }
     const rows = await this.prisma.outreachLead.findMany({
       where: { AND: filters },

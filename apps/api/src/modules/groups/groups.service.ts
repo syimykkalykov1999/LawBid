@@ -33,6 +33,7 @@ import { Subject } from 'rxjs';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -526,16 +527,7 @@ export class GroupsService {
           ...words.map((w) => ({
             body: { contains: w, mode: 'insensitive' as const },
           })),
-          ...(c
-            ? [
-                {
-                  OR: [
-                    { created_at: { lt: c.createdAt } },
-                    { created_at: c.createdAt, id: { lt: c.id } },
-                  ],
-                },
-              ]
-            : []),
+          ...(c ? [createdBefore({ t: c.createdAt, id: c.id })] : []),
         ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],

@@ -219,14 +219,7 @@ export class FeedService implements FeedProvider {
         AND: [
           VISIBLE_POST_WHERE,
           { author: { role: 'attorney' } },
-          c
-            ? {
-                OR: [
-                  { created_at: { lt: c.createdAt } },
-                  { created_at: c.createdAt, id: { lt: c.id } },
-                ],
-              }
-            : {},
+          c ? createdBefore({ t: c.createdAt, id: c.id }) : {},
         ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],

@@ -13,6 +13,7 @@ import type {
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -577,14 +578,7 @@ export class AssistantsService {
       where: {
         attorney_id: user.sub,
         ...(membershipId ? { membership_id: membershipId } : {}),
-        ...(c
-          ? {
-              OR: [
-                { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, id: { lt: c.id } },
-              ],
-            }
-          : {}),
+        ...(c ? createdBefore({ t: c.createdAt, id: c.id }) : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,
@@ -684,14 +678,7 @@ export class AssistantsService {
           ? { membership_id: user.assistant.membershipId }
           : {}),
         ...(status ? { status } : {}),
-        ...(c
-          ? {
-              OR: [
-                { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, id: { lt: c.id } },
-              ],
-            }
-          : {}),
+        ...(c ? createdBefore({ t: c.createdAt, id: c.id }) : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,

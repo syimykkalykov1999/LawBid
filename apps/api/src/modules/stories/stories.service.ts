@@ -11,6 +11,7 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -272,14 +273,7 @@ export class StoriesService {
       where: {
         author_id: user.sub,
         expires_at: { lte: new Date() },
-        ...(c
-          ? {
-              OR: [
-                { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, id: { lt: c.id } },
-              ],
-            }
-          : {}),
+        ...(c ? createdBefore({ t: c.createdAt, id: c.id }) : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: limit + 1,

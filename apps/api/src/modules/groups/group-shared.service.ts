@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -78,16 +79,7 @@ export class GroupSharedService {
         deleted_at: null,
         AND: [
           this.kindWhere(kind),
-          ...(c
-            ? [
-                {
-                  OR: [
-                    { created_at: { lt: c.createdAt } },
-                    { created_at: c.createdAt, id: { lt: c.id } },
-                  ],
-                },
-              ]
-            : []),
+          ...(c ? [createdBefore({ t: c.createdAt, id: c.id })] : []),
         ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],

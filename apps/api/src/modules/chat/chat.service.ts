@@ -36,6 +36,7 @@ import {
 } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -789,16 +790,7 @@ export class ChatService {
         ...(only ? { type: only } : {}),
         AND: [
           notExpired(),
-          ...(c
-            ? [
-                {
-                  OR: [
-                    { created_at: { lt: c.createdAt } },
-                    { created_at: c.createdAt, id: { lt: c.id } },
-                  ],
-                },
-              ]
-            : []),
+          ...(c ? [createdBefore({ t: c.createdAt, id: c.id })] : []),
         ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
