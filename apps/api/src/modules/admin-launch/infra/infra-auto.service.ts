@@ -381,7 +381,12 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     const tried = this.redis
       ? await this.redis.get(CODE_TRIED_KEY).catch(() => null)
       : null;
+    // Owner 15.11: search.max_nodes; unreadable = undefined = 4 (as before).
+    const maxSearchNodes = await Promise.resolve()
+      .then(() => this.settings.number('search.max_nodes'))
+      .catch(() => undefined);
     return {
+      maxSearchNodes,
       autoscaleCodeMain: code.main,
       autoscaleCodeApplied: code.applied,
       autoscaleCodeTried: tried,

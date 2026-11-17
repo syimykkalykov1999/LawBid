@@ -7,9 +7,53 @@ import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:lawbid/core/media/video_compression.dart';
+import 'package:v_video_compressor/v_video_compressor.dart';
 
 /// Owner row 42 (13.11): Android re-encodes on Media3 Transformer
 /// (`lawbid/video_encoder`); the old plugin runs only when that fails.
+/// CMV 17.11 №5: the maintained fallback plugin, faked at its Dart API.
+class _FakePlugin extends VVideoCompressor {
+  _FakePlugin(this.outPath);
+  final String outPath;
+  String? path;
+  VVideoCompressionConfig? config;
+  bool cancelled = false;
+
+  @override
+  Future<VVideoCompressionResult?> compressVideo(
+    String videoPath,
+    VVideoCompressionConfig config, {
+    void Function(double progress)? onProgress,
+    String? id,
+  }) async {
+    path = videoPath;
+    this.config = config;
+    onProgress?.call(0.5);
+    return VVideoCompressionResult(
+      originalVideo: VVideoInfo(
+        path: videoPath,
+        name: 'in.mp4',
+        fileSizeBytes: 1000,
+        durationMillis: 1000,
+        width: 1920,
+        height: 1080,
+      ),
+      compressedFilePath: outPath,
+      originalSizeBytes: 1000,
+      compressedSizeBytes: 300,
+      compressionRatio: 0.3,
+      timeTaken: 1,
+      quality: config.quality,
+      originalResolution: '1920x1080',
+      compressedResolution: '1280x720',
+      spaceSaved: 700,
+    );
+  }
+
+  @override
+  Future<void> cancelCompression() async => cancelled = true;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('lawbid/video_encoder');
@@ -313,5 +357,36 @@ void main() {
       expect(videoBitrateKbpsFor((maxHeight: 2160, frameRate: 30), l), 18000);
       expect(videoBitrateKbpsFor((maxHeight: 1080, frameRate: 60), l), 9000);
     });
+  });
+
+  test(
+      'hardware path fails: the maintained plugin runs with the admin '
+      'settings', () async {
+    final source = file('in.mp4', 1000);
+    final encoded = file('plugin.mp4', 300);
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      throw PlatformException(code: 'no_encoder');
+    });
+    final plugin = _FakePlugin(encoded.path);
+    final progress = <double>[];
+    final c = PluginVideoCompressor(
+      platform: TargetPlatform.android,
+      plugin: plugin,
+    );
+    final out = await c.compress(
+      source,
+      limits: (maxHeight: 720, frameRate: 24),
+      onProgress: progress.add,
+    );
+    expect(plugin.path, source.path);
+    expect(plugin.config?.quality, VVideoCompressQuality.medium);
+    expect(plugin.config?.advanced?.videoBitrate, 2000 * 1000);
+    expect(plugin.config?.advanced?.frameRate, 24);
+    expect(plugin.config?.deleteOriginal, isFalse);
+    expect(progress, [0.5]);
+    expect(out?.path, encoded.path);
+    expect(File(source.path).existsSync(), isTrue);
+    await c.cancel();
+    expect(plugin.cancelled, isTrue);
   });
 }

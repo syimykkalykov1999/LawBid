@@ -21,6 +21,8 @@ function make(opts: {
   readError?: Error;
   bucket?: string;
   size?: number;
+  createdAt?: Date;
+  settings?: Record<string, number>;
 }) {
   const prisma = {
     file: {
@@ -31,6 +33,7 @@ function make(opts: {
         s3_bucket: opts.bucket ?? 'b',
         s3_key: 'k',
         size_bytes: BigInt(opts.size ?? 100),
+        created_at: opts.createdAt,
       }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
@@ -57,6 +60,11 @@ function make(opts: {
     images as unknown as ImageProcessor,
     opts.scanner,
     logger as unknown as PinoLogger,
+    opts.settings
+      ? ({
+          number: (k: string) => Promise.resolve(opts.settings![k] ?? 0),
+        } as never)
+      : undefined,
   );
   return { processor, prisma, storage, images, logger };
 }
@@ -124,6 +132,54 @@ describe('FileScanProcessor', () => {
     expect(last.prisma.file.updateMany).toHaveBeenCalledWith({
       where: { id: 'f1', scan_status: 'pending' },
       data: { scan_status: 'failed' },
+    });
+  });
+
+  // Audit 17.11 (problem 13): a scanner down for two minutes made every
+  // upload of those minutes `failed` for good.
+  describe('scanner down on the last attempt', () => {
+    const broken: VirusScanner = {
+      name: 'clamd',
+      scan: () => Promise.reject(new Error('ECONNREFUSED')),
+    };
+
+    it('a fresh upload stays pending and is checked again later', async () => {
+      const last = make({ scanner: broken, createdAt: new Date() });
+      expect(await last.processor.run('f1', true)).toBe(
+        'deferred:scanner-down',
+      );
+      expect(last.prisma.file.updateMany).not.toHaveBeenCalled();
+      expect(last.logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ alert: 'virus_scanner_down' }),
+        expect.any(String),
+      );
+      expect(await last.processor.outageRetryDelayMs()).toBe(5 * 60_000);
+    });
+
+    it('after files.scan_outage_retry_hours the file fails as before', async () => {
+      const old = make({
+        scanner: broken,
+        createdAt: new Date(Date.now() - 25 * 3_600_000),
+      });
+      expect(await old.processor.run('f1', true)).toBe('failed');
+      const off = make({
+        scanner: broken,
+        createdAt: new Date(),
+        settings: { 'files.scan_outage_retry_hours': 0 },
+      });
+      expect(await off.processor.run('f1', true)).toBe('failed');
+    });
+
+    it('a storage read error is not a scanner outage', async () => {
+      const last = make({
+        scanner: {
+          name: 'clamd',
+          scan: () => Promise.resolve({ infected: false }),
+        },
+        readError: new Error('s3 down'),
+        createdAt: new Date(),
+      });
+      expect(await last.processor.run('f1', true)).toBe('failed');
     });
   });
 

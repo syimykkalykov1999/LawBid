@@ -50,12 +50,16 @@ describe('RealtimeGateway typing cap (big rooms)', () => {
 describe('RealtimeGateway typing relay', () => {
   const A = '11111111-1111-4111-8111-111111111111';
   const B = '22222222-2222-4222-8222-222222222222';
-  function make(rooms: string[] = [A, B]) {
+  function make(rooms: string[] = [A, B], blocked = false) {
     const gw = Object.create(RealtimeGateway.prototype) as Record<
       string,
       unknown
     >;
     gw.timing = { typingBigRoomSockets: 0, typingBigRoomMaxTypers: 3 };
+    const findFirst = jest
+      .fn()
+      .mockResolvedValue(blocked ? { blocker_id: 'peer' } : null);
+    gw.prisma = { userBlock: { findFirst } };
     gw.recentTypers = new Map();
     const sent: { to: string[]; except: string; payload: unknown }[] = [];
     const socket = {
@@ -75,25 +79,25 @@ describe('RealtimeGateway typing relay', () => {
     const relay = (id: string, typing = true) =>
       (
         gw as unknown as {
-          relayTyping: (s: Socket, b: unknown, t: boolean) => void;
+          relayTyping: (s: Socket, b: unknown, t: boolean) => Promise<void>;
         }
       ).relayTyping(socket, { conversationId: id }, typing);
-    return { relay, sent, socket };
+    return { relay, sent, socket, findFirst };
   }
 
-  it("never goes to the typer's own devices and says who types", () => {
+  it("never goes to the typer's own devices and says who types", async () => {
     const { relay, sent } = make();
-    relay(A);
+    await relay(A);
     expect(sent).toHaveLength(1);
     expect(sent[0].except).toBe('user:me');
     expect(sent[0].payload).toMatchObject({ conversationId: A, userId: 'me' });
   });
 
-  it('typing in chat B right after chat A is not swallowed', () => {
+  it('typing in chat B right after chat A is not swallowed', async () => {
     const { relay, sent } = make();
-    relay(A);
-    relay(B);
-    relay(A); // same chat within the gap: throttled
+    await relay(A);
+    await relay(B);
+    await relay(A); // same chat within the gap: throttled
     expect(
       sent.map((x) => (x.payload as { conversationId: string }).conversationId),
     ).toEqual([A, B]);
@@ -101,15 +105,44 @@ describe('RealtimeGateway typing relay', () => {
   // Detective R2B-6 (14.11): a member removed from a group is taken out of
   // the room (RealtimePublisher.leaveRoom); its socket still lists the chat
   // as open, but «печатает…» is no longer relayed from it.
-  it('a socket no longer in the room relays nothing and forgets the chat', () => {
+  it('a socket no longer in the room relays nothing and forgets the chat', async () => {
     const { relay, sent, socket } = make([B]);
-    relay(A);
+    await relay(A);
     expect(sent).toHaveLength(0);
     expect((socket.data as { viewing: Set<string> }).viewing.has(A)).toBe(
       false,
     );
-    relay(B);
+    await relay(B);
     expect(sent).toHaveLength(1);
+  });
+
+  // Audit 17.11 (problem 7): «typing…» / «recording…» reached the person
+  // who blocked the typer (presence:watch already respected the block).
+  it('never crosses a block in a 1:1 chat, and the bit is read once', async () => {
+    const { relay, sent, socket, findFirst } = make([A, B], true);
+    (socket.data as { peers: Map<string, string[]> }).peers.set(A, ['peer']);
+    await relay(A);
+    await relay(A, false);
+    expect(sent).toHaveLength(0);
+    expect(findFirst).toHaveBeenCalledTimes(1);
+    expect(findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          OR: [
+            { blocker_id: 'me', blocked_id: { in: ['peer'] } },
+            { blocker_id: { in: ['peer'] }, blocked_id: 'me' },
+          ],
+        },
+      }),
+    );
+  });
+
+  it('without a block the peer hears it', async () => {
+    const { relay, sent, socket } = make([A, B], false);
+    (socket.data as { peers: Map<string, string[]> }).peers.set(A, ['peer']);
+    await relay(A);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toEqual(['conversation:' + A, 'user:peer']);
   });
 });
 

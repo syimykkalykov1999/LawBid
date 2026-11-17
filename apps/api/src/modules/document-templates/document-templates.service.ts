@@ -26,6 +26,7 @@ import {
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { US_STATES } from '../../common/reference-data/us-states';
 import { EXTRA_REGIONS } from '../../common/reference-data/countries';
+import { withDeleted } from '../../prisma/soft-delete.extension';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -451,8 +452,10 @@ export class DocumentTemplatesService {
     const file = await this.files.assertAttachable(admin.id, fileId, [
       'document_template',
     ]);
-    const used = await this.prisma.documentTemplate.findUnique({
-      where: { file_id: fileId },
+    // Verify 17.11: a deleted template still holds its unique file_id — the
+    // soft-delete filter hid it and the create then failed with a 500.
+    const used = await this.prisma.documentTemplate.findFirst({
+      where: withDeleted({ file_id: fileId }),
       select: { id: true },
     });
     if (used) {

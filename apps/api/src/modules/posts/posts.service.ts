@@ -359,16 +359,28 @@ export class PostsService {
             throw e;
           });
         if (files.length > 0) {
-          await tx.postMedia.createMany({
-            data: files.map((f, i) => ({
-              post_id: created.id,
-              file_id: f.id,
-              media_type: 'image' as const,
-              position: i,
-              width: f.width,
-              height: f.height,
-            })),
-          });
+          await tx.postMedia
+            .createMany({
+              data: files.map((f, i) => ({
+                post_id: created.id,
+                file_id: f.id,
+                media_type: 'image' as const,
+                position: i,
+                width: f.width,
+                height: f.height,
+              })),
+            })
+            .catch((e: unknown) => {
+              // Verify 17.11: the unique post_media_file_id_one_post_key
+              // (prisma/concurrent) — a parallel create took this photo.
+              if ((e as { code?: string }).code === 'P2002') {
+                throw new ConflictException({
+                  code: ErrorCode.FILE_NOT_ATTACHABLE,
+                  message: 'This photo is already used in another post.',
+                });
+              }
+              throw e;
+            });
         }
         if (attachments.length > 0) {
           await tx.postAttachment.createMany({
@@ -951,6 +963,7 @@ export class PostsService {
         id,
         deleted_at: null,
         OR: [VISIBLE_POST_WHERE, { author_id: user.sub }],
+        AND: [await this.notBlockedWhere(user)],
       },
       select: { id: true },
     });
@@ -963,11 +976,24 @@ export class PostsService {
         id,
         deleted_at: null,
         OR: [VISIBLE_POST_WHERE, { author_id: user.sub }],
+        AND: [await this.notBlockedWhere(user)],
       },
     });
     if (!post) throw postNotFound();
     const settled = await this.settleOwnVideo(user.sub, post);
     return (await this.presenter.present([settled], user.sub))[0];
+  }
+
+  /** CONTENT_MEDIA_VERIFY 17.11 №5: the feed's block rule for a post opened
+   * by direct link — an author blocked either way is not there (404, as on
+   * Instagram), also before a 304. The same cached block set as the feed
+   * and reels (block-set.cache.ts); a guest has none. */
+  private async notBlockedWhere(
+    user: RequestUser | undefined,
+  ): Promise<Prisma.PostWhereInput> {
+    if (!user?.sub) return {};
+    const hidden = await cachedBlockSet(this.prisma, this.redis, user.sub);
+    return hidden.length ? { author_id: { notIn: hidden } } : {};
   }
 
   /** The author's phone polls its new video post: ask Bunny right now

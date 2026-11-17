@@ -217,6 +217,93 @@ describe('Storage like Telegram (e2e)', () => {
     expect((await row(used)).deleted_at).toBeNull();
   });
 
+  // Audit 17.11 (problem 1): a group message deleted «for everyone» frees
+  // its file at once, and the cleanup no longer counts deleted group rows or
+  // revoked 1:1 messages as users of a file.
+  it('frees the file of a group message deleted for everyone', async () => {
+    const a = await user();
+    const g = await api()
+      .post('/api/v1/groups')
+      .set(a.auth)
+      .send({ title: 'Files', type: 'closed', memberIds: [] })
+      .expect(201);
+    const groupId = g.body.data.id as string;
+    const fileId = await upload(a.auth, pdf(`group-${randomUUID()}`));
+    const msg = await prisma.chatGroupMessage.create({
+      data: {
+        group_id: groupId,
+        sender_id: a.id,
+        type: 'attachment',
+        body: '',
+        client_message_id: randomUUID(),
+        file_id: fileId,
+      },
+    });
+    const { s3_bucket: bucket, s3_key: key } = await row(fileId);
+    expect(await storage.head(bucket, key)).not.toBeNull();
+    await api()
+      .delete(`/api/v1/groups/${groupId}/messages/${msg.id}`)
+      .set(a.auth)
+      .expect(204);
+    expect((await row(fileId)).deleted_reason).toBe('released');
+    expect(await storage.head(bucket, key)).toBeNull();
+  });
+
+  it('the cleanup collects files of deleted group and revoked 1:1 messages', async () => {
+    const a = await user();
+    const b = await user();
+    const g = await api()
+      .post('/api/v1/groups')
+      .set(a.auth)
+      .send({ title: 'Old', type: 'closed', memberIds: [] })
+      .expect(201);
+    const groupFile = await upload(a.auth, pdf(`gold-${randomUUID()}`));
+    const chatFile = await upload(a.auth, pdf(`cold-${randomUUID()}`));
+    const liveFile = await upload(a.auth, pdf(`live-${randomUUID()}`));
+    // Rows deleted before the fix (or whose release failed) still point at
+    // their files.
+    await prisma.chatGroupMessage.create({
+      data: {
+        group_id: g.body.data.id as string,
+        sender_id: a.id,
+        type: 'attachment',
+        body: '',
+        client_message_id: randomUUID(),
+        file_id: groupFile,
+        deleted_at: new Date(),
+      },
+    });
+    const conv = await prisma.conversation.create({
+      data: { client_id: a.id, attorney_id: b.id, status: 'active' },
+    });
+    for (const [fileId, revoked] of [
+      [chatFile, true],
+      [liveFile, false],
+    ] as const) {
+      await prisma.message.create({
+        data: {
+          conversation_id: conv.id,
+          sender_id: a.id,
+          type: 'attachment',
+          body_original: '',
+          body_display: '',
+          client_message_id: randomUUID(),
+          file_id: fileId,
+          revoked_at: revoked ? new Date() : null,
+        },
+      });
+    }
+    const old = new Date(Date.now() - 3 * 24 * 3600 * 1000);
+    await prisma.file.updateMany({
+      where: { id: { in: [groupFile, chatFile, liveFile] } },
+      data: { created_at: old },
+    });
+    await cleanupNow();
+    expect((await row(groupFile)).deleted_reason).toBe('orphan');
+    expect((await row(chatFile)).deleted_reason).toBe('orphan');
+    expect((await row(liveFile)).deleted_at).toBeNull();
+  });
+
   it('removes uploads that were never confirmed', async () => {
     const a = await user();
     const bytes = pdf(`abandoned-${randomUUID()}`);

@@ -292,7 +292,7 @@ abstract class CasesClient {
 
   /// Case files with notes and where they came from.
   ///
-  /// With `limit`: one page, oldest first, meta.nextCursor for the next one; filters `kind`, `source`, `sample`. Without it: every file (apps released before 2026-11-10).
+  /// One page, oldest first (`limit`, default and max CASE_FILES_PAGE_MAX), meta.nextCursor for the next one; filters `kind`, `source`, `sample`.
   ///
   /// [limit] - Page size. Absent: every file (older apps).
   ///

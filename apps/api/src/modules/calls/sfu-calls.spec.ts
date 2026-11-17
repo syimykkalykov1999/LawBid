@@ -110,6 +110,8 @@ describe('SFU routes: who may use them', () => {
       callId: 'c1',
       userId: 'b',
       canPublish: true,
+      // Audit 17.11 (problem 5): the broker knows the call is a video one.
+      video: true,
       joinedUserIds: ['a', 'b'],
     });
   });

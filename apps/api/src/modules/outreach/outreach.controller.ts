@@ -12,6 +12,7 @@ import type { Response } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { SkipVersionCheck } from '../feature-flags/decorators/skip-version-check.decorator';
 import { OutreachService } from './outreach.service';
+import { UNSUBSCRIBE_TOKEN_PATTERN } from './unsubscribe-token';
 
 const PAGE = (title: string, text: string, extra = '') =>
   `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
@@ -41,7 +42,7 @@ export class OutreachController {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    if (!/^[A-Za-z0-9_-]{16,48}$/.test(token)) {
+    if (!UNSUBSCRIBE_TOKEN_PATTERN.test(token)) {
       res
         .status(404)
         .send(

@@ -13,7 +13,6 @@ import {
   CDN_INVALIDATOR,
   type CdnInvalidator,
 } from '../../common/cdn/cdn-invalidator';
-import { isHeld } from '../../common/privacy/legal-hold';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { MessageSearchIndex } from '../../common/secrets/message-search-index';
@@ -308,26 +307,14 @@ export class ChatActionsService {
   private async releaseFile(fileId: string, messageId: string): Promise<void> {
     if (!this.releases) return;
     try {
-      const [others, groupOthers] = await Promise.all([
-        this.prisma.message.count({
-          where: {
-            file_id: fileId,
-            id: { not: messageId },
-            revoked_at: null,
-            deleted_at: null,
-          },
-        }),
-        this.prisma.chatGroupMessage.count({
-          where: { file_id: fileId, deleted_at: null },
-        }),
-      ]);
-      if (others + groupOthers > 0) return;
-      if (await isHeld(this.prisma, 'file', fileId)) return;
       const file = await this.prisma.file.findUnique({
         where: { id: fileId },
         select: { s3_key: true },
       });
-      await this.releases.release([fileId], 'released');
+      const released = await this.releases.releaseMessageFile(fileId, {
+        messageId,
+      });
+      if (!released) return;
       if (file && this.cdn) {
         await this.cdn.enqueue(
           [file.s3_key, ...derivedKeys(file.s3_key)],

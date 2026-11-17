@@ -87,6 +87,7 @@ const PAYMENTS_PAGE = 20;
  */
 import { ReferralsService } from '../referrals/referrals.service';
 import { bullOptions } from '../../redis/redis-connection';
+import { nonBlank } from '../../config/non-blank';
 /** `sessionId` of a payment made on our own card page. */
 export const OWN_PAGE_SESSION_PREFIX = 'own:';
 
@@ -146,10 +147,10 @@ export class SubscriptionsService implements OnModuleDestroy {
     @Optional() private readonly disputeRefunds?: DisputeRefundService,
   ) {
     this.portalReturnUrl =
-      config.get<string>('STRIPE_PORTAL_RETURN_URL') ??
-      `${config.get<string>('APP_LINK_BASE_URL') ?? 'https://lawbid.app'}/subscription`;
+      nonBlank(config.get<string>('STRIPE_PORTAL_RETURN_URL')) ??
+      `${nonBlank(config.get<string>('APP_LINK_BASE_URL')) ?? 'https://lawbid.app'}/subscription`;
     this.checkoutReturnBase =
-      config.get<string>('APP_LINK_BASE_URL') ?? 'https://lawbid.app';
+      nonBlank(config.get<string>('APP_LINK_BASE_URL')) ?? 'https://lawbid.app';
     const url = config.get<string>('REDIS_URL');
     if (url)
       this.queue = new Queue(

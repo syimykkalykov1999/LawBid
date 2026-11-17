@@ -260,9 +260,16 @@ void _rereadOn(Ref ref, bool Function(RealtimeEvent e) test) {
 }
 
 /// The one-bid patch a bid `case:update` carries (delta audit D-P4):
-/// `{bid: {bidId, status, amountCents?, percentBps?}}`, or null.
-({String bidId, BidStatus status, int? amountCents, int? percentBps})?
-    bidPatchOf(RealtimeEvent e) {
+/// `{bid: {bidId, status, amountCents?, percentBps?, turn?}}`, or null.
+/// Verify 17.11: `turn` is set by a counter (one more round, the turn of
+/// that side).
+({
+  String bidId,
+  BidStatus status,
+  int? amountCents,
+  int? percentBps,
+  PartyRole? turn,
+})? bidPatchOf(RealtimeEvent e) {
   final data = e.data;
   final raw = data is Map ? data['bid'] : null;
   if (raw is! Map || raw['bidId'] is! String || raw['status'] is! String) {
@@ -278,6 +285,9 @@ void _rereadOn(Ref ref, bool Function(RealtimeEvent e) test) {
     status: status,
     amountCents: raw['amountCents'] is int ? raw['amountCents'] as int : null,
     percentBps: raw['percentBps'] is int ? raw['percentBps'] as int : null,
+    turn: raw['countered'] == true && raw['turn'] is String
+        ? PartyRole.fromJson(raw['turn'] as String)
+        : null,
   );
 }
 
@@ -406,6 +416,7 @@ class CaseBidsNotifier extends SyncedListNotifier<CaseBid> {
             status: patch.status,
             amountCents: patch.amountCents,
             percentBps: patch.percentBps,
+            counteredTo: patch.turn,
           ),
         );
         if (held) return;

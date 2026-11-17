@@ -177,9 +177,13 @@ class PostSearchNotifier extends PagedNotifier<Post> {
   Duration? get keepAliveFor => kSearchResultsWindow;
 
   @override
-  Future<CursorPage<Post>> fetch(String? cursor) => ref
-      .read(searchRepositoryProvider)
-      .posts(key.q, cursor: cursor, filters: key.filters);
+  Future<CursorPage<Post>> fetch(String? cursor) => settleLivePage(
+        ref,
+        cursor,
+        ref
+            .read(searchRepositoryProvider)
+            .posts(key.q, cursor: cursor, filters: key.filters),
+      );
 
   @override
   Object idOf(Post item) => item.id;
