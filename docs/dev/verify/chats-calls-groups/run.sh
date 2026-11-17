@@ -28,6 +28,8 @@ code)
 specs)
   need_ram
   cd "$API" || exit 1
+  # Без созданного клиента Prisma тесты падают «Cannot find module '../generated/prisma/client'».
+  [ -d src/generated/prisma ] || "$HEAVY" -- npx prisma generate
   # Группа 1: чаты и сокеты
   "$HEAVY" -- npm test -- --maxWorkers=1 \
     src/modules/chat/chat-redeliver.spec.ts src/modules/chat/chat-read-receipt.spec.ts \
@@ -57,11 +59,13 @@ specs)
   ;;
 order)
   need_ram
+  # e2e читает apps/api/.env (DATABASE_URL, REDIS_URL локальных docker-баз). В worktree: ссылка на .env основной папки.
+  [ -e "$API/.env" ] || { echo "нет $API/.env: ln -s /Users/sima/Desktop/LawBid/apps/api/.env $API/.env"; exit 2; }
   mkdir -p "$API/test/_audit"
   cp "$(dirname "$0")/order.e2e-spec.ts" "$API/test/_audit/order.e2e-spec.ts"
   sed -i '' "s#'../src/#'../../src/#g" "$API/test/_audit/order.e2e-spec.ts"
   cd "$API" || exit 1
-  E2E_ISOLATION=$TAG E2E_REDIS_DB=$REDIS_DB "$HEAVY" -- npx jest --config test/jest-e2e.json \
+  E2E_ISOLATION=$TAG E2E_REDIS_DB=$REDIS_DB "$HEAVY" -- npm run test:e2e -- \
     --maxWorkers=1 test/_audit/order.e2e-spec.ts
   rc=$?
   rm -rf "$API/test/_audit"
