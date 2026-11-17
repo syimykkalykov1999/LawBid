@@ -72,6 +72,7 @@ class Conversation {
     this.waitingSince,
     this.note,
     this.pinnedAt,
+    this.markedUnread = false,
     this.blocked = false,
     this.matchedMessage,
     this.disappearAfterS,
@@ -109,6 +110,7 @@ class Conversation {
         waitingSince: waitingSince,
         note: note,
         pinnedAt: pinnedAt,
+        markedUnread: markedUnread,
         matchedMessage: matchedMessage,
         disappearAfterS: disappearAfterS,
       );
@@ -121,6 +123,7 @@ class Conversation {
     DateTime? lastMessageAt,
     int? unreadCount,
     DateTime? updatedAt,
+    bool? markedUnread,
   }) =>
       Conversation(
         id: id,
@@ -147,6 +150,7 @@ class Conversation {
         waitingSince: waitingSince,
         note: note,
         pinnedAt: pinnedAt,
+        markedUnread: markedUnread ?? this.markedUnread,
         matchedMessage: matchedMessage,
         disappearAfterS: disappearAfterS,
       );
@@ -182,6 +186,13 @@ class Conversation {
 
   bool get waiting => waitingSince != null;
   bool get pinned => pinnedAt != null;
+
+  /// Row 110 (Telegram «Mark as unread», WhatsApp «Mark as unread»): I put
+  /// the unread mark back on myself; reading the chat takes it off.
+  final bool markedUnread;
+
+  /// The row counts as unread: new messages, or my own unread mark.
+  bool get hasUnread => unreadCount > 0 || markedUnread;
 
   /// OQ-043: started from a profile ("Message"), not from a case.
   final bool isDirect;
@@ -234,14 +245,23 @@ class Conversation {
 /// Owner 2026-10-01: Instagram-like folders of the chat list.
 enum ChatFolder { primary, general }
 
-/// The chat list's sub-tabs: All · Primary · General · Cases · Waiting ·
+/// «Forever» (Telegram's «Disable», WhatsApp's «Always»): the server keeps
+/// a moment, so forever is a moment ten years away. One name for it in the
+/// whole app.
+const kMuteForever = Duration(days: 3650);
+
+/// The chat list's sub-tabs: All · Unread · Groups · Cases · Waiting ·
 /// Requests (owner 2026-10-21: «Cases» = only the chats tied to a case).
 /// `archive` (owner 2026-10-20) is the Archive screen, never a pill.
+/// Row 110 (WhatsApp «Unread» filter, 2024; Telegram «Unread» folder):
+/// [unread] is filtered on the device from the «All» list in memory, it is
+/// never sent to the server.
 /// `groups` (owner 2026-11-16, WhatsApp «Группы» filter): only my group
 /// chats, read from the groups list on the phone, never sent to the server
 /// as a folder of direct chats; a pill only while «Группы в чатах» is on.
 enum ChatListFolder {
   all,
+  unread,
   groups,
   primary,
   general,

@@ -19,6 +19,7 @@ import { useConfirm } from '@/components/legacy/confirm';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { usd } from '@/lib/labels';
+import { optimistic } from '@/lib/optimistic';
 import { cn } from '@/lib/utils';
 
 type Plans = components['schemas']['AdminPlansDto'];
@@ -273,14 +274,22 @@ function PostAttachmentsCard({ canWrite }: { canWrite: boolean }) {
     queryKey: key,
     queryFn: async () => (await api.GET('/admin/billing/post-attachments')).data!.data,
   });
+  type Attachments = NonNullable<typeof q.data>;
   const save = useMutation({
     mutationFn: async (body: { mode: AttachmentsMode; keepAfterCancel?: boolean }) =>
       (await api.PUT('/admin/billing/post-attachments', { body })).data!.data,
+    // Row 192 (detective R4-C №5): the choice shows at once, a refusal puts
+    // the old one back (lib/optimistic.ts, as on «Функции»).
+    ...optimistic<Attachments, { mode: AttachmentsMode; keepAfterCancel?: boolean }>(
+      qc,
+      key,
+      (cur, body) => (cur ? { ...cur, ...body } : cur),
+      { onError: (e) => toast.error(e) },
+    ),
     onSuccess: (res) => {
       qc.setQueryData(key, res);
       toast.success('Сохранено');
     },
-    onError: (e) => toast.error(e),
   });
   const mode = q.data?.mode ?? 'by_subscription';
   const keep = q.data?.keepAfterCancel ?? true;
@@ -295,7 +304,7 @@ function PostAttachmentsCard({ canWrite }: { canWrite: boolean }) {
       <div className="mt-3">
         <Tabs
           value={mode}
-          onChange={(v) => canWrite && save.mutate({ mode: v, keepAfterCancel: keep })}
+          onChange={(v) => canWrite && !save.isPending && save.mutate({ mode: v, keepAfterCancel: keep })}
           items={ATTACHMENT_MODES.map((mm) => ({ value: mm.value, label: mm.label }))}
         />
       </div>
@@ -304,6 +313,8 @@ function PostAttachmentsCard({ canWrite }: { canWrite: boolean }) {
         <div className="mt-3">
           <Switch
             checked={keep}
+            // Row 192: one write at a time; a double click sends no second one.
+            disabled={save.isPending}
             onChange={(v) => canWrite && save.mutate({ mode, keepAfterCancel: v })}
             label="Оставлять вложения после отмены подписки"
           />
