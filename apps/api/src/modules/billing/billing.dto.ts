@@ -161,6 +161,81 @@ export class SetSeatsDto {
   prorationDate?: number;
 }
 
+/** Owner row 87 (16.11, plan PR 8): the «Горячая линия» add-on on / off. */
+export class SetHotlineAddonDto {
+  @ApiProperty({
+    description:
+      'true = add it (the prorated rest of the period is charged now); false = remove it (no refund, usable until the period end).',
+  })
+  @IsBoolean()
+  enabled!: boolean;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    description:
+      '`prorationDate` from POST /subscriptions/hotline/preview, so the charge equals the amount shown (unix seconds; now when absent).',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  prorationDate?: number;
+}
+
+/** Owner row 87 (plan PR 8): the add-on row of the subscription card. */
+export class HotlineAddonDto {
+  @ApiProperty({ type: 'integer', description: 'Per month, in cents.' })
+  priceCents!: number;
+  @ApiProperty() currency!: string;
+  @ApiProperty({ description: 'Usable now (bought, or paid to endsAt).' })
+  active!: boolean;
+  @ApiProperty({ description: 'On the subscription: billed next period.' })
+  renews!: boolean;
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Removed: usable until then (the period already paid).',
+  })
+  endsAt!: string | null;
+  @ApiProperty({ description: 'A purchase waits for the bank (3-D Secure).' })
+  pending!: boolean;
+  @ApiProperty({
+    description:
+      'It can be bought now (after the first payment, like seats); false while the plan is in its trial.',
+  })
+  canBuy!: boolean;
+}
+
+/** Owner row 87 (plan PR 8): «К оплате сейчас» before adding the add-on. */
+export class HotlineAddonPreviewDto {
+  @ApiProperty({
+    type: 'integer',
+    description:
+      'Charged now: the prorated rest of the current period (0 when it is on already or paid to the period end).',
+  })
+  amountNowCents!: number;
+  @ApiPropertyOptional({ type: 'integer', nullable: true })
+  taxCents?: number | null;
+  @ApiProperty() currency!: string;
+  @ApiProperty({
+    type: 'integer',
+    description: 'Send back with POST /subscriptions/hotline (unix seconds).',
+  })
+  prorationDate!: number;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  periodEnd!: string | null;
+  @ApiProperty({ type: 'integer', description: 'The add-on per month.' })
+  priceCents!: number;
+  @ApiProperty({ type: 'integer' })
+  monthlyIncreaseCents!: number;
+  @ApiProperty({
+    type: 'integer',
+    description: 'The next monthly invoice with the add-on.',
+  })
+  nextChargeCents!: number;
+}
+
 /** Owner 2026-10-22: «К оплате сейчас» before buying seats. */
 export class SeatPreviewRequestDto {
   @ApiProperty({
@@ -312,6 +387,13 @@ export class SubscriptionMeDto {
   entitlements!: PlanEntitlementsDto;
   @ApiProperty({ type: SeatSummaryDto, nullable: true })
   seats!: SeatSummaryDto | null;
+  @ApiPropertyOptional({
+    type: HotlineAddonDto,
+    nullable: true,
+    description:
+      'Owner row 87 (plan PR 8): the «Горячая линия» add-on row of the card; null = the plan does not offer it.',
+  })
+  hotlineAddon?: HotlineAddonDto | null;
 }
 
 export class PaymentDto {

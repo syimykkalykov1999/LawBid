@@ -18,6 +18,7 @@ import { FilesService } from '../../files/files.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { caseNotFound } from '../domain/case-state-machine';
 import { AttorneyBriefService } from '../brief/attorney-brief.service';
+import { BidTeamService } from '../../firms/bid-team.service';
 import type {
   BoardCaseTaskDto,
   CaseActivityDto,
@@ -40,6 +41,9 @@ interface Side {
   role: Role;
   clientId: string;
   attorneyId: string;
+  /** Firms audit 16.11 (PR-5): the firm's team on the accepted bid — on
+   * the attorney's side, with the attorney's role. */
+  team: string[];
   /** Audit 2026-10-19: false once the case is closed / archived — the
    * workspace stays readable but nothing more is added or changed. */
   writable: boolean;
@@ -89,6 +93,7 @@ export class CaseWorkspaceService {
     private readonly files: FilesService,
     private readonly notifications: NotificationsService,
     @Optional() private readonly briefs?: AttorneyBriefService,
+    @Optional() private readonly bidTeam?: BidTeamService,
   ) {}
 
   /** Audit 2026-10-19: what one side adds reaches the other side (the bell
@@ -100,14 +105,22 @@ export class CaseWorkspaceService {
     kind: 'update' | 'task_added' | 'task_done' | 'task_files',
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
-    await this.notifications.emit(
-      {
-        type: 'case_workspace_activity',
-        recipientId: s.role === 'client' ? s.attorneyId : s.clientId,
-        payload: { caseId, actorId: user.sub, kind },
-      },
-      tx,
-    );
+    // PR-5: the client's news reaches the firm's team too; a team
+    // member's reaches the client (and the bid's attorney).
+    const to =
+      s.role === 'client'
+        ? [s.attorneyId, ...s.team]
+        : [s.clientId, ...(user.sub !== s.attorneyId ? [s.attorneyId] : [])];
+    for (const recipientId of to) {
+      await this.notifications.emit(
+        {
+          type: 'case_workspace_activity',
+          recipientId,
+          payload: { caseId, actorId: user.sub, kind },
+        },
+        tx,
+      );
+    }
   }
 
   /** The viewer's side of an accepted case; [need] = what the call does. */
@@ -133,15 +146,20 @@ export class CaseWorkspaceService {
       select: {
         client_id: true,
         status: true,
-        accepted_bid: { select: { attorney_id: true } },
+        accepted_bid: { select: { id: true, attorney_id: true } },
       },
     });
     if (!c) throw caseNotFound();
     const attorneyId = c.accepted_bid?.attorney_id ?? null;
+    // PR-5: the firm's live team on the accepted bid ([] with the switch off).
+    const team =
+      c.accepted_bid && this.bidTeam
+        ? await this.bidTeam.teamIds(c.accepted_bid)
+        : [];
     const role: Role | null =
       user.sub === c.client_id
         ? 'client'
-        : attorneyId && user.sub === attorneyId
+        : attorneyId && (user.sub === attorneyId || team.includes(user.sub))
           ? 'attorney'
           : null;
     if (!role) throw caseNotFound();
@@ -158,7 +176,7 @@ export class CaseWorkspaceService {
         message: 'The case is closed: its workspace is read-only.',
       });
     }
-    return { role, clientId: c.client_id, attorneyId, writable };
+    return { role, clientId: c.client_id, attorneyId, team, writable };
   }
 
   private roleOf(userId: string | null, s: { clientId: string }): Role {
@@ -620,7 +638,7 @@ export class CaseWorkspaceService {
       where: {
         id: taskId,
         case_id: caseId,
-        created_by: { in: [s.attorneyId, s.clientId] },
+        created_by: { in: [s.attorneyId, s.clientId, ...s.team] },
       },
       include: { items: true },
     });
@@ -818,7 +836,7 @@ export class CaseWorkspaceService {
     >
   > {
     const users = await this.prisma.user.findMany({
-      where: { id: { in: [s.clientId, s.attorneyId] } },
+      where: { id: { in: [s.clientId, s.attorneyId, ...s.team] } },
       select: {
         id: true,
         first_name: true,
@@ -1122,7 +1140,8 @@ export class CaseWorkspaceService {
         this.prisma.caseUpdate.count({
           where: {
             case_id: caseId,
-            author_id: other,
+            author_id:
+              s.role === 'client' ? { in: [s.attorneyId, ...s.team] } : other,
             ...(read ? { created_at: { gt: read.updates_seen_at } } : {}),
           },
         }),

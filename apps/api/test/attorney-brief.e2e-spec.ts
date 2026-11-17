@@ -72,6 +72,7 @@ describe('Attorney case brief (e2e, sweep A-c1)', () => {
   let prisma: PrismaService;
   let tokens: TokenService;
   let redis: Redis;
+  let dealRecordBefore: { value: unknown } | null = null;
   let s3: FakeS3;
   let baseUrl = '';
   let practiceAreaId = '';
@@ -97,6 +98,13 @@ describe('Attorney case brief (e2e, sweep A-c1)', () => {
     prisma = app.get(PrismaService);
     tokens = app.get(TokenService);
     redis = app.get<Redis>(REDIS_CLIENT);
+    // KE 94: put the switch back as found (the e2e setup seeds it off; a
+    // deleted row reads as the production default, on, and later suites'
+    // plain accepts get 409).
+    dealRecordBefore = await prisma.appConfig.findUnique({
+      where: { key: 'deal_record.enabled' },
+      select: { value: true },
+    });
     // The plain accept (the deal-record path calls the same acceptInTx).
     await prisma.appConfig.upsert({
       where: { key: 'deal_record.enabled' },
@@ -123,9 +131,16 @@ describe('Attorney case brief (e2e, sweep A-c1)', () => {
   });
 
   afterAll(async () => {
-    await prisma.appConfig.deleteMany({
-      where: { key: 'deal_record.enabled' },
-    });
+    if (dealRecordBefore) {
+      await prisma.appConfig.update({
+        where: { key: 'deal_record.enabled' },
+        data: { value: dealRecordBefore.value as never },
+      });
+    } else {
+      await prisma.appConfig.deleteMany({
+        where: { key: 'deal_record.enabled' },
+      });
+    }
     await redis.del('config:app_config');
     await app.close();
   });

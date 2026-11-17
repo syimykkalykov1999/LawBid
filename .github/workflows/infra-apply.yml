@@ -95,12 +95,24 @@ jobs:
           jq -c '.data.changes' job.json > changes.json
           echo "Request $REQUEST_ID: $(jq -r '.data.itemId' job.json) -> $(cat changes.json)" >> "$GITHUB_STEP_SUMMARY"
 
+      # Owner 17.11 «Применить изменения из кода» (aws.pending): no switch
+      # changes, the file stays as on main; the plan is main's Terraform with
+      # the current settings (first case: Origin Shield of the media CDN).
       - name: Write the switch (whitelist + schema)
+        env:
+          ITEM: ${{ steps.job.outputs.item }}
         run: |
-          node scripts/infra/write-switch.mjs \
-            infra/envs/prod/growth.auto.tfvars.json \
-            infra/envs/prod/growth.auto.tfvars.schema.json \
-            "$(cat changes.json)" > before.json
+          if [ "$ITEM" = "aws.pending" ]; then
+            jq -e '. == {}' changes.json > /dev/null \
+              || { echo "::error::aws.pending must change nothing"; exit 1; }
+            echo '{"before":{}}' > before.json
+            echo "No switch changes: plan main's Terraform as is." >> "$GITHUB_STEP_SUMMARY"
+          else
+            node scripts/infra/write-switch.mjs \
+              infra/envs/prod/growth.auto.tfvars.json \
+              infra/envs/prod/growth.auto.tfvars.schema.json \
+              "$(cat changes.json)" > before.json
+          fi
           git diff --stat
 
       - name: Report a failure before the plan
@@ -165,6 +177,8 @@ jobs:
       - name: Wait for the owner's 2FA confirm (at most 30 minutes)
         id: wait
         if: steps.job.outputs.dry_run != 'true'
+        env:
+          ITEM: ${{ steps.job.outputs.item }}
         run: |
           deadline=$(( $(date +%s) + 31 * 60 ))
           while [ "$(date +%s)" -lt "$deadline" ]; do
@@ -176,7 +190,10 @@ jobs:
                 # deletes or replaces serving infrastructure (load balancer,
                 # services, CDN, DNS, network). The API refuses it too; this
                 # is the second lock. The owner's own 2FA confirm still goes.
-                if [ "$(jq -r '.data.auto // false' decision.json)" = "true" ] && [ -s serving.txt ]; then
+                # Owner 17.11: a plan from code (aws.pending) never does
+                # either: no switch asked for that part to go (the API
+                # refuses it at plan time too).
+                if { [ "$(jq -r '.data.auto // false' decision.json)" = "true" ] || [ "$ITEM" = "aws.pending" ]; } && [ -s serving.txt ]; then
                   jq -n --arg e "«Авто» не применяет план, который удаляет работающую часть ($(head -3 serving.txt | tr '\n' ' ')). Нужно подтверждение владельца. Журнал: $RUN_URL" \
                     '{status:"failed", error:$e}' > fail.json
                   scripts/infra/api.sh POST "$REQUEST_ID" status @fail.json > /dev/null || true
@@ -335,6 +352,10 @@ jobs:
           set -u
           git config user.name "lawbid-infra[bot]"
           git config user.email "infra-bot@users.noreply.github.com"
+          # aws.pending (17.11): the file did not change, main already holds it.
+          if git diff --quiet -- infra/envs/prod/growth.auto.tfvars.json; then
+            echo "recorded=main" >> "$GITHUB_OUTPUT"; exit 0
+          fi
           git add infra/envs/prod/growth.auto.tfvars.json
           git commit -m "infra: $(jq -r '.data.itemId' job.json) from the admin (request $REQUEST_ID)" -m "Applied by $RUN_URL"
           # Rows 8 / 85 / 9 (14.11): `git pull --rebase` refused in every

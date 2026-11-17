@@ -8,6 +8,7 @@ import 'bid_attorney_summary_dto.dart';
 import 'bid_case_ref_dto.dart';
 import 'bid_offer_dto.dart';
 import 'bid_status.dart';
+import 'bid_team_member_dto.dart';
 import 'fee_type.dart';
 import 'party_role.dart';
 import 'payment_terms_dto.dart';
@@ -41,6 +42,7 @@ class MyBidItemDto {
     this.percentBps,
     this.confirmationRequiredAt,
     this.attorney,
+    this.team,
     this.coverUrl,
     this.coverBlurhash,
   });
@@ -85,6 +87,11 @@ class MyBidItemDto {
 
   /// The attorney summary — only on GET /bids/:id.
   final BidAttorneySummaryDto? attorney;
+
+  /// Firms audit 16.11 (PR-5): the firm's team on the bid (the lawyers who.
+  /// joined it, still in the firm) — only on GET /bids/:id; empty with the.
+  /// `firm_profiles` switch off.
+  final List<BidTeamMemberDto>? team;
 
   /// The name has been replaced because it contains a keyword. Original name: `case`.
   @JsonKey(name: 'case')

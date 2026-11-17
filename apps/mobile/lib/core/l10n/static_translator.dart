@@ -45,6 +45,7 @@ import 'package:lawbid/core/l10n/strings/forward_strings.dart';
 import 'package:lawbid/core/l10n/strings/group_calls_strings.dart';
 import 'package:lawbid/core/l10n/strings/group_slow_strings.dart';
 import 'package:lawbid/core/l10n/strings/group_strings.dart';
+import 'package:lawbid/core/l10n/strings/hotline_addon_strings.dart';
 import 'package:lawbid/core/l10n/strings/id_selfie_strings.dart';
 import 'package:lawbid/core/l10n/strings/invite_strings.dart';
 import 'package:lawbid/core/l10n/strings/legal_docs_strings.dart';
@@ -1268,6 +1269,7 @@ class StaticTranslatorRu extends _MapTranslator {
         ...themeRu,
         ...accountSafetyRu,
         ...bidLeaveRu,
+        ...hotlineAddonRu,
         ...routerRu,
         ...postInnerRu,
         ...emailFlowsRu,
@@ -2739,6 +2741,7 @@ class StaticTranslatorEn extends _MapTranslator {
         ...themeEn,
         ...accountSafetyEn,
         ...bidLeaveEn,
+        ...hotlineAddonEn,
         ...routerEn,
         ...postInnerEn,
         ...storiesEn,

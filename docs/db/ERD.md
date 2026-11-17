@@ -1215,6 +1215,9 @@ erDiagram
     Int assistant_seats
     String plan_id FK "nullable"
     Json entitlements "nullable"
+    Boolean hotline_addon
+    DateTime hotline_addon_ends_at "nullable"
+    String hotline_addon_invoice_id "nullable"
     DateTime created_at
     DateTime updated_at
   }

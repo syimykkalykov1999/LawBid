@@ -116,6 +116,17 @@ function make(opts: { enabled?: boolean; key?: string | null } = {}) {
     }),
     payPageConfirm: jest.fn().mockResolvedValue(true),
   };
+  const hotline = {
+    preview: jest.fn().mockResolvedValue({
+      amountNowCents: 1633,
+      taxCents: null,
+      currency: 'usd',
+      nextChargeCents: 44_800,
+      periodEnd: '2026-11-22T00:00:00.000Z',
+      prorationDate: 1_800_000_000,
+    }),
+    set: jest.fn().mockResolvedValue({ status: 'applied', clientSecret: null }),
+  };
   const clientBadge = {
     payPageSession: jest.fn().mockResolvedValue({
       priceCents: 1000,
@@ -135,9 +146,11 @@ function make(opts: { enabled?: boolean; key?: string | null } = {}) {
     bidPacks as never,
     clientPlans as never,
     clientBadge as never,
+    hotline as never,
   );
   return {
     svc,
+    hotline,
     links,
     subscriptions,
     prisma,
@@ -248,6 +261,40 @@ describe('PayPageService (owner 2026-10-16 / 2026-10-22: our own card page)', ()
       1_800_000_000,
     );
     expect(r).toEqual({ status: 'requires_action', clientSecret: 'pi_s' });
+  });
+
+  it('row 87 (plan PR 8): the hotline add-on on the card page — the price now, a new card, then on', async () => {
+    const { svc, hotline, seats, provider } = make();
+    const link = await svc.hotlineLink(user, 'https://api.example/api/v1');
+    expect(hotline.preview).toHaveBeenCalledWith(user);
+    const s = await svc.session(tokenOf(link.url));
+    expect(s).toMatchObject({
+      kind: 'hotline',
+      mode: 'setup',
+      priceCents: 1633,
+      nextChargeCents: 44_800,
+      prorationDate: 1_800_000_000,
+      returnPath: '/subscription',
+      clientSecret: 'seti_9_secret',
+    });
+    expect(provider.createSetupIntent).toHaveBeenCalledWith(
+      'cus_1',
+      expect.objectContaining({ kind: 'hotline_addon' }),
+    );
+    const r = await svc.confirm(s.pageToken, {
+      setupIntentId: 'seti_9',
+      prorationDate: 1_800_000_000,
+    });
+    expect(seats.useCard).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: 'u1' }),
+      'seti_9',
+    );
+    expect(hotline.set).toHaveBeenCalledWith(
+      expect.objectContaining({ sub: 'u1' }),
+      true,
+      1_800_000_000,
+    );
+    expect(r).toEqual({ status: 'ok', clientSecret: null });
   });
 
   it('Stripe Tax on: a one-time payment gets a tax calculation at the address and the intent is raised to the total; a card-saving page stores the address on the customer', async () => {

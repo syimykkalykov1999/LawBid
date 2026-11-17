@@ -9,6 +9,7 @@ import { api } from "@/lib/api/client";
 import {
   costLine,
   isActive,
+  isPending,
   latestFor,
   minutesLeft,
   planLine,
@@ -55,10 +56,23 @@ export function useInfra() {
     },
     onError: (e) => toast.error(e),
   });
+  // Owner 17.11 «Применить изменения из кода»: the same request list,
+  // plan sheet and 2FA confirm; no switch changes.
+  const createPending = useMutation({
+    mutationFn: async () =>
+      (await api.POST("/admin/infra/requests/pending")).data!
+        .data as InfraRequest,
+    onSuccess: (r) => {
+      after();
+      if (r.status === "failed") toast.error(r.error ?? "Не получилось");
+      else toast.success("Готовится план. Это 2–5 минут, окно обновится само.");
+    },
+    onError: (e) => toast.error(e),
+  });
   const confirm = useInfraAction("confirm", after);
   const cancel = useInfraAction("cancel", after);
   const rollback = useInfraAction("rollback", after);
-  return { q, data: q.data, create, confirm, cancel, rollback };
+  return { q, data: q.data, create, createPending, confirm, cancel, rollback };
 }
 
 /**
@@ -208,11 +222,7 @@ export function InfraPlanSheet({
       {r ? (
         <div className="flex flex-col gap-3" data-testid="infra-sheet">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              tone={requestTone(r)}
-              dot
-              data-testid="infra-sheet-status"
-            >
+            <Badge tone={requestTone(r)} dot data-testid="infra-sheet-status">
               {requestWord(r)}
             </Badge>
             {r.runUrl ? (
@@ -229,7 +239,9 @@ export function InfraPlanSheet({
           <Card className="p-3 text-sm" data-testid="infra-sheet-plan">
             <div className="font-medium text-heading">{planLine(r)}</div>
             <div className="mt-1 text-ink" data-testid="infra-sheet-cost">
-              Стоимость: {costLine(r.costDeltaUsd)} (по реестру расходов)
+              {isPending(r)
+                ? "Стоимость: реестр расходов не считает изменения из кода, смотрите список ниже"
+                : `Стоимость: ${costLine(r.costDeltaUsd)} (по реестру расходов)`}
             </div>
             {r.impact ? (
               <div className="mt-1 text-xs text-muted">{r.impact}</div>
@@ -290,7 +302,7 @@ export function InfraPlanSheet({
                 Отменить
               </Button>
             ) : null}
-            {r.status === "done" ? (
+            {r.status === "done" && !isPending(r) ? (
               <Button
                 variant="outline"
                 loading={busy}

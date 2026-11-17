@@ -31,6 +31,8 @@ import {
 import {
   CheckoutRequestDto,
   CheckoutSessionDto,
+  HotlineAddonPreviewDto,
+  SetHotlineAddonDto,
   SetSeatsDto,
   SeatCheckoutDto,
   SeatChangeResultDto,
@@ -49,6 +51,7 @@ import type { Request } from 'express';
 import { PayPageService } from './pay-page.service';
 import { SubscriptionsService } from './subscriptions.service';
 import { SeatsService } from './seats.service';
+import { HotlineAddonService } from './hotline-addon.service';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
@@ -71,6 +74,7 @@ export class SubscriptionsController {
     private readonly subscriptions: SubscriptionsService,
     private readonly payPage: PayPageService,
     private readonly seats: SeatsService,
+    private readonly hotlineAddon: HotlineAddonService,
   ) {}
 
   // Security research #5 (2026-10-22), A11: card testing — a stolen-card
@@ -174,6 +178,80 @@ export class SubscriptionsController {
     @Body() dto: SetSeatsDto,
   ): Promise<SeatChangeResultDto> {
     return this.seats.set(user, dto.seats, dto.prorationDate);
+  }
+
+  @Post('hotline/preview')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'What adding the «Горячая линия» add-on costs now (prorated rest of the period) and per month after (owner row 87, plan PR 8)',
+  })
+  @ApiEnvelopeResponse(HotlineAddonPreviewDto)
+  @ApiErrors({
+    ...ATTORNEY_ERRORS,
+    404: [E.SUBSCRIPTION_NOT_FOUND],
+    409: [E.ENTITLEMENT_REQUIRED],
+  })
+  previewHotlineAddon(
+    @CurrentUser() user: RequestUser,
+  ): Promise<HotlineAddonPreviewDto> {
+    return this.hotlineAddon.preview(user);
+  }
+
+  // Security research #5 (2026-10-22), A11: the same card-testing guard as
+  // the checkout (each attempt may cost a Stripe fee).
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('hotline')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'The «Горячая линия» add-on on (charged now, 3-D Secure may be asked) or off (no refund, usable until the period end) — owner row 87, plan PR 8',
+  })
+  @ApiEnvelopeResponse(SeatChangeResultDto)
+  @ApiErrors({
+    ...ATTORNEY_ERRORS,
+    400: [E.VALIDATION_ERROR],
+    404: [E.SUBSCRIPTION_NOT_FOUND],
+    409: [
+      E.ENTITLEMENT_REQUIRED,
+      E.SEATS_TRIAL_NOT_ALLOWED,
+      E.SEATS_NOT_PAID_YET,
+      E.SEATS_PREVIEW_STALE,
+    ],
+  })
+  setHotlineAddon(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: SetHotlineAddonDto,
+  ): Promise<SeatChangeResultDto> {
+    return this.hotlineAddon.set(user, dto.enabled, dto.prorationDate);
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('hotline/checkout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'A one-time link to the card page for adding the hotline add-on in the browser (iPhone, like seats)',
+  })
+  @ApiEnvelopeResponse(SeatCheckoutDto)
+  @ApiErrors({
+    ...ATTORNEY_ERRORS,
+    404: [E.SUBSCRIPTION_NOT_FOUND],
+    409: [E.ENTITLEMENT_REQUIRED],
+  })
+  async hotlineAddonCheckout(
+    @CurrentUser() user: RequestUser,
+    @Req() req: Request,
+  ): Promise<SeatCheckoutDto> {
+    if (!(await this.payPage.enabled())) {
+      throw new ServiceUnavailableException({
+        code: E.PAYMENTS_NOT_CONFIGURED,
+        message: 'The card page is not configured.',
+      });
+    }
+    const apiBase = `${req.protocol}://${req.get('host')}/api/v1`;
+    const link = await this.payPage.hotlineLink(user, apiBase);
+    return { url: link.url, sessionId: link.id };
   }
 
   // Security research #5 (2026-10-22), A11: card testing — a stolen-card
