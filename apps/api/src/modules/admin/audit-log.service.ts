@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -41,14 +42,7 @@ export class AuditLogQueryService {
             },
           }
         : {}),
-      ...(cursor
-        ? {
-            OR: [
-              { created_at: { lt: cursor.createdAt } },
-              { created_at: cursor.createdAt, id: { lt: cursor.id } },
-            ],
-          }
-        : {}),
+      ...(cursor ? createdBefore({ t: cursor.createdAt, id: cursor.id }) : {}),
     };
     const rows = await this.prisma.auditLog.findMany({
       where,

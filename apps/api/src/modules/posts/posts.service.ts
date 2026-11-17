@@ -26,6 +26,7 @@ import { classifyPost, isPostContentClass } from './content-filter.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { activeClientBadgeIds } from '../client-badge/client-badge.util';
 import {
+  createdBefore,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -1029,11 +1030,13 @@ export class PostsService {
         ...media,
         // Owner 2026-10-12: pinned posts lead the first page, once.
         ...(query.kind === 'news' ? {} : { pin_slot: null }),
+        // Row 215: the cursor as an index range; `media` may carry an AND of
+        // its own, so the bound joins it instead of replacing it.
         ...(c
           ? {
-              OR: [
-                { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, id: { lt: c.id } },
+              AND: [
+                ...[media.AND ?? []].flat(),
+                createdBefore({ t: c.createdAt, id: c.id }),
               ],
             }
           : {}),
@@ -1103,14 +1106,7 @@ export class PostsService {
             ? postPracticeWhere([practice], legacyTopicTags(practice))
             : {},
           hidden.length ? { author_id: { notIn: hidden } } : {},
-          c
-            ? {
-                OR: [
-                  { created_at: { lt: c.createdAt } },
-                  { created_at: c.createdAt, id: { lt: c.id } },
-                ],
-              }
-            : {},
+          c ? createdBefore({ t: c.createdAt, id: c.id }) : {},
         ],
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
