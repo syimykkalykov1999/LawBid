@@ -12,6 +12,7 @@ class FeatureFlagAdminDto {
     required this.key,
     required this.enabled,
     required this.rolloutPercent,
+    required this.hashVersion,
     required this.description,
     required this.paid,
     required this.requiredKeys,
@@ -26,6 +27,9 @@ class FeatureFlagAdminDto {
   final String key;
   final bool enabled;
   final int rolloutPercent;
+
+  /// 1 = old FNV-1a, 2 = GrowthBook v2 (row 150).
+  final int hashVersion;
   final String? description;
 
   /// Uses a paid third-party service (§2.3 item 7).

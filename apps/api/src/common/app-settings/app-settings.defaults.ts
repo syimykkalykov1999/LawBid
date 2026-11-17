@@ -1226,6 +1226,15 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   /** R2B-9: a Google ID token issued longer ago than this many seconds is
    * refused (0 = no check). */
   'auth.social_token_max_age_sec': 600,
+  /** R2B-9: how long a Google sign-in nonce from POST /auth/social/nonce
+   * stays valid, seconds (it also works only once). */
+  'auth.social_nonce_ttl_sec': 600,
+  /** R2B-9: from this app version on, Google sign-in must use a nonce the
+   * server issued. Empty = not enforced yet (older apps make their own). */
+  'security.google_nonce_min_app_version': '',
+  /** R2B-12: from this app version on, the data-export link is given only
+   * with a fresh X-Reauth-Token. Empty = not enforced yet. */
+  'security.export_reauth_min_app_version': '',
   /** R2B-7: a Persona webhook signed more than this many seconds from now
    * is refused (0 = no check). */
   'verification.persona_webhook_tolerance_sec': 300,

@@ -11,6 +11,7 @@ FeatureFlagAdminDto _$FeatureFlagAdminDtoFromJson(Map<String, dynamic> json) =>
       key: json['key'] as String,
       enabled: json['enabled'] as bool,
       rolloutPercent: (json['rolloutPercent'] as num).toInt(),
+      hashVersion: (json['hashVersion'] as num).toInt(),
       description: json['description'] as String?,
       paid: json['paid'] as bool,
       requiredKeys: (json['requiredKeys'] as List<dynamic>)
@@ -29,6 +30,7 @@ Map<String, dynamic> _$FeatureFlagAdminDtoToJson(
   'key': instance.key,
   'enabled': instance.enabled,
   'rolloutPercent': instance.rolloutPercent,
+  'hashVersion': instance.hashVersion,
   'description': ?instance.description,
   'paid': instance.paid,
   'requiredKeys': instance.requiredKeys,

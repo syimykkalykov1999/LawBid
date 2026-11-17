@@ -208,7 +208,13 @@ export class DataExportRunner
   }
 
   /** Status for the owner; a fresh signed link while the export is ready. */
-  async status(user: RequestUser, exportId: string): Promise<DataExportJobDto> {
+  /** [opts.withLink] false (R2B-12: no fresh reauth): the status as is,
+   * but no signed link — the app asks for the reauth, then reads again. */
+  async status(
+    user: RequestUser,
+    exportId: string,
+    opts: { withLink: boolean } = { withLink: true },
+  ): Promise<DataExportJobDto> {
     const row = await this.prisma.dataExportJob.findFirst({
       where: { id: exportId, user_id: user.sub, type: 'user_data' },
       include: { file: { select: { s3_bucket: true, s3_key: true } } },
@@ -228,7 +234,7 @@ export class DataExportRunner
       return this.present({ ...row, status: 'expired' }, null);
     }
     let url: string | null = null;
-    if (row.status === 'ready' && row.file && row.expires_at) {
+    if (opts.withLink && row.status === 'ready' && row.file && row.expires_at) {
       url = await this.storage.signedGetUrl(
         row.file.s3_bucket,
         row.file.s3_key,

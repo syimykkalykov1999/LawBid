@@ -1069,6 +1069,58 @@
         ]
       }
     },
+    "/auth/social/nonce": {
+      "post": {
+        "operationId": "socialNonce",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SocialNonceEnvelope"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Detective R2B-9 (14.11): the nonce for one Google sign-in, made and\nremembered by the server (OpenID Connect Core §3.1.2.1), so a stolen ID\ntoken is useless without the one nonce it was minted for. The global\nthrottler limits anonymous callers (security.anonymous_rate_limit_*).\nThe rule that needs it is switched on per app version instead\n(security.google_nonce_min_app_version).",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/social": {
       "post": {
         "operationId": "social",
@@ -64649,6 +64701,15 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "reauthToken from POST /auth/reauth (5 minutes, not consumed). Without it `url` is null once the admin setting security.export_reauth_min_app_version covers this app version.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -64663,7 +64724,7 @@
             }
           },
           "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "description": "Unauthorized: REAUTH_INVALID",
             "content": {
               "application/json": {
                 "schema": {
@@ -64718,7 +64779,7 @@
             "bearer": []
           }
         ],
-        "summary": "Export status; a fresh 24-hour signed link while it is ready",
+        "summary": "Export status; a fresh 24-hour signed link while it is ready (with a fresh reauth)",
         "tags": [
           "users"
         ]
@@ -138733,6 +138794,38 @@
           "verifier"
         ]
       },
+      "SocialNonceDto": {
+        "type": "object",
+        "properties": {
+          "nonce": {
+            "type": "string",
+            "description": "One-time nonce to hand to Google sign-in and send back as `nonce` of POST /auth/social (or Google linking). Works once."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "After this the nonce is refused (admin auth.social_nonce_ttl_sec)."
+          }
+        },
+        "required": [
+          "nonce",
+          "expiresAt"
+        ]
+      },
+      "SocialNonceEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SocialNonceDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "SocialLoginDto": {
         "type": "object",
         "properties": {
@@ -148772,6 +148865,12 @@
           "rolloutPercent": {
             "type": "integer"
           },
+          "hashVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2,
+            "description": "1 = old FNV-1a, 2 = GrowthBook v2 (row 150)."
+          },
           "description": {
             "type": "string",
             "nullable": true
@@ -148808,6 +148907,7 @@
           "key",
           "enabled",
           "rolloutPercent",
+          "hashVersion",
           "description",
           "paid",
           "requiredKeys",
@@ -148843,6 +148943,12 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 100
+          },
+          "hashVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2,
+            "description": "Bucketing hash of the partial rollout: 1 = old FNV-1a, 2 = GrowthBook v2. Changing it re-picks who has the flag."
           },
           "expectedUpdatedAt": {
             "type": "string",
@@ -173298,7 +173404,7 @@
           "url": {
             "type": "string",
             "nullable": true,
-            "description": "Signed download link while the export is ready (24 hours from completion); also sent by email."
+            "description": "Signed download link while the export is ready (24 hours from completion); also sent by email. Null on a ready export read without a fresh X-Reauth-Token once security.export_reauth_min_app_version covers the app: re-authenticate and read again."
           },
           "expiresAt": {
             "type": "string",
@@ -183023,6 +183129,12 @@
           "trafficPercent": {
             "type": "integer"
           },
+          "hashVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2,
+            "description": "1 = old FNV-1a, 2 = GrowthBook v2 (row 150)."
+          },
           "guardrails": {
             "$ref": "#/components/schemas/ExperimentGuardrailsDto"
           },
@@ -183071,6 +183183,7 @@
           "status",
           "variants",
           "trafficPercent",
+          "hashVersion",
           "guardrails",
           "startedAt",
           "endAt",
@@ -183134,6 +183247,13 @@
             "type": "string",
             "format": "date-time",
             "description": "Stops by itself at this moment."
+          },
+          "hashVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2,
+            "default": 2,
+            "description": "Bucketing hash (row 150): 2 = GrowthBook v2, even and independent between tests (default); 1 = the old FNV-1a. Fixed for the life of the test."
           }
         },
         "required": [
