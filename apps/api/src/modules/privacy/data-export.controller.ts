@@ -64,16 +64,37 @@ export class DataExportController {
     return this.exports.request(user);
   }
 
+  /**
+   * Detective R2B-12 (14.11): the link is the whole account, so it needs a
+   * fresh reauth like the request itself (Google Takeout asks for the
+   * password again before a download). The status stays readable without
+   * one, so the app polls freely and asks for the reauth only to download.
+   * Older apps never send the token: they still get the link while their
+   * version is below `security.export_reauth_min_app_version` (empty = for
+   * everyone, the rule is not switched on yet).
+   */
   @Get(':exportId')
+  @ApiHeader({
+    name: 'X-Reauth-Token',
+    required: false,
+    description:
+      'reauthToken from POST /auth/reauth (5 minutes, not consumed). Without it `url` is null once the admin setting security.export_reauth_min_app_version covers this app version.',
+  })
   @ApiOperation({
-    summary: 'Export status; a fresh 24-hour signed link while it is ready',
+    summary:
+      'Export status; a fresh 24-hour signed link while it is ready (with a fresh reauth)',
   })
   @ApiEnvelopeResponse(DataExportJobDto)
-  @ApiErrors({ 404: [E.NOT_FOUND] })
-  getDataExport(
+  @ApiErrors({ 401: [E.REAUTH_INVALID], 404: [E.NOT_FOUND] })
+  async getDataExport(
     @CurrentUser() user: RequestUser,
     @Param() params: DataExportIdParamDto,
+    @Req() req: Request,
   ): Promise<DataExportJobDto> {
-    return this.exports.status(user, params.exportId);
+    const withLink = await this.reauth.validOrLegacyClient(
+      req,
+      'security.export_reauth_min_app_version',
+    );
+    return this.exports.status(user, params.exportId, { withLink });
   }
 }

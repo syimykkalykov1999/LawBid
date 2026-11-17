@@ -479,6 +479,10 @@ export const OWNER_SUPPORT_SETTINGS = {
 // Owner 2026-10-02: the paid gold badge of a client (cents per month).
 export const OWNER_BADGE_SETTINGS = {
   'verification.client_badge_cents': 1000,
+  // Owner 16.11: a client's subscription (gold check + plan features) is
+  // bought WITHOUT documents, like X Premium / Meta Verified basic. On =
+  // the old path: documents → approval → payment. The code stays.
+  'verification.client_badge_documents': false,
 } as const;
 
 // Owner 2026-10-04: an attorney enters state + bar number and confirms
@@ -1222,6 +1226,15 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   /** R2B-9: a Google ID token issued longer ago than this many seconds is
    * refused (0 = no check). */
   'auth.social_token_max_age_sec': 600,
+  /** R2B-9: how long a Google sign-in nonce from POST /auth/social/nonce
+   * stays valid, seconds (it also works only once). */
+  'auth.social_nonce_ttl_sec': 600,
+  /** R2B-9: from this app version on, Google sign-in must use a nonce the
+   * server issued. Empty = not enforced yet (older apps make their own). */
+  'security.google_nonce_min_app_version': '',
+  /** R2B-12: from this app version on, the data-export link is given only
+   * with a fresh X-Reauth-Token. Empty = not enforced yet. */
+  'security.export_reauth_min_app_version': '',
   /** R2B-7: a Persona webhook signed more than this many seconds from now
    * is refused (0 = no check). */
   'verification.persona_webhook_tolerance_sec': 300,
