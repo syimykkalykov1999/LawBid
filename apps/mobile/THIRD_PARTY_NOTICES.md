@@ -887,6 +887,38 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
+## coi-serviceworker — MIT
+
+The mechanism of `web/coi_sw.js` (a service worker that serves the page's
+own navigations again with `Cross-Origin-Opener-Policy` /
+`Cross-Origin-Embedder-Policy` added, so the page becomes cross-origin
+isolated without server headers), owner row 173 (2026-11-14), commit
+7b1d2a092d0d2dd2b7270b6f12f13605de26f214,
+https://github.com/gzuidhof/coi-serviceworker. Our copy is narrower
+(navigations of app pages only, no forced reload, `credentialless` only).
+
+MIT License
+
+Copyright (c) 2021 Guido Zuidhof
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
 ## Tinycon 0.6.8 — MIT
 
 Copied whole and unmodified as `web/tinycon.js` (owner row 113: the unread

@@ -2345,6 +2345,7 @@
   "form.disabled.required": "请先填写必填项。",
   "gallery.accessDenied": "无权访问相册。请在手机设置中允许。",
   "gallery.saveFailed": "无法保存照片。请重试。",
+  "gallery.shareFailed": "无法分享，请重试。",
   "gate.verify.cases": "LawBid 确认您的执照后，即可查看案件。通常需要 1–2 个工作日。",
   "gate.verify.cta": "完成验证",
   "gate.verify.post": "只有通过验证的律师才能在动态中发帖，让客户始终清楚自己在阅读谁的内容。",

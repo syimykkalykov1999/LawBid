@@ -9,6 +9,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/media/media_share.dart';
 import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/core/media/video_cache/video_cache.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -658,16 +659,27 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
                       ),
                       child: SafeArea(
                         bottom: false,
-                        child: Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: IconButton(
-                            tooltip: t.t('common.close'),
-                            onPressed: () => Navigator.of(context).maybePop(),
-                            icon: const AppIcon(
-                              AppIcons.closeRounded,
-                              color: Colors.white,
+                        child: Row(
+                          children: [
+                            IconButton(
+                              tooltip: t.t('common.close'),
+                              onPressed: () => Navigator.of(context).maybePop(),
+                              icon: const AppIcon(
+                                AppIcons.closeRounded,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
+                            const Spacer(),
+                            // Row 110 (WhatsApp / Telegram): «Поделиться»
+                            // (a file; a stream playlist is not one).
+                            if (canShareMedia &&
+                                !Uri.parse(widget.url).path.endsWith('.m3u8'))
+                              MediaShareButton(
+                                url: widget.url,
+                                mime: 'video/mp4',
+                                file: widget.file,
+                              ),
+                          ],
                         ),
                       ),
                     ),
