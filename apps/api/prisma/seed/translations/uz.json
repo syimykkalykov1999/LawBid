@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Fayl tekshiruvdan o‘tmadi. Boshqa rasm tanlang.",
   "cbadge.hint": "Ismingiz yonida oltin belgi",
   "cbadge.lead": "Oltin belgi hisobingiz tasdiqlanganini ko‘rsatadi. Hujjatlarni yuboring, ularni qo‘lda ko‘rib chiqamiz. Ma’qullangandan so‘ng belgi obuna bilan yoqiladi.",
+  "cbadge.lead.pay": "Ismingiz yonidagi oltin belgi va obuna imkoniyatlari. Hujjat kerak emas: obuna bo'ling, hammasi darhol yoqiladi.",
   "cbadge.pay": "Oyiga {price} evaziga obuna bo‘lish",
   "cbadge.pending.text": "Hujjatlaringizni ko‘rib chiqmoqdamiz. Tugatganimizda bildirishnoma olasiz.",
   "cbadge.pending.title": "Ko‘rib chiqilmoqda",

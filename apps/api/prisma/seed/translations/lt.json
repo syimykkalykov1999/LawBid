@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Failas neišlaikė patikros. Pasirinkite kitą nuotrauką.",
   "cbadge.hint": "Auksinė varnelė šalia Jūsų vardo",
   "cbadge.lead": "Auksinė varnelė rodo, kad Jūsų paskyra patvirtinta. Atsiųskite dokumentus, ir mes juos peržiūrėsime rankiniu būdu. Po patvirtinimo varnelė įsijungia su prenumerata.",
+  "cbadge.lead.pay": "Auksinė varnelė šalia jūsų vardo ir prenumeratos privalumai. Dokumentų nereikia: užsiprenumeruokite ir viskas įsijungs iš karto.",
   "cbadge.pay": "Prenumeruoti už {price} per mėnesį",
   "cbadge.pending.text": "Peržiūrime Jūsų dokumentus. Kai baigsime, gausite pranešimą.",
   "cbadge.pending.title": "Nagrinėjama",

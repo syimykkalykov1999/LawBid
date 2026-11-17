@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Il file non ha superato il controllo. Scelga un'altra foto.",
   "cbadge.hint": "Una spunta dorata accanto al suo nome",
   "cbadge.lead": "La spunta dorata indica che il suo account è stato verificato. Invii i documenti e li esaminiamo manualmente. Dopo l'approvazione la spunta si attiva con un abbonamento.",
+  "cbadge.lead.pay": "La spunta dorata accanto al tuo nome e i vantaggi dell'abbonamento. Nessun documento richiesto: abbonati e si attiva subito.",
   "cbadge.pay": "Abbonati per {price} al mese",
   "cbadge.pending.text": "Stiamo esaminando i suoi documenti. Riceverà una notifica al termine.",
   "cbadge.pending.title": "In revisione",

@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Fișierul nu a trecut verificarea. Alegeți altă fotografie.",
   "cbadge.hint": "O bifă aurie lângă numele dvs.",
   "cbadge.lead": "Bifa aurie arată că contul dvs. a fost verificat. Trimiteți documente și le examinăm manual. După aprobare, bifa se activează cu un abonament.",
+  "cbadge.lead.pay": "Bifa aurie lângă numele tău și avantajele abonamentului. Fără documente: abonează-te și se activează imediat.",
   "cbadge.pay": "Abonați-vă cu {price} pe lună",
   "cbadge.pending.text": "Vă examinăm documentele. Veți primi o notificare când terminăm.",
   "cbadge.pending.title": "În curs de examinare",

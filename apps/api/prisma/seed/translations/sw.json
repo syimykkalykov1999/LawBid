@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Faili haikupita ukaguzi. Chagua picha nyingine.",
   "cbadge.hint": "Alama ya dhahabu karibu na jina lako",
   "cbadge.lead": "Alama ya dhahabu inaonyesha akaunti yako imethibitishwa. Tuma hati nasi tuzikague kwa mikono. Baada ya kuidhinishwa, alama huwashwa kwa usajili.",
+  "cbadge.lead.pay": "Alama ya dhahabu kando ya jina lako na manufaa ya usajili. Hakuna hati zinazohitajika: jisajili na itawashwa mara moja.",
   "cbadge.pay": "Jisajili kwa {price} kwa mwezi",
   "cbadge.pending.text": "Tunaangalia hati zako. Utapata arifa tutakapomaliza.",
   "cbadge.pending.title": "Inakaguliwa",

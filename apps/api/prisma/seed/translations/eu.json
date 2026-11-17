@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Fitxategiak ez du egiaztapena gainditu. Aukeratu beste argazki bat.",
   "cbadge.hint": "Urrezko marka bat zure izenaren ondoan",
   "cbadge.lead": "Urrezko markak zure kontua egiaztatu dela erakusten du. Bidali dokumentuak eta eskuz berrikusten ditugu. Onartu ondoren, marka harpidetzarekin aktibatzen da.",
+  "cbadge.lead.pay": "Zure izenaren ondoko urrezko marka eta harpidetzaren abantailak. Ez da dokumenturik behar: harpidetu eta berehala aktibatzen da.",
   "cbadge.pay": "Harpidetu {price} hilean",
   "cbadge.pending.text": "Zure dokumentuak aztertzen ari gara. Amaitzen dugunean jakinarazpen bat jasoko duzu.",
   "cbadge.pending.title": "Berrikusten",

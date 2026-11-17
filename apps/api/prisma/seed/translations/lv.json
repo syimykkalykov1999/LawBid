@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Fails neizturēja pārbaudi. Izvēlieties citu fotoattēlu.",
   "cbadge.hint": "Zelta atzīme blakus Jūsu vārdam",
   "cbadge.lead": "Zelta atzīme parāda, ka Jūsu konts ir verificēts. Nosūtiet dokumentus, un mēs tos pārbaudām manuāli. Pēc apstiprināšanas atzīme tiek ieslēgta ar abonementu.",
+  "cbadge.lead.pay": "Zelta ķeksītis pie jūsu vārda un abonementa priekšrocības. Dokumenti nav vajadzīgi: abonējiet, un viss ieslēdzas uzreiz.",
   "cbadge.pay": "Abonēt par {price} mēnesī",
   "cbadge.pending.text": "Mēs pārbaudām Jūsu dokumentus. Kad beigsim, saņemsiet paziņojumu.",
   "cbadge.pending.title": "Tiek izskatīts",

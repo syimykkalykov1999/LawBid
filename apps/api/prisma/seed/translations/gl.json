@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "O ficheiro non superou a comprobación. Escolla outra foto.",
   "cbadge.hint": "Unha marca dourada xunto ao seu nome",
   "cbadge.lead": "A marca dourada mostra que a súa conta foi verificada. Envíe documentos e revisámolos manualmente. Despois da aprobación, a marca actívase cunha subscrición.",
+  "cbadge.lead.pay": "A insignia dourada xunto ao teu nome e as vantaxes da subscrición. Non fan falta documentos: subscríbete e actívase ao momento.",
   "cbadge.pay": "Subscribirse por {price} ao mes",
   "cbadge.pending.text": "Estamos a revisar os seus documentos. Recibirá unha notificación cando rematemos.",
   "cbadge.pending.title": "En revisión",

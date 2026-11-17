@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Skráin stóðst ekki athugun. Veldu aðra mynd.",
   "cbadge.hint": "Gullmerki við hlið nafnsins þíns",
   "cbadge.lead": "Gullmerkið sýnir að aðgangur þinn hefur verið staðfestur. Sendu skjöl og við förum yfir þau handvirkt. Eftir samþykki kviknar á merkinu með áskrift.",
+  "cbadge.lead.pay": "Gullna merkið við nafnið þitt og kostir áskriftarinnar. Engin skjöl þarf: gerstu áskrifandi og það virkjast strax.",
   "cbadge.pay": "Gerast áskrifandi fyrir {price} á mánuði",
   "cbadge.pending.text": "Við erum að skoða skjölin þín. Þú færð tilkynningu þegar við erum búin.",
   "cbadge.pending.title": "Í yfirferð",

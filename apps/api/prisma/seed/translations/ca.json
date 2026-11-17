@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "El fitxer no ha superat la comprovació. Trieu una altra foto.",
   "cbadge.hint": "Una marca daurada al costat del nom",
   "cbadge.lead": "La marca daurada mostra que el vostre compte està verificat. Envieu documents i els revisem manualment. Un cop aprovats, la marca s’activa amb una subscripció.",
+  "cbadge.lead.pay": "La insígnia daurada al costat del teu nom i els avantatges de la subscripció. No calen documents: subscriu-te i s'activa a l'instant.",
   "cbadge.pay": "Subscriu-me per {price} al mes",
   "cbadge.pending.text": "Estem revisant els vostres documents. Rebreu una notificació quan acabem.",
   "cbadge.pending.title": "En revisió",

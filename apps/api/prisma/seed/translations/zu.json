@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Ifayela alikwazanga ukuphumelela ukuhlolwa. Khetha esinye isithombe.",
   "cbadge.hint": "Uphawu olunsundu ngegolide eceleni kwegama lakho",
   "cbadge.lead": "Uphawu lwegolide lubonisa ukuthi i-akhawunti yakho iqinisekisiwe. Thumela imibhalo futhi siyibuyekeza ngesandla. Ngemva kokuvunywa uphawu luvulwa ngokubhalisa.",
+  "cbadge.lead.pay": "Uphawu lwegolide eceleni kwegama lakho nezinzuzo zokubhalisa. Awudingi miqulu: bhalisa futhi luzovuleka ngokushesha.",
   "cbadge.pay": "Bhalisa ngo-{price} ngenyanga",
   "cbadge.pending.text": "Sibheka imibhalo yakho. Uthola isaziso uma siqedile.",
   "cbadge.pending.title": "Iyahlolwa",

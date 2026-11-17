@@ -479,6 +479,10 @@ export const OWNER_SUPPORT_SETTINGS = {
 // Owner 2026-10-02: the paid gold badge of a client (cents per month).
 export const OWNER_BADGE_SETTINGS = {
   'verification.client_badge_cents': 1000,
+  // Owner 16.11: a client's subscription (gold check + plan features) is
+  // bought WITHOUT documents, like X Premium / Meta Verified basic. On =
+  // the old path: documents → approval → payment. The code stays.
+  'verification.client_badge_documents': false,
 } as const;
 
 // Owner 2026-10-04: an attorney enters state + bar number and confirms
@@ -1985,6 +1989,7 @@ export const OWNER_LEGAL_QA_SAFETY_SETTINGS = {
 
 import { OWNER_TEXT_LIMIT_SETTINGS } from './text-limits';
 import { OWNER_REALTIME_SETTINGS } from './realtime-settings';
+import { OWNER_HOTLINE_SETTINGS } from './hotline-settings';
 import { OWNER_STAFF_SETTINGS } from './staff-settings';
 import {
   OWNER_CHAT_PHOTO_SETTINGS,
@@ -2392,6 +2397,8 @@ export const APP_SETTINGS = {
   ...OWNER_TEXT_LIMIT_SETTINGS,
   ...OWNER_CACHE_SETTINGS,
   ...OWNER_REALTIME_SETTINGS,
+  // Owner row 87 (16.11): the call hotline numbers (flag `hotline` is the switch).
+  ...OWNER_HOTLINE_SETTINGS,
   ...OWNER_CLIENT_TUNING_SETTINGS,
   ...OWNER_CHAT_PHOTO_SETTINGS,
   ...OWNER_LEGAL_SECURITY_SETTINGS,

@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Le fichier n'a pas passé le contrôle. Choisissez une autre photo.",
   "cbadge.hint": "Un badge doré à côté de votre nom",
   "cbadge.lead": "Le badge doré montre que votre compte a été vérifié. Envoyez des documents et nous les examinons à la main. Après approbation, le badge s'active avec un abonnement.",
+  "cbadge.lead.pay": "Le badge doré à côté de votre nom et les avantages de l'abonnement. Aucun document requis : abonnez-vous et tout s'active aussitôt.",
   "cbadge.pay": "S'abonner pour {price} par mois",
   "cbadge.pending.text": "Nous examinons vos documents. Vous recevrez une notification dès que nous aurons terminé.",
   "cbadge.pending.title": "En cours de révision",

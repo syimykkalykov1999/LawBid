@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "O arquivo não passou na verificação. Escolha outra foto.",
   "cbadge.hint": "Um selo dourado ao lado do seu nome",
   "cbadge.lead": "O selo dourado mostra que sua conta foi verificada. Envie documentos e nós os analisamos manualmente. Após a aprovação, o selo é ativado com uma assinatura.",
+  "cbadge.lead.pay": "O selo dourado ao lado do seu nome e as vantagens da assinatura. Sem documentos: assine e tudo é ativado na hora.",
   "cbadge.pay": "Assinar por {price} por mês",
   "cbadge.pending.text": "Estamos analisando seus documentos. Você receberá uma notificação quando terminarmos.",
   "cbadge.pending.title": "Em análise",

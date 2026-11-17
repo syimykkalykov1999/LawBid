@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Filen klarade inte kontrollen. Välj ett annat foto.",
   "cbadge.hint": "En guldbock bredvid ditt namn",
   "cbadge.lead": "Guldbocken visar att ditt konto har verifierats. Skicka dokument så granskar vi dem manuellt. Efter godkännande slås bocken på med en prenumeration.",
+  "cbadge.lead.pay": "Den gyllene bocken vid ditt namn och prenumerationens förmåner. Inga dokument behövs: prenumerera så slås allt på direkt.",
   "cbadge.pay": "Prenumerera för {price} i månaden",
   "cbadge.pending.text": "Vi går igenom dina dokument. Du får en avisering när vi är klara.",
   "cbadge.pending.title": "Under granskning",

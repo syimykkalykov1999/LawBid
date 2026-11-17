@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Tệp không vượt qua kiểm tra. Hãy chọn ảnh khác.",
   "cbadge.hint": "Dấu tích vàng bên cạnh tên của bạn",
   "cbadge.lead": "Dấu tích vàng cho thấy tài khoản của bạn đã được xác minh. Hãy gửi tài liệu và chúng tôi sẽ xem xét thủ công. Sau khi được duyệt, dấu tích sẽ bật cùng với gói đăng ký.",
+  "cbadge.lead.pay": "Dấu tích vàng cạnh tên bạn và các quyền lợi của gói đăng ký. Không cần giấy tờ: đăng ký là bật ngay.",
   "cbadge.pay": "Đăng ký với giá {price} mỗi tháng",
   "cbadge.pending.text": "Chúng tôi đang xem xét tài liệu của bạn. Bạn sẽ nhận được thông báo khi hoàn tất.",
   "cbadge.pending.title": "Đang xem xét",

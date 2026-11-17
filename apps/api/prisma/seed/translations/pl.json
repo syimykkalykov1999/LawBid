@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Plik nie przeszedł kontroli. Wybierz inne zdjęcie.",
   "cbadge.hint": "Złoty znaczek obok Twojego imienia",
   "cbadge.lead": "Złoty znaczek pokazuje, że Twoje konto zostało zweryfikowane. Prześlij dokumenty, a sprawdzimy je ręcznie. Po zatwierdzeniu znaczek włącza się wraz z subskrypcją.",
+  "cbadge.lead.pay": "Złoty znaczek obok Twojego imienia i korzyści subskrypcji. Bez dokumentów: zasubskrybuj, a wszystko włączy się od razu.",
   "cbadge.pay": "Subskrybuj za {price} miesięcznie",
   "cbadge.pending.text": "Sprawdzamy Twoje dokumenty. Powiadomimy Cię, gdy skończymy.",
   "cbadge.pending.title": "W trakcie weryfikacji",

@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Skedari nuk e kaloi kontrollin. Zgjidhni një foto tjetër.",
   "cbadge.hint": "Një shenjë e artë pranë emrit tuaj",
   "cbadge.lead": "Shenja e artë tregon se llogaria juaj është verifikuar. Dërgoni dokumente dhe ne i shqyrtojmë manualisht. Pas miratimit, shenja aktivizohet me një abonim.",
+  "cbadge.lead.pay": "Shenja e artë pranë emrit tuaj dhe përfitimet e abonimit. Nuk duhen dokumente: abonohuni dhe aktivizohet menjëherë.",
   "cbadge.pay": "Abonohu për {price} në muaj",
   "cbadge.pending.text": "Po shqyrtojmë dokumentet tuaja. Do të merrni një njoftim kur të mbarojmë.",
   "cbadge.pending.title": "Në shqyrtim",

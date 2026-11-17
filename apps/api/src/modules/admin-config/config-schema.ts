@@ -1,5 +1,6 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { REALTIME_SETTING_DEFS } from '../../common/app-settings/realtime-settings';
+import { HOTLINE_SETTING_DEFS } from '../../common/app-settings/hotline-settings';
 import {
   STAFF_NOT_BUILT,
   STAFF_NOT_BUILT_NOTE,
@@ -411,6 +412,48 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       description: `${def.labelRu} (${def.key}). По умолчанию ${def.default}.`,
       min: def.min,
       max: def.max,
+    };
+  }
+  // Owner row 87 (16.11): the call hotline numbers (Russian label + key).
+  out['hotline.mode'] = {
+    type: 'string',
+    defaultValue: 'on_for_all',
+    description:
+      'Горячая линия: кто из адвокатов может ждать звонки — те же три режима, что у вложений в постах. on_for_all — «Вкл для всех» (по умолчанию, пока деньги выключены): любой адвокат с проверенной лицензией; by_subscription — «По подписке»: решает план адвоката в «Деньги → Планы» («Горячая линия входит в тариф» или «отдельное дополнение» с ценой рядом с ценой места помощника), пробный срок — hotline.trial_days / hotline.trial_minutes; off_for_all — «Выкл для всех»: ни один адвокат. Клиенту всегда бесплатно. Меняется сразу, без выката (hotline.mode).',
+    pattern: /^(by_subscription|off_for_all|on_for_all)$/,
+  };
+  out['hotline.counter_bands'] = {
+    type: 'integer[]',
+    defaultValue: [1, 10, 50, 100],
+    description:
+      'Горячая линия: как клиенту показывать число адвокатов на линии — ступени по возрастанию. 0 — «нет», меньше второй ступени — «есть», дальше «10+», «50+», «100+» (точное число клиент не видит). По умолчанию 1, 10, 50, 100 (hotline.counter_bands).',
+    min: 1,
+  };
+  out['hotline.review_enabled'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Горячая линия: после звонка клиенту предлагается короткий необязательный отзыв (как в Uber). Выкл. — отзыва нет (hotline.review_enabled).',
+  };
+  out['hotline.client_steps_enabled'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Горячая линия: клиент заполняет заявку по шагам с кнопками «Дальше / Назад» до соединения. Выкл. — одна страница (hotline.client_steps_enabled).',
+  };
+  out['hotline.short_notice_enabled'] = {
+    type: 'boolean',
+    defaultValue: false,
+    description:
+      'Горячая линия: после первого звонка (там предупреждение показывается один раз) в следующих звонках показывать короткую строку «Звонки не записываются». По умолчанию выкл. (hotline.short_notice_enabled).',
+  };
+  for (const def of HOTLINE_SETTING_DEFS) {
+    out[def.key] = {
+      type: 'integer',
+      defaultValue: def.default,
+      description: `${def.labelRu} (${def.key}). По умолчанию ${def.default}.`,
+      min: def.min,
+      ...(def.max === undefined ? {} : { max: def.max }),
     };
   }
   for (const key of ['post.max_chars_media', 'post.max_chars_brief']) {

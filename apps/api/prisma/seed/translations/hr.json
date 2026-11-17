@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Datoteka nije prošla provjeru. Odaberite drugu fotografiju.",
   "cbadge.hint": "Zlatna kvačica pokraj vašeg imena",
   "cbadge.lead": "Zlatna kvačica pokazuje da je vaš račun verificiran. Pošaljite dokumente i pregledat ćemo ih ručno. Nakon odobrenja kvačica se uključuje uz pretplatu.",
+  "cbadge.lead.pay": "Zlatna kvačica uz vaše ime i pogodnosti pretplate. Dokumenti nisu potrebni: pretplatite se i sve se odmah uključuje.",
   "cbadge.pay": "Pretplati se za {price} mjesečno",
   "cbadge.pending.text": "Pregledavamo vaše dokumente. Dobit ćete obavijest kad završimo.",
   "cbadge.pending.title": "U pregledu",

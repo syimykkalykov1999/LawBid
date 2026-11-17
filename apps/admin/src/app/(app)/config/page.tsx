@@ -786,6 +786,8 @@ const KEY_TEXT: Record<string, string> = {
   // Owner 2026-10-06: every key explained in plain words.
   "verification.client_badge_cents":
     "Цена золотой галочки клиента в месяц, в центах (1000 = $10).",
+  "verification.client_badge_documents":
+    "Проверка документов клиента. Выкл (по умолчанию): клиент просто оплачивает подписку и сразу получает золотую галочку и функции клиентского плана, документы не спрашиваются. Вкл: как раньше — сначала документы и одобрение, потом оплата.",
   "verification.client_badge_auto_approve":
     "Галочка клиента выдаётся сама сразу после загрузки документов (выкл. — ждёт проверки сотрудником).",
   // Owner 2026-11-12 (row 54): paid license-data services, each off by default.

@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Súbor neprešiel kontrolou. Vyberte inú fotografiu.",
   "cbadge.hint": "Zlatá značka pri vašom mene",
   "cbadge.lead": "Zlatá značka ukazuje, že váš účet bol overený. Pošlite dokumenty a my ich posúdime ručne. Po schválení sa značka zapne s predplatným.",
+  "cbadge.lead.pay": "Zlatá značka pri vašom mene a výhody predplatného. Žiadne doklady: predplaťte si a všetko sa hneď zapne.",
   "cbadge.pay": "Predplatiť za {price} mesačne",
   "cbadge.pending.text": "Posudzujeme vaše dokumenty. Keď skončíme, dostanete upozornenie.",
   "cbadge.pending.title": "Posudzuje sa",

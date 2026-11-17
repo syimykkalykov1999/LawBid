@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Datoteka ni prestala preverjanja. Izberite drugo fotografijo.",
   "cbadge.hint": "Zlata kljukica ob vašem imenu",
   "cbadge.lead": "Zlata kljukica kaže, da je bil vaš račun preverjen. Pošljite dokumente, mi pa jih pregledamo ročno. Po odobritvi se kljukica vklopi z naročnino.",
+  "cbadge.lead.pay": "Zlata kljukica ob vašem imenu in ugodnosti naročnine. Dokumenti niso potrebni: naročite se in vse se takoj vklopi.",
   "cbadge.pay": "Naroči se za {price} na mesec",
   "cbadge.pending.text": "Pregledujemo vaše dokumente. Ko bomo končali, boste prejeli obvestilo.",
   "cbadge.pending.title": "V pregledu",

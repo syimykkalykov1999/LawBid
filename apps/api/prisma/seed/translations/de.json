@@ -1111,6 +1111,7 @@
   "cbadge.fileRejected": "Die Datei hat die Prüfung nicht bestanden. Wählen Sie ein anderes Foto.",
   "cbadge.hint": "Ein goldenes Häkchen neben Ihrem Namen",
   "cbadge.lead": "Das goldene Häkchen zeigt, dass Ihr Konto verifiziert wurde. Senden Sie Dokumente, wir prüfen sie von Hand. Nach der Genehmigung wird das Häkchen mit einem Abo aktiviert.",
+  "cbadge.lead.pay": "Der goldene Haken neben Ihrem Namen und die Vorteile des Abos. Keine Dokumente nötig: abonnieren, und alles ist sofort aktiv.",
   "cbadge.pay": "Für {price} pro Monat abonnieren",
   "cbadge.pending.text": "Wir sehen uns Ihre Dokumente an. Sie erhalten eine Mitteilung, sobald wir fertig sind.",
   "cbadge.pending.title": "In Prüfung",
