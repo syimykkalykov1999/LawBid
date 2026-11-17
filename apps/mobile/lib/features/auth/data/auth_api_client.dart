@@ -274,6 +274,10 @@ class AuthApiClient {
   /// auth-required shape as [logout].
   Future<void> logoutAll() => guardApiCall(_auth.logoutAll);
 
+  /// `POST /auth/logout-others` (R2-A #9, Telegram «Terminate all other
+  /// sessions»): every other session ends, this one stays.
+  Future<void> logoutOthers() => guardApiCall(_auth.logoutOthers);
+
   /// `GET /auth/sessions` — every active session/device of the current
   /// user (file 01 §10.4 "Активные устройства").
   Future<List<DeviceSession>> listSessions() async {

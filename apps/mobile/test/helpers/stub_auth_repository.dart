@@ -115,6 +115,11 @@ class StubAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> logoutOthers() async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+  }
+
+  @override
   Future<List<DeviceSession>> listSessions() async {
     await Future<void>.delayed(const Duration(milliseconds: 300));
     return const [

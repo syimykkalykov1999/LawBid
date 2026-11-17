@@ -73,6 +73,28 @@ class ActiveDevicesRepositoryImpl implements ActiveDevicesRepository {
   @override
   Future<void> revoke(String sessionId) => _auth.revokeSession(sessionId);
 
+  /// R2-A #9: `POST /auth/logout-others`. A server one release older has
+  /// no such route (404): then the other sessions are ended one by one
+  /// (`DELETE /auth/sessions/:id`, which every server has) — never
+  /// `logout-all`, which signs this phone out too.
   @override
-  Future<void> logoutAll() => _auth.logoutAll();
+  Future<void> logoutOthers() async {
+    try {
+      await _auth.logoutOthers();
+    } on ApiException catch (e) {
+      if (e.statusCode != 404) rethrow;
+      final others = <String>[];
+      String? cursor;
+      do {
+        final page = await fetchPage(cursor: cursor);
+        others.addAll(
+          page.items.where((s) => !s.isCurrent).map((s) => s.sessionId),
+        );
+        cursor = page.nextCursor;
+      } while (cursor != null);
+      for (final id in others) {
+        await revoke(id);
+      }
+    }
+  }
 }
