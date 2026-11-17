@@ -3067,6 +3067,41 @@ model Call {
   @@map("calls")
 }
 
+/// Owner row 87 (hotline plan PR 4): one row per hotline call — the
+/// billing record. Time counts from «Взять» (`answered_at`), never from the
+/// ringing; the voice itself is the ordinary 1:1 call (`call_id`, bare
+/// pointer: calls live in the case family). Audio only, never recorded:
+/// there is no column for a recording and never will be.
+model HotlineCall {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// The hotline request (Valkey id); one call per request.
+  request_id      String    @unique @db.Uuid
+  /// The 1:1 call that carries the voice (calls.id, bare pointer).
+  call_id         String?   @db.Uuid
+  client_id       String    @db.Uuid
+  attorney_id     String    @db.Uuid
+  state_code      String    @db.VarChar(2)
+  practice_area   String    @db.VarChar(64)
+  /// Billing starts here: the attorney pressed «Взять».
+  answered_at     DateTime  @db.Timestamptz
+  ended_at        DateTime? @db.Timestamptz
+  /// ended (red button), lost, time_limit, failed (the voice never came
+  /// up), cancelled.
+  end_reason      String?   @db.VarChar(32)
+  /// Billed seconds: answered_at → ended_at.
+  duration_sec    Int?
+  /// The direct chat opened (or reused) after the call, WhatsApp-style.
+  conversation_id String?   @db.Uuid
+  created_at      DateTime  @default(now()) @db.Timestamptz
+
+  /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.
+  shard_id Int @default(0) @db.SmallInt
+
+  @@index([attorney_id, answered_at(sort: Desc)])
+  @@index([client_id, answered_at(sort: Desc)])
+  @@map("hotline_calls")
+}
+
 /// Owner 2026-10-21 (WhatsApp): a call the person deleted from their own
 /// «Calls» list (one by one, a selection, or «Clear»). Nobody else's list
 /// changes; the call itself stays.

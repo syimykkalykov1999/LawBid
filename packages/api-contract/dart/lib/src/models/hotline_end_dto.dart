@@ -8,7 +8,11 @@ part 'hotline_end_dto.g.dart';
 
 @JsonSerializable()
 class HotlineEndDto {
-  const HotlineEndDto({required this.ok, required this.seconds});
+  const HotlineEndDto({
+    required this.ok,
+    required this.seconds,
+    this.conversationId,
+  });
 
   factory HotlineEndDto.fromJson(Map<String, Object?> json) =>
       _$HotlineEndDtoFromJson(json);
@@ -17,6 +21,9 @@ class HotlineEndDto {
 
   /// Talked seconds (from «Взять»).
   final num seconds;
+
+  /// The direct chat of the two, opened or reused after the call (WhatsApp-style).
+  final String? conversationId;
 
   Map<String, Object?> toJson() => _$HotlineEndDtoToJson(this);
 }

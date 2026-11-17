@@ -21,6 +21,8 @@ class HotlineRequestViewDto {
     this.lawyer,
     this.notifyUntil,
     this.disclosure,
+    this.callId,
+    this.conversationId,
   });
 
   factory HotlineRequestViewDto.fromJson(Map<String, Object?> json) =>
@@ -42,6 +44,12 @@ class HotlineRequestViewDto {
   /// ms; «Сообщите мне» ends
   final num? notifyUntil;
   final HotlineDisclosureDto? disclosure;
+
+  /// The 1:1 voice call while connected (GET /calls/:id).
+  final String? callId;
+
+  /// The direct chat of the two after the call.
+  final String? conversationId;
 
   Map<String, Object?> toJson() => _$HotlineRequestViewDtoToJson(this);
 }
