@@ -61,7 +61,7 @@ if [ -z "${PROD_IMAGE:-}" ]; then
     | docker login --username AWS --password-stdin "${IMAGE%%/*}" >/dev/null
 fi
 docker network create "$NET" >/dev/null 2>&1 || true
-docker run -d --rm --name "$REDIS" --network "$NET" redis:7-alpine >/dev/null
+docker run -d --rm --name "$REDIS" --network "$NET" valkey/valkey:9.1.3-alpine >/dev/null
 RUN=(docker run --rm --platform linux/amd64 --network "$NET" --env-file "$ENVF")
 
 case "$CMD" in
