@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiQuery,
   ApiTags,
@@ -42,6 +43,7 @@ import {
   HotlineLanguagesDto,
   HotlineLineDto,
   HotlineLineViewDto,
+  HotlineClaimDto,
   HotlineNotifyMeDto,
   HotlineOfferResultDto,
   HotlineRequestDto,
@@ -253,12 +255,14 @@ export class HotlineController {
     summary: '«Позвонить сейчас»: online again with the original time',
   })
   @ApiEnvelopeResponse(HotlineRequestViewDto)
-  @ApiErrors({ 404: [ErrorCode.NOT_FOUND] })
+  @ApiBody({ type: HotlineClaimDto, required: false })
+  @ApiErrors({ 403: [ErrorCode.FORBIDDEN], 404: [ErrorCode.NOT_FOUND] })
   hotlineClaim(
     @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: HotlineClaimDto,
   ): Promise<HotlineRequestViewDto> {
-    return this.hotline.claim(user, id);
+    return this.hotline.claim(user, id, dto?.token);
   }
 
   @Get('counters')

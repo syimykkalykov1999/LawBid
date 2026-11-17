@@ -289,7 +289,7 @@ Future<List<PickedChatFile>> pickChatFiles(
         // (a long iPhone clip could close a Safari tab). An original photo
         // over the limit is still read (up to the admin's cap) and shrunk,
         // like one from «Files».
-        final video = videoOn && _isVideo(f);
+        final video = videoOn && isPickedVideo(f);
         final size = await f.length();
         if (keepOriginals && !video
             ? !pickedFileReadable(size, maxBytes, image: true)
@@ -429,7 +429,8 @@ Future<List<PickedChatFile>> pickChatFiles(
 }
 
 /// A picked gallery item that is a video (by type, else by extension).
-bool _isVideo(XFile f) {
+/// Group chats pick the same way (pickGroupFiles).
+bool isPickedVideo(XFile f) {
   if (f.mimeType?.startsWith('video/') ?? false) return true;
   final n = (f.name.isNotEmpty ? f.name : f.path).toLowerCase();
   return n.endsWith('.mp4') ||

@@ -21,11 +21,10 @@ export interface HotlineNotifier {
 export type { HotlineKeys };
 
 /**
- * «Адвокат на линии — позвонить сейчас?» Today: the realtime event (reaches
- * every open app / web tab of the client). The push to a closed app needs a
- * new notification type (a migration + the app's handler) and goes with the
- * client screens (plan PR 5); the sweeper already paces notices at
- * `hotline.notify_rate_per_sec`, so the push queue gets the same rate.
+ * «Адвокат на линии — позвонить сейчас?» over the socket: reaches every open
+ * app / web tab of the client. The push to a closed app is
+ * PushHotlineNotifier (plan PR 5, hotline-push-notifier.ts), which sends this
+ * event too; the sweeper paces both at `hotline.notify_rate_per_sec`.
  */
 export class RealtimeHotlineNotifier implements HotlineNotifier {
   constructor(private readonly realtime: RealtimePublisher) {}
@@ -35,7 +34,7 @@ export class RealtimeHotlineNotifier implements HotlineNotifier {
       requestId: n.requestId,
       token: n.token,
       expiresAt: n.expiresAt,
-      textKey: 'hotline.notice.lawyer_available',
+      textKey: 'notif.messages.hotline_attorney_available.title',
     });
     return Promise.resolve();
   }

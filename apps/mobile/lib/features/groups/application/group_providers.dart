@@ -1087,6 +1087,13 @@ class GroupThread extends Notifier<GroupThreadState> {
     if (ref.mounted) _upsert(m);
   }
 
+  /// Groups WhatsApp parity (the 1:1 `ChatThread.react`): my emoji on a
+  /// message, null takes it away; the answer replaces the message.
+  Future<void> react(String messageId, String? emoji) async {
+    final m = await _repo.react(key.groupId, messageId, emoji);
+    if (ref.mounted) _upsert(m);
+  }
+
   Future<void> deleteForEveryone(String messageId) async {
     await _repo.deleteMessage(key.groupId, messageId);
     if (!ref.mounted) return;

@@ -2140,6 +2140,11 @@ export class GroupsService {
       where: { id_group_id: { id: messageId, group_id: id } },
       data: { deleted_at: new Date(), body: '', mention_ids: [] },
     });
+    // As in the 1:1 chat (ChatActionsService.revoke): a message deleted for
+    // everyone keeps no reactions.
+    await this.prisma.chatGroupMessageReaction.deleteMany({
+      where: { message_id: messageId, group_id: id },
+    });
     if (m.group.pinned_message_id === messageId) {
       await this.prisma.chatGroup.update({
         where: { id },
@@ -2705,11 +2710,24 @@ export class GroupsService {
       this.presenter.messages([row], NOBODY),
     ]);
     if (!dto) return;
+    // Groups WhatsApp parity: who reacted with what, so each reactor sees
+    // their own chip marked (only read when the message has reactions).
+    const reactedBy = dto.reactions?.length
+      ? new Map(
+          (
+            await this.prisma.chatGroupMessageReaction.findMany({
+              where: { message_id: row.id, group_id: groupId },
+              select: { user_id: true, emoji: true },
+            })
+          ).map((r) => [r.user_id, r.emoji]),
+        )
+      : undefined;
     for (const a of broadcastAudiences(
       ids,
       row.sender_id,
       row.mention_ids,
       !!dto.deleted,
+      reactedBy,
     )) {
       // Owner 2026-10-22 (package B): groupId / lastMessageAt beside the
       // message, so the list row (last message, order, +1 unread when not
@@ -2717,7 +2735,17 @@ export class GroupsService {
       this.realtime.toUsers(a.userIds, 'group:message', {
         groupId,
         lastMessageAt: row.created_at,
-        message: { ...dto, mine: a.mine, mentionsMe: a.mentionsMe },
+        message: {
+          ...dto,
+          mine: a.mine,
+          mentionsMe: a.mentionsMe,
+          ...(dto.reactions && {
+            reactions: dto.reactions.map((r) => ({
+              ...r,
+              mine: r.emoji === a.myEmoji,
+            })),
+          }),
+        },
       });
     }
   }

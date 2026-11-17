@@ -8,12 +8,14 @@ import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connection_title.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
@@ -42,6 +44,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.da
 import 'package:lawbid/features/groups/presentation/widgets/group_message_bubble.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_message_menu.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_pin_banner.dart';
+import 'package:lawbid/features/groups/presentation/widgets/group_readers_sheet.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_selection_bar.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_system_line.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_topic_list.dart';
@@ -341,6 +344,7 @@ class _GroupConversationScreenState
       t,
       media: d?.canSendMedia ?? true,
       poll: d?.canSendPolls ?? true,
+      video: ref.read(uploadLimitsProvider)[UploadPlace.chat].allowsVideo,
     );
     if (choice == null || !mounted) return;
     if (choice == GroupAttachChoice.poll) {
@@ -361,8 +365,24 @@ class _GroupConversationScreenState
       choice,
       limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
       fromDisk: fromDisk,
+      prepareVideo: _prepareVideo,
     );
     await _sendFiles(files, fromDisk: fromDisk);
+  }
+
+  /// Groups WhatsApp parity, copied from the 1:1 chat (ConversationScreen):
+  /// a video is re-encoded on the phone to at most the admin's
+  /// `media.chat_video_max_height` before upload — the one encode it gets;
+  /// the original goes when compressing fails or doesn't help.
+  Future<XFile> _prepareVideo(XFile video) async {
+    final t = ref.read(translatorProvider);
+    showAppSnackBar(context, t.t('chat.attach.videoPreparing'));
+    final limits = chatVideoLimitsOf(ref.read(featureFlagsControllerProvider));
+    final out =
+        await ref.read(videoCompressorProvider).compress(video, limits: limits);
+    return out == null
+        ? video
+        : XFile(out.path, name: 'video.mp4', mimeType: 'video/mp4');
   }
 
   /// Files dragged onto the group in the browser go out like picked ones.
@@ -402,9 +422,8 @@ class _GroupConversationScreenState
             path: f.path,
             name: f.name,
             mime: f.mime,
-            caption: i == files.length - 1 && caption.isNotEmpty
-                ? caption
-                : null,
+            caption:
+                i == files.length - 1 && caption.isNotEmpty ? caption : null,
             replyToId: i == 0 ? reply?.id : null,
           );
         }
@@ -415,8 +434,7 @@ class _GroupConversationScreenState
       // the flag off, one after another as before.
       await thread.uploadAndSend(
         items: files,
-        atOnce:
-            ref
+        atOnce: ref
                 .read(featureFlagsControllerProvider)
                 .isEnabled('chat_upload_parallel')
             ? ClientTuning.uploadsAtOnce
@@ -479,16 +497,15 @@ class _GroupConversationScreenState
 
   /// A protected group shares its link instead of its messages.
   Future<void> _shareLink(api.GroupDetailDto detail) => forwardWithSheet(
-    context,
-    ref,
-    [ForwardSource(ForwardSourceKind.groupLink, detail.id)],
-  );
+        context,
+        ref,
+        [ForwardSource(ForwardSourceKind.groupLink, detail.id)],
+      );
 
   PreferredSizeWidget _selectionBar(api.GroupDetailDto detail) {
     final picked = _picked();
     final protected = detail.isProtected;
-    final canCopy =
-        !protected &&
+    final canCopy = !protected &&
         picked.any((m) => !m.deleted && !m.isPoll && m.body.trim().isNotEmpty);
     final canForward =
         !protected && picked.isNotEmpty && picked.every((m) => m.canForward);
@@ -540,9 +557,18 @@ class _GroupConversationScreenState
       canPin: detail.canPinMessages,
       pinned: pinned,
       canDelete: m.mine || detail.canDeleteOthers,
+      canSeeReaders: m.mine && !m.deleted && !m.isSystem,
+      // Groups WhatsApp parity: the 1:1 quick reactions (not on a message
+      // that is still sending or deleted).
+      myReaction: m.myReaction,
+      onReact: m.deleted || m.isSystem
+          ? null
+          : (e) => _react(m, e == m.myReaction ? null : e),
     );
     if (action == null || !mounted) return;
     switch (action) {
+      case GroupMessageAction.readers:
+        await showGroupReadersSheet(context, groupId: detail.id, message: m);
       case GroupMessageAction.reply:
         setState(() {
           _replyTo = m;
@@ -584,6 +610,15 @@ class _GroupConversationScreenState
         } on Object catch (e) {
           _error(e);
         }
+    }
+  }
+
+  Future<void> _react(api.GroupMessageDto m, String? emoji) async {
+    unawaited(AppHaptics.selection());
+    try {
+      await _thread.react(m.id, emoji);
+    } on Object catch (e) {
+      _error(e);
     }
   }
 
@@ -658,9 +693,7 @@ class _GroupConversationScreenState
       if (span == null) return;
     }
     try {
-      final updated = await ref
-          .read(groupRepositoryProvider)
-          .updateMine(
+      final updated = await ref.read(groupRepositoryProvider).updateMine(
             detail.id,
             api.UpdateGroupMeDto(
               // The client cannot send an explicit null, so «unmute» is a
@@ -720,14 +753,14 @@ class _GroupConversationScreenState
   }
 
   Widget _plain(Translator t, Widget body) => Scaffold(
-    appBar: AppTopBar(
-      leading: AppBackButton(
-        semanticLabel: t.t('common.back'),
-        onPressed: _back,
-      ),
-    ),
-    body: body,
-  );
+        appBar: AppTopBar(
+          leading: AppBackButton(
+            semanticLabel: t.t('common.back'),
+            onPressed: _back,
+          ),
+        ),
+        body: body,
+      );
 
   bool _isGone(Object? e) =>
       e is ApiException &&
@@ -835,9 +868,8 @@ class _GroupConversationScreenState
                       icon: AppIcon(
                         AppIcons.callOutlined,
                         size: 22,
-                        color: Theme.of(context)
-                            .extension<AppColorTokens>()!
-                            .text,
+                        color:
+                            Theme.of(context).extension<AppColorTokens>()!.text,
                       ),
                       semanticLabel: t.t('call.button'),
                       onPressed: () => _startCall(detail, video: false),
@@ -847,9 +879,8 @@ class _GroupConversationScreenState
                     AppIconButton(
                       icon: AppIcon(
                         AppIcons.moreVertRounded,
-                        color: Theme.of(context)
-                            .extension<AppColorTokens>()!
-                            .text,
+                        color:
+                            Theme.of(context).extension<AppColorTokens>()!.text,
                       ),
                       semanticLabel: t.t('chat.menu'),
                       onPressed: () => _headerMenu(detail),
@@ -888,8 +919,7 @@ class _GroupConversationScreenState
     final closed = topic?.closed ?? false;
     final canWrite = detail.canPost && (!closed || detail.isAdmin);
     final pinned = detail.pinnedMessage;
-    final showPin =
-        pinned != null &&
+    final showPin = pinned != null &&
         !pinned.deleted &&
         (widget.topicId == null ||
             pinned.topicId == null ||
@@ -926,6 +956,7 @@ class _GroupConversationScreenState
         onRetry: _thread.retry,
         onDiscard: _thread.dropPending,
         onPollChanged: (m, p) => _thread.applyPoll(m.id, p),
+        onReact: _react,
       );
     }
 
@@ -1024,9 +1055,9 @@ class _Header extends ConsumerWidget {
     final typerName = typer == null
         ? null
         : detail.members
-              .where((m) => m.userId == typer.userId)
-              .map((m) => m.displayName?.trim() ?? '')
-              .firstOrNull;
+            .where((m) => m.userId == typer.userId)
+            .map((m) => m.displayName?.trim() ?? '')
+            .firstOrNull;
     // Row 110 (Telegram): no network / no server → the status line says so.
     final offline = connectionTitle(t, watchOfflineReason(ref));
     final String subtitle;
@@ -1250,6 +1281,7 @@ class _MessageList extends ConsumerWidget {
     required this.onRetry,
     required this.onDiscard,
     required this.onPollChanged,
+    this.onReact,
     this.selected = const {},
     this.onToggle,
   });
@@ -1268,6 +1300,9 @@ class _MessageList extends ConsumerWidget {
   final void Function(String clientMessageId) onRetry;
   final void Function(String clientMessageId) onDiscard;
   final void Function(api.GroupMessageDto m, api.PollDto p) onPollChanged;
+
+  /// Groups WhatsApp parity: a reaction chip tapped (null = mine removed).
+  final void Function(api.GroupMessageDto m, String? emoji)? onReact;
 
   /// «Select» mode: the picked ids; a tap on a message calls [onToggle].
   final Set<String> selected;
@@ -1362,8 +1397,7 @@ class _MessageList extends ConsumerWidget {
               final m = messages[k];
               final older = k + 1 < messages.length ? messages[k + 1] : null;
               final newer = k > 0 ? messages[k - 1] : null;
-              final newDay =
-                  older == null ||
+              final newDay = older == null ||
                   !DateUtils.isSameDay(
                     older.createdAt.toLocal(),
                     m.createdAt.toLocal(),
@@ -1396,6 +1430,9 @@ class _MessageList extends ConsumerWidget {
                       : null,
                   onJump: onJump,
                   onPollChanged: (p) => onPollChanged(m, p),
+                  onReact: onReact == null || onToggle != null
+                      ? null
+                      : (e) => onReact!(m, e),
                 );
               }
               return Column(

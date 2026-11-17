@@ -1,3 +1,5 @@
+import 'package:lawbid/features/chat/domain/chat_models.dart'
+    show MessageReaction;
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// The generated DTOs are immutable without `copyWith`; these rebuild the
@@ -26,6 +28,7 @@ extension GroupMessageDtoX on api.GroupMessageDto {
         expiresAt: expiresAt,
         forwarded: forwarded,
         forwardedFrom: forwardedFrom,
+        reactions: reactions,
       );
 
   /// The local picture of «deleted for everyone» (same as the server's
@@ -52,6 +55,18 @@ extension GroupMessageDtoX on api.GroupMessageDto {
         forwarded: forwarded,
         forwardedFrom: forwardedFrom,
       );
+
+  /// Groups WhatsApp parity: the reactions as the 1:1 chips take them
+  /// (none on a deleted message; builds before the field read none).
+  List<MessageReaction> get reactionChips => deleted
+      ? const []
+      : [
+          for (final r in reactions ?? const <api.ReactionDto>[])
+            MessageReaction(emoji: r.emoji, count: r.count, mine: r.mine),
+        ];
+
+  /// The emoji I chose, if any.
+  String? get myReaction => reactions?.where((r) => r.mine).firstOrNull?.emoji;
 
   /// Owner 2026-10-21: disappearing messages — gone by the clock.
   bool isExpired([DateTime? now]) =>

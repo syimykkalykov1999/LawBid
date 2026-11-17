@@ -731,6 +731,8 @@ export class PushDispatcher
       // Owner 2026-10-20: the planner reminder — when it is for.
       'remindAt',
       'dueAt',
+      // Owner row 87: «Позвонить сейчас» from the hotline notice.
+      'claimToken',
     ]) {
       if (typeof payload[k] === 'string') deepLink[k] = payload[k];
     }

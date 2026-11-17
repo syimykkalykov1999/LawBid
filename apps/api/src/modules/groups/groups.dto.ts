@@ -20,7 +20,7 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { ChatAttachmentDto } from '../chat/chat.dto';
+import { ChatAttachmentDto, ReactionDto } from '../chat/chat.dto';
 import { UpdatedSinceQuery, type SyncPage } from '../../common/sync/sync.util';
 
 /** Owner 2026-10-20: group chats (Telegram + WhatsApp) — limits. */
@@ -843,6 +843,14 @@ export class GroupMessageDto {
     description: 'The first author (or channel) of a forwarded message.',
   })
   forwardedFrom!: string | null;
+
+  // Groups WhatsApp parity: the 1:1 chat's reactions (one emoji per person).
+  // Optional in the contract: builds that predate it read a missing field.
+  @ApiPropertyOptional({
+    type: () => [ReactionDto],
+    description: 'Emoji reactions, in the order they were first chosen.',
+  })
+  reactions!: ReactionDto[];
 }
 
 export class GroupDto {
@@ -1250,6 +1258,21 @@ export class GroupTopicDto {
 
   @ApiProperty()
   createdAt!: Date;
+}
+
+/** Groups WhatsApp parity («Данные» of my message): who has read it. */
+export class GroupMessageReadersDto {
+  @ApiProperty({
+    type: () => [GroupPersonDto],
+    description: 'Members whose read mark is at or past the message.',
+  })
+  readers!: GroupPersonDto[];
+
+  @ApiProperty({
+    type: 'integer',
+    description: 'Current members besides the author (who could read it).',
+  })
+  recipients!: number;
 }
 
 export class GroupReadResultDto {

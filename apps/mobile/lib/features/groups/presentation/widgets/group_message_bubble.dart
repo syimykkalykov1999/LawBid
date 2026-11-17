@@ -10,6 +10,8 @@ import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
+import 'package:lawbid/features/chat/presentation/message_actions.dart'
+    show ReactionChipRow;
 import 'package:lawbid/features/chat/presentation/reply_swipe.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
@@ -69,6 +71,7 @@ class GroupMessageBubble extends ConsumerWidget {
     this.selected = false,
     this.onTap,
     this.protectContent = false,
+    this.onReact,
     super.key,
   });
 
@@ -99,6 +102,10 @@ class GroupMessageBubble extends ConsumerWidget {
   /// The group restricts saving content: a file is not opened outside the
   /// app.
   final bool protectContent;
+
+  /// Groups WhatsApp parity: a tap on a reaction chip (the 1:1 chips):
+  /// mine → null (taken away), another → that emoji. Null: no chips taps.
+  final ValueChanged<String?>? onReact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -334,6 +341,7 @@ class GroupMessageBubble extends ConsumerWidget {
       );
     }
 
+    final chips = m.reactionChips;
     final row = Row(
       mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -342,7 +350,23 @@ class GroupMessageBubble extends ConsumerWidget {
           avatar(),
           const SizedBox(width: AppSpacing.xs + 2),
         ],
-        Flexible(child: interactive),
+        Flexible(
+          child: chips.isEmpty
+              ? interactive
+              : Column(
+                  crossAxisAlignment:
+                      mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    interactive,
+                    ReactionChipRow(
+                      reactions: chips,
+                      alignEnd: mine,
+                      onTap: (r) => onReact?.call(r.mine ? null : r.emoji),
+                    ),
+                  ],
+                ),
+        ),
       ],
     );
 
