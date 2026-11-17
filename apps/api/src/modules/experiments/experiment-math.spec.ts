@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { hash01 } from '../recommendations/ranking.math';
 import {
   assignVariant,
+  bucket,
   chiSquareSurvival,
   differenceOf,
   inImpressionSample,
@@ -121,6 +123,170 @@ describe('inRollout / inImpressionSample', () => {
     let on = 0;
     for (let i = 0; i < n; i++) if (inImpressionSample(randomUUID(), 10)) on++;
     expect(Math.abs(on / n - 0.1)).toBeLessThan(0.01);
+  });
+});
+
+// ---- hash versions (owner row 150) -------------------------------------
+
+/** Sequential, near-identical ids: the case that showed the bias of v1. */
+const similar = (n: number) => Array.from({ length: n }, (_, i) => `user-${i}`);
+
+/** Chi-square of a 2x2 table [aa, ab, ba, bb] against independence (df 1). */
+function chi2x2(t: [number, number, number, number]): number {
+  const n = t[0] + t[1] + t[2] + t[3];
+  const rows = [t[0] + t[1], t[2] + t[3]];
+  const cols = [t[0] + t[2], t[1] + t[3]];
+  let x = 0;
+  for (let i = 0; i < 2; i++) {
+    for (let j = 0; j < 2; j++) {
+      const e = (rows[i] * cols[j]) / n;
+      x += (t[i * 2 + j] - e) ** 2 / e;
+    }
+  }
+  return x;
+}
+
+/** 2x2 table of "treatment in key1" x "treatment in key2" over [ids]. */
+function crossTable(
+  ids: string[],
+  k1: string,
+  k2: string,
+  hashVersion: 1 | 2,
+): [number, number, number, number] {
+  const t: [number, number, number, number] = [0, 0, 0, 0];
+  for (const id of ids) {
+    const a = assignVariant(id, k1, VARIANTS, 100, hashVersion) === 'control';
+    const b = assignVariant(id, k2, VARIANTS, 100, hashVersion) === 'control';
+    t[(a ? 2 : 0) + (b ? 1 : 0)]++;
+  }
+  return t;
+}
+
+/** chi-square(df 1) above this = p < 0.001, the SRM alarm level. */
+const CHI2_P001 = 10.828;
+
+describe('hash version 1 (every existing experiment and flag)', () => {
+  it('is exactly the old FNV-1a hash, so nobody moves', () => {
+    for (let i = 0; i < 200; i++) {
+      const id = unit(i, 20);
+      expect(bucket('case_feed:variant:', id, 1)).toBe(
+        hash01(`case_feed:variant:${id}`),
+      );
+    }
+    const id = unit(1, 21);
+    const before = hash01(`flag:reels:${id}`) * 100 < 30;
+    expect(inRollout('reels', id, 30)).toBe(before);
+    expect(inRollout('reels', id, 30, 1)).toBe(before);
+    expect(assignVariant(id, 'k', VARIANTS, 100)).toBe(
+      assignVariant(id, 'k', VARIANTS, 100, 1),
+    );
+  });
+
+  it('is biased on similar ids and correlated between similar keys (why v2)', () => {
+    const ids = similar(40_000);
+    expect(chi2x2(crossTable(ids, 'feed_v1', 'feed_v2', 1))).toBeGreaterThan(
+      CHI2_P001,
+    );
+    let on = 0;
+    for (const id of ids) if (inRollout('reels', id, 10, 1)) on++;
+    expect(Math.abs(on / ids.length - 0.1)).toBeGreaterThan(0.005);
+  });
+});
+
+describe('hash version 2 (GrowthBook SDK hash v2)', () => {
+  it('is fnv32a(fnv32a(seed + value) + "") of the GrowthBook SDK', () => {
+    // A GrowthBook test vector with our seed shape.
+    expect(bucket('seed', 'a', 2)).toBe(0.0505);
+  });
+
+  it('splits similar ids 50/50 and passes its own SRM check', () => {
+    const counts: Record<string, number> = { control: 0, new_formula: 0 };
+    for (const id of similar(40_000)) {
+      counts[assignVariant(id, 'split_test', VARIANTS, 100, 2) as string]++;
+    }
+    expect(Math.abs(counts.control / 40_000 - 0.5)).toBeLessThan(0.005);
+    expect(srmCheck(counts, VARIANTS).flag).toBe(false);
+  });
+
+  it('passes SRM on random-looking ids with uneven weights', () => {
+    const vs = [
+      { key: 'control', weight: 70 },
+      { key: 'b', weight: 20 },
+      { key: 'c', weight: 10 },
+    ];
+    const counts: Record<string, number> = { control: 0, b: 0, c: 0 };
+    for (let i = 0; i < 40_000; i++) {
+      counts[assignVariant(unit(i, 22), 'three', vs, 100, 2) as string]++;
+    }
+    expect(srmCheck(counts, vs).flag).toBe(false);
+    expect(Math.abs(counts.c / 40_000 - 0.1)).toBeLessThan(0.005);
+  });
+
+  it.each([
+    ['feed_v1', 'feed_v2'],
+    ['a', 'b'],
+    ['case_feed', 'case_fees'],
+    ['exp_a', 'exp_b'],
+  ])('%s and %s are independent on similar ids', (k1, k2) => {
+    expect(chi2x2(crossTable(similar(40_000), k1, k2, 2))).toBeLessThan(
+      CHI2_P001,
+    );
+  });
+
+  it('is independent on random-looking ids too', () => {
+    const ids = Array.from({ length: 40_000 }, (_, i) => unit(i, 23));
+    expect(chi2x2(crossTable(ids, 'feed_v1', 'feed_v2', 2))).toBeLessThan(
+      CHI2_P001,
+    );
+  });
+
+  it('the traffic gate and the variant are independent', () => {
+    const t: [number, number, number, number] = [0, 0, 0, 0];
+    for (const id of similar(40_000)) {
+      const inside = bucket('ramp:traffic:', id, 2) < 0.5;
+      const control = bucket('ramp:variant:', id, 2) < 0.5;
+      t[(inside ? 2 : 0) + (control ? 1 : 0)]++;
+    }
+    expect(chi2x2(t)).toBeLessThan(CHI2_P001);
+  });
+
+  it('puts trafficPercent of similar ids in and keeps them when raised', () => {
+    const ids = similar(40_000);
+    let inside = 0;
+    for (const id of ids) {
+      const at10 = assignVariant(id, 'small', VARIANTS, 10, 2);
+      if (at10 !== null) {
+        inside++;
+        expect(assignVariant(id, 'small', VARIANTS, 50, 2)).toBe(at10);
+      }
+    }
+    expect(Math.abs(inside / ids.length - 0.1)).toBeLessThan(0.005);
+  });
+
+  it('a flag rollout is the asked share of similar ids and only grows', () => {
+    const ids = similar(40_000);
+    let on = 0;
+    for (const id of ids) {
+      if (inRollout('reels', id, 10, 2)) {
+        on++;
+        expect(inRollout('reels', id, 30, 2)).toBe(true);
+      }
+    }
+    expect(Math.abs(on / ids.length - 0.1)).toBeLessThan(0.005);
+  });
+
+  it('v1 and v2 give different splits (switching moves people)', () => {
+    let moved = 0;
+    for (let i = 0; i < 1000; i++) {
+      const id = unit(i, 24);
+      if (
+        assignVariant(id, 'k', VARIANTS, 100, 1) !==
+        assignVariant(id, 'k', VARIANTS, 100, 2)
+      ) {
+        moved++;
+      }
+    }
+    expect(moved).toBeGreaterThan(300);
   });
 });
 

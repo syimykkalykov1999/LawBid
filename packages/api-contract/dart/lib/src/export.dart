@@ -175,6 +175,8 @@ export 'models/auth_tokens_envelope.dart';
 export 'models/continue_login_dto.dart';
 export 'models/assistant_code_login_dto.dart';
 export 'models/otp_verify_link_dto.dart';
+export 'models/social_nonce_dto.dart';
+export 'models/social_nonce_envelope.dart';
 export 'models/social_login_dto.dart';
 export 'models/refresh_token_dto.dart';
 export 'models/logged_out_dto.dart';
