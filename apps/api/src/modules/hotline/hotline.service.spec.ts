@@ -263,7 +263,7 @@ describe('hotline use cases (real Valkey)', () => {
     const v = await ask('C1');
     expect(v.status).toBe('queued');
     expect(v.positionBand).toBe('1');
-    expect(v.waitBand).toBe('5to15'); // 1 × 5 min avg / 1
+    expect(v.waitBand).toBe('5to15'); // 1 × 5 min avg / max(1, 0)
     expect(v.disclosure).toMatchObject({
       key: 'hotline.disclosure.client_wait',
       kind: 'full',
@@ -419,15 +419,15 @@ describe('hotline use cases (real Valkey)', () => {
   it('UC 11: screen off / no heartbeat → off the line by TTL, never offered', async () => {
     if (!up) return;
     await goLine('L1');
-    await tick(46_000);
+    await tick(61_000);
     await ask('C1');
     expect(offersTo('L1')).toHaveLength(0);
     expect((await svc.lineView('L1', null)).online).toBe(false);
     // heartbeat in time keeps him
     await goLine('L2');
-    now += 30_000;
+    now += 40_000;
     await svc.heartbeat('L2');
-    await tick(30_000);
+    await tick(40_000);
     expect((await svc.lineView('L2', null)).online).toBe(true);
   });
 
@@ -463,9 +463,9 @@ describe('hotline use cases (real Valkey)', () => {
     if (!up) return;
     const a = await ask('C1');
     const b = await ask('C2');
-    now += 30_000;
+    now += 40_000;
     await svc.heartbeat('C2');
-    await tick(20_000);
+    await tick(25_000);
     expect((await svc.getRequest(client('C1'), a.id)).status).toBe('cancelled');
     expect((await svc.getRequest(client('C1'), a.id)).endReason).toBe('lost');
     expect((await svc.getRequest(client('C2'), b.id)).status).toBe('queued');
@@ -480,7 +480,7 @@ describe('hotline use cases (real Valkey)', () => {
     await svc.heartbeat('C1'); // one side is enough
     await tick(10_000);
     expect((await svc.getRequest(client('C1'), a.id)).status).toBe('connected');
-    await tick(50_000);
+    await tick(61_000);
     const v = await svc.getRequest(client('C1'), a.id);
     expect(v.status).toBe('ended');
     expect(v.endReason).toBe('lost');
