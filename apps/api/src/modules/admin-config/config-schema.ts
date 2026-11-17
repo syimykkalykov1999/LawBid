@@ -1,5 +1,6 @@
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { REALTIME_SETTING_DEFS } from '../../common/app-settings/realtime-settings';
+import { HOTLINE_SETTING_DEFS } from '../../common/app-settings/hotline-settings';
 import {
   STAFF_NOT_BUILT,
   STAFF_NOT_BUILT_NOTE,
@@ -404,6 +405,30 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       description: `${def.labelRu} (${def.key}). По умолчанию ${def.default}.`,
       min: def.min,
       max: def.max,
+    };
+  }
+  // Owner row 87 (16.11): the call hotline numbers (Russian label + key).
+  out['hotline.billing_mode'] = {
+    type: 'string',
+    defaultValue: 'free',
+    description:
+      'Горячая линия: кто из адвокатов может ждать звонки. free — бесплатно всем с проверенной лицензией (по умолчанию, деньги выключены); plan — входит в подписку: только планы, где в «Деньги → Планы» отмечено «Горячая линия»; addon — отдельное дополнение за hotline.addon_price_cents в месяц. Пробный срок — hotline.trial_days / hotline.trial_minutes. Клиенту всегда бесплатно. Меняется сразу, без выката (hotline.billing_mode).',
+    pattern: /^(free|plan|addon)$/,
+  };
+  out['hotline.counter_bands'] = {
+    type: 'integer[]',
+    defaultValue: [1, 10, 50, 100],
+    description:
+      'Горячая линия: как клиенту показывать число адвокатов на линии — ступени по возрастанию. 0 — «нет», меньше второй ступени — «есть», дальше «10+», «50+», «100+» (точное число клиент не видит). По умолчанию 1, 10, 50, 100 (hotline.counter_bands).',
+    min: 1,
+  };
+  for (const def of HOTLINE_SETTING_DEFS) {
+    out[def.key] = {
+      type: 'integer',
+      defaultValue: def.default,
+      description: `${def.labelRu} (${def.key}). По умолчанию ${def.default}.`,
+      min: def.min,
+      ...(def.max === undefined ? {} : { max: def.max }),
     };
   }
   for (const key of ['post.max_chars_media', 'post.max_chars_brief']) {

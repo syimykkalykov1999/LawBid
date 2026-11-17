@@ -488,6 +488,17 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     description: 'Sign in with a passkey (WebAuthn)',
   },
   {
+    // Owner row 87 (16.11, docs/dev/HOTLINE_PLAN_2026-11-16.md): the call
+    // hotline — a client calls «a free attorney» who chose to wait for calls
+    // (licensed in the client's state, matching topic and language). Off
+    // (default): every /hotline route answers 403 FEATURE_DISABLED and no
+    // attorney is offered a call; existing 1:1 calls are not touched.
+    key: 'hotline',
+    enabled: false,
+    description:
+      'Call hotline: clients reach a free attorney licensed in their state (topic, language); attorneys opt in with «Ожидать звонки»',
+  },
+  {
     // R-237 (owner 2026-11-05): REAL MONEY. On: a bank inquiry on a
     // subscription charge is refunded in full within the limits; above them
     // it waits for a person. Off (default): nothing is refunded.

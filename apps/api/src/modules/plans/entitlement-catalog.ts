@@ -43,6 +43,7 @@ export const ENTITLEMENT_KEYS = [
   'priority_search',
   'calls',
   'video_calls',
+  'hotline',
   'document_templates',
   'chat_translate',
   'translations_per_day',
@@ -189,6 +190,21 @@ export const ENTITLEMENT_CATALOG: readonly EntitlementDef[] = [
     description: {
       en: 'Can start video calls from a chat (needs the global video_calls flag and TURN keys).',
       ru: 'Может начать видеозвонок из чата (нужен общий флаг video_calls и ключи TURN).',
+    },
+  },
+  {
+    // Owner row 87 (16.11): the attorney's right to wait for hotline calls,
+    // read only in `hotline.billing_mode` = plan («входит в подписку»): the
+    // owner ticks the plans here. In free mode every verified attorney may,
+    // in addon mode the add-on decides.
+    key: 'hotline',
+    type: 'boolean',
+    audiences: ['attorney'],
+    group: 'features',
+    label: { en: 'Call hotline', ru: 'Горячая линия' },
+    description: {
+      en: 'Can turn on «Wait for calls» and take hotline calls from clients in the states of their verified licences.',
+      ru: 'Может включить «Ожидать звонки» и принимать звонки с горячей линии от клиентов из штатов своих проверенных лицензий.',
     },
   },
   {
@@ -406,6 +422,9 @@ export const BASELINE_DEFAULTS: Record<Audience, Entitlements> = {
     priority_search: false,
     calls: true,
     video_calls: true,
+    // Owner 16.11: read only in hotline.billing_mode = plan — off unless
+    // the owner ticks a plan.
+    hotline: false,
     // Owner 2026-10-05: templates come with a paid attorney plan.
     document_templates: false,
     chat_translate: true,
