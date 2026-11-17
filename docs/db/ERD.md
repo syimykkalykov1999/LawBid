@@ -1044,6 +1044,7 @@ erDiagram
     String reply_to_id FK "nullable"
     String file_id FK "nullable"
     String file_name "nullable"
+    Int duration_ms "nullable"
     DateTime edited_at "nullable"
     DateTime deleted_at "nullable"
     DateTime expires_at "nullable"

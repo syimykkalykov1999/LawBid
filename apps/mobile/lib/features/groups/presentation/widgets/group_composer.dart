@@ -6,6 +6,8 @@ import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/text/search_fold.dart';
+import 'package:lawbid/features/chat/application/voice_recorder.dart';
+import 'package:lawbid/features/chat/presentation/voice_hold.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_mention_picker.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_style.dart';
@@ -15,7 +17,8 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 /// The message field of a group chat: multi-line text, «+» (photo, file,
 /// poll), a reply bar or an edit bar above it, and the @mention list that
 /// opens while typing «@». Send and edit are reported to the screen; the
-/// field clears itself after.
+/// field clears itself after. Groups WhatsApp parity: with an empty field
+/// the button is the 1:1 chat's hold-to-record mic ([VoiceHoldRecorder]).
 class GroupComposer extends ConsumerStatefulWidget {
   const GroupComposer({
     required this.controller,
@@ -23,7 +26,10 @@ class GroupComposer extends ConsumerStatefulWidget {
     required this.onSend,
     required this.onSaveEdit,
     required this.onAttach,
+    required this.draftKey,
     this.canAttach = true,
+    this.onVoice,
+    this.onVoiceTyping,
     this.replyTo,
     this.editing,
     this.onCancelReply,
@@ -54,11 +60,22 @@ class GroupComposer extends ConsumerStatefulWidget {
   /// A file is being uploaded (a thin progress line over the field).
   final bool uploading;
 
+  /// The group (and topic): a voice note left unsent waits under it.
+  final String draftKey;
+
+  /// A recorded voice note to send; null: no mic (no media for me here).
+  final Future<void> Function(VoiceRecording r)? onVoice;
+
+  /// «recording a voice message…» to the group.
+  // ignore: avoid_positional_boolean_parameters
+  final void Function(bool active, {bool voice})? onVoiceTyping;
+
   @override
   ConsumerState<GroupComposer> createState() => _GroupComposerState();
 }
 
-class _GroupComposerState extends ConsumerState<GroupComposer> {
+class _GroupComposerState extends ConsumerState<GroupComposer>
+    with VoiceHoldRecorder<GroupComposer> {
   TextEditingController get _text => widget.controller;
   final _focus = FocusNode();
 
@@ -69,8 +86,21 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
   String? _query;
 
   @override
+  String get voiceDraftKey => widget.draftKey;
+
+  @override
+  Future<void> sendVoiceRecording(VoiceRecording r) async =>
+      widget.onVoice?.call(r);
+
+  @override
+  void voiceTyping(bool active, {bool voice = false}) =>
+      widget.onVoiceTyping?.call(active, voice: voice);
+
+  @override
   void initState() {
     super.initState();
+    // A recording left here (call came in, screen left) is back, paused.
+    voiceInit();
     _text.addListener(_onTextChanged);
   }
 
@@ -96,6 +126,7 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
   void dispose() {
     _text.removeListener(_onTextChanged);
     _focus.dispose();
+    voiceDispose();
     super.dispose();
   }
 
@@ -186,6 +217,39 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
         query == null ? const <api.GroupMemberDto>[] : _candidates(query);
     final maxChars = TextLimits.of(TextLimit.chatMessage);
     final counterFrom = (maxChars * 0.9).ceil();
+    final motion = context.reduceMotion ? Duration.zero : AppMotion.stateChange;
+    voiceWatchCalls();
+    final recording = voiceRecording;
+    final canRecord = widget.onVoice != null && editing == null;
+
+    // The 1:1 composer's round button (send / mic), the same look.
+    Widget circle({
+      required IconData icon,
+      required bool on,
+      required String label,
+      double scale = 1,
+    }) =>
+        AnimatedScale(
+          scale: scale,
+          duration: motion,
+          curve: Curves.easeOutBack,
+          child: Semantics(
+            button: true,
+            label: label,
+            excludeSemantics: true,
+            child: AnimatedContainer(
+              duration: motion,
+              width: AppSizes.touchTarget + 4,
+              height: AppSizes.touchTarget + 4,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: on ? colors.gold : colors.border,
+              ),
+              child:
+                  AppIcon(icon, color: on ? colors.navy : colors.textSecondary),
+            ),
+          ),
+        );
 
     Widget bar({
       required IconData icon,
@@ -333,7 +397,7 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    if (editing == null && widget.canAttach)
+                    if (editing == null && widget.canAttach && !recording)
                       AppIconButton(
                         icon: AppIcon(
                           AppIcons.addRounded,
@@ -342,12 +406,35 @@ class _GroupComposerState extends ConsumerState<GroupComposer> {
                         semanticLabel: t.t('chat.attach.button'),
                         onPressed: widget.onAttach,
                       ),
-                    Expanded(child: field),
+                    Expanded(
+                      child: AnimatedSwitcher(
+                        duration: motion,
+                        child: recording ? voiceRecordingBar() : field,
+                      ),
+                    ),
                     const SizedBox(width: AppSpacing.xs),
                     ValueListenableBuilder<TextEditingValue>(
                       valueListenable: _text,
                       builder: (context, v, _) {
                         final on = v.text.trim().isNotEmpty;
+                        // Groups WhatsApp parity: the 1:1 mic while the
+                        // field is empty (Send when the note is locked).
+                        if (voiceLocked) {
+                          return AppPressable(
+                            onTap: voiceSendLocked,
+                            child: circle(
+                              icon: AppIcons.arrowUpwardRounded,
+                              on: true,
+                              label: t.t('chat.voice.sendNow'),
+                            ),
+                          );
+                        }
+                        if (recording || (!on && canRecord)) {
+                          return voiceMic(
+                            circle: circle,
+                            label: t.t('chat.voice.record'),
+                          );
+                        }
                         return Semantics(
                           button: true,
                           enabled: on,

@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart'
-    show adoptSentChatMedia, uploadChatAttachmentJob;
+    show adoptSentChatMedia, uploadChatAttachmentJob, uploadChatVoiceJob;
+import 'package:lawbid/features/chat/data/voice_files.dart'
+    show adoptVoiceFileAsCache;
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart'
     show groupRepositoryProvider;
@@ -13,6 +15,9 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 abstract final class GroupMediaKind {
   static const prefix = 'group.';
   static const attachment = 'group.attachment';
+
+  /// Groups WhatsApp parity: a voice note (the 1:1 `chat.voice` job).
+  static const voice = 'group.voice';
 }
 
 /// R-255 (flag `group_files_from_disk`): a file of a group chat is a job of
@@ -82,6 +87,65 @@ class GroupMediaHandler extends UploadJobHandler {
   }
 }
 
+/// Groups WhatsApp parity (voice): a group voice note is a job of the
+/// persistent upload queue like a 1:1 one (ChatMediaHandler, kind
+/// `chat.voice`): it survives closing the app, the note goes to storage
+/// first (`chat_voice`), then the message with the job id as its
+/// clientMessageId (a retry never sends twice).
+class GroupVoiceHandler extends UploadJobHandler {
+  GroupVoiceHandler(this._ref, this._sent);
+
+  final Ref _ref;
+  final StreamController<api.GroupMessageDto> _sent;
+
+  /// Server message ids of sent notes (their file becomes the cache).
+  final _sentIds = <String, String>{};
+
+  @override
+  String get kind => GroupMediaKind.voice;
+
+  @override
+  Future<void> prepare(UploadJob job, UploadJobScope scope) async {
+    if (job.fileId != null) return;
+    await scope.saveFileId(await uploadChatVoiceJob(job, scope));
+  }
+
+  @override
+  Future<void> commit(UploadJob job, UploadJobScope scope) async {
+    final p = job.payload;
+    final sent = await _ref.read(groupRepositoryProvider).send(
+          job.target,
+          api.SendGroupMessageDto(
+            clientMessageId: job.id,
+            type: api.SendGroupMessageDtoType.voice,
+            topicId: p['topicId'] as String?,
+            replyToId: p['replyToId'] as String?,
+            fileId: job.fileId,
+            durationMs: (p['durationMs'] as num?)?.toInt() ?? 0,
+            waveform: [
+              for (final v in (p['waveform'] as List?) ?? const [])
+                (v as num).toInt(),
+            ],
+          ),
+        );
+    _sentIds[job.id] = sent.id;
+    // Into the open thread before the job (and its bubble) goes.
+    if (!_sent.isClosed) _sent.add(sent);
+  }
+
+  /// Your own note plays from the recording, not from a download (1:1).
+  @override
+  Future<void> removed(UploadJob job, {required bool sent}) async {
+    final messageId = _sentIds.remove(job.id);
+    final n = job.fileName;
+    if (!sent || messageId == null || n == null) return;
+    await adoptVoiceFileAsCache(
+      await _ref.read(uploadFilesProvider).pathOf(n),
+      messageId,
+    );
+  }
+}
+
 /// Group messages the queue has just sent, for the open thread.
 final groupMediaSentProvider =
     Provider<StreamController<api.GroupMessageDto>>((ref) {
@@ -93,7 +157,9 @@ final groupMediaSentProvider =
 /// Registers the group media handler on the app's queue (read at sign-in
 /// and by every open group).
 final groupMediaOutboxProvider = Provider<UploadQueue>((ref) {
+  final sent = ref.watch(groupMediaSentProvider);
   final queue = ref.watch(uploadQueueProvider)
-    ..register(GroupMediaHandler(ref, ref.watch(groupMediaSentProvider)));
+    ..register(GroupMediaHandler(ref, sent))
+    ..register(GroupVoiceHandler(ref, sent));
   return queue;
 });

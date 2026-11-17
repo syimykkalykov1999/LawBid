@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/cache/chat_media_providers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -16,6 +18,7 @@ import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/core/uploads/upload_queue_database.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/chat/domain/chat_models.dart' show VoiceNote;
 import 'package:lawbid/features/groups/application/group_media_outbox.dart';
 import 'package:lawbid/features/groups/data/group_list_cache.dart';
 import 'package:lawbid/features/groups/data/group_repository.dart';
@@ -519,6 +522,7 @@ class PendingGroupMessage {
     this.fileName,
     this.fileId,
     this.slowWaitS,
+    this.voice,
   });
 
   final String clientMessageId;
@@ -534,6 +538,10 @@ class PendingGroupMessage {
   /// Audit 26.10 B9: the uploaded file of an attachment sent without the
   /// queue, so Retry sends it again (queued files retry in the queue).
   final String? fileId;
+
+  /// Groups WhatsApp parity: a queued voice note (its recording plays from
+  /// the phone while it is being sent, as in 1:1).
+  final VoiceNote? voice;
 }
 
 class GroupThreadState {
@@ -962,11 +970,46 @@ class GroupThread extends Notifier<GroupThreadState> {
     );
   }
 
+  /// Groups WhatsApp parity (voice): a recorded note goes through the
+  /// persistent queue like a 1:1 one (ChatThread.sendVoice): the file is
+  /// moved into the queue folder, the job uploads it and sends it.
+  Future<void> sendVoice({
+    required String path,
+    required int durationMs,
+    required List<int> waveform,
+    String? replyToId,
+  }) async {
+    // Read before the first await: the screen may be left meanwhile.
+    final queue = ref.read(groupMediaOutboxProvider);
+    final files = ref.read(uploadFilesProvider);
+    final sounds = ref.read(appSoundsProvider);
+    if (queue.ownerId == null) return;
+    final cmid = _newClientId();
+    final ext = path.toLowerCase().endsWith('.webm') || kIsWeb ? 'webm' : 'm4a';
+    final name = await files.keep('$cmid.$ext', fromPath: path, move: true);
+    unawaited(sounds.messageOut());
+    await queue.enqueue(
+      id: cmid,
+      kind: GroupMediaKind.voice,
+      target: key.groupId,
+      payload: {
+        'durationMs': durationMs,
+        'waveform': waveform,
+        if (key.topicId != null) 'topicId': key.topicId,
+        if (replyToId != null) 'replyToId': replyToId,
+      },
+      fileName: name,
+    );
+  }
+
   /// Client ids of this thread's queued files, shown as pending bubbles.
   Set<String> _mediaIds = const {};
 
+  /// The recordings of queued voice notes, by clientMessageId.
+  final _voicePaths = <String, String?>{};
+
   /// The queue's jobs of this group → pending bubbles of this thread.
-  void _onMediaJobs(List<UploadJobRow> rows) {
+  Future<void> _onMediaJobs(List<UploadJobRow> rows) async {
     if (!ref.mounted) return;
     final jobs = [
       for (final r in rows)
@@ -974,6 +1017,18 @@ class GroupThread extends Notifier<GroupThreadState> {
             when key.topicId == null || j.payload['topicId'] == key.topicId)
           j,
     ];
+    final files = ref.read(uploadFilesProvider);
+    for (final j in jobs) {
+      final n = j.fileName;
+      if (j.kind == GroupMediaKind.voice &&
+          n != null &&
+          !_voicePaths.containsKey(j.id)) {
+        _voicePaths[j.id] = await files.pathOf(n);
+      }
+    }
+    if (!ref.mounted) return;
+    final live = {for (final j in jobs) j.id};
+    _voicePaths.removeWhere((k, _) => !live.contains(k));
     final old = _mediaIds;
     _mediaIds = {for (final j in jobs) j.id};
     final delivered = {for (final m in state.messages) m.clientMessageId};
@@ -982,7 +1037,23 @@ class GroupThread extends Notifier<GroupThreadState> {
         for (final p in state.pending)
           if (!old.contains(p.clientMessageId)) p,
         for (final j in jobs)
-          if (!delivered.contains(j.id))
+          if (!delivered.contains(j.id) && j.kind == GroupMediaKind.voice)
+            PendingGroupMessage(
+              clientMessageId: j.id,
+              body: '',
+              replyToId: j.payload['replyToId'] as String?,
+              failed: j.failed,
+              voice: VoiceNote(
+                localPath: _voicePaths[j.id],
+                durationMs: (j.payload['durationMs'] as num?)?.toInt() ?? 0,
+                waveform: [
+                  for (final v in (j.payload['waveform'] as List?) ?? const [])
+                    (v as num).toInt(),
+                ],
+                listened: false,
+              ),
+            )
+          else if (!delivered.contains(j.id))
             PendingGroupMessage(
               clientMessageId: j.id,
               body: j.payload['caption'] as String? ?? '',

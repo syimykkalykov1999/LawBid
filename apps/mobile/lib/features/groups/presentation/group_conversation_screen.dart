@@ -23,6 +23,7 @@ import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
@@ -30,6 +31,8 @@ import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
 import 'package:lawbid/features/chat/presentation/chat_list_controller.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
 import 'package:lawbid/features/chat/presentation/in_chat_search.dart';
+import 'package:lawbid/features/chat/presentation/voice_widgets.dart'
+    show VoiceThread;
 import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/application/group_typing.dart';
@@ -348,6 +351,24 @@ class _GroupConversationScreenState
   void _error(Object e) {
     if (!mounted) return;
     showAppSnackBar(context, errorText(ref.read(translatorProvider), e));
+  }
+
+  /// Groups WhatsApp parity: a recorded note goes through the queue (the
+  /// 1:1 chat's), as a reply when one is open.
+  Future<void> _sendVoice(VoiceRecording r) async {
+    final reply = _replyTo;
+    setState(() => _replyTo = null);
+    _toBottom();
+    try {
+      await _thread.sendVoice(
+        path: r.path,
+        durationMs: r.durationMs,
+        waveform: r.waveform,
+        replyToId: reply?.id,
+      );
+    } on Object catch (e) {
+      _error(e);
+    }
   }
 
   void _send(String text, List<String> mentionIds) {
@@ -1063,6 +1084,12 @@ class _GroupConversationScreenState
             onSaveEdit: _saveEdit,
             onAttach: _attach,
             canAttach: detail.canSendMedia || detail.canSendPolls,
+            draftKey: _draftKey,
+            // Groups WhatsApp parity: a voice note is media, like a photo.
+            onVoice: detail.canSendMedia ? _sendVoice : null,
+            onVoiceTyping: (active, {voice = false}) => ref
+                .read(groupTypingProvider(widget.groupId).notifier)
+                .send(active, voice: voice),
             onCancelReply: () => setState(() => _replyTo = null),
             onCancelEdit: () {
               setState(_stopEditing);
@@ -1373,6 +1400,15 @@ class _MessageList extends ConsumerWidget {
     final pending = state.pending;
     final extra = state.hasMore ? 1 : 0;
     Map<Key, int>? byKey;
+    // Groups WhatsApp parity: the next voice notes in a row play by
+    // themselves (the 1:1 bubble); a group has no «played» mark to report.
+    final voiceThread = VoiceThread(
+      messages: () => [
+        for (final m in messages)
+          if (m.voiceMessage case final v?) v,
+      ],
+      played: (_) async {},
+    );
     // Audit 26.10 B3: a custom scroll view so the anchor sliver can keep
     // what is read in place; rows are found by key when a message comes in
     // below (the rest move one index, their elements are kept).
@@ -1399,6 +1435,7 @@ class _MessageList extends ConsumerWidget {
                 final p = pending[pending.length - 1 - i];
                 return GroupPendingBubble(
                   pending: p,
+                  groupId: detail.id,
                   onRetry: () => onRetry(p.clientMessageId),
                   onDiscard: () => onDiscard(p.clientMessageId),
                 );
@@ -1457,6 +1494,7 @@ class _MessageList extends ConsumerWidget {
                       : null,
                   onJump: onJump,
                   onPollChanged: (p) => onPollChanged(m, p),
+                  voiceThread: voiceThread,
                   onReact: onReact == null || onToggle != null
                       ? null
                       : (e) => onReact!(m, e),

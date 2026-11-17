@@ -3299,6 +3299,8 @@ enum GroupMessageType {
   system
   poll
   attachment
+  /// Groups WhatsApp parity: a voice note (chat_voice file, like 1:1).
+  voice
 
   @@map("group_message_type")
 }
@@ -3436,6 +3438,10 @@ model ChatGroupMessage {
   file_id             String?                    @db.Uuid
   file                File?                      @relation("ChatGroupMessageFile", fields: [file_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
   file_name           String?
+  /// Groups WhatsApp parity (voice): the note's length and 0–100 bars for
+  /// the bubble, the same columns as messages.duration_ms / waveform.
+  duration_ms         Int?
+  waveform            Int[]                      @default([])
   edited_at           DateTime?                  @db.Timestamptz
   deleted_at          DateTime?                  @db.Timestamptz
   /// Owner 2026-10-21: disappearing messages — see messages.expires_at.

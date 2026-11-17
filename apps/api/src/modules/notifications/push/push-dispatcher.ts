@@ -810,7 +810,15 @@ export class PushDispatcher
     jobId: string,
   ): Promise<DispatchResult> {
     const r = await this.prepareGroupMessage(data, jobId);
-    if (r.push) await this.sender.send(r.push, `m:${data.messageId}`);
+    if (r.push) {
+      // Groups WhatsApp parity: a reaction pushes once per person, emoji
+      // and message (the 1:1 dedupe), never as the message's own alert.
+      const dedupeKey =
+        data.event === 'reaction' && data.actorId
+          ? `r:${data.messageId}:${data.actorId}:${data.emoji ?? ''}`
+          : `m:${data.messageId}`;
+      await this.sender.send(r.push, dedupeKey);
+    }
     return r.result;
   }
 
@@ -883,6 +891,8 @@ export class PushDispatcher
         system_payload: true,
         mention_ids: true,
         created_at: true,
+        // Groups WhatsApp parity (voice): «🎤 Голосовое 0:12», as in 1:1.
+        duration_ms: true,
         file: { select: { mime: true } },
         poll: { select: { question: true } },
       },
@@ -949,7 +959,19 @@ export class PushDispatcher
     }
     if (message.deleted_at) return { result: 'no_push' };
     const t = await this.pushTexts(user.ui_language);
-    const mentioned = message.mention_ids.includes(data.recipientId);
+    // Groups WhatsApp parity: «Kim: Реакция 👍 «text»» to the author only,
+    // the same words as the 1:1 reaction push (an @mention does not apply).
+    const reaction = data.event === 'reaction' && !!data.actorId;
+    if (
+      reaction &&
+      (message.type === 'system' ||
+        message.sender_id !== data.recipientId ||
+        data.actorId === data.recipientId)
+    ) {
+      return { result: 'no_push' };
+    }
+    const mentioned =
+      !reaction && message.mention_ids.includes(data.recipientId);
     let body: string;
     // Owner 2026-10-22: who wrote it, their photo and the bare text, for the
     // app's own notification (Android MessagingStyle shows each sender).
@@ -972,10 +994,12 @@ export class PushDispatcher
         people: user.first_name?.trim() || '@',
       });
     } else {
+      // A reaction is titled with the person who reacted (1:1 push).
+      const fromId = reaction ? (data.actorId ?? null) : message.sender_id;
       const sender = shared
         ? shared.sender
-        : message.sender_id
-          ? await this.chatSender(message.sender_id)
+        : fromId
+          ? await this.chatSender(fromId)
           : null;
       // Owner 2026-10-22: the display name, else the @username.
       const who = chatSenderName(sender);
@@ -990,22 +1014,32 @@ export class PushDispatcher
             .join('')
         : '';
       const kind = chatPushKind(message.type, message.file?.mime);
-      let preview = chatPushPreview(kind, caption, t);
-      if (!preview) {
-        preview = (await this.templates.render('new_message', user.ui_language))
-          .body;
+      let preview = chatPushPreview(kind, caption, t, message.duration_ms);
+      if (reaction) {
+        const name = sender?.first_name?.trim() || who || 'LawBid';
+        const quoted = preview
+          ? ` «${[...preview].slice(0, 40).join('')}»`
+          : '';
+        preview = `${fillVars(t.reaction, { emoji: data.emoji ?? '' })}${quoted}`;
+        body = `${name}: ${preview}`;
+      } else {
+        if (!preview) {
+          preview = (
+            await this.templates.render('new_message', user.ui_language)
+          ).body;
+        }
+        if (mentioned) {
+          preview = `@ ${fillVars(t.mentioned, { name: who || '' }).trim()}. ${preview}`;
+        }
+        // Telegram: the group on top, «Имя: текст» below.
+        body = (who ? `${who}: ` : '') + preview;
       }
-      if (mentioned) {
-        preview = `@ ${fillVars(t.mentioned, { name: who || '' }).trim()}. ${preview}`;
-      }
-      // Telegram: the group on top, «Имя: текст» below.
-      body = (who ? `${who}: ` : '') + preview;
       const pics = await this.avatarUrls(data.recipientId, [
         sender?.avatar_file_id,
         group.avatar_file_id,
       ]);
       chat = chatPushData({
-        senderId: message.sender_id,
+        senderId: fromId,
         senderName: who,
         senderAvatar: pics.get(sender?.avatar_file_id ?? '') ?? null,
         senderAvatarKey: sender?.avatar_file_id ?? null,
@@ -1033,6 +1067,9 @@ export class PushDispatcher
     ) {
       return { result: 'disabled' };
     }
+    // Owner 2026-10-21 (inbox 30): «Reactions» off silences reactions to my
+    // messages, in groups as in 1:1 (not set yet = as before).
+    if (reaction && sw.raw.reactions === false) return { result: 'disabled' };
     if (!data.deferred) {
       const until = quietUntilOf(user.quiet_hours);
       if (until) {
@@ -1052,6 +1089,7 @@ export class PushDispatcher
           groupId: data.groupId,
           conversationId: data.groupId,
           messageId: data.messageId,
+          ...(reaction ? { event: 'reaction' } : {}),
           ...chat,
           // Owner 2026-10-26: «Ответить» / «Прочитано» on the notification.
           ...(chat
@@ -1063,13 +1101,16 @@ export class PushDispatcher
         sound: 'message',
         // One stack per chat in the shade (WhatsApp).
         threadId: data.groupId,
-        ...(this.chatCollapse()
-          ? {
-              collapseKey: chatCollapseKey(data.groupId, {
-                mention: mentioned,
-              }),
-            }
-          : {}),
+        ...(reaction
+          ? // Grouped under the message, like the 1:1 reaction push.
+            { collapseKey: `react-${data.messageId}` }
+          : this.chatCollapse()
+            ? {
+                collapseKey: chatCollapseKey(data.groupId, {
+                  mention: mentioned,
+                }),
+              }
+            : {}),
         ...(chat ? { chat: true, iosCategory: CHAT_CATEGORY } : {}),
       },
     };
