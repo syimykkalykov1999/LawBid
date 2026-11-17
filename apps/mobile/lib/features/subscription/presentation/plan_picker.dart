@@ -516,6 +516,7 @@ class ActivePlans extends StatefulWidget {
     required this.onSaveSeats,
     required this.onSwitchToPrime,
     required this.onTeam,
+    this.onSaveHotline,
     this.primeBusy = false,
     super.key,
   });
@@ -524,6 +525,9 @@ class ActivePlans extends StatefulWidget {
   final L10nFormats formats;
   final SubscriptionOverview overview;
   final Future<void> Function(int seats) onSaveSeats;
+
+  /// Owner row 87 (plan PR 8): the «Горячая линия» add-on on / off.
+  final Future<void> Function({required bool on})? onSaveHotline;
   final VoidCallback onSwitchToPrime;
   final VoidCallback onTeam;
   final bool primeBusy;
@@ -534,6 +538,7 @@ class ActivePlans extends StatefulWidget {
 
 class _ActivePlansState extends State<ActivePlans> {
   int? _draft;
+  bool? _hotlineDraft;
   bool _saving = false;
 
   SubscriptionInfo get _s => widget.overview.subscription!;
@@ -548,15 +553,69 @@ class _ActivePlansState extends State<ActivePlans> {
         old.overview.seats?.extra != widget.overview.seats?.extra) {
       _draft = null;
     }
+    final was = old.overview.hotlineAddon;
+    final now = widget.overview.hotlineAddon;
+    if (was?.renews != now?.renews || was?.pending != now?.pending) {
+      _hotlineDraft = null;
+    }
   }
 
-  Future<void> _save(int seats) async {
+  /// Owner row 87 (plan PR 8): one «Save» for the card — the add-on first
+  /// (its own pay sheet when it is added), then the seats.
+  Future<void> _save(
+    int seats, {
+    bool? hotline,
+    bool seatsChanged = true,
+  }) async {
+    // The add-on's pay sheet has its own button and progress: the card's
+    // «Save» does not spin behind it (like the seats sheet).
+    final saveHotline = widget.onSaveHotline;
+    if (hotline != null && saveHotline != null) {
+      await saveHotline(on: hotline);
+    }
+    if (!seatsChanged || !mounted) return;
     setState(() => _saving = true);
     try {
       await widget.onSaveSeats(seats);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  /// Owner row 87 (plan PR 8): the add-on row — its price a month, «on
+  /// until {date}» after a removal (no refund), «confirming the payment»
+  /// while the bank checks it; bought only after the first payment.
+  Widget _hotlineRow(
+    HotlineAddon addon, {
+    required bool on,
+    required bool changed,
+    required String? total,
+  }) {
+    final t = widget.t;
+    final f = widget.formats;
+    final price = PlanFeatures.price(
+      f,
+      addon.priceCents,
+      currency: addon.currency,
+    );
+    final until = addon.endsAt;
+    final locked = !addon.canBuy && !addon.active && !addon.renews;
+    final caption = addon.pending
+        ? t.t('plans.hotline.pending')
+        : locked
+            ? t.t('plans.hotline.afterPayment')
+            : !on && !changed && until != null
+                ? t.t('plans.hotline.until', {'date': f.date(until)})
+                : t.t('plans.hotline.each', {'price': price});
+    return HotlineAddonRow(
+      t: t,
+      value: on,
+      caption: caption,
+      total: total,
+      onChanged: addon.pending || locked || widget.onSaveHotline == null
+          ? null
+          : (v) => setState(() => _hotlineDraft = v),
+    );
   }
 
   /// Owner 2026-10-05: the plan builder's cards — "Your plan" on the
@@ -581,6 +640,12 @@ class _ActivePlansState extends State<ActivePlans> {
     final extra = _draft ?? o.seats?.extra ?? _s.assistantSeats;
     final savedExtra = o.seats?.extra ?? _s.assistantSeats;
     final changed = extra != savedExtra;
+    // Owner row 87 (plan PR 8): the «Горячая линия» add-on, toggled in the
+    // card; «renews» = on the subscription (in the next invoice).
+    final addon = o.hotlineAddon;
+    final savedHotline = addon?.renews ?? false;
+    final hotlineOn = _hotlineDraft ?? savedHotline;
+    final hotlineChanged = addon != null && hotlineOn != savedHotline;
     final cards = <Widget>[];
     var anyMine = false;
     for (final (i, p) in plans.indexed) {
@@ -589,7 +654,10 @@ class _ActivePlansState extends State<ActivePlans> {
       final seatCents = p.extraSeatCents ?? _p.seatCents;
       final canAddSeats = mine && p.extraSeatsAllowed > 0 && seatCents > 0;
       final seatPrice = PlanFeatures.price(f, seatCents, currency: p.currency);
-      final totalCents = p.totalCents(extra, fallbackSeatCents: _p.seatCents);
+      final showHotline = mine && addon != null;
+      final totalCents = p.totalCents(extra, fallbackSeatCents: _p.seatCents) +
+          (showHotline && hotlineOn ? addon.priceCents : 0);
+      final totalText = PlanFeatures.total(t, f, p, totalCents);
       final tagline = p.tagline.resolve(f.locale);
       if (i > 0) cards.add(const SizedBox(height: AppSpacing.md));
       cards.add(
@@ -626,34 +694,48 @@ class _ActivePlansState extends State<ActivePlans> {
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (canAddSeats) ...[
+                    if (showHotline)
+                      _hotlineRow(
+                        addon,
+                        on: hotlineOn,
+                        changed: hotlineChanged,
+                        total: canAddSeats && extra > 0 ? null : totalText,
+                      ),
+                    if (showHotline && canAddSeats)
+                      const SizedBox(height: AppSpacing.md),
+                    if (canAddSeats)
                       AssistantSeatsControl(
                         t: t,
                         seats: extra,
                         max: p.extraSeatsAllowed,
                         seatPrice: seatPrice,
                         eachText: t.t('plan.seats.each', {'price': seatPrice}),
-                        total: PlanFeatures.total(t, f, p, totalCents),
+                        total: totalText,
                         onChanged: (v) => setState(() => _draft = v),
                       ),
-                      if (changed) ...[
-                        const SizedBox(height: AppSpacing.md),
-                        AppButton(
-                          key: const ValueKey('seats-save'),
-                          label: t.t('plans.seats.saveCta', {
-                            'price': PlanFeatures.price(
-                              f,
-                              totalCents,
-                              currency: p.currency,
-                            ),
-                          }),
-                          icon: AppIcons.checkRounded,
-                          isLoading: _saving,
-                          onPressed: () => _save(extra),
+                    if ((canAddSeats && changed) ||
+                        (showHotline && hotlineChanged)) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      AppButton(
+                        key: const ValueKey('seats-save'),
+                        label: t.t('plans.seats.saveCta', {
+                          'price': PlanFeatures.price(
+                            f,
+                            totalCents,
+                            currency: p.currency,
+                          ),
+                        }),
+                        icon: AppIcons.checkRounded,
+                        isLoading: _saving,
+                        onPressed: () => _save(
+                          extra,
+                          hotline: hotlineChanged ? hotlineOn : null,
+                          seatsChanged: canAddSeats && changed,
                         ),
-                      ],
-                      const SizedBox(height: AppSpacing.sm),
+                      ),
                     ],
+                    if (canAddSeats || showHotline)
+                      const SizedBox(height: AppSpacing.sm),
                     teamButton,
                   ],
                 ),
