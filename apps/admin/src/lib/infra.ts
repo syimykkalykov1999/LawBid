@@ -19,7 +19,9 @@ export const INFRA_ACTIVE = [
   "applying",
 ] as const;
 
-export function isActive(r: Pick<InfraRequest, "status"> | null | undefined): boolean {
+export function isActive(
+  r: Pick<InfraRequest, "status"> | null | undefined,
+): boolean {
   return !!r && (INFRA_ACTIVE as readonly string[]).includes(r.status);
 }
 
@@ -57,19 +59,26 @@ export function infraTone(status: string): InfraTone {
 export const SETTLED_WORD = "В облаке уже так";
 
 export function showsFailure(
-  r: (Pick<InfraRequest, "status" | "settled"> & { superseded?: boolean }) | null | undefined,
+  r:
+    | (Pick<InfraRequest, "status" | "settled"> & { superseded?: boolean })
+    | null
+    | undefined,
 ): boolean {
   // Owner 15.11: a failure a later successful apply superseded is history.
   return !!r && r.status === "failed" && !r.settled && !r.superseded;
 }
 
 /** The chip / badge word of a request (a settled failure reads SETTLED_WORD). */
-export function requestWord(r: Pick<InfraRequest, "status" | "settled">): string {
+export function requestWord(
+  r: Pick<InfraRequest, "status" | "settled">,
+): string {
   if (r.status === "failed" && r.settled) return SETTLED_WORD;
   return INFRA_STATUS_WORD[r.status] ?? r.status;
 }
 
-export function requestTone(r: Pick<InfraRequest, "status" | "settled">): InfraTone {
+export function requestTone(
+  r: Pick<InfraRequest, "status" | "settled">,
+): InfraTone {
   if (r.status === "failed" && r.settled) return "success";
   return infraTone(r.status);
 }
@@ -104,23 +113,65 @@ export function costLine(usd: number[] | null | undefined): string {
   const f = (n: number) =>
     Math.abs(n).toLocaleString("ru-RU", { maximumFractionDigits: 2 });
   const sign = hi <= 0 ? "−" : "+";
-  const range = Math.abs(lo) === Math.abs(hi) ? `$${f(lo)}` : `$${f(Math.min(Math.abs(lo), Math.abs(hi)))}–${f(Math.max(Math.abs(lo), Math.abs(hi)))}`;
+  const range =
+    Math.abs(lo) === Math.abs(hi)
+      ? `$${f(lo)}`
+      : `$${f(Math.min(Math.abs(lo), Math.abs(hi)))}–${f(Math.max(Math.abs(lo), Math.abs(hi)))}`;
   return `${sign}${range} в месяц`;
 }
 
 /** Minutes left before an unconfirmed plan is thrown away (null = n/a). */
-export function minutesLeft(r: Pick<InfraRequest, "expiresAt">, now: Date = new Date()): number | null {
+export function minutesLeft(
+  r: Pick<InfraRequest, "expiresAt">,
+  now: Date = new Date(),
+): number | null {
   if (!r.expiresAt) return null;
-  return Math.max(0, Math.ceil((Date.parse(r.expiresAt) - now.getTime()) / 60_000));
+  return Math.max(
+    0,
+    Math.ceil((Date.parse(r.expiresAt) - now.getTime()) / 60_000),
+  );
 }
 
 /** The newest request of [itemId] (the list comes newest first). */
-export function latestFor(requests: InfraRequest[] | undefined, itemId: string): InfraRequest | null {
+export function latestFor(
+  requests: InfraRequest[] | undefined,
+  itemId: string,
+): InfraRequest | null {
   // Owner 15.11: a superseded failure is not the row's state any more.
-  return requests?.find((r) => r.itemId === itemId && !(r.status === "failed" && r.superseded)) ?? null;
+  return (
+    requests?.find(
+      (r) => r.itemId === itemId && !(r.status === "failed" && r.superseded),
+    ) ?? null
+  );
 }
 
 /** «Выкл → Вкл» for the sheet title. */
 export function targetWord(to: string): string {
+  if (to === INFRA_PENDING_STATE) return "Применить";
   return to === "on" ? "Включить" : "Выключить";
+}
+
+/**
+ * Owner 17.11 «Применить изменения из кода»: a request that changes no
+ * switch (API itemId aws.pending): the plan is main's Terraform as is,
+ * then the same 2FA confirm and apply.
+ */
+export const INFRA_PENDING_ID = "aws.pending";
+export const INFRA_PENDING_STATE = "pending";
+
+export function isPending(
+  r: Pick<InfraRequest, "itemId"> | null | undefined,
+): boolean {
+  return r?.itemId === INFRA_PENDING_ID;
+}
+
+/** Why the confirm would be refused now (quiet hours), or null. */
+export function quietHoursNote(
+  g:
+    | Pick<InfraOverview["guards"], "quietHours" | "inQuietWindow">
+    | null
+    | undefined,
+): string | null {
+  if (!g || g.inQuietWindow || !g.quietHours) return null;
+  return `Подтвердить можно только в тихие часы: ${g.quietHours} (Чикаго). План готовится и сейчас, но действует 30 минут.`;
 }

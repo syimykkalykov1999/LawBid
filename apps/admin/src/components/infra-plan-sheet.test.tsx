@@ -167,3 +167,34 @@ describe("infra helpers", () => {
     expect(requestWord({ status: "done", settled: false })).toBe("Готово");
   });
 });
+
+describe("«Применить изменения из кода» (owner 17.11)", () => {
+  const pending = (o: Partial<InfraRequest> = {}) =>
+    req({
+      itemId: "aws.pending",
+      itemName: "Изменения из кода",
+      fromState: null,
+      toState: "pending",
+      changes: {},
+      costDeltaUsd: [0, 0],
+      ...o,
+    });
+
+  it("the same plan sheet and 2FA confirm; the cost says the registry does not price code", async () => {
+    const h = sheet(pending());
+    expect(await screen.findByText("Применить: Изменения из кода")).toBeTruthy();
+    expect(screen.getByTestId("infra-sheet-cost").textContent).toContain(
+      "реестр расходов не считает изменения из кода",
+    );
+    fireEvent.click(screen.getByTestId("infra-confirm"));
+    expect(h.onConfirm).toHaveBeenCalledWith(
+      "00000000-0000-4000-8000-000000000001",
+    );
+  });
+
+  it("a done one has no «Откатить» (code is rolled back in code)", async () => {
+    sheet(pending({ status: "done", expiresAt: null }));
+    await screen.findByTestId("infra-sheet");
+    expect(screen.queryByTestId("infra-rollback")).toBeNull();
+  });
+});

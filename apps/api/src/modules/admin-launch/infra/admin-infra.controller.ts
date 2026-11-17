@@ -146,6 +146,28 @@ export class AdminInfraController {
     }
   }
 
+  /** Owner 17.11 «Применить изменения из кода»: the same request → plan →
+   * 2FA confirm → apply, with no switch changed (main's Terraform as is). */
+  @Post('requests/pending')
+  @ApiOperation({
+    summary:
+      "Apply what main's Terraform holds but the cloud does not yet (no switch changes; starts the GitHub plan)",
+  })
+  @ApiEnvelopeResponse(InfraRequestDto)
+  @ApiErrors({
+    409: [E.FEATURE_DISABLED],
+    429: [E.RATE_LIMITED],
+  })
+  async createPendingInfraRequest(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<InfraRequestDto> {
+    try {
+      return await this.changed(this.infra.createPending(admin.id, admin.ip));
+    } catch (e) {
+      infraHttp(e);
+    }
+  }
+
   @Post('requests/:id/confirm')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
