@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
+import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
@@ -101,7 +102,9 @@ class _ReadersSheetState extends ConsumerState<_ReadersSheet> {
                   ),
                   if (data != null)
                     Text(
-                      '${data.readers.length}/${data.recipients}',
+                      context.digits(
+                        '${data.readers.length}/${data.recipients}',
+                      ),
                       key: const ValueKey('group-readers-count'),
                       style: typography.body.copyWith(
                         color: colors.textSecondary,
