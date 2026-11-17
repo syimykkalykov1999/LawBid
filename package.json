@@ -29,6 +29,9 @@
   "overrides": {
     "body-parser": "^2.4.0",
     "multer": "2.5.0",
+    "exceljs": {
+      "unzipper": "^0.12.5"
+    },
     "openapi-typescript": {
       "typescript": "~6.0.3"
     }
