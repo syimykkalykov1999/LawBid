@@ -61,90 +61,94 @@ Future<GroupMessageAction?> showGroupMessageMenu(
               destructive: destructive,
               onTap: () => Navigator.of(sheet).pop(action),
             );
+        // With the reactions on top the rows of my own message are taller
+        // than a sheet may be: they scroll (the 1:1 menu card does too).
         return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const AppSheetHandle(),
-              if (onReact != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.sm,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const AppSheetHandle(),
+                if (onReact != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.sm,
+                    ),
+                    child: MessageReactionBar(
+                      children: [
+                        for (final e in kQuickReactions)
+                          MessageReactionButton(
+                            key: ValueKey('group-react-$e'),
+                            emoji: e,
+                            selected: e == myReaction,
+                            onTap: () {
+                              Navigator.of(sheet).pop();
+                              onReact(e);
+                            },
+                          ),
+                      ],
+                    ),
                   ),
-                  child: MessageReactionBar(
-                    children: [
-                      for (final e in kQuickReactions)
-                        MessageReactionButton(
-                          key: ValueKey('group-react-$e'),
-                          emoji: e,
-                          selected: e == myReaction,
-                          onTap: () {
-                            Navigator.of(sheet).pop();
-                            onReact(e);
-                          },
-                        ),
-                    ],
+                // The 1:1 menu's «Seen» row (msg-read-at), opening the list.
+                if (canSeeReaders)
+                  row(
+                    GroupMessageAction.readers,
+                    AppIcons.doneAllRounded,
+                    'chat.seen',
                   ),
-                ),
-              // The 1:1 menu's «Seen» row (msg-read-at), opening the list.
-              if (canSeeReaders)
-                row(
-                  GroupMessageAction.readers,
-                  AppIcons.doneAllRounded,
-                  'chat.seen',
-                ),
-              if (canReply)
-                row(
-                  GroupMessageAction.reply,
-                  AppIcons.replyRounded,
-                  'group.conv.reply',
-                ),
-              if (canCopy)
-                row(
-                  GroupMessageAction.copy,
-                  AppIcons.articleOutlined,
-                  'group.conv.copy',
-                ),
-              if (canForward)
-                row(
-                  GroupMessageAction.forward,
-                  AppIcons.forwardRounded,
-                  'chat.act.forward',
-                ),
-              if (canShareLink)
-                row(
-                  GroupMessageAction.shareLink,
-                  AppIcons.linkRounded,
-                  'chat.forward.shareLink',
-                ),
-              if (canEdit)
-                row(
-                  GroupMessageAction.edit,
-                  AppIcons.editOutlined,
-                  'group.conv.edit',
-                ),
-              if (canPin)
-                row(
-                  pinned ? GroupMessageAction.unpin : GroupMessageAction.pin,
-                  AppIcons.pushPinOutlined,
-                  pinned ? 'group.conv.unpin' : 'group.conv.pin',
-                ),
-              if (canSelect)
-                row(
-                  GroupMessageAction.select,
-                  AppIcons.selectChecksRounded,
-                  'chat.act.select',
-                ),
-              if (canDelete)
-                row(
-                  GroupMessageAction.delete,
-                  AppIcons.deleteOutlineRounded,
-                  'group.conv.deleteForAll',
-                  destructive: true,
-                ),
-              const SizedBox(height: AppSpacing.md),
-            ],
+                if (canReply)
+                  row(
+                    GroupMessageAction.reply,
+                    AppIcons.replyRounded,
+                    'group.conv.reply',
+                  ),
+                if (canCopy)
+                  row(
+                    GroupMessageAction.copy,
+                    AppIcons.articleOutlined,
+                    'group.conv.copy',
+                  ),
+                if (canForward)
+                  row(
+                    GroupMessageAction.forward,
+                    AppIcons.forwardRounded,
+                    'chat.act.forward',
+                  ),
+                if (canShareLink)
+                  row(
+                    GroupMessageAction.shareLink,
+                    AppIcons.linkRounded,
+                    'chat.forward.shareLink',
+                  ),
+                if (canEdit)
+                  row(
+                    GroupMessageAction.edit,
+                    AppIcons.editOutlined,
+                    'group.conv.edit',
+                  ),
+                if (canPin)
+                  row(
+                    pinned ? GroupMessageAction.unpin : GroupMessageAction.pin,
+                    AppIcons.pushPinOutlined,
+                    pinned ? 'group.conv.unpin' : 'group.conv.pin',
+                  ),
+                if (canSelect)
+                  row(
+                    GroupMessageAction.select,
+                    AppIcons.selectChecksRounded,
+                    'chat.act.select',
+                  ),
+                if (canDelete)
+                  row(
+                    GroupMessageAction.delete,
+                    AppIcons.deleteOutlineRounded,
+                    'group.conv.deleteForAll',
+                    destructive: true,
+                  ),
+                const SizedBox(height: AppSpacing.md),
+              ],
+            ),
           ),
         );
       },
