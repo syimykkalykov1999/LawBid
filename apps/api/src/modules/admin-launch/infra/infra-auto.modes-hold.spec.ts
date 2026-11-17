@@ -25,6 +25,7 @@ const loud = {
   autoscaleCodeMain: 'a1',
   autoscaleCodeApplied: 'b2',
   maxServers: 16,
+  maxSearchNodes: 10,
 } as unknown as AutoSignals;
 
 /** No signal at all. */
@@ -36,6 +37,7 @@ const calm = {
   searchOnPeople: Number.MAX_SAFE_INTEGER,
   partitionNeedsRunner: false,
   maxServers: 16,
+  maxSearchNodes: 10,
 } as unknown as AutoSignals;
 
 describe('«Вкл» / «Выкл» hold every cloud row against «Авто»', () => {
