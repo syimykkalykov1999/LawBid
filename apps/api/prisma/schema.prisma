@@ -5924,44 +5924,52 @@ model PartnerCommission {
 /// status: new | working | contacted | replied | registered | paid | lost.
 /// source: csv | manual | ny_registry. kind: attorney | client.
 model OutreachLead {
-  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  kind                  String    @default("attorney") @db.VarChar(10)
-  first_name            String?   @db.VarChar(80)
-  last_name             String?   @db.VarChar(80)
-  company               String?   @db.VarChar(160)
-  state_code            String?   @db.VarChar(2)
-  city                  String?   @db.VarChar(80)
-  practice              String?   @db.VarChar(80)
+  id                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind                        String    @default("attorney") @db.VarChar(10)
+  first_name                  String?   @db.VarChar(80)
+  last_name                   String?   @db.VarChar(80)
+  company                     String?   @db.VarChar(160)
+  state_code                  String?   @db.VarChar(2)
+  city                        String?   @db.VarChar(80)
+  practice                    String?   @db.VarChar(80)
   // Digits only (E.164 without "+"); unique when present.
-  phone                 String?   @unique @db.VarChar(20)
+  phone                       String?   @unique @db.VarChar(20)
   // Lower-cased; unique when present.
-  email                 String?   @unique @db.VarChar(254)
-  source                String    @default("manual") @db.VarChar(20)
-  source_ref            String?   @db.VarChar(64)
-  status                String    @default("new") @db.VarChar(16)
-  partner_id            String?   @db.Uuid
-  partner               Partner?  @relation(fields: [partner_id], references: [id], onDelete: SetNull)
-  converted_user_id     String?   @db.Uuid
-  unsubscribe_token     String    @unique @db.VarChar(48)
-  unsubscribed_at       DateTime? @db.Timestamptz
-  last_activity_at      DateTime? @db.Timestamptz
-  next_action_at        DateTime? @db.Timestamptz
-  note                  String?   @db.VarChar(2000)
+  email                       String?   @unique @db.VarChar(254)
+  source                      String    @default("manual") @db.VarChar(20)
+  source_ref                  String?   @db.VarChar(64)
+  status                      String    @default("new") @db.VarChar(16)
+  partner_id                  String?   @db.Uuid
+  partner                     Partner?  @relation(fields: [partner_id], references: [id], onDelete: SetNull)
+  converted_user_id           String?   @db.Uuid
+  // Detective R2B-14 (14.11): legacy random token, kept only until the
+  // row is migrated (null for new leads, whose links are signed HMAC
+  // tokens); the database keeps its sha256 in unsubscribe_token_hash.
+  unsubscribe_token           String?   @unique @db.VarChar(48)
+  /// Unique partial index built online (prisma/concurrent/20261129120100_…).
+  unsubscribe_token_hash      String?   @db.VarChar(64)
+  /// When the raw token was turned into its hash (the raw one is cleared
+  /// after `outreach.raw_unsubscribe_token_keep_days`).
+  unsubscribe_token_hashed_at DateTime? @db.Timestamptz
+  unsubscribed_at             DateTime? @db.Timestamptz
+  last_activity_at            DateTime? @db.Timestamptz
+  next_action_at              DateTime? @db.Timestamptz
+  note                        String?   @db.VarChar(2000)
   // Owner 2026-10-05 (legal): do-not-contact (TCPA / DNC). Reason:
   // manual | not_interested | wrong_number | unsubscribed | suppression |
   // retention. While set, phone and email are hidden and no call/email
   // may be logged or sent.
-  do_not_contact_at     DateTime? @db.Timestamptz
-  do_not_contact_reason String?   @db.VarChar(24)
+  do_not_contact_at           DateTime? @db.Timestamptz
+  do_not_contact_reason       String?   @db.VarChar(24)
   // Where the contact came from and on what basis we may reach out
   // (required for CSV imports and for client leads).
-  source_note           String?   @db.VarChar(300)
+  source_note                 String?   @db.VarChar(300)
   // Cold emails sent to this lead (cap + cooldown in outreach settings).
-  emails_sent           Int       @default(0) @db.Integer
-  last_email_at         DateTime? @db.Timestamptz
-  created_by            String    @db.Uuid
-  created_at            DateTime  @default(now()) @db.Timestamptz
-  updated_at            DateTime  @updatedAt @db.Timestamptz
+  emails_sent                 Int       @default(0) @db.Integer
+  last_email_at               DateTime? @db.Timestamptz
+  created_by                  String    @db.Uuid
+  created_at                  DateTime  @default(now()) @db.Timestamptz
+  updated_at                  DateTime  @updatedAt @db.Timestamptz
 
   activities OutreachActivity[]
 

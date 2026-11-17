@@ -1341,9 +1341,16 @@ describe('rows 8 / 85 / 9 (prod 14.11): whole-stack plans and the search domain'
   it('row 9: the domain «Авто» switched on goes once search is drained and people are below the off line', () => {
     const ids = (w: AutoWant[]) =>
       w.map((x) => `${x.id}:${x.to}`).filter((x) => x.includes('opensearch'));
-    // prod 14.11: domain + 2 + 4 nodes on, all by «Авто»
+    // prod 14.11: domain + 2 + 4 nodes on, all by «Авто» (15.11: the
+    // steps past four exist now and stay off here)
     const live = (id: string) =>
-      id.startsWith('aws.opensearch') ? ('on' as const) : ('off' as const);
+      [
+        'aws.opensearch',
+        'aws.opensearch_nodes_2',
+        'aws.opensearch_nodes_4',
+      ].includes(id)
+        ? ('on' as const)
+        : ('off' as const);
     const mine = new Set([
       'aws.opensearch',
       'aws.opensearch_nodes_2',

@@ -45,6 +45,14 @@ resource "aws_iam_role_policy" "events_stream_put" {
   })
 }
 
+# Row 204 (task_role_split): api-admin and the worker publish events too.
+resource "aws_iam_role_policy" "events_stream_put_split" {
+  for_each = var.growth.events_stream_enabled && var.task_role_split ? toset(["admin", "worker"]) : toset([])
+  name     = "${local.name}-events-stream-put"
+  role     = each.key == "admin" ? module.ecs.task_admin_role_name : module.ecs.task_worker_role_name
+  policy   = aws_iam_role_policy.events_stream_put[0].policy
+}
+
 output "events_stream_name" {
   value = var.growth.events_stream_enabled ? aws_kinesis_stream.events[0].name : null
 }

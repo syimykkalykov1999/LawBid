@@ -20,6 +20,7 @@ import {
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../redis/redis.constants';
 import { AppSettingsService } from '../common/app-settings/app-settings.service';
+import { infraWritesOff } from '../common/ops/infra-writes';
 import { replicaLive } from './replica-live';
 import { PrismaReadService } from './prisma-read.service';
 
@@ -155,6 +156,8 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
     // row aws.rds_replicas) through Terraform, on by CPU and off again after
     // the cool-down; the two never act together.
     if (!this.available) return 'none';
+    // Row 204: the public api's role cannot create the replica (task_role_split).
+    if (infraWritesOff()) return 'none';
     const mode = (
       (await this.settings?.string('db.replica_provision').catch(() => null)) ??
       'auto'

@@ -31,6 +31,8 @@ export const CONFIDENTIAL_PURPOSES: ReadonlySet<string> = new Set([
   'case_attachment',
   'task_attachment',
   'chat_attachment',
+  // Audit 17.11 (problem 16): voice notes of 1:1 chats and groups.
+  'chat_voice',
   'support_attachment',
 ]);
 

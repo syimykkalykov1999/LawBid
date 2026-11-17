@@ -6,6 +6,7 @@ import type Redis from 'ioredis';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { BidConfirmReminderJob } from '../src/jobs/handlers/case-lifecycle.jobs';
+import { BidsService } from '../src/modules/bids/bids.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
@@ -372,5 +373,70 @@ describe('Bid confirmation after a case change (e2e)', () => {
     expect(sent).toBe(1);
     const bid = await getBid(s.bidId, s.attorney.auth);
     expect(bid.data.confirmationRequiredAt).not.toBeNull();
+  });
+
+  it('verify 17.11: «Поменять бид» without If-Match does not overwrite a counter that landed meanwhile', async () => {
+    await setSwitch(SWITCH, true);
+    const s = await setup();
+    await edit(s.caseId, s.client.auth);
+    // The client's counter lands between the attorney's read and the lock.
+    type Loader = {
+      loadForActor: (...a: unknown[]) => Promise<{ id: string }>;
+    };
+    const svc: Loader = app.get<BidsService>(BidsService) as unknown as Loader;
+    const original = svc.loadForActor.bind(svc);
+    const spy = jest
+      .spyOn(svc, 'loadForActor')
+      .mockImplementationOnce(async (...a: unknown[]) => {
+        const stale = await original(...a);
+        await prisma.bid.update({
+          where: { id: stale.id },
+          data: { version: { increment: 1 }, amount_cents: 41_000 },
+        });
+        return stale;
+      });
+    const res = await api()
+      .post(`/api/v1/bids/${s.bidId}/change`)
+      .set(s.attorney.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({ feeType: 'hourly', amountCents: 25_000 });
+    spy.mockRestore();
+    expect(res.status).toBe(409);
+    const row = await prisma.bid.findUniqueOrThrow({ where: { id: s.bidId } });
+    expect(row.amount_cents).toBe(41_000);
+  });
+
+  it('verify 17.11: two overlapping reminder runs send one reminder', async () => {
+    await setSwitch(SWITCH, true);
+    const s = await setup();
+    await edit(s.caseId, s.client.auth);
+    await prisma.bid.update({
+      where: { id: s.bidId },
+      data: {
+        confirmation_required_at: new Date(Date.now() - 30 * 86_400_000),
+      },
+    });
+    // The second run read its page before the first one marked the bid.
+    const row = await prisma.bid.findUniqueOrThrow({
+      where: { id: s.bidId },
+      select: {
+        id: true,
+        case_id: true,
+        attorney_id: true,
+        confirmation_required_at: true,
+      },
+    });
+    const job = app.get(BidConfirmReminderJob);
+    await job.run();
+    const spy = jest
+      .spyOn(prisma.bid, 'findMany')
+      .mockResolvedValueOnce([row] as never);
+    await job.run();
+    spy.mockRestore();
+    const sent = await prisma.notification.findMany({
+      where: { user_id: s.attorney.id, type: 'bid_confirm_reminder' },
+      select: { aggregate_count: true },
+    });
+    expect(sent.map((n) => n.aggregate_count)).toEqual([1]);
   });
 });

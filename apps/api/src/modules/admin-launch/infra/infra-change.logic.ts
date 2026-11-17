@@ -212,13 +212,20 @@ export type CreateRefusal =
   | 'busy'
   | 'daily_cap'
   | 'not_configured'
-  | 'server_has_data';
+  | 'server_has_data'
+  | 'no_step_back';
 
 /**
  * Whether a new request may be created. [current] is the live position
  * (null = not known), [activeCount] requests are in progress, [last24h]
  * were made in the last 24 hours.
  */
+/** 16.11: rows whose Выкл is never applied (a version step back). */
+export const ONE_WAY_SWITCHES: readonly string[] = [
+  'aws.opensearch_2_19',
+  'aws.opensearch_3',
+];
+
 export function createRefusal(i: {
   entry: CostEntry | undefined;
   sw: InfraSwitch | undefined;
@@ -234,6 +241,12 @@ export function createRefusal(i: {
     return 'bad_state';
   }
   if (i.current === i.to) return 'same_state';
+  // 16.11: the search engine version only goes up. Выкл would ask AWS for a
+  // step back (the provider replaces the domain, FORBIDDEN_REPLACE) or, with
+  // no domain, create a new one on an old version.
+  if (i.to === 'off' && ONE_WAY_SWITCHES.includes(i.entry.id)) {
+    return 'no_step_back';
+  }
   // OFF → ON needs a price in the registry (the plan shows what it costs).
   // A row that is free or saves money when on (Graviton / Spot) has no
   // "if on" number; its price text and source are still required.
@@ -279,6 +292,8 @@ export function isPendingRequest(r: { itemId: string }): boolean {
 }
 
 export const REFUSAL_TEXT: Record<CreateRefusal, string> = {
+  no_step_back:
+    'Версию поискового движка можно только повышать: AWS не умеет понижать, а новый движок сразу создаётся на OpenSearch 3.7.',
   unknown_item: 'Этот пункт нельзя переключать из админки.',
   bad_state: 'Такого положения у этого пункта нет.',
   same_state: 'Пункт уже в этом положении.',

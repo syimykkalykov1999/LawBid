@@ -66,6 +66,26 @@ describe('PricingService', () => {
     await expect(pricing.priceId('monthly')).resolves.toBe('price_fake_399');
   });
 
+  // CONTENT_MEDIA_VERIFY 17.11 №3 (probe P17): `STRIPE_PRICE_ID=`
+  // in .env reaches ConfigService.get as "" — it must count as unset, not as a price.
+  it('an empty or blank billing env counts as unset (built-in price, not 503)', async () => {
+    const { pricing } = make([], {
+      STRIPE_PRICE_ID: '',
+      STRIPE_PRICE_SEAT_ID: '   ',
+      STRIPE_PRICE_YEARLY_ID: '',
+    });
+    await expect(pricing.priceId('monthly')).resolves.toBe('price_fake_399');
+    await expect(pricing.priceId('seat')).resolves.toBe('price_fake_seat_100');
+    await expect(pricing.priceId('yearly')).resolves.toBe(
+      'price_fake_yearly_9590',
+    );
+  });
+
+  it('a set billing env still wins (trimmed)', async () => {
+    const { pricing } = make([], { STRIPE_PRICE_ID: ' price_env_1 ' });
+    await expect(pricing.priceId('monthly')).resolves.toBe('price_env_1');
+  });
+
   it('uses the admin price and creates its Stripe price once', async () => {
     const { pricing, provider, rows } = make([row({ amount_cents: 19_900 })]);
     expect((await pricing.amounts()).monthly).toBe(19_900);

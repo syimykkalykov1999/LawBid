@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:lawbid/core/media/video_compression.dart';
-import 'package:video_compress/video_compress.dart';
+import 'package:v_video_compressor/v_video_compressor.dart';
 
 /// Owner 2026-10-05: reels are re-encoded on the phone up to Full HD; the
 /// admin sets the height and frame rate.
@@ -80,10 +80,28 @@ void main() {
   });
 
   test('the plugin preset follows the target height', () {
-    expect(videoQualityFor(1080), VideoQuality.Res1920x1080Quality);
-    expect(videoQualityFor(2160), VideoQuality.Res1920x1080Quality);
-    expect(videoQualityFor(720), VideoQuality.Res1280x720Quality);
-    expect(videoQualityFor(540), VideoQuality.Res960x540Quality);
+    expect(videoQualityFor(1080), VVideoCompressQuality.high);
+    expect(videoQualityFor(2160), VVideoCompressQuality.high);
+    expect(videoQualityFor(720), VVideoCompressQuality.medium);
+    // No 540p preset in the plugin: the next lower one, never higher.
+    expect(videoQualityFor(540), VVideoCompressQuality.low);
+  });
+
+  // CMV 17.11 №5: the maintained fallback plugin gets the admin's numbers.
+  test('the fallback plugin gets the admin bitrate, frame rate, H.264 + AAC',
+      () {
+    final c = pluginConfigFor((maxHeight: 720, frameRate: 24), 2000);
+    expect(c.quality, VVideoCompressQuality.medium);
+    expect(c.deleteOriginal, isFalse);
+    expect(c.fallbackToOriginalIfNotSmaller, isTrue);
+    expect(c.useHardwareAcceleration, isTrue);
+    expect(c.useFastStart, isTrue);
+    expect(c.includeMetadata, isFalse); // no location in the upload
+    expect(c.advanced?.videoBitrate, 2000 * 1000);
+    expect(c.advanced?.frameRate, 24);
+    expect(c.advanced?.videoCodec, VVideoCodec.h264);
+    expect(c.advanced?.audioCodec, VAudioCodec.aac);
+    expect(c.isValid(), isTrue);
   });
 
   // Owner rows 101/102: the numbers that were built into the app are the

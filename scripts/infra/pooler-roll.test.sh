@@ -128,4 +128,57 @@ run drain "$T/pooler.json" || die "drain with a deleted api-admin failed: $(cat 
 ! grep -q '^update api-admin' "$T/calls.log" || die "a deleted api-admin was updated"
 ok "drain ignores a deleted api-admin"
 
+# Row 204 (task_role_split): api-admin on its own family lawbid-prod-api-admin
+# (own task role). own_admin <env of api-admin:1> <env of api-admin:2 (newest)>
+own_admin() {
+  jq --arg A "$A" --argjson m1 "$(td lawbid-prod-api-admin api "$1" | jq '.taskRoleArn = "role/lawbid-prod-ecs-task-admin"')" \
+    --argjson m2 "$(td lawbid-prod-api-admin api "$2" | jq '.taskRoleArn = "role/lawbid-prod-ecs-task-admin" | .containerDefinitions[0].environment += [{name:"LATEST",value:"1"}]')" \
+    '.tds["\($A)/lawbid-prod-api-admin:1"] = $m1 | .tds["\($A)/lawbid-prod-api-admin:2"] = $m2
+     | .svcs["api-admin"].td = "\($A)/lawbid-prod-api-admin:1"' "$FAKE_AWS_STATE" > "$T/s" && mv "$T/s" "$FAKE_AWS_STATE"
+}
+admin_td() { jq -r '.svcs["api-admin"].td' "$FAKE_AWS_STATE"; }
+admin_role() { jq -r '.tds[.svcs["api-admin"].td].taskRoleArn' "$FAKE_AWS_STATE"; }
+
+# 11. drain: api-admin stays on its own family (own role), off the pooler.
+state "$POOLER" "$POOLER" "$POOLER" "$POOLER" 2
+own_admin "$POOLER" "$POOLER"
+echo '{"off":true,"on":false,"env":{"api":{"DB_POOL_SIZE":"5"},"worker":{"DB_POOL_SIZE":"5"}}}' > "$T/pooler.json"
+run drain "$T/pooler.json" || die "drain with an own api-admin family failed: $(cat "$T/out.log")"
+case "$(admin_td)" in */lawbid-prod-api-admin:3) ;; *) die "api-admin left its own family: $(admin_td)" ;; esac
+[ "$(admin_role)" = role/lawbid-prod-ecs-task-admin ] || die "api-admin lost its own task role"
+E=$(running_env api-admin)
+! grep -q '^DB_POOLER_' <<< "$E" || die "api-admin still has DB_POOLER_*"
+grep -qx 'DB_POOL_SIZE=5' <<< "$E" || die "api-admin pool size is not the planned 5"
+! grep -q '^LATEST=' <<< "$E" || die "api-admin was copied from the newest revision, not the running one"
+ok "drain keeps an own-family api-admin on its family and role"
+
+# 12. align: an own-family api-admin is compared with ITS family's newest.
+state "$DIRECT" "$POOLER" "$DIRECT" "$POOLER" 2
+own_admin "$DIRECT" "$POOLER"
+run align || die "align with an own api-admin family failed: $(cat "$T/out.log")"
+case "$(admin_td)" in */lawbid-prod-api-admin:3) ;; *) die "api-admin not rolled within its family: $(admin_td)" ;; esac
+grep -qx 'LATEST=1' <<< "$(running_env api-admin)" || die "api-admin not copied from its family's newest revision"
+grep -qx 'DB_POOLER_HOST=pgbouncer.lawbid-prod.internal' <<< "$(running_env api-admin)" || die "api-admin not aligned onto the pooler"
+[ "$(admin_role)" = role/lawbid-prod-ecs-task-admin ] || die "api-admin lost its own task role"
+ok "align rolls an own-family api-admin onto its family's newest revision"
+
+# 13. A normal deploy (roll-services.sh api): api-admin gets a new revision of
+#     its own family with api's new image.
+state "$DIRECT" "$DIRECT" "$DIRECT" "$DIRECT" 2
+own_admin "$DIRECT" "$DIRECT"
+(cd "$T" && ECR_REGISTRY=123.dkr.ecr.us-east-1.amazonaws.com bash "$ROOT/scripts/deploy/roll-services.sh" lawbid-prod newtag api) > "$T/out.log" 2>&1 \
+  || die "deploy roll failed: $(cat "$T/out.log")"
+case "$(admin_td)" in */lawbid-prod-api-admin:3) ;; *) die "deploy put api-admin on $(admin_td)" ;; esac
+[ "$(jq -r '.tds[.svcs["api-admin"].td].containerDefinitions[0].image' "$FAKE_AWS_STATE")" = 123.dkr.ecr.us-east-1.amazonaws.com/lawbid-api:newtag ] || die "api-admin did not get api's new image"
+[ "$(admin_role)" = role/lawbid-prod-ecs-task-admin ] || die "deploy dropped api-admin's own task role"
+grep -qx 'APP_VERSION=newtag' <<< "$(running_env api-admin)" || die "api-admin APP_VERSION not newtag"
+ok "deploy gives an own-family api-admin api's image and keeps its role"
+
+# 14. Before the split (api-admin on api's family) a deploy shares api's revision.
+state "$DIRECT" "$DIRECT" "$DIRECT" "$DIRECT" 2
+(cd "$T" && ECR_REGISTRY=123.dkr.ecr.us-east-1.amazonaws.com bash "$ROOT/scripts/deploy/roll-services.sh" lawbid-prod newtag api) > "$T/out.log" 2>&1 \
+  || die "deploy roll (shared) failed: $(cat "$T/out.log")"
+[ "$(jq -r '.svcs.api.td' "$FAKE_AWS_STATE")" = "$(admin_td)" ] || die "shared api-admin did not follow api's revision"
+ok "deploy before the split keeps api-admin on api's revision"
+
 echo "pooler-roll: $PASS passed"
