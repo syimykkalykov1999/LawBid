@@ -17,7 +17,8 @@ function setup(opts: { muted?: boolean; quiet?: boolean } = {}) {
       reads.push(name);
       return Promise.resolve(value);
     };
-  // 00:00-23:59 UTC every day: "now" is always inside.
+  // 00:00-23:59 UTC every day; the quiet cases pin «now» to 12:00 UTC
+  // (a real clock at 23:59:xx UTC is the one minute outside, 16.11 CI).
   const quiet = opts.quiet
     ? {
         start_time: new Date('1970-01-01T00:00:00Z'),
@@ -121,7 +122,17 @@ const job: MessageJobData = {
   messageId: 'm1',
 };
 
+/** «Now» inside the quiet window, whatever the real clock says. */
+function atNoonUtc() {
+  jest.useFakeTimers({
+    now: new Date('2026-10-20T12:00:00Z'),
+    doNotFake: ['nextTick', 'setImmediate', 'queueMicrotask'],
+  });
+}
+
 describe('PushDispatcher 1:1 message reads', () => {
+  afterEach(() => jest.useRealTimers());
+
   it('sends without reading the settings or quiet-hours tables', async () => {
     const { d, sent, reads } = setup();
     expect(await d.dispatch(job, 'j')).toBe('sent');
@@ -138,6 +149,7 @@ describe('PushDispatcher 1:1 message reads', () => {
   });
 
   it('quiet hours that came with the user hold the push back', async () => {
+    atNoonUtc();
     const { d, sent, deferred, reads } = setup({ quiet: true });
     expect(await d.dispatch(job, 'j')).toBe('deferred');
     expect(sent).toHaveLength(0);
@@ -146,6 +158,7 @@ describe('PushDispatcher 1:1 message reads', () => {
   });
 
   it('a group push takes the quiet hours from the user read too', async () => {
+    atNoonUtc();
     const { d, sent, deferred, reads } = setup({ quiet: true });
     expect(await d.dispatch({ ...job, groupId: 'g1' }, 'j')).toBe('deferred');
     expect(sent).toHaveLength(0);
