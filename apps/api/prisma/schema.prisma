@@ -1340,6 +1340,9 @@ model FeatureFlag {
   key             String   @id
   enabled         Boolean
   rollout_percent Int      @default(100)
+  /// Bucketing hash of the partial rollout: 1 = FNV-1a (rows from before
+  /// 2026-11-29), 2 = GrowthBook v2 (new rows). See experiment-math.ts.
+  hash_version    Int      @default(2) @db.SmallInt
   description     String?
   updated_by      String?  @db.Uuid
   updated_by_user User?    @relation(fields: [updated_by], references: [id], onDelete: Restrict)
@@ -8794,6 +8797,9 @@ model Experiment {
   variants          Json
   /// Share of units that enter the experiment at all (0-100).
   traffic_percent   Int       @default(0)
+  /// Bucketing hash: 1 = FNV-1a (experiments from before 2026-11-29),
+  /// 2 = GrowthBook v2 (new ones). Fixed once the test has started.
+  hash_version      Int       @default(2) @db.SmallInt
   /// { reportsRelIncreasePct, errorsRelIncreasePct, minImpressions }
   guardrails        Json
   start_at          DateTime? @db.Timestamptz

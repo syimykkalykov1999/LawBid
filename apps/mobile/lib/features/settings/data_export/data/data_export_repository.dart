@@ -35,7 +35,8 @@ class DataExport {
   final String id;
   final DataExportStatus status;
 
-  /// Signed download link while [status] is `ready` (24 hours).
+  /// Signed download link while [status] is `ready` (24 hours). Null on a
+  /// ready export read without a fresh reauth (R2B-12).
   final String? url;
   final DateTime? expiresAt;
   final DateTime createdAt;
@@ -45,7 +46,12 @@ class DataExport {
 abstract interface class DataExportRepository {
   /// Queues the ZIP; needs a fresh reauth token (`X-Reauth-Token`).
   Future<DataExport> request(String reauthToken);
-  Future<DataExport> status(String exportId);
+
+  /// Detective R2B-12 (14.11): with [reauthToken] a ready export comes with
+  /// its link; without one the server may leave [DataExport.url] null
+  /// (admin `security.export_reauth_min_app_version`) — the status is still
+  /// right, and the app asks for the reauth before the download.
+  Future<DataExport> status(String exportId, {String? reauthToken});
 }
 
 class ApiDataExportRepository implements DataExportRepository {
@@ -70,7 +76,14 @@ class ApiDataExportRepository implements DataExportRepository {
       );
 
   @override
-  Future<DataExport> status(String exportId) async => _map(
-        (await guardApiCall(() => _api.getDataExport(exportId: exportId))).data,
+  Future<DataExport> status(String exportId, {String? reauthToken}) async =>
+      _map(
+        (await guardApiCall(
+          () => _api.getDataExport(
+            exportId: exportId,
+            xReauthToken: reauthToken,
+          ),
+        ))
+            .data,
       );
 }
