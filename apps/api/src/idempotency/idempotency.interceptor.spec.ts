@@ -3,7 +3,9 @@
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
 import { lastValueFrom, Observable, throwError, defer } from 'rxjs';
 import { FakeRedis } from '../../test/support/fake-redis';
+import { UseInterceptors } from '@nestjs/common';
 import {
+  GlobalIdempotencyInterceptor,
   IDEMPOTENCY_PENDING_TTL_SECONDS,
   IDEMPOTENCY_TTL_SECONDS,
   IdempotencyInterceptor,
@@ -30,16 +32,20 @@ function context(
   key: string | undefined,
   body: unknown,
   res = { statusCode: 201, status: jest.fn(), setHeader: jest.fn() },
+  opts: { userId?: string; handler?: object; url?: string } = {},
 ) {
   const req = {
+    userId: opts.userId,
     method: 'POST',
-    originalUrl: '/api/v1/things',
+    originalUrl: opts.url ?? '/api/v1/things',
     body,
     header: (name: string) =>
       name.toLowerCase() === 'idempotency-key' ? key : undefined,
   };
   const ctx = {
     getType: () => 'http',
+    getHandler: () => opts.handler ?? function plain() {},
+    getClass: () => class Plain {},
     switchToHttp: () => ({ getRequest: () => req, getResponse: () => res }),
   } as unknown as ExecutionContext;
   return { ctx, res };
@@ -199,5 +205,91 @@ describe('IdempotencyInterceptor', () => {
     await expect(
       lastValueFrom(interceptor.intercept(context('k5', {}).ctx, next)),
     ).resolves.toEqual({ sent: true });
+  });
+
+  describe('the global copy (verify 17.11)', () => {
+    const res = () => ({
+      statusCode: 201,
+      status: jest.fn(),
+      setHeader: jest.fn(),
+    });
+    const counting = () => {
+      let n = 0;
+      return handler(() => defer(() => Promise.resolve({ n: ++n })));
+    };
+
+    it('an anonymous request (a webhook) passes untouched, even with a key', async () => {
+      const g = new GlobalIdempotencyInterceptor(new TestRedis() as never);
+      const next = counting();
+      for (let i = 0; i < 2; i += 1) {
+        await lastValueFrom(g.intercept(context('wh-1', { e: 1 }).ctx, next));
+      }
+      expect(next.handle).toHaveBeenCalledTimes(2);
+    });
+
+    it("two people with the same key never get each other's answer", async () => {
+      const g = new GlobalIdempotencyInterceptor(new TestRedis() as never);
+      const next = counting();
+      const a = await lastValueFrom(
+        g.intercept(
+          context('same', { x: 1 }, res(), { userId: 'u-a' }).ctx,
+          next,
+        ),
+      );
+      const b = await lastValueFrom(
+        g.intercept(
+          context('same', { x: 1 }, res(), { userId: 'u-b' }).ctx,
+          next,
+        ),
+      );
+      const aAgain = await lastValueFrom(
+        g.intercept(
+          context('same', { x: 1 }, res(), { userId: 'u-a' }).ctx,
+          next,
+        ),
+      );
+      expect([a, b, aAgain]).toEqual([{ n: 1 }, { n: 2 }, { n: 1 }]);
+      expect(next.handle).toHaveBeenCalledTimes(2);
+    });
+
+    it('a signed-in retry replays; a new body under the key runs as new', async () => {
+      const g = new GlobalIdempotencyInterceptor(new TestRedis() as never);
+      const next = counting();
+      const run = (body: unknown) =>
+        lastValueFrom(
+          g.intercept(
+            context('job-1', body, res(), { userId: 'u-a' }).ctx,
+            next,
+          ),
+        );
+      expect(await run({ files: ['f1'] })).toEqual({ n: 1 });
+      expect(await run({ files: ['f1'] })).toEqual({ n: 1 });
+      expect(await run({ files: ['f2'] })).toEqual({ n: 2 });
+    });
+
+    it('steps aside for a route that names the interceptor (it stays strict)', async () => {
+      const redis = new TestRedis();
+      const g = new GlobalIdempotencyInterceptor(redis as never);
+      class Ctl {
+        @UseInterceptors(IdempotencyInterceptor)
+        create() {}
+      }
+      const routeHandler = Object.getOwnPropertyDescriptor(
+        Ctl.prototype,
+        'create',
+      )!.value as object;
+      const next = counting();
+      await lastValueFrom(
+        g.intercept(
+          context('k-route', { a: 1 }, res(), {
+            userId: 'u-a',
+            handler: routeHandler,
+          }).ctx,
+          next,
+        ),
+      );
+      expect(next.handle).toHaveBeenCalledTimes(1);
+      expect(redis.sets).toHaveLength(0);
+    });
   });
 });
