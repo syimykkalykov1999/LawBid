@@ -363,7 +363,7 @@ export class GroupsController {
     if (q.afterId) {
       return this.groups.messagesAfter(user, p.id, q.afterId, q.topicId);
     }
-    return this.groups.messages(user, p.id, q.cursor, q.limit, q.topicId);
+    return this.groups.messages(user, p.id, q.cursor, q.limit, q.topicId, q.q);
   }
 
   @Post(':id/messages')
