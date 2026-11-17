@@ -119,22 +119,48 @@ describe('GroupFanoutQueue', () => {
     expect(inline).toHaveBeenCalledTimes(1);
   });
 
-  function queued() {
+  function queued(partitions?: number) {
     const q = new GroupFanoutQueue(
       { get: () => undefined } as unknown as ConfigService,
       logger,
+      partitions === undefined
+        ? undefined
+        : ({ number: () => Promise.resolve(partitions) } as never),
     );
     const adds: { name: string; data: unknown; opts: { jobId: string } }[] = [];
-    const queues = Array.from({ length: GROUP_FANOUT_PARTITIONS }, (_, i) => ({
+    const n = Math.max(partitions ?? 0, GROUP_FANOUT_PARTITIONS);
+    const queues = Array.from({ length: n }, (_, i) => ({
       name: fanoutQueueName(i),
       add: jest.fn((name: string, data: unknown, opts: { jobId: string }) => {
         adds.push({ name, data, opts });
         return Promise.resolve();
       }),
     }));
-    (q as unknown as { queues: unknown }).queues = queues;
+    (q as unknown as { queues: unknown }).queues = new Map(
+      queues.map((x, i) => [i, x]),
+    );
+    (q as unknown as { url: string }).url = 'redis://x';
     return { q, queues, adds };
   }
+
+  // Audit 17.11 (problem 9): the number of partitions is the admin setting
+  // groups.fanout_partitions (was a fixed 8 for the whole cluster).
+  it('the partition follows groups.fanout_partitions', async () => {
+    expect(GROUP_FANOUT_PARTITIONS).toBeGreaterThanOrEqual(64);
+    const { q, queues } = queued(128);
+    const id = '00000000-0000-4000-8000-000000000077';
+    await q.enqueue(
+      { kind: 'message', groupId: id, messageId: 'm1' },
+      'fo-m1',
+      jest.fn(),
+    );
+    expect(queues[fanoutPartition(id, 128)].add).toHaveBeenCalledTimes(1);
+    const seen = new Set<number>();
+    for (let i = 0; i < 2000; i++) {
+      seen.add(fanoutPartition(`g-${i}`, 128));
+    }
+    expect(seen.size).toBe(128);
+  });
 
   it("queues on the group's partition with the job id per message", async () => {
     const { q, queues, adds } = queued();

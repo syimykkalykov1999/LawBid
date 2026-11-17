@@ -4,6 +4,7 @@ import { Emitter } from '@socket.io/redis-emitter';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { EVENT_LOG_MAX_FANOUT, RealtimeEventLog } from './realtime-event-log';
+import { pipeline } from '../../redis/redis-cluster-safe';
 
 /** docs/05 §8.5 namespace and rooms. */
 export const REALTIME_NAMESPACE = '/realtime';
@@ -231,6 +232,64 @@ export class RealtimePublisher {
         this.send(userIds, event, withSeq);
       })
       .catch(() => this.send(userIds, event, data));
+  }
+
+  /**
+   * Audit 17.11 (problem 9): [event] with a payload of its own for each
+   * person (a badge count), as ONE cursor, ONE log pipeline and ONE publish
+   * pipeline — not three round trips per person (a 5000-member group was
+   * ~15 000). Same delivery as [toUsers] for each person.
+   */
+  toEachUser(
+    event: RealtimeEvent,
+    items: readonly { userId: string; data: Record<string, unknown> }[],
+  ): void {
+    if (items.length === 0 || this.redis.status !== 'ready') return;
+    const out = (seq?: number) =>
+      seq === undefined
+        ? items
+        : items.map((i) => ({ ...i, data: { ...i.data, seq } }));
+    if (!this.eventLog.available) {
+      this.sendEach(event, out());
+      return;
+    }
+    void this.eventLog
+      .nextSeq()
+      .then(async (seq) => {
+        const withSeq = out(seq);
+        // Log first, as toUsers.
+        await this.eventLog.appendEach(withSeq, seq, event);
+        this.sendEach(event, withSeq);
+      })
+      .catch(() => this.sendEach(event, out()));
+  }
+
+  private sendEach(
+    event: RealtimeEvent,
+    items: readonly { userId: string; data: unknown }[],
+  ): void {
+    if (this.redis.status !== 'ready') return;
+    try {
+      if (this.sharded) {
+        const pipe = pipeline(this.redis);
+        for (const { userId, data } of items) {
+          const { channel, message } = shardedBroadcast(
+            REALTIME_NAMESPACE,
+            [userRoom(userId)],
+            event,
+            data,
+          );
+          pipe.spublish(channel, message);
+        }
+        void pipe.exec().catch(() => undefined);
+        return;
+      }
+      for (const { userId, data } of items) {
+        this.emitter.to(userRoom(userId)).emit(event, data);
+      }
+    } catch {
+      // best-effort (see class doc)
+    }
   }
 
   private send(userIds: string[], event: RealtimeEvent, data: unknown): void {

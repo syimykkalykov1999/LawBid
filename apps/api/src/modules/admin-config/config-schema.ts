@@ -504,6 +504,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 2,
     max: 5000,
   };
+  out['groups.fanout_partitions'] = {
+    ...out['groups.fanout_partitions'],
+    description:
+      'Groups whose new messages are delivered at the same moment across all servers (default 64, was a fixed 8). Each is one queue: a group keeps its order inside it; every worker runs one consumer per queue. A larger number takes effect within a minute.',
+    min: 1,
+  };
   out['channels.max_owned'] = {
     ...out['channels.max_owned'],
     description: 'Most channels one person may own (0 = no cap).',

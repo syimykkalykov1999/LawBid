@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   Module,
+  Optional,
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
@@ -11,11 +12,16 @@ import { Worker, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { demoContext } from '../../common/demo/demo-context';
 import { shardContext } from '../../sharding/shard-context';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
-  GROUP_FANOUT_PARTITIONS,
+  fanoutPartitions,
   fanoutQueueName,
   type GroupFanoutJob,
 } from './group-fanout.queue';
+
+/** Audit 17.11 (problem 9): how often a running worker looks at
+ * `groups.fanout_partitions` (a larger number starts more partitions). */
+const PARTITIONS_RECHECK_MS = 60_000;
 import { GroupsModule } from './groups.module';
 import { GroupsService } from './groups.service';
 import { bullOptions } from '../../redis/redis-connection';
@@ -39,12 +45,14 @@ export class GroupFanoutWorker
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
   private workers: Worker<GroupFanoutJob>[] = [];
+  private timer?: NodeJS.Timeout;
 
   constructor(
     @Inject(GROUP_FANOUT_OPTIONS) private readonly options: GroupFanoutOptions,
     private readonly config: ConfigService,
     private readonly groups: GroupsService,
     private readonly logger: PinoLogger,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
     this.logger.setContext(GroupFanoutWorker.name);
   }
@@ -59,7 +67,20 @@ export class GroupFanoutWorker
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
     if (!url || !this.enabled) return;
-    for (let i = 0; i < GROUP_FANOUT_PARTITIONS; i++) {
+    // Audit 17.11 (problem 9): one consumer per partition in every process;
+    // the number follows the admin setting (more partitions = more groups
+    // delivered at once). A smaller number leaves the extra consumers
+    // draining their queues until the next restart.
+    void this.grow(url);
+    this.timer = setInterval(() => void this.grow(url), PARTITIONS_RECHECK_MS);
+    this.timer.unref?.();
+  }
+
+  /** Starts the consumers of partitions not running yet.
+   * @internal exposed for the spec */
+  async grow(url: string): Promise<void> {
+    const want = await fanoutPartitions(this.settings);
+    for (let i = this.workers.length; i < want; i++) {
       const worker = new Worker<GroupFanoutJob>(
         fanoutQueueName(i),
         outageProof((job: Job<GroupFanoutJob>) => this.process(job.data)),
@@ -92,6 +113,7 @@ export class GroupFanoutWorker
   }
 
   async onApplicationShutdown(): Promise<void> {
+    if (this.timer) clearInterval(this.timer);
     await Promise.all(this.workers.map((w) => closeWorker(w)));
   }
 }

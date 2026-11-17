@@ -80,21 +80,30 @@ function setup(opts: { mutedIds?: string[]; noHash?: string[] } = {}) {
     },
   };
   const toUsers = jest.fn();
+  // Audit 17.11 (problem 9): one batched publish; each person still gets
+  // the same badge:update (recorded through toUsers for the checks below).
+  const toEachUser = jest.fn(
+    (event: string, items: { userId: string; data: unknown }[]) => {
+      for (const i of items) toUsers([i.userId], event, i.data);
+    },
+  );
   const badges = new BadgesService(
     prisma as unknown as PrismaService,
     redis as unknown as Redis,
-    { toUsers } as unknown as RealtimePublisher,
+    { toUsers, toEachUser } as unknown as RealtimePublisher,
   );
   const get = jest
     .spyOn(badges, 'get')
     .mockResolvedValue({ chatsUnread: 0, notificationsUnread: 0, total: 0 });
-  return { badges, prisma, toUsers, hashes, pipelines, get };
+  return { badges, prisma, toUsers, toEachUser, hashes, pipelines, get };
 }
 
 describe('BadgesService.messagesArrived', () => {
   it('bumps each member once, one badge:update each, batched queries', async () => {
-    const { badges, prisma, toUsers, hashes, pipelines } = setup();
+    const { badges, prisma, toUsers, toEachUser, hashes, pipelines } = setup();
     await badges.messagesArrived(['a', 'b', 'c', 'a'], 'm1');
+    // Audit 17.11 (problem 9): one batched publish for the whole group.
+    expect(toEachUser).toHaveBeenCalledTimes(1);
     expect(hashes.get('badge:a')?.chats).toBe('2');
     expect(hashes.get('badge:c')?.chats).toBe('2');
     expect(prisma.notificationSetting.findMany).toHaveBeenCalledTimes(1);
