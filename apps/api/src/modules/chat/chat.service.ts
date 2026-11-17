@@ -50,6 +50,7 @@ import {
   nameStrictSql,
   typedWords,
 } from '../../common/search/name-match.sql';
+import { SYNC_TOO_OLD_ERROR } from '../../common/sync/sync.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BoostActions } from '../promotions/boost-actions.service';
 import { randomUUID } from 'node:crypto';
@@ -781,27 +782,64 @@ export class ChatService {
         select: { id: true, created_at: true },
       });
       if (!anchor) throw notFound();
-      const rows = await this.prisma.message.findMany({
-        where: {
-          conversation_id: id,
-          deleted_at: null,
-          hidden_for: { none: { user_id: user.sub } },
-          AND: [
-            notExpired(),
-            {
-              OR: [
-                { created_at: { gt: anchor.created_at } },
-                { created_at: anchor.created_at, id: { gt: anchor.id } },
-              ],
-            },
-          ],
-        },
-        orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
-        take: CATCH_UP_MAX,
-      });
-      const urls = await this.mediaLinks(rows);
+      const seen = {
+        OR: [
+          { created_at: { lt: anchor.created_at } },
+          { created_at: anchor.created_at, id: { lte: anchor.id } },
+        ],
+      };
+      const [rows, changed] = await Promise.all([
+        this.prisma.message.findMany({
+          where: {
+            conversation_id: id,
+            deleted_at: null,
+            hidden_for: { none: { user_id: user.sub } },
+            AND: [notExpired(), { NOT: seen }],
+          },
+          orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          take: CATCH_UP_MAX + 1,
+        }),
+        // Audit 17.11 (problem 4): edits and deletes for everyone of
+        // messages the phone already holds (edited / revoked after the
+        // newest message it has) — before, only the 5-minute socket event
+        // log carried them. Index messages_conv_updated_idx
+        // (prisma/concurrent).
+        this.prisma.message.findMany({
+          where: {
+            conversation_id: id,
+            deleted_at: null,
+            updated_at: { gt: anchor.created_at },
+            hidden_for: { none: { user_id: user.sub } },
+            AND: [
+              notExpired(),
+              seen,
+              {
+                OR: [
+                  { edited_at: { gt: anchor.created_at } },
+                  { revoked_at: { gt: anchor.created_at } },
+                ],
+              },
+            ],
+          },
+          orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+          take: CATCH_UP_MAX + 1,
+        }),
+      ]);
+      // Audit 17.11 (problem 4): more than the catch-up gives → 409
+      // SYNC_TOO_OLD, the app drops its copy and reads the first page (as
+      // groups and Telegram's getDifference «too long»). Before, the first
+      // 100 came back and the rest was silently lost.
+      if (rows.length > CATCH_UP_MAX || changed.length > CATCH_UP_MAX) {
+        throw new ConflictException({
+          ...SYNC_TOO_OLD_ERROR,
+          message: 'Too many messages since afterId — reload the page.',
+          details: { field: 'afterId', max: CATCH_UP_MAX },
+        });
+      }
+      const all = [...changed, ...rows];
+      const urls = await this.mediaLinks(all);
       return {
-        items: rows.map((m) => this.toMessage(m, user.sub, conv, urls)),
+        items: all.map((m) => this.toMessage(m, user.sub, conv, urls)),
         nextCursor: null,
       };
     }

@@ -1,8 +1,10 @@
 import {
   Injectable,
+  Optional,
   type OnApplicationBootstrap,
   type OnApplicationShutdown,
 } from '@nestjs/common';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
@@ -20,14 +22,35 @@ import { bullOptions } from '../../redis/redis-connection';
  *
  * Order: every realtime event of a group (new message, edit, delete,
  * reaction, pin, service line) goes through the same queue, so members get
- * them in the order they happened. A group always maps to the same
+ * them in the order they happened. (While the admin changes the number of
+ * partitions, events already queued under the old number may overtake a
+ * group's newest ones once; the REST reads stay the source of truth.) A group always maps to the same
  * partition, and each partition runs one job at a time across all
  * processes (BullMQ global concurrency 1); different groups run in
  * parallel on the other partitions.
  */
 export const GROUP_FANOUT_QUEUE_PREFIX = 'group-fanout';
-/** Partitions = groups delivered in parallel cluster-wide. */
-export const GROUP_FANOUT_PARTITIONS = 8;
+/** Partitions = groups delivered in parallel cluster-wide. Audit 17.11
+ * (problem 9): the admin number `groups.fanout_partitions` (was a fixed 8
+ * for the whole cluster, whatever the number of servers); this is its
+ * default and the answer while settings cannot be read. */
+export const GROUP_FANOUT_PARTITIONS = 64;
+export const GROUP_FANOUT_PARTITIONS_SETTING = 'groups.fanout_partitions';
+
+/** `groups.fanout_partitions`, at least 1 (unreadable → the default). */
+export async function fanoutPartitions(
+  settings: AppSettingsService | undefined,
+): Promise<number> {
+  try {
+    const n = await settings?.number(GROUP_FANOUT_PARTITIONS_SETTING);
+    if (typeof n === 'number' && Number.isFinite(n) && n >= 1) {
+      return Math.floor(n);
+    }
+  } catch {
+    // the default below
+  }
+  return GROUP_FANOUT_PARTITIONS;
+}
 export const GROUP_FANOUT_JOB = 'group.fanout';
 
 export const GROUP_FANOUT_JOB_OPTS = {
@@ -78,11 +101,14 @@ export function fanoutQueueName(partition: number): string {
 export class GroupFanoutQueue
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
-  private queues?: Queue<GroupFanoutJob>[];
+  /** Producer queues by partition, opened on first use. */
+  private queues?: Map<number, Queue<GroupFanoutJob>>;
+  private url?: string;
 
   constructor(
     private readonly config: ConfigService,
     private readonly logger: PinoLogger,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
     this.logger.setContext(GroupFanoutQueue.name);
   }
@@ -90,15 +116,25 @@ export class GroupFanoutQueue
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
     if (!url) return;
-    this.queues = Array.from(
-      { length: GROUP_FANOUT_PARTITIONS },
-      (_, i) =>
-        new Queue<GroupFanoutJob>(
-          fanoutQueueName(i),
-          bullOptions(fanoutQueueName(i), url),
-        ),
-    );
-    this.configureInBackground();
+    this.url = url;
+    this.queues = new Map();
+    for (let i = 0; i < GROUP_FANOUT_PARTITIONS; i++) this.queueFor(i);
+  }
+
+  /** The producer queue of partition [i] (global concurrency 1 is set when
+   * it is opened, idempotent). @internal exposed for the spec */
+  queueFor(i: number): Queue<GroupFanoutJob> | undefined {
+    if (!this.queues || !this.url) return undefined;
+    let q = this.queues.get(i);
+    if (!q) {
+      q = new Queue<GroupFanoutJob>(
+        fanoutQueueName(i),
+        bullOptions(fanoutQueueName(i), this.url),
+      );
+      this.queues.set(i, q);
+      this.configureInBackground([q]);
+    }
+    return q;
   }
 
   /**
@@ -109,8 +145,10 @@ export class GroupFanoutQueue
    * Redis is reachable (BullMQ defers its own queue meta the same way).
    * @internal exposed for the spec
    */
-  configureInBackground(): void {
-    for (const q of this.queues ?? []) {
+  configureInBackground(
+    queues: Iterable<Queue<GroupFanoutJob>> = this.queues?.values() ?? [],
+  ): void {
+    for (const q of queues) {
       void q
         .setGlobalConcurrency(1)
         .catch((error: unknown) =>
@@ -125,7 +163,7 @@ export class GroupFanoutQueue
   async onApplicationShutdown(): Promise<void> {
     // Queue.close() on the shared producer connection returns at once even
     // while Redis is away (bullmq: a shared connection is never quit here).
-    await Promise.all((this.queues ?? []).map((q) => q.close()));
+    await Promise.all([...(this.queues?.values() ?? [])].map((q) => q.close()));
   }
 
   /** Queues [job] (jobId [jobId]: a retried request queues nothing new)
@@ -135,7 +173,11 @@ export class GroupFanoutQueue
     jobId: string,
     inline: () => Promise<void>,
   ): Promise<void> {
-    const queue = this.queues?.[fanoutPartition(job.groupId)];
+    const queue = this.queues
+      ? this.queueFor(
+          fanoutPartition(job.groupId, await fanoutPartitions(this.settings)),
+        )
+      : undefined;
     if (!queue) return inline();
     try {
       await queue.add(

@@ -292,6 +292,10 @@ export const OWNER_MEDIA_SETTINGS = {
   'rate_limit.channel_create_per_day': 20,
   'rate_limit.group_create_per_day': 50,
   'groups.max_members': 1024,
+  // Audit 17.11 (problem 9): how many groups get their messages delivered
+  // at the same moment across all servers (each is one queue; a group keeps
+  // its order inside its queue). Was a fixed 8 for the whole cluster.
+  'groups.fanout_partitions': 64,
   'rate_limit.post_create_per_hour': 30,
   'rate_limit.channel_post_per_hour': 30,
   'rate_limit.channel_comment_per_hour': 60,
