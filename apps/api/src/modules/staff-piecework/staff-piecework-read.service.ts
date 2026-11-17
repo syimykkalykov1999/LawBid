@@ -1,5 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { reportDayKey, reportTimeZone } from '../../common/utils/report-day';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
@@ -40,6 +42,7 @@ export class StaffPieceworkReadService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly staff: StaffSettingsService,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   /** 404 while the piecework switch is off (the default). */
@@ -53,7 +56,10 @@ export class StaffPieceworkReadService {
     now = new Date(),
   ): Promise<PieceworkOverviewDto> {
     await this.assertEnabled();
-    const month = period ?? now.toISOString().slice(0, 7);
+    // Row 180 (B9): «this month» of the report time zone, like the days.
+    const month =
+      period ??
+      reportDayKey(now, await reportTimeZone(this.settings)).slice(0, 7);
     const [y, m] = month.split('-').map(Number);
     const from = new Date(Date.UTC(y, m - 1, 1));
     const to = new Date(Date.UTC(y, m, 1));

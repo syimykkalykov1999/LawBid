@@ -16,7 +16,10 @@
 #      cost from the cost registry; in dry-run mode the run ends here;
 #   5. wait (poll every 20 s, at most 30 min) for the owner's 2FA confirm;
 #   6. terraform apply plan.bin — exactly the plan the owner saw (Terraform
-#      refuses a saved plan whose state changed meanwhile);
+#      refuses a saved plan whose state changed meanwhile); a plan that
+#      removes PgBouncer first moves the services to the direct database
+#      (drain), and after every apply the services follow the pooler setting
+#      (scripts/infra/pooler-roll.sh, KNOWN_ERRORS 182);
 #   7. record the file on main (push; a pull request when main is protected)
 #      and report done / failed with this run's link.
 # Concurrency 1 (also enforced by the API's database). Never runs on a PR.
@@ -134,6 +137,10 @@ jobs:
           terraform plan -input=false -no-color -out=plan.bin > plan.log 2>&1 \
             || { grep -E '^(Error|│ Error)' plan.log | cut -c1-200 | head -10; exit 1; }
           terraform show -json plan.bin > plan.json
+          # KNOWN_ERRORS 182: does this plan remove or add our PgBouncer, and
+          # which database settings will the api / worker get (no secrets).
+          node ../../../scripts/infra/pooler-switch.mjs plan.json > ../../../pooler.json
+          echo "pooler_off=$(jq -r '.off' ../../../pooler.json)" >> "$GITHUB_OUTPUT"
           set +e
           SERVING_OUT=../../../serving.txt node ../../../scripts/infra/plan-summary.mjs plan.json ../../../changes.json > ../../../summary.json
           RC=$?
@@ -199,6 +206,31 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
 
+      # KNOWN_ERRORS 182 (16.11, ~25 min outage): «Выкл» of aws.pgbouncer
+      # destroyed the pooler while api / api-admin / worker still ran task
+      # definitions with DB_POOLER_HOST (deploy.yml owns the services'
+      # revision; Terraform only registers new ones). Phase 1 of switching
+      # the pooler OFF: drain first. The services move to a copy of what they
+      # run with exactly the planned database settings (direct, Terraform's
+      # pool size) and the step waits until they run it, PgBouncer still
+      # serving. Nothing is changed in Terraform's state, so the confirmed
+      # plan stays valid. A failure here skips the apply (pooler kept).
+      - name: Pooler off, phase 1 - move the services to the direct database
+        id: drain
+        if: steps.wait.outputs.go == 'true' && steps.plan.outputs.pooler_off == 'true'
+        run: scripts/infra/pooler-roll.sh lawbid-prod drain pooler.json
+
+      - name: Fresh AWS session after the drain
+        if: steps.drain.outcome == 'success'
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
+
+      # Phase 2 of OFF = this apply: PgBouncer goes only now. The database
+      # group drops its reference to the pooler's group BEFORE that group is
+      # deleted (create_before_destroy in modules/pgbouncer, KNOWN_ERRORS 182).
       - name: Apply exactly the confirmed plan
         id: apply
         if: steps.wait.outputs.go == 'true'
@@ -210,6 +242,28 @@ jobs:
             || { grep -E '^(Error|│ Error)' apply.log | cut -c1-200 | head -10; rm -f apply.log; exit 1; }
           grep -E '^Apply complete' apply.log || true
           rm -f apply.log
+
+      # KNOWN_ERRORS 182: the services follow the pooler setting at once.
+      # ON: Terraform waited for healthy pooler tasks (wait_for_steady_state,
+      # health check reaches the database) and registered api / worker
+      # revisions with DB_POOLER_HOST; the services are rolled onto them
+      # (rolling, min 100 % healthy). Also after a failed apply and for a
+      # left-over state (16.11: pooler gone, services direct): a service whose
+      # pooler settings differ from Terraform's newest revision is rolled;
+      # never onto a pooler without running tasks. Nothing differs = no-op.
+      # continue-on-error: recording the file on main must still happen.
+      - name: Fresh AWS session for the services roll
+        if: always() && steps.wait.outputs.go == 'true' && (steps.apply.outcome == 'success' || steps.apply.outcome == 'failure')
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
+      - name: Services follow the pooler setting (on, off, left-over)
+        id: align
+        if: always() && steps.wait.outputs.go == 'true' && (steps.apply.outcome == 'success' || steps.apply.outcome == 'failure')
+        continue-on-error: true
+        run: scripts/infra/pooler-roll.sh lawbid-prod align
 
       # Automation audit 2026-11-08: the partition login (Terraform just put
       # PARTITION_DB_PASSWORD into the migrate task) is set on the role by the
@@ -225,8 +279,12 @@ jobs:
           steps.apply.outcome == 'success' &&
           contains(fromJSON('["aws.partition_role","aws.db_shards","aws.db_shards_2","aws.db_shards_3","aws.db_shards_4","aws.db_shards_5","aws.db_shards_6","aws.db_shards_7","aws.db_shards_8","aws.db_shards_9","aws.db_shards_10","aws.db_shards_11","aws.db_shards_12","aws.db_shards_13","aws.db_shards_14","aws.db_shards_15"]'), steps.job.outputs.item)
         run: |
-          TAG=$(aws ecs describe-task-definition --task-definition "$(aws ecs describe-services --cluster lawbid-prod --services api --query 'services[0].taskDefinition' --output text)" \
-            --query 'taskDefinition.containerDefinitions[0].image' --output text | sed 's/.*://')
+          # KNOWN_ERRORS 181: run-migrations.sh needs ECR_REGISTRY with a tag;
+          # take both from the image the live api runs (registry/repo:tag).
+          IMG=$(aws ecs describe-task-definition --task-definition "$(aws ecs describe-services --cluster lawbid-prod --services api --query 'services[0].taskDefinition' --output text)" \
+            --query 'taskDefinition.containerDefinitions[0].image' --output text)
+          TAG="${IMG##*:}"
+          export ECR_REGISTRY="${IMG%%/*}"
           scripts/deploy/run-migrations.sh lawbid-prod "$TAG"
 
       # Owner 15.11 «делай обновы сейчас» (docs/runbooks/db-major-upgrade.md):
@@ -314,8 +372,14 @@ jobs:
           APPLY: ${{ steps.apply.outcome }}
           UPGRADE: ${{ steps.pgmajor1.outcome == 'failure' || steps.pgmajor2.outcome == 'failure' }}
           RECORDED: ${{ steps.record.outputs.recorded }}
+          DRAIN: ${{ steps.drain.outcome }}
+          ALIGN: ${{ steps.align.outcome }}
         run: |
-          if [ "$APPLY" = "success" ] && [ "$UPGRADE" = "true" ]; then
+          if [ "$DRAIN" = "failure" ]; then
+            jq -n --arg e "Пул соединений не выключен: сервисы не перешли на прямую базу, ничего не удалено, всё работает как было. Журнал: $RUN_URL" '{status:"failed", error:$e}' > result.json
+          elif [ "$APPLY" = "success" ] && [ "$ALIGN" = "failure" ]; then
+            jq -n --arg e "Настройки применены, но сервисы не перешли на новую настройку пула соединений. Журнал: $RUN_URL" '{status:"failed", error:$e}' > result.json
+          elif [ "$APPLY" = "success" ] && [ "$UPGRADE" = "true" ]; then
             jq -n --arg e "Настройки применены, но обновление базы не закончилось (старая база работает). Журнал: $RUN_URL" '{status:"failed", error:$e}' > result.json
           elif [ "$APPLY" = "success" ]; then
             jq -n --arg r "${RECORDED:-none}" '{status:"done", recorded:$r}' > result.json
@@ -329,4 +393,5 @@ jobs:
         if: always()
         run: |
           rm -f infra/envs/prod/terraform.tfvars infra/envs/prod/current-images.auto.tfvars \
-            infra/envs/prod/plan.bin infra/envs/prod/plan.json infra/envs/prod/*.log job.json decision.json serving.txt
+            infra/envs/prod/plan.bin infra/envs/prod/plan.json infra/envs/prod/*.log job.json decision.json serving.txt \
+            pooler.json td.json td.new.json

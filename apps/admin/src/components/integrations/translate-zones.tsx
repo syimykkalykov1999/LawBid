@@ -7,6 +7,7 @@ import { Tabs } from '@/components/ui/tabs';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api/client';
 import { saveConfig, saveFlag } from '@/lib/config-save';
+import { optimistic, patchRow } from '@/lib/optimistic';
 import { TRANSLATE_FLAG, TRANSLATE_SCOPE_KEY, TRANSLATE_ZONES, activeZones, type TranslateScope } from '@/lib/translate-zones';
 
 type ConfigEntry = { key: string; value?: unknown; defaultValue?: unknown };
@@ -28,23 +29,29 @@ export function TranslateZones({ configured }: { configured: boolean }) {
     queryKey: ['flags'],
     queryFn: async () => (await api.GET('/admin/feature-flags')).data!.data as Flag[],
   });
-  const done = () => {
-    toast.success('Сохранено');
-    void qc.invalidateQueries({ queryKey: ['config'] });
-  };
+  // Row 192 (detective R4-C №5): every switch here flips at once, the
+  // server's answer confirms it and a refusal flips it back; the cache is
+  // re-read when the server has settled (lib/optimistic.ts, as on «Функции»).
   const setConfig = useMutation({
     // Row 179: checked against the version this tab saw (lib/config-save.ts).
     mutationFn: (v: { key: string; value: unknown }) => saveConfig(qc, v.key, v.value),
-    onSuccess: done,
-    onError: (e) => toast.error(e),
+    ...optimistic<ConfigEntry[], { key: string; value: unknown }>(
+      qc,
+      ['config'],
+      patchRow((row, v) => ({ ...row, value: v.value })),
+      { onError: (e) => toast.error(e) },
+    ),
+    onSuccess: () => toast.success('Сохранено'),
   });
   const setFlag = useMutation({
     mutationFn: (enabled: boolean) => saveFlag(qc, TRANSLATE_FLAG, enabled),
-    onSuccess: (_r, enabled) => {
-      toast.success(enabled ? 'Переводчик включён' : 'Переводчик выключен');
-      void qc.invalidateQueries({ queryKey: ['flags'] });
-    },
-    onError: (e) => toast.error(e),
+    ...optimistic<Flag[], boolean>(
+      qc,
+      ['flags'],
+      (rows, enabled) => rows?.map((f) => (f.key === TRANSLATE_FLAG ? { ...f, enabled } : f)),
+      { onError: (e) => toast.error(e) },
+    ),
+    onSuccess: (_r, enabled) => toast.success(enabled ? 'Переводчик включён' : 'Переводчик выключен'),
   });
 
   const values: Record<string, unknown> = {};
@@ -78,7 +85,7 @@ export function TranslateZones({ configured }: { configured: boolean }) {
         size="sm"
         className="mt-3"
         value={scope}
-        onChange={(v) => setConfig.mutate({ key: TRANSLATE_SCOPE_KEY, value: v })}
+        onChange={(v) => !busy && setConfig.mutate({ key: TRANSLATE_SCOPE_KEY, value: v })}
         items={[
           { value: 'all', label: 'Везде' },
           { value: 'zones', label: 'Только выбранные' },

@@ -198,16 +198,13 @@ export interface AutoWant {
  * login stays on: once a table is converted the runner keeps its months.
  */
 const KEEP_ON: Readonly<Record<string, (s: AutoSignals) => boolean>> = {
-  // 13.11 outage: a dependency the running services point at is never
-  // removed by itself (drain first, like an ALB deregistration or Aurora
-  // taking a reader out of the endpoint before deleting it). The pooler
-  // removes its own signal (poolSmall is false while it runs), the same
-  // flap the cache node below avoids, and nothing drains it: every query
-  // of the tasks goes through it.
-  'aws.pgbouncer': (s) =>
-    s.pressures.includes('db_connections') ||
-    s.poolSmall === true ||
-    s.poolerLive === true,
+  // Owner 16.11 («чтобы не жрали с меня деньги за пустоту»): the pooler is
+  // kept only by real load (database connections near the limit). The old
+  // «pool below POOL_FLOOR» and «pooler is live» signals were true at zero
+  // users, so «Авто» held it on forever. Switching it off is safe now: the
+  // infra-apply drain moves the services to the direct database first
+  // (KNOWN_ERRORS 182, 184).
+  'aws.pgbouncer': (s) => s.pressures.includes('db_connections'),
   'aws.rds_replicas': (s) =>
     s.pressures.includes('db_cpu') || s.replicaReadsForced === true,
   'aws.opensearch': (s) =>
@@ -264,17 +261,6 @@ export function autoWants(
       to: live('aws.autoscale_code') === 'on' ? 'off' : 'on',
       reason:
         'На main новый код функций автомасштаба (Redis, база, точки доступа, Spot): «Авто» обновляет их само.',
-    });
-  }
-  if (
-    s.poolSmall === true &&
-    live('aws.pgbouncer') !== 'on' &&
-    !out.some((x) => x.id === 'aws.pgbouncer')
-  ) {
-    out.push({
-      id: 'aws.pgbouncer',
-      to: 'on',
-      reason: `У каждого сервера меньше ${POOL_FLOOR} соединений с базой: запросы ждут в очереди, пул соединений это снимет.`,
     });
   }
   if (s.eventsStreamWanted === true && live('aws.events_stream') !== 'on') {
@@ -359,7 +345,8 @@ export function autoWants(
   // Owner 2026-11-12 («Авто» both ways): the last extra server goes again
   // only while it is EMPTY (no data part, no move, not one row) and no
   // server nears the split threshold (then the empty one takes the next
-  // split). One at a time, the highest first; AWS keeps a final snapshot.
+  // split). One at a time, the highest first; nothing is kept of it (no
+  // final snapshot or backups, KNOWN_ERRORS 189).
   // A server with data is never removed (the API and the plan guard check
   // emptiness again).
   let last = -1;
@@ -701,9 +688,21 @@ export function autoRefusal(p: {
  * not here: the read path falls back to the primary by itself, and owner
  * rows 8 / 85 want them removed by «Авто».)
  */
-export const OWNER_CONFIRM_OFF: ReadonlySet<string> = new Set([
-  'aws.pgbouncer',
-]);
+// Owner 16.11 («даже на авто я должен вводить коды?» — «Да», make it
+// automatic): the pooler left this set. infra-apply now drains the services
+// to the direct database before the plan removes it (KNOWN_ERRORS 182),
+// proven live 16.11 (requests 247a481f, 45f01121). Kept for the next item
+// of this kind.
+export const OWNER_CONFIRM_OFF: ReadonlySet<string> = new Set<string>([]);
+
+/**
+ * Serving infrastructure an item may remove with its own switch-off,
+ * because infra-apply moves the traffic away first (drain, KNOWN_ERRORS
+ * 182): only inside the item's own module.
+ */
+const DRAINED_OWN: Readonly<Record<string, RegExp>> = {
+  'aws.pgbouncer': /^module\.stack\.module\.pgbouncer\[0\]\./,
+};
 
 /**
  * D1-34 (detective round 1, 13.11): serving infrastructure an automatic plan
@@ -820,7 +819,8 @@ export const AUTO_SCOPE: Readonly<Record<string, readonly RegExp[]>> = {
   'aws.redis_cache': [re(`module\\.redis_cache\\[0\\]\\.`)],
   'aws.pgbouncer': [
     re(`module\\.pgbouncer\\[0\\]\\.`),
-    re(`module\\.postgres\\.aws_security_group\\.db${end}`),
+    // prod plans name it module.postgres[0] (16.11 requests cd13dfb6, 45f01121)
+    re(`module\\.postgres(\\[0\\])?\\.aws_security_group\\.db${end}`),
   ],
   'aws.partition_role': [
     re(
@@ -871,7 +871,11 @@ export function autoApplyBlockers(
     const deletes = r.action.includes('delete');
     const creates = r.action.includes('create');
     if (rolling) continue;
-    if (deletes && NEVER_AUTO_DESTROY.includes(type)) {
+    if (
+      deletes &&
+      NEVER_AUTO_DESTROY.includes(type) &&
+      !(to === 'off' && DRAINED_OWN[itemId]?.test(r.address))
+    ) {
       out.push(`${r.address}: ${r.action} of serving infrastructure`);
       continue;
     }

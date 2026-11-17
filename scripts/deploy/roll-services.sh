@@ -18,6 +18,14 @@
 # deploy rolls api first, smokes it, then worker and admin; a rollback of one
 # failing service passes only that one.
 #   roll-services.sh <cluster> <tag> [services]
+#
+# KNOWN_ERRORS 182 (16.11, pooler switch; scripts/infra/pooler-roll.sh):
+#   TD_FROM=running   copy the revision the service RUNS now instead of the
+#                     family's newest one (the drain before the pooler goes:
+#                     Terraform has not registered its new revision yet);
+#   DB_POOL_ENV_JSON  {"api":{"DB_POOL_SIZE":"5"},"worker":{...}}: the app
+#                     container's DB_POOL* variables become exactly these
+#                     (DB_POOLER_HOST / _PORT / _CA_PEM not listed = removed).
 set -eu
 CLUSTER="$1"; TAG="$2"; SERVICES="${3:-${SERVICES:-api worker admin}}"
 for S in $SERVICES; do
@@ -41,7 +49,12 @@ done
 for SVC in $SERVICES; do
   FAMILY="${CLUSTER}-${SVC}"
   IMAGE="${REGISTRY}/lawbid-$( [ "$SVC" = admin ] && echo admin || echo api ):${TAG}"
-  aws ecs describe-task-definition --task-definition "$FAMILY" --query 'taskDefinition' > td.json
+  SRC="$FAMILY"
+  if [ "${TD_FROM:-family}" = running ]; then
+    SRC=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SVC" --query 'services[0].taskDefinition' --output text)
+    case "$SRC" in arn:*) ;; *) echo "::error::$SVC: no running task definition ($SRC)" >&2; exit 1 ;; esac
+  fi
+  aws ecs describe-task-definition --task-definition "$SRC" --query 'taskDefinition' > td.json
   node -e '
     const fs = require("fs");
     const td = JSON.parse(fs.readFileSync("td.json", "utf8"));
@@ -50,6 +63,12 @@ for SVC in $SERVICES; do
       c.image = process.argv[1];
       c.environment = (c.environment || []).filter((e) => e.name !== "APP_VERSION");
       c.environment.push({ name: "APP_VERSION", value: process.argv[2] });
+      // KNOWN_ERRORS 182: the database connection settings, when given.
+      const pool = process.env.DB_POOL_ENV_JSON ? JSON.parse(process.env.DB_POOL_ENV_JSON)[process.argv[3]] : undefined;
+      if (pool) {
+        c.environment = c.environment.filter((e) => !e.name.startsWith("DB_POOL"));
+        for (const [name, value] of Object.entries(pool)) c.environment.push({ name, value: String(value) });
+      }
     }
     // 13.11 (KNOWN_ERRORS 126): lawbid-clamav:1.4 is amd64 only (and expires
     // under the ECR keep rule); :1.4-debian is the same ClamAV, multi-arch
