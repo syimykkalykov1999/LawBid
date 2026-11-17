@@ -190,4 +190,100 @@ void main() {
       expect(repo.calls, contains('seats:2'));
     });
   });
+
+  // Owner row 87 (16.11, plan PR 8): the «Горячая линия» add-on switch in
+  // the current plan's card — the total follows it live, «Save» opens the
+  // same pay sheet as seats (charged now), off goes at the period end.
+  group('Hotline add-on row', () {
+    SubscriptionOverview active({HotlineAddon? addon}) => makeOverview(
+          subscription: makeInfo(
+            status: SubscriptionStatus.active,
+            assistantSeats: 1,
+          ),
+          plans: const [soloPlan, teamPlan],
+          plan: teamPlan,
+          seats: const SeatSummary(included: 2, extra: 1, total: 3, max: 5),
+          trialEligible: false,
+          hotlineAddon: addon,
+        );
+
+    testWidgets('no add-on offered: no switch, the card as before',
+        (tester) async {
+      repo.current = active();
+      await pump(tester, const SubscriptionScreen());
+      expect(find.byKey(const ValueKey('hotline-addon-switch')), findsNothing);
+      expect(find.byKey(const ValueKey('seats-save')), findsNothing);
+    });
+
+    testWidgets('on: the total grows live, then the pay sheet charges it',
+        (tester) async {
+      repo.current = active(
+        addon: const HotlineAddon(
+          priceCents: 4900,
+          active: false,
+          canBuy: true,
+        ),
+      );
+      await pump(tester, const SubscriptionScreen());
+      expect(find.text(r'+$49 a month'), findsOneWidget);
+      expect(find.text(r'$699 per month'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('hotline-addon-switch')));
+      await tester.pump();
+      expect(find.text(r'$748 per month'), findsOneWidget);
+      final save = find.byKey(const ValueKey('seats-save'));
+      expect(find.text(r'Save · $748 per month'), findsOneWidget);
+      await tester.ensureVisible(save);
+      await tester.pump();
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('hotline:preview'));
+      expect(find.text('Call hotline'), findsWidgets);
+      expect(find.byKey(const ValueKey('seats-buy-count')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('seats-buy-pay')));
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('hotline:on'));
+      expect(repo.calls.where((c) => c.startsWith('seats:')), isEmpty);
+    });
+
+    testWidgets('off: no refund, it works until the period end',
+        (tester) async {
+      repo.current = active(
+        addon: const HotlineAddon(
+          priceCents: 4900,
+          active: true,
+          renews: true,
+          canBuy: true,
+        ),
+      );
+      await pump(tester, const SubscriptionScreen());
+      expect(find.text(r'$748 per month'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('hotline-addon-switch')));
+      await tester.pump();
+      expect(find.text(r'$699 per month'), findsOneWidget);
+      final save = find.byKey(const ValueKey('seats-save'));
+      await tester.ensureVisible(save);
+      await tester.pump();
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(repo.calls, contains('hotline:off'));
+      expect(repo.calls, isNot(contains('hotline:preview')));
+      expect(find.textContaining('On until'), findsOneWidget);
+    });
+
+    testWidgets('during the trial the switch waits for the first payment',
+        (tester) async {
+      repo.current = active(
+        addon: const HotlineAddon(priceCents: 4900, active: false),
+      );
+      await pump(tester, const SubscriptionScreen());
+      expect(
+        find.text('Available after the first subscription payment'),
+        findsOneWidget,
+      );
+      final sw = tester.widget<Switch>(
+        find.byKey(const ValueKey('hotline-addon-switch')),
+      );
+      expect(sw.onChanged, isNull);
+    });
+  });
 }

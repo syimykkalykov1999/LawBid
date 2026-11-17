@@ -37,6 +37,7 @@ import { PayLinkModule } from './pay-link.module';
 import { PayPageService } from './pay-page.service';
 import { SubscriptionsService } from './subscriptions.service';
 import { SeatsService } from './seats.service';
+import { HotlineAddonService } from './hotline-addon.service';
 import { PricingService } from './pricing.service';
 import { PricingController } from './pricing.controller';
 import { ClientPlansController } from '../plans/client-plans.controller';
@@ -136,6 +137,8 @@ export class BillingModule {
         SubscriptionsService,
         // Owner 2026-10-22: seats charged now / removed at the period end.
         SeatsService,
+        // Owner row 87 (plan PR 8): the «Горячая линия» add-on item.
+        HotlineAddonService,
         PayPageService,
         ClientPlansService,
         StripeWebhookIntakeService,

@@ -22269,6 +22269,347 @@
         ]
       }
     },
+    "/subscriptions/hotline/preview": {
+      "post": {
+        "operationId": "previewHotlineAddon",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineAddonPreviewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_NOT_VERIFIED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: SUBSCRIPTION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: ENTITLEMENT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: PAYMENTS_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "What adding the «Горячая линия» add-on costs now (prorated rest of the period) and per month after (owner row 87, plan PR 8)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
+    "/subscriptions/hotline": {
+      "post": {
+        "operationId": "setHotlineAddon",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetHotlineAddonDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatChangeResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_NOT_VERIFIED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: SUBSCRIPTION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: ENTITLEMENT_REQUIRED, SEATS_TRIAL_NOT_ALLOWED, SEATS_NOT_PAID_YET, SEATS_PREVIEW_STALE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: PAYMENTS_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The «Горячая линия» add-on on (charged now, 3-D Secure may be asked) or off (no refund, usable until the period end) — owner row 87, plan PR 8",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
+    "/subscriptions/hotline/checkout": {
+      "post": {
+        "operationId": "hotlineAddonCheckout",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatCheckoutEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN, ATTORNEY_NOT_VERIFIED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: SUBSCRIPTION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: ENTITLEMENT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable: PAYMENTS_NOT_CONFIGURED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A one-time link to the card page for adding the hotline add-on in the browser (iPhone, like seats)",
+        "tags": [
+          "subscriptions"
+        ]
+      }
+    },
     "/subscriptions/seats/checkout": {
       "post": {
         "operationId": "seatsCheckout",
@@ -151708,6 +152049,49 @@
           "max"
         ]
       },
+      "HotlineAddonDto": {
+        "type": "object",
+        "properties": {
+          "priceCents": {
+            "type": "integer",
+            "description": "Per month, in cents."
+          },
+          "currency": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "Usable now (bought, or paid to endsAt)."
+          },
+          "renews": {
+            "type": "boolean",
+            "description": "On the subscription: billed next period."
+          },
+          "endsAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time",
+            "description": "Removed: usable until then (the period already paid)."
+          },
+          "pending": {
+            "type": "boolean",
+            "description": "A purchase waits for the bank (3-D Secure)."
+          },
+          "canBuy": {
+            "type": "boolean",
+            "description": "It can be bought now (after the first payment, like seats); false while the plan is in its trial."
+          }
+        },
+        "required": [
+          "priceCents",
+          "currency",
+          "active",
+          "renews",
+          "endsAt",
+          "pending",
+          "canBuy"
+        ]
+      },
       "SubscriptionMeDto": {
         "type": "object",
         "properties": {
@@ -151770,6 +152154,16 @@
             "allOf": [
               {
                 "$ref": "#/components/schemas/SeatSummaryDto"
+              }
+            ]
+          },
+          "hotlineAddon": {
+            "nullable": true,
+            "description": "Owner row 87 (plan PR 8): the «Горячая линия» add-on row of the card; null = the plan does not offer it.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineAddonDto"
               }
             ]
           }
@@ -151963,6 +152357,16 @@
               }
             ]
           },
+          "hotlineAddon": {
+            "nullable": true,
+            "description": "Owner row 87 (plan PR 8): the «Горячая линия» add-on row of the card; null = the plan does not offer it.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineAddonDto"
+              }
+            ]
+          },
           "status": {
             "description": "applied = paid and usable now; requires_action = confirm the payment (3-D Secure) with clientSecret, then GET /subscriptions/me; failed = the card was declined, nothing changed; scheduled = fewer seats from effectiveAt (the period end), no refund.",
             "allOf": [
@@ -152048,6 +152452,82 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "HotlineAddonPreviewDto": {
+        "type": "object",
+        "properties": {
+          "amountNowCents": {
+            "type": "integer",
+            "description": "Charged now: the prorated rest of the current period (0 when it is on already or paid to the period end)."
+          },
+          "taxCents": {
+            "type": "integer",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string"
+          },
+          "prorationDate": {
+            "type": "integer",
+            "description": "Send back with POST /subscriptions/hotline (unix seconds)."
+          },
+          "periodEnd": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "priceCents": {
+            "type": "integer",
+            "description": "The add-on per month."
+          },
+          "monthlyIncreaseCents": {
+            "type": "integer"
+          },
+          "nextChargeCents": {
+            "type": "integer",
+            "description": "The next monthly invoice with the add-on."
+          }
+        },
+        "required": [
+          "amountNowCents",
+          "currency",
+          "prorationDate",
+          "periodEnd",
+          "priceCents",
+          "monthlyIncreaseCents",
+          "nextChargeCents"
+        ]
+      },
+      "HotlineAddonPreviewEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HotlineAddonPreviewDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "SetHotlineAddonDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "true = add it (the prorated rest of the period is charged now); false = remove it (no refund, usable until the period end)."
+          },
+          "prorationDate": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "`prorationDate` from POST /subscriptions/hotline/preview, so the charge equals the amount shown (unix seconds; now when absent)."
+          }
+        },
+        "required": [
+          "enabled"
         ]
       },
       "SeatCheckoutDto": {

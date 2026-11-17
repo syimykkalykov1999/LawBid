@@ -57,6 +57,17 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
         plans: PlanMappers.plans(d.plans),
         entitlements: PlanMappers.entitlements(d.entitlements),
         seats: PlanMappers.seats(d.seats),
+        hotlineAddon: d.hotlineAddon == null
+            ? null
+            : HotlineAddon(
+                priceCents: d.hotlineAddon!.priceCents,
+                currency: d.hotlineAddon!.currency,
+                active: d.hotlineAddon!.active,
+                renews: d.hotlineAddon!.renews,
+                endsAt: d.hotlineAddon!.endsAt,
+                pending: d.hotlineAddon!.pending,
+                canBuy: d.hotlineAddon!.canBuy,
+              ),
       );
 
   static PaymentRecord _payment(api.PaymentDto p) => PaymentRecord(
@@ -193,6 +204,51 @@ class ApiSubscriptionRepository implements SubscriptionRepository {
       effectiveAt: d.effectiveAt,
       overview: _overview(d.overview),
     );
+  }
+
+  @override
+  Future<SeatPreview> previewHotlineAddon() async {
+    final d = (await guardApiCall(_api.previewHotlineAddon)).data;
+    return SeatPreview(
+      seats: 0,
+      currentSeats: 0,
+      amountNowCents: d.amountNowCents,
+      currency: d.currency,
+      prorationDate: d.prorationDate,
+      periodEnd: d.periodEnd,
+      seatCents: d.priceCents,
+      monthlyIncreaseCents: d.monthlyIncreaseCents,
+      nextChargeCents: d.nextChargeCents,
+    );
+  }
+
+  @override
+  Future<SeatChangeOutcome> setHotlineAddon({
+    required bool enabled,
+    int? prorationDate,
+  }) async {
+    final d = (await guardApiCall(
+      () => _api.setHotlineAddon(
+        body: api.SetHotlineAddonDto(
+          enabled: enabled,
+          prorationDate: prorationDate,
+        ),
+      ),
+    ))
+        .data;
+    return SeatChangeOutcome(
+      status: SeatChangeStatus.parse(d.status.json),
+      clientSecret: d.clientSecret,
+      amountCents: d.amountCents,
+      effectiveAt: d.effectiveAt,
+      overview: _overview(d.overview),
+    );
+  }
+
+  @override
+  Future<Uri> hotlineAddonCheckoutUrl() async {
+    final d = (await guardApiCall(_api.hotlineAddonCheckout)).data;
+    return Uri.parse(d.url);
   }
 
   @override

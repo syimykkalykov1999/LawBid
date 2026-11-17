@@ -3811,6 +3811,15 @@ model Subscription {
   plan_id                String?            @db.Uuid
   plan_ref               Plan?              @relation(fields: [plan_id], references: [id], onDelete: SetNull)
   entitlements           Json?
+  // Owner row 87 (16.11, plan PR 8): the «Горячая линия» add-on item is on
+  // the Stripe subscription (paid, recurs monthly). Removed = false here and
+  // hotline_addon_ends_at = the end of the period already paid (no refund);
+  // usable while either holds.
+  hotline_addon          Boolean            @default(false)
+  hotline_addon_ends_at  DateTime?          @db.Timestamptz
+  // The invoice of an add-on purchase still waiting for payment (3-D
+  // Secure): an unpaid one never makes the subscription past_due.
+  hotline_addon_invoice_id String?
   created_at             DateTime           @default(now()) @db.Timestamptz
   updated_at             DateTime           @updatedAt @db.Timestamptz
 

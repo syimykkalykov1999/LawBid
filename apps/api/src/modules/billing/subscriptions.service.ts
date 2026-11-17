@@ -43,7 +43,10 @@ import {
 } from './pricing.service';
 import type { Plan, Prisma as PrismaNs } from '../../generated/prisma/client';
 import { entitlementNumber } from '../plans/entitlement-catalog';
-import { EntitlementsService } from '../plans/entitlements.service';
+import {
+  EntitlementsService,
+  type ResolvedEntitlements,
+} from '../plans/entitlements.service';
 import { presentPlan } from '../plans/plans.controller';
 import { PlansService } from '../plans/plans.service';
 import { DEFAULT_DUTIES } from '../assistants/assistant-duties';
@@ -57,6 +60,7 @@ import {
 import type {
   CheckoutRequestDto,
   CheckoutSessionDto,
+  HotlineAddonDto,
   PaymentDto,
   PaymentsPage,
   StartSubscriptionResultDto,
@@ -109,6 +113,17 @@ export class SubscriptionsService implements OnModuleDestroy {
   /** Where Stripe Checkout returns (the website's pages / app links). */
   private readonly checkoutReturnBase: string;
   private queue?: Queue;
+  /** Owner row 87 (plan PR 8): the add-on row of /subscriptions/me, set by
+   * HotlineAddonService (it depends on this service: no import cycle). */
+  private hotlineAddonView?: (
+    userId: string,
+    row: Subscription | null,
+    resolved: ResolvedEntitlements,
+  ) => Promise<HotlineAddonDto | null>;
+
+  setHotlineAddonView(view: NonNullable<typeof this.hotlineAddonView>): void {
+    this.hotlineAddonView = view;
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -978,6 +993,10 @@ export class SubscriptionsService implements OnModuleDestroy {
       ),
       entitlements: resolved.values,
       seats: resolved.seats,
+      hotlineAddon:
+        shown && this.hotlineAddonView
+          ? await this.hotlineAddonView(user.sub, shown, resolved)
+          : null,
       subscription: shown ? presentSubscription(shown) : null,
       contractGrant: grant
         ? {
