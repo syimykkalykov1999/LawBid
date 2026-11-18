@@ -64,3 +64,7 @@
 - **Миграции:** `check-migrations.mjs` (233 миграции + 17 concurrent) — ok; squawk; `verify-schema` на временной базе после `run-concurrent` — без расхождений.
 - **e2e (одна база):** owner-tasks-planner, owner-storage, deal-record, files, owner-hotline, owner-icon-badge, owner-bar-format, admin-boards-cache, db-scale-retention-counters, owner-media-only-posts, owner-subscription-alerts, stage-4-4 — 100 из 100.
 - **e2e (две базы, `E2E_TWO_DB=all`):** первые девять из них — 83 из 83.
+- **API perf guard (user endpoints)** на базе с посевом CI (`PERF_SEED_SCALE=0.25`, 1,1 ГБ) после удаления дублей — зелёный.
+- **precheck --full:** всё зелёное, кроме двух пунктов, которые от этого PR не зависят:
+  - TS2883 — известная локальная ошибка из-за ссылки на чужой `node_modules`;
+  - прогон «часы +45 дней» роняет `ai-assistant.service.spec` («respects the gate»): в спеке зашита дата 2026-11-09, а код ai-assistant здесь не менялся. Спека попала в список только как зависимая через `prisma.service`.
