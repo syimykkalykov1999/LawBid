@@ -769,6 +769,9 @@ export class ModerationService {
         });
         const clientId = target.context.clientId;
         if (clientId) {
+          // Verify 17.11: locked like ClientReviewsService.recalc, so a
+          // parallel review write can't leave the older count last.
+          await tx.$queryRaw`SELECT 1 FROM client_profiles WHERE user_id = ${clientId}::uuid FOR UPDATE`;
           const agg = await tx.clientReview.aggregate({
             where: { client_id: clientId, status: 'published' },
             _avg: { rating: true },

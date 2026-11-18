@@ -106,6 +106,7 @@ export class FirmEmailService {
     }
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
     const pending: Pending = { code, domain, email, attempts: 0 };
+    await this.redis.del(this.triesKey(attorneyId));
     await this.redis.set(
       this.key(attorneyId),
       JSON.stringify(pending),
@@ -141,18 +142,26 @@ export class FirmEmailService {
         details: { field: 'code', reason: 'expired' },
       });
     }
+    // Verify 17.11 (batch 9): the attempt count was read, bumped and
+    // written back, so parallel guesses all saw 0 and the limit never
+    // tripped. Every attempt is now one atomic INCR, counted before the
+    // compare: the (ATTEMPTS_MAX + 1)-th guess finds the code gone.
+    const tries = await incrWithTtl(
+      this.redis,
+      this.triesKey(attorneyId),
+      CODE_TTL_SEC,
+    );
+    if (tries > ATTEMPTS_MAX) {
+      await this.redis.del(this.key(attorneyId), this.triesKey(attorneyId));
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Request a code first.',
+        details: { field: 'code', reason: 'expired' },
+      });
+    }
     if (pending.code !== code.trim()) {
-      pending.attempts += 1;
-      if (pending.attempts >= ATTEMPTS_MAX) {
-        await this.redis.del(this.key(attorneyId));
-      } else {
-        const ttl = await this.redis.ttl(this.key(attorneyId));
-        await this.redis.set(
-          this.key(attorneyId),
-          JSON.stringify(pending),
-          'EX',
-          ttl > 0 ? ttl : CODE_TTL_SEC,
-        );
+      if (tries >= ATTEMPTS_MAX) {
+        await this.redis.del(this.key(attorneyId), this.triesKey(attorneyId));
       }
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
@@ -160,13 +169,17 @@ export class FirmEmailService {
         details: { field: 'code', reason: 'mismatch' },
       });
     }
-    await this.redis.del(this.key(attorneyId));
+    await this.redis.del(this.key(attorneyId), this.triesKey(attorneyId));
     await this.trust.onFirmEmailConfirmed(attorneyId, pending.domain);
     return { domain: pending.domain };
   }
 
   private key(attorneyId: string): string {
     return `trust:firm-email:${attorneyId}`;
+  }
+
+  private triesKey(attorneyId: string): string {
+    return `trust:firm-email:tries:${attorneyId}`;
   }
 
   private sentKey(attorneyId: string): string {

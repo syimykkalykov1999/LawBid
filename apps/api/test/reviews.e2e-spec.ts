@@ -103,8 +103,15 @@ describe('Reviews (e2e, docs/03 §7)', () => {
     first = 'Anna',
     last = 'Kowalski',
   ): Promise<{ id: string; auth: Record<string, string> }> {
+    // Verify 17.11: a client writes reviews with a verified phone (every
+    // real client has one — sign-up is by SMS), as PUT …/reviews/mine asks.
     const u = await prisma.user.create({
-      data: { role, first_name: first, last_name: last },
+      data: {
+        role,
+        first_name: first,
+        last_name: last,
+        ...(role === 'client' ? { phone_verified_at: new Date() } : {}),
+      },
     });
     if (role === 'attorney') {
       const username = `att_${u.id.slice(0, 8)}`;

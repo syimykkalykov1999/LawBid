@@ -65,6 +65,8 @@ describe('SubscriptionSyncService seats', () => {
         ),
       },
       stripeCustomer: { findUnique: jest.fn().mockResolvedValue(null) },
+      // Verify 17.11: the payment of an invoice is written under its lock.
+      $executeRaw: jest.fn().mockResolvedValue(1),
     };
     const prisma = {
       ...tx,
