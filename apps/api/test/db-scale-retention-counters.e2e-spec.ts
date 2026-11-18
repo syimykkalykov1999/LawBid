@@ -12,6 +12,8 @@ import {
 import { DataRetentionService } from '../src/modules/storage/data-retention.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import { shardContext } from '../src/sharding/shard-context';
+import { twoDbMode } from './support/e2e-two-db';
 
 /**
  * DB scale findings batch B (retention) and C (counters), on a real
@@ -60,6 +62,17 @@ describe('DB scale batch B + C (e2e)', () => {
   let pg: Client;
   let watch: Client;
 
+  /** The database the posts and their view events live on: the second one
+   * when E2E_TWO_DB=all puts every shard there (the raw sessions below must
+   * see and lock the same rows the app does). */
+  const rowsDbUrl = (): string => {
+    if (twoDbMode() !== 'all') return process.env.DATABASE_URL!;
+    const shards = JSON.parse(process.env.DATABASE_URL_SHARDS ?? '{}') as {
+      db1?: string;
+    };
+    return shards.db1 ?? process.env.DATABASE_URL!;
+  };
+
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
     const moduleRef = await Test.createTestingModule({
@@ -73,11 +86,11 @@ describe('DB scale batch B + C (e2e)', () => {
     // The app's own 10-second flusher must not take the deltas these tests
     // drive by hand (it stops its timers and flushes once).
     await counters.onModuleDestroy();
-    pg = new Client({ connectionString: process.env.DATABASE_URL });
+    pg = new Client({ connectionString: rowsDbUrl() });
     await pg.connect();
     // pg_stat_activity is a per-transaction snapshot: waits are watched
     // from a connection of their own.
-    watch = new Client({ connectionString: process.env.DATABASE_URL });
+    watch = new Client({ connectionString: rowsDbUrl() });
     await watch.connect();
   });
 
@@ -93,17 +106,21 @@ describe('DB scale batch B + C (e2e)', () => {
       data: { author_id: author.id, body: 'views keep' },
     });
     const old = new Date(Date.now() - 800 * DAY_MS);
-    for (let i = 0; i < oldViews; i++) {
+    // Raw SQL names no shard: run it in the author's (the post's) database,
+    // as the app's own view writer does.
+    await shardContext.runForUser(author.id, async () => {
+      for (let i = 0; i < oldViews; i++) {
+        await prisma.$executeRaw`INSERT INTO post_view_events (post_id, kind, created_at)
+          VALUES (${post.id}::UUID, 'view', ${old})`;
+      }
+      // An impression is no view: never counted, never added to the base.
       await prisma.$executeRaw`INSERT INTO post_view_events (post_id, kind, created_at)
-        VALUES (${post.id}::UUID, 'view', ${old})`;
-    }
-    // An impression is no view: never counted, never added to the base.
-    await prisma.$executeRaw`INSERT INTO post_view_events (post_id, kind, created_at)
-      VALUES (${post.id}::UUID, 'impression', ${old})`;
-    for (let i = 0; i < freshViews; i++) {
-      await prisma.$executeRaw`INSERT INTO post_view_events (post_id, kind)
-        VALUES (${post.id}::UUID, 'view')`;
-    }
+        VALUES (${post.id}::UUID, 'impression', ${old})`;
+      for (let i = 0; i < freshViews; i++) {
+        await prisma.$executeRaw`INSERT INTO post_view_events (post_id, kind)
+          VALUES (${post.id}::UUID, 'view')`;
+      }
+    });
     await prisma.post.update({
       where: { id: post.id },
       data: { view_count: oldViews + freshViews },
