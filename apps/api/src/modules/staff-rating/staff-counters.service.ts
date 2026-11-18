@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { reportDayKey, reportTimeZone } from '../../common/utils/report-day';
+import { zonedParts } from '../../common/utils/zoned-time';
 import { Prisma } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -80,10 +81,6 @@ export class StaffCountersService {
     @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
-  private async dayOf(at: Date): Promise<string> {
-    return reportDayKey(at, await reportTimeZone(this.settings));
-  }
-
   /**
    * Count one decision. Returns true when it was new (the first time this
    * item is reported): the same item reported twice (a retry, or a queue
@@ -102,7 +99,8 @@ export class StaffCountersService {
       COUNTER_TTL_SEC,
       'NX',
     );
-    const day = await this.dayOf(at);
+    const tz = await reportTimeZone(this.settings);
+    const day = reportDayKey(at, tz);
     if (first === null) {
       // Seen. Only a missing handling time can still be added.
       if (
@@ -123,7 +121,9 @@ export class StaffCountersService {
     const key = ctrKey(day, e.adminId);
     const p = pipeline(this.redis);
     p.hincrby(key, 'd', 1);
-    p.hincrby(key, `hr${at.getUTCHours()}`, 1);
+    // Verify batch 11 (D6): the hour of the report time zone, like the day
+    // (the night-access rule reads hours 1–5 as the small hours there).
+    p.hincrby(key, `hr${zonedParts(at, tz).hour}`, 1);
     if (OUTCOME_RE.test(e.outcome)) p.hincrby(key, `o_${e.outcome}`, 1);
     if (handle !== null) {
       p.hincrby(key, 'h', handle);
@@ -199,9 +199,14 @@ export class StaffCountersService {
           (admin_id, day, workspace, decided, avg_handle_sec, p90_handle_sec, updated_at)
         VALUES ${Prisma.join(values)}
         ON CONFLICT (admin_id, day) DO UPDATE SET
-          decided = EXCLUDED.decided,
-          avg_handle_sec = EXCLUDED.avg_handle_sec,
-          p90_handle_sec = EXCLUDED.p90_handle_sec,
+          -- Verify batch 11 (D7): the same rule as the nightly upsert — the
+          -- counters only grow within a day, so a Redis that lost the hash
+          -- (restart mid-day) never lowers what an earlier flush stored.
+          avg_handle_sec = CASE WHEN EXCLUDED.decided >= staff_daily_stats.decided AND EXCLUDED.decided > 0
+            THEN EXCLUDED.avg_handle_sec ELSE staff_daily_stats.avg_handle_sec END,
+          p90_handle_sec = CASE WHEN EXCLUDED.decided >= staff_daily_stats.decided AND EXCLUDED.decided > 0
+            THEN EXCLUDED.p90_handle_sec ELSE staff_daily_stats.p90_handle_sec END,
+          decided = GREATEST(EXCLUDED.decided, staff_daily_stats.decided),
           updated_at = now()`;
     }
     if (rows.length > 0) {

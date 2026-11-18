@@ -299,7 +299,11 @@ describe('StaffRetaliationService.expire: staff.retaliation-expire', () => {
     const r = await svc.expire(NOW);
     expect(r.holdsEnded).toBe(1);
     expect(db.staffMemberState.updateMany).toHaveBeenCalledWith({
-      where: { admin_id: 'w1', state: 'hold_owner' },
+      where: {
+        admin_id: 'w1',
+        state: 'hold_owner',
+        OR: [{ state_until: null }, { state_until: { lte: NOW } }],
+      },
       data: expect.objectContaining({ state: 'offboarded' }),
     });
     expect(db.staffAction.create).toHaveBeenCalledWith({
@@ -312,6 +316,36 @@ describe('StaffRetaliationService.expire: staff.retaliation-expire', () => {
     expect(JSON.stringify(db.staffAction.create.mock.calls)).not.toContain(
       'w1',
     );
+  });
+
+  it('verify batch 11 (D8): an old flag never ends a NEWER hold still running', async () => {
+    const { db, svc } = make();
+    // flag1's hold ended on day 15; the head acted again on day 20 and the
+    // person is in hold_owner until day 34 (state_until in the future).
+    db.staffRetaliationFlag.findMany.mockResolvedValue([
+      { id: 'f1', subject_admin_id: 'w1', action_id: 'act1', appeal_id: 'a1' },
+    ]);
+    db.staffAction.findMany.mockResolvedValue([
+      { id: 'act1', kind: 'offboard' },
+    ]);
+    db.adminAppeal.findMany.mockResolvedValue([]);
+    const later = new Date(NOW.getTime() + 14 * 86_400_000);
+    type Until = { state_until?: null | { lte: Date } };
+    db.staffMemberState.updateMany.mockImplementation(
+      ({ where }: { where: { OR?: Until[] } }) => {
+        const st = { state: 'hold_owner', state_until: later };
+        const untilOk = (where.OR ?? [{}]).some(
+          (c: { state_until?: null | { lte: Date } }) =>
+            !('state_until' in c) ||
+            (c.state_until === null
+              ? st.state_until === null
+              : st.state_until.getTime() <= c.state_until!.lte.getTime()),
+        );
+        return Promise.resolve({ count: untilOk ? 1 : 0 });
+      },
+    );
+    const r = await svc.expire(NOW);
+    expect(r.holdsEnded).toBe(0);
   });
 
   it('a hold on a rights cut returns the person to work', async () => {

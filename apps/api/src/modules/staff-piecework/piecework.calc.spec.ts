@@ -133,6 +133,9 @@ describe('days and references', () => {
     expect(rateKindOf('support_ticket')).toBe('ticket');
     expect(rateKindOf('mod_appeal')).toBe('appeal');
     expect(rateKindOf('review_appeal')).toBe('appeal');
+    // Verify batch 11 (D1): both appeal queues record the decision (and so
+    // the review sample) as `appeal`; an overturned one must come off pay.
+    expect(rateKindOf('appeal')).toBe('appeal');
     expect(rateKindOf('verification')).toBe('verification');
     expect(rateKindOf('refund')).toBeNull();
     expect(rateKindOf('review_sample')).toBeNull();

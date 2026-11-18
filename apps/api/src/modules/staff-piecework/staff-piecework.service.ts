@@ -173,10 +173,15 @@ export class StaffPieceworkService {
     if (ids.length === 0) return result;
 
     // Rates in force at the end of the day, one query for the whole run.
+    // Verify batch 11 (D2): «the end» is the day's last moment, not the
+    // next day's first — a rate set to start at the next local midnight
+    // (valid_from = end) repriced the finished day, and the old one
+    // (valid_to = end) dropped out.
+    const lastMoment = new Date(end.getTime() - 1);
     const rates = await this.prisma.staffRate.findMany({
       where: {
-        valid_from: { lte: end },
-        OR: [{ valid_to: null }, { valid_to: { gt: end } }],
+        valid_from: { lte: lastMoment },
+        OR: [{ valid_to: null }, { valid_to: { gt: lastMoment } }],
       },
       take: 1000,
     });
@@ -271,7 +276,7 @@ export class StaffPieceworkService {
           overturned.get(adminId),
           profile.workspace,
           rates,
-          end,
+          lastMoment,
           boostMax,
           quality.pct,
         );

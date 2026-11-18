@@ -147,14 +147,14 @@ abstract class AdminAdminsClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Re-enable a disabled administrator
+  /// Re-enable a disabled administrator (needs a fresh step-up)
   @POST('/admin/admins/{id}/enable')
   Future<AdminAccountEnvelope> enableAdmin({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Remove an administrator: account closed, login and password wiped, sessions revoked
+  /// Remove an administrator: account closed, login and password wiped, sessions revoked (needs a fresh step-up)
   @DELETE('/admin/admins/{id}')
   Future<void> removeAdmin({
     @Path('id') required String id,

@@ -316,6 +316,7 @@ export class AdminsService {
     role: AdminRoleName,
   ): Promise<AdminAccountDto> {
     if (id === actor.id) throw cannotTargetSelf();
+    const on = await this.workspacesOn();
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const before = await this.load(tx, id);
       if (before.admin_profile?.admin_role === role) return before;
@@ -327,6 +328,25 @@ export class AdminsService {
       // whose workspace changes stops being head.
       const oldWs = workspaceOfRow(before);
       const newWs = workspaceForRole(role, oldWs);
+      // Verify batch 11 (B6): a role that moves the person to another
+      // workspace takes them into its ceiling, like setWorkspace and the
+      // presets (cut, not refused): rights outside it stay behind. The
+      // deputy and a partner's team are outside the workspaces.
+      const raw = before.admin_profile?.permissions;
+      const cut =
+        on &&
+        newWs !== oldWs &&
+        !readManageAdmins(raw) &&
+        !readPartner(raw) &&
+        outsideWorkspace(newWs, parsePermissions(raw)).length > 0
+          ? storePermissions(
+              capToWorkspace(newWs, parsePermissions(raw)),
+              false,
+              readCountries(raw),
+              null,
+              readNoPii(raw),
+            )
+          : null;
       const after = await tx.user.update({
         where: { id },
         data: {
@@ -336,6 +356,7 @@ export class AdminsService {
               ...(newWs !== oldWs
                 ? { workspace: newWs, is_workspace_head: false }
                 : {}),
+              ...(cut ? { permissions: cut } : {}),
             },
           },
         },
@@ -351,7 +372,11 @@ export class AdminsService {
             role: before.admin_profile?.admin_role ?? null,
             workspace: oldWs,
           },
-          after: { role, workspace: newWs },
+          after: {
+            role,
+            workspace: newWs,
+            ...(cut ? { permissions: cut } : {}),
+          },
           ip: actor.ip,
         },
         tx,
@@ -585,6 +610,9 @@ export class AdminsService {
           status: 'suspended',
           deleted_at: new Date(),
           email: `deleted-${id}@deleted.invalid`,
+          // Verify batch 11 (B1): a deleted head frees the workspace's one
+          // head seat (partial unique index), or no new head can be named.
+          admin_profile: { update: { is_workspace_head: false } },
         },
       });
       await this.audit.record(

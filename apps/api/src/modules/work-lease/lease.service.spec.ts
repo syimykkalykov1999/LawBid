@@ -294,3 +294,51 @@ describe('LeaseService.tryClaim under contention (load test round 2)', () => {
     );
   });
 });
+
+describe('verify batch 11 (D4): «Снять с очереди» really takes a person off', () => {
+  const on = {
+    'staff.lease_enabled': true,
+    'staff.lease_support_enabled': true,
+  };
+  const db = (state: unknown) =>
+    ({
+      staffMemberState: {
+        findUnique: jest.fn().mockResolvedValue(state),
+      },
+    }) as unknown as PrismaService;
+  const make = (state: unknown) =>
+    new LeaseService(
+      db(state),
+      noRedis,
+      settings(on),
+      {} as unknown as StaffPresenceService,
+      idleEvents,
+    );
+  const later = new Date(Date.now() + 3_600_000);
+
+  it('a paused person gets no item from «Следующий»', async () => {
+    await expect(
+      make({ state: 'paused', state_until: later }).next('support_ticket', {
+        adminId: 'a1',
+      }),
+    ).resolves.toEqual({ status: 'offline' });
+  });
+
+  it('an offboarded person gets no item either', async () => {
+    await expect(
+      make({ state: 'offboarded', state_until: null }).next('support_ticket', {
+        adminId: 'a1',
+      }),
+    ).resolves.toEqual({ status: 'offline' });
+  });
+
+  it('a click on one item is refused while paused', async () => {
+    await expect(
+      make({ state: 'paused', state_until: later }).claim(
+        'support_ticket',
+        'i1',
+        'a1',
+      ),
+    ).resolves.toBeNull();
+  });
+});

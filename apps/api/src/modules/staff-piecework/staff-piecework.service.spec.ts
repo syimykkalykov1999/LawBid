@@ -432,3 +432,24 @@ describe('DAY_START fixture', () => {
     expect(DAY_START.toISOString()).toBe('2026-10-26T00:00:00.000Z');
   });
 });
+
+describe('verify batch 11 (D2): the rate of a finished day', () => {
+  it('a new rate set to start at the next local midnight does not reprice the day', async () => {
+    const fx = typicalDay();
+    const made = makeService(fx);
+    // The day's own window in the service's schedule.
+    const { end } = await (
+      made.svc as unknown as {
+        window(d: string): Promise<{ start: Date; end: Date }>;
+      }
+    ).window(DAY);
+    fx.rates = [
+      rate('ticket', 200, { id: 'old', valid_to: end }),
+      rate('ticket', 999, { id: 'new', valid_from: end }),
+      rate('verification', 500),
+    ];
+    await made.svc.computeDay(DAY);
+    const ticket = fx.days.find((d) => d.kind === 'ticket');
+    expect(ticket?.rate_cents).toBe(200);
+  });
+});
