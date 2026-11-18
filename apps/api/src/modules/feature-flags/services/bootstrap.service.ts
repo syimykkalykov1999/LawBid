@@ -242,9 +242,17 @@ export class BootstrapService {
    * design; it is published only while `security.turnstile.mode` is not
    * `off` and a key is saved, so with the switch off the page does
    * nothing at all. */
-  async turnstileSiteKey(): Promise<Record<string, string>> {
+  async turnstileSiteKey(
+    appConfig?: Readonly<Record<string, unknown>>,
+  ): Promise<Record<string, string>> {
     try {
-      const mode = await this.settings?.string('security.turnstile.mode');
+      // Verify batch 11 (C3): a build reads the mode from the (fresh) map
+      // it is built from; the process copy can be older than the version
+      // the body is stored under.
+      const mode =
+        appConfig && 'security.turnstile.mode' in appConfig
+          ? appConfig['security.turnstile.mode']
+          : await this.settings?.string('security.turnstile.mode');
       if (mode !== 'monitor' && mode !== 'enforce') return {};
       const key = (await this.secrets?.get('turnstile'))?.fields?.siteKey;
       return key ? { 'turnstile.site_key': key } : {};
@@ -592,7 +600,7 @@ export class BootstrapService {
         // upload limits (always present, inside the safe ceilings).
         [UPLOAD_LIMITS_KEY]: sanitizeUploadLimits(appConfig[UPLOAD_LIMITS_KEY]),
         ...(await this.sentryDsns()),
-        ...(await this.turnstileSiteKey()),
+        ...(await this.turnstileSiteKey(appConfig)),
         ...(await this.fcmWebConfig()),
         ...(await this.videoPrefetchPlan(appConfig)),
       },

@@ -188,3 +188,19 @@ describe('hash_version of a partial rollout (owner row 150)', () => {
     expect(second.findMany).not.toHaveBeenCalled();
   });
 });
+
+describe('verify batch 11 (C3): fresh flags never come from the Redis copy', () => {
+  it('getFlags(true) reads the table even when Redis holds a copy', async () => {
+    const store = new Map([
+      ['config:feature_flags', JSON.stringify({ video_posts: false })],
+    ]);
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([{ key: 'video_posts', enabled: true }]);
+    const service = new FeatureFlagsService(
+      { featureFlag: { findMany } } as never,
+      buildFakeRedis(store) as never,
+    );
+    expect((await service.getFlags(true)).video_posts).toBe(true);
+  });
+});

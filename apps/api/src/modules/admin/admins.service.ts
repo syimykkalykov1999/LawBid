@@ -226,10 +226,11 @@ export class AdminsService {
     }
     // Owner 2026-10-06: a country partner hires into their own team, up to
     // the limit the owner set, only while the partnership is active.
+    // The partnership itself (active, its country) is read here; the seat
+    // is counted again inside the hiring transaction below.
     const team = actor.partner?.lead
       ? await this.assertPartnerSeat(actor.partner.partnerId)
       : null;
-    if (head) await this.assertHeadSeat(workspace);
     const asked =
       role === 'super_admin'
         ? {}
@@ -268,6 +269,11 @@ export class AdminsService {
     );
     const normalized = email.trim().toLowerCase();
     const created = await withTxRetry(this.prisma, async (tx) => {
+      // Verify batch 11 (B9a): the seat is counted in the same
+      // (serializable) transaction as the hire, so two hires at once cannot
+      // both take the last seat.
+      if (team) await this.assertPartnerSeat(team.id, tx);
+      if (head) await this.assertHeadSeat(workspace, tx);
       const existing = await tx.user.findUnique({
         where: { email: normalized },
         select: { id: true },
@@ -400,6 +406,16 @@ export class AdminsService {
       this.assertManageable(actor, before);
       if (!enabled) await this.checkRetaliation(actor, id, 'offboard');
       if (before.status === status) return before;
+      // Verify batch 11 (B9a): a switched-off person frees the seat, so a
+      // head or a partner lead switches someone back on only into a free
+      // one (the owner and the deputy are never capped).
+      if (enabled && isHead(actor)) {
+        await this.assertHeadSeat(workspaceOfRow(before), tx);
+      }
+      const partnerOf = readPartner(before.admin_profile?.permissions);
+      if (enabled && actor.partner?.lead && partnerOf) {
+        await this.assertPartnerSeat(partnerOf.partnerId, tx);
+      }
       if (!enabled && before.admin_profile?.admin_role === 'super_admin') {
         await assertNotLastSuperAdmin(tx, id);
       }
@@ -801,15 +817,20 @@ export class AdminsService {
   /** 403 when the head's team already holds `staff.head.max_admins` people
    * (the owner sets the number; the head and the partner/deputy accounts
    * that default into the same workspace do not count). */
-  private async assertHeadSeat(workspace: AdminWorkspace): Promise<void> {
+  private async assertHeadSeat(
+    workspace: AdminWorkspace,
+    db: Pick<Prisma.TransactionClient, 'adminProfile'> = this.prisma,
+  ): Promise<void> {
     if (!this.staff) return;
     const max = await this.staff.number('staff.head.max_admins');
-    const team = await this.prisma.adminProfile.findMany({
+    // Verify batch 11 (B9a): only working people take a seat — a head
+    // cannot delete, so a disabled worker held the seat forever.
+    const team = await db.adminProfile.findMany({
       where: {
         workspace,
         is_workspace_head: false,
         admin_role: { not: 'super_admin' },
-        user: { deleted_at: null },
+        user: { deleted_at: null, status: 'active' },
       },
       select: { permissions: true },
       take: max + 1000,
@@ -829,16 +850,18 @@ export class AdminsService {
    * otherwise (paused or disabled partnership, or the team is full). */
   private async assertPartnerSeat(
     partnerId: string,
+    db: Pick<Prisma.TransactionClient, 'adminProfile' | 'countryPartner'> = this
+      .prisma,
   ): Promise<{ id: string; country_code: string }> {
-    const partner = await this.prisma.countryPartner.findUnique({
+    const partner = await db.countryPartner.findUnique({
       where: { id: partnerId },
       select: { id: true, country_code: true, status: true, max_admins: true },
     });
     if (!partner || partner.status !== 'active') throw outsideReach();
-    const team = await this.prisma.adminProfile.findMany({
+    const team = await db.adminProfile.findMany({
       where: {
         permissions: { path: ['country_partner'], equals: partnerId },
-        user: { deleted_at: null },
+        user: { deleted_at: null, status: 'active' },
       },
       select: { permissions: true },
     });

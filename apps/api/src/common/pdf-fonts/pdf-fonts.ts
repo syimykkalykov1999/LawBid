@@ -81,7 +81,7 @@ const SCRIPT_FONTS: ScriptFont[] = [
   { scripts: re('Han'), file: 'NotoSansCJKsc-Regular.otf', cjk: true },
 ];
 
-const cjkCacheDir = (): string =>
+export const cjkCacheDir = (): string =>
   process.env.PDF_FONT_CACHE_DIR ?? join(tmpdir(), 'lawbid-pdf-fonts');
 
 /** Full path of a script font, or undefined while it is not on disk. */

@@ -156,6 +156,21 @@ export class StaffDecisionService {
         });
         done = `Проверка решений чаще: ${MORE_REVIEW_PCT} %.`;
       } else if (row.kind === 'pull' || row.kind === 'pause') {
+        // Verify batch 11 (D15d): a pause would end «replaced» (the person
+        // would come back when it runs out) or the owner's retaliation hold
+        // (the hold expiry then never fires). Those are decided where they
+        // live: «Администраторы» and the appeals page.
+        const cur = await tx.staffMemberState.findUnique({
+          where: { admin_id: row.admin_id },
+          select: { state: true },
+        });
+        if (cur?.state === 'offboarded' || cur?.state === 'hold_owner') {
+          throw bad(
+            cur.state === 'offboarded'
+              ? 'The person was already replaced.'
+              : 'The person is on the owner hold: decide it on the appeals page.',
+          );
+        }
         await tx.staffMemberState.upsert({
           where: { admin_id: row.admin_id },
           create: {

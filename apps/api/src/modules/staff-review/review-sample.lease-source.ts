@@ -14,7 +14,8 @@ const STAGE_RANK = Prisma.sql`CASE s.stage
  * the same sample. A reviewer is offered a pending sample of their scope
  * (the owner: everything; a head: their workspace; a senior: their
  * workspace and only the kinds of their own role), never their own
- * decision, never a peer copy of their own verdict. The queue's own switch
+ * decision, never a peer copy of their own verdict or of a verdict on
+ * their own decision (verify batch 11, D14). The queue's own switch
  * is `staff.sampling_enabled` (and `staff.lease_enabled`).
  */
 export const reviewSampleSource: LeaseQueueSource = {
@@ -42,6 +43,7 @@ export const reviewSampleSource: LeaseQueueSource = {
       WHERE s.status = 'pending' AND s.is_golden = false AND s.reviewer_id IS NULL
         AND s.decided_by <> ${q.adminId}::uuid
         AND COALESCE(s.golden_answer->>'origReviewer', '') <> ${q.adminId}
+        AND COALESCE(s.golden_answer->>'origWorker', '') <> ${q.adminId}
         AND (${wholeWorld}::boolean OR dp.workspace = ${me.workspace}::admin_workspace)
         AND (${wide}::boolean
              OR regexp_replace(s.decision_kind, ${`^${PEER_PREFIX}`}, '') = ANY(${kinds}::text[]))

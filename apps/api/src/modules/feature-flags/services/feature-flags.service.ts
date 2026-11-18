@@ -128,9 +128,26 @@ export class FeatureFlagsService implements OnModuleInit {
    * which every writer drops before it bumps the config version, is still
    * used) — for a caller that keeps what it builds (the bootstrap memo). */
   async getFlags(fresh = false): Promise<Record<string, boolean>> {
+    // Verify batch 11 (C3): [fresh] (the bootstrap build of a new version)
+    // reads the table, never the Redis copy, which a fill begun before an
+    // admin save can have written back with the old values.
     return lockFlags(
-      await (fresh ? this.readFlagsFromRedis() : this.readFlags()),
+      await (fresh ? this.readFlagsFromTable() : this.readFlags()),
     );
+  }
+
+  private readFlagsFromTable(): Promise<Record<string, boolean>> {
+    return singleFlight(`${FLAGS_CACHE_KEY}:fresh`, async () => {
+      const rows = await this.prisma.featureFlag.findMany({
+        select: { key: true, enabled: true, rollout_percent: true },
+      });
+      const flags: Record<string, boolean> = {};
+      // The same rule as [fill]: a partly rolled out flag is off here.
+      for (const row of rows) {
+        flags[row.key] = row.enabled && (row.rollout_percent ?? 100) >= 100;
+      }
+      return flags;
+    });
   }
 
   private readFlags(): Promise<Record<string, boolean>> {

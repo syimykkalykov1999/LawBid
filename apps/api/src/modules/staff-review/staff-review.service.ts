@@ -159,6 +159,18 @@ export class StaffReviewService {
     });
     if (!held) throw gone();
     const peer = row.decision_kind.startsWith(PEER_PREFIX);
+    // Verify batch 11 (D14): a calibration copy is never judged by the one
+    // it is about — the first reviewer, or the worker whose decision that
+    // reviewer judged (they would grade their own judge).
+    if (peer) {
+      const orig = (row.golden_answer ?? {}) as {
+        origReviewer?: string;
+        origWorker?: string;
+      };
+      if (orig.origReviewer === admin.id || orig.origWorker === admin.id) {
+        throw gone();
+      }
+    }
     const audit = {
       adminId: admin.id,
       action: 'staff.review_verdict',
@@ -244,6 +256,7 @@ export class StaffReviewService {
       id: string;
       decision_kind: string;
       item_id: string;
+      decided_by: string;
       golden_answer: Prisma.JsonValue;
     },
     reviewerId: string,
@@ -266,6 +279,8 @@ export class StaffReviewService {
           golden_answer: {
             outcome: outcome ?? null,
             origReviewer: reviewerId,
+            // Verify batch 11 (D14): the worker is kept away from the copy.
+            origWorker: row.decided_by,
             origVerdict: verdict,
             origSample: row.id,
           },

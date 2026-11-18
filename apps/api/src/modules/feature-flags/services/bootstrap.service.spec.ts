@@ -488,6 +488,15 @@ describe('BootstrapService.turnstileSiteKey', () => {
     });
   });
 
+  it('verify batch 11 (C3): a build takes the mode from the map it was built from', async () => {
+    // The process copy still says off; the fresh map of the build says enforce.
+    expect(
+      await make('off', '0x4AAA').turnstileSiteKey({
+        'security.turnstile.mode': 'enforce',
+      }),
+    ).toEqual({ 'turnstile.site_key': '0x4AAA' });
+  });
+
   it('publishes nothing when off, unknown, or no key is saved', async () => {
     expect(await make('off', '0x4AAA').turnstileSiteKey()).toEqual({});
     expect(await make('bogus', '0x4AAA').turnstileSiteKey()).toEqual({});
