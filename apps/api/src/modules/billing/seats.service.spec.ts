@@ -55,6 +55,7 @@ describe('SeatsService', () => {
     };
     const changes: Record<string, unknown>[] = [];
     let scheduled = opts.scheduled ?? null;
+    let txSelf: unknown = null;
     const prisma = {
       subscription: {
         findUnique: jest.fn().mockResolvedValue(row),
@@ -98,8 +99,15 @@ describe('SeatsService', () => {
           },
         ),
       },
-      $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      // An array (applyDueDecrease) or, since verify 17.11, an interactive
+      // transaction (the seat decrease under the attorney's seat lock).
+      $transaction: jest.fn(
+        (ops: Promise<unknown>[] | ((tx: unknown) => Promise<unknown>)) =>
+          typeof ops === 'function' ? ops(txSelf) : Promise.all(ops),
+      ),
     };
+    txSelf = prisma;
     const provider = {
       previewSeatIncrease: jest.fn().mockResolvedValue({
         amountNowCents: 5_000,

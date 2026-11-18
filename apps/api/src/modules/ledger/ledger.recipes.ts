@@ -129,12 +129,33 @@ export function casePaymentRefundLines(input: {
   clientTotalCents: number;
   platformFeeCents: number;
   refundApplicationFee: boolean;
+  /** What earlier refunds of this payment already returned (cents). */
+  refundedBeforeCents?: number;
 }): Line[] {
   const { refundCents, clientTotalCents, platformFeeCents } = input;
+  // Verify 17.11 (batch 9): the fee's share was rounded per refund, so two
+  // 50¢ refunds of a 100¢ payment with a 3¢ fee returned 2¢ + 2¢ = 4¢ of
+  // a 3¢ fee (revenue_case_fees negative). The share is now of the running
+  // total: what all refunds so far owe, less what the earlier ones gave.
+  const before = Math.min(
+    clientTotalCents,
+    Math.max(0, input.refundedBeforeCents ?? 0),
+  );
+  const share = (cents: number) =>
+    clientTotalCents > 0
+      ? Math.min(
+          platformFeeCents,
+          Math.round((platformFeeCents * cents) / clientTotalCents),
+        )
+      : 0;
   const feeBack = input.refundApplicationFee
-    ? Math.min(
-        platformFeeCents,
-        Math.round((platformFeeCents * refundCents) / clientTotalCents),
+    ? Math.max(
+        0,
+        Math.min(
+          refundCents,
+          share(Math.min(clientTotalCents, before + refundCents)) -
+            share(before),
+        ),
       )
     : 0;
   return nonZero([

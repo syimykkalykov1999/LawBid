@@ -78,8 +78,13 @@ export class WorkspaceService {
               ...(scope ? { country_code: { in: scope } } : {}),
             },
           }),
+          // Verify 17.11 (batch 9): «urgent» is the late ones among the
+          // tickets counted next to it — it counted every resolved or
+          // closed ticket that was ever late, so it only grew.
           this.prisma.supportTicket.count({
             where: {
+              status: 'open',
+              OR: [{ assignee_id: admin.id }, { assignee_id: null }],
               sla_due_at: { not: null },
               sla_breached_at: { not: null },
               ...(scope ? { country_code: { in: scope } } : {}),

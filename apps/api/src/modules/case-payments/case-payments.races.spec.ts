@@ -98,6 +98,10 @@ function make(payment: Row, request?: Row) {
         const r = refunds.find((x) => x.id === where.id);
         return Promise.resolve(r ? { ...r } : null);
       }),
+      findFirst: jest.fn(({ where }: { where: Row }) => {
+        const r = refunds.find((x) => matches(x, where));
+        return Promise.resolve(r ? { ...r } : null);
+      }),
       aggregate: jest.fn(({ where }: { where: Row }) => {
         const sum = refunds
           .filter((r) => matches(r, where))
@@ -480,6 +484,55 @@ describe('CasePaymentsService refunds keyed by the request (row 177)', () => {
       refunded_cents: 25_000,
       status: 'partially_refunded',
     });
+  });
+
+  it('verify 17.11: an attorney refund (no request key) that timed out is sent again with the same key, once', async () => {
+    const h = make(paid());
+    likePostgres(h);
+    const { seen, call } = stripeLike(h);
+    const attorney = { type: 'attorney' as const, id: 'att_1' };
+    // Stripe refunded, but the connection broke before the answer.
+    h.provider.refundConnected.mockImplementationOnce(async (a: Call) => {
+      await call(a);
+      throw Object.assign(new Error('socket hang up'), {
+        type: 'StripeConnectionError',
+      });
+    });
+    const dto = { amountCents: 10_000, reason: 'a' };
+    await expect(
+      h.svc.refundPayment(row(h), dto, attorney),
+    ).rejects.toMatchObject({ response: { code: 'REFUND_PROVIDER_FAILED' } });
+    // The money may have moved: the row stays reserved.
+    expect(h.refunds.map((r) => r.status)).toEqual(['pending']);
+    await h.svc.refundPayment(row(h), dto, attorney);
+    const [k1, k2] = keys(h);
+    expect(k2).toBe(k1);
+    expect(seen.size).toBe(1);
+    expect(h.refunds).toHaveLength(1);
+    expect(h.payments.get('cp_1')?.refunded_cents).toBe(10_000);
+    expect(h.ledger.casePaymentRefunded).toHaveBeenCalledTimes(1);
+  });
+
+  it('verify 17.11: a definite Stripe refusal (4xx) still frees the reservation', async () => {
+    const h = make(paid());
+    likePostgres(h);
+    h.provider.refundConnected.mockRejectedValueOnce(
+      Object.assign(new Error('charge_already_refunded'), {
+        type: 'StripeInvalidRequestError',
+        statusCode: 400,
+      }),
+    );
+    await expect(
+      h.svc.refundPayment(
+        row(h),
+        { amountCents: 10_000, reason: 'a' },
+        {
+          type: 'attorney',
+          id: 'att_1',
+        },
+      ),
+    ).rejects.toMatchObject({ response: { code: 'REFUND_PROVIDER_FAILED' } });
+    expect(h.refunds.map((r) => r.status)).toEqual(['failed']);
   });
 
   it('one id per payment, person and key', () => {

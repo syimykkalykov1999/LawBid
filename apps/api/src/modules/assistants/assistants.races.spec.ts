@@ -39,6 +39,8 @@ function fakeDb(seats: number) {
       findUnique: jest.fn().mockResolvedValue({ plan: 'monthly' }),
     },
     assistantMembership: membership,
+    // Batch 9: a seat decrease waiting for the renewal (none here).
+    assistantSeatChange: { findFirst: jest.fn().mockResolvedValue(null) },
   };
   const prisma = {
     ...base,

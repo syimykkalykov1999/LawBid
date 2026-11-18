@@ -2107,7 +2107,12 @@ export class AttorneyTrustService {
         recipientId: attorneyId,
         payload: { kind, ...extra },
       },
-      'attorneyTrust' in db ? undefined : db,
+      // Verify 17.11 (batch 9): `'attorneyTrust' in db` is true for a
+      // transaction client too (it has every model), so every trust notice
+      // was written outside its transaction — once per serializable retry,
+      // and kept when the transaction rolled back. The root client is told
+      // apart by identity.
+      db === this.prisma ? undefined : db,
     );
   }
 }
