@@ -1096,6 +1096,10 @@ model File {
   /// (an AVIF no smaller than the WebP is not kept). Only then is a client
   /// that asked for AVIF given `.avif` links; false = WebP / JPEG links.
   avif_twins         Boolean            @default(false)
+  /// Owner row 146: a browser voice note (Opus in WebM) has its AAC/M4A
+  /// copy stored next to it (`<s3_key>.m4a`). Only then is `voice.m4aUrl`
+  /// given (the iPhone plays only that); the original object is unchanged.
+  voice_m4a          Boolean            @default(false)
   scan_status        ScanStatus         @default(pending)
   /// Media batch A (R1): why the antivirus did not scan this file
   /// ('too_large' = over clamd's size limit). The object is kept and the row
@@ -8081,7 +8085,13 @@ model CaseSignature {
   signed_name String          @db.VarChar(120)
   /// drawn | typed
   method      String          @db.VarChar(8)
+  /// Old place of the drawn picture (bytes in the database). Kept while
+  /// image_key is backfilled (files/signature-image.ts: expand → backfill →
+  /// contract), then emptied and dropped.
   image_png   Bytes?
+  /// CONTENT_MEDIA_VERIFY 17.11 №7: key of the drawn picture in the private
+  /// documents bucket (never public); null = typed or not yet backfilled.
+  image_key   String?         @db.VarChar(255)
   doc_sha256  String          @db.VarChar(64)
   ip          String?         @db.VarChar(64)
   user_agent  String?         @db.VarChar(300)

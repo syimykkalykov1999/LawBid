@@ -32,6 +32,7 @@ import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { RateLimitService } from '../auth/services/rate-limit.service';
+import { loadSignatureImage, storeSignatureImage } from './signature-image';
 import { S3StorageService } from './storage/s3-storage.service';
 import { FileScanRunner } from './jobs/file-scan.runner';
 import { ScanHandoff } from './jobs/scan-handoff';
@@ -60,6 +61,8 @@ import {
   storedKey,
   variantKey,
   avifKey,
+  voiceM4aKey,
+  FILE_MIME,
   AVIF_PURPOSES,
   type FileMime,
   isImageMime,
@@ -431,6 +434,7 @@ export class FilesService {
         height: own.height,
         blurhash: own.blurhash,
         avif_twins: own.avif_twins,
+        voice_m4a: own.voice_m4a,
         scan_status: 'clean',
       },
     });
@@ -1557,6 +1561,7 @@ export class FilesService {
           width: src.width,
           height: src.height,
           avif_twins: src.avif_twins,
+          voice_m4a: src.voice_m4a,
           scan_status: 'clean',
         },
       });
@@ -1587,6 +1592,11 @@ export class FilesService {
     const key =
       demoKeyPrefix() + newFileKey({ purpose, ownerId: userId, fileId });
     await this.storage.put(bucket, key, data, src.mime);
+    // R2 review (owner row 146): a browser voice note forwarded into another
+    // bucket keeps its AAC/M4A copy, or the iPhone could not play it there.
+    const voiceM4a = src.voice_m4a
+      ? await this.copyVoiceM4a(src.s3_bucket, src.s3_key, bucket, key)
+      : false;
     const sha256 = createHash('sha256').update(data).digest('hex');
     await this.prisma.file.create({
       data: {
@@ -1599,6 +1609,7 @@ export class FilesService {
         size_bytes: BigInt(data.length),
         sha256,
         source_sha256: src.source_sha256 ?? sha256,
+        voice_m4a: voiceM4a,
         scan_status: 'clean',
       },
     });
@@ -1681,6 +1692,20 @@ export class FilesService {
     return Number.isFinite(days) && days > 0 ? days : 0;
   }
 
+  /** CONTENT_MEDIA_VERIFY 17.11 №7: a drawn signature picture → the
+   * private documents bucket; returns the key kept on the row. */
+  storeSignatureImage(requestId: string, png: Buffer): Promise<string> {
+    return storeSignatureImage(this.storage, requestId, png);
+  }
+
+  /** The picture of a case signature row (object first, old bytes after). */
+  signatureImage(row: {
+    image_key?: string | null;
+    image_png?: Uint8Array | null;
+  }): Promise<Buffer | null> {
+    return loadSignatureImage(this.storage, row);
+  }
+
   /** The bytes of a live, clean file (server-side reads: hashing a PDF
    * before it is signed, merging it into the signed copy). */
   async readClean(fileId: string): Promise<{ file: File; data: Buffer }> {
@@ -1695,11 +1720,48 @@ export class FilesService {
   }
 
   /**
+   * R2 review (owner row 146): copies the AAC/M4A twin of a voice note next
+   * to its new copy (`<key>.m4a`). False when it cannot be read or written:
+   * the new note then plays as the original (WebM) only, as before.
+   */
+  private async copyVoiceM4a(
+    fromBucket: string,
+    fromKey: string,
+    toBucket: string,
+    toKey: string,
+  ): Promise<boolean> {
+    try {
+      const m4a = await this.storage.read(fromBucket, voiceM4aKey(fromKey));
+      await this.storage.put(toBucket, voiceM4aKey(toKey), m4a, FILE_MIME.m4a);
+      return true;
+    } catch (err) {
+      this.logger.warn(
+        { err, alert: 'voice_transcode_failed', key: toKey },
+        'AAC copy of a forwarded voice note not copied: WebM only',
+      );
+      return false;
+    }
+  }
+
+  /**
    * OQ-040: short signed links to clean voice notes (documents bucket,
    * never the CDN). The caller has already checked chat membership.
    */
   async voiceUrls(fileIds: string[]): Promise<Map<string, string>> {
-    const out = new Map<string, string>();
+    const links = await this.voiceLinks(fileIds);
+    return new Map([...links].map(([id, l]) => [id, l.url]));
+  }
+
+  /**
+   * Owner row 146: the link of each clean voice note and, for a browser
+   * (WebM/Opus) note whose AAC/M4A copy the scan worker stored
+   * (`files.voice_m4a`), the link of that copy — the iPhone plays only it.
+   * Both are signed locally (no storage call); null = no copy.
+   */
+  async voiceLinks(
+    fileIds: string[],
+  ): Promise<Map<string, { url: string; m4aUrl: string | null }>> {
+    const out = new Map<string, { url: string; m4aUrl: string | null }>();
     if (fileIds.length === 0 || !this.storage.configured) return out;
     const files = await this.prisma.file.findMany({
       where: {
@@ -1714,6 +1776,7 @@ export class FilesService {
         s3_key: true,
         owner_user_id: true,
         purpose: true,
+        voice_m4a: true,
       },
     });
     // Audit 17.11 (problem 16): a voice note is as private as an attachment
@@ -1722,10 +1785,13 @@ export class FilesService {
     const ttl = await this.confidentialTtl();
     this.noteViews(files);
     for (const f of files) {
-      out.set(
-        f.id,
-        await this.storage.signedGetUrl(f.s3_bucket, f.s3_key, ttl),
-      );
+      const [url, m4aUrl] = await Promise.all([
+        this.storage.signedGetUrl(f.s3_bucket, f.s3_key, ttl),
+        f.voice_m4a
+          ? this.storage.signedGetUrl(f.s3_bucket, voiceM4aKey(f.s3_key), ttl)
+          : null,
+      ]);
+      out.set(f.id, { url, m4aUrl });
     }
     return out;
   }
