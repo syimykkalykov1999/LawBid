@@ -6,24 +6,21 @@ import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 import { pipeline } from '../../redis/redis-cluster-safe';
 import {
-  livePresenceCount,
   presenceKey,
+  presenceOfflineKey,
+  settleHeldOffline,
 } from '../../common/presence/live-presence';
 
 /** A socket counts as online this long after its last heartbeat. */
 export const PRESENCE_TTL_MS = 120_000;
 
-const key = presenceKey;
+/** Verify 5b (C4): the held "offline" mark outlives its grace by this much,
+ * so a delayed settle job that runs late (a busy or restarting worker)
+ * still finds and settles it. A reconnect deletes it at once. */
+export const OFFLINE_HOLD_SLACK_SEC = 600;
 
-/** Verify 5b (C3): delete the held "offline" mark only when it is still
- * the one this hold wrote (Redis "SET … / compare-and-delete" lock pattern,
- * redis.io/docs/latest/develop/use/patterns/distributed-locks). */
-const SETTLE_OWN_HOLD_LUA = `if redis.call('get', KEYS[1]) == ARGV[1] then
-  return redis.call('del', KEYS[1])
-end
-return 0`;
-/** S1-4: set while a person's "offline" announcement is held back. */
-const offlineKey = (userId: string) => `presence:off:${userId}`;
+const key = presenceKey;
+const offlineKey = presenceOfflineKey;
 /** S1-4: cached "may [viewer] see [target]'s status" answer. */
 const permKey = (viewerId: string, targetId: string) =>
   `presence:perm:${viewerId}:${targetId}`;
@@ -114,7 +111,12 @@ export class PresenceService {
    * remove a newer hold written after a reconnect + drop elsewhere). */
   async holdOffline(userId: string, graceSec: number): Promise<string> {
     const token = randomUUID();
-    await this.redis.set(offlineKey(userId), token, 'EX', graceSec + 30);
+    await this.redis.set(
+      offlineKey(userId),
+      token,
+      'EX',
+      graceSec + OFFLINE_HOLD_SLACK_SEC,
+    );
     return token;
   }
 
@@ -132,25 +134,13 @@ export class PresenceService {
     leftAt: Date,
     token?: string,
   ): Promise<boolean> {
-    const removed =
-      token === undefined
-        ? await this.redis.del(offlineKey(userId))
-        : Number(
-            await this.redis.eval(
-              SETTLE_OWN_HOLD_LUA,
-              1,
-              offlineKey(userId),
-              token,
-            ),
-          );
-    if (removed === 0) return false;
-    const live = await livePresenceCount(this.redis, userId);
-    if (live > 0) return false;
-    await this.prisma.user.updateMany({
-      where: { id: userId },
-      data: { last_active_at: leftAt },
-    });
-    return true;
+    return settleHeldOffline(
+      this.redis,
+      this.prisma.user,
+      userId,
+      leftAt,
+      token,
+    );
   }
 
   /** S1-4: [snapshot] for one watcher, remembered [ttlSec] seconds in Redis

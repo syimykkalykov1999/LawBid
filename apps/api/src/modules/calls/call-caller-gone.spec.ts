@@ -34,7 +34,9 @@ function world(opts: { status?: string; live?: number } = {}) {
       findUniqueOrThrow: jest.fn(async () => ({ ...call })),
       findMany: jest.fn(async () => [{ ...call }]),
       updateMany: jest.fn(
-        async (a: { where: { status: { in: string[] } }; data: object }) => {
+        async (a: { where: { status?: { in: string[] } }; data: object }) => {
+          // the end-effects marker clear has no status guard
+          if (!a.where.status) return { count: 1 };
           const hook = beforeUpdate;
           beforeUpdate = undefined;
           hook?.();

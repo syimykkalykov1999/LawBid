@@ -301,9 +301,14 @@ export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
  * - `calls.caller-gone`: the caller's last socket closed while a 1:1 call
  *   rang — after `calls.caller_gone_seconds` the call is canceled unless the
  *   caller is back (CallsService.endIfCallerGone).
+ * - `presence.settle` (C4): a person's last socket closed — after
+ *   `realtime.server.presence_offline_grace_seconds` the held "offline" is
+ *   settled unless they are back (PresenceSettleJob), even when the API that
+ *   held it died.
  */
 export const ONE_OFF_JOBS = {
   callerGone: 'calls.caller-gone',
+  presenceSettle: 'presence.settle',
 } as const;
 export type OneOffJobName = (typeof ONE_OFF_JOBS)[keyof typeof ONE_OFF_JOBS];
 
@@ -314,6 +319,11 @@ export function isOneOffJob(name: string): name is OneOffJobName {
 /** BullMQ forbids ':' in a custom job id. */
 export function callerGoneJobId(callId: string): string {
   return `caller-gone.${callId}`;
+}
+
+/** One job per hold (a new drop writes a new token, so a new job). */
+export function presenceSettleJobId(userId: string, token: string): string {
+  return `presence-settle.${userId}.${token}`;
 }
 
 export interface CronSchedule {

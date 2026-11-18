@@ -3034,6 +3034,10 @@ model Call {
   ended_at        DateTime?         @db.Timestamptz
   duration_sec    Int?
   end_reason      String?
+  /// Verify 5b (17.11): set with the final status, cleared once the end's
+  /// effects (call:ended, pushes, chat entry, missed-call notification) went
+  /// out; the calls sweep re-sends for a row left set (throw or crash).
+  ended_events_due_at DateTime?     @db.Timestamptz
   /// Owner 2026-10-05: a video call (camera on both sides).
   video           Boolean           @default(false)
   /// Owner 2026-10-20: people were added to the call (like WhatsApp /

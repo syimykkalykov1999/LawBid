@@ -22,6 +22,7 @@ import type {
   CallVote,
   CallStatus,
   Conversation,
+  Message,
 } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
@@ -121,6 +122,9 @@ export { CALL_RING_TIMEOUT_MS };
  * common/calls (the group / channel lists read it too). */
 export { CALL_SILENT_MS };
 const LIVE: CallStatus[] = ['ringing', 'active'];
+/** Verify 5b (17.11): an end whose effects are still unsent this long after
+ * the status change is re-sent by the sweep (retryEndedEffects). */
+const END_EFFECTS_RETRY_MS = 60_000;
 
 /** Owner 2026-10-26 (failover, LC-5): a phone's «I cannot reach the SFU»
  * report lives this long; half of the joined members within it move the
@@ -1675,6 +1679,7 @@ export class CallsService {
         [c.status],
       );
     }
+    await this.retryEndedEffects(now);
     await this.sweepInvites(now);
     await this.sweepSilentMembers(now);
     // Owner 2026-11-02: once a minute the on-demand coturn is started,
@@ -1705,6 +1710,11 @@ export class CallsService {
             Math.round((now.getTime() - call.answered_at.getTime()) / 1000),
           )
         : 0;
+    // Verify 5b (17.11): the marker is written in the SAME statement as the
+    // final status, so an end whose effects never went out (a throw, a
+    // crash) is found and re-sent by the sweep (retryEndedEffects). Wall
+    // clock, not [at]: a backdated end must not look overdue at once.
+    const due = new Date();
     const { count } = await this.prisma.call.updateMany({
       where: { id: call.id, status: { in: [...from] } },
       data: {
@@ -1712,27 +1722,68 @@ export class CallsService {
         ended_at: now,
         duration_sec: durationSec,
         end_reason: endReason ?? outcome,
+        ended_events_due_at: due,
       },
     });
     const fresh = await this.prisma.call.findUniqueOrThrow({
       where: { id: call.id },
     });
     if (count > 0) {
-      // Owner 2026-10-24: close every Cloudflare session of the call.
-      if (this.sfu && this.mediaOf(call) === 'cloudflare') {
-        await this.sfu.closeCall(call.id).catch((e: unknown) => {
-          this.logger.warn(
-            `SFU close of call ${call.id} failed: ${e instanceof Error ? e.message : 'error'}`,
-          );
-        });
+      try {
+        await this.sendEndEffects(call, fresh, outcome, now, due, byChainId);
+      } catch (e) {
+        // The call IS over; the sweep re-sends what did not go out.
+        this.logger.warn(
+          `end effects of call ${call.id} not sent, the sweep retries: ${e instanceof Error ? e.message : 'error'}`,
+        );
       }
-      if (call.status === 'ringing') {
-        await this.stopRingingPush(call, byChainId);
-      } else {
-        await this.endedActivePush(call);
+    }
+    return this.toDto(fresh, viewerId ?? call.caller_id);
+  }
+
+  /**
+   * Verify 5b (17.11): the "it is over" effects of an end, run once per
+   * `ended_events_due_at` claim. Phase 1 is retryable and idempotent (SFU
+   * close, the chat entry with its fixed client id): a throw there leaves
+   * the marker, nothing has been sent, and the sweep's retry sends
+   * everything exactly once. Phase 2 sends (pushes, call:ended, the group
+   * banner, the missed-call notification) — each step on its own, so one
+   * failing no longer drops the rest — and the marker is cleared after it.
+   */
+  private async sendEndEffects(
+    /** The call as it was before the end (ringing → stop-ringing push). */
+    call: Call,
+    fresh: Call,
+    outcome: Outcome,
+    now: Date,
+    due: Date,
+    byChainId?: string,
+  ): Promise<void> {
+    // Owner 2026-10-24: close every Cloudflare session of the call.
+    if (this.sfu && this.mediaOf(call) === 'cloudflare') {
+      await this.sfu.closeCall(call.id).catch((e: unknown) => {
+        this.logger.warn(
+          `SFU close of call ${call.id} failed: ${e instanceof Error ? e.message : 'error'}`,
+        );
+      });
+    }
+    await this.logCall(fresh, outcome);
+    const step = async (name: string, fn: () => Promise<unknown>) => {
+      try {
+        await fn();
+      } catch (e) {
+        this.logger.warn(
+          `call ${call.id} end ${name} failed: ${e instanceof Error ? e.message : 'error'}`,
+        );
       }
-      await this.stopInvitePushes(call);
-      await this.logCall(fresh, outcome);
+    };
+    await step('push', () =>
+      call.status === 'ringing'
+        ? this.stopRingingPush(call, byChainId)
+        : this.endedActivePush(call),
+    );
+    await step('invite pushes', () => this.stopInvitePushes(call));
+    await step('call:ended', async () => {
       const rows = call.is_group ? await this.rowsOf(call.id) : [];
       const audience = [
         ...new Set([
@@ -1748,18 +1799,22 @@ export class CallsService {
           await this.withSeq(call.id, { call: await this.toDto(fresh, uid) }),
         );
       }
-      if (call.is_group) {
-        await this.prisma.callParticipant.updateMany({
+    });
+    if (call.is_group) {
+      await step('participants', () =>
+        this.prisma.callParticipant.updateMany({
           where: { call_id: call.id, status: { in: IN_CALL } },
           data: { status: 'left', left_at: now },
-        });
-      }
-      await this.announceGroupCall(call, [], true);
-      if (
-        call.conversation_id &&
-        (outcome === 'missed' || outcome === 'canceled')
-      ) {
-        await this.notifications.emit({
+        }),
+      );
+    }
+    await step('group banner', () => this.announceGroupCall(call, [], true));
+    if (
+      call.conversation_id &&
+      (outcome === 'missed' || outcome === 'canceled')
+    ) {
+      await step('missed notification', () =>
+        this.notifications.emit({
           type: 'missed_call',
           recipientId: call.callee_id,
           payload: {
@@ -1767,10 +1822,57 @@ export class CallsService {
             conversationId: call.conversation_id,
             actorId: call.caller_id,
           },
-        });
-      }
+        }),
+      );
     }
-    return this.toDto(fresh, viewerId ?? call.caller_id);
+    await this.prisma.call.updateMany({
+      where: { id: call.id, ended_events_due_at: due },
+      data: { ended_events_due_at: null },
+    });
+  }
+
+  /**
+   * Verify 5b (17.11): ends whose effects did not go out within
+   * END_EFFECTS_RETRY_MS (a throw in phase 1, a crashed process) are sent
+   * again. Each row is claimed by moving its marker (compare-and-set), so
+   * two sweeps never both send; a retry that throws again waits for the
+   * next window.
+   */
+  private async retryEndedEffects(now: Date): Promise<void> {
+    const overdue = await this.prisma.call.findMany({
+      where: {
+        ended_events_due_at: {
+          not: null,
+          lt: new Date(now.getTime() - END_EFFECTS_RETRY_MS),
+        },
+      },
+      take: 50,
+    });
+    for (const c of overdue) {
+      if (!c.ended_events_due_at || LIVE.includes(c.status)) continue;
+      const lease = new Date();
+      const { count } = await this.prisma.call.updateMany({
+        where: { id: c.id, ended_events_due_at: c.ended_events_due_at },
+        data: { ended_events_due_at: lease },
+      });
+      if (count === 0) continue;
+      // Before the end it rang unless somebody answered.
+      const before: Call = {
+        ...c,
+        status: c.answered_at ? 'active' : 'ringing',
+      };
+      await this.sendEndEffects(
+        before,
+        c,
+        c.status as Outcome,
+        c.ended_at ?? now,
+        lease,
+      ).catch((e: unknown) => {
+        this.logger.warn(
+          `end effects retry of call ${c.id} failed: ${e instanceof Error ? e.message : 'error'}`,
+        );
+      });
+    }
   }
 
   // --- Group calls (owner 2026-10-20) ---------------------------------------
@@ -3250,7 +3352,44 @@ export class CallsService {
     const conversationId = call.conversation_id;
     if (!conversationId) return;
     // The chat lives on its case's shard (the id carries it).
-    const m = await shardContext.runForCase(conversationId, () =>
+    const m = await this.writeCallEntry(call, outcome, conversationId);
+    const unanswered =
+      outcome === 'missed' || outcome === 'canceled' || outcome === 'busy';
+    await this.chat.announce(m, unanswered ? call.callee_id : undefined);
+  }
+
+  /** The chat entry of a call. Verify 5b (17.11): idempotent — its client id
+   * is fixed (`call:<id>`, unique per conversation and sender), so a retried
+   * end (retryEndedEffects) reuses the entry a first try already wrote. */
+  private async writeCallEntry(
+    call: Call,
+    outcome: Outcome,
+    conversationId: string,
+  ): Promise<Message> {
+    try {
+      return await this.createCallEntry(call, outcome, conversationId);
+    } catch (e) {
+      if ((e as { code?: unknown } | null)?.code !== 'P2002') throw e;
+      const existing = await shardContext.runForCase(conversationId, () =>
+        this.prisma.message.findFirst({
+          where: {
+            conversation_id: conversationId,
+            sender_id: call.caller_id,
+            client_message_id: `call:${call.id}`,
+          },
+        }),
+      );
+      if (!existing) throw e;
+      return existing;
+    }
+  }
+
+  private createCallEntry(
+    call: Call,
+    outcome: Outcome,
+    conversationId: string,
+  ): Promise<Message> {
+    return shardContext.runForCase(conversationId, () =>
       this.prisma.$transaction(async (tx) => {
         const msg = await tx.message.create({
           data: {
@@ -3278,9 +3417,6 @@ export class CallsService {
         return msg;
       }),
     );
-    const unanswered =
-      outcome === 'missed' || outcome === 'canceled' || outcome === 'busy';
-    await this.chat.announce(m, unanswered ? call.callee_id : undefined);
   }
 
   private async assertSubscription(conv: Conversation): Promise<void> {

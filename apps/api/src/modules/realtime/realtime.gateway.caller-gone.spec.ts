@@ -97,6 +97,9 @@ describe('RealtimeGateway: caller gone while ringing (C1)', () => {
     await w.gateway.handleDisconnect(w.socket);
     await settle();
     expect(w.findMany).not.toHaveBeenCalled();
-    expect(w.add).not.toHaveBeenCalled();
+    // (the presence settle job of C4 is queued; no caller-gone one)
+    expect(
+      w.add.mock.calls.filter((c) => c[0] === 'calls.caller-gone'),
+    ).toEqual([]);
   });
 });

@@ -23,6 +23,7 @@ import { CountryPartnersService } from '../modules/country-partners/country-part
 import { RewardsService } from '../modules/rewards/rewards.service';
 import { SupportDeskService } from '../modules/support/support-desk.service';
 import { SessionsCleanupJob } from './handlers/sessions-cleanup.job';
+import { PresenceSettleJob } from './handlers/presence-settle.job';
 import { OtpCleanupJob } from './handlers/otp-cleanup.job';
 import { DisposableDomainsRefreshJob } from './disposable-domains/disposable-domains-refresh.job';
 import { ReviewReminderJob } from './handlers/review-reminder.job';
@@ -306,6 +307,8 @@ export class CronProcessor {
     @Optional() private readonly qaSnapshot?: QaSnapshotService,
     // Owner row 112: `profiles.reply-time`.
     @Optional() private readonly replyTime?: AttorneyReplyTimeJob,
+    // Verify 5b (C4): `presence.settle` one-off jobs.
+    @Optional() private readonly presenceSettle?: PresenceSettleJob,
   ) {}
 
   /**
@@ -532,6 +535,10 @@ export class CronProcessor {
         return typeof d.callId === 'string'
           ? this.calls.endIfCallerGone(d.callId)
           : { skipped: 'no call id' };
+      case ONE_OFF_JOBS.presenceSettle:
+        return this.presenceSettle
+          ? this.presenceSettle.run(data)
+          : { skipped: 'no presence settle' };
       default:
         return { skipped: 'unknown one-off job' };
     }

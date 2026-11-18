@@ -200,7 +200,11 @@ describe('RealtimeGateway session revocation (finding 5)', () => {
     const spy = jest.spyOn(gateway, 'onSessionRevoked');
     gateway.afterInit({ name: '/realtime', server: { adapter } } as never);
     expect(adapter).toHaveBeenCalledTimes(1);
-    expect(sub.subscribe).toHaveBeenCalledWith(SESSION_REVOKED_CHANNEL);
+    // verify 5b (C4): the same subscriber hears the presence settle job
+    expect(sub.subscribe).toHaveBeenCalledWith(
+      SESSION_REVOKED_CHANNEL,
+      'presence:settled',
+    );
     handlers.message('other', revoked('x'));
     expect(spy).not.toHaveBeenCalled();
     handlers.message(SESSION_REVOKED_CHANNEL, revoked('x'));

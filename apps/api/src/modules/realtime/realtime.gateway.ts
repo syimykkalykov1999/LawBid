@@ -63,7 +63,15 @@ import { closeSubscriber } from '../../redis/subscribe-in-background';
 import { isRedisInfraError } from '../../redis/redis-errors';
 import { RealtimeEventLog } from './realtime-event-log';
 import { OneOffJobsQueue } from '../../jobs/one-off-jobs.queue';
-import { ONE_OFF_JOBS, callerGoneJobId } from '../../jobs/jobs.constants';
+import {
+  ONE_OFF_JOBS,
+  callerGoneJobId,
+  presenceSettleJobId,
+} from '../../jobs/jobs.constants';
+import {
+  PRESENCE_SETTLED_CHANNEL,
+  parsePresenceSettled,
+} from '../../common/presence/live-presence';
 import {
   newSocketEventBucket,
   takeSocketEvent,
@@ -404,9 +412,13 @@ export class RealtimeGateway
     this.revocations = pubSubClient(this.redis);
     this.revocations.on('message', (channel: string, raw: string) => {
       if (channel === SESSION_REVOKED_CHANNEL) this.onSessionRevoked(raw);
+      else if (channel === PRESENCE_SETTLED_CHANNEL) {
+        void this.onPresenceSettled(raw);
+      }
     });
     void this.revocations
-      .subscribe(SESSION_REVOKED_CHANNEL)
+      // Verify 5b (C4): the same subscriber hears the settle job's announce.
+      .subscribe(SESSION_REVOKED_CHANNEL, PRESENCE_SETTLED_CHANNEL)
       .catch((error: unknown) =>
         this.logger.warn(
           { err: error instanceof Error ? error.message : error },
@@ -879,6 +891,29 @@ export class RealtimeGateway
     lastSeenAt: Date | null,
   ): Promise<void> {
     if (!this.nsp || !(await this.presence.visible(userId))) return;
+    await this.tellWatchers(userId, online, lastSeenAt, false);
+  }
+
+  /** Verify 5b (C4): the delayed settle job (any process) settled a held
+   * "offline" and checked the person shows their status; this instance tells
+   * its own watching sockets (every instance gets the message). */
+  async onPresenceSettled(raw: string): Promise<void> {
+    const msg = parsePresenceSettled(raw);
+    if (!msg || !this.nsp) return;
+    try {
+      await this.tellWatchers(msg.userId, false, new Date(msg.leftAt), true);
+    } catch {
+      // Presence is best-effort.
+    }
+  }
+
+  private async tellWatchers(
+    userId: string,
+    online: boolean,
+    lastSeenAt: Date | null,
+    localOnly: boolean,
+  ): Promise<void> {
+    if (!this.nsp) return;
     const room = presenceRoom(userId);
     const payload = {
       userId,
@@ -889,7 +924,8 @@ export class RealtimeGateway
     // person's *current* "last seen" audience — someone who stopped being a
     // contact (or lost the right after a setting change) is dropped from the
     // room instead of staying subscribed.
-    const sockets = await this.nsp.in(room).fetchSockets();
+    const target = this.nsp.in(room);
+    const sockets = await (localOnly ? target.local : target).fetchSockets();
     const allowed = new Map<string, boolean>();
     for (const s of sockets) {
       const viewer = (s.data as SocketState | undefined)?.user?.sub;
@@ -922,12 +958,40 @@ export class RealtimeGateway
       Math.ceil(graceMs / 1000),
     );
     this.clearOfflineTimer(userId);
+    // Verify 5b (C4): a delayed BullMQ job settles the hold from whichever
+    // process runs it, so a crash of this one no longer leaves the person
+    // "online" for their watchers with no `last_active_at`. The local timer
+    // stays only for when the job can't be queued (no Redis queue).
+    if (await this.queueSettle(userId, token, leftAt, graceMs)) return;
     const timer = setTimeout(() => {
       this.offlineTimers.delete(userId);
       void this.settleOffline(userId, leftAt, token);
     }, graceMs);
     timer.unref?.();
     this.offlineTimers.set(userId, { timer, leftAt, token });
+  }
+
+  private async queueSettle(
+    userId: string,
+    token: string,
+    leftAt: Date,
+    graceMs: number,
+  ): Promise<boolean> {
+    if (!this.oneOff) return false;
+    try {
+      return await this.oneOff.add(
+        ONE_OFF_JOBS.presenceSettle,
+        { userId, token, leftAt: leftAt.toISOString() },
+        presenceSettleJobId(userId, token),
+        graceMs,
+      );
+    } catch (err) {
+      this.logger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        'presence settle job not queued; local timer instead',
+      );
+      return false;
+    }
   }
 
   private async settleOffline(
