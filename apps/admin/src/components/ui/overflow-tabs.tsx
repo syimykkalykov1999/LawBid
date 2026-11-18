@@ -6,6 +6,7 @@ import * as m from 'motion/react-m';
 import { HoverPrefetchLink as Link } from '@/components/ui/hover-prefetch-link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useEscapeLayer } from '@/lib/layers';
 import * as MOTION from '@/lib/motion-tokens';
 import { NAV_TRANSITION_TYPES } from '@/lib/nav-transition';
@@ -78,26 +79,22 @@ export function OverflowTabs({ items, active, label, className }: { items: Overf
   }, [active]);
 
   useLayoutEffect(() => {
-    measure();
     const row = box.current;
     if (!row) return;
+    // Measure only inside the ResizeObserver callback (Admin Lighthouse
+    // 2026-11-17, main 3ade6ec9c): the browser calls it right after its own
+    // layout and before paint, so the offsetWidth reads cost nothing. A
+    // measure here in the layout effect forced a layout of the whole new page
+    // in the middle of React's commit (trace: 14 + 25 ms at CPU x4, the only
+    // forced layout on /users). `observe` always delivers a first entry, so
+    // every new `sig` is measured in the same frame; flushSync paints the
+    // trimmed row in that frame too, as the layout effect did (no flash).
     // The row resizes many times while a page loads (fonts, the sidebar's
-    // width spring, counters arriving): one measure per animation frame at
-    // most — each measure reads offsetWidth of every tab, a forced layout
-    // (Lighthouse 2026-11-09: this function was a top JS item on load).
-    let frame = 0;
-    const ro = new ResizeObserver(() => {
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        measure();
-      });
-    });
+    // width spring, counters arriving); the observer fires at most once per
+    // frame.
+    const ro = new ResizeObserver(() => flushSync(measure));
     ro.observe(row);
-    return () => {
-      ro.disconnect();
-      if (frame) cancelAnimationFrame(frame);
-    };
+    return () => ro.disconnect();
   }, [measure, sig]);
 
   useEffect(() => setOpen(false), [pathname]);
