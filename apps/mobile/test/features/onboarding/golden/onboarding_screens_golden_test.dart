@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:golden_toolkit/golden_toolkit.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/features/onboarding/presentation/screens/contacts_step_sc
 import 'package:lawbid/features/onboarding/presentation/screens/profile_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../helpers/email_flows_overrides.dart';
 import '../../../helpers/fixtures.dart';

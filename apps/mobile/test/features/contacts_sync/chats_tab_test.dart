@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -7,6 +6,7 @@ import 'package:lawbid/features/contacts_sync/presentation/chats_tab.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contact_actions.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_screen.dart';
 import 'package:lawbid/shared/people/my_people.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/fixed_chat_people.dart';

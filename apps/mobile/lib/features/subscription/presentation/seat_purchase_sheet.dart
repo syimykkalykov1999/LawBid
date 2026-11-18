@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -16,6 +15,7 @@ import 'package:lawbid/features/subscription/presentation/subscription_screen.da
     show subscriptionPrice;
 import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22 — buying assistant seats, like Slack: the attorney
 /// picks how many, sees «К оплате сейчас: $X (до {date}), затем +$Y/мес»

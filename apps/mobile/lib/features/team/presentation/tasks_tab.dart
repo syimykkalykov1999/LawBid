@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -29,6 +28,7 @@ import 'package:lawbid/features/team/presentation/task_widgets.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/edge_swipe.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05: «Сегодня» (by time of day), «Все» (by day),
 /// «Архив» (finished — kept a year, then removed) and an assistant's

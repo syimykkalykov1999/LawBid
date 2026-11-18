@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/fixtures.dart';
 import '../../helpers/onboarding_harness.dart';

@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/ux_harness.dart';
 

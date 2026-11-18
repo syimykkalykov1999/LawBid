@@ -1,6 +1,5 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:drift/drift.dart' show driftRuntimeOptions;
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/features/chat/presentation/conversation_screen.dart';
 import 'package:lawbid/features/stickers/application/stickers_providers.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 import 'package:lawbid/features/stickers/presentation/sticker_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'contact_info_test.dart';
 

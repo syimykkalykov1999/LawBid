@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart
 import 'package:lawbid/features/profile/presentation/widgets/star_rating.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Desktop web plan 2026-10-28 §6.5: on a desktop window a profile page is
 /// the profile itself (header + tabs, at most [kProfileMainMaxWidth]) and a

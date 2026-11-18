@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/addresses/address_field.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/legal/application/legal_providers.dart';
 import 'package:lawbid/features/legal/domain/legal_models.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/consent_check_tile.dart';
+import 'package:material_ui/material_ui.dart';
 
 final _emailRe = RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$');
 

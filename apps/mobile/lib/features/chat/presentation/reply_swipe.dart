@@ -1,8 +1,8 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart' show SpringSimulation;
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22 (Telegram): a message is quoted by dragging it toward
 /// the START side of the screen (left in LTR) and letting go past the

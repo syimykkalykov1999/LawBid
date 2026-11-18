@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_picker.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/notifications/application/system_notifications.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// "Find people from your contacts?" — shown before anything is read or
 /// sent (also again after the person turned the sync off and deleted it).

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/features/cases/workspace/compose_sheet.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-19: the one way to add or edit a planner task — the
 /// «Новая задача» sheet (title, checklist, file, date, reminder, case,

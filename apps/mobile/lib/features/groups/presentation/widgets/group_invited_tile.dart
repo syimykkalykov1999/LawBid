@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_avatar.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_invite_card.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-21: a person invited to the group who has not answered yet,
 /// marked «Invited» in the members list.

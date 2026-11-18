@@ -1,8 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
@@ -10,6 +8,7 @@ import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/domain/login_identifier.dart';
 import 'package:lawbid/features/auth/presentation/widgets/password_form_widgets.dart';
 import 'package:lawbid/features/auth/presentation/widgets/resend_countdown.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/auth/forgot-password` (owner 2026-10-13): step 1 asks for the phone
 /// number and sends the code by SMS (owner 2026-10-14: never to an e-mail);

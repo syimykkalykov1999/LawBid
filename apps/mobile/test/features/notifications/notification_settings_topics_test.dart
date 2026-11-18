@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -22,6 +21,7 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/long_locale.dart';
 import '../../helpers/pending_strings.dart';

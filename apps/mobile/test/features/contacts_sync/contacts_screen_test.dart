@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart
 import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_screen.dart';
 import 'package:lawbid/features/contacts_sync/presentation/invite_contact.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/long_locale.dart';

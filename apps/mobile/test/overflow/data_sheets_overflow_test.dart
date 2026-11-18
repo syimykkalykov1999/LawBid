@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/features/cases/domain/case_urgency.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/features/search/data/search_repository.dart';
 import 'package:lawbid/features/search/presentation/widgets/search_filters_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/recommended_sheet.dart';
 import 'package:lawbid/features/verification/presentation/widgets/license_sheet.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../helpers/overflow_harness.dart';
 

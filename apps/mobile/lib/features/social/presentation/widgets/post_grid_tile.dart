@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart'
@@ -17,6 +16,7 @@ import 'package:lawbid/features/social/application/grid_video_coordinator.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_cover.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 /// One square of a 3-column posts grid (the profile's Posts tab, Search

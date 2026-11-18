@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner row 95 (2026-11-13, owner «Конечно»; WhatsApp / Telegram /
 /// Instagram DMs): a message that arrives in ANOTHER chat while the app is

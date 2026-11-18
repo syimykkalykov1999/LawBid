@@ -1,12 +1,11 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
 import 'package:lawbid/features/onboarding/application/countries_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05: someone from a country LawBid is not open in yet
 /// tells us they want it. Owner 2026-11-02: the e-mail is optional and

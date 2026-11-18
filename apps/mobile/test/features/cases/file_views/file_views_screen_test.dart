@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/cache/cache_database.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/cases/file_views/data/file_views_repository.dart
 import 'package:lawbid/features/cases/file_views/domain/file_view.dart';
 import 'package:lawbid/features/cases/file_views/presentation/file_views_screen.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../helpers/long_locale.dart';
 import '../../../helpers/ux_harness.dart';

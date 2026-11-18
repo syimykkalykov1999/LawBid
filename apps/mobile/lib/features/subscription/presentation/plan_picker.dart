@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/plan_tier_card.dart';
 import 'package:lawbid/features/subscription/presentation/promo_code_field.dart';
 import 'package:lawbid/features/subscription/presentation/subscription_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// What the monthly plan includes (owner 2026-10-01: listed on the card).
 List<String> monthlyFeatures(Translator t, String seatPrice) => [

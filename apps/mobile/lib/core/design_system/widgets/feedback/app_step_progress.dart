@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/widgets/feedback/app_numbered_stepper.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Step indicator for multi-step flows. Owner 2026-11-05: no more bars —
 /// the numbered rail of the attorney's «Верификация» wizard

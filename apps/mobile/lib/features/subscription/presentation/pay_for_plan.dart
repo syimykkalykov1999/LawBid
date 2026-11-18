@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/config/app_config.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -9,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/data/card_collector.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-11: the card is entered in Stripe's sheet INSIDE the app
 /// (3-D Secure included), for any plan — the order (plan, seats, assistant

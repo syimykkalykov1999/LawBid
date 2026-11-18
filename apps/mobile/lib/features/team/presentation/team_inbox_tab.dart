@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// OQ-048 (owner 2026-09-30) — Inbox → «Команда» (the attorney only):
 /// approval requests from assistants (approve publishes in the attorney's

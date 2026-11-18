@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/promotions/presentation/boost_colors.dart';
 import 'package:lawbid/features/promotions/presentation/boost_wizard.dart';
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-15 (mockup v4): the numbers of one boost — status and the
 /// last paid day, reach, impressions, clicks, CTR, spend, the bars by day,

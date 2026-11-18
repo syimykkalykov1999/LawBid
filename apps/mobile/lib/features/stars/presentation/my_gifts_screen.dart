@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
 import 'package:lawbid/features/stars/presentation/gift_names.dart';
 import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 — gifts I received: show on / hide from my profile,
 /// or turn into stars.

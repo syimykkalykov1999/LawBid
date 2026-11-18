@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/presentation/poll/poll_logic.dart';
 import 'package:lawbid/features/groups/presentation/poll/poll_voters_sheet.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// The poll inside a chat bubble: question, options with live results,
 /// vote / retract / close / who-voted actions. Draws the card content only.

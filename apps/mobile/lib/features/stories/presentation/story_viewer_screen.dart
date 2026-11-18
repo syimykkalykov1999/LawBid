@@ -1,8 +1,6 @@
 import 'dart:async';
-
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart' show SpringSimulation;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -29,6 +27,7 @@ import 'package:lawbid/features/stories/presentation/story_hero.dart';
 import 'package:lawbid/features/stories/presentation/story_navigation.dart';
 import 'package:lawbid/features/stories/presentation/story_video.dart';
 import 'package:lawbid/features/stories/presentation/story_viewer_sheets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The full-screen viewer of one person's live stories; when they end it
 /// goes on to the next person in the tray who has something unseen.

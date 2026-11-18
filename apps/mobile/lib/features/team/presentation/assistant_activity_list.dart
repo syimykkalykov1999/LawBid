@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -7,6 +6,7 @@ import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-01: everything the assistants did, as cards grouped by
 /// day — shown under the bell ("Assistants"), not in Team.

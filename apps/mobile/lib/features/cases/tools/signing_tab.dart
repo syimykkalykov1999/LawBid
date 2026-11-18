@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/features/cases/tools/signing_data.dart';
 import 'package:lawbid/features/cases/tools/signing_sheets.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-11-05: the round «+» of the Documents tab asks for a signature.
 Future<void> requestCaseSignature(

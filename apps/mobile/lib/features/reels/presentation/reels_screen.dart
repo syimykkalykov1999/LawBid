@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show ValueListenable, kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -29,6 +28,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/shared/presentation/guest_gate.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-01 — reels exactly like Instagram: full screen, swipe up
 /// for the next one, the current reel plays with sound and loops; tap

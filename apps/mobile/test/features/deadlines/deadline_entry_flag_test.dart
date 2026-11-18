@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/deadlines/application/deadlines_providers.dart';
 import 'package:lawbid/features/deadlines/presentation/deadline_entry.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/long_locale.dart';
 import '../../helpers/ux_harness.dart';

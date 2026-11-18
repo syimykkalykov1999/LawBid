@@ -1,8 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -11,6 +9,7 @@ import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
 import 'package:lawbid/features/auth/presentation/widgets/us_phone_input.dart';
 import 'package:lawbid/features/onboarding/application/contact_verification_controller.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// How a contact is required for the current role (docs/01_FOUNDATION_AUTH
 /// .md §11: client → phone AND email; attorney → phone, email recommended).

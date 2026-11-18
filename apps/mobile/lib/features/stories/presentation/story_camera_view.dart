@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 (WhatsApp / Telegram): the first screen of a new story is
 /// the camera itself — a tap on the shutter takes a photo, holding it records

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.da
 import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../helpers/long_locale.dart';
 import '../helpers/ux_harness.dart';

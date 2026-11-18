@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-16: on the web a post is as wide as Instagram's (470 px),
 /// a brief as Threads' column (640 px), a reel is a 9:16 player as tall as

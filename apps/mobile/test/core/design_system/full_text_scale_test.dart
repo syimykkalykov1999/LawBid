@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22 (audit #12): the app shell follows the phone's font
 /// size up to 1.3×; a message or a post's text follows it in full.

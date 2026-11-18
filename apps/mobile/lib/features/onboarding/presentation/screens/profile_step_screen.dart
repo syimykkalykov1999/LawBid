@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -27,6 +26,7 @@ import 'package:lawbid/features/profile/presentation/screens/attorney_profile_ed
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
 import 'package:lawbid/features/profile/presentation/widgets/username_suggestions.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Max attorney bio length (docs/01_FOUNDATION_AUTH.md §11 Шаг 3B).
 int get kBioMaxLength => TextLimits.of(TextLimit.bio);

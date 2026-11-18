@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/permissions/permission_primer.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22 (audit #13): draws [PermissionPrimer]'s explanation —
 /// a short card at the bottom over everything (the call screen too), with

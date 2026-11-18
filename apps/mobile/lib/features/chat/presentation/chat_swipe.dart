@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -6,6 +5,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/shared/presentation/edge_swipe.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 (Telegram): a chat row — a direct chat or a group — that
 /// pins on a swipe right and mutes on a swipe left; the row springs back

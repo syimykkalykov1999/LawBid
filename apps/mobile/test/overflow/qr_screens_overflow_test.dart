@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/onboarding/application/current_user_controller.d
 import 'package:lawbid/features/qr/presentation/my_qr_screen.dart';
 import 'package:lawbid/features/qr/presentation/qr_scanner_screen.dart';
 import 'package:lawbid/features/qr/presentation/web_login_link_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../features/profile/profile_fakes.dart';
 import '../helpers/long_locale.dart';

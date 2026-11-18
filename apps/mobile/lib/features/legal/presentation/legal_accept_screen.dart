@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/legal/application/legal_providers.dart';
 import 'package:lawbid/features/legal/domain/legal_documents.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/consent_check_tile.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/legal-accept` — Owner 2026-10-05 (legal documents). Shown after
 /// sign-in while `GET /users/me` lists documents of the user's role that

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +14,7 @@ import 'package:lawbid/features/channels/presentation/channel_form_screen.dart';
 import 'package:lawbid/features/channels/presentation/channel_screen.dart';
 import 'package:lawbid/features/channels/presentation/channels_screen.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../helpers/long_locale.dart';

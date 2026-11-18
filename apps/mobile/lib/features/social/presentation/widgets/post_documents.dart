@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -17,6 +16,7 @@ import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05: one document in the composer, uploaded right after it
 /// is picked so "Опубликовать" only waits for what is still in flight.

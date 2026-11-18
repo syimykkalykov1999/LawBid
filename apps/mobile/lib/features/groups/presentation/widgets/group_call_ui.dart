@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -13,6 +12,7 @@ import 'package:lawbid/features/groups/application/group_call_port.dart';
 import 'package:lawbid/features/groups/domain/ongoing_call.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_avatar.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// Mesh calls hold nine people, audio or video (the server's
 /// GROUP_MAX_AUDIO / GROUP_MAX_VIDEO; inbox 20d). More need an SFU.

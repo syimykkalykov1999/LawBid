@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/privacy/application/privacy_providers.dart';
 import 'package:lawbid/features/privacy/data/privacy_repository.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Max characters of an appeal (the server's limit).
 const _appealMax = 1000;

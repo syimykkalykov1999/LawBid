@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/features/team/application/team_providers.dart'
     show isAssistantProvider;
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-18 (Instagram): under the author's own PHOTO / VIDEO post,
 /// between the media and the likes row — «Статистика» as a text link on the

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -13,6 +12,7 @@ import 'package:lawbid/features/onboarding/domain/consent_type.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/consent_card.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/onboarding_scaffold.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/onboarding/consents` — «Возраст и согласия» (docs/01_FOUNDATION_AUTH
 /// .md §10.2 H): 18+ (required), Terms + Privacy (required, linked to the

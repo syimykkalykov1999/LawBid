@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/core/navigation/router_error_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Row 148 (go_router 17 -> 18): go_router 18 looks for package:material_ui's
 /// MaterialApp; inside this app's flutter/material one it would build every

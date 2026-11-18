@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:go_router/go_router.dart';
@@ -48,6 +47,7 @@ import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid/features/notifications/presentation/qa_notify_switch.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// How long a local step before `runApp` may take on its own (a lookup, a

@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A section title of the contacts lists ("On LawBid", "Invite to LawBid")
 /// and of the «Новая группа» people picker; shared here so groups does not

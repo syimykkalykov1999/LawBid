@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,6 +21,7 @@ import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field
     show AvatarSource, avatarImagePickerProvider;
 import 'package:lawbid/shared/presentation/handle_hints.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// «New group»: step 1 picks the people, step 2 sets the photo, name, type
 /// (public / closed / private) and creates the group.

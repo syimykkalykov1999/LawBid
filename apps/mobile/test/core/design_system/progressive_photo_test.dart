@@ -1,9 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('blurhash stand-in: the hash when valid, a flat colour otherwise',

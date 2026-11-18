@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
@@ -20,6 +19,7 @@ import 'package:lawbid/features/verification/domain/verification_repository.dart
 import 'package:lawbid/features/verification/presentation/document_source.dart';
 import 'package:lawbid/features/verification/verification_providers.dart';
 import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-02 — Settings → "Verify account" for clients: send
 /// documents, wait for the admin's approval, then $10/month for the gold

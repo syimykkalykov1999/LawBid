@@ -1,10 +1,10 @@
 import 'package:flutter/gestures.dart' show kPressTimeout;
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/chat/presentation/chat_insert_motion.dart';
 import 'package:lawbid/features/feed/presentation/widgets/feed_chrome.dart';
 import 'package:lawbid/features/stories/presentation/story_viewer_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/ux_harness.dart';
 

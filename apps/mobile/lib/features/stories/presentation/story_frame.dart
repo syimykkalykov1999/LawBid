@@ -1,10 +1,10 @@
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/features/stories/domain/story_models.dart';
 import 'package:lawbid/features/stories/presentation/story_backgrounds.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A story is always a 9:16 frame; every size inside it (stickers, text) is
 /// a fraction of the frame's width, so it looks the same on any screen.

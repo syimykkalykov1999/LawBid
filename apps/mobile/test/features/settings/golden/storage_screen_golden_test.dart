@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golden_toolkit/golden_toolkit.dart';
 import 'package:lawbid/core/cache/cache_database.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/settings/storage/presentation/storage_screen.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../helpers/ux_harness.dart';

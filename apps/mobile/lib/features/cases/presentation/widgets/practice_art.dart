@@ -1,8 +1,7 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-09-30: every case / post card carries artwork for its practice
 /// category on the right, dissolving into the card background (brighter on

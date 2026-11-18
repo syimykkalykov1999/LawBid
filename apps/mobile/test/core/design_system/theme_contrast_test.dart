@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 // WCAG 2.x: 1.4.3 text >= 4.5:1, 1.4.11 icons / UI >= 3:1.
 double _lum(Color c) {

@@ -1,6 +1,5 @@
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/photo_jpeg.dart';
 import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/platform/paste_files.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Lets files be dragged from the computer onto [child], on the website only
 /// (flag `web_file_drop`). On a phone this is [child] and nothing else, and

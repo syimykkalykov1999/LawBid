@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/addresses/open_in_maps.dart';
@@ -42,6 +41,7 @@ import 'package:lawbid/features/deadlines/presentation/deadline_entry.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/presentation/case_tasks_section.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// docs/04 §11.1 — the client's case: description, status actions, the
 /// accepted attorney, and the bids (§5.2) with sorting.

@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05: backgrounds for anything that has no picture of its
 /// own (a text-only post, a practice without a photo). Always dark —

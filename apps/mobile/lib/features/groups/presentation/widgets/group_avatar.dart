@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A round avatar for a group or a person: the photo when there is one,
 /// otherwise the initials of [name].

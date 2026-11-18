@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/addresses/address_suggestions.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-28: every address input in the app. An [AppTextField]
 /// (same look, same parameters) that suggests real US addresses while the

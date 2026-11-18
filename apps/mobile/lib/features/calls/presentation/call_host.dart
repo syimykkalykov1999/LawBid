@@ -1,9 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -18,6 +16,7 @@ import 'package:lawbid/features/calls/presentation/call_waiting_banner.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/in_app_message_banner.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// OQ-041: opens the call screen over whatever is on screen when a call
 /// starts here or rings in (the screen closes itself when it is over).

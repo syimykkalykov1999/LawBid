@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Detective R2 item 2 (14.11): back on a screen that stands alone (web
 // refresh, deep link, payment return) must lead to the parent screen.

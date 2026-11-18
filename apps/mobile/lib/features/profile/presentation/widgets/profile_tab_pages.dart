@@ -1,9 +1,9 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-19 (Instagram, «вкладки прыгают»): a profile laid out the
 /// way Instagram does it — the header scrolls away, the row of tabs sticks

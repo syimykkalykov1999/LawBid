@@ -1,10 +1,10 @@
 // ignore_for_file: lines_longer_than_80_chars
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/verification/application/verification_wizard_controller.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One document of the request (bar document of a state, a side of the ID,
 /// the selfie) with every upload state: empty (dashed drop zone with the

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/reels/application/reel_publish_job.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-21 (like Instagram): the reel being published is a card at
 /// the top of the feed itself — never a bar over the app. A thin line of

@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/trust/domain/trust_models.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Opens the state bar registry in the browser so the client can compare

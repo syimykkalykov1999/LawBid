@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
@@ -22,6 +21,7 @@ import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sh
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/presentation/flip_search_bar.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-09-30: one square of the "Mine" grid — the case's first photo
 /// (or our art of its qualification), a short title and its status.

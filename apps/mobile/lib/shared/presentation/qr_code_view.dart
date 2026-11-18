@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:qr/qr.dart';
 
 /// A QR code drawn with rounded dots and rounded finder squares (owner

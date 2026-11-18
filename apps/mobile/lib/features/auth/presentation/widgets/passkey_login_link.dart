@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/diagnostics/app_event_names.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/features/auth/application/passkeys_providers.dart';
 import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart'
     show SwitchChannelLink;
 import 'package:lawbid/features/auth/presentation/widgets/passkeys_section.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// «Face ID / fingerprint» (owner 2026-10-23): the passkey sign-in as a
 /// plain text link on the Log in screen, on the row of «Forgot password?»

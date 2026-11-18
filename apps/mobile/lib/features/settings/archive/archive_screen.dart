@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_grid_tile.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-18 (Instagram): Settings → «Архив» — the viewer's own
 /// archived posts as a grid, newest archived first. A tap opens the post;

@@ -1,5 +1,4 @@
 // ignore_for_file: lines_longer_than_80_chars
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -21,6 +20,7 @@ import 'package:lawbid/features/subscription/application/subscription_providers.
 import 'package:lawbid/features/verification/application/verification_overview_controller.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/fixtures.dart';
 import '../../helpers/long_locale.dart';

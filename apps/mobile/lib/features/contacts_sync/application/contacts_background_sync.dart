@@ -1,11 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Per account ('<key>.<userId>'): two people on one phone, or a new login,
 // never inherit each other's 24 h gate or switch.

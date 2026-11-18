@@ -1,7 +1,7 @@
 import 'dart:ui' show lerpDouble;
 
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner row 95 (motion catalog ME5, Instagram / Telegram): a story opens
 /// zooming out of the avatar ring it was tapped on and shrinks back into

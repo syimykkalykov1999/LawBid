@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/addresses/address_field.dart';
@@ -19,6 +18,7 @@ import 'package:lawbid/features/practice/practice_matches.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 typedef DraftChange = void Function(CaseDraft Function(CaseDraft d) change);
 

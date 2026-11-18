@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -7,6 +6,7 @@ import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/support/data/support_context.dart';
 import 'package:lawbid/features/support/domain/support_models.dart';
 import 'package:lawbid/features/support/presentation/support_attachment_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-18 (OQ-055): files on support messages and the screen the
 /// user came from.

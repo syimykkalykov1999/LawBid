@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/task_sheet.dart';
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
 import 'package:lawbid/features/team/team_routes.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05: on a case — its open tasks (calls, hearings,
 /// documents…) and "+ Task" that comes already linked to the case.

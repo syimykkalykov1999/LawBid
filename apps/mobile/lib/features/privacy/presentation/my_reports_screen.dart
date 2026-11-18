@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -7,6 +6,7 @@ import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/privacy/application/privacy_providers.dart';
 import 'package:lawbid/features/privacy/data/privacy_repository.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20: Settings → Privacy → «My reports»: what I reported
 /// and where it stands (under review / action taken / no violation found).

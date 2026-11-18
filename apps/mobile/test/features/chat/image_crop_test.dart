@@ -1,12 +1,12 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/chat/application/image_edit.dart';
 import 'package:lawbid/features/chat/presentation/image_crop_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/ux_harness.dart';
 

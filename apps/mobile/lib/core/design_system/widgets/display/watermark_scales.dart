@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Faint background scales watermark (file 07 §4): outline-only, no fill, no
 /// text, 200x180 default, opacity from [AppColorTokens.watermarkOpacity].

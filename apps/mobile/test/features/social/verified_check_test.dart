@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/shared/people/people_suggest_list.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-13: the only check is the client's gold one; attorneys have
 /// none (their sign is the green Identity badge on the avatar).

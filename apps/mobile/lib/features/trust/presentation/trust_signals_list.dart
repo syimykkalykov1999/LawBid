@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One line per check: a green tick for what LawBid confirmed, a grey
 /// circle for what it did not (never says "verified" for a level the facts

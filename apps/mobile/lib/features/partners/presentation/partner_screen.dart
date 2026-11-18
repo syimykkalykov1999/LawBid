@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/partners/application/partners_providers.dart';
 import 'package:lawbid/features/partners/domain/partner_models.dart';
 import 'package:lawbid/features/partners/presentation/partner_terms_sheet.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05 — Settings → Partner program: the partner's link, their
 /// rates, who joined by the link (name, type, status), earnings held / to

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -15,6 +14,7 @@ import 'package:lawbid/features/settings/active_devices/domain/active_devices_re
 import 'package:lawbid/features/settings/active_devices/domain/device_session_info.dart';
 import 'package:lawbid/features/settings/active_devices/presentation/active_devices_screen.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../helpers/fake_http_adapter.dart';
 import '../../../helpers/stub_auth_repository.dart';

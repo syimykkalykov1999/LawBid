@@ -1,9 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -20,6 +18,7 @@ import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_edit_screen.dart';
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
 import 'package:lawbid/features/profile/presentation/widgets/username_suggestions.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/profile/edit` — the role decides which editor opens.
 class ProfileEditScreen extends ConsumerWidget {

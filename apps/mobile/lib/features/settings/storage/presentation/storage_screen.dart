@@ -1,5 +1,4 @@
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/core/text/byte_size.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/consent_check_tile.dart';
 import 'package:lawbid/features/settings/storage/application/storage_providers.dart';
 import 'package:lawbid/features/settings/storage/presentation/chat_media_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22 (client economy plan §5.2, Telegram «Данные и
 /// память»), 2026-11-03 (Telegram «Использование памяти»): what the app

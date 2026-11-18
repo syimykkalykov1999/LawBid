@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
@@ -49,6 +48,7 @@ import 'package:lawbid/features/team/presentation/task_pickers.dart'
 import 'package:lawbid/features/team/presentation/task_sheet.dart'
     show pickDateTime;
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-13: what the compose sheet returns.
 class ComposeResult {

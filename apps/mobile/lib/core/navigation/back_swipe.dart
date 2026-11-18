@@ -2,17 +2,17 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
-import 'package:flutter/cupertino.dart'
+import 'package:cupertino_ui/cupertino_ui.dart'
     show
         CupertinoPageTransition,
         CupertinoPageTransitionsBuilder,
         CupertinoRouteTransitionMixin;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart'
     show isDesktopWindow;
+import 'package:material_ui/material_ui.dart';
 import 'package:swipeable_page_route/swipeable_page_route.dart';
 
 /// Owner 2026-10-22: «back» by a swipe that starts anywhere, not only at the

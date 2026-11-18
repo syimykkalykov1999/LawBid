@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.
 import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
 import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/ux_harness.dart';
 

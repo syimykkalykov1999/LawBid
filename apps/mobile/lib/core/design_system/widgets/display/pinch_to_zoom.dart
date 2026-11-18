@@ -1,9 +1,9 @@
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-19 (Instagram): pinch a photo or a video right in a list —
 /// it lifts out of its card over everything else (the screen dims behind

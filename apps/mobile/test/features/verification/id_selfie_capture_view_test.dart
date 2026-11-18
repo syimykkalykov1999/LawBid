@@ -1,12 +1,12 @@
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/verification/domain/selfie_liveness.dart';
 import 'package:lawbid/features/verification/presentation/widgets/id_selfie_capture_view.dart';
 import 'package:lawbid/features/verification/presentation/widgets/id_selfie_overlay.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-28 (ID selfie camera): the guided view without a camera —
 /// overlay, localized instruction and live hint, shutter disabled until

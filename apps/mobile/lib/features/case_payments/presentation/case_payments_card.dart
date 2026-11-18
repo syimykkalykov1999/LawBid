@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -18,6 +17,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_header.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05 — "Pay the attorney" on a case with an accepted bid.
 /// Client: pay the bid / a deposit / the balance / any amount, see the

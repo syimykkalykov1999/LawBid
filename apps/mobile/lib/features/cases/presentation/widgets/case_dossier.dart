@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A description at least this long counts as "detailed" (owner
 /// 2026-10-05: a few sentences an attorney can work from).

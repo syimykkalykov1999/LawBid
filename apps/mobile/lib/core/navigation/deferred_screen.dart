@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-23 (web speed pass): a screen whose code is a *deferred
 /// library* (`import '...' deferred as x`). On the web the first download is

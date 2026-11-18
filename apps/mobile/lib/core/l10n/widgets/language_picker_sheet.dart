@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/language_catalog_provider.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/text/search_fold.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Search + list language picker (2026-09-22 owner voice follow-up):
 /// tapping the welcome screen's globe icon used to toggle ru<->en directly;

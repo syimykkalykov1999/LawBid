@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/text/bidi.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Top bar of profile screens (owner 2026-09-29, Instagram-style): a
 /// centered "@handle" between a left slot ([leading] — a back button or

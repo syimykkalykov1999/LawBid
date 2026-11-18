@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -17,6 +16,7 @@ import 'package:lawbid/features/chat/data/chat_repository.dart'
     show kChatAttachmentMaxBytes, kChatFileExtensions;
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show PickedChatFile, isPickedVideo;
+import 'package:material_ui/material_ui.dart';
 
 /// What the «+» menu of the composer offers.
 enum GroupAttachChoice { photos, camera, files, poll }

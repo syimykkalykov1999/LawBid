@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/deeplinks/deep_link_controller.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Click audit 2026-11-08 (web): a reloaded `/profile` opened the feed —
 // the guard's splash → feed redirect landed after the link's go().

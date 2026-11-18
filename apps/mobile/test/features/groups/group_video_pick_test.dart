@@ -1,12 +1,12 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_attach.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Groups WhatsApp parity: the gallery of a group chat picks videos too,
 /// as the 1:1 chat's (pickChatFiles): each video goes through

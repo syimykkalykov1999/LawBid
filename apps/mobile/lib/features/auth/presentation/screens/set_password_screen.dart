@@ -1,7 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
@@ -11,6 +9,7 @@ import 'package:lawbid/features/auth/domain/reauth_result.dart';
 import 'package:lawbid/features/auth/presentation/widgets/password_form_widgets.dart';
 import 'package:lawbid/features/auth/presentation/widgets/us_phone_input.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/auth/set-password` (owner 2026-10-13): the person sets a password;
 /// from then on they may sign in with it instead of a code. Owner

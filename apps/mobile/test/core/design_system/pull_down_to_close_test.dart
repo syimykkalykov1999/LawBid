@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner row 88 (2026-11-13): a sheet whose body scrolls follows the
 /// finger once the list is pulled past its top, and on release closes from

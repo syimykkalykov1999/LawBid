@@ -1,5 +1,4 @@
 // ignore_for_file: lines_longer_than_80_chars
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -19,6 +18,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/reauth_gate_view.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Reauth errors on a history call → back to the code screen.
 bool _isReauthError(Object? e) =>

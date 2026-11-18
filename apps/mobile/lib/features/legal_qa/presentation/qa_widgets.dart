@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sh
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The localized name of a question's practice area.
 String qaAreaLabel(Translator t, QaPracticeArea a) =>

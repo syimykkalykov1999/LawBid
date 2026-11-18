@@ -1,7 +1,5 @@
 import 'dart:async';
 
-// ignore_for_file: lines_longer_than_80_chars
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -32,6 +30,8 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+// ignore_for_file: lines_longer_than_80_chars
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-18: online / last seen of the other side, live while the
 /// chat is open (null = not shown: hidden status, anonymous client).

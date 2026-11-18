@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -7,6 +6,7 @@ import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/data/seat_limit_repository.dart';
 import 'package:lawbid/features/team/presentation/seat_limit_note.dart';
+import 'package:material_ui/material_ui.dart';
 
 class _Repo implements SeatLimitRepository {
   _Repo(this.value);

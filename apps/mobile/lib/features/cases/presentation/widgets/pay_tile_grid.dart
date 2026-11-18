@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One tile of [PayTileGrid]: an icon (or a one-character [glyph] such as
 /// `$` or `%`), a one-word [label] and the [hint] shown under the grid while

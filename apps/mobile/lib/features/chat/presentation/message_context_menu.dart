@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:lawbid/core/accessibility/reduce_motion.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner row 95 (2026-11-13, owner «Конечно»): a long press on a message
 /// no longer opens a bottom sheet. The bubble lifts out of the chat, the

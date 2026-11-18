@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -37,6 +36,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_window.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/presentation/guest_gate.dart';
 import 'package:lawbid/shared/presentation/list_search_field.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Post skeletons for list loading states.
 class PostListSkeleton extends StatelessWidget {

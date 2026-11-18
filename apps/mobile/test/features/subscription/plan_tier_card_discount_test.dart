@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/plans/domain/plan_models.dart';
 import 'package:lawbid/features/subscription/presentation/plan_tier_card.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-07: «$99 / ~~$149~~ месяц −33%» on the plan card; the
 /// card is unchanged when there is no discount.

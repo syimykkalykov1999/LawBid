@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_actions.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20: the comments under a channel post — oldest first with
 /// paging, add, delete your own (a channel admin deletes any).

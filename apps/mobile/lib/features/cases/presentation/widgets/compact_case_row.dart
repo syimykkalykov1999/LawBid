@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart'
     show CountPill;
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-07 (bug 16, "no huge cards"): one case as a compact row —
 /// a small square picture, the title (2 lines), a short second text

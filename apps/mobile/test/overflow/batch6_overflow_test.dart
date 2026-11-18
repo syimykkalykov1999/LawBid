@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/channels/presentation/sections_archive.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/demo/domain/demo_models.dart';
 import 'package:lawbid/features/demo/presentation/demo_section.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../helpers/long_locale.dart';
 import '../helpers/overflow_fixtures.dart';

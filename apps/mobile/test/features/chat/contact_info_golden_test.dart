@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golden_toolkit/golden_toolkit.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'contact_info_test.dart'
     show FakeContactChat, contactTestApp, contactTestFile, makeConv;

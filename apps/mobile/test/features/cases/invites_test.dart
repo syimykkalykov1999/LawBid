@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_invites_section.dart';
 import 'package:lawbid/features/cases/presentation/widgets/invites_list.dart';
 import 'package:lawbid/features/cases/presentation/widgets/offer_case_sheet.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'cases_fakes.dart';
 

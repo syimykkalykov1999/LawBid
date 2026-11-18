@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/l10n/plural_rules.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Worst case of every shipped language at once: for each key, the longest
 /// translation among the languages the test fonts can draw (Latin,

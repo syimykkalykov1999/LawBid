@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-16 (web): the sizes of instagram.com / threads.com.
 ///

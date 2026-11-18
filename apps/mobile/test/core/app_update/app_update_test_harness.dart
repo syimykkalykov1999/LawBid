@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +14,7 @@ import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/session/session_state.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// FeatureFlagsController pinned to a given `app_config` (as if

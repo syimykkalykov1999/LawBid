@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner row 113 (2026-11-14, like Telegram Web and WhatsApp Web): on the
 /// website a right-click on a message, a post or a chat row opens the same

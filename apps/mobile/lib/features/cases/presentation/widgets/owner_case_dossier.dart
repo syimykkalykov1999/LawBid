@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -22,6 +21,7 @@ import 'package:lawbid/features/subscription/presentation/paywall_screen.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/domain/doc_template.dart';
 import 'package:lawbid/features/templates/presentation/templates_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05: the client's own case file — the same "4 of 6" the
 /// attorneys see, who sees what, and (while the case is open) a button to

@@ -1,5 +1,4 @@
 import 'package:drift/drift.dart' show driftRuntimeOptions;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -17,6 +16,7 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/conversation_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../features/chat/contact_info_test.dart' show FakeContactChat, makeConv;
 import '../helpers/long_locale.dart';

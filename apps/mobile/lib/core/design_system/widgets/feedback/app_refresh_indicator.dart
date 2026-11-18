@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
-import 'package:flutter/material.dart';
+import 'package:cupertino_ui/cupertino_ui.dart' show CupertinoActivityIndicator;
 import 'package:lawbid/core/design_system/widgets/feedback/app_dialog.dart'
     show AppDialogMotion;
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The one pull-to-refresh of the app (owner 2026-10-28, Samsung: a tiny pull
 /// started the refresh with the spinner in the middle of the screen).

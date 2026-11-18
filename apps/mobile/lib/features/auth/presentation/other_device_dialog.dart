@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-01: one phone + one website per account. Before signing
 /// in on top of another device, say which one and that it will be signed

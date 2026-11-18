@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart' show SpringSimulation;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
@@ -17,6 +16,7 @@ import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/media_share.dart';
 import 'package:lawbid/core/media/photo_saver.dart';
 import 'package:lawbid/core/text/bidi.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Row 148 (go_router 18): the arc a Material app's heroes fly along
 /// (`MaterialApp.createMaterialHeroController`). go_router 18 gives its

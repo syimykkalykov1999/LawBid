@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-15 (web, step 1): the web build exists but stays closed
 /// until it is switched on with `--dart-define=WEB_ENABLED=true` (CI builds

@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -15,6 +13,7 @@ import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_group.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 import 'package:lawbid/shared/people/my_people.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22 (WhatsApp «Add participant»): the top-right «add» button
 /// of a call opens a full-height panel that slides in from the right (from

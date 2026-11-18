@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Detective R2 item 2 (14.11): the back arrow of a screen that stands
 /// alone on its navigator — a web refresh on lawbid.dev, a deep link, a

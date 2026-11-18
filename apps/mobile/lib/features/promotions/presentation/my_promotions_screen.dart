@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/promotions/application/promotions_providers.dart
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/promotions/presentation/boost_colors.dart';
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05 — "My promotions": every promoted post / case with
 /// its status, budget, progress, impressions, reach and clicks.

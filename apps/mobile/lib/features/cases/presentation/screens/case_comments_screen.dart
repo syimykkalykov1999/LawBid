@@ -1,6 +1,4 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
@@ -11,6 +9,7 @@ import 'package:lawbid/features/social/data/social_repository.dart'
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show commentThreadSlivers;
 import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-09-30 (OQ-034): comments under a case, built exactly like a
 /// post's comments — replies, likes, delete, report, the composer. The

@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -28,6 +27,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
     show openProfile;
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// The corner shape of a bubble: the corner at the sender's side is tight.
 BorderRadiusDirectional _radius({required bool mine}) =>

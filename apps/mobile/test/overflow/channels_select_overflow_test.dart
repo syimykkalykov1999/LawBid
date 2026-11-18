@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/channels/presentation/channels_screen.dart';
 import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../features/channels/channels_fakes.dart';

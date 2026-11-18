@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Wizard progress header (docs/03 §8 "шаги с прогресс-баром"): a gold
 /// rail that fills as the attorney advances, numbered medallions (done =

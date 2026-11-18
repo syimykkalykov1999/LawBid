@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Read-only stars with halves (docs/03 §7.4: "звёзды с половинками").
 /// With [animate] the stars fill one after another (short stagger, ≤ 0.5 s

@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart' show ProviderScope;
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/settings/storage/application/storage_providers.dart';
 import 'package:lawbid/features/settings/storage/presentation/storage_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/ux_harness.dart';

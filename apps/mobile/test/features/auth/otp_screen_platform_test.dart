@@ -1,7 +1,6 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -17,6 +16,7 @@ import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
 import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/otp_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'auth_test_harness.dart';
 

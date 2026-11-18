@@ -1,8 +1,7 @@
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Circular avatar (file 01 §15 component list): image when `imageUrl` is
 /// given, otherwise initials on a `surface`-tinted circle. No network image

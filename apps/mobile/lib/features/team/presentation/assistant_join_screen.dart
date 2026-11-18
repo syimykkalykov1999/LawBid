@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/features/auth/presentation/screens/assistant_code_screen.
     show AssistantCodeFormatter, isCompleteAssistantCode;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// OQ-048 (owner 2026-09-30): an assistant joins an attorney — at once
 /// when the attorney added this phone (older apps), otherwise (owner

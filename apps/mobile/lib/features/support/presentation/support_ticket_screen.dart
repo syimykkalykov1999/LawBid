@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/support/domain/support_models.dart';
 import 'package:lawbid/features/support/presentation/support_attach_controller.dart';
 import 'package:lawbid/features/support/presentation/support_attachment_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-02 — one request: the conversation with the team, a reply
 /// box while it is open, "Close request".

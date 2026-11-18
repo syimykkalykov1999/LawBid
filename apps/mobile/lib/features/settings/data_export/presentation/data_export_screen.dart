@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/cases/presentation/widgets/reauth_sheet.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/settings/data_export/application/data_export_providers.dart';
 import 'package:lawbid/features/settings/data_export/data/data_export_repository.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// docs/06 §5.2 / docs/01 §10.7 — Settings → «Скачать мои данные»: behind
 /// the reauth gate, one button queues the ZIP; the status card follows the

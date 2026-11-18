@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/pickers/app_pickers.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/core/l10n/money_input.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payment_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05 — the attorney asks the client to pay: an amount, what
 /// for, an optional due date; or the same split into installments (N parts

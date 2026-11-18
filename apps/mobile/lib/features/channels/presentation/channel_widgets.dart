@@ -1,5 +1,4 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
@@ -16,6 +15,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show VerifiedCheck;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Server codes of channels that [errorText] does not know.

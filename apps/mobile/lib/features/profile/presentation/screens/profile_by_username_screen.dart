@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/network/api_error.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/features/profile/presentation/screens/client_public_profi
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart'
     show AttorneyProfileSkeleton;
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/u/:username` (owner 2026-10-20) — the address inside a profile QR
 /// code. A username belongs to an attorney or to a client; this opens the

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/chat/application/chat_saved_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20: a long press on a message opens its menu — «Copy» and
 /// «Save» / «Remove from saved» (WhatsApp's starred messages, Telegram's

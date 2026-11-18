@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart';
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// What the owner of the photo chose in the «Group photo» sheet.
 enum GroupPhotoChoice { camera, gallery, remove }

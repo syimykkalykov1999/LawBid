@@ -1,6 +1,5 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golden_toolkit/golden_toolkit.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -15,6 +14,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cover.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../helpers/ux_harness.dart';
 

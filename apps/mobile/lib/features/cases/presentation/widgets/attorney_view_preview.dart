@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -6,6 +5,7 @@ import 'package:lawbid/features/cases/application/create_case_controller.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_cards.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-19: «Как ваш кейс видят адвокаты» on the client's own case
 /// until a bid is accepted — the very card of the attorneys' feed, built

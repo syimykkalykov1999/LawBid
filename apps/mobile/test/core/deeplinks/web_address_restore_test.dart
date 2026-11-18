@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/deeplinks/deep_link.dart';
 import 'package:lawbid/core/deeplinks/deep_link_controller.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Owner 2026-11-08 (web, like Instagram / Telegram Web): a reloaded, typed
 // or bookmarked address opens that same screen, not the feed.

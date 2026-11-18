@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/hold_gesture.dart';
 import 'package:lawbid/features/chat/presentation/chat_bubble_parts.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22 (WhatsApp / Telegram): hold the mic to record, slide
 /// toward the start to cancel, slide up to lock, let go to send.

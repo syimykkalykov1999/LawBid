@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
     show nameWithCheck;
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The width of a post card in a bubble (like the other chat cards).
 const double kChatPostCardWidth = 240;
