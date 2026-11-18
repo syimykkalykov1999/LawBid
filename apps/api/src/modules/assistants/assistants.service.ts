@@ -30,6 +30,7 @@ import { PostsService } from '../posts/posts.service';
 import { AttorneyProfilesService } from '../profiles/services/attorney-profiles.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { EntitlementsService } from '../plans/entitlements.service';
+import { lockAssistantSeats } from '../billing/seat-limit';
 import {
   clampMaxDuties,
   isUnlimitedDuties,
@@ -276,8 +277,37 @@ export class AssistantsService {
     return { seats, used, plan: sub?.plan ?? null };
   }
 
-  private async assertFreeSeat(attorneyId: string): Promise<void> {
-    const { seats, used } = await this.seatsOf(attorneyId);
+  /**
+   * Verify 17.11 (batch 9): checked and taken under one lock per attorney
+   * (shared with the seat decrease, SeatsService) — two parallel "Add
+   * assistant" taps on the last free seat both passed the count. A
+   * decrease waiting for the period end already counts: Stripe bills the
+   * lower number from the renewal, so a seat it drops is not handed out
+   * now (it used to leave more assistants than paid seats at renewal).
+   */
+  private async assertFreeSeat(
+    attorneyId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<void> {
+    await lockAssistantSeats(tx, attorneyId);
+    const { seats: total } = await this.seatsOf(attorneyId);
+    const used = await tx.assistantMembership.count({
+      where: { attorney_id: attorneyId, status: { not: 'removed' } },
+    });
+    const [sub, due] = await Promise.all([
+      tx.subscription.findUnique({
+        where: { user_id: attorneyId },
+        select: { assistant_seats: true },
+      }),
+      tx.assistantSeatChange.findFirst({
+        where: { user_id: attorneyId, status: 'scheduled' },
+        orderBy: { created_at: 'desc' },
+        select: { to_seats: true },
+      }),
+    ]);
+    const dropping =
+      sub && due ? Math.max(0, sub.assistant_seats - due.to_seats) : 0;
+    const seats = Math.max(0, total - dropping);
     if (used + 1 > seats) {
       throw new ConflictException({
         code: ErrorCode.ASSISTANT_NO_FREE_SEAT,
@@ -292,20 +322,34 @@ export class AssistantsService {
     membershipId: string,
     attorneyId: string,
   ): Promise<void> {
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: assistantId },
-        data: { role: 'assistant' },
-      }),
-      this.prisma.assistantMembership.update({
-        where: { id: membershipId },
+    // Verify 17.11 (batch 9): like a code join (AssistantCodeService.claim)
+    // — one conditional write on a still-invited seat, and the seat's
+    // one-time code is burnt. The seat removed meanwhile came back active,
+    // and the unused code could sign in as the joined assistant (signing
+    // the real one out) for 7 days.
+    await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.assistantMembership.updateMany({
+        where: { id: membershipId, status: 'invited' },
         data: {
           assistant_user_id: assistantId,
           status: 'active',
           joined_at: new Date(),
+          join_code_hash: null,
+          join_code_enc: null,
+          join_code_expires_at: null,
         },
-      }),
-    ]);
+      });
+      if (count !== 1) {
+        throw new NotFoundException({
+          code: ErrorCode.ASSISTANT_INVITE_NOT_FOUND,
+          message: 'No attorney has added this phone.',
+        });
+      }
+      await tx.user.update({
+        where: { id: assistantId },
+        data: { role: 'assistant' },
+      });
+    });
     await this.context.invalidate(assistantId);
     await this.notifications.emit({
       type: 'assistant_joined',
@@ -355,7 +399,6 @@ export class AssistantsService {
     dto: AddAssistantDto,
     meta?: RequestMeta,
   ): Promise<TeamDto> {
-    await this.assertFreeSeat(user.sub);
     if (dto.phone) {
       const taken = await this.prisma.assistantMembership.findFirst({
         where: { phone_e164: dto.phone, status: { not: 'removed' } },
@@ -372,15 +415,18 @@ export class AssistantsService {
     await this.assertDutyCount([], duties);
     const granted = liabilityDiff([], duties).granted;
     assertLiability(granted, dto.acceptLiability);
-    const m = await this.prisma.assistantMembership.create({
-      data: {
-        attorney_id: user.sub,
-        phone_e164: dto.phone ?? null,
-        display_name: dto.name ?? null,
-        approval: 'attorney_added',
-        status: 'invited',
-        duties,
-      },
+    const m = await this.prisma.$transaction(async (tx) => {
+      await this.assertFreeSeat(user.sub, tx);
+      return tx.assistantMembership.create({
+        data: {
+          attorney_id: user.sub,
+          phone_e164: dto.phone ?? null,
+          display_name: dto.name ?? null,
+          approval: 'attorney_added',
+          status: 'invited',
+          duties,
+        },
+      });
     });
     await this.issueCode(m.id);
     await this.recordLiability(user, m.id, granted, [], meta);

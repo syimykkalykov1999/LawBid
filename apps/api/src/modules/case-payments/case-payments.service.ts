@@ -47,6 +47,7 @@ import type {
   ProviderConnectedCheckout,
   ProviderEvent,
 } from '../billing/payment-provider';
+import { outcomeUnknown } from '../../common/payments/outcome-unknown';
 import { ChatSystemMessages } from '../chat/chat-system.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { EntitlementsService } from '../plans/entitlements.service';
@@ -195,6 +196,9 @@ export function refundIdOf(
     REFUND_KEY_NAMESPACE,
   );
 }
+
+/** Verify 17.11: a reserved refund whose Stripe call had no answer. */
+const REFUND_OUTCOME_UNKNOWN = 'stripe_outcome_unknown';
 
 function isPaid(status: string): boolean {
   return (PAID_STATUSES as string[]).includes(status);
@@ -732,16 +736,20 @@ export class CasePaymentsService {
       processingFeePayer: payer,
     });
 
-    const superseded = await this.prisma.casePayment.findMany({
-      where: {
-        case_id: caseId,
-        client_id: user.sub,
-        status: 'pending_payment',
-      },
-    });
+    // Verify 17.11 (batch 9): the superseded rows are read in the same
+    // transaction that cancels them (read before it, a parallel tap's row
+    // was cancelled but its Stripe session never closed).
+    let superseded: CasePayment[] = [];
     const row = await shardContext.runForCase(caseId, () =>
       withTxRetry(this.prisma, async (tx) => {
         // An earlier unpaid checkout on this case is superseded.
+        superseded = await tx.casePayment.findMany({
+          where: {
+            case_id: caseId,
+            client_id: user.sub,
+            status: 'pending_payment',
+          },
+        });
         await tx.casePayment.updateMany({
           where: {
             case_id: caseId,
@@ -822,9 +830,22 @@ export class CasePaymentsService {
       });
       throw e;
     }
-    const updated = await this.prisma.casePayment.update({
-      where: { id: row.id },
+    // Verify 17.11: a parallel tap may have superseded this row while its
+    // session was being made — then this session is closed at once, so a
+    // double tap never leaves two payable checkouts (two charges).
+    const attached = await this.prisma.casePayment.updateMany({
+      where: { id: row.id, status: 'pending_payment' },
       data: { stripe_checkout_id: session.id },
+    });
+    if (attached.count === 0) {
+      await this.settleSession({ ...row, stripe_checkout_id: session.id });
+      throw new ConflictException({
+        code: ErrorCode.PAYMENT_INVALID_STATE,
+        message: 'A newer checkout replaced this one.',
+      });
+    }
+    const updated = await this.prisma.casePayment.findUniqueOrThrow({
+      where: { id: row.id },
     });
     // Stripe robustness 2026-10-27: close the superseded checkouts on
     // Stripe too (and keep one that was paid in the meantime).
@@ -974,6 +995,31 @@ export class CasePaymentsService {
               return { refund: prior, amount: prior.amount_cents };
             }
           }
+          // Verify 17.11 (batch 9): an unkeyed refund (the attorney's app)
+          // whose Stripe call ended with an unknown outcome stays reserved
+          // (below); the same person's next try sends THAT request again,
+          // under its key — a timeout no longer becomes a second refund.
+          // A refund still in flight is not one of them (a second tap at
+          // that moment is refused by the rest, as before).
+          if (!refundId) {
+            const unknown = await tx.casePaymentRefund.findFirst({
+              where: {
+                payment_id: row.id,
+                status: 'pending',
+                stripe_refund_id: null,
+                failure_reason: REFUND_OUTCOME_UNKNOWN,
+                initiated_by_type: by.type,
+                initiated_by: by.id,
+                ...(dto.amountCents !== undefined
+                  ? { amount_cents: dto.amountCents }
+                  : {}),
+              },
+              orderBy: { created_at: 'asc' },
+            });
+            if (unknown) {
+              return { refund: unknown, amount: unknown.amount_cents };
+            }
+          }
           if (!locked || !isPaid(locked.status)) {
             throw new ConflictException({
               code: ErrorCode.PAYMENT_INVALID_STATE,
@@ -1033,6 +1079,18 @@ export class CasePaymentsService {
         metadata: { paymentId: row.id, refundId: refund.id, by: by.type },
       });
     } catch (e) {
+      if (outcomeUnknown(e)) {
+        // The money may have moved: the row stays reserved (pending, no
+        // Stripe id) and the next try repeats this request, same key.
+        await this.prisma.casePaymentRefund.updateMany({
+          where: { id: refund.id, status: 'pending', stripe_refund_id: null },
+          data: { failure_reason: REFUND_OUTCOME_UNKNOWN },
+        });
+        throw new ServiceUnavailableException({
+          code: ErrorCode.REFUND_PROVIDER_FAILED,
+          message: 'Stripe did not answer. Try again: the same refund is sent.',
+        });
+      }
       const failed = {
         status: 'failed',
         failure_reason: String(e).slice(0, 500),
@@ -1319,6 +1377,17 @@ export class CasePaymentsService {
         await this.disputes?.onPlatformDispute(dispute, pi);
       }
       return;
+    }
+    // Verify 17.11 (batch 9): the status came from the event's snapshot and
+    // was always written, so a retried `charge.dispute.updated`
+    // (under_review) processed after `charge.dispute.closed` (won or lost)
+    // moved the payment back to `disputed` for good. Like the other
+    // handlers, the dispute is read from Stripe as it is NOW.
+    const remote = await this.provider?.retrieveDispute?.(account, dispute.id);
+    if (remote) {
+      dispute.status = remote.status;
+      dispute.amount = remote.amountCents;
+      dispute.dueBy = remote.dueBy;
     }
     const status = dispute.status;
     const lost = status === 'lost';

@@ -44,6 +44,8 @@ function setup() {
     },
     report: { findFirst: jest.fn(), create: jest.fn() },
     reviewHelpfulVote: { deleteMany: jest.fn() },
+    // Verify 17.11: the case path checks a block inside its transaction.
+    userBlock: { findFirst: jest.fn(() => Promise.resolve(null)) },
     auditLog: { findFirst: jest.fn(() => Promise.resolve(null)) },
     $queryRaw: jest.fn(() =>
       Promise.resolve([{ rating_avg: '4.50', rating_count: 2n }]),

@@ -112,6 +112,19 @@ export class ReviewsService {
     @Optional() private readonly autoHold?: AutoHoldService,
   ) {}
 
+  /** An edited review held by the rules goes to the moderators' queue. */
+  private async holdForModerators(
+    authorId: string,
+    reviewId: string,
+  ): Promise<void> {
+    await this.autoHold?.queue({
+      targetType: 'review',
+      targetId: reviewId,
+      authorId,
+      rule: 'rules',
+    });
+  }
+
   /** A held review waits hidden in the moderators' queue. */
   private async afterSave(
     authorId: string,
@@ -199,14 +212,16 @@ export class ReviewsService {
     }
     const windowDays = await this.settings.number('review.edit_window_days');
     const reviewText = dto.body ?? null;
-    const held =
+    let held =
       (await screenContent(this.moderationHook, reviewText, {
         kind: 'review',
         authorId: user.sub,
       })) === 'hold';
+    const screened = held;
     const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
     try {
       const review = await this.ratingTx(async (tx, recalc) => {
+        held = screened;
         const kase = await tx.case.findUnique({
           where: { id: caseId },
           select: {
@@ -230,19 +245,41 @@ export class ReviewsService {
             message: 'This case has no accepted bid to review.',
           });
         }
+        // Verify 17.11 (batch 9): the case path checks what PUT …/mine
+        // checks — a block either way, a visible attorney, an active
+        // account — and keeps «one counted review per client and attorney»
+        // (owner 2026-10-06): a second closed case with the same attorney
+        // edits that review, it doesn't add a second one.
+        await assertNoBlock(tx, user.sub, bid.attorney_id);
+        await this.assertVisibleAttorney(bid.attorney_id);
+        await this.assertCanWrite(user.sub, bid.attorney_id);
+        const other = await tx.review.findFirst({
+          where: {
+            attorney_id: bid.attorney_id,
+            client_id: user.sub,
+            case_id: { not: caseId },
+            status: { not: 'removed' },
+          },
+          select: { id: true },
+        });
+        if (other) throw alreadyExists();
         const existing = await tx.review.findUnique({
           where: { case_id: caseId },
           select: { id: true, status: true },
         });
         // A review its author deleted is absent: writing again revives the
         // row (UQ reviews.case_id). One moderation removed stays removed.
+        const prior = existing ? await lastModeration(tx, existing.id) : null;
         if (
           existing &&
-          (existing.status !== 'removed' ||
-            (await removedByModeration(tx, existing.id)))
+          (existing.status !== 'removed' || prior === 'removed')
         ) {
           throw alreadyExists();
         }
+        // Verify 17.11: a review a moderator hid, deleted by its author and
+        // written again, goes back to the moderators hidden — a delete is
+        // not a way around a moderation decision.
+        if (existing && prior === 'hidden') held = true;
         const fields = {
           rating: dto.rating,
           body: dto.body ?? null,
@@ -351,6 +388,26 @@ export class ReviewsService {
       );
     }
     const windowDays = await this.settings.number('review.edit_window_days');
+    // Verify 17.11 (batch 9): PATCH skipped the admin's moderation rules —
+    // a clean review could be edited into blocked or held text that went
+    // live. «block» is refused (422), «hold» hides the review and files it
+    // for the moderators, as on every other review write.
+    // Only a changed text is screened: an unchanged one passed when it was
+    // written (and the repeat rule would count it against itself, C-3).
+    const before =
+      dto.body === undefined
+        ? null
+        : await this.prisma.review.findUnique({
+            where: { id: reviewId },
+            select: { body: true },
+          });
+    const held =
+      dto.body !== undefined &&
+      dto.body !== before?.body &&
+      (await screenContent(this.moderationHook, dto.body, {
+        kind: 'review',
+        authorId: user.sub,
+      })) === 'hold';
     const photoIds =
       dto.photoIds === undefined
         ? undefined
@@ -375,6 +432,7 @@ export class ReviewsService {
             ...(dto.rating !== undefined ? { rating: dto.rating } : {}),
             ...(dto.body !== undefined ? { body: dto.body } : {}),
             ...(photoIds !== undefined ? { photo_ids: photoIds } : {}),
+            ...(held ? { status: 'hidden' as const } : {}),
             edited_at: now,
           },
         }),
@@ -382,6 +440,7 @@ export class ReviewsService {
       await recalc(current.attorney_id);
       return updated;
     });
+    if (held) await this.holdForModerators(user.sub, review.id);
     return this.own(review, windowDays);
   }
 
@@ -741,16 +800,19 @@ export class ReviewsService {
     await this.assertCanWrite(user.sub, attorneyId);
     const body = dto.body?.length ? dto.body : null;
     const reviewText = body;
-    const held =
+    const screened =
       (await screenContent(this.moderationHook, body, {
         kind: 'review',
         authorId: user.sub,
       })) === 'hold';
+    let held = screened;
     const photoIds = await this.checkPhotos(user.sub, dto.photoIds);
     const windowDays = await this.settings.number('review.edit_window_days');
     let edited = false;
     try {
       const review = await this.ratingTx(async (tx, recalc) => {
+        held = screened;
+        edited = false;
         // One counted review per client and attorney: edit it in place.
         const mine = await tx.review.findFirst({
           where: {
@@ -759,10 +821,16 @@ export class ReviewsService {
             case_id: { not: null },
             status: { not: 'removed' },
           },
-          select: { id: true },
+          select: { id: true, body: true },
         });
         if (mine) {
-          // An edit keeps its status (CONTENT C-3); only «block» refuses it.
+          // Only a changed text is held (an unchanged one passed already;
+          // the repeat rule would count it against itself, C-3).
+          held = screened && mine.body !== body;
+          // Verify 17.11 (batch 9): an edit is screened like a new review,
+          // as client reviews do (coordinator review 09.11) — a held edit is
+          // hidden and queued for the moderators, else clean text could be
+          // edited into held text that stays public.
           edited = true;
           const editedRow = await this.withClient(
             await tx.review.update({
@@ -772,6 +840,7 @@ export class ReviewsService {
                 body,
                 edited_at: new Date(),
                 ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
+                ...(held ? { status: 'hidden' as const } : {}),
               },
             }),
           );
@@ -791,12 +860,13 @@ export class ReviewsService {
             caseId = id;
             break;
           }
-          if (
-            row.status === 'removed' &&
-            !(await removedByModeration(tx, row.id))
-          ) {
+          const prior =
+            row.status === 'removed' ? await lastModeration(tx, row.id) : null;
+          if (row.status === 'removed' && prior !== 'removed') {
             caseId = id;
             revive = row.id;
+            // Verify 17.11: a moderator's hide survives the author's delete.
+            if (prior === 'hidden') held = true;
             break;
           }
         }
@@ -857,6 +927,8 @@ export class ReviewsService {
       });
       if (!edited) {
         await this.afterSave(user.sub, review.id, reviewText, held);
+      } else if (held) {
+        await this.holdForModerators(user.sub, review.id);
       }
       return this.own(review, windowDays);
     } catch (error) {
@@ -1101,13 +1173,25 @@ export async function removedByModeration(
   reviewId: string,
   targetType: 'review' | 'client_review' = 'review',
 ): Promise<boolean> {
+  return (await lastModeration(tx, reviewId, targetType)) === 'removed';
+}
+
+/** The status the review's latest admin action (moderation or content
+ * screen, both audited) left it in, or null when no admin touched it.
+ * Verify 17.11: `hidden` means a moderator hid it — rewriting it after the
+ * author's own delete goes back to the moderators hidden. */
+export async function lastModeration(
+  tx: Prisma.TransactionClient | PrismaService,
+  reviewId: string,
+  targetType: 'review' | 'client_review' = 'review',
+): Promise<string | null> {
   const last = await tx.auditLog.findFirst({
     where: { target_type: targetType, target_id: reviewId },
     orderBy: { created_at: 'desc' },
     select: { after: true },
   });
   const after = last?.after as { status?: unknown } | null | undefined;
-  return after?.status === 'removed';
+  return typeof after?.status === 'string' ? after.status : null;
 }
 
 export function editableUntil(createdAt: Date, windowDays: number): Date {

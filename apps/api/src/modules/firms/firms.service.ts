@@ -351,19 +351,59 @@ export class FirmsService {
     }
     const inv = await this.newestInvitation(userId, firmId);
     if (!inv) throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
-    const active = await this.prisma.firmMember.count({
-      where: { firm_id: inv.firm_id, status: 'active' },
+    const max = await this.maxMembers();
+    // Verify 17.11 (batch 9): only a lawyer joins a firm — one who switched
+    // to a client account kept the invitation and became a member the owner
+    // could send bids as.
+    const me = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true, status: true },
     });
-    if (active >= (await this.maxMembers())) {
-      throw new ConflictException({ code: ErrorCode.FIRM_FULL });
+    if (me?.role !== 'attorney' || me.status !== 'active') {
+      throw new ForbiddenException({ code: ErrorCode.FORBIDDEN });
     }
-    await this.prisma.$transaction(async (tx) => {
-      await this.dropLegacyInvite(tx, userId);
-      await tx.firmMember.create({
-        data: { firm_id: inv.firm_id, attorney_id: userId, status: 'active' },
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        // Verify 17.11: the member limit was counted outside the
+        // transaction (parallel accepts went past it) and the invitation
+        // was not read again (one withdrawn, or a firm closed meanwhile,
+        // was still accepted). The firm row is locked — accepts and a
+        // close run one at a time — and both are checked under it.
+        const firm = await tx.$queryRaw<{ id: string }[]>`
+          SELECT id::text FROM firms WHERE id = ${inv.firm_id}::uuid FOR UPDATE`;
+        const still = await tx.firmInvitation.findFirst({
+          where: {
+            firm_id: inv.firm_id,
+            attorney_id: userId,
+            expires_at: { gt: new Date() },
+          },
+          select: { firm_id: true },
+        });
+        if (firm.length === 0 || !still) {
+          throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
+        }
+        const active = await tx.firmMember.count({
+          where: { firm_id: inv.firm_id, status: 'active' },
+        });
+        if (active >= max) {
+          throw new ConflictException({ code: ErrorCode.FIRM_FULL });
+        }
+        await this.dropLegacyInvite(tx, userId);
+        await tx.firmMember.create({
+          data: { firm_id: inv.firm_id, attorney_id: userId, status: 'active' },
+        });
+        await tx.firmInvitation.deleteMany({ where: { attorney_id: userId } });
       });
-      await tx.firmInvitation.deleteMany({ where: { attorney_id: userId } });
-    });
+    } catch (e) {
+      // Two firms accepted at once: UQ firm_members.attorney_id.
+      if ((e as { code?: string }).code === 'P2002') {
+        throw new ConflictException({
+          code: ErrorCode.FIRM_ALREADY_MEMBER,
+          message: 'You are already in a firm.',
+        });
+      }
+      throw e;
+    }
     return this.view(inv.firm_id, true, userId);
   }
 
@@ -417,7 +457,7 @@ export class FirmsService {
           message: 'Make another lawyer the owner, or close the firm.',
         });
       }
-      await this.closeFirm(mine.firm_id, userId);
+      await this.closeFirm(mine.firm_id, userId, true);
       return;
     }
     await this.prisma.firmMember.delete({ where: { attorney_id: attorneyId } });
@@ -485,8 +525,30 @@ export class FirmsService {
     });
   }
 
-  private async closeFirm(firmId: string, actorId: string | null) {
+  private async closeFirm(
+    firmId: string,
+    actorId: string | null,
+    aloneOnly = false,
+  ) {
     const notMe = actorId ? { attorney_id: { not: actorId } } : {};
+    // Verify 17.11 (batch 9): an accept committed between "alone?" and
+    // the delete lost its new member silently. The close re-checks under
+    // the firm row lock that accepts take. Only the owner's «leave» while
+    // alone asks this; «Close the firm» closes it with everyone in it.
+    if (aloneOnly) {
+      const joined = await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT 1 FROM firms WHERE id = ${firmId}::uuid FOR UPDATE`;
+        return tx.firmMember.count({
+          where: { firm_id: firmId, status: 'active', ...notMe },
+        });
+      });
+      if (joined > 0) {
+        throw new ConflictException({
+          code: ErrorCode.FIRM_OWNER_MUST_TRANSFER,
+          message: 'Make another lawyer the owner, or close the firm.',
+        });
+      }
+    }
     const [members, invited] = await Promise.all([
       this.prisma.firmMember.findMany({
         where: { firm_id: firmId, ...notMe },
@@ -613,6 +675,19 @@ export class FirmsService {
     await this.assertEnabled();
     const fit = await this.eligibleForCase(callerId, caseId);
     if (!fit.some((m) => m.attorneyId === senderId)) {
+      throw new ForbiddenException({
+        code: ErrorCode.FORBIDDEN,
+        message: 'This lawyer cannot send a bid on this case for the firm.',
+      });
+    }
+    // Verify 17.11 (batch 9): the sender is a lawyer with a live account
+    // (a member who switched to a client account or was suspended is not
+    // someone a bid goes out as).
+    const sender = await this.prisma.user.findUnique({
+      where: { id: senderId },
+      select: { role: true, status: true },
+    });
+    if (sender?.role !== 'attorney' || sender.status !== 'active') {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,
         message: 'This lawyer cannot send a bid on this case for the firm.',

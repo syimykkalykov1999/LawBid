@@ -47,7 +47,7 @@ import type {
   UpsertClientReviewDto,
 } from './client-reviews.dto';
 import { assertNoBlock } from '../blocks/block-guard';
-import { removedByModeration } from '../reviews/reviews.service';
+import { lastModeration } from '../reviews/reviews.service';
 import { userDirectory } from '../../sharding/user-directory';
 
 const PAGE = 20;
@@ -155,6 +155,10 @@ export class ClientReviewsService {
         message: 'Only the attorney hired on this case can review the client.',
       });
     }
+    // Verify 17.11 (batch 9): the case path checks what PUT …/mine checks
+    // — an active, verified author and no block either way.
+    await this.assertCanWrite(user);
+    await assertNoBlock(this.prisma, user.sub, kase.client_id);
     const body = dto.body?.length ? dto.body : null;
     if (body) assertNoContactInfo({ body });
     // «block» refuses any write; «hold» hides only a new review (an edit
@@ -168,20 +172,18 @@ export class ClientReviewsService {
       select: {
         id: true,
         status: true,
+        body: true,
         appeal: { select: { status: true, decided_by: true } },
       },
     });
     // A review the author deleted is absent: writing again publishes the
     // row anew. One removed by an admin (appeal or moderation) stays.
-    if (
-      found?.status === 'removed' &&
-      (found.appeal?.decided_by ||
-        (await removedByModeration(this.prisma, found.id, 'client_review')))
-    ) {
-      throw new ConflictException({
-        code: ErrorCode.REVIEW_NOT_EDITABLE,
-        message: 'This review was removed by moderation.',
-      });
+    const prior =
+      found?.status === 'removed'
+        ? await lastModeration(this.prisma, found.id, 'client_review')
+        : null;
+    if (found?.status === 'removed' && removedByAdmin(found.appeal, prior)) {
+      throw notEditable();
     }
     const revived = found?.status === 'removed';
     if (revived) {
@@ -195,7 +197,12 @@ export class ClientReviewsService {
     // An edit is screened like a new review: otherwise a clean review
     // could be edited into held text that stays public (coordinator review
     // 09.11). A held edit is hidden and queued for the moderators.
-    const held = verdict === 'hold';
+    // Verify 17.11: a moderator's hide survives the author's delete. An
+    // edit whose text did not change is not held again: it passed when it
+    // was written, and the repeat rule would count it against itself (C-3).
+    const held =
+      (verdict === 'hold' && (!existing || existing.body !== body)) ||
+      prior === 'hidden';
     const row = await this.prisma.clientReview.upsert({
       where: {
         case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
@@ -269,42 +276,69 @@ export class ClientReviewsService {
     // Audit 2026-10-01: find → write → rating in one serializable
     // transaction — a double submit can't make two reviews, the rating
     // can't be left stale.
-    const { existing, row } = await withTxRetry(this.prisma, async (tx) => {
-      const existing = await tx.clientReview.findFirst({
-        where: {
-          client_id: clientId,
-          attorney_id: user.sub,
-          status: { not: 'removed' },
-        },
-        orderBy: { created_at: 'desc' },
-        select: { id: true },
-      });
-      const row = existing
-        ? await tx.clientReview.update({
-            where: { id: existing.id },
-            data: {
-              rating: dto.rating,
-              body,
-              edited_at: new Date(),
-              ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
-              // A held edit is hidden like a held new review (see above).
-              ...(verdict === 'hold' ? { status: 'hidden' as const } : {}),
-            },
-          })
-        : await tx.clientReview.create({
-            data: {
-              attorney_id: user.sub,
+    const { existing, row, held } = await withTxRetry(
+      this.prisma,
+      async (tx) => {
+        const existing = await tx.clientReview.findFirst({
+          where: {
+            client_id: clientId,
+            attorney_id: user.sub,
+            status: { not: 'removed' },
+          },
+          orderBy: { created_at: 'desc' },
+          select: { id: true, body: true },
+        });
+        // Verify 17.11 (batch 9): a review moderation or an accepted appeal
+        // removed is not written again as a fresh published one (the case
+        // path refuses it too); one a moderator hid goes back hidden.
+        // An unchanged text is not held again (C-3, as above).
+        let held = verdict === 'hold' && existing?.body !== body;
+        if (!existing) {
+          const gone = await tx.clientReview.findFirst({
+            where: {
               client_id: clientId,
-              rating: dto.rating,
-              body,
-              photo_ids: photoIds,
-              ...(verdict === 'hold' ? { status: 'hidden' as const } : {}),
+              attorney_id: user.sub,
+              case_id: null,
+              status: 'removed',
+            },
+            orderBy: { created_at: 'desc' },
+            select: {
+              id: true,
+              appeal: { select: { status: true, decided_by: true } },
             },
           });
-      await this.recalc(clientId, tx);
-      return { existing, row };
-    });
-    const held = verdict === 'hold';
+          const prior = gone
+            ? await lastModeration(tx, gone.id, 'client_review')
+            : null;
+          if (gone && removedByAdmin(gone.appeal, prior)) throw notEditable();
+          if (prior === 'hidden') held = true;
+        }
+        const row = existing
+          ? await tx.clientReview.update({
+              where: { id: existing.id },
+              data: {
+                rating: dto.rating,
+                body,
+                edited_at: new Date(),
+                ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
+                // A held edit is hidden like a held new review (see above).
+                ...(held ? { status: 'hidden' as const } : {}),
+              },
+            })
+          : await tx.clientReview.create({
+              data: {
+                attorney_id: user.sub,
+                client_id: clientId,
+                rating: dto.rating,
+                body,
+                photo_ids: photoIds,
+                ...(held ? { status: 'hidden' as const } : {}),
+              },
+            });
+        await this.recalc(clientId, tx);
+        return { existing, row, held };
+      },
+    );
     if (!existing || held) await this.afterSave(user.sub, row.id, body, held);
     if (!existing && !held) {
       await this.notifications.emit({
@@ -410,7 +444,9 @@ export class ClientReviewsService {
         message: 'You cannot vote on this review.',
       });
     }
-    await this.prisma.$transaction(async (tx) => {
+    // Verify 17.11 (batch 9): serializable with retry, as on attorney
+    // reviews — a double tap used to hit the vote's primary key (500).
+    await withTxRetry(this.prisma, async (tx) => {
       const key = { review_id: reviewId, user_id: user.sub };
       const had = await tx.clientReviewHelpfulVote.findUnique({
         where: { review_id_user_id: key },
@@ -499,16 +535,26 @@ export class ClientReviewsService {
       });
     }
     const now = new Date();
-    await this.prisma.clientReviewAppeal.create({
-      data: {
-        review_id: reviewId,
-        appellant_id: user.sub,
-        reason,
-        auto_remove_at: new Date(
-          now.getTime() + REVIEW_APPEAL_AUTO_REMOVE_DAYS * 24 * 3600 * 1000,
-        ),
-      },
-    });
+    try {
+      await this.prisma.clientReviewAppeal.create({
+        data: {
+          review_id: reviewId,
+          appellant_id: user.sub,
+          reason,
+          auto_remove_at: new Date(
+            now.getTime() + REVIEW_APPEAL_AUTO_REMOVE_DAYS * 24 * 3600 * 1000,
+          ),
+        },
+      });
+    } catch (e) {
+      // Verify 17.11: a double tap lost the race on UQ review_id — the
+      // same 409 as the check above, not a 500.
+      if ((e as { code?: string }).code !== 'P2002') throw e;
+      throw new ConflictException({
+        code: ErrorCode.REVIEW_APPEAL_EXISTS,
+        message: 'This review was already appealed.',
+      });
+    }
     return (await this.present([reviewId], user.sub))[0];
   }
 
@@ -883,10 +929,17 @@ export class ClientReviewsService {
     }
   }
 
-  async recalc(
-    clientId: string,
-    db: Prisma.TransactionClient | PrismaService = this.prisma,
-  ): Promise<void> {
+  async recalc(clientId: string, tx?: Prisma.TransactionClient): Promise<void> {
+    // Verify 17.11 (batch 9): two reviews of one client written at once
+    // could leave the older count last (aggregate, then update). The
+    // profile row is locked first, so the later recalculation reads every
+    // review committed before it (the attorney rating is one statement).
+    if (!tx) {
+      await this.prisma.$transaction((t) => this.recalc(clientId, t));
+      return;
+    }
+    const db = tx;
+    await db.$queryRaw`SELECT 1 FROM client_profiles WHERE user_id = ${clientId}::uuid FOR UPDATE`;
     const agg = await db.clientReview.aggregate({
       where: { client_id: clientId, status: 'published' },
       _avg: { rating: true },
@@ -1019,5 +1072,24 @@ function reviewNotFound(): NotFoundException {
   return new NotFoundException({
     code: ErrorCode.NOT_FOUND,
     message: 'Review not found.',
+  });
+}
+
+/** A removal by an admin — an accepted appeal (the author's own delete
+ * closes a pending appeal without `decided_by`) or a moderator. */
+function removedByAdmin(
+  appeal: { status: string; decided_by: string | null } | null | undefined,
+  prior: string | null,
+): boolean {
+  return (
+    (appeal?.decided_by != null && appeal.status === 'accepted') ||
+    prior === 'removed'
+  );
+}
+
+function notEditable(): ConflictException {
+  return new ConflictException({
+    code: ErrorCode.REVIEW_NOT_EDITABLE,
+    message: 'This review was removed by moderation.',
   });
 }

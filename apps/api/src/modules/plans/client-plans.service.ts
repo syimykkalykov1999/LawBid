@@ -292,25 +292,65 @@ export class ClientPlansService {
       // confirm with the same SetupIntent reuses Stripe's answer.
       idempotencyKey: `setup:${setupIntentId}`,
     });
-    await this.prisma.clientSubscription.upsert({
-      where: { user_id: user.sub },
-      create: {
-        user_id: user.sub,
-        plan_id: o.plan.id,
-        stripe_checkout_id: setupIntentId,
-        stripe_subscription_id: remote.id,
-        status: 'incomplete',
-        price_cents: o.amount,
-        entitlements: this.plans.entitlementsOf(o.plan),
-      },
-      update: {
-        plan_id: o.plan.id,
-        stripe_checkout_id: setupIntentId,
-        stripe_subscription_id: remote.id,
-        price_cents: o.amount,
-        entitlements: this.plans.entitlementsOf(o.plan),
-      },
+    // Verify 17.11 (batch 9): two confirms (two tabs, a second try while
+    // the first waits for 3-D Secure) each made a subscription and the row
+    // kept only the last — the other one went on charging, unknown to the
+    // app. Under one lock per client: a live plan keeps its subscription
+    // and the newcomer is cancelled (as on the checkout path); an earlier
+    // one still waiting (incomplete) is cancelled and replaced.
+    const verdict = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`client-plan:${user.sub}`}, 0))`;
+      const row = await tx.clientSubscription.findUnique({
+        where: { user_id: user.sub },
+      });
+      const previous = row?.stripe_subscription_id ?? null;
+      if (previous && previous !== remote.id && clientSubscriptionActive(row)) {
+        return { keep: false as const, previous };
+      }
+      await tx.clientSubscription.upsert({
+        where: { user_id: user.sub },
+        create: {
+          user_id: user.sub,
+          plan_id: o.plan.id,
+          stripe_checkout_id: setupIntentId,
+          stripe_subscription_id: remote.id,
+          status: 'incomplete',
+          price_cents: o.amount,
+          entitlements: this.plans.entitlementsOf(o.plan),
+        },
+        update: {
+          plan_id: o.plan.id,
+          stripe_checkout_id: setupIntentId,
+          stripe_subscription_id: remote.id,
+          price_cents: o.amount,
+          entitlements: this.plans.entitlementsOf(o.plan),
+        },
+      });
+      return {
+        keep: true as const,
+        previous: previous && previous !== remote.id ? previous : null,
+      };
     });
+    if (!verdict.keep) {
+      if (remote.status !== 'canceled')
+        await this.provider.cancelNow(remote.id);
+      this.logger.error(
+        `duplicate client plan ${remote.id} for ${user.sub} cancelled (kept ${verdict.previous}); refund its first invoice if paid`,
+      );
+      return true;
+    }
+    if (verdict.previous) {
+      const old = await this.provider
+        .retrieveSubscription(verdict.previous)
+        .catch(() => null);
+      if (
+        old &&
+        old.status !== 'canceled' &&
+        old.status !== 'incomplete_expired'
+      ) {
+        await this.provider.cancelNow(verdict.previous);
+      }
+    }
     await this.applySubscription(remote);
     return remote.status === 'active' || remote.status === 'trialing';
   }

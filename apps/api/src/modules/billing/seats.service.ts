@@ -16,6 +16,7 @@ import type { SeatChangeResultDto, SeatPreviewDto } from './billing.dto';
 import type { PaymentProvider } from './payment-provider';
 import { PricingService, seatPriceKind } from './pricing.service';
 import { SubscriptionsService } from './subscriptions.service';
+import { lockAssistantSeats } from './seat-limit';
 
 /** A preview's proration moment stays valid this long (the sheet is open
  * for a minute or two; an hour-old price is asked again). */
@@ -201,7 +202,11 @@ export class SeatsService {
     user: RequestUser,
     ctx: SeatContext,
     seats: number,
-    scheduled: { id: string } | null,
+    scheduled: {
+      id: string;
+      to_seats: number;
+      effective_at: Date | null;
+    } | null,
   ): Promise<SeatChangeResultDto> {
     const row = ctx.row;
     const live = await this.prisma.assistantMembership.count({
@@ -214,14 +219,14 @@ export class SeatsService {
         details: { inUse: live },
       });
     }
-    await this.provider.setSeatQuantity(
-      row.stripe_subscription_id,
-      ctx.seatPriceId,
-      seats,
-      ctx.knownSeatPriceIds,
-      'none',
-    );
     if (seats === row.assistant_seats) {
+      await this.provider.setSeatQuantity(
+        row.stripe_subscription_id,
+        ctx.seatPriceId,
+        seats,
+        ctx.knownSeatPriceIds,
+        'none',
+      );
       // Back to what is paid: the waiting removal is called off.
       if (scheduled) {
         await this.prisma.assistantSeatChange.update({
@@ -232,20 +237,58 @@ export class SeatsService {
       return this.result(user, 'applied');
     }
     const effectiveAt = row.current_period_end ?? new Date();
-    const change = scheduled
-      ? await this.prisma.assistantSeatChange.update({
-          where: { id: scheduled.id },
-          data: { to_seats: seats, effective_at: effectiveAt },
-        })
-      : await this.prisma.assistantSeatChange.create({
-          data: {
-            user_id: user.sub,
-            from_seats: row.assistant_seats,
-            to_seats: seats,
-            status: 'scheduled',
-            effective_at: effectiveAt,
-          },
+    // Verify 17.11 (batch 9): the in-use count and the scheduled row are
+    // written under the attorney's seat lock, which "Add assistant" takes
+    // too — an assistant added between the count and the schedule used to
+    // stay on a seat nobody paid for after the renewal. Stripe's quantity
+    // changes after the row; a refusal puts the row back.
+    const change = await this.prisma.$transaction(async (tx) => {
+      await lockAssistantSeats(tx, user.sub);
+      const inUse = await tx.assistantMembership.count({
+        where: { attorney_id: user.sub, status: { not: 'removed' } },
+      });
+      if (ctx.included + seats < inUse) {
+        throw new ConflictException({
+          code: ErrorCode.ASSISTANT_SEATS_IN_USE,
+          message: 'Remove assistants before lowering the number of seats.',
+          details: { inUse },
         });
+      }
+      return scheduled
+        ? tx.assistantSeatChange.update({
+            where: { id: scheduled.id },
+            data: { to_seats: seats, effective_at: effectiveAt },
+          })
+        : tx.assistantSeatChange.create({
+            data: {
+              user_id: user.sub,
+              from_seats: row.assistant_seats,
+              to_seats: seats,
+              status: 'scheduled',
+              effective_at: effectiveAt,
+            },
+          });
+    });
+    try {
+      await this.provider.setSeatQuantity(
+        row.stripe_subscription_id,
+        ctx.seatPriceId,
+        seats,
+        ctx.knownSeatPriceIds,
+        'none',
+      );
+    } catch (e) {
+      await this.prisma.assistantSeatChange.update({
+        where: { id: change.id },
+        data: scheduled
+          ? {
+              to_seats: scheduled.to_seats,
+              effective_at: scheduled.effective_at,
+            }
+          : { status: 'canceled' },
+      });
+      throw e;
+    }
     return this.result(user, 'scheduled', {
       effectiveAt: effectiveAt.toISOString(),
       changeId: change.id,
