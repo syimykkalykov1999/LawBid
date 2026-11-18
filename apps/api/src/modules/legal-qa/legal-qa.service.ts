@@ -128,8 +128,20 @@ export class LegalQaService {
     // for a client — own questions changed since, removed ones as ids.
     const since = parseUpdatedSince(q.updatedSince);
     if (since && filter === 'mine' && user.role !== 'attorney') {
+      // Audit 17.11 (Q3): the same area / state filters as the list itself.
       const rows = await withDeleted(this.prisma).legalQuestion.findMany({
-        where: { author_id: user.sub, updated_at: { gte: since } },
+        where: {
+          author_id: user.sub,
+          updated_at: { gte: since },
+          ...(q.stateCode ? { state_code: q.stateCode } : {}),
+          ...(q.practiceAreaId
+            ? {
+                practice_area_id: {
+                  in: await this.areaFamily(q.practiceAreaId),
+                },
+              }
+            : {}),
+        },
         include: QUESTION_INCLUDE,
         orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
         take: 500,
@@ -413,10 +425,9 @@ export class LegalQaService {
           ...safety,
         },
       });
-      if (!wasLive && !holdNow) {
-        await this.takeSlot(tx, id);
-        announce = true;
-      }
+      // Audit 17.11 (Q4): a re-post takes its slot back, but the asker was
+      // already told about this attorney's answer — no second alert.
+      if (!wasLive && !holdNow) await this.takeSlot(tx, id);
       return updated;
     });
     // R-401: who typed it — the assistant's id, null for the attorney (an
@@ -454,13 +465,17 @@ export class LegalQaService {
         where: { question_id: id, attorney_id: user.sub },
       });
       if (!a) throw this.notFound();
+      // Audit 17.11 (Q1): only a live answer is the author's to delete. A
+      // moderated one (hidden or removed) stays moderated — its own delete
+      // would set deleted_at and let `answer` publish it again.
+      if (a.status !== 'published') throw this.forbidden();
       await tx.legalAnswer.update({
         where: { id: a.id },
         data: { status: 'removed', deleted_at: new Date(), is_best: false },
       });
       await tx.legalQuestion.updateMany({
         where: withDeleted({ id }),
-        data: { answer_count: { decrement: a.status === 'published' ? 1 : 0 } },
+        data: { answer_count: { decrement: 1 } },
       });
       await tx.legalQuestion.updateMany({
         where: withDeleted({ id, best_answer_id: a.id }),
@@ -530,19 +545,28 @@ export class LegalQaService {
     const a = await this.publishedAnswer(user, id, answerId);
     let notify = false;
     await withTxRetry(this.prisma, async (tx) => {
-      notify = q.best_answer_id !== a.id;
+      // Audit 17.11 (Q5): decided inside the transaction — a double tap
+      // notifies once, an answer hidden meanwhile cannot become best.
+      notify = false;
+      const cur = await tx.legalQuestion.findFirst({
+        where: { id },
+        select: { best_answer_id: true },
+      });
+      if (!cur) throw this.notFound();
       await tx.legalAnswer.updateMany({
-        where: { question_id: id, is_best: true },
+        where: { question_id: id, is_best: true, id: { not: a.id } },
         data: { is_best: false },
       });
-      await tx.legalAnswer.update({
-        where: { id: a.id },
+      const marked = await tx.legalAnswer.updateMany({
+        where: { id: a.id, question_id: id, status: 'published' },
         data: { is_best: true },
       });
+      if (marked.count === 0) throw this.notFound();
       await tx.legalQuestion.update({
         where: { id },
         data: { best_answer_id: a.id },
       });
+      notify = cur.best_answer_id !== a.id;
     });
     if (notify) {
       await this.notifications.emit({

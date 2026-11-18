@@ -175,27 +175,32 @@ export class BidDraftsService {
     }
     const payload = { ...dto } as Prisma.InputJsonObject;
     const by = user.assistant?.name.slice(0, 80) ?? null;
-    const existed = await this.prisma.bidDraft.findUnique({
-      where: {
-        attorney_id_case_id: { attorney_id: user.sub, case_id: caseId },
-      },
-      select: { case_id: true },
+    const row = {
+      attorney_id: user.sub,
+      case_id: caseId,
+      payload,
+      prepared_by_name: by,
+    };
+    // Verify 17.11 (A5): "new" comes from the write itself — INSERT … ON
+    // CONFLICT DO NOTHING creates the row for exactly one of two parallel
+    // saves (a read before the upsert let both see "no draft yet").
+    const { count: created } = await this.prisma.bidDraft.createMany({
+      data: [row],
+      skipDuplicates: true,
     });
-    await this.prisma.bidDraft.upsert({
-      where: {
-        attorney_id_case_id: { attorney_id: user.sub, case_id: caseId },
-      },
-      create: {
-        attorney_id: user.sub,
-        case_id: caseId,
-        payload,
-        prepared_by_name: by,
-      },
-      update: { payload, prepared_by_name: by },
-    });
+    if (created === 0) {
+      // Upsert, not update: the draft may have been discarded meanwhile.
+      await this.prisma.bidDraft.upsert({
+        where: {
+          attorney_id_case_id: { attorney_id: user.sub, case_id: caseId },
+        },
+        create: row,
+        update: { payload, prepared_by_name: by },
+      });
+    }
     // Owner 2026-10-21 (inbox 30): the attorney hears that an assistant
     // prepared a bid (once per draft; Settings → From assistants → Bids).
-    if (user.assistant && !existed) {
+    if (user.assistant && created > 0) {
       await this.notifications?.emit({
         type: 'assistant_bid_draft',
         recipientId: user.sub,

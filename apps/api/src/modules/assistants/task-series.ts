@@ -98,11 +98,25 @@ export async function createNextOccurrence(
     if (t.repeat_until && due > t.repeat_until) return false;
     const nextDue = t.due_at ? due : null;
     const remind = remindAtFor(nextDue, t.remind_before_min);
+    // Verify 17.11: the next task goes to the same assistant only while
+    // they still work in this team; a removed one leaves it unassigned.
+    const assignee = t.assignee_membership_id
+      ? ((
+          await prisma.assistantMembership.findFirst({
+            where: {
+              id: t.assignee_membership_id,
+              attorney_id: t.attorney_id,
+              status: 'active',
+            },
+            select: { id: true },
+          })
+        )?.id ?? null)
+      : null;
     await prisma.attorneyTask.create({
       data: {
         attorney_id: t.attorney_id,
         created_by_membership_id: t.created_by_membership_id,
-        assignee_membership_id: t.assignee_membership_id,
+        assignee_membership_id: assignee,
         kind: t.kind,
         title: t.title,
         notes: t.notes,
