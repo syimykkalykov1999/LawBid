@@ -63,6 +63,7 @@ function setup(opts: { enabled?: boolean } = {}) {
   );
   const provider = {
     creditCustomerBalance: jest.fn().mockResolvedValue(undefined),
+    debitCustomerBalance: jest.fn().mockResolvedValue(undefined),
   };
   const config = {
     get: jest.fn().mockReturnValue(undefined),
@@ -763,23 +764,51 @@ describe('RF1/RF2 (batch 8, audit 2026-11-17)', () => {
     });
   });
 
-  it('a refund of the qualifying invoice after a balance credit: rejected and listed for a manual reversal', async () => {
-    const s = refundSetup({
-      ...qualified,
-      status: 'rewarded',
-      referrer_reward: {
-        type: 'balance_cents',
-        value: 10_000,
-        issuedAt: '2026-11-10T00:00:00Z',
-      },
+  const credited = {
+    ...qualified,
+    status: 'rewarded',
+    referrer_reward: {
+      type: 'balance_cents',
+      value: 10_000,
+      issuedAt: '2026-11-10T00:00:00Z',
+    },
+  };
+
+  it('a refund of the qualifying invoice after a balance credit: the credit is debited back once', async () => {
+    const s = refundSetup(credited);
+    s.prisma.stripeCustomer.findUnique.mockResolvedValue({
+      stripe_customer_id: 'cus_1',
     });
     await s.service.onPaymentRefunded('pay1');
+    expect(s.provider.debitCustomerBalance).toHaveBeenCalledWith(
+      'cus_1',
+      10_000,
+      expect.any(String),
+      'ref-reverse:r1:referrer',
+      { reversal_of: 'referral-reward:r1:referrer' },
+    );
+    expect(s.provider.debitCustomerBalance).toHaveBeenCalledTimes(1);
     expect(s.prisma.referral.updateMany).toHaveBeenCalledWith({
       where: { id: 'r1', status: { in: ['qualified', 'rewarded'] } },
       data: {
         status: 'rejected',
         rejected_reason:
-          'payment_refunded: Stripe balance credit already issued (referrer 10000 cents), reverse it by hand',
+          'payment_refunded: Stripe balance credit reversed (referrer 10000 cents)',
+      },
+    });
+  });
+
+  it('a balance credit that cannot be debited back is listed for a manual reversal', async () => {
+    const s = refundSetup(credited);
+    // No Stripe customer row: nothing to debit.
+    await s.service.onPaymentRefunded('pay1');
+    expect(s.provider.debitCustomerBalance).not.toHaveBeenCalled();
+    expect(s.prisma.referral.updateMany).toHaveBeenCalledWith({
+      where: { id: 'r1', status: { in: ['qualified', 'rewarded'] } },
+      data: {
+        status: 'rejected',
+        rejected_reason:
+          'payment_refunded: Stripe balance credit could not be reversed (referrer 10000 cents), reverse it by hand',
       },
     });
   });

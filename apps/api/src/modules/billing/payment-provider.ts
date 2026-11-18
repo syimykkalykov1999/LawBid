@@ -359,6 +359,17 @@ export interface PaymentProvider {
     description: string,
     idempotencyKey?: string,
   ): Promise<void>;
+  /** Verify 8 (RF1): takes an earlier balance credit back — a positive
+   * customer balance transaction (Stripe: "a positive amount is a debit").
+   * If the credit was already spent on an invoice, the debit stays as an
+   * amount owed on the next invoice. */
+  debitCustomerBalance?(
+    customerId: string,
+    cents: number,
+    description: string,
+    idempotencyKey: string,
+    metadata?: Record<string, string>,
+  ): Promise<void>;
   /** Owner 2026-10-03 (admin prices): a new recurring Stripe price on the
    * plan's product (created when none is given). */
   createPrice?(input: ProviderPriceInput): Promise<ProviderPrice>;

@@ -617,25 +617,38 @@ export class ReferralsService {
         select: { id: true },
       });
       if (qualifying?.id !== payment.id) return;
+      // A balance credit already issued is taken back with a debit of the
+      // same amount (Stripe customer balance: positive = debit; when the
+      // credit was already spent on an invoice it stays as an amount owed,
+      // and the admin sees it in the reason). Once per side (idempotency key).
       const credited: string[] = [];
+      const failed: string[] = [];
       for (const side of ['referrer', 'referee'] as const) {
         const snap = snapshotOf(
           side === 'referrer' ? r.referrer_reward : r.referee_reward,
         );
-        if (snap?.type === 'balance_cents' && snap.value > 0 && snap.issuedAt)
-          credited.push(`${side} ${snap.value} cents`);
+        if (snap?.type === 'balance_cents' && snap.value > 0 && snap.issuedAt) {
+          const ok = await this.debitBalance(
+            side === 'referrer' ? r.referrer_id : r.referee_id,
+            snap.value,
+            `${r.id}:${side}`,
+          );
+          (ok ? credited : failed).push(`${side} ${snap.value} cents`);
+        }
       }
-      const reason = credited.length
-        ? `payment_refunded: Stripe balance credit already issued (${credited.join(', ')}), reverse it by hand`
-        : 'payment_refunded';
+      const reason = failed.length
+        ? `payment_refunded: Stripe balance credit could not be reversed (${failed.join(', ')}), reverse it by hand`
+        : credited.length
+          ? `payment_refunded: Stripe balance credit reversed (${credited.join(', ')})`
+          : 'payment_refunded';
       await this.prisma.referral.updateMany({
         where: { id: r.id, status: { in: ['qualified', 'rewarded'] } },
         data: { status: 'rejected', rejected_reason: reason.slice(0, 300) },
       });
-      if (credited.length) {
+      if (failed.length) {
         this.logger.error(
           { referralId: r.id, paymentId },
-          'refunded referral: balance credit already issued, reverse by hand',
+          'refunded referral: balance credit could not be reversed, reverse by hand',
         );
       }
     } catch (e) {
@@ -643,6 +656,34 @@ export class ReferralsService {
         { paymentId, err: String(e) },
         'referral refund handling failed',
       );
+    }
+  }
+
+  /** RF1: the debit that takes a referral balance credit back. */
+  private async debitBalance(
+    userId: string,
+    cents: number,
+    key: string,
+  ): Promise<boolean> {
+    const customer = await this.prisma.stripeCustomer.findUnique({
+      where: { user_id: userId },
+    });
+    if (!customer || !this.provider?.debitCustomerBalance) return false;
+    try {
+      await this.provider.debitCustomerBalance(
+        customer.stripe_customer_id,
+        cents,
+        'LawBid referral reward reversed (payment refunded)',
+        `ref-reverse:${key}`,
+        { reversal_of: `referral-reward:${key}` },
+      );
+      return true;
+    } catch (e) {
+      this.logger.warn(
+        { userId, key, err: String(e) },
+        'referral balance reversal failed',
+      );
+      return false;
     }
   }
 
