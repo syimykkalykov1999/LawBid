@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument } from '@cantoo/pdf-lib';
 import { GOLD, MUTED, NAVY, startPdf, stamp } from './pdf-common';
 
 export interface SignedBy {

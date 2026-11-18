@@ -13,7 +13,7 @@
 //
 // Usage: node scripts/run-e2e-two-db.mjs [--all] [jest args...]
 //   --all  run every suite, limitations included (to re-measure the list)
-// Needs the same Postgres + Redis (+ MinIO) as `npm run test:e2e`.
+// Needs the same Postgres + Redis (+ local S3) as `npm run test:e2e`.
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

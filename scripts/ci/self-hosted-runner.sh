@@ -39,7 +39,7 @@ REPO="${REPO:-syimykkalykov1999/LawBid}"
 COUNT="${RUNNERS:-4}"          # parallel runners (slots)
 CPUS="${RUNNER_CPUS:-6}"       # per runner container
 MEM="${RUNNER_MEM:-12g}"       # per runner container
-DIND_CPUS="${DIND_CPUS:-2}"    # per sidecar: Postgres + Redis + MailHog of one job
+DIND_CPUS="${DIND_CPUS:-2}"    # per sidecar: Postgres + Redis + Mailpit + S3 of one job
 DIND_MEM="${DIND_MEM:-2g}"
 LABELS="lawbid-ci"
 # The tag names the pinned runner base below: build_image() skips an existing

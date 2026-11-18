@@ -60,6 +60,7 @@ const legalRu = <String, String>{
   'dmca.target.case_comment': 'Жалоба на вопрос по кейсу',
   'dmca.target.message': 'Жалоба на сообщение',
   'about.dmca': 'Авторские права (DMCA)',
+  'about.licenses': 'Лицензии',
   'cases.accept.unverifiedLine':
       'Лицензия адвоката не проверена LawBid — проверьте её в коллегии штата.',
 };
@@ -119,6 +120,7 @@ const legalEn = <String, String>{
   'dmca.target.case_comment': 'Complaint about a case question',
   'dmca.target.message': 'Complaint about a message',
   'about.dmca': 'Copyright (DMCA)',
+  'about.licenses': 'Licenses',
   'cases.accept.unverifiedLine':
       "The attorney's license is not checked by LawBid — verify it with the state bar.",
 };
