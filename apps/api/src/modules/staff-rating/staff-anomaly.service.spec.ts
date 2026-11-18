@@ -1,4 +1,4 @@
-import { detectAnomalies } from './staff-anomaly.service';
+import { StaffAnomalyService, detectAnomalies } from './staff-anomaly.service';
 import type { DailyRow } from './staff-daily-stats.service';
 import type { DayCounters } from './staff-counters.service';
 
@@ -142,5 +142,29 @@ describe('detectAnomalies (against the group median, not a model)', () => {
       20,
     );
     expect(found.map((x) => x.adminId)).toEqual([group[5], group[0]]);
+  });
+});
+
+describe('verify batch 11 (D5): cards taken are counted in the same local day', () => {
+  it('the window of 2026-10-14 is the Nevada day, not UTC midnight to midnight', async () => {
+    const groupBy = jest.fn().mockResolvedValue([]);
+    const prisma = {
+      workLeaseEvent: { groupBy },
+      staffAnomaly: { deleteMany: jest.fn(), createMany: jest.fn() },
+      $transaction: jest.fn().mockResolvedValue([]),
+    };
+    const svc = new StaffAnomalyService(
+      prisma as never,
+      { number: jest.fn().mockResolvedValue(20) } as never,
+    );
+    await svc.detect('2026-10-14', [], []);
+    const where = (
+      groupBy.mock.calls[0] as [
+        { where: { created_at: { gte: Date; lt: Date } } },
+      ]
+    )[0].where.created_at;
+    // PDT: 2026-10-14 00:00 local = 07:00 UTC.
+    expect(where.gte.toISOString()).toBe('2026-10-14T07:00:00.000Z');
+    expect(where.lt.toISOString()).toBe('2026-10-15T07:00:00.000Z');
   });
 });

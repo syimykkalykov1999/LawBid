@@ -74,7 +74,26 @@ export const OWNER_ONLY_CONFIG_KEYS: ReadonlySet<string> = new Set([
   'db.max_servers',
   // Owner 15.11: how many search engine nodes «Авто» may reach.
   'search.max_nodes',
+  // Verify batch 11 (C1): the automatic refund caps are money controls —
+  // an admin with «Настройки: управление» could raise them to $100 000.
+  'billing.dispute_refund_max_cents',
+  'billing.dispute_refund_daily_cap_cents',
+  'billing.duplicate_autorefund_daily_cap_cents',
+  'stripe_ops.efw_auto_refund_max_cents',
 ]);
+
+/** Verify batch 11 (C1): the staff package switches (masking, export
+ * block, watermark, session binding, workspaces, rates…) are the owner's
+ * (his «Сотрудники» settings are super admin only); through the generic
+ * editor an employee could switch off the very guards on themselves. */
+export const OWNER_ONLY_CONFIG_PREFIXES: readonly string[] = ['staff.'];
+
+export function isOwnerOnlyConfigKey(key: string): boolean {
+  return (
+    OWNER_ONLY_CONFIG_KEYS.has(key) ||
+    OWNER_ONLY_CONFIG_PREFIXES.some((p) => key.startsWith(p))
+  );
+}
 export const PAID_FLAGS: Record<
   string,
   { integration?: string; keys: string[] }
@@ -131,7 +150,7 @@ export class AdminConfigService {
    * owner (super admin) and only with a fresh 2FA code. Fails closed: no
    * 2FA service = no change. */
   private async assertOwnerOnly(admin: AdminActor, key: string): Promise<void> {
-    if (!OWNER_ONLY_CONFIG_KEYS.has(key)) return;
+    if (!isOwnerOnlyConfigKey(key)) return;
     if (admin.adminRole !== 'super_admin') {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,

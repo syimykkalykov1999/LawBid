@@ -40,6 +40,10 @@ const ITEM_KIND_TO_RATE: Readonly<Record<string, PieceworkKind>> = {
   media_report: 'media_report',
   mod_appeal: 'appeal',
   review_appeal: 'appeal',
+  // Verify batch 11 (D1): the review sample of an appeal decision carries
+  // the recorder's kind `appeal` (moderation-appeals, review-appeals-audit),
+  // not the lease kind — without it an overturned appeal stayed paid.
+  appeal: 'appeal',
 };
 
 export function rateKindOf(itemKind: string): PieceworkKind | null {

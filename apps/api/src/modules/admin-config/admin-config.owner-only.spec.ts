@@ -86,3 +86,42 @@ describe('owner-only settings (row 60)', () => {
     expect(stepUp).not.toHaveBeenCalled();
   });
 });
+
+describe("verify batch 11 (C1): money caps and staff guards are the owner's", () => {
+  const actor = (adminRole: string): AdminActor =>
+    ({ id: 'a1', adminRole, sessionId: 's1', ip: null }) as never;
+  const svc = Object.create(AdminConfigService.prototype) as AdminConfigService;
+  const stepUp = jest.fn().mockResolvedValue(undefined);
+  (svc as unknown as { adminAuth: unknown }).adminAuth = {
+    assertStepUp: stepUp,
+  };
+  const check = (a: AdminActor, key: string) =>
+    (
+      svc as unknown as {
+        assertOwnerOnly(a: AdminActor, k: string): Promise<void>;
+      }
+    ).assertOwnerOnly(a, key);
+
+  it.each([
+    'billing.dispute_refund_max_cents',
+    'billing.dispute_refund_daily_cap_cents',
+    'billing.duplicate_autorefund_daily_cap_cents',
+    'stripe_ops.efw_auto_refund_max_cents',
+    'staff.export_block_enabled',
+    'staff.masking_enabled',
+    'staff.workspaces_enabled',
+  ])('%s: another admin gets 403, the owner passes with 2FA', async (key) => {
+    await expect(check(actor('support'), key)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    stepUp.mockClear();
+    await expect(check(actor('super_admin'), key)).resolves.toBeUndefined();
+    expect(stepUp).toHaveBeenCalledWith('s1');
+  });
+
+  it('an ordinary setting stays open to «Настройки»', async () => {
+    await expect(
+      check(actor('support'), 'search.weight_title'),
+    ).resolves.toBeUndefined();
+  });
+});
