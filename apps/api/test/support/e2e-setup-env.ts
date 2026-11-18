@@ -39,7 +39,7 @@ for (const k of ['SMS', 'EMAIL']) {
   process.env[`BUDGET_${k}_PER_MINUTE_MAX`] = '1000000';
 }
 
-// docs/03 stage 3.2: uploads go to the local MinIO from docker-compose.yml
+// docs/03 stage 3.2: uploads go to the local S3 (versitygw, service `s3`) from docker-compose.yml
 // (dev-only credentials published there). Buckets are per isolation tag
 // so parallel runs never share objects; FilesBootstrapService creates
 // them (private) on boot in NODE_ENV=test.

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import jsQR from 'jsqr';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument } from '@cantoo/pdf-lib';
 import PDFKitDocument from 'pdfkit';
 import {
   INTER_PATH,

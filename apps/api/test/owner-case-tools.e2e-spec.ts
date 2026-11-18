@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import PDFDocument from 'pdfkit';
-import { PDFDocument as PdfLib } from 'pdf-lib';
+import { PDFDocument as PdfLib } from '@cantoo/pdf-lib';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
