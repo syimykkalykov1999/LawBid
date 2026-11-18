@@ -358,25 +358,10 @@ export class AttorneyTrustService {
         seen.badge = row.trust_badge;
       }
       const trust = row.trust ?? (await this.ensureRow(db, attorneyId));
-      const signals = this.signalsOf({ ...row, trust });
-      const level = computeLevel(signals);
-      const requirements = await this.requirements();
-      // Owner 2026-10-24: every verified license is past its expiry date
-      // (grace period) -> the badge is hidden until a renewal; the
-      // account itself keeps working.
-      const verifiedNow = row.licenses.filter(
-        (l) => l.license_status === 'verified',
+      const { signals, level, badge } = this.evaluate(
+        { ...row, trust },
+        await this.requirements(),
       );
-      const allLapsed =
-        verifiedNow.length > 0 &&
-        verifiedNow.every((l) =>
-          licenseIsLapsed(l.license_status, l.expires_at, new Date()),
-        );
-      const badge =
-        row.verification_status === 'verified' &&
-        !row.name_mismatch &&
-        !allLapsed &&
-        isCleared(signals, requirements, trust.staff_cleared_at !== null);
       const now = new Date();
       if (
         level !== row.trust_level ||
@@ -423,6 +408,35 @@ export class AttorneyTrustService {
       );
     };
     return tx ? run(tx) : withTxRetry(this.prisma, run);
+  }
+
+  /**
+   * Level and badge of a profile read with PROFILE_SELECT (one place for
+   * recompute() and the batched recomputeAll()).
+   */
+  private evaluate(
+    row: ProfileRow & { trust: NonNullable<ProfileRow['trust']> },
+    requirements: TrustRequirements,
+  ) {
+    const signals = this.signalsOf(row);
+    const level = computeLevel(signals);
+    // Owner 2026-10-24: every verified license is past its expiry date
+    // (grace period) -> the badge is hidden until a renewal; the
+    // account itself keeps working.
+    const verifiedNow = row.licenses.filter(
+      (l) => l.license_status === 'verified',
+    );
+    const allLapsed =
+      verifiedNow.length > 0 &&
+      verifiedNow.every((l) =>
+        licenseIsLapsed(l.license_status, l.expires_at, new Date()),
+      );
+    const badge =
+      row.verification_status === 'verified' &&
+      !row.name_mismatch &&
+      !allLapsed &&
+      isCleared(signals, requirements, row.trust.staff_cleared_at !== null);
+    return { signals, level, badge };
   }
 
   /** The rule-change notice was already sent in the last 10 minutes (a
@@ -484,36 +498,85 @@ export class AttorneyTrustService {
     let cursor: string | undefined;
     let attorneys = 0;
     let changed = 0;
+    const one = async (attorneyId: string) => {
+      // Compare with what the recompute itself found, not with this
+      // batch's read: a long run (or a second one racing it) may reach
+      // the attorney after another recompute already changed the row,
+      // and a stale "before" would hide (or invent) the change — the
+      // attorney who lost the badge was then never told.
+      const seen: { level?: number; badge?: boolean } = {};
+      const snap = await this.recompute(attorneyId, SYSTEM, undefined, seen);
+      if (snap && (snap.level !== seen.level || snap.badge !== seen.badge)) {
+        changed += 1;
+        // Owner 2026-10-05 06:07: the rules got stricter and this attorney
+        // lost the badge — tell them what is required now.
+        if (
+          opts.notifyNewlyRequired &&
+          seen.badge === true &&
+          !snap.badge &&
+          snap.missing.length > 0
+        ) {
+          await this.tellRequirementsOnce(attorneyId, snap.missing);
+        }
+      }
+    };
     for (;;) {
+      // Verify batch 13 (X11): the page is read whole (one query) and judged
+      // in memory; only an attorney whose level or badge would change goes
+      // through recompute()'s own transaction. Before, every attorney of
+      // every page was a separate read + transaction, every night.
       const rows = await this.prisma.attorneyProfile.findMany({
-        select: { user_id: true },
+        select: PROFILE_SELECT,
         orderBy: { user_id: 'asc' },
         take: batch,
         ...(cursor ? { cursor: { user_id: cursor }, skip: 1 } : {}),
       });
       if (rows.length === 0) break;
+      // Read once per page, and only when a row is judged here.
+      let requirements: TrustRequirements | undefined;
+      const same = new Map<string, { level: number; badge: boolean }>();
       for (const r of rows) {
         attorneys += 1;
-        // Compare with what the recompute itself found, not with this
-        // batch's read: a long run (or a second one racing it) may reach
-        // the attorney after another recompute already changed the row,
-        // and a stale "before" would hide (or invent) the change — the
-        // attorney who lost the badge was then never told.
-        const seen: { level?: number; badge?: boolean } = {};
-        const snap = await this.recompute(r.user_id, SYSTEM, undefined, seen);
-        if (snap && (snap.level !== seen.level || snap.badge !== seen.badge)) {
-          changed += 1;
-          // Owner 2026-10-05 06:07: the rules got stricter and this attorney
-          // lost the badge — tell them what is required now.
+        if (r.trust) {
+          requirements ??= await this.requirements();
+          const e = this.evaluate({ ...r, trust: r.trust }, requirements);
           if (
-            opts.notifyNewlyRequired &&
-            seen.badge === true &&
-            !snap.badge &&
-            snap.missing.length > 0
+            e.level === r.trust_level &&
+            e.badge === r.trust_badge &&
+            e.level === r.trust.level
           ) {
-            await this.tellRequirementsOnce(r.user_id, snap.missing);
+            same.set(r.user_id, { level: r.trust_level, badge: r.trust_badge });
+            continue;
           }
         }
+        await one(r.user_id);
+      }
+      if (same.size > 0) {
+        // The page read may be stale by now (another recompute changed a
+        // row meanwhile): such a row gets the full recompute, as before.
+        const now = await this.prisma.attorneyProfile.findMany({
+          where: { user_id: { in: [...same.keys()] } },
+          select: { user_id: true, trust_level: true, trust_badge: true },
+        });
+        for (const n of now) {
+          const was = same.get(n.user_id);
+          if (
+            was &&
+            (was.level !== n.trust_level || was.badge !== n.trust_badge)
+          ) {
+            same.delete(n.user_id);
+            await one(n.user_id);
+          }
+        }
+        // What recompute() does for an unchanged attorney: the daily stamp.
+        const at = new Date();
+        await this.prisma.attorneyTrust.updateMany({
+          where: {
+            attorney_id: { in: [...same.keys()] },
+            computed_at: { lt: new Date(at.getTime() - 24 * 3600 * 1000) },
+          },
+          data: { computed_at: at },
+        });
       }
       cursor = rows[rows.length - 1].user_id;
       if (rows.length < batch) break;

@@ -95,15 +95,10 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS stripe_webhook_events_processed_idx
 --    = prefix of notifications_user_unread_idx (user_id, created_at DESC)
 --  conversations_direct_pair_key: byte-for-byte the same UNIQUE index as
 --    conversations_direct_uq (attorney_id, client_id) WHERE case_id IS NULL
---  bids_status_idx (status) = prefix of bids_status_created_at_id_idx
---  chat_group_polls_group_id_idx (group_id) = prefix of the UNIQUE
---    (group_id, message_id) key
---  post_media_file_id_idx (file_id): file_id is NOT NULL, so the UNIQUE
---    post_media_file_id_one_post_key (file_id) WHERE file_id IS NOT NULL
---    holds every row
--- The last three leave schema.prisma in the same change.
+-- The three duplicates declared in schema.prisma (bids_status_idx,
+-- chat_group_polls_group_id_idx, post_media_file_id_idx) leave it in the same
+-- change and are dropped by migration
+-- 20261221100000_verify_batch13_drop_duplicate_indexes (the schema-drift
+-- check compares migrations with schema.prisma).
 DROP INDEX CONCURRENTLY IF EXISTS notifications_unread_idx;
 DROP INDEX CONCURRENTLY IF EXISTS conversations_direct_pair_key;
-DROP INDEX CONCURRENTLY IF EXISTS bids_status_idx;
-DROP INDEX CONCURRENTLY IF EXISTS chat_group_polls_group_id_idx;
-DROP INDEX CONCURRENTLY IF EXISTS post_media_file_id_idx;
