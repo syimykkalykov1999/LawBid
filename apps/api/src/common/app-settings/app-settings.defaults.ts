@@ -476,6 +476,17 @@ export const OWNER_MEDIA_SETTINGS = {
   'media.chat_video_max_height': 720,
   'media.voice_bitrate_kbps': 32,
   'media.voice_sample_rate_hz': 16000,
+  // Owner row 146: a voice note recorded on the website in Firefox / Linux
+  // Chrome stays Opus in WebM, which the iPhone cannot play. On: the scan
+  // worker writes an AAC copy in M4A next to it (ffmpeg, the bitrate and
+  // sample rate above), the iPhone gets that copy; the original is kept.
+  // Off: no new copies (existing ones are still served). ffmpeg is given at
+  // most this many seconds per note; then the note goes out as WebM only.
+  'media.voice_transcode_enabled': true,
+  // R2 review (14.11): the sender waits for this copy (the note turns
+  // clean after it), so a hung ffmpeg must not hold a note for minutes; a
+  // 15-minute note encodes in a few seconds.
+  'media.voice_transcode_timeout_sec': 20,
   // Owner 2026-10-05: document templates the admin uploads (PDF, Word).
   'files.document_template_max_size_mb': 10,
 } as const;
