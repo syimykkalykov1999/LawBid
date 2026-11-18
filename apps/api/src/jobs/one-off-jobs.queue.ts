@@ -28,6 +28,7 @@ export class OneOffJobsQueue implements OnModuleDestroy {
     data: Record<string, unknown>,
     jobId: string,
     delayMs: number,
+    opts: { againIfRunning?: boolean } = {},
   ): Promise<boolean> {
     const url = this.config.get<string>('REDIS_URL');
     if (!url) return false;
@@ -39,9 +40,19 @@ export class OneOffJobsQueue implements OnModuleDestroy {
     // keeps 200) made BullMQ ignore every later add — «queued», nothing ran.
     // It is removed first; a waiting / running one still takes the add.
     const old = await this.queue.getJob(jobId);
-    if (old && (await old.getState()) === 'failed') await old.remove();
+    const state = old ? await old.getState() : null;
+    if (old && state === 'failed') await old.remove();
+    // FO4: [againIfRunning] — the running job may have read the data the
+    // caller has just changed (the admin's trust rules): one follow-up run
+    // is queued under its own id (itself deduplicated while it waits).
+    let id = jobId;
+    if (opts.againIfRunning && state === 'active') {
+      id = `${jobId}-again`;
+      const next = await this.queue.getJob(id);
+      if (next && (await next.getState()) === 'failed') await next.remove();
+    }
     await this.queue.add(name, data, {
-      jobId,
+      jobId: id,
       delay: Math.max(0, delayMs),
       attempts: 3,
       backoff: { type: 'exponential', delay: 2_000 },

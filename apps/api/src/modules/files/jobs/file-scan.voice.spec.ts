@@ -110,6 +110,27 @@ const cleanUpdate = (prisma: ReturnType<typeof make>['prisma']) =>
   ).find(([a]) => a.data.scan_status === 'clean')?.[0].data;
 
 describe('FileScanProcessor: AAC copy of a browser voice note (row 146)', () => {
+  it('FO9: a twin with the same bytes but no iPhone copy is not reused — this note gets its copy', async () => {
+    const t = make({ settings: { 'storage.dedup': true } });
+    t.prisma.file.findFirst.mockResolvedValue({
+      id: 'twin',
+      s3_key: 'voice/old',
+      mime: 'audio/webm',
+      size_bytes: BigInt(WEBM.length),
+      sha256: 's',
+      width: null,
+      height: null,
+      blurhash: null,
+      avif_twins: false,
+      voice_m4a: false,
+    });
+    expect(await t.processor.run('f1', false)).toBe('clean');
+    expect(t.transcode).toHaveBeenCalled();
+    const data = cleanUpdate(t.prisma);
+    expect(data).toEqual(expect.objectContaining({ voice_m4a: true }));
+    expect(data).not.toHaveProperty('s3_key');
+  });
+
   it('copy key sits next to the original', () => {
     expect(voiceM4aKey('voice/k')).toBe('voice/k.m4a');
   });

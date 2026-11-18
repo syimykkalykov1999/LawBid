@@ -178,6 +178,15 @@ export class SocialAuthService {
       user.status === 'deletion_pending' &&
       (await this.loginCancelsDeletion())
     ) {
+      // Final pass 18.11 (FO5): only a sign-in that is allowed cancels the
+      // deletion — the person's own bans (account, phone, e-mail) are
+      // checked first, as password sign-in does; issueLogin checks again.
+      await this.bans.assertAllowed({
+        userId: user.id,
+        phone: user.phone_e164,
+        email: user.email,
+        deviceId: deviceInfo.deviceId,
+      });
       // docs/01_FOUNDATION_AUTH.md §10.7: "можно отменить входом" — any
       // successful authentication during the grace period cancels the
       // pending deletion, social login included. (A suspended or deleted

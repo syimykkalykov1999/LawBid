@@ -14,6 +14,10 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { CounterAggregator } from '../src/modules/counters/counter-aggregator.service';
 import { withDeleted } from '../src/prisma/soft-delete.extension';
 import { adminSession } from './support/admin-login';
+import { AccountAnonymizationService } from '../src/modules/privacy/account-anonymization.service';
+import { shardContext } from '../src/sharding/shard-context';
+import { hashShard } from '../src/sharding/shard-id';
+import { twoDbMode } from './support/e2e-two-db';
 import { ensurePostPractices } from './support/post-practices';
 
 jest.setTimeout(120_000);
@@ -650,6 +654,104 @@ describe('stage 6.4 — moderation (e2e)', () => {
       after: { status: 'hidden', reason: 'Misleading claim' },
     });
     await redis.del('adm:sum:dashboard');
+  });
+
+  it('FO2: erasing an account removes its comments on every database (two-db: the post on the other one)', async () => {
+    const c = await client();
+    let a = await attorney();
+    // E2E_TWO_DB=odd: an author on the OTHER database than the commenter
+    // (with one database, or every shard on one, the same rule still holds).
+    for (
+      let i = 0;
+      i < 40 &&
+      twoDbMode() === 'odd' &&
+      hashShard(a.id) % 2 === hashShard(c.id) % 2;
+      i += 1
+    )
+      a = await attorney();
+    const made = await api()
+      .post('/api/v1/posts')
+      .set(a.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        title: 'Erase test',
+        practiceCode: 'family_law',
+        body: 'Erase test post',
+      })
+      .expect(201);
+    const postId = (made.body as Body).data.id as string;
+    const said = await api()
+      .post(`/api/v1/posts/${postId}/comments`)
+      .set(c.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({ body: 'I will be erased' })
+      .expect(201);
+    const commentId = (said.body as Body).data.id as string;
+    await prisma.user.update({
+      where: { id: c.id },
+      data: {
+        status: 'deletion_pending',
+        deletion_requested_at: new Date(Date.now() - 40 * 86_400_000),
+      },
+    });
+    expect(await app.get(AccountAnonymizationService).anonymize(c.id)).toBe(
+      true,
+    );
+    const row = await shardContext.runForUser(a.id, () =>
+      prisma.comment.findFirst({
+        where: withDeleted({ id: commentId }),
+        select: { deleted_at: true },
+      }),
+    );
+    expect(row?.deleted_at).not.toBeNull();
+  });
+
+  it('FO1: hiding a top comment changes the count by one, the same rule as the nightly recount', async () => {
+    const mod = await adminSession(baseUrl, prisma, 'moderator');
+    const a = await attorney();
+    const c = await client();
+    const postId = await post(a, 'Post with a thread');
+    const say = async (body: string, parentCommentId?: string) =>
+      (
+        (
+          await api()
+            .post(`/api/v1/posts/${postId}/comments`)
+            .set(c.auth)
+            .set('Idempotency-Key', randomUUID())
+            .send(parentCommentId ? { body, parentCommentId } : { body })
+            .expect(201)
+        ).body as Body
+      ).data.id as string;
+    const top = await say('Top one');
+    await say('Reply one', top);
+    await say('Reply two', top);
+    const live = () =>
+      prisma.comment.count({
+        where: { post_id: postId, status: 'published', deleted_at: null },
+      });
+    const stored = async () =>
+      (await prisma.post.findUniqueOrThrow({ where: { id: postId } }))
+        .comment_count;
+    await counters.flush();
+    expect(await stored()).toBe(3);
+    await api()
+      .post(`/api/v1/admin/moderation/targets/comment/${top}/actions`)
+      .set(mod.auth)
+      .send({ action: 'hide', reason: 'Off topic spam' })
+      .expect(200);
+    await counters.flush();
+    // The recount counts every published comment (the two replies too):
+    // the running count must land on the same number, or the night moves it.
+    expect(await stored()).toBe(await live());
+    expect(await stored()).toBe(2);
+    await api()
+      .post(`/api/v1/admin/moderation/targets/comment/${top}/actions`)
+      .set(mod.auth)
+      .send({ action: 'restore', reason: 'Back after review' })
+      .expect(200);
+    await counters.flush();
+    expect(await stored()).toBe(await live());
+    expect(await stored()).toBe(3);
   });
 
   it('comment hide keeps the post comment_count in sync; message hide sets deleted_at', async () => {

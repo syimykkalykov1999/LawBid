@@ -165,6 +165,9 @@ export class AdminTrustService {
           { notifyNewlyRequired: true },
           `${TRUST_RECOMPUTE_ALL_JOB_ID}-notify`,
           0,
+          // Final pass 18.11 (FO4): a change while the notify run is
+          // already running queues one more (it may have read the old rules).
+          { againIfRunning: true },
         )
         .catch(() => false);
       if (!queued) {

@@ -199,6 +199,57 @@ describe('Client profile: posts, follows, attorney reviews (e2e, OQ-038)', () =>
     expect(posts.body.data).toHaveLength(1);
   });
 
+  it('FO7: two reviews of one client from two cases at once — one lands, the other is 409', async () => {
+    const cli = await client();
+    await withProfile(cli.id);
+    const att = await attorney();
+    const closedCase = async () => {
+      const caseId = (await postCase(cli.auth)).body.data.id as string;
+      const bid = await prisma.bid.create({
+        data: {
+          case_id: caseId,
+          attorney_id: att.id,
+          fee_type: 'fixed',
+          amount_cents: 50000,
+          message: 'I handle these every week and can start today.',
+          start_availability: 'immediately',
+          turn: 'client',
+          status: 'accepted',
+          decided_at: new Date(),
+        },
+      });
+      await prisma.case.update({
+        where: { id: caseId },
+        data: {
+          accepted_bid_id: bid.id,
+          status: 'closed',
+          closed_at: new Date(),
+        },
+      });
+      return caseId;
+    };
+    const a = await closedCase();
+    const b = await closedCase();
+    const [ra, rb] = await Promise.all(
+      [a, b].map((id) =>
+        api()
+          .put(`/api/v1/cases/${id}/client-review`)
+          .set(att.auth)
+          .send({ rating: 5, body: 'Clear, on time, answered fast.' }),
+      ),
+    );
+    expect([ra.status, rb.status].sort()).toEqual([200, 409]);
+    expect(
+      await prisma.clientReview.count({
+        where: {
+          client_id: cli.id,
+          attorney_id: att.id,
+          status: { not: 'removed' },
+        },
+      }),
+    ).toBe(1);
+  });
+
   it('the hired attorney reviews the client from the case; everyone reads', async () => {
     const cli = await client();
     const handle = await withProfile(cli.id);
