@@ -16,6 +16,7 @@
     "db-auth-schema",
     "db-cases-schema",
     "db-profiles-schema",
+    "db-scale-retention-counters",
     "db-sessions",
     "db-social-billing-schema",
     "db-soft-delete",
