@@ -345,6 +345,20 @@ describe('AccountAnonymizationService — registry «scrub» rows really scrubbe
     });
   });
 
+  it('PV4: a demo account loses its admin label with the erased person', async () => {
+    const t = build({
+      'user.findUnique': userReads(user({ role: 'client' }), {
+        anonymized_at: null,
+        status: 'deleted',
+      }),
+    });
+    await t.svc.anonymize(UID, NOW, 'deletion_request', { due: true });
+    expect(t.did('demoAccount', 'updateMany')[0]?.arg).toEqual({
+      where: { demo_user_id: UID },
+      data: { label: null, display_name: 'Deleted' },
+    });
+  });
+
   it("an attorney's own planner tasks go with the account", async () => {
     const t = build({
       'user.findUnique': userReads(user({ role: 'attorney' }), {

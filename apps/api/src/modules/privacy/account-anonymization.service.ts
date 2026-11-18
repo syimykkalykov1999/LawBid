@@ -52,6 +52,7 @@ import {
 } from './erasure-ledger.service';
 import { VendorDeletionService } from './vendor-deletion.service';
 import { PersonalDataErasureService } from './personal-data-erasure.service';
+import { forEachDatabase } from '../../sharding/for-each-database';
 import { shardContext } from '../../sharding/shard-context';
 import { notifySeoPagesChanged } from '../../common/seo/seo-generator.trigger';
 import { userDirectory } from '../../sharding/user-directory';
@@ -1055,6 +1056,16 @@ export class AccountAnonymizationService implements AccountEraser {
       );
     }
     await this.access.invalidate(userId);
+    // Verify 18.11 (PV4): the person's links in OTHER attorneys' planners
+    // live in those attorneys' databases (sharded with the task), so they
+    // are cleared on every database, not in this person's transaction.
+    // Idempotent: a retry finds nothing left.
+    await forEachDatabase(this.prisma, () =>
+      this.prisma.attorneyTaskPerson.updateMany({
+        where: { user_id: userId },
+        data: { user_id: null, phone: null, email: null },
+      }),
+    );
     await this.afterErasure(userId, reason);
     await this.completeErasure(userId, now);
     this.logger.info({ userId, role: user.role }, 'account anonymized');
@@ -1066,8 +1077,9 @@ export class AccountAnonymizationService implements AccountEraser {
    * that nothing else blanked: the person's support texts (their words and
    * the device details the app attached), a client's @handle (an attorney's
    * is replaced above), the holds on the released handles (they keep
-   * protecting the handle, no longer naming the person), the links of the
-   * person in other attorneys' tasks, and an attorney's own planner.
+   * protecting the handle, no longer naming the person), and an attorney's
+   * own planner (the person's links in other attorneys' tasks are cleared
+   * on every database after the commit).
    */
   private async scrubRegistryRows(
     tx: Prisma.TransactionClient,
@@ -1095,9 +1107,10 @@ export class AccountAnonymizationService implements AccountEraser {
       where: { holder_user_id: userId },
       data: { holder_user_id: ERASED_USERNAME_HOLDER },
     });
-    await tx.attorneyTaskPerson.updateMany({
-      where: { user_id: userId },
-      data: { user_id: null, phone: null, email: null },
+    // Verify 18.11 (PV4): a demo account's admin label goes with it.
+    await tx.demoAccount.updateMany({
+      where: { demo_user_id: userId },
+      data: { label: null, display_name: DELETED_FIRST_NAME },
     });
     if (role === 'attorney') {
       // Steps, places and people go with their task (ON DELETE CASCADE).
