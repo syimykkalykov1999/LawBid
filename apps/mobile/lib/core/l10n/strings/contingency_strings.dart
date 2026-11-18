@@ -25,7 +25,6 @@ const contingencyRu = <String, String>{
   'cases.activity.lastSeen.few': 'Клиент был {n} дня назад',
   'cases.activity.lastSeen.many': 'Клиент был {n} дней назад',
   'cases.activity.lastSeen.other': 'Клиент был {n} дня назад',
-  'cases.activity.responds': 'Отвечает в течение дня',
 };
 
 const contingencyEn = <String, String>{
@@ -50,5 +49,4 @@ const contingencyEn = <String, String>{
   'cases.activity.today': 'Client active today',
   'cases.activity.lastSeen.one': 'Client active {n} day ago',
   'cases.activity.lastSeen.other': 'Client active {n} days ago',
-  'cases.activity.responds': 'Usually replies within a day',
 };

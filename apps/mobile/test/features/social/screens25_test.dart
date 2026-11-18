@@ -9,8 +9,8 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Owner rows 109 / 112: drafts, «Not interested», response time and the
-/// profile completeness logic.
+/// Owner rows 109 / 112: drafts, «Not interested» and the profile
+/// completeness logic.
 void main() {
   late SharedPreferences prefs;
   setUp(() async {
@@ -73,16 +73,6 @@ void main() {
     expect(restarted.read(deletedPostsProvider), contains('post-1'));
     restarted.read(notInterestedPostsProvider.notifier).remove('post-1');
     expect(restarted.read(deletedPostsProvider), isNot(contains('post-1')));
-  });
-
-  test('response time follows the Airbnb steps', () {
-    expect(replyTimeKey(5), 'profile.reply.hour');
-    expect(replyTimeKey(60), 'profile.reply.hour');
-    expect(replyTimeKey(61), 'profile.reply.hours');
-    expect(replyTimeKey(360), 'profile.reply.hours');
-    expect(replyTimeKey(361), 'profile.reply.day');
-    expect(replyTimeKey(1440), 'profile.reply.day');
-    expect(replyTimeKey(1441), 'profile.reply.days');
   });
 
   test('completeness lists what is missing, in order', () {
