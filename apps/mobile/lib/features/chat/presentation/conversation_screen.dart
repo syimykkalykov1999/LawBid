@@ -79,6 +79,8 @@ import 'package:lawbid/features/templates/presentation/templates_screen.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
+import 'package:lawbid/shared/presentation/interactive_keyboard.dart';
+import 'package:lawbid/shared/presentation/keyboard_media.dart';
 
 /// docs/05 §8.2: 2000 characters, text only.
 int get kMessageMaxChars => TextLimits.of(TextLimit.chatMessage);
@@ -634,12 +636,17 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                             !c.closed &&
                             c.contactsUnlocked &&
                             ref.watch(canDoProvider(AssistantDuty.files)),
+                        // Row 185: Ctrl+V / Cmd+V of a screenshot.
+                        paste: true,
                         onFiles: (f) => unawaited(_drop(f)),
-                        child: Consumer(
-                          builder: (context, ref, _) => _MessageList(
-                            key: _listKey,
-                            state: ref.watch(thread.select(_ListSlice.new)).s,
-                            onMore: _thread.loadMore,
+                        // Row 191: on iPhone the keyboard follows the finger.
+                        child: ChatKeyboardDragArea(
+                          child: Consumer(
+                            builder: (context, ref, _) => _MessageList(
+                              key: _listKey,
+                              state: ref.watch(thread.select(_ListSlice.new)).s,
+                              onMore: _thread.loadMore,
+                            ),
                           ),
                         ),
                       ),
@@ -774,6 +781,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                               ),
                                             )
                                         ? () => unawaited(_attach(camera: true))
+                                        : null,
+                                    // Row 185: a GIF from the keyboard.
+                                    onKeyboardFiles: c.contactsUnlocked &&
+                                            ref.watch(
+                                              canDoProvider(
+                                                AssistantDuty.files,
+                                              ),
+                                            )
+                                        ? (f) => unawaited(_drop(f))
                                         : null,
                                     onVoice: (r) => _thread.sendVoice(
                                       path: r.path,
@@ -1228,9 +1244,9 @@ class _MessageListState extends ConsumerState<_MessageList> {
           controller: _c.scroll,
           reverse: true,
           // Row 95 (motion catalog K2, Messages / Telegram / WhatsApp):
-          // dragging the chat hides the keyboard (Flutter's `onDrag`; the
-          // finger-tracking iOS keyboard needs native code).
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          // dragging the chat hides the keyboard (Flutter's `onDrag`).
+          // Row 191: on iPhone UIKit moves it with the finger instead.
+          keyboardDismissBehavior: chatKeyboardDismiss,
           scrollCacheExtent: const ScrollCacheExtent.viewport(1),
           semanticChildCount: entries.length,
           slivers: [
@@ -2635,6 +2651,7 @@ class _Composer extends ConsumerStatefulWidget {
     this.onFieldTap,
     this.onEscape,
     this.stickersOpen = false,
+    this.onKeyboardFiles,
   });
 
   /// Desktop: Esc in the field (true = it closed the reply / edit bar).
@@ -2644,6 +2661,10 @@ class _Composer extends ConsumerStatefulWidget {
   final VoidCallback? onStickers;
   final VoidCallback? onFieldTap;
   final bool stickersOpen;
+
+  /// Row 185: a picture or GIF the phone keyboard inserted; null when files
+  /// cannot be sent here.
+  final ValueChanged<List<XFile>>? onKeyboardFiles;
 
   /// OQ-047: photos and documents — only once the bid is accepted.
   final VoidCallback? onAttach;
@@ -2765,6 +2786,8 @@ class _ComposerState extends ConsumerState<_Composer>
               maxLength: maxChars,
               buildCounter: noFieldCounter,
               textCapitalization: TextCapitalization.sentences,
+              contentInsertionConfiguration:
+                  keyboardMediaInsertion(widget.onKeyboardFiles),
               onChanged: (v) => widget.onTyping(v.isNotEmpty),
               onTap: widget.onFieldTap,
               style: type.body.copyWith(color: colors.text),
@@ -2842,95 +2865,104 @@ class _ComposerState extends ConsumerState<_Composer>
         );
 
     // The composer (send, attach, mic) keeps the keyboard; taps outside
-    // it hide the keyboard.
-    return TextFieldTapRegion(
-      child: Material(
-        color: colors.surface,
-        child: SafeArea(
-          top: false,
-          // The sticker panel below takes the system-nav inset instead.
-          bottom: !widget.stickersOpen,
-          child: Padding(
-            // Owner 2026-09-30: the paperclip and the field sit close to the
-            // left edge.
-            padding: EdgeInsetsDirectional.fromSTEB(
-              widget.onAttach != null ? AppSpacing.xs : AppSpacing.sm,
-              AppSpacing.sm,
-              AppSpacing.sm,
-              AppSpacing.sm,
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (widget.onAttach != null && !voiceRecording)
-                  Padding(
-                    padding: EdgeInsets.zero,
-                    child: AppIconButton(
-                      icon: AppIcon(
-                        AppIcons.attachFileRounded,
-                        color: colors.iconTint,
+    // it hide the keyboard. Row 191: on iPhone it rides on the keyboard
+    // while the chat drags it down.
+    return ChatKeyboardAccessory(
+      child: TextFieldTapRegion(
+        child: Material(
+          color: colors.surface,
+          child: SafeArea(
+            top: false,
+            // The sticker panel below takes the system-nav inset instead.
+            bottom: !widget.stickersOpen,
+            child: Padding(
+              // Owner 2026-09-30: the paperclip and the field sit close to the
+              // left edge.
+              padding: EdgeInsetsDirectional.fromSTEB(
+                widget.onAttach != null ? AppSpacing.xs : AppSpacing.sm,
+                AppSpacing.sm,
+                AppSpacing.sm,
+                AppSpacing.sm,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (widget.onAttach != null && !voiceRecording)
+                    Padding(
+                      padding: EdgeInsets.zero,
+                      child: AppIconButton(
+                        icon: AppIcon(
+                          AppIcons.attachFileRounded,
+                          color: colors.iconTint,
+                        ),
+                        semanticLabel: t.t('chat.attach.button'),
+                        onPressed: widget.onAttach,
                       ),
-                      semanticLabel: t.t('chat.attach.button'),
-                      onPressed: widget.onAttach,
+                    ),
+                  Expanded(
+                    // Row 191: a new line grows the field smoothly (iMessage).
+                    child: AnimatedSize(
+                      duration: motion,
+                      curve: Curves.easeOutCubic,
+                      alignment: Alignment.bottomCenter,
+                      child: AnimatedSwitcher(
+                        duration: motion,
+                        child: voiceRecording ? recordingRow : field,
+                      ),
                     ),
                   ),
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: motion,
-                    child: voiceRecording ? recordingRow : field,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.xs),
-                ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: widget.controller,
-                  builder: (context, v, _) {
-                    final hasText = v.text.trim().isNotEmpty;
-                    if (hasText && !voiceRecording) {
-                      return AppPressable(
-                        onTap: widget.onSend,
-                        child: circle(
-                          icon: AppIcons.arrowUpwardRounded,
-                          on: true,
-                          label: t.t('chat.send'),
-                        ),
-                      );
-                    }
-                    if (voiceLocked) {
-                      return AppPressable(
-                        onTap: voiceSendLocked,
-                        child: circle(
-                          icon: AppIcons.arrowUpwardRounded,
-                          on: true,
-                          label: t.t('chat.voice.sendNow'),
-                        ),
-                      );
-                    }
-                    // Hold-to-record mic; a lock hint floats above it.
-                    final mic = voiceMic(
-                      circle: circle,
-                      label: t.t('chat.voice.record'),
-                    );
-                    // Owner 2026-10-22 (WhatsApp): the camera beside the mic
-                    // while the field is empty.
-                    if (widget.onCamera == null || voiceRecording) return mic;
-                    return Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AppIconButton(
-                          key: const ValueKey('chat-camera'),
-                          icon: AppIcon(
-                            AppIcons.photoCameraOutlined,
-                            color: colors.iconTint,
+                  const SizedBox(width: AppSpacing.xs),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: widget.controller,
+                    builder: (context, v, _) {
+                      final hasText = v.text.trim().isNotEmpty;
+                      if (hasText && !voiceRecording) {
+                        return AppPressable(
+                          onTap: widget.onSend,
+                          child: circle(
+                            icon: AppIcons.arrowUpwardRounded,
+                            on: true,
+                            label: t.t('chat.send'),
                           ),
-                          semanticLabel: t.t('chat.attach.camera'),
-                          onPressed: widget.onCamera,
-                        ),
-                        mic,
-                      ],
-                    );
-                  },
-                ),
-              ],
+                        );
+                      }
+                      if (voiceLocked) {
+                        return AppPressable(
+                          onTap: voiceSendLocked,
+                          child: circle(
+                            icon: AppIcons.arrowUpwardRounded,
+                            on: true,
+                            label: t.t('chat.voice.sendNow'),
+                          ),
+                        );
+                      }
+                      // Hold-to-record mic; a lock hint floats above it.
+                      final mic = voiceMic(
+                        circle: circle,
+                        label: t.t('chat.voice.record'),
+                      );
+                      // Owner 2026-10-22 (WhatsApp): the camera beside the mic
+                      // while the field is empty.
+                      if (widget.onCamera == null || voiceRecording) return mic;
+                      return Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AppIconButton(
+                            key: const ValueKey('chat-camera'),
+                            icon: AppIcon(
+                              AppIcons.photoCameraOutlined,
+                              color: colors.iconTint,
+                            ),
+                            semanticLabel: t.t('chat.attach.camera'),
+                            onPressed: widget.onCamera,
+                          ),
+                          mic,
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),

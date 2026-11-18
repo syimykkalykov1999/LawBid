@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -13,6 +14,8 @@ import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_mention_picker.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_style.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/shared/presentation/interactive_keyboard.dart';
+import 'package:lawbid/shared/presentation/keyboard_media.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// The message field of a group chat: multi-line text, «+» (photo, file,
@@ -36,6 +39,7 @@ class GroupComposer extends ConsumerStatefulWidget {
     this.onCancelReply,
     this.onCancelEdit,
     this.uploading = false,
+    this.onKeyboardFiles,
     super.key,
   });
 
@@ -60,6 +64,10 @@ class GroupComposer extends ConsumerStatefulWidget {
 
   /// A file is being uploaded (a thin progress line over the field).
   final bool uploading;
+
+  /// Row 185: a picture or GIF the phone keyboard inserted; null when media
+  /// cannot be sent here.
+  final ValueChanged<List<XFile>>? onKeyboardFiles;
 
   /// The group (and topic): a voice note left unsent waits under it.
   final String draftKey;
@@ -351,6 +359,8 @@ class _GroupComposerState extends ConsumerState<GroupComposer>
               maxLength: maxChars,
               buildCounter: noFieldCounter,
               textCapitalization: TextCapitalization.sentences,
+              contentInsertionConfiguration:
+                  keyboardMediaInsertion(widget.onKeyboardFiles),
               style: type.body.copyWith(color: colors.text),
               decoration: InputDecoration(
                 hintText: t.t('chat.hint'),
@@ -381,121 +391,132 @@ class _GroupComposerState extends ConsumerState<GroupComposer>
       },
     );
 
-    return TextFieldTapRegion(
-      child: Material(
-        color: colors.surface,
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (widget.uploading) const LinearProgressIndicator(minHeight: 2),
-              if (query != null && candidates.isNotEmpty)
-                GroupMentionPicker(
-                  members: candidates,
-                  t: t,
-                  onPick: _pick,
-                ),
-              if (editing != null)
-                bar(
-                  icon: AppIcons.editOutlined,
-                  title: t.t('group.conv.editing'),
-                  text: editing.body,
-                  onClose: widget.onCancelEdit,
-                )
-              else if (reply != null)
-                bar(
-                  icon: AppIcons.replyRounded,
-                  title: t.t(
-                    'group.conv.replyTo',
-                    {
-                      'name': reply.mine
-                          ? t.t('group.you')
-                          : groupPersonName(t, reply.sender),
-                    },
+    // Row 191: on iPhone the bar rides on the keyboard the chat drags.
+    return ChatKeyboardAccessory(
+      child: TextFieldTapRegion(
+        child: Material(
+          color: colors.surface,
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (widget.uploading)
+                  const LinearProgressIndicator(minHeight: 2),
+                if (query != null && candidates.isNotEmpty)
+                  GroupMentionPicker(
+                    members: candidates,
+                    t: t,
+                    onPick: _pick,
                   ),
-                  text: groupMessagePreview(t, reply),
-                  onClose: widget.onCancelReply,
-                ),
-              Padding(
-                padding: EdgeInsetsDirectional.fromSTEB(
-                  editing == null ? AppSpacing.xs : AppSpacing.sm,
-                  AppSpacing.sm,
-                  AppSpacing.sm,
-                  AppSpacing.sm,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    if (editing == null && widget.canAttach && !recording)
-                      AppIconButton(
-                        icon: AppIcon(
-                          AppIcons.addRounded,
-                          color: colors.iconTint,
-                        ),
-                        semanticLabel: t.t('chat.attach.button'),
-                        onPressed: widget.onAttach,
-                      ),
-                    Expanded(
-                      child: AnimatedSwitcher(
-                        duration: motion,
-                        child: recording ? voiceRecordingBar() : field,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.xs),
-                    ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: _text,
-                      builder: (context, v, _) {
-                        final on = v.text.trim().isNotEmpty;
-                        // Groups WhatsApp parity: the 1:1 mic while the
-                        // field is empty (Send when the note is locked).
-                        if (voiceLocked) {
-                          return AppPressable(
-                            onTap: voiceSendLocked,
-                            child: circle(
-                              icon: AppIcons.arrowUpwardRounded,
-                              on: true,
-                              label: t.t('chat.voice.sendNow'),
-                            ),
-                          );
-                        }
-                        if (recording || (!on && canRecord)) {
-                          return voiceMic(
-                            circle: circle,
-                            label: t.t('chat.voice.record'),
-                          );
-                        }
-                        return Semantics(
-                          button: true,
-                          enabled: on,
-                          label: editing != null
-                              ? t.t('group.conv.saveEdit')
-                              : t.t('chat.send'),
-                          excludeSemantics: true,
-                          child: AppPressable(
-                            onTap: on ? _submit : null,
-                            child: Container(
-                              width: AppSizes.touchTarget + 4,
-                              height: AppSizes.touchTarget + 4,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: on ? colors.gold : colors.border,
-                              ),
-                              child: AppIcon(
-                                editing != null
-                                    ? AppIcons.checkRounded
-                                    : AppIcons.arrowUpwardRounded,
-                                color: on ? colors.navy : colors.textSecondary,
-                              ),
-                            ),
-                          ),
-                        );
+                if (editing != null)
+                  bar(
+                    icon: AppIcons.editOutlined,
+                    title: t.t('group.conv.editing'),
+                    text: editing.body,
+                    onClose: widget.onCancelEdit,
+                  )
+                else if (reply != null)
+                  bar(
+                    icon: AppIcons.replyRounded,
+                    title: t.t(
+                      'group.conv.replyTo',
+                      {
+                        'name': reply.mine
+                            ? t.t('group.you')
+                            : groupPersonName(t, reply.sender),
                       },
                     ),
-                  ],
+                    text: groupMessagePreview(t, reply),
+                    onClose: widget.onCancelReply,
+                  ),
+                Padding(
+                  padding: EdgeInsetsDirectional.fromSTEB(
+                    editing == null ? AppSpacing.xs : AppSpacing.sm,
+                    AppSpacing.sm,
+                    AppSpacing.sm,
+                    AppSpacing.sm,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (editing == null && widget.canAttach && !recording)
+                        AppIconButton(
+                          icon: AppIcon(
+                            AppIcons.addRounded,
+                            color: colors.iconTint,
+                          ),
+                          semanticLabel: t.t('chat.attach.button'),
+                          onPressed: widget.onAttach,
+                        ),
+                      Expanded(
+                        // Row 191: a new line grows the field smoothly.
+                        child: AnimatedSize(
+                          duration: motion,
+                          curve: Curves.easeOutCubic,
+                          alignment: Alignment.bottomCenter,
+                          child: AnimatedSwitcher(
+                            duration: motion,
+                            child: recording ? voiceRecordingBar() : field,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.xs),
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _text,
+                        builder: (context, v, _) {
+                          final on = v.text.trim().isNotEmpty;
+                          // Groups WhatsApp parity: the 1:1 mic while the
+                          // field is empty (Send when the note is locked).
+                          if (voiceLocked) {
+                            return AppPressable(
+                              onTap: voiceSendLocked,
+                              child: circle(
+                                icon: AppIcons.arrowUpwardRounded,
+                                on: true,
+                                label: t.t('chat.voice.sendNow'),
+                              ),
+                            );
+                          }
+                          if (recording || (!on && canRecord)) {
+                            return voiceMic(
+                              circle: circle,
+                              label: t.t('chat.voice.record'),
+                            );
+                          }
+                          return Semantics(
+                            button: true,
+                            enabled: on,
+                            label: editing != null
+                                ? t.t('group.conv.saveEdit')
+                                : t.t('chat.send'),
+                            excludeSemantics: true,
+                            child: AppPressable(
+                              onTap: on ? _submit : null,
+                              child: Container(
+                                width: AppSizes.touchTarget + 4,
+                                height: AppSizes.touchTarget + 4,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: on ? colors.gold : colors.border,
+                                ),
+                                child: AppIcon(
+                                  editing != null
+                                      ? AppIcons.checkRounded
+                                      : AppIcons.arrowUpwardRounded,
+                                  color:
+                                      on ? colors.navy : colors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
