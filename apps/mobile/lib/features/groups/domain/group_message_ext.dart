@@ -1,61 +1,61 @@
 import 'package:lawbid/features/chat/domain/chat_models.dart'
-    show ChatMessage, MessageKind, MessageReaction, VoiceNote;
+    show ChatMessage, MessageKind, MessageReaction, VoiceNote, playableVoiceUrl;
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// The generated DTOs are immutable without `copyWith`; these rebuild the
 /// one field the realtime events change.
 extension GroupMessageDtoX on api.GroupMessageDto {
   api.GroupMessageDto withPoll(api.PollDto poll) => api.GroupMessageDto(
-        id: id,
-        groupId: groupId,
-        topicId: topicId,
-        type: type,
-        sender: sender,
-        body: body,
-        mine: mine,
-        clientMessageId: clientMessageId,
-        systemKind: systemKind,
-        systemPeople: systemPeople,
-        systemText: systemText,
-        replyTo: replyTo,
-        mentions: mentions,
-        mentionsMe: mentionsMe,
-        attachment: attachment,
-        voice: voice,
-        poll: poll,
-        editedAt: editedAt,
-        deleted: deleted,
-        createdAt: createdAt,
-        expiresAt: expiresAt,
-        forwarded: forwarded,
-        forwardedFrom: forwardedFrom,
-        reactions: reactions,
-      );
+    id: id,
+    groupId: groupId,
+    topicId: topicId,
+    type: type,
+    sender: sender,
+    body: body,
+    mine: mine,
+    clientMessageId: clientMessageId,
+    systemKind: systemKind,
+    systemPeople: systemPeople,
+    systemText: systemText,
+    replyTo: replyTo,
+    mentions: mentions,
+    mentionsMe: mentionsMe,
+    attachment: attachment,
+    voice: voice,
+    poll: poll,
+    editedAt: editedAt,
+    deleted: deleted,
+    createdAt: createdAt,
+    expiresAt: expiresAt,
+    forwarded: forwarded,
+    forwardedFrom: forwardedFrom,
+    reactions: reactions,
+  );
 
   /// The local picture of «deleted for everyone» (same as the server's
   /// tombstone: no text, no file, no poll).
   api.GroupMessageDto asTombstone() => api.GroupMessageDto(
-        id: id,
-        groupId: groupId,
-        topicId: topicId,
-        type: type,
-        sender: sender,
-        body: '',
-        mine: mine,
-        clientMessageId: clientMessageId,
-        systemKind: systemKind,
-        systemPeople: systemPeople,
-        systemText: systemText,
-        replyTo: replyTo,
-        mentions: const [],
-        mentionsMe: false,
-        editedAt: editedAt,
-        deleted: true,
-        createdAt: createdAt,
-        expiresAt: expiresAt,
-        forwarded: forwarded,
-        forwardedFrom: forwardedFrom,
-      );
+    id: id,
+    groupId: groupId,
+    topicId: topicId,
+    type: type,
+    sender: sender,
+    body: '',
+    mine: mine,
+    clientMessageId: clientMessageId,
+    systemKind: systemKind,
+    systemPeople: systemPeople,
+    systemText: systemText,
+    replyTo: replyTo,
+    mentions: const [],
+    mentionsMe: false,
+    editedAt: editedAt,
+    deleted: true,
+    createdAt: createdAt,
+    expiresAt: expiresAt,
+    forwarded: forwarded,
+    forwardedFrom: forwardedFrom,
+  );
 
   /// Groups WhatsApp parity: the reactions as the 1:1 chips take them
   /// (none on a deleted message; builds before the field read none).
@@ -104,7 +104,8 @@ extension GroupMessageDtoX on api.GroupMessageDto {
       clientMessageId: clientMessageId,
       createdAt: createdAt,
       voice: VoiceNote(
-        url: v.url,
+        // Owner row 146: the iPhone plays the AAC copy of a browser WebM note.
+        url: playableVoiceUrl(v.url, v.m4aUrl),
         durationMs: v.durationMs,
         waveform: v.waveform,
         listened: v.listened,

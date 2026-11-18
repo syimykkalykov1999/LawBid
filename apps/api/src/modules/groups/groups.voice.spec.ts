@@ -151,9 +151,17 @@ describe('GroupPresenter — voice notes', () => {
     const files = {
       avatarUrlsMany: jest.fn().mockResolvedValue(new Map()),
       attachmentUrls: jest.fn().mockResolvedValue(new Map()),
-      voiceUrls: jest
-        .fn()
-        .mockResolvedValue(new Map([['f-voice', 'https://signed/voice']])),
+      voiceLinks: jest.fn().mockResolvedValue(
+        new Map([
+          [
+            'f-voice',
+            {
+              url: 'https://signed/voice',
+              m4aUrl: 'https://signed/voice.m4a',
+            },
+          ],
+        ]),
+      ),
     };
     const prisma = {
       user: { findMany: jest.fn().mockResolvedValue([]) },
@@ -189,15 +197,16 @@ describe('GroupPresenter — voice notes', () => {
     shard_id: 0,
   };
 
-  it('a note carries its signed link (files.voiceUrls), length and bars', async () => {
+  it('a note carries its signed link and AAC copy (files.voiceLinks), length and bars', async () => {
     const { p, files } = presenter();
     const [dto] = await p.messages([row] as never, 'u1');
-    expect(files.voiceUrls).toHaveBeenCalledWith(['f-voice']);
+    expect(files.voiceLinks).toHaveBeenCalledWith(['f-voice']);
     expect(files.attachmentUrls).toHaveBeenCalledWith([]);
     expect(dto.type).toBe('voice');
     expect(dto.attachment).toBeNull();
     expect(dto.voice).toEqual({
       url: 'https://signed/voice',
+      m4aUrl: 'https://signed/voice.m4a',
       durationMs: 4200,
       waveform: [1, 50, 99],
       listened: false,
@@ -213,7 +222,7 @@ describe('GroupPresenter — voice notes', () => {
       ] as never,
       'u1',
     );
-    expect(files.voiceUrls).toHaveBeenCalledWith([]);
+    expect(files.voiceLinks).toHaveBeenCalledWith([]);
     expect(gone.voice).toBeNull();
     expect(text.voice).toBeNull();
   });

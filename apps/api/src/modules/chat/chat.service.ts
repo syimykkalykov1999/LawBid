@@ -2518,7 +2518,7 @@ export class ChatService {
       rows.flatMap((m) => (m.type === type && m.file_id ? [m.file_id] : []));
     const [voice, attachments, stickers, gifts, contacts, posts] =
       await Promise.all([
-        this.files.voiceUrls(ids('voice')),
+        this.files.voiceLinks(ids('voice')),
         this.files.attachmentUrls(ids('attachment')),
         this.stickers.forMessages(
           rows.flatMap((m) => (m.sticker_id ? [m.sticker_id] : [])),
@@ -2737,7 +2737,13 @@ export class ChatService {
       voice:
         m.type === 'voice' && !revoked
           ? {
-              url: m.file_id ? (media?.voice.get(m.file_id) ?? null) : null,
+              url: m.file_id
+                ? (media?.voice.get(m.file_id)?.url ?? null)
+                : null,
+              // Owner row 146: the AAC/M4A copy of a browser note (iPhone).
+              m4aUrl: m.file_id
+                ? (media?.voice.get(m.file_id)?.m4aUrl ?? null)
+                : null,
               durationMs: m.duration_ms ?? 0,
               waveform: m.waveform,
               listened: m.listened_at !== null,
@@ -2993,7 +2999,7 @@ export class ChatService {
 /** OQ-047: links of a page's voice notes and attachments. */
 interface MediaLinks {
   extras?: MessageExtras;
-  voice: Map<string, string>;
+  voice: Map<string, { url: string; m4aUrl: string | null }>;
   stickers: Map<string, StickerDto>;
   gifts: Map<string, GiftSendDto>;
   attachments: Awaited<ReturnType<FilesService['attachmentUrls']>>;
