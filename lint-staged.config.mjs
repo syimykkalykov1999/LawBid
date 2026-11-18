@@ -60,8 +60,27 @@ export const SORTED_LISTS = [
   "docs/dev/SWITCH_INVENTORY.md",
 ];
 
+/** The app's built-in ru/en strings and the assets the web build reads
+ * (KNOWN_ERRORS 203: PRs that changed the strings but not the assets went
+ * red on static_strings_asset_test, #1235 again on 17.11). */
+export const STATIC_STRINGS_SOURCE = "apps/mobile/lib/core/l10n/strings/*.dart";
+export const STATIC_STRINGS_ASSETS = [
+  "apps/mobile/assets/l10n/static_strings_ru.json",
+  "apps/mobile/assets/l10n/static_strings_en.json",
+];
+
+/** A staged change of the built-in strings regenerates the web assets and
+ * stages them in the same commit. */
+export function staticStringsTasks() {
+  return [
+    "sh -c 'cd apps/mobile && dart run tool/gen_static_strings.dart'",
+    `git add ${STATIC_STRINGS_ASSETS.join(" ")}`,
+  ];
+}
+
 export default {
   "apps/api/**/*.ts": apiTypeScriptTasks,
+  [STATIC_STRINGS_SOURCE]: staticStringsTasks,
   [`{${SORTED_LISTS.join(",")}}`]: () =>
     "npm run lists:sort --workspace apps/api",
 };
