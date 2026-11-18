@@ -31,11 +31,17 @@ describe('biometric consent version', () => {
     expect(seed['verification.biometricConsent.text']).toBe(
       BIOMETRIC_CONSENT_TEXT_EN,
     );
-    const dart = readFileSync(
-      join(repo, 'apps/mobile/lib/core/l10n/static_translator.dart'),
-      'utf8',
+    // #1234 moved the app's compiled-in strings out of static_translator.dart
+    // into assets (apps/mobile/assets/l10n/static_strings_<lang>.json).
+    const app = JSON.parse(
+      readFileSync(
+        join(repo, 'apps/mobile/assets/l10n/static_strings_en.json'),
+        'utf8',
+      ),
+    ) as Record<string, string>;
+    expect(app['verification.biometricConsent.text']).toBe(
+      BIOMETRIC_CONSENT_TEXT_EN,
     );
-    expect(dart).toContain(`'${BIOMETRIC_CONSENT_TEXT_EN}'`);
   });
 
   it('every language names the days through {days}, never a fixed number', () => {
