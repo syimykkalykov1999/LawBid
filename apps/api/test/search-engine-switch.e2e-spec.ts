@@ -11,6 +11,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { SearchIndexerService } from '../src/modules/search/search-indexer.service';
 import { SwitchingSearchProvider } from '../src/modules/search/search-switch.provider';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Owner 2026-10-24 (search-ready): the whole pipeline on a real database
@@ -127,7 +128,7 @@ describe('search.engine switch, outbox and indexer (e2e)', () => {
       create: { key: 'search.engine', value: v },
       update: { value: v },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
   };
   const outbox = () =>
     prisma.$queryRaw<{ entity: string; entity_id: string }[]>`
@@ -162,7 +163,7 @@ describe('search.engine switch, outbox and indexer (e2e)', () => {
 
   afterAll(async () => {
     await prisma.appConfig.deleteMany({ where: { key: 'search.engine' } });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     await prisma.$executeRaw`DELETE FROM search_outbox`;
     await app.close();
     await fake.close();

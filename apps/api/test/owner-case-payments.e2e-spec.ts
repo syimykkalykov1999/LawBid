@@ -1812,6 +1812,9 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
         .dispute_evidence_status,
     ).toBe('submitted');
 
+    // Stripe has the dispute as won by the time `closed` is sent (the
+    // handler reads it back from Stripe, verify 17.11).
+    fake.disputes.get('dp_e2e_1')!.status = 'won';
     const won = await connectWebhook(
       'charge.dispute.closed',
       {

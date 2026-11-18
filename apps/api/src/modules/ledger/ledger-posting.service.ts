@@ -35,6 +35,8 @@ export interface CasePaymentFacts {
   paid_at?: Date | null;
   stripe_payment_intent_id?: string | null;
   stripe_charge_id?: string | null;
+  /** After the refund being booked (case_payments.refunded_cents). */
+  refunded_cents?: number;
 }
 
 const PAYMENT_REFUND_TYPES = ['payment_refund', 'payment_refund_sync'];
@@ -117,11 +119,7 @@ export class LedgerPostingService {
       sync?: boolean;
     },
   ): Promise<{ created: boolean }> {
-    const orig = await this.ledger.linesOf(db, {
-      sourceType: 'payment',
-      sourceId: input.paymentId,
-      event: 'paid',
-    });
+    const orig = await this.paidLines(db, input.paymentId);
     if (!orig) return { created: false };
     return this.ledger.post(db, {
       sourceType: input.sync ? 'payment_refund_sync' : 'payment_refund',
@@ -133,6 +131,46 @@ export class LedgerPostingService {
       partyUserId: input.userId,
       lines: reverseProportional(orig.lines, input.cents, orig.grossCents),
     });
+  }
+
+  /**
+   * The payment as the ledger holds it now: its `paid` entry with the tax
+   * Stripe Tax reported later (`tax` entry, paymentTaxLearned) moved out of
+   * revenue into tax_payable. Verify 17.11 (batch 9): a refund reversed
+   * only the `paid` lines, so a refunded taxed one-time payment (a boost,
+   * stars, a bid pack) left revenue negative by the tax and tax_payable
+   * owing tax on a sale that no longer exists — balanced, so reconcile
+   * never saw it.
+   */
+  private async paidLines(
+    db: LedgerDb,
+    paymentId: string,
+  ): Promise<{ currency: string; lines: Line[]; grossCents: number } | null> {
+    const orig = await this.ledger.linesOf(db, {
+      sourceType: 'payment',
+      sourceId: paymentId,
+      event: 'paid',
+    });
+    if (!orig) return null;
+    const tax = await this.ledger.linesOf(db, {
+      sourceType: 'payment',
+      sourceId: paymentId,
+      event: 'tax',
+    });
+    if (!tax) return orig;
+    const lines = orig.lines.map((l) => ({ ...l }));
+    for (const t of tax.lines) {
+      const same = lines.find(
+        (l) =>
+          l.direction === 'credit' &&
+          l.account.code === t.account.code &&
+          l.account.ownerId === t.account.ownerId,
+      );
+      if (t.direction === 'debit' && same) same.cents -= t.cents;
+      else if (t.direction === 'credit' && same) same.cents += t.cents;
+      else if (t.direction === 'credit') lines.push({ ...t });
+    }
+    return { ...orig, lines: lines.filter((l) => l.cents > 0) };
   }
 
   /** What was already refunded on a payment in the ledger (cents). */
@@ -226,6 +264,10 @@ export class LedgerPostingService {
         clientTotalCents: p.client_total_cents,
         platformFeeCents: p.platform_fee_cents,
         refundApplicationFee: input.refundApplicationFee,
+        refundedBeforeCents:
+          p.refunded_cents === undefined
+            ? undefined
+            : Math.max(0, p.refunded_cents - input.cents),
       }),
     });
   }

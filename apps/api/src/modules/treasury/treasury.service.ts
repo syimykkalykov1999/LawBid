@@ -9,6 +9,7 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { outcomeUnknown } from '../../common/payments/outcome-unknown';
 import { OpsStateService } from '../../common/ops/ops-state.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -744,6 +745,17 @@ export class TreasuryService {
       return true;
     } catch (e) {
       const failure = (e as Error).message.slice(0, 300);
+      if (outcomeUnknown(e)) {
+        // Verify 17.11 (batch 9): a timeout or a 5xx may still have sent
+        // the payout. Marked failed, the next run paid the period again
+        // under a new key. The row stays pending (the period counts as
+        // paid) and refreshPayouts repeats this request, same key.
+        this.logger.warn(
+          { alert: 'treasury_payout_unknown', kind: input.kind, failure },
+          'treasury: Stripe did not answer; the same payout is retried',
+        );
+        return false;
+      }
       await this.prisma.treasuryPayout.update({
         where: { id: row.id },
         data: { status: 'failed', failure, updated_at: new Date() },
@@ -758,6 +770,49 @@ export class TreasuryService {
 
   /** Payouts on their way: Stripe's status (paid / failed) brought in. */
   private async refreshPayouts(): Promise<void> {
+    // Verify 17.11: a payout whose Stripe call had no answer is sent again
+    // with its own key — Stripe hands back the first payout if it was made
+    // (keys live 24 h; the treasury runs far more often than that).
+    const unknown = await this.prisma.treasuryPayout.findMany({
+      where: {
+        status: 'pending',
+        stripe_payout_id: null,
+        created_at: { lt: new Date(Date.now() - 60_000) },
+      },
+      take: 20,
+    });
+    for (const u of unknown) {
+      try {
+        const p = await this.stripe.payout({
+          amountCents: u.amount_cents,
+          destination: u.destination_id ?? undefined,
+          description:
+            u.kind === 'profit'
+              ? `LawBid profit ${u.period}`
+              : `LawBid expenses ${u.period}`,
+          idempotencyKey: `treasury-${u.key}`,
+          metadata: { purpose: 'treasury', kind: u.kind, key: u.key },
+        });
+        await this.prisma.treasuryPayout.update({
+          where: { id: u.id },
+          data: {
+            stripe_payout_id: p.id,
+            status: p.status,
+            updated_at: new Date(),
+          },
+        });
+      } catch (e) {
+        if (outcomeUnknown(e)) continue;
+        await this.prisma.treasuryPayout.update({
+          where: { id: u.id },
+          data: {
+            status: 'failed',
+            failure: (e as Error).message.slice(0, 300),
+            updated_at: new Date(),
+          },
+        });
+      }
+    }
     const open = await this.prisma.treasuryPayout.findMany({
       where: {
         status: { in: OPEN_STATUSES },

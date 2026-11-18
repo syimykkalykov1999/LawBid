@@ -57,6 +57,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show GoldRingAvatar;
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
+import 'package:lawbid/shared/presentation/interactive_keyboard.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// A group chat (or one topic of a forum group): header with the group and
@@ -1052,10 +1053,13 @@ class _GroupConversationScreenState
         Expanded(
           child: FileDropZone(
             enabled: canWrite && detail.canSendMedia,
+            // Row 185: Ctrl+V / Cmd+V of a screenshot.
+            paste: true,
             onFiles: (f) => unawaited(_drop(f)),
             child: Stack(
               children: [
-                Positioned.fill(child: list),
+                // Row 191: on iPhone the keyboard follows the finger.
+                Positioned.fill(child: ChatKeyboardDragArea(child: list)),
                 if (_showDown)
                   PositionedDirectional(
                     end: AppSpacing.screenSide,
@@ -1083,6 +1087,9 @@ class _GroupConversationScreenState
             onSend: _send,
             onSaveEdit: _saveEdit,
             onAttach: _attach,
+            // Row 185: a GIF from the keyboard.
+            onKeyboardFiles:
+                detail.canSendMedia ? (f) => unawaited(_drop(f)) : null,
             canAttach: detail.canSendMedia || detail.canSendPolls,
             draftKey: _draftKey,
             // Groups WhatsApp parity: a voice note is media, like a photo.
@@ -1420,7 +1427,8 @@ class _MessageList extends ConsumerWidget {
       reverse: true,
       controller: controller,
       // Row 95 (catalog K2): dragging the chat hides the keyboard.
-      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      // Row 191: on iPhone UIKit moves it with the finger instead.
+      keyboardDismissBehavior: chatKeyboardDismiss,
       semanticChildCount: pending.length + messages.length,
       slivers: [
         SliverPadding(

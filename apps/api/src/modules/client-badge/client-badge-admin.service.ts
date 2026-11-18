@@ -164,6 +164,10 @@ export class ClientBadgeAdminService {
     if (before.status === 'approved' && !free) {
       throw this.invalid(before.status, 'The request is already approved.');
     }
+    // Verify 17.11 (batch 9): a free badge given to a paying client kept
+    // the $10 subscription charging. It is stopped first (an error stops
+    // the approval, so nobody is charged for a free badge).
+    if (free) await this.stopCharging(before);
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const row = await tx.clientVerification.update({
         where: { id },
@@ -192,6 +196,22 @@ export class ClientBadgeAdminService {
     });
     await this.badges.notifyBadge(updated, clientBadgeActive(updated));
     return this.get(id);
+  }
+
+  /** Cancels the client's live $10 subscription now (none, or an ended
+   * one: nothing to do). */
+  private async stopCharging(row: {
+    stripe_subscription_id: string | null;
+    sub_status: string;
+  }): Promise<void> {
+    if (
+      !row.stripe_subscription_id ||
+      !this.provider ||
+      (row.sub_status !== 'active' && row.sub_status !== 'past_due')
+    ) {
+      return;
+    }
+    await this.provider.cancelNow(row.stripe_subscription_id);
   }
 
   async reject(
@@ -247,12 +267,10 @@ export class ClientBadgeAdminService {
         'Only an approved account can be revoked.',
       );
     }
-    if (before.stripe_subscription_id && this.provider) {
-      // Stop charging: cancel now; the provider's event syncs the row.
-      await this.provider
-        .cancelNow(before.stripe_subscription_id)
-        .catch(() => undefined);
-    }
+    // Stop charging: cancel now; the provider's event syncs the row.
+    // Verify 17.11: a failed cancel used to be swallowed — the badge was
+    // revoked and the client kept paying. Now it stops the revoke.
+    await this.stopCharging(before);
     const updated = await withTxRetry(this.prisma, async (tx) => {
       const row = await tx.clientVerification.update({
         where: { id },

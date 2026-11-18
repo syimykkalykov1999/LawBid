@@ -7,7 +7,11 @@ import { FirmsService } from './firms.service';
  * Only the firm owner picks who sends; the sender's legal acceptance is
  * checked too, and a plain member's «who fits» list is only themselves.
  */
-function world(opts: { callerRole: 'owner' | 'member'; pending?: boolean }) {
+function world(opts: {
+  callerRole: 'owner' | 'member';
+  pending?: boolean;
+  clientId?: string;
+}) {
   const members = [
     { firm_id: 'f1', attorney_id: 'owner', role: 'owner', status: 'active' },
     { firm_id: 'f1', attorney_id: 'il', role: 'member', status: 'active' },
@@ -21,6 +25,14 @@ function world(opts: { callerRole: 'owner' | 'member'; pending?: boolean }) {
         async (q: { where: { attorney_id: string } }) =>
           members.find((m) => m.attorney_id === q.where.attorney_id) ?? null,
       ),
+    },
+    // Verify 17.11: the sender is an active lawyer (one who switched to a
+    // client account is refused, see the last test).
+    user: {
+      findUnique: jest.fn(async (q: { where: { id: string } }) => ({
+        role: q.where.id === opts.clientId ? 'client' : 'attorney',
+        status: 'active',
+      })),
     },
     case: {
       findUnique: jest.fn(async () => ({
@@ -84,6 +96,13 @@ describe('firm bid sender (R2B-1)', () => {
     expect(w.acceptance.assertAccepted).toHaveBeenCalledWith('il');
     const fit = await w.svc.eligibleForCase('owner', 'c1');
     expect(fit.map((m) => m.attorneyId)).toEqual(['owner', 'il', 'il2']);
+  });
+
+  it('verify 17.11: a member who switched to a client account is not a sender', async () => {
+    const w = world({ callerRole: 'owner', clientId: 'il' });
+    await expect(
+      w.svc.resolveSender('owner', 'il', 'c1'),
+    ).rejects.toMatchObject({ status: 403 });
   });
 
   it("the sender's own legal acceptance is required, not only the caller's", async () => {

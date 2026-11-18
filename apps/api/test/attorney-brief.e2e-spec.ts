@@ -11,6 +11,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { S3StorageService } from '../src/modules/files/storage/s3-storage.service';
 import sharp from 'sharp';
 import { briefFileIdOf } from '../src/modules/cases/brief/attorney-brief.service';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Sweep A-c1 (owner A-044, 2026-11-09): after a bid is accepted the
@@ -111,7 +112,7 @@ describe('Attorney case brief (e2e, sweep A-c1)', () => {
       create: { key: 'deal_record.enabled', value: false },
       update: { value: false },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     await prisma.state.upsert({
       where: { code: 'NJ' },
       create: { code: 'NJ', name: 'New Jersey', is_active: true },
@@ -141,7 +142,7 @@ describe('Attorney case brief (e2e, sweep A-c1)', () => {
         where: { key: 'deal_record.enabled' },
       });
     }
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     await app.close();
   });
 

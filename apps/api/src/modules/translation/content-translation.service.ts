@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
+import { BlocksService } from '../blocks/blocks.service';
 import { CaseAccessPolicy } from '../cases/policies/case-access.policy';
+import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 import { VISIBLE_POST_WHERE } from '../posts/post-presenter.service';
 import type { TranslatableKind } from './translation.dto';
 import type { TranslateZone } from './translation-zones';
@@ -34,6 +36,10 @@ export class ContentTranslationService {
     private readonly prisma: PrismaService,
     private readonly caseAccess: CaseAccessPolicy,
     private readonly translation: TranslationService,
+    // PS1 (verify 7): the bio follows «кто видит О себе» and blocks, the way
+    // the public profile shows it (attorney-profiles.service).
+    @Optional() private readonly privacy?: PrivacySettingsService,
+    @Optional() private readonly blocks?: BlocksService,
   ) {}
 
   async translate(
@@ -92,6 +98,20 @@ export class ContentTranslationService {
           })
         )?.body;
       case 'profile':
+        if (id !== user.sub) {
+          // Blocked either way: no contact, so no bio (as Instagram hides a
+          // profile from someone blocked); a bio hidden by «О себе» is not
+          // translated either (the profile sends it as null).
+          if (await this.blocks?.isBlockedEitherWay(user.sub, id)) return null;
+          if (
+            this.privacy &&
+            !(await this.privacy.visibleTo(user.sub, [id], 'about_from')).has(
+              id,
+            )
+          ) {
+            return null;
+          }
+        }
         return (
           await this.prisma.attorneyProfile.findFirst({
             // Mirrors the public profile 404 (attorney-profiles.service

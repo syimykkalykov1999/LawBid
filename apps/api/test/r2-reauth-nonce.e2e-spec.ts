@@ -10,6 +10,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 const GOOGLE_AUDIENCE = '123456789012-e2etest.apps.googleusercontent.com';
 
@@ -68,7 +69,7 @@ describe('R2B-12 export reauth + R2B-9 server nonce (e2e)', () => {
       create: { key, value },
       update: { value },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
   }
 
   // -------------------------------------------------------------------
@@ -128,7 +129,7 @@ describe('R2B-12 export reauth + R2B-9 server nonce (e2e)', () => {
 
     afterAll(async () => {
       await prisma.appConfig.deleteMany({ where: { key: KEY } });
-      await redis.del('config:app_config');
+      await dropAppConfigCache(redis);
     });
 
     const read = (headers: Record<string, string>) =>
@@ -199,7 +200,7 @@ describe('R2B-12 export reauth + R2B-9 server nonce (e2e)', () => {
 
     afterAll(async () => {
       await prisma.appConfig.deleteMany({ where: { key: KEY } });
-      await redis.del('config:app_config');
+      await dropAppConfigCache(redis);
     });
 
     const signIn = (nonce: string, version: string | null) => {

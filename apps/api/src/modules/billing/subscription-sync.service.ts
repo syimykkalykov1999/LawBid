@@ -257,6 +257,7 @@ export class SubscriptionSyncService {
     );
     let transition: 'lost' | 'gained' | null = null;
     let statusChanged = false;
+    let shapeChanged = false;
     let previousStatus: string | null = null;
     let foreignOf: string | null = null;
     // Row 69 (KE 123): the seat price ids (plan prices + Stripe keys) are
@@ -323,6 +324,11 @@ export class SubscriptionSyncService {
           ? seats.price_cents
           : local.price_cents,
       );
+      // Verify 17.11 (batch 9): seats or the hotline add-on changed by
+      // Stripe (a 3-D Secure seat purchase landing, a Dashboard edit) left
+      // the cached entitlements stale while the status stayed the same.
+      shapeChanged =
+        Object.keys(seats).length > 0 || Object.keys(addon).length > 0;
       const updated = await tx.subscription.update({
         where: { id: local.id },
         data: {
@@ -359,7 +365,9 @@ export class SubscriptionSyncService {
       }
       return null;
     }
-    if (statusChanged || transition) await this.access.invalidate(row.user_id);
+    if (statusChanged || transition || shapeChanged) {
+      await this.access.invalidate(row.user_id);
+    }
     if (transition === 'lost') {
       // §1.5 "активна → неактивна": bids withdrawn, contacts closed by the gate.
       // Owner 2026-10-02: an active contract grant keeps access — bids stay.
@@ -515,7 +523,25 @@ export class SubscriptionSyncService {
     // (the add-on is simply not added); paid is a payment, and the
     // subscription event that follows turns the add-on on.
     if (sub.hotline_addon_invoice_id === invoice.id && !paid) return;
-    await this.prisma.$transaction(async (tx) => {
+    // Verify 17.11 (batch 9): the check above runs before the write. With
+    // the worker's concurrency a failed and a paid event of one invoice
+    // could interleave (the failed one landing last: a paid invoice shown
+    // failed, the subscription past_due), and a retried `invoice.paid`
+    // turned a payment refunded meanwhile back into `succeeded`. One lock
+    // per invoice; the stored status is read again under it.
+    const late = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payment-invoice:${invoice.id}`}, 0))`;
+      const stored = await tx.payment.findUnique({
+        where: { stripe_invoice_id: invoice.id },
+        select: { status: true },
+      });
+      if (
+        !paid &&
+        (stored?.status === 'succeeded' || stored?.status === 'refunded')
+      ) {
+        return true;
+      }
+      const keepRefunded = paid && stored?.status === 'refunded';
       const payment = await tx.payment.upsert({
         where: { stripe_invoice_id: invoice.id },
         create: {
@@ -535,9 +561,14 @@ export class SubscriptionSyncService {
           amount_cents: invoice.amountCents,
           tax_cents: invoice.taxCents ?? null,
           subtotal_cents: invoice.subtotalCents ?? null,
-          status: paid ? 'succeeded' : 'failed',
-          paid_at: paid ? (secs(invoice.paidAt) ?? new Date()) : null,
-          failure_code: paid ? null : (invoice.failureCode ?? type),
+          // A refunded payment stays refunded (its paid_at too).
+          ...(keepRefunded
+            ? {}
+            : {
+                status: paid ? ('succeeded' as const) : ('failed' as const),
+                paid_at: paid ? (secs(invoice.paidAt) ?? new Date()) : null,
+                failure_code: paid ? null : (invoice.failureCode ?? type),
+              }),
         },
       });
       // The money event and its ledger entry commit together (idempotent).
@@ -548,7 +579,15 @@ export class SubscriptionSyncService {
           'revenue_subscriptions',
         );
       }
+      return false;
     });
+    if (late) {
+      this.logger.warn(
+        { invoiceId: invoice.id, type },
+        'late failed-payment event ignored: the invoice was paid later',
+      );
+      return;
+    }
     this.slo?.count(paid ? 'payOk' : 'payFail');
     if (foreign && invoice.subscriptionId) {
       // The duplicate's own card trouble never puts the attorney's live
@@ -863,6 +902,11 @@ export class SubscriptionSyncService {
     if (!this.ledger) return;
     await this.prisma.$transaction(async (tx) => {
       for (const p of rows) {
+        // Verify 17.11 (batch 9): two partial-refund events booked at once
+        // both read «nothing booked yet» ($30 and $50 running totals gave
+        // $80 in the ledger for $50 refunded). The payment row lock of
+        // bookOutsideRefunds is taken here too, so each one reads the other.
+        await tx.$queryRaw`SELECT id FROM payments WHERE id = ${p.id}::uuid FOR UPDATE`;
         await this.ledger!.paymentRefundSynced(tx, {
           paymentId: p.id,
           userId: p.user_id,

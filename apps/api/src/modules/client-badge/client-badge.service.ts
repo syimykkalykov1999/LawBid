@@ -192,6 +192,16 @@ export class ClientBadgeService {
       );
       return { checkoutUrl: link.url };
     }
+    // Verify 17.11 (batch 9): a second tap made a second session and
+    // overwrote `stripe_checkout_id`, so paying the first one ($10/month)
+    // gave no badge (applyCheckout refused the unknown session). The open
+    // session is handed back instead — one payable session per badge.
+    if (row.stripe_checkout_id) {
+      const open = await provider
+        .retrieveCheckoutSession(row.stripe_checkout_id)
+        .catch(() => null);
+      if (open?.status === 'open' && open.url) return { checkoutUrl: open.url };
+    }
     const base = (
       this.config.get<string>('APP_LINK_BASE_URL') ?? 'https://lawbid.app'
     ).replace(/\/+$/, '');
@@ -424,7 +434,9 @@ export class ClientBadgeService {
     const updated = await this.prisma.clientVerification.update({
       where: { id: row.id },
       data: {
-        sub_status: sub,
+        // Verify 17.11: a badge the admin gave free stays free — the
+        // (cancelled) subscription's events no longer overwrite it.
+        sub_status: row.sub_status === 'comped' ? 'comped' : sub,
         current_period_end: periodEnd,
         cancel_at_period_end: remote.cancelAtPeriodEnd,
       },
