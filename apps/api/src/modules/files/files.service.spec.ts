@@ -153,6 +153,93 @@ const code = (p: Promise<unknown>) =>
   );
 
 describe('FilesService', () => {
+  // Owner row 146: the AAC/M4A copy of a browser voice note is offered next
+  // to the original link; a note without a copy gets null (and the WebM).
+  describe('voiceLinks (row 146)', () => {
+    it('gives the original and, when stored, the .m4a copy next to it', async () => {
+      const { service, deps } = make();
+      (deps.prisma.file as Record<string, unknown>).findMany = jest
+        .fn()
+        .mockResolvedValue([
+          { id: 'w', s3_bucket: 'docs', s3_key: 'voice/w', voice_m4a: true },
+          { id: 'a', s3_bucket: 'docs', s3_key: 'voice/a', voice_m4a: false },
+        ]);
+      deps.storage.signedGetUrl.mockImplementation((_b: string, k: string) =>
+        Promise.resolve(`https://s3/${k}`),
+      );
+      const links = await service.voiceLinks(['w', 'a']);
+      expect(links.get('w')).toEqual({
+        url: 'https://s3/voice/w',
+        m4aUrl: 'https://s3/voice/w.m4a',
+      });
+      expect(links.get('a')).toEqual({
+        url: 'https://s3/voice/a',
+        m4aUrl: null,
+      });
+      expect((await service.voiceUrls(['w'])).get('w')).toBe(
+        'https://s3/voice/w',
+      );
+    });
+  });
+
+  describe('a forwarded browser voice note keeps its AAC copy (R2 review, row 146)', () => {
+    const forward = (voiceM4a: boolean, readFails = false) => {
+      const made = make({
+        file: {
+          purpose: 'chat_voice',
+          mime: 'audio/webm',
+          s3_bucket: 'lawbid-old-docs',
+          s3_key: 'voice/u1/f1',
+          size_bytes: 100n,
+          voice_m4a: voiceM4a,
+        },
+      });
+      const storage = made.deps.storage as unknown as Record<string, jest.Mock>;
+      storage.read = jest.fn((_b: string, k: string) =>
+        readFails && k.endsWith('.m4a')
+          ? Promise.reject(new Error('NoSuchKey'))
+          : Promise.resolve(Buffer.from(k)),
+      );
+      storage.put = jest.fn().mockResolvedValue(undefined);
+      const create = jest.fn().mockResolvedValue({});
+      (made.deps.prisma.file as Record<string, unknown>).create = create;
+      return { ...made, storage, create };
+    };
+    const created = (create: jest.Mock) =>
+      (create.mock.calls[0][0] as { data: Record<string, unknown> }).data;
+
+    it('copies <key>.m4a next to the new copy and marks it', async () => {
+      const { service, storage, create } = forward(true);
+      await service.copyForUser('f1', 'u1', 'chat_voice').catch(() => null);
+      const newKey = created(create).s3_key as string;
+      expect(storage.read).toHaveBeenCalledWith(
+        'lawbid-old-docs',
+        'voice/u1/f1.m4a',
+      );
+      expect(storage.put).toHaveBeenCalledWith(
+        created(create).s3_bucket,
+        `${newKey}.m4a`,
+        expect.any(Buffer),
+        'audio/mp4',
+      );
+      expect(created(create).voice_m4a).toBe(true);
+    });
+
+    it('a note without a copy stays without one', async () => {
+      const { service, storage, create } = forward(false);
+      await service.copyForUser('f1', 'u1', 'chat_voice').catch(() => null);
+      expect(storage.put).toHaveBeenCalledTimes(1);
+      expect(created(create).voice_m4a).toBe(false);
+    });
+
+    it('a copy that cannot be read: the note still goes, WebM only', async () => {
+      const { service, create, deps } = forward(true, true);
+      await service.copyForUser('f1', 'u1', 'chat_voice').catch(() => null);
+      expect(created(create).voice_m4a).toBe(false);
+      expect(deps.logger.warn).toHaveBeenCalled();
+    });
+  });
+
   describe('daily upload cap (2026-10-24, storage.daily_upload_mb_per_user)', () => {
     const MBYTES = 1024 * 1024;
     const png = (sizeBytes: number) => ({

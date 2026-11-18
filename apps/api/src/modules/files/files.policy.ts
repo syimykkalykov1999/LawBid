@@ -184,8 +184,9 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   },
   // OQ-040: voice messages; private (only the two chat members get a
   // short signed link). AAC/MPEG-4 from the app (and Safari), Opus/WebM
-  // from Chrome/Firefox. Stored as uploaded — there is no server-side
-  // transcoding, so iOS (AVPlayer) cannot play a WebM note.
+  // from Chrome/Firefox. Stored as uploaded; owner row 146: a WebM note also
+  // gets an AAC/M4A copy next to it in the scan worker (voiceM4aKey), served
+  // as `voice.m4aUrl` to the iPhone, whose player cannot play WebM.
   chat_voice: {
     mimes: [FILE_MIME.m4a, FILE_MIME.webm],
     sizeSetting: 'files.max_size_mb',
@@ -378,7 +379,19 @@ export const ALL_VARIANT_PX: readonly number[] = [
  * removing a file removes all of them (missing keys are not an error). */
 export function derivedKeys(key: string): string[] {
   const variants = ALL_VARIANT_PX.map((px) => variantKey(key, px));
-  return [...variants, avifKey(key), ...variants.map(avifKey)];
+  return [
+    ...variants,
+    avifKey(key),
+    ...variants.map(avifKey),
+    voiceM4aKey(key),
+  ];
+}
+
+/** Owner row 146: the AAC/M4A copy of a browser (WebM/Opus) voice note,
+ * stored next to the original (`<key>.m4a`, files.voice_m4a). It goes away
+ * with the original (derivedKeys). */
+export function voiceM4aKey(key: string): string {
+  return `${key}.m4a`;
 }
 
 /**

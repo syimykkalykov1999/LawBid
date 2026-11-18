@@ -13,6 +13,7 @@ class VoiceNoteDto {
     required this.waveform,
     required this.listened,
     this.url,
+    this.m4aUrl,
   });
 
   factory VoiceNoteDto.fromJson(Map<String, Object?> json) =>
@@ -20,6 +21,9 @@ class VoiceNoteDto {
 
   /// Short signed link; null in chat-list previews.
   final String? url;
+
+  /// Owner row 146: short signed link to the AAC/M4A copy of a note recorded in a browser as Opus/WebM (players without WebM, the iPhone, use it). Null when the note is already AAC, the copy is not made, or in chat-list previews.
+  final String? m4aUrl;
   final int durationMs;
   final List<int> waveform;
 

@@ -500,6 +500,10 @@ const KEY_TEXT: Record<string, string> = {
   "media.voice_bitrate_kbps": "Голосовые: битрейт AAC, кбит/с (32 = как было)",
   "media.voice_sample_rate_hz":
     "Голосовые: частота записи, Гц (16000 = как было; 8000–48000)",
+  "media.voice_transcode_enabled":
+    "Голосовые с сайта (Firefox, Chrome на Linux записывают WebM, который iPhone не играет): сервер делает рядом копию AAC (M4A), iPhone играет её, оригинал остаётся. Выкл. — новые копии не делаются (готовые по-прежнему отдаются).",
+  "media.voice_transcode_timeout_sec":
+    "Сколько секунд самое большее делается копия AAC одного голосового с сайта (20 по умолчанию). Дольше — голосовое уходит только в WebM.",
   "files.document_template_max_size_mb":
     "Максимальный размер шаблона документа (PDF, Word), МБ.",
   "media.avatar_max_px": "Фото профиля: длинная сторона после сжатия, px",
