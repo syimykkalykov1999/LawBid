@@ -129,6 +129,16 @@ class AppStartupController extends Notifier<StartupStatus> {
     await refreshConfigNow();
   }
 
+  /// Owner 18.11 («выключил в админке — кнопка прячется, включил —
+  /// появляется»): a call screen opened — the admin's switches (video
+  /// calls) are read again unless they were read in the last [fresh]. One
+  /// `GET /me/session`, a 304 from the HTTP cache when nothing changed.
+  Future<void> refreshConfigIfOlderThan(Duration fresh) async {
+    if (state != StartupStatus.ready) return;
+    if (_sinceConfig.isRunning && _sinceConfig.elapsed < fresh) return;
+    await refreshConfigNow();
+  }
+
   /// Re-reads flags/tuning now (single-flight).
   Future<void> refreshConfigNow() => _configRefresh ??= _refreshConfig()
       .catchError((Object e) => debugPrint('config refresh: $e'))

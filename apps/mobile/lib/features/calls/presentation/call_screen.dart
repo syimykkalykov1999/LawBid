@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/platform/app_settings_opener.dart';
+import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
@@ -129,6 +130,16 @@ class _CallScreenState extends ConsumerState<CallScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _visible.set(visible: true);
+      // Owner 18.11: the admin's `video_calls` switch is read again when a
+      // call opens, so the camera button follows it without a restart
+      // (the app is already running: its start controller exists).
+      if (ref.exists(appStartupProvider)) {
+        unawaited(
+          ref
+              .read(appStartupProvider.notifier)
+              .refreshConfigIfOlderThan(kCallConfigFresh),
+        );
+      }
       // Opened (a stale tap) with no call at all: nothing to show.
       if (ref.read(callControllerProvider).phase == CallPhase.idle) _close();
     });
@@ -557,6 +568,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
     ];
 
     final audio = ref.watch(callAudioRouterProvider);
+    final videoCallsOn = ref.watch(videoCallsEnabledProvider);
     // Row 166 (WhatsApp «No answer» · Cancel · Call again; iOS mic alert
     // with Settings): an ended call that leaves something to do.
     final endedActions =
@@ -601,6 +613,12 @@ class _CallScreenState extends ConsumerState<CallScreen>
                       : null,
                   // Owner 2026-10-22: switches video on / off mid-call; a
                   // channel's video call keeps the plain camera pause.
+                  // Owner 18.11: no camera button while video calls are
+                  // off (`video_calls`) — unless this call began as video or
+                  // our camera is still on (it can go off).
+                  showVideo: videoCallsOn ||
+                      (s.call?.video ?? false) ||
+                      (s.video && s.cameraOn),
                   onVideo: c.canSwitchVideo
                       ? () => _videoTap(c, s, c.toggleVideo)
                       : s.video && s.busy
@@ -773,6 +791,10 @@ const double kCallTopRowHeight = 52 + 2 * AppSpacing.xs;
 
 /// The top scrim's height (REFERENCE.md: 160 px, black 45 % → 0).
 const double kCallScrimHeight = 160;
+
+/// Owner 18.11: a call screen re-reads the admin's switches unless they
+/// were read this recently (a second screen for the same call asks nothing).
+const Duration kCallConfigFresh = Duration(seconds: 30);
 
 /// UI-06: a soft black gradient (45 % → 0) from the top or the bottom edge.
 class _Scrim extends StatelessWidget {

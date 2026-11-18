@@ -107,6 +107,8 @@ void main() {
           final overrides = <Override>[
             ...uxOverrides(translator: t),
             callMyIdProvider.overrideWithValue('u0'),
+            // The widest pill: the camera button too (`video_calls` on).
+            videoCallsEnabledProvider.overrideWithValue(true),
             myPeopleProvider.overrideWith((_) async => longPeople()),
             callControllerProvider.overrideWith(() => _Fixed(s)),
           ];
