@@ -136,6 +136,27 @@ variable "opensearch_volume_gb" {
   type    = number
   default = 20
 }
+# Owner 15.11 «обнови всё до новейшего». Newest on AWS 15.11 23:21 UTC
+# (aws opensearch list-versions): OpenSearch_3.7. AWS allows no direct jump:
+# get-compatible-versions --domain-name lawbid-prod-search -> 2.17, 2.19;
+# from 2.19 -> 3.1..3.7 ("If you're running OpenSearch 1.3 or 2.x, you must
+# first upgrade to OpenSearch 2.19", docs.aws.amazon.com/opensearch-service/
+# latest/developerguide/version-migration.html). So two applies, one hop
+# each. A changed engine_version is an in-place upgrade (AWS UpgradeDomain:
+# pre-check, automatic snapshot, blue/green, domain keeps serving), BUT the
+# AWS provider 6.72 (internal/service/opensearch/domain.go, ForceNewIf
+# engine_version) REPLACES the domain when the target is not in
+# get-compatible-versions: skipping 2.19 or going back would delete it.
+# plan-summary.mjs / infra-switches.ts refuse any replacement of
+# aws_opensearch_domain (FORBIDDEN_REPLACE, KNOWN_ERRORS 172).
+variable "opensearch_engine_version" {
+  type    = string
+  default = "OpenSearch_2.15"
+  validation {
+    condition     = contains(["OpenSearch_2.15", "OpenSearch_2.19", "OpenSearch_3.7"], var.opensearch_engine_version)
+    error_message = "opensearch_engine_version: OpenSearch_2.15, OpenSearch_2.19 or OpenSearch_3.7 (one hop per apply)."
+  }
+}
 
 # --- runtime alarm ----------------------------------------------------------------
 variable "event_loop_p99_alarm_ms" {
@@ -360,7 +381,7 @@ resource "aws_security_group" "opensearch" {
 resource "aws_opensearch_domain" "search" {
   count          = var.opensearch_enabled ? 1 : 0
   domain_name    = "${var.name}-search"
-  engine_version = "OpenSearch_2.15"
+  engine_version = var.opensearch_engine_version
 
   cluster_config {
     instance_type          = var.opensearch_instance_type
@@ -410,6 +431,11 @@ resource "aws_opensearch_domain" "search" {
       desired_state       = "ENABLED"
       rollback_on_disable = "NO_ROLLBACK"
     }
+  }
+  # A version upgrade takes "15 minutes to several hours" (AWS guide above);
+  # the provider waits 180 min by default, the infra-apply job runs 300.
+  timeouts {
+    update = "240m"
   }
   tags = var.tags
 }

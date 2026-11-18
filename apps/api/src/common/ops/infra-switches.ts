@@ -117,6 +117,15 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
     1,
     4,
   ),
+  // Owner 15.11 «обнови всё до новейшего»: the search engine version, one
+  // AWS hop per apply (2.15 -> 2.19 -> 3.7, modules/growth/main.tf).
+  'growth.opensearch_engine_version': {
+    path: [GROWTH_CONTAINER, 'opensearch_engine_version'],
+    spec: {
+      type: 'choice',
+      values: ['OpenSearch_2.15', 'OpenSearch_2.19', 'OpenSearch_3.7'],
+    },
+  },
   // G4 (2026-11-08): the Kinesis stream the `events.sink = auto` switch needs.
   'growth.events_stream_enabled': {
     path: [GROWTH_CONTAINER, 'events_stream_enabled'],
@@ -341,6 +350,24 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
       'Без перерыва: AWS сам переносит поиск на четыре узла (по два в каждой зоне, сине-зелёная замена, 20–60 минут); поиск работает всё время.',
   },
   {
+    id: 'aws.opensearch_2_19',
+    values: {
+      off: { 'growth.opensearch_engine_version': 'OpenSearch_2.15' },
+      on: { 'growth.opensearch_engine_version': 'OpenSearch_2.19' },
+    },
+    impact:
+      'Без перерыва: AWS обновляет поиск на месте (проверка, снимок, сине-зелёная замена, от 15 минут до нескольких часов); поиск работает всё время. Назад нельзя: план с заменой движка админка откажет.',
+  },
+  {
+    id: 'aws.opensearch_3',
+    values: {
+      off: { 'growth.opensearch_engine_version': 'OpenSearch_2.19' },
+      on: { 'growth.opensearch_engine_version': 'OpenSearch_3.7' },
+    },
+    impact:
+      'Только после «Поиск 2.19». Без перерыва: AWS обновляет поиск на месте до 3.7 (проверка, снимок, сине-зелёная замена, от 15 минут до нескольких часов); поиск работает всё время. Назад нельзя: план с заменой движка админка откажет.',
+  },
+  {
     id: 'aws.events_stream',
     values: {
       off: { 'growth.events_stream_enabled': false },
@@ -526,6 +553,15 @@ export const FORBIDDEN_DESTROY: readonly string[] = [
   'aws_ecr_repository',
 ];
 
+/**
+ * Resource types a plan from the admin may delete (switch off) but NEVER
+ * replace. Owner 15.11: the AWS provider replaces an OpenSearch domain when
+ * the new engine_version is not a direct AWS upgrade target (skipped hop or
+ * a downgrade, provider 6.72 domain.go ForceNewIf), which would drop every
+ * index (KNOWN_ERRORS 172). The workflow and the API both check this.
+ */
+export const FORBIDDEN_REPLACE: readonly string[] = ['aws_opensearch_domain'];
+
 /** Addresses of FORBIDDEN_DESTROY types that may go anyway. */
 export const DESTROY_ALLOWED: readonly RegExp[] = [
   /aws_db_instance\.replica(\[|$)/,
@@ -700,9 +736,14 @@ export function forbiddenDestroys(
   return resources
     .filter((r) => r.action.includes('delete'))
     .filter((r) => {
-      const hit = r.address
-        .split('.')
-        .some((part) => FORBIDDEN_DESTROY.includes(part.replace(/\[.*$/, '')));
+      const parts = r.address.split('.').map((p) => p.replace(/\[.*$/, ''));
+      if (
+        r.action.includes('create') &&
+        parts.some((p) => FORBIDDEN_REPLACE.includes(p))
+      ) {
+        return true;
+      }
+      const hit = parts.some((part) => FORBIDDEN_DESTROY.includes(part));
       const n = shardModuleIndex(r.address);
       const removed =
         typeof keep === 'number' &&
