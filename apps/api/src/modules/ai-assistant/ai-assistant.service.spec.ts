@@ -1,3 +1,4 @@
+import { monthKey } from './ai-assistant.logic';
 import { GithubMergeError } from '../admin-launch/infra-github';
 import {
   AiAssistantError,
@@ -34,8 +35,13 @@ function make(
   } = {},
 ) {
   const store = new Map<string, string>();
-  if (o.spent !== undefined && o.spent !== null)
+  if (o.spent !== undefined && o.spent !== null) {
+    // The month of the fixed NOW, and the real current month: `trigger()`
+    // reads the gate at `new Date()` (it failed from December 2026 and in
+    // the +45-day time-bomb run while only the November key was set).
     store.set('ai:usd:2026-11', o.spent);
+    store.set(monthKey(new Date()), o.spent);
+  }
   const list: string[] = [];
   const redis = {
     get: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
