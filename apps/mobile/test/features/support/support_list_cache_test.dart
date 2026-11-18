@@ -36,9 +36,13 @@ void main() {
       if (o.path == '/support/tickets') {
         final etag = 'W/"v$version"';
         if (o.headers['If-None-Match'] == etag) {
-          return ResponseBody.fromString('', 304, headers: {
-            'etag': [etag],
-          });
+          return ResponseBody.fromString(
+            '',
+            304,
+            headers: {
+              'etag': [etag],
+            },
+          );
         }
         return ResponseBody.fromString(
           jsonEncode({

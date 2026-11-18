@@ -119,7 +119,7 @@ void main() {
   test('verify 18.11 (CR1): no e-mail, phone or URL query reaches the queue',
       () async {
     CrashReporter.instance!.report(
-      FormatException(
+      const FormatException(
         'bad reply for jo@mail.test +1 (415) 555-0100 '
         'https://api.test/x?token=abc',
       ),
