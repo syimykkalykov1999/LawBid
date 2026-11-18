@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import config, {
   SORTED_LISTS,
+  STATIC_STRINGS_ASSETS,
+  STATIC_STRINGS_SOURCE,
   apiTypeScriptTasks,
+  staticStringsTasks,
 } from "../../lint-staged.config.mjs";
 
 const abs = (p) => `/repo/${p}`;
@@ -61,5 +64,16 @@ describe("lint-staged config", () => {
       assert.ok(!f.startsWith("/"));
     }
     assert.equal(config[globs[0]](), "npm run lists:sort --workspace apps/api");
+  });
+
+  it("a staged built-in strings file regenerates and stages the web string assets", () => {
+    assert.equal(config[STATIC_STRINGS_SOURCE], staticStringsTasks);
+    const tasks = staticStringsTasks();
+    assert.match(tasks[0], /gen_static_strings\.dart/);
+    assert.equal(tasks[1], `git add ${STATIC_STRINGS_ASSETS.join(" ")}`);
+    assert.deepEqual(STATIC_STRINGS_ASSETS, [
+      "apps/mobile/assets/l10n/static_strings_ru.json",
+      "apps/mobile/assets/l10n/static_strings_en.json",
+    ]);
   });
 });
