@@ -5,7 +5,7 @@ import * as m from 'motion/react-m';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState, ViewTransition } from 'react';
+import { useCallback, useDeferredValue, useEffect, useRef, useState, ViewTransition } from 'react';
 import { deskHome, outsideDesk } from '@/lib/desk';
 import { useDeskSettings } from '@/lib/desk-data';
 import { useDragDismiss } from '@/lib/drag-dismiss';
@@ -30,9 +30,20 @@ const COLLAPSE_KEY = 'lawbid-admin-sidebar';
 const CommandPalette = dynamic(() => import('./command-palette').then((m) => m.CommandPalette), { ssr: false });
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { data: me } = useMe();
+  const { data: liveMe } = useMe();
+  // Admin Lighthouse 2026-11-18 (/users TBT, KNOWN_ERRORS): TanStack Query
+  // delivers «me» through useSyncExternalStore, and React renders such an
+  // update synchronously — the whole shell (menu, section tabs, bottom bar,
+  // top bar, the page turning visible) was built in ONE blocking task after
+  // /auth/me answered, the largest task after the framework's own start on
+  // every admin page. The shell reads «me» through useDeferredValue (React
+  // docs «Deferring re-rendering for a part of the UI»): the sync pass keeps
+  // the previous value and costs nothing, and React builds the new shell
+  // right after in a transition render that yields to the browser every few
+  // ms. Same elements, same data, same frame budget: nothing to see.
+  const me = useDeferredValue(liveMe);
   const pathname = usePathname();
-  useTabTitle(me, pathname);
+  useTabTitle(liveMe, pathname);
   const [collapsed, setCollapsed] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [palette, setPalette] = useState(false);
