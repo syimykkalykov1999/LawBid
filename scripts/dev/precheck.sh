@@ -56,7 +56,7 @@ if [ "$FULL" = 1 ]; then
   if has '^apps/api/'; then
     ( cd apps/api && npx tsc --noEmit -p tsconfig.json ) >/tmp/precheck-tsc.log 2>&1 && ok "api typecheck" || { bad "api typecheck"; tail -10 /tmp/precheck-tsc.log; }
     SPECS=$(echo "$CH" | grep -E '^apps/api/src/.*\.ts$' | sed 's|^apps/api/||' | tr '\n' ' ')
-    [ -n "$SPECS" ] && ( cd apps/api && NODE_OPTIONS="${NODE_OPTIONS:-} --experimental-vm-modules" npx jest --findRelatedTests $SPECS ) >/tmp/precheck-jest.log 2>&1 && ok "unit tests related to changed files" || { [ -n "$SPECS" ] && { bad "related unit tests"; tail -25 /tmp/precheck-jest.log; }; }
+    [ -n "$SPECS" ] && ( cd apps/api && NODE_OPTIONS="${NODE_OPTIONS:-} --experimental-vm-modules" npx jest --maxWorkers="${PRECHECK_JEST_WORKERS:-2}" --findRelatedTests $SPECS ) >/tmp/precheck-jest.log 2>&1 && ok "unit tests related to changed files" || { [ -n "$SPECS" ] && { bad "related unit tests"; tail -25 /tmp/precheck-jest.log; }; }
     # Time bombs: the same specs with the clock 45 days ahead (CI: "Time-bomb check (nightly)").
     # Portable on macOS (BSD paste needs a file operand) and Linux: tr, not
     # paste. Every option in its --opt=value form and the spec list last, so
@@ -66,7 +66,7 @@ if [ "$FULL" = 1 ]; then
     if [ -n "$SPECS" ]; then
       IGN=$(cd apps/api && grep -rl useFakeTimers src --include='*.spec.ts' | sed 's#\.#\\.#g' | tr '\n' '|' | sed 's/|$//')
       # shellcheck disable=SC2086 # SPECS is a space-separated file list
-      ( cd apps/api && TIME_SHIFT_DAYS=45 NODE_OPTIONS="${NODE_OPTIONS:-} --experimental-vm-modules" npx jest "--setupFiles=<rootDir>/../test/time-shift.setup.js" ${IGN:+"--testPathIgnorePatterns=$IGN"} --findRelatedTests $SPECS ) >/tmp/precheck-jest45.log 2>&1
+      ( cd apps/api && TIME_SHIFT_DAYS=45 NODE_OPTIONS="${NODE_OPTIONS:-} --experimental-vm-modules" npx jest --maxWorkers="${PRECHECK_JEST_WORKERS:-2}" "--setupFiles=<rootDir>/../test/time-shift.setup.js" ${IGN:+"--testPathIgnorePatterns=$IGN"} --findRelatedTests $SPECS ) >/tmp/precheck-jest45.log 2>&1
       RC45=$?
       RAN45=$(grep -E '^Tests:' /tmp/precheck-jest45.log | tail -1 | grep -oE '[0-9]+ total' | grep -oE '[0-9]+')
       if [ "$RC45" = 0 ] && [ "${RAN45:-0}" -gt 0 ]; then ok "related unit tests, clock +45 days ($RAN45 tests)"
