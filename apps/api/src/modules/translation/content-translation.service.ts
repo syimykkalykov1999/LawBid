@@ -3,6 +3,7 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { CaseAccessPolicy } from '../cases/policies/case-access.policy';
+import { VISIBLE_POST_WHERE } from '../posts/post-presenter.service';
 import type { TranslatableKind } from './translation.dto';
 import type { TranslateZone } from './translation-zones';
 import {
@@ -65,14 +66,21 @@ export class ContentTranslationService {
       case 'post':
         return (
           await this.prisma.post.findFirst({
-            where: { id, deleted_at: null, status: 'published' },
+            // Same rule as the feed: archived posts and posts of
+            // suspended/inactive authors are not visible, so not translated.
+            where: { id, ...VISIBLE_POST_WHERE },
             select: { body: true },
           })
         )?.body;
       case 'comment':
         return (
           await this.prisma.comment.findFirst({
-            where: { id, deleted_at: null, status: 'published' },
+            where: {
+              id,
+              deleted_at: null,
+              status: 'published',
+              post: VISIBLE_POST_WHERE,
+            },
             select: { body: true },
           })
         )?.body;
@@ -85,8 +93,14 @@ export class ContentTranslationService {
         )?.body;
       case 'profile':
         return (
-          await this.prisma.attorneyProfile.findUnique({
-            where: { user_id: id },
+          await this.prisma.attorneyProfile.findFirst({
+            // Mirrors the public profile 404 (attorney-profiles.service
+            // publicCoreOf): suspended, deleted, inactive or non-attorney.
+            where: {
+              user_id: id,
+              verification_status: { not: 'suspended' },
+              user: { role: 'attorney', status: 'active', deleted_at: null },
+            },
             select: { bio: true },
           })
         )?.bio;

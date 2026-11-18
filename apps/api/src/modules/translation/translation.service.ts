@@ -112,7 +112,6 @@ export class TranslationService {
 
     const day = new Date().toISOString().slice(0, 10);
     const quotaKey = `tr:quota:${user.sub}:${day}`;
-    const used = Number((await this.redis.get(quotaKey)) ?? 0);
     const planQuota = this.entitlements
       ? await this.entitlements.limit(user.sub, 'translations_per_day')
       : null;
@@ -123,7 +122,11 @@ export class TranslationService {
         : planQuota === 0
           ? null
           : planQuota;
-    if (quota !== null && used >= quota) {
+    // Verify 17.11 T5: reserve the slot first (atomic INCR + TTL), so many
+    // parallel requests can't all pass a read-then-check and overspend.
+    const used = await incrWithTtl(this.redis, quotaKey, 26 * 3600);
+    if (quota !== null && used > quota) {
+      await this.releaseQuota(quotaKey);
       throw new HttpException(
         {
           code: ErrorCode.RATE_LIMITED,
@@ -133,16 +136,29 @@ export class TranslationService {
       );
     }
 
-    // Owner 2026-10-22 (audit #4 §6): Google bills per character.
-    await this.costGuard?.consume('translate', 1, {
-      chars: text.length,
-      userId: user.sub,
-    });
-    const out = await this.callGoogle(key, text, target, zone, hash);
-    // Counted only after a successful call: a Google error costs no quota.
-    await incrWithTtl(this.redis, quotaKey, 26 * 3600);
+    let out: TextTranslation;
+    try {
+      // Owner 2026-10-22 (audit #4 §6): Google bills per character.
+      await this.costGuard?.consume('translate', 1, {
+        chars: text.length,
+        userId: user.sub,
+      });
+      out = await this.callGoogle(key, text, target, zone, hash);
+    } catch (err) {
+      // A refused budget or a Google error costs no quota: give it back.
+      await this.releaseQuota(quotaKey);
+      throw err;
+    }
     await this.cache.set(cacheKey, JSON.stringify(out), 'EX', CACHE_TTL_S);
     return out;
+  }
+
+  private async releaseQuota(quotaKey: string): Promise<void> {
+    try {
+      await this.redis.decr(quotaKey);
+    } catch {
+      // Best effort: a lost DECR only makes the day's quota one stricter.
+    }
   }
 
   /**

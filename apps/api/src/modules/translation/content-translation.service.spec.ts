@@ -16,6 +16,7 @@ function setup(opts: { key?: string | null; caseAccess?: unknown } = {}) {
     review: { findFirst: jest.fn().mockResolvedValue({ body: null }) },
     attorneyProfile: {
       findUnique: jest.fn().mockResolvedValue({ bio: 'Bio' }),
+      findFirst: jest.fn().mockResolvedValue({ bio: 'Bio' }),
     },
     case: { findFirst: jest.fn().mockResolvedValue({ description: 'Desc' }) },
     bid: {
@@ -87,6 +88,7 @@ describe('ContentTranslationService', () => {
       response: { code: ErrorCode.TRANSLATION_UNAVAILABLE },
     });
     expect(s.prisma.attorneyProfile.findUnique).not.toHaveBeenCalled();
+    expect(s.prisma.attorneyProfile.findFirst).not.toHaveBeenCalled();
   });
 
   it('404s what is missing, empty or not visible', async () => {
@@ -116,6 +118,65 @@ describe('ContentTranslationService', () => {
       response: { code: ErrorCode.NOT_FOUND },
     });
     expect(s.engine.apiKey).toHaveBeenCalledWith('cases');
+  });
+});
+
+describe('ContentTranslationService visibility (verify 17.11 T1/T2)', () => {
+  type Where = Record<string, unknown> & {
+    archived_at?: unknown;
+    author?: { status?: string };
+    post?: { archived_at?: unknown; author?: { status?: string } };
+    verification_status?: { not?: string };
+    user?: { status?: string; role?: string; deleted_at?: unknown };
+  };
+  // A tiny stand-in for the DB: the row exists but is hidden (archived post,
+  // suspended author, suspended attorney). It is returned only when the
+  // query does not ask for the visibility rule — exactly the old bug.
+  const hiddenPost = (where: Where) =>
+    where.archived_at === null && where.author?.status === 'active'
+      ? null
+      : { body: 'Hidden' };
+  const hiddenComment = (where: Where) =>
+    where.post?.archived_at === null && where.post?.author?.status === 'active'
+      ? null
+      : { body: 'Hidden' };
+  const suspendedBio = (where: Where) =>
+    where.verification_status?.not === 'suspended' &&
+    where.user?.status === 'active' &&
+    where.user?.role === 'attorney' &&
+    where.user?.deleted_at === null
+      ? null
+      : { bio: 'Hidden' };
+
+  it('404s an archived post / post of a suspended author', async () => {
+    const s = setup();
+    s.prisma.post.findFirst.mockImplementation((a: { where: Where }) =>
+      Promise.resolve(hiddenPost(a.where)),
+    );
+    await expect(
+      s.service.translate(client, 'post', 'p1', 'ru'),
+    ).rejects.toMatchObject({ response: { code: ErrorCode.NOT_FOUND } });
+  });
+
+  it('404s a comment under a hidden post', async () => {
+    const s = setup();
+    s.prisma.comment.findFirst.mockImplementation((a: { where: Where }) =>
+      Promise.resolve(hiddenComment(a.where)),
+    );
+    await expect(
+      s.service.translate(client, 'comment', 'c1', 'ru'),
+    ).rejects.toMatchObject({ response: { code: ErrorCode.NOT_FOUND } });
+  });
+
+  it('404s the bio of a suspended / inactive attorney', async () => {
+    const s = setup();
+    s.prisma.attorneyProfile.findUnique.mockResolvedValue({ bio: 'Hidden' });
+    s.prisma.attorneyProfile.findFirst.mockImplementation(
+      (a: { where: Where }) => Promise.resolve(suspendedBio(a.where)),
+    );
+    await expect(
+      s.service.translate(client, 'profile', 'a1', 'ru'),
+    ).rejects.toMatchObject({ response: { code: ErrorCode.NOT_FOUND } });
   });
 });
 

@@ -170,14 +170,8 @@ export class PostEngagementService {
         post_id: postId,
         user: { status: 'active', deleted_at: null },
         ...(hidden.length > 0 ? { user_id: { notIn: hidden } } : {}),
-        ...(c
-          ? {
-              OR: [
-                { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, id: { lt: c.id } },
-              ],
-            }
-          : {}),
+        // Row 215: a range on post_reposts_post_created_id_idx.
+        ...(c ? createdBefore({ t: c.createdAt, id: c.id }) : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: REPOSTS_PAGE + 1,

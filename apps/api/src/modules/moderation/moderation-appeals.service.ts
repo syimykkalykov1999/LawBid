@@ -16,6 +16,7 @@ import {
   type StaffSignals,
 } from '../staff-core/staff-signals.port';
 import {
+  createdKeyset,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -443,14 +444,8 @@ export class ModerationAppealsService {
     const limit = q.limit ?? 30;
     const cursor = q.cursor ? decodeCursor(q.cursor) : undefined;
     const rows = await this.prisma.moderationAction.findMany({
-      where: cursor
-        ? {
-            OR: [
-              { created_at: { lt: cursor.createdAt } },
-              { created_at: cursor.createdAt, id: { lt: cursor.id } },
-            ],
-          }
-        : {},
+      // Row 215: a range on moderation_actions_created_id_idx.
+      where: createdKeyset(cursor && { t: cursor.createdAt, id: cursor.id }),
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: limit + 1,
       include: {

@@ -457,7 +457,10 @@ describe('Support 24/7, rewards, workspace (e2e)', () => {
     });
     expect(canceled.status).toBe('canceled');
 
-    // Automatic once the period is over: its leader gets the prize once.
+    // Automatic once the period is over — but batch 8 RW1 (audit
+    // 2026-11-17): the prize the owner just took back for this period
+    // stays taken back; the daily job never gives it (and its bonus) again.
+    // (The positive auto path is covered in rewards.revoke.spec.ts.)
     const rewards = app.get(RewardsService);
     await api()
       .put('/api/v1/admin/rewards/settings')
@@ -466,12 +469,17 @@ describe('Support 24/7, rewards, workspace (e2e)', () => {
       .expect(200);
     const nextMonth = new Date();
     nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1, 2);
-    expect(await rewards.autoAward(nextMonth)).toBeGreaterThanOrEqual(1);
+    await rewards.autoAward(nextMonth);
     expect(
       await prisma.staffReward.count({
-        where: { period, department: 'support', auto: true },
+        where: { period, department: 'support' },
       }),
-    ).toBeGreaterThanOrEqual(1);
+    ).toBe(0);
+    expect(
+      await prisma.payrollAccrual.count({
+        where: { source: 'rewards', status: 'pending', amount_cents: 5000 },
+      }),
+    ).toBe(0);
     expect(await rewards.autoAward(nextMonth)).toBe(0);
   });
 

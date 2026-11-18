@@ -89,7 +89,8 @@ export class HotlineGateway implements OnGatewayDisconnect {
     if (!d.user?.sub) return { ok: false };
     if (d.hotlineLine) {
       d.hotlineLine = false;
-      await this.hotline.goOffline(d.user.sub, 'away');
+      // only this device: his other live devices keep him on the line
+      await this.hotline.lineAway(d.user.sub, socket.id);
     }
     return { ok: true };
   }

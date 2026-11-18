@@ -467,12 +467,19 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
     String? note,
     DateTime? rescheduleTo,
   }) async {
-    final updated = await ref.read(teamRepositoryProvider).setTaskStatus(
-          task.id,
-          status,
-          note: note,
-          rescheduleTo: rescheduleTo,
-        );
+    final repo = ref.read(teamRepositoryProvider);
+    final updated = await whenStaleRefetch(
+      repo,
+      ref.read(tasksHubProvider),
+      task.id,
+      () => repo.setTaskStatus(
+        task.id,
+        status,
+        note: note,
+        rescheduleTo: rescheduleTo,
+        version: task.version,
+      ),
+    );
     ref.read(tasksHubProvider).apply(updated);
     return updated;
   }
@@ -590,6 +597,30 @@ Future<({int affected, int skipped})> bulkTasks(
       );
   syncAllTasks(ref);
   return r;
+}
+
+/// Audit 17.11: a write sent with the task's `version` (`If-Match`) that
+/// the server refuses as stale (409 STALE_VERSION: someone saved first)
+/// re-reads the task into every list, so the screen shows server truth;
+/// the error still goes to the caller's usual snackbar.
+Future<T> whenStaleRefetch<T>(
+  TeamRepository repo,
+  TasksHub hub,
+  String taskId,
+  Future<T> Function() write,
+) async {
+  try {
+    return await write();
+  } on ApiException catch (e) {
+    if (e.code == ApiErrorCodes.staleVersion) {
+      try {
+        hub.apply(await repo.task(taskId));
+      } on Object catch (r) {
+        debugPrint('tasks: refetch after a stale save failed: $r');
+      }
+    }
+    rethrow;
+  }
 }
 
 /// A change the phone cannot place on its own: every task list on screen

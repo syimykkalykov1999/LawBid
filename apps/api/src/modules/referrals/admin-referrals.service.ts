@@ -8,7 +8,7 @@ import {
 import { Prisma, type Referral } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
-  createdBefore,
+  createdKeyset,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -174,9 +174,8 @@ export class AdminReferralsService {
                 },
               ]
             : []),
-          ...(cursor
-            ? [createdBefore({ t: cursor.createdAt, id: cursor.id })]
-            : []),
+          // Row 215: referrals_created_id_idx, the first page too.
+          createdKeyset(cursor && { t: cursor.createdAt, id: cursor.id }),
         ],
         ...(q.status ? { status: q.status } : {}),
         ...(q.role ? { referee_role: q.role } : {}),

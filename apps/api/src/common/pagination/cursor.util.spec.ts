@@ -1,5 +1,11 @@
 import { HttpException } from '@nestjs/common';
-import { createdBefore, decodeCursor, encodeCursor } from './cursor.util';
+import {
+  createdBefore,
+  createdKeyset,
+  decodeCursor,
+  encodeCursor,
+  KEYSET_END,
+} from './cursor.util';
 
 /** Row 126 follow-up: createdBefore() must pick exactly the rows of the old
  * `created_at < t OR (created_at = t AND id < id)` rule, ties included. */
@@ -48,6 +54,39 @@ describe('createdBefore (keyset as an index range)', () => {
         { OR: [{ created_at: { lt: t } }, { created_at: t, id: { lt: 'x' } }] },
       ],
     });
+  });
+
+  // Row 215 (second part): the first page bounds created_at too, so a
+  // `WHERE created_at IS NOT NULL` index is usable; it keeps every row.
+  it('createdKeyset: page 1 keeps every row, later pages = createdBefore', () => {
+    expect(createdKeyset(undefined)).toEqual({
+      AND: [{ created_at: { lte: KEYSET_END } }],
+    });
+    expect(rows.filter((r) => matches(createdKeyset(undefined), r))).toEqual(
+      rows,
+    );
+    const after = { t: when(3), id: 'id-150' };
+    expect(createdKeyset(after)).toEqual(createdBefore(after));
+  });
+
+  it('createdKeyset: paging 7 at a time over ties returns each row once', () => {
+    const sorted = [...rows].sort(
+      (a, b) =>
+        b.created_at.getTime() - a.created_at.getTime() ||
+        (a.id < b.id ? 1 : a.id > b.id ? -1 : 0),
+    );
+    const seen: Row[] = [];
+    let after: { t: Date; id: string } | undefined;
+    for (;;) {
+      const page = sorted
+        .filter((r) => matches(createdKeyset(after), r))
+        .slice(0, 7);
+      if (page.length === 0) break;
+      seen.push(...page);
+      const last = page[page.length - 1];
+      after = { t: last.created_at, id: last.id };
+    }
+    expect(seen).toEqual(sorted);
   });
 });
 

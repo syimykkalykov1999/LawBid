@@ -101,3 +101,33 @@ describe('PromotionRefundsService', () => {
     await expect(svc.refundUnspent('p1')).resolves.toBe(0);
   });
 });
+
+/** Batch 8 PM1/PM2 (audit 2026-11-17): money that reached a promotion which
+ * could no longer start goes back in full, once. */
+describe('PromotionRefundsService.refundUnapplied', () => {
+  it('refunds the whole payment through the staff refund path, once', async () => {
+    const { svc, refunds, prisma } = make(row({ status: 'canceled' }));
+    expect(await svc.refundUnapplied('p1', 'pay1', 1000)).toBe(1000);
+    expect(refunds.refundBySystem).toHaveBeenCalledWith(
+      {
+        paymentId: 'pay1',
+        amountCents: 1000,
+        reason: 'promotion p1: paid after it was closed',
+      },
+      { idempotencyKey: 'promotion-unapplied:pay1' },
+    );
+    expect(prisma.casePromotion.update).toHaveBeenCalledWith({
+      where: { id: 'p1' },
+      data: { refunded_cents: { increment: 1000 } },
+    });
+    const again = make(row({ status: 'canceled' }), true);
+    expect(await again.svc.refundUnapplied('p1', 'pay1', 1000)).toBe(0);
+    expect(again.refunds.refundBySystem).not.toHaveBeenCalled();
+  });
+
+  it('never throws (staff see the failed refund row)', async () => {
+    const { svc, refunds } = make(row({ status: 'canceled' }));
+    refunds.refundBySystem.mockRejectedValueOnce(new Error('stripe down'));
+    expect(await svc.refundUnapplied('p1', 'pay1', 1000)).toBe(0);
+  });
+});

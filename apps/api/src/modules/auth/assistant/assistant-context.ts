@@ -42,7 +42,8 @@ interface Cached {
 /**
  * Resolves an assistant's live membership (Redis-cached for 30 s; the team
  * screen drops the cache on every change). Null when the assistant has no
- * active membership or the attorney's subscription no longer covers it.
+ * active membership, the attorney is not active (suspended, deleting) or
+ * the attorney's subscription no longer covers it.
  */
 @Injectable()
 export class AssistantContextService {
@@ -64,8 +65,14 @@ export class AssistantContextService {
     } catch {
       // Redis down: fall through to the DB.
     }
+    // Verify 17.11 (A1): only while the attorney's own account is active —
+    // a suspended attorney's assistant no longer acts in their name.
     const m = await this.prisma.assistantMembership.findFirst({
-      where: { assistant_user_id: assistantUserId, status: 'active' },
+      where: {
+        assistant_user_id: assistantUserId,
+        status: 'active',
+        attorney: { status: 'active' },
+      },
       select: {
         id: true,
         attorney_id: true,

@@ -379,7 +379,16 @@ export class NotificationsService {
                   (xmax = 0) AS inserted`;
       if (row.inserted) created++;
       await this.badges?.invalidateNotifications(recipientId);
-      await this.push?.enqueue(row.id, input.type, row.inserted ? 1 : 2);
+      // Verify batch 8 (17.11, NO6): a repeat's job id grows with the
+      // count (as in [emit]); a constant `-2` was dropped by BullMQ as a
+      // duplicate from the second repeat on. n + 1: a repeat never takes
+      // seq 1 (the push), a retry of the first case (n still 1) takes 2 and
+      // the next case (n = 2) 3; a retry that counted nothing keeps its id.
+      await this.push?.enqueue(
+        row.id,
+        input.type,
+        row.inserted ? 1 : Number(row.n) + 1,
+      );
     }
     return created;
   }

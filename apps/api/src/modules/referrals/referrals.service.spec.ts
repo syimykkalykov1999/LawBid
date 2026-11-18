@@ -47,7 +47,12 @@ function setup(opts: { enabled?: boolean } = {}) {
       updateMany: jest.fn(),
       count: jest.fn().mockResolvedValue(0),
     },
-    user: { findUnique: jest.fn() },
+    // Both sides of a referral are live accounts unless a test says otherwise.
+    user: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ status: 'active', deleted_at: null }),
+    },
     case: { count: jest.fn().mockResolvedValue(0) },
     payment: { count: jest.fn().mockResolvedValue(0) },
     stripeCustomer: { findUnique: jest.fn().mockResolvedValue(null) },
@@ -58,6 +63,7 @@ function setup(opts: { enabled?: boolean } = {}) {
   );
   const provider = {
     creditCustomerBalance: jest.fn().mockResolvedValue(undefined),
+    debitCustomerBalance: jest.fn().mockResolvedValue(undefined),
   };
   const config = {
     get: jest.fn().mockReturnValue(undefined),
@@ -599,5 +605,273 @@ describe('integration helpers', () => {
       remainingDays({ type: 'promotion_days', value: 3, uses: { a: 2 } }),
     ).toBe(1);
     expect(remainingDays({ type: 'balance_cents', value: 3 })).toBe(0);
+  });
+
+  it('PM2 (batch 8): a restored promotion keeps a note, and a revived one spends the same days again', async () => {
+    const s = setup();
+    const row = {
+      id: 'r1',
+      referrer_id: 'cli',
+      referee_id: 'x',
+      status: 'rewarded',
+      referrer_reward: {
+        type: 'promotion_days',
+        value: 2,
+        issuedAt: '2026-10-01T00:00:00Z',
+        uses: { p1: 1 },
+      } as Record<string, unknown>,
+      referee_reward: {},
+    };
+    s.prisma.referral.findMany.mockImplementation(() => Promise.resolve([row]));
+    s.prisma.referral.update.mockImplementation(
+      ({ data }: { data: { referrer_reward: Record<string, unknown> } }) => {
+        row.referrer_reward = data.referrer_reward;
+        return Promise.resolve(row);
+      },
+    );
+    const tx = s.prisma as unknown as Prisma.TransactionClient;
+    expect(await s.service.restorePromotionCredits(tx, 'cli', 'p1')).toBe(1);
+    expect(row.referrer_reward).toMatchObject({
+      uses: {},
+      restored: { p1: 1 },
+    });
+    expect(await s.service.promotionCreditDays('cli')).toBe(2);
+
+    // The checkout is paid after all: the day is taken again.
+    expect(await s.service.reconsumePromotionCredits(tx, 'cli', 'p1')).toBe(
+      true,
+    );
+    expect(row.referrer_reward).toMatchObject({ uses: { p1: 1 } });
+    expect(
+      (row.referrer_reward.restored as Record<string, number>)?.p1,
+    ).toBeUndefined();
+    expect(await s.service.promotionCreditDays('cli')).toBe(1);
+  });
+
+  it('PM2 (batch 8): a revive whose days were spent elsewhere meanwhile is refused', async () => {
+    const s = setup();
+    const row = {
+      id: 'r1',
+      referrer_id: 'cli',
+      referee_id: 'x',
+      status: 'rewarded',
+      referrer_reward: {
+        type: 'promotion_days',
+        value: 1,
+        issuedAt: '2026-10-01T00:00:00Z',
+        uses: { p2: 1 },
+        restored: { p1: 1 },
+      } as Record<string, unknown>,
+      referee_reward: {},
+    };
+    s.prisma.referral.findMany.mockResolvedValue([row]);
+    const tx = s.prisma as unknown as Prisma.TransactionClient;
+    expect(await s.service.reconsumePromotionCredits(tx, 'cli', 'p1')).toBe(
+      false,
+    );
+    // Nothing is taken from the other promotion.
+    const writes = (s.prisma.referral.update.mock.calls as unknown[][]).map(
+      (c) => c[0] as { data: { referrer_reward?: { uses?: unknown } } },
+    );
+    for (const w of writes) {
+      expect(w.data.referrer_reward?.uses).toEqual({ p2: 1 });
+    }
+  });
+});
+
+describe('RF1/RF2 (batch 8, audit 2026-11-17)', () => {
+  const qualified = {
+    id: 'r1',
+    referrer_id: 'att',
+    referee_id: 'ref',
+    status: 'qualified',
+    referee_role: 'attorney',
+    created_at: new Date(Date.now() - 5 * DAY),
+    qualified_at: new Date(Date.now() - DAY),
+    referrer_reward: { type: 'balance_cents', value: 10_000 },
+    referee_reward: { type: 'percent_first_invoice', value: 50 },
+  };
+
+  it('tryReward pays nobody when the referee account was deleted', async () => {
+    const s = setup();
+    s.prisma.referral.findUnique.mockResolvedValue(qualified);
+    s.prisma.user.findUnique.mockImplementation(
+      ({ where }: { where: { id: string } }) =>
+        Promise.resolve(
+          where.id === 'ref'
+            ? { status: 'deleted', deleted_at: new Date() }
+            : { status: 'active', deleted_at: null },
+        ),
+    );
+    s.prisma.stripeCustomer.findUnique.mockResolvedValue({
+      stripe_customer_id: 'cus_1',
+    });
+    s.prisma.referral.updateMany.mockResolvedValue({ count: 1 });
+    await s.service.tryReward('r1');
+    expect(s.provider.creditCustomerBalance).not.toHaveBeenCalled();
+    expect(s.prisma.referral.updateMany).toHaveBeenCalledWith({
+      where: { id: 'r1', status: 'qualified' },
+      data: { status: 'rejected', rejected_reason: 'account_closed' },
+    });
+  });
+
+  it('tryReward waits (stays qualified) while the referrer is suspended', async () => {
+    const s = setup();
+    s.prisma.referral.findUnique.mockResolvedValue(qualified);
+    s.prisma.user.findUnique.mockImplementation(
+      ({ where }: { where: { id: string } }) =>
+        Promise.resolve(
+          where.id === 'att'
+            ? { status: 'suspended', deleted_at: null }
+            : { status: 'active', deleted_at: null },
+        ),
+    );
+    s.prisma.stripeCustomer.findUnique.mockResolvedValue({
+      stripe_customer_id: 'cus_1',
+    });
+    await s.service.tryReward('r1');
+    expect(s.provider.creditCustomerBalance).not.toHaveBeenCalled();
+    expect(s.prisma.referral.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'rewarded' }),
+      }),
+    );
+  });
+
+  function refundSetup(referral: Record<string, unknown>) {
+    const s = setup();
+    const p = s.prisma as unknown as {
+      payment: Record<string, jest.Mock>;
+    };
+    p.payment.findUnique = jest.fn().mockResolvedValue({
+      id: 'pay1',
+      user_id: 'ref',
+      stripe_invoice_id: 'in_1',
+      created_at: new Date(Date.now() - 2 * DAY),
+    });
+    p.payment.findFirst = jest.fn().mockResolvedValue({ id: 'pay1' });
+    s.prisma.referral.findUnique.mockResolvedValue(referral);
+    s.prisma.referral.updateMany.mockResolvedValue({ count: 1 });
+    return s;
+  }
+
+  it('a refund of the qualifying invoice rejects a reward not paid yet', async () => {
+    const s = refundSetup(qualified);
+    await s.service.onPaymentRefunded('pay1');
+    expect(s.prisma.referral.updateMany).toHaveBeenCalledWith({
+      where: { id: 'r1', status: { in: ['qualified', 'rewarded'] } },
+      data: { status: 'rejected', rejected_reason: 'payment_refunded' },
+    });
+  });
+
+  const credited = {
+    ...qualified,
+    status: 'rewarded',
+    referrer_reward: {
+      type: 'balance_cents',
+      value: 10_000,
+      issuedAt: '2026-11-10T00:00:00Z',
+    },
+  };
+
+  it('a refund of the qualifying invoice after a balance credit: the credit is debited back once', async () => {
+    const s = refundSetup(credited);
+    s.prisma.stripeCustomer.findUnique.mockResolvedValue({
+      stripe_customer_id: 'cus_1',
+    });
+    await s.service.onPaymentRefunded('pay1');
+    expect(s.provider.debitCustomerBalance).toHaveBeenCalledWith(
+      'cus_1',
+      10_000,
+      expect.any(String),
+      'ref-reverse:r1:referrer',
+      { reversal_of: 'referral-reward:r1:referrer' },
+    );
+    expect(s.provider.debitCustomerBalance).toHaveBeenCalledTimes(1);
+    expect(s.prisma.referral.updateMany).toHaveBeenCalledWith({
+      where: { id: 'r1', status: { in: ['qualified', 'rewarded'] } },
+      data: {
+        status: 'rejected',
+        rejected_reason:
+          'payment_refunded: Stripe balance credit reversed (referrer 10000 cents)',
+      },
+    });
+  });
+
+  it('a balance credit that cannot be debited back is listed for a manual reversal', async () => {
+    const s = refundSetup(credited);
+    // No Stripe customer row: nothing to debit.
+    await s.service.onPaymentRefunded('pay1');
+    expect(s.provider.debitCustomerBalance).not.toHaveBeenCalled();
+    expect(s.prisma.referral.updateMany).toHaveBeenCalledWith({
+      where: { id: 'r1', status: { in: ['qualified', 'rewarded'] } },
+      data: {
+        status: 'rejected',
+        rejected_reason:
+          'payment_refunded: Stripe balance credit could not be reversed (referrer 10000 cents), reverse it by hand',
+      },
+    });
+  });
+
+  it('a refund of a later invoice (or a non-subscription payment) leaves the reward alone', async () => {
+    const s = refundSetup({ ...qualified, status: 'rewarded' });
+    const p = s.prisma as unknown as { payment: Record<string, jest.Mock> };
+    p.payment.findFirst.mockResolvedValue({ id: 'pay0' });
+    await s.service.onPaymentRefunded('pay1');
+    p.payment.findUnique.mockResolvedValue({
+      id: 'pay2',
+      user_id: 'ref',
+      stripe_invoice_id: null,
+      created_at: new Date(),
+    });
+    await s.service.onPaymentRefunded('pay2');
+    expect(s.prisma.referral.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('RF2: the invitation limit is counted and the referral created in one serializable transaction', async () => {
+    const s = setup();
+    const now = Date.now();
+    s.prisma.appConfig.findUnique.mockResolvedValue({
+      key: 'referrals.program',
+      value: {
+        ...DEFAULT_REFERRAL_SETTINGS,
+        enabled: true,
+        maxInvitesPerReferrer: 3,
+      },
+    });
+    s.prisma.user.findUnique.mockImplementation(
+      ({ where }: { where: { id: string } }) =>
+        Promise.resolve(
+          where.id === 'referee'
+            ? { id: 'referee', role: 'client', created_at: new Date(now) }
+            : { role: 'attorney', status: 'active', deleted_at: null },
+        ),
+    );
+    s.prisma.referralCode.findUnique.mockResolvedValue({
+      user_id: 'referrer',
+      code: 'ABCDEFG',
+    });
+    s.prisma.referral.findUnique.mockResolvedValue(null);
+    const tx = {
+      referral: {
+        count: jest.fn().mockResolvedValue(3),
+        create: jest.fn(),
+      },
+    };
+    const opts: unknown[] = [];
+    s.prisma.$transaction.mockImplementation(
+      (fn: (t: typeof tx) => Promise<unknown>, o: unknown) => {
+        opts.push(o);
+        return fn(tx);
+      },
+    );
+    await expect(s.service.apply('referee', 'abcdefg')).rejects.toMatchObject({
+      response: expect.objectContaining({
+        details: expect.objectContaining({ reason: 'limit_reached' }),
+      }),
+    });
+    expect(tx.referral.count).toHaveBeenCalled();
+    expect(s.prisma.referral.count).not.toHaveBeenCalled();
+    expect(opts[0]).toMatchObject({ isolationLevel: 'Serializable' });
   });
 });

@@ -4,6 +4,7 @@ import { Prisma } from '../../generated/prisma/client';
 import { heldSqlFor } from '../../common/privacy/legal-hold';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BadgesService } from '../../modules/notifications/badges.service';
 import {
   deleteInBatches,
   retentionPace,
@@ -19,6 +20,7 @@ export class NotificationsRetentionJob {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: AppSettingsService,
+    private readonly badges: BadgesService,
   ) {}
 
   async run(now: Date = new Date()): Promise<{ deleted: number }> {
@@ -39,16 +41,30 @@ export class NotificationsRetentionJob {
     held: Awaited<ReturnType<typeof heldSqlFor>>,
     pace: RetentionPace,
   ): Promise<number> {
-    return deleteInBatches(
-      (limit) => this.prisma.$executeRaw`
-        DELETE FROM notifications
-        WHERE (id, user_id) IN (
-          SELECT id, user_id FROM notifications
-          WHERE created_at < ${before}
-            AND NOT ${held('user', Prisma.sql`user_id`)}
-          ORDER BY created_at
-          LIMIT ${limit})`,
-      pace,
-    );
+    // Verify batch 8 (17.11, NO7): old UNREAD rows leave the cached badge
+    // number (Redis) too — their owners' counts are dropped and recounted
+    // on the next read, like any other change of the unread rows.
+    return deleteInBatches(async (limit) => {
+      const [gone] = await this.prisma.$queryRaw<
+        { n: bigint; users: string[] }[]
+      >`
+        WITH gone AS (
+          DELETE FROM notifications
+          WHERE (id, user_id) IN (
+            SELECT id, user_id FROM notifications
+            WHERE created_at < ${before}
+              AND NOT ${held('user', Prisma.sql`user_id`)}
+            ORDER BY created_at
+            LIMIT ${limit})
+          RETURNING user_id, read_at)
+        SELECT count(*)::INT8 AS n,
+               coalesce(array_agg(DISTINCT user_id::TEXT)
+                          FILTER (WHERE read_at IS NULL), '{}') AS users
+        FROM gone`;
+      if (gone?.users.length) {
+        await this.badges.invalidateNotificationsMany(gone.users);
+      }
+      return Number(gone?.n ?? 0);
+    }, pace);
   }
 }

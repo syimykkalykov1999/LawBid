@@ -2269,7 +2269,8 @@ class _MessageText extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final translation = ref.watch(
-      chatTranslationsProvider.select((m) => m[message.id]),
+      chatTranslationsProvider
+          .select((shown) => chatTranslationOf(shown, message)),
     );
     // Owner 2026-10-22 (audit #12): a message follows the phone's font size
     // in full, past the app shell's 1.3x cap.

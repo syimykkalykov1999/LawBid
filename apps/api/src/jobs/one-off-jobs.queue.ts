@@ -1,0 +1,48 @@
+import { Injectable, type OnModuleDestroy } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Queue } from 'bullmq';
+import { bullOptions } from '../redis/redis-connection';
+import { CRON_FAST_QUEUE, type OneOffJobName } from './jobs.constants';
+
+/**
+ * Verify 5b (17.11): the producer side of ONE_OFF_JOBS — the same pattern as
+ * SeoGeneratorTrigger (a lazily opened BullMQ Queue on an existing cron lane,
+ * a fixed job id, a delay). Any API instance may add; the JobsRunner worker
+ * (API or worker process) runs it once: BullMQ ignores an add whose job id
+ * already exists, so N instances reporting the same event queue one job.
+ */
+@Injectable()
+export class OneOffJobsQueue implements OnModuleDestroy {
+  private queue?: Queue;
+
+  constructor(private readonly config: ConfigService) {}
+
+  async onModuleDestroy(): Promise<void> {
+    await this.queue?.close().catch(() => undefined);
+  }
+
+  /** Queues [name] with [data] after [delayMs]. False when Redis is not
+   * configured. Throws on a Redis error (the caller decides). */
+  async add(
+    name: OneOffJobName,
+    data: Record<string, unknown>,
+    jobId: string,
+    delayMs: number,
+  ): Promise<boolean> {
+    const url = this.config.get<string>('REDIS_URL');
+    if (!url) return false;
+    this.queue ??= new Queue(
+      CRON_FAST_QUEUE,
+      bullOptions(CRON_FAST_QUEUE, url),
+    );
+    await this.queue.add(name, data, {
+      jobId,
+      delay: Math.max(0, delayMs),
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 2_000 },
+      removeOnComplete: true,
+      removeOnFail: { count: 200 },
+    });
+    return true;
+  }
+}

@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { AssistantMembership } from '../../../generated/prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -47,6 +51,28 @@ export class AssistantCodeService {
    */
   async claim(m: AssistantMembership, userId: string): Promise<void> {
     const joining = m.status !== 'active';
+    try {
+      await this.claimInTx(m, userId);
+    } catch (e) {
+      // Verify 17.11 (A4): the unique index on an active assistant — this
+      // account was claimed into another team a moment ago.
+      if ((e as { code?: string }).code === 'P2002') throw alreadyInTeam();
+      throw e;
+    }
+    await this.context.invalidate(userId);
+    if (joining) {
+      await this.notifications.emit({
+        type: 'assistant_joined',
+        recipientId: m.attorney_id,
+        payload: { membershipId: m.id },
+      });
+    }
+  }
+
+  private async claimInTx(
+    m: AssistantMembership,
+    userId: string,
+  ): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const { count } = await tx.assistantMembership.updateMany({
         where: {
@@ -69,15 +95,15 @@ export class AssistantCodeService {
         data: { role: 'assistant' },
       });
     });
-    await this.context.invalidate(userId);
-    if (joining) {
-      await this.notifications.emit({
-        type: 'assistant_joined',
-        recipientId: m.attorney_id,
-        payload: { membershipId: m.id },
-      });
-    }
   }
+}
+
+/** The same answer as assertCanJoin's "already in a team". */
+export function alreadyInTeam(): ConflictException {
+  return new ConflictException({
+    code: ErrorCode.ASSISTANT_PHONE_TAKEN,
+    message: 'You already work in an attorney team.',
+  });
 }
 
 function invalid(): UnauthorizedException {
