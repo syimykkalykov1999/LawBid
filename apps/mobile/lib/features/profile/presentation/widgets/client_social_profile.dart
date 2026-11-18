@@ -28,7 +28,7 @@ import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart
         showReviewReplySheet;
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart'
-    show currentUserIdProvider;
+    show currentUserIdProvider, followerCountsProvider;
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show ProfileBriefsAndReposts, ProfilePostsGrid;
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
@@ -237,7 +237,13 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
                 t.t('client.counter.posts'),
               ),
               counter(
-                SocialFormat.count(f, p.followersCount),
+                // Verify 17.11: the count the follow answer carried (as on
+                // an attorney's profile).
+                SocialFormat.count(
+                  f,
+                  ref.watch(followerCountsProvider.select((m) => m[p.id])) ??
+                      p.followersCount,
+                ),
                 t.t('client.counter.followers'),
                 onTap: () => context.push(SocialRoutes.followers(p.id)),
               ),

@@ -56,6 +56,10 @@ Future<bool> toggleBlock(
       ..invalidate(conversationsProvider)
       ..invalidate(folderConversationsProvider)
       ..invalidate(suggestionsProvider);
+    // Verify 17.11: a block removes the follow both ways on the server —
+    // the tap's «following» and count must not outlive it.
+    ref.read(followOverridesProvider.notifier).forget(userId);
+    ref.read(followerCountsProvider.notifier).forget(userId);
     if (context.mounted) {
       showAppSnackBar(
         context,

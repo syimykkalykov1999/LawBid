@@ -777,10 +777,12 @@ export class PostsService {
     }
     // Owner 2026-10-01: the reel's video goes with the post.
     if (post?.video_asset_id) {
-      await this.videos.markDeleted([post.video_asset_id]);
+      // Verify 17.11: read before marking — after markDeleted the
+      // soft-delete filter hid the row and Bunny was never asked to delete.
       const asset = await this.prisma.videoAsset.findUnique({
         where: { id: post.video_asset_id },
       });
+      await this.videos.markDeleted([post.video_asset_id]);
       if (asset) await this.videos.purgeNow(asset);
     }
     return { deleted: true };

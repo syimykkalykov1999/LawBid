@@ -254,7 +254,9 @@ export class AccountAnonymizationService implements AccountEraser {
    * here is retried by the `videos.sweep`. */
   private async deleteVideos(userId: string): Promise<void> {
     const assets = await this.prisma.videoAsset.findMany({
-      where: { owner_user_id: userId, purged_at: null },
+      // Verify 17.11: the already-deleted ones too (still at Bunny until
+      // purged) — the soft-delete filter hid them here.
+      where: withDeleted({ owner_user_id: userId, purged_at: null }),
       select: { id: true, external_id: true, deleted_at: true },
     });
     if (assets.length === 0) return;

@@ -128,6 +128,25 @@ class ReelsRepository {
     return d.status.json ?? d.status.name;
   }
 
+  /// Verify 17.11: fresh TUS credentials for an upload already started
+  /// (`POST /videos/:id/upload-signature`) — Bunny refuses a signature past
+  /// its `expire`, and a resumed upload kept the first one for ever.
+  Future<ReelUpload> renewUpload(ReelUpload u) async {
+    final d = (await guardApiCall(
+      () => _videos.renewVideoUpload(id: u.videoAssetId),
+    ))
+        .data;
+    return ReelUpload(
+      videoAssetId: d.videoAssetId,
+      tusEndpoint: d.tusEndpoint,
+      libraryId: d.libraryId,
+      videoId: d.videoId,
+      signature: d.authorizationSignature,
+      expire: d.authorizationExpire,
+      maxDurationSec: d.maxDurationSec,
+    );
+  }
+
   Future<void> cancel(String videoAssetId) =>
       guardApiCall(() => _videos.cancelVideoUpload(id: videoAssetId));
 
