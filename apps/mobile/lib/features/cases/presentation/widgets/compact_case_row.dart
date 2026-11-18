@@ -285,13 +285,69 @@ class _SwipeActionsState extends State<SwipeActions>
 
   double get _width => SwipeActions.actionWidth * widget.actions.length;
 
+  /// Row 190 (flutter_slidable's `SlidableAutoCloseBehavior`, MIT, the
+  /// idea): one row is open at a time — the row that starts opening closes
+  /// the one that was open, and while one is open a tap on another row
+  /// only closes it (as in Mail / WhatsApp).
+  static final _openRow = ValueNotifier<_SwipeActionsState?>(null);
+
+  /// Row 190 (flutter_slidable's `SlidableScrollingBehavior`, MIT): the
+  /// list that starts scrolling closes the open row.
+  ScrollPosition? _scroll;
+
+  @override
+  void initState() {
+    super.initState();
+    _openRow.addListener(_onOpenRowChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _scroll?.isScrollingNotifier.removeListener(_onScrolling);
+    _scroll = Scrollable.maybeOf(context)?.position;
+    _scroll?.isScrollingNotifier.addListener(_onScrolling);
+  }
+
   @override
   void dispose() {
+    _scroll?.isScrollingNotifier.removeListener(_onScrolling);
+    _openRow.removeListener(_onOpenRowChanged);
+    if (_openRow.value == this) _openRow.value = null;
     _c.dispose();
     super.dispose();
   }
 
+  void _onScrolling() {
+    if (_scroll?.isScrollingNotifier.value ?? false) _close();
+  }
+
+  /// Another row is open: a tap on this one only closes it.
+  bool _barred = false;
+
+  /// Another row opened: this one closes; the barrier below follows.
+  void _onOpenRowChanged() {
+    if (!mounted) return;
+    final other = _openRow.value;
+    final barred = other != null && other != this;
+    if (barred && _c.value > 0) _settle(open: false);
+    if (barred != _barred) setState(() => _barred = barred);
+  }
+
+  void _close() {
+    if (_c.value > 0 || _openRow.value == this) _settle(open: false);
+  }
+
+  void _claim() {
+    if (_openRow.value != this) _openRow.value = this;
+  }
+
   void _settle({required bool open}) {
+    if (open) {
+      _claim();
+    } else if (_openRow.value == this) {
+      _openRow.value = null;
+    }
     if (context.reduceMotion) {
       _c.value = open ? 1 : 0;
     } else if (open) {
@@ -303,13 +359,29 @@ class _SwipeActionsState extends State<SwipeActions>
 
   void _onUpdate(DragUpdateDetails d) {
     _c.value = (_c.value - d.delta.dx / _width).clamp(0.0, 1.0);
+    if (_c.value > 0) _claim();
   }
 
+  /// Row 190: the drag being ended was taken away by the system.
+  bool _cancelled = false;
+
   void _onEnd(DragEndDetails d) {
+    if (_cancelled) {
+      _cancelled = false;
+      _settle(open: false);
+      return;
+    }
     final v = d.primaryVelocity ?? 0;
     final open = v < -300 || (v <= 300 && _c.value > 0.4);
     if (open && _c.value < 1) unawaited(AppHaptics.selection());
     _settle(open: open);
+  }
+
+  /// Row 190: a drag the system took away (a scroll won, a call came in)
+  /// never leaves the row half open.
+  void _onCancel() {
+    _cancelled = false;
+    _settle(open: false);
   }
 
   @override
@@ -328,61 +400,69 @@ class _SwipeActionsState extends State<SwipeActions>
             () => _LeftFirstDrag(isOpen: () => _c.value > 0),
             (r) => r
               ..onUpdate = _onUpdate
-              ..onEnd = _onEnd,
+              ..onEnd = _onEnd
+              ..onCancel = _onCancel
+              ..onPointerCancel = () => _cancelled = true,
           ),
         },
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(widget.radius),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: AnimatedBuilder(
-                    animation: _c,
-                    builder: (context, _) => SizedBox(
-                      width: _width * _c.value,
-                      child: Row(
-                        children: [
-                          for (final a in widget.actions)
-                            Expanded(
-                              child: ExcludeSemantics(
-                                child: _ActionButton(
-                                  key: a.key,
-                                  action: a,
-                                  type: type,
-                                  onTap: () {
-                                    _settle(open: false);
-                                    a.onTap();
-                                  },
+        // Row 190: a tap anywhere outside the open row closes it.
+        child: TapRegion(
+          onTapOutside: (_) => _close(),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(widget.radius),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: AnimatedBuilder(
+                      animation: _c,
+                      builder: (context, _) => SizedBox(
+                        width: _width * _c.value,
+                        child: Row(
+                          children: [
+                            for (final a in widget.actions)
+                              Expanded(
+                                child: ExcludeSemantics(
+                                  child: _ActionButton(
+                                    key: a.key,
+                                    action: a,
+                                    type: type,
+                                    onTap: () {
+                                      _settle(open: false);
+                                      a.onTap();
+                                    },
+                                  ),
                                 ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              AnimatedBuilder(
-                animation: _c,
-                builder: (context, child) => Transform.translate(
-                  offset: Offset(-_width * _c.value, 0),
-                  child: child,
+                AnimatedBuilder(
+                  animation: _c,
+                  builder: (context, child) => Transform.translate(
+                    offset: Offset(-_width * _c.value, 0),
+                    child: child,
+                  ),
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: _c,
+                    builder: (context, v, child) => v == 0 && !_barred
+                        ? child!
+                        : GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => v == 0
+                                ? _openRow.value?._close()
+                                : _settle(open: false),
+                            child: AbsorbPointer(child: child),
+                          ),
+                    child: widget.child,
+                  ),
                 ),
-                child: ValueListenableBuilder<double>(
-                  valueListenable: _c,
-                  builder: (context, v, child) => v == 0
-                      ? child!
-                      : GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => _settle(open: false),
-                          child: AbsorbPointer(child: child),
-                        ),
-                  child: widget.child,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -448,6 +528,10 @@ class _LeftFirstDrag extends HorizontalDragGestureRecognizer {
   _LeftFirstDrag({required this.isOpen});
 
   final bool Function() isOpen;
+
+  /// Row 190: the system cancelled the pointer (a drag it took away); the
+  /// recogniser still reports that as an end, so the row is told first.
+  VoidCallback? onPointerCancel;
   final Map<int, double> _dx = {};
 
   @override
@@ -472,6 +556,7 @@ class _LeftFirstDrag extends HorizontalDragGestureRecognizer {
     } else if (event is PointerUpEvent || event is PointerCancelEvent) {
       _dx.remove(event.pointer);
     }
+    if (event is PointerCancelEvent) onPointerCancel?.call();
     super.handleEvent(event);
   }
 

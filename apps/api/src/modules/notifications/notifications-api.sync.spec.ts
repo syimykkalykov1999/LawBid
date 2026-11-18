@@ -23,7 +23,7 @@ describe('NotificationsApiService deltas', () => {
     const prisma = {
       notification: {
         findMany: jest.fn().mockResolvedValue(rows),
-        updateMany: jest.fn().mockResolvedValue({ count: rows.length }),
+        updateManyAndReturn: jest.fn().mockResolvedValue(rows),
       },
     };
     const badges = { notificationsChanged: jest.fn() };
@@ -70,19 +70,18 @@ describe('NotificationsApiService deltas', () => {
       updated: 2,
       readIds: ['n1', 'n3'],
     });
-    expect(prisma.notification.updateMany.mock.calls[0][0].where).toMatchObject(
-      { id: { in: ['n1', 'n3'] }, read_at: null },
-    );
+    expect(
+      prisma.notification.updateManyAndReturn.mock.calls[0][0].where,
+    ).toMatchObject({ id: { in: ['n1', 'n2', 'n3'] }, read_at: null });
     expect(badges.notificationsChanged).toHaveBeenCalledTimes(1);
   });
 
   it('read with nothing unread: 0, [] and no badge work', async () => {
-    const { svc, prisma, badges } = setup([]);
+    const { svc, badges } = setup([]);
     await expect(svc.read('me', { all: true })).resolves.toEqual({
       updated: 0,
       readIds: [],
     });
-    expect(prisma.notification.updateMany).not.toHaveBeenCalled();
     expect(badges.notificationsChanged).not.toHaveBeenCalled();
   });
 });

@@ -47,6 +47,55 @@ export class PromotionRefundsService {
     }
   }
 
+  /**
+   * Batch 8 PM1/PM2 (audit 2026-11-17): a payment that reached a promotion
+   * which could no longer start (canceled by an admin, rejected, its credit
+   * days spent elsewhere) goes back in full through the same system refund
+   * path, once (Stripe key per payment). Never throws: a failed refund is a
+   * `failed` row staff see in Платежи and repeat by hand.
+   */
+  async refundUnapplied(
+    promotionId: string,
+    paymentId: string,
+    amountCents: number,
+  ): Promise<number> {
+    try {
+      if (!this.refunds || amountCents <= 0) {
+        this.logger.error(
+          { promotionId, paymentId },
+          'paid promotion could not start and was not refunded: refund by hand',
+        );
+        return 0;
+      }
+      const reason = `promotion ${promotionId}: paid after it was closed`;
+      const done = await this.prisma.refund.findFirst({
+        where: {
+          payment_id: paymentId,
+          reason,
+          status: { in: LIVE_REFUND_STATUSES },
+        },
+        select: { id: true },
+      });
+      if (done) return 0;
+      const r = await this.refunds.refundBySystem(
+        { paymentId, amountCents, reason },
+        { idempotencyKey: `promotion-unapplied:${paymentId}` },
+      );
+      if (r.status === 'failed') return 0;
+      await this.prisma.casePromotion.update({
+        where: { id: promotionId },
+        data: { refunded_cents: { increment: amountCents } },
+      });
+      return amountCents;
+    } catch (e) {
+      this.logger.error(
+        { promotionId, paymentId, err: String(e) },
+        'refund of a paid promotion that could not start failed: refund by hand',
+      );
+      return 0;
+    }
+  }
+
   private async run(promotionId: string): Promise<number> {
     const row = await this.prisma.casePromotion.findUnique({
       where: { id: promotionId },

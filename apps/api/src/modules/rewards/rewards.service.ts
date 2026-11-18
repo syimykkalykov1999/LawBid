@@ -63,6 +63,9 @@ interface Member {
  * prizes given by hand or automatically at the end of each period, and a
  * bonus that lands in Деньги → Зарплаты as an accrual.
  */
+/** The audit action of a revoked prize (also read by autoAward, RW1). */
+const REVOKE_ACTION = 'rewards.award.revoke';
+
 @Injectable()
 export class RewardsService {
   constructor(
@@ -297,7 +300,9 @@ export class RewardsService {
         message: 'Prize not found.',
       });
     }
-    if (award.accrual_id) {
+    // Batch 8 RW1: by the accrual's own key, also when the link to it was
+    // never stored (give() failed between the accrual and the update).
+    if (award.accrual_id || award.bonus_cents > 0) {
       const r = await this.accruals.cancel(`reward:${id}`, 'prize revoked');
       if (r === 'paid') {
         throw new BadRequestException({
@@ -306,14 +311,41 @@ export class RewardsService {
         });
       }
     }
-    await this.prisma.staffReward.delete({ where: { id } });
-    await this.audit.record({
-      adminId: actorId,
-      action: 'rewards.award.revoke',
-      targetType: 'admin',
-      targetId: award.admin_id,
-      before: { period: award.period, department: award.department },
+    // Batch 8 RW1 (audit 2026-11-17): the delete and its audit record are one
+    // transaction — the record is what keeps the daily auto-award from
+    // giving this (period, department) prize again (autoAward).
+    await this.prisma.$transaction(async (tx) => {
+      await tx.staffReward.delete({ where: { id } });
+      await this.audit.record(
+        {
+          adminId: actorId,
+          action: REVOKE_ACTION,
+          targetType: 'admin',
+          targetId: award.admin_id,
+          before: { period: award.period, department: award.department },
+        },
+        tx,
+      );
     });
+  }
+
+  /** Departments whose prize for [period] the owner took back. */
+  private async revokedDepartments(period: string): Promise<Set<string>> {
+    const rows = await this.prisma.auditLog.findMany({
+      where: {
+        action: REVOKE_ACTION,
+        created_at: { gte: periodRange(period).from },
+        before: { path: ['period'], equals: period },
+      },
+      select: { before: true },
+      take: 500,
+    });
+    const out = new Set<string>();
+    for (const r of rows) {
+      const b = r.before as { department?: unknown } | null;
+      if (typeof b?.department === 'string') out.add(b.department);
+    }
+    return out;
   }
 
   /** Daily: once a period is over, its best employee of each department
@@ -326,9 +358,11 @@ export class RewardsService {
     if (!enabled || !auto) return 0;
     const p = previousPeriod(await this.periodKind(), now);
     const board = await this.leaderboard(p);
+    // Batch 8 RW1: a prize the owner took back stays taken back.
+    const revoked = await this.revokedDepartments(p);
     let given = 0;
     for (const d of board.departments) {
-      if (d.award) continue;
+      if (d.award || revoked.has(d.key)) continue;
       for (const r of d.rows.filter((x) => x.rank === 1)) {
         try {
           await this.give(

@@ -17,6 +17,7 @@ import {
 } from '../../common/admin-bulk/bulk-filter';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdKeyset,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -75,14 +76,8 @@ export class AdminStickersService {
   ): Promise<Page<AdminStickerPackRowDto>> {
     const c = q.cursor ? decodeCursor(q.cursor) : undefined;
     const and = stickerPacksWhere(q);
-    if (c) {
-      and.push({
-        OR: [
-          { created_at: { lt: c.createdAt } },
-          { created_at: c.createdAt, id: { lt: c.id } },
-        ],
-      });
-    }
+    // Row 215: a range on sticker_packs_created_id_idx.
+    and.push(createdKeyset(c && { t: c.createdAt, id: c.id }));
     const rows = await this.prisma.stickerPack.findMany({
       where: { AND: and },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],

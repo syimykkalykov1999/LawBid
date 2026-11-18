@@ -39,6 +39,7 @@ class _SyncRepo extends FakeTeamRepository implements TeamTasksSync {
     TaskStatus status, {
     String? note,
     DateTime? rescheduleTo,
+    int? version,
   }) async =>
       statusAnswer ?? await super.task(id);
 }

@@ -199,15 +199,18 @@ return 1`;
 const RECOVER_BATCH = 100;
 
 /** Pending bumps of one hash shard + "touched today" marks + the dirty
- * marker of that shard in one call: ARGV = ttl, dirty member, then id,
- * delta, id, delta ... */
+ * marker of that shard in one call: ARGV = ttl, dirty member, touch ('1' =
+ * mark the ids for the nightly recount, '0' = an entity without one), then
+ * id, delta, id, delta ... Verify 8 (CO1): an entity the reconcile never
+ * pops (no recount) is not marked, or its touched set only ever grows. */
 const BUMP_MANY = `
-for i = 3, #ARGV, 2 do
+local touch = ARGV[3] == '1'
+for i = 4, #ARGV, 2 do
   redis.call('HINCRBY', KEYS[1], ARGV[i], ARGV[i + 1])
-  redis.call('SADD', KEYS[2], ARGV[i])
+  if touch then redis.call('SADD', KEYS[2], ARGV[i]) end
 end
 redis.call('SADD', KEYS[3], ARGV[2])
-redis.call('EXPIRE', KEYS[2], ARGV[1])
+if touch then redis.call('EXPIRE', KEYS[2], ARGV[1]) end
 redis.call('EXPIRE', KEYS[3], ARGV[1])
 return 1`;
 
@@ -361,6 +364,7 @@ export class CounterAggregator
             dirtyKey(g.entity),
             TOUCHED_TTL_SEC,
             `${g.field}:${g.shard}`,
+            hasRecount(g.entity as CounterEntity) ? '1' : '0',
             ...g.args,
           );
         } catch (error) {
@@ -739,13 +743,22 @@ export class CounterAggregator
           for (;;) {
             const ids = await this.redis.spop(touchedKey(entity), BATCH);
             if (!ids || ids.length === 0) break;
-            const done = await this.underFlushLock(async () => {
-              for (const field of COUNTERS[entity].fields) {
-                await this.dropPending(entity, field, ids);
-              }
-              await this.recount(entity, ids);
-              return true;
-            });
+            let done: boolean | null;
+            try {
+              done = await this.underFlushLock(async () => {
+                for (const field of COUNTERS[entity].fields) {
+                  await this.dropPending(entity, field, ids);
+                }
+                await this.recount(entity, ids);
+                return true;
+              });
+            } catch (error) {
+              // Verify 8 (CO2): a failed recount (database error, one shard
+              // down) puts the rows back, so the next run recounts them —
+              // their dropped deltas are part of the source rows it counts.
+              await this.redis.sadd(touchedKey(entity), ...ids);
+              throw error;
+            }
             if (!done) {
               // The flush lock stayed taken: the rows wait for the next night.
               await this.redis.sadd(touchedKey(entity), ...ids);

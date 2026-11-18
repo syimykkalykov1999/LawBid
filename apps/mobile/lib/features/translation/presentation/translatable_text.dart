@@ -41,7 +41,7 @@ class TranslatableText extends ConsumerWidget {
       serverOn: zoneOn,
       server: (target) => ref
           .read(contentTranslationRepositoryProvider)
-          .translate(kind, id, target),
+          .translate(kind, id, target, source: text),
       builder: (context, translation) => builder(context, translation ?? text),
     );
   }

@@ -820,8 +820,12 @@ export class SubscriptionSyncService {
     }
     // Owner 2026-10-05: a refunded subscription payment takes back the
     // partner's commission for that attorney (never breaks billing).
-    for (const userId of new Set(refunded.map((p) => p.user_id))) {
-      await this.partners?.reverseForReferredUser(userId, 'payment_refunded');
+    // Batch 8 PA1/RF1: only what THIS payment earned — the partner
+    // commission and the referral reward of the refunded subscription
+    // invoice; any other refund leaves them alone. Both never throw.
+    for (const p of refunded) {
+      await this.partners?.reverseForRefundedPayment(p.id, 'payment_refunded');
+      await this.referrals?.onPaymentRefunded(p.id);
     }
   }
 

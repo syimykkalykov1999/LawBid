@@ -9,6 +9,7 @@ import type Redis from 'ioredis';
 import type { Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdKeyset,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -161,14 +162,8 @@ export class AdminContentExtrasService {
       ...base,
       AND: [
         ...base.AND,
-        c
-          ? {
-              OR: [
-                { created_at: { lt: c.createdAt } },
-                { created_at: c.createdAt, id: { lt: c.id } },
-              ],
-            }
-          : {},
+        // Row 215: a range on client_reviews_created_id_idx.
+        createdKeyset(c && { t: c.createdAt, id: c.id }),
       ],
     };
     const rows = await this.prisma.clientReview.findMany({

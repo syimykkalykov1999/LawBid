@@ -732,6 +732,27 @@ export class StripePaymentProvider implements PaymentProvider {
     );
   }
 
+  /** Verify 8 (RF1): a positive balance transaction reverses an earlier
+   * credit (Stripe docs, customer balance: positive = debit). */
+  async debitCustomerBalance(
+    customerId: string,
+    cents: number,
+    description: string,
+    idempotencyKey: string,
+    metadata?: Record<string, string>,
+  ): Promise<void> {
+    await this.stripe.customers.createBalanceTransaction(
+      customerId,
+      {
+        amount: Math.abs(cents),
+        currency: 'usd',
+        description,
+        ...(metadata ? { metadata } : {}),
+      },
+      { idempotencyKey },
+    );
+  }
+
   /** Owner 2026-10-02 (case promotion): one-time hosted payment. */
   async createOneTimeCheckout(
     input: ProviderOneTimeCheckoutInput,

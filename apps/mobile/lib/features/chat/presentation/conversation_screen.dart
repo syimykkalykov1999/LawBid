@@ -161,9 +161,25 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     _text.addListener(_saveDraft);
   }
 
-  void _saveDraft() => ref
-      .read(chatTextDraftsProvider.notifier)
-      .set(widget.conversationId, _text.text);
+  void _saveDraft() {
+    // Row 189: the field holds the edited message, not the draft.
+    if (ref.read(chatComposeProvider(widget.conversationId)).editing != null) {
+      return;
+    }
+    ref
+        .read(chatTextDraftsProvider.notifier)
+        .set(widget.conversationId, _text.text);
+  }
+
+  /// Row 189 (Telegram / WhatsApp): the text typed before «Изменить»; it
+  /// comes back into the field when the edit is saved or closed.
+  String? _draftAside;
+
+  /// Row 188: the quoted message's id for a non-text send (the «Ответить»
+  /// bar closes); null when nothing is quoted.
+  String? _takeReply() => ref
+      .read(chatComposeProvider(widget.conversationId).notifier)
+      .takeReply();
 
   @override
   void dispose() {
@@ -346,7 +362,14 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     );
     if (shown == null || !mounted) return;
     if (_text.text.isNotEmpty) _text.clear();
-    unawaited(sendPickedFiles(_thread, shown.files, shown.caption));
+    unawaited(
+      sendPickedFiles(
+        _thread,
+        shown.files,
+        shown.caption,
+        replyToId: _takeReply(),
+      ),
+    );
   }
 
   /// Owner 2026-10-20: an attorney's card into this chat.
@@ -366,7 +389,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   Future<void> _sendCard({String? contactUserId, String? place}) async {
     final t = ref.read(translatorProvider);
     try {
-      await _thread.sendCard(contactUserId: contactUserId, place: place);
+      await _thread.sendCard(
+        contactUserId: contactUserId,
+        place: place,
+        replyToId: _takeReply(),
+      );
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     }
@@ -396,7 +423,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     final caption = _text.text.trim();
     if (caption.isNotEmpty) _text.clear();
     unawaited(
-      _thread.sendTemplate(tpl, caption: caption.isEmpty ? null : caption),
+      _thread.sendTemplate(
+        tpl,
+        caption: caption.isEmpty ? null : caption,
+        replyToId: _takeReply(),
+      ),
     );
   }
 
@@ -514,19 +545,27 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       }
       final e = next.editing;
       if (e != null && e.id != prev?.editing?.id) {
+        // Row 189: the typed draft is put aside (once, also when another
+        // message is picked for editing meanwhile).
+        if (prev?.editing == null) _draftAside = _text.text;
         _text.value = TextEditingValue(
           text: e.body,
           selection: TextSelection.collapsed(offset: e.body.length),
         );
       } else if (e == null && prev?.editing != null) {
-        _text.clear();
+        final draft = _draftAside ?? '';
+        _draftAside = null;
+        _text.value = TextEditingValue(
+          text: draft,
+          selection: TextSelection.collapsed(offset: draft.length),
+        );
       }
     });
     final attorney = ref.watch(actsAsAttorneyProvider);
     final subscriptionGate =
         ref.watch(outboxSenderProvider).subscriptionRequired;
 
-    return Scaffold(
+    final screen = Scaffold(
       // Owner 2026-10-17: the chat's own wallpaper (WhatsApp-like).
       backgroundColor: ChatColors.of(context).wallpaper,
       appBar: selecting
@@ -779,12 +818,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                       path: r.path,
                                       durationMs: r.durationMs,
                                       waveform: r.waveform,
+                                      replyToId: _takeReply(),
                                     ),
                                   ),
                                   if (_stickers)
                                     StickerPanel(
                                       panelHeight: _keyboardH,
-                                      onSticker: _thread.sendSticker,
+                                      onSticker: (s) => unawaited(
+                                        _thread.sendSticker(
+                                          s,
+                                          replyToId: _takeReply(),
+                                        ),
+                                      ),
                                       onEmoji: _insertEmoji,
                                       onGift: ref.watch(starsEnabledProvider) &&
                                               !ref.watch(isAssistantProvider)
@@ -796,6 +841,20 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                       ),
                   ],
                 ),
+    );
+    // Row 184 (WhatsApp): while messages are selected, the system «Назад»
+    // (Android key / gesture, iOS edge swipe, the browser's back) clears
+    // the selection instead of closing the chat.
+    return PopScope(
+      canPop: !selecting,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && selecting) {
+          ref
+              .read(chatMsgSelectionProvider(widget.conversationId).notifier)
+              .clear();
+        }
+      },
+      child: screen,
     );
   }
 }
@@ -2195,7 +2254,8 @@ class _MessageText extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final translation = ref.watch(
-      chatTranslationsProvider.select((m) => m[message.id]),
+      chatTranslationsProvider
+          .select((shown) => chatTranslationOf(shown, message)),
     );
     // Owner 2026-10-22 (audit #12): a message follows the phone's font size
     // in full, past the app shell's 1.3x cap.

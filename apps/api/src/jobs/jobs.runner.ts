@@ -20,6 +20,7 @@ import {
   CRON_SCHEDULES,
   JOBS_OPTIONS,
   cronLaneOf,
+  isOneOffJob,
   isSubHourly,
   type CronJobName,
   type CronLane,
@@ -163,7 +164,10 @@ export class JobsRunner
       const concurrency = await this.laneConcurrency(lane);
       const run = outageProof((job: Job, signal?: AbortSignal) =>
         withWork(`job ${job.name}`, () =>
-          this.processor.process(job.name, signal),
+          // Verify 5b: one-off delayed jobs carry their own data.
+          isOneOffJob(job.name)
+            ? this.processor.runOneOff(job.name, job.data)
+            : this.processor.process(job.name, signal),
         ),
       );
       const worker = new Worker(

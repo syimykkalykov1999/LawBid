@@ -7,8 +7,10 @@ import {
   CRON_HEAVY_FREQUENT_QUEUE,
   CRON_HEAVY_QUEUE,
   CRON_SCHEDULES,
+  ONE_OFF_JOBS,
   cronLaneOf,
   isSubHourly,
+  type OneOffJobName,
 } from './jobs.constants';
 import { CronRunStats, runUnderLock, timeLimitMs } from './cron-run';
 import { JobStoppedError } from '../common/queues/job-signal';
@@ -21,6 +23,7 @@ import { CountryPartnersService } from '../modules/country-partners/country-part
 import { RewardsService } from '../modules/rewards/rewards.service';
 import { SupportDeskService } from '../modules/support/support-desk.service';
 import { SessionsCleanupJob } from './handlers/sessions-cleanup.job';
+import { PresenceSettleJob } from './handlers/presence-settle.job';
 import { OtpCleanupJob } from './handlers/otp-cleanup.job';
 import { DisposableDomainsRefreshJob } from './disposable-domains/disposable-domains-refresh.job';
 import { ReviewReminderJob } from './handlers/review-reminder.job';
@@ -304,6 +307,8 @@ export class CronProcessor {
     @Optional() private readonly qaSnapshot?: QaSnapshotService,
     // Owner row 112: `profiles.reply-time`.
     @Optional() private readonly replyTime?: AttorneyReplyTimeJob,
+    // Verify 5b (C4): `presence.settle` one-off jobs.
+    @Optional() private readonly presenceSettle?: PresenceSettleJob,
   ) {}
 
   /**
@@ -515,6 +520,27 @@ export class CronProcessor {
     } catch (error) {
       await this.idleBackoff.record(name, null, true);
       throw error;
+    }
+  }
+
+  /**
+   * Verify 5b (17.11): a one-off delayed job (ONE_OFF_JOBS) with its data.
+   * No per-name lock, stats or back-off: each job is about one record and
+   * its handler is idempotent (BullMQ already runs one job id once).
+   */
+  async runOneOff(name: OneOffJobName, data: unknown): Promise<unknown> {
+    const d = (data ?? {}) as { callId?: unknown };
+    switch (name) {
+      case ONE_OFF_JOBS.callerGone:
+        return typeof d.callId === 'string'
+          ? this.calls.endIfCallerGone(d.callId)
+          : { skipped: 'no call id' };
+      case ONE_OFF_JOBS.presenceSettle:
+        return this.presenceSettle
+          ? this.presenceSettle.run(data)
+          : { skipped: 'no presence settle' };
+      default:
+        return { skipped: 'unknown one-off job' };
     }
   }
 

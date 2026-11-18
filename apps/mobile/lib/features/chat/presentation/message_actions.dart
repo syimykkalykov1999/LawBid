@@ -50,13 +50,71 @@ class ChatComposeNotifier extends Notifier<ChatCompose> {
 
   final String conversationId;
 
-  @override
-  ChatCompose build() => const ChatCompose();
+  ChatReplyDrafts get _drafts => ref.read(chatReplyDraftsProvider.notifier);
 
-  void reply(ChatMessage m) => state = ChatCompose(replyTo: m);
+  /// Row 188 (Telegram / WhatsApp): the message being answered is part of
+  /// the chat's draft - leaving the chat and coming back keeps «Ответить».
+  @override
+  ChatCompose build() =>
+      ChatCompose(replyTo: ref.read(chatReplyDraftsProvider)[conversationId]);
+
+  void reply(ChatMessage m) {
+    _drafts.set(conversationId, m);
+    state = ChatCompose(replyTo: m);
+  }
+
+  /// Row 189 (Telegram): an edit puts the draft aside (the reply stays in
+  /// [chatReplyDraftsProvider]) ...
   void edit(ChatMessage m) => state = ChatCompose(editing: m);
-  void clear() => state = const ChatCompose();
+
+  /// ... and closing it brings the reply back; otherwise the reply ends.
+  void clear() {
+    if (state.editing != null) {
+      state = ChatCompose(
+        replyTo: ref.read(chatReplyDraftsProvider)[conversationId],
+      );
+      return;
+    }
+    _drafts.set(conversationId, null);
+    state = const ChatCompose();
+  }
+
+  /// Row 188: a voice note, photo, file, sticker, template or card goes
+  /// out as an answer to the quoted message - the quote is taken (and the
+  /// «Ответить» bar closes). Null while nothing is quoted or an edit is
+  /// open.
+  String? takeReply() {
+    final m = state.editing == null ? state.replyTo : null;
+    if (m == null) return null;
+    clear();
+    return m.id;
+  }
 }
+
+/// Row 188: the quoted message of every chat's draft, kept while the app
+/// runs (the composer of a chat is disposed when the chat closes).
+class ChatReplyDrafts extends Notifier<Map<String, ChatMessage>> {
+  @override
+  Map<String, ChatMessage> build() {
+    // The next account never sees this one's drafts.
+    ref.watch(currentUserIdProvider);
+    return const {};
+  }
+
+  void set(String conversationId, ChatMessage? m) {
+    if (m == null) {
+      if (!state.containsKey(conversationId)) return;
+      state = {...state}..remove(conversationId);
+    } else {
+      state = {...state, conversationId: m};
+    }
+  }
+}
+
+final chatReplyDraftsProvider =
+    NotifierProvider<ChatReplyDrafts, Map<String, ChatMessage>>(
+  ChatReplyDrafts.new,
+);
 
 final chatComposeProvider = NotifierProvider.autoDispose
     .family<ChatComposeNotifier, ChatCompose, String>(ChatComposeNotifier.new);
@@ -460,7 +518,9 @@ Future<void> showMessageMenu(
                     'translate',
                     AppIcons.translateRounded,
                     t.t(
-                      ref.read(chatTranslationsProvider).containsKey(m.id)
+                      ref
+                              .read(chatTranslationsProvider)
+                              .containsKey(chatTranslationKey(m))
                           ? 'chat.translate.original'
                           : 'chat.translate',
                     ),
