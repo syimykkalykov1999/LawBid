@@ -115,31 +115,51 @@ export class DealRecordRunner
         concurrency: 2,
       },
     );
-    this.worker.on('failed', (job: Job<RenderJob> | undefined, error) => {
-      if (!job) return;
-      const { recordId, caseId, stage } = job.data;
-      this.logger.error(
-        { recordId, stage, err: error.message },
-        'deal record render failed',
+    this.worker.on(
+      'failed',
+      (job: Job<RenderJob> | undefined, error) =>
+        void this.onFailed(job, error),
+    );
+  }
+
+  /**
+   * The last attempt (or a stall) marks the record failed. Verify batch 13
+   * (Q6): the write had no `.catch`, so in a DB outage it was an unhandled
+   * rejection (a fatal-level log) and the record stayed `preparing` /
+   * `sealing`; now the failure is logged. @internal exposed for the spec
+   */
+  async onFailed(job: Job<RenderJob> | undefined, error: Error): Promise<void> {
+    if (!job) return;
+    const { recordId, caseId, stage } = job.data;
+    this.logger.error(
+      { recordId, stage, err: error.message },
+      'deal record render failed',
+    );
+    if (
+      job.attemptsMade < (job.opts.attempts ?? 1) &&
+      !isStalledFailure(error)
+    ) {
+      return;
+    }
+    await shardContext
+      .runForCase(caseId, () =>
+        this.prisma.dealRecord.updateMany({
+          where: {
+            id: recordId,
+            status: stage === 'unsigned' ? 'preparing' : 'sealing',
+          },
+          data: {
+            status: 'failed',
+            failed_reason: `${stage}: ${error.message}`.slice(0, 300),
+          },
+        }),
+      )
+      .catch((e: unknown) =>
+        this.logger.warn(
+          { recordId, stage, err: String(e) },
+          'deal record not marked failed',
+        ),
       );
-      if (
-        job.attemptsMade >= (job.opts.attempts ?? 1) ||
-        isStalledFailure(error)
-      ) {
-        void shardContext.runForCase(caseId, () =>
-          this.prisma.dealRecord.updateMany({
-            where: {
-              id: recordId,
-              status: stage === 'unsigned' ? 'preparing' : 'sealing',
-            },
-            data: {
-              status: 'failed',
-              failed_reason: `${stage}: ${error.message}`.slice(0, 300),
-            },
-          }),
-        );
-      }
-    });
   }
 
   async onApplicationShutdown(): Promise<void> {

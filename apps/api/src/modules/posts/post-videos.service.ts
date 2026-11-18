@@ -12,6 +12,8 @@ const POLL_AFTER_MS = 60_000;
 const GIVE_UP_MS = 3 * 3600_000;
 /** An upload nobody attached to a post. */
 const ORPHAN_MS = 24 * 3600_000;
+/** Finished videos one sweep checks for a missing post (verify batch 13, X7). */
+const ORPHAN_SCAN_PAGE = 500;
 
 /**
  * Owner 2026-10-01 — glue between video assets and posts: a `processing`
@@ -21,6 +23,8 @@ const ORPHAN_MS = 24 * 3600_000;
 @Injectable()
 export class PostVideosService {
   private readonly logger = new Logger(PostVideosService.name);
+  /** Where the orphan walk (sweep step c) goes on next run. */
+  private orphanCursor: { id: string; at: Date } | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -164,20 +168,58 @@ export class PostVideosService {
         stats.healed++;
       }
     }
-    // (c) uploads nobody attached to a post.
-    const orphans = await this.prisma.videoAsset.findMany({
+    // (c) uploads nobody attached to a post. Verify batch 13 (X7): the
+    // finished videos are walked a page per run from a (created_at, id)
+    // cursor, and only that page is checked against posts, stories and
+    // channel posts. Before, every minute checked every finished video
+    // ever uploaded (almost all attached) until 100 orphans were found.
+    // The cursor lives in this process: a restart starts again from the
+    // oldest video (slower once, never wrong).
+    const finished = {
+      status: { in: ['ready', 'failed', 'rejected'] as VideoAsset['status'][] },
+      deleted_at: null,
+      created_at: { lt: new Date(now - ORPHAN_MS) },
+    };
+    const after = this.orphanCursor;
+    const page = await this.prisma.videoAsset.findMany({
       where: {
-        status: { in: ['ready', 'failed', 'rejected'] },
-        deleted_at: null,
-        post: null,
-        // Owner 2026-10-20: a video of a story / channel post is in use.
-        story: null,
-        channel_post: null,
-        created_at: { lt: new Date(now - ORPHAN_MS) },
+        ...finished,
+        ...(after
+          ? {
+              OR: [
+                { created_at: { gt: after.at } },
+                { created_at: after.at, id: { gt: after.id } },
+              ],
+            }
+          : {}),
       },
-      select: { id: true },
-      take: BATCH,
+      select: { id: true, created_at: true },
+      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      take: ORPHAN_SCAN_PAGE,
     });
+    const orphans = page.length
+      ? await this.prisma.videoAsset.findMany({
+          where: {
+            ...finished,
+            id: { in: page.map((v) => v.id) },
+            post: null,
+            // Owner 2026-10-20: a video of a story / channel post is in use.
+            story: null,
+            channel_post: null,
+          },
+          select: { id: true },
+          take: BATCH,
+        })
+      : [];
+    // A full answer may leave more orphans in this page: it is read again
+    // next run (what is marked deleted now drops out of it).
+    if (orphans.length < BATCH) {
+      const last = page[page.length - 1];
+      this.orphanCursor =
+        page.length < ORPHAN_SCAN_PAGE
+          ? null
+          : { id: last.id, at: last.created_at };
+    }
     await this.videos.markDeleted(orphans.map((o) => o.id));
     stats.orphans = orphans.length;
     // (d) deleted at us, still at Bunny.

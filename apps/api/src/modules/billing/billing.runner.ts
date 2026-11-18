@@ -20,7 +20,7 @@ import {
   TRIAL_REMINDER_MISSED_AFTER_MS,
   TRIAL_REMINDER_RECONCILE_JOB,
 } from './billing.constants';
-import { trialReminderJob } from './trial-reminder';
+import { TRIAL_REMINDER_JOB_OPTS, trialReminderJob } from './trial-reminder';
 import type { ProviderEvent } from './payment-provider';
 import type { StripeWebhookJobData } from './stripe-webhook.intake';
 import { SubscriptionSyncService } from './subscription-sync.service';
@@ -29,6 +29,7 @@ import {
   closeWorker,
   workerTuning,
   outageProof,
+  isStalledFailure,
 } from '../../common/queues/queue-hardening';
 
 /**
@@ -114,11 +115,7 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
       ),
     );
     for (const w of this.workers) {
-      w.on('failed', (job, err) =>
-        this.logger.warn(
-          `${w.name} job ${job?.id} failed (attempt ${job?.attemptsMade}): ${err.message}`,
-        ),
-      );
+      w.on('failed', (job, err) => void this.onFailed(w.name, job, err));
     }
   }
 
@@ -128,6 +125,47 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
       this.dlq?.close(),
       this.subscriptionsQueue?.close(),
     ]).catch(() => undefined);
+  }
+
+  /**
+   * A failed job is logged. Verify batch 13 (Q2): a webhook job that
+   * stalled more often than allowed (the worker task stopped twice in the
+   * middle of it: Spot stop, OOM, deploy) is failed by BullMQ WITHOUT using
+   * up an attempt, so the processor's "last attempt → DLQ" never ran and
+   * the requeue sweep skips a failed job: the event sat unprocessed and out
+   * of the DLQ the admin replays. It goes to the DLQ here (same id, so a
+   * second copy is a no-op), like the export runners handle a stall.
+   */
+  async onFailed(
+    queue: string,
+    job: Job | undefined,
+    err: Error,
+  ): Promise<void> {
+    this.logger.warn(
+      `${queue} job ${job?.id} failed (attempt ${job?.attemptsMade}): ${err.message}`,
+    );
+    if (queue !== STRIPE_WEBHOOKS_QUEUE || !job || !isStalledFailure(err)) {
+      return;
+    }
+    const { eventId } = job.data as StripeWebhookJobData;
+    await this.toDlq(eventId, err.message).catch((e: unknown) =>
+      this.logger.error(
+        { eventId, err: String(e) },
+        'stalled stripe webhook not moved to DLQ',
+      ),
+    );
+  }
+
+  private async toDlq(eventId: string, error: string): Promise<void> {
+    await this.dlq?.add(
+      'dead',
+      { eventId, error },
+      {
+        jobId: eventId,
+        removeOnComplete: { count: 5_000 },
+        removeOnFail: { count: 5_000 },
+      },
+    );
   }
 
   private async processWebhook(job: Job<StripeWebhookJobData>): Promise<void> {
@@ -160,15 +198,7 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
           { eventId: row.stripe_event_id, type: row.type, err: String(e) },
           'stripe webhook moved to DLQ',
         );
-        await this.dlq?.add(
-          'dead',
-          { eventId: row.stripe_event_id, error: String(e) },
-          {
-            jobId: row.stripe_event_id,
-            removeOnComplete: { count: 5_000 },
-            removeOnFail: { count: 5_000 },
-          },
-        );
+        await this.toDlq(row.stripe_event_id, String(e));
       }
       throw e;
     }
@@ -247,10 +277,9 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
             name: TRIAL_REMINDER_JOB,
             data: { subscriptionId: row.id },
             opts: {
+              ...TRIAL_REMINDER_JOB_OPTS,
               jobId: spec.jobId,
               delay: spec.delay,
-              removeOnComplete: true,
-              removeOnFail: 100,
             },
           });
           continue;

@@ -1976,8 +1976,16 @@ export class FilesService {
     const key = `upload:bytes:${userId}:${day}`;
     let total: number;
     try {
-      total = await this.redis.incrby(key, bytes);
-      if (total === bytes) await this.redis.expire(key, 26 * 3600);
+      // One MULTI with EXPIRE NX (verify batch 13, R2): a crash between
+      // INCRBY and EXPIRE left the day's counter without a TTL.
+      const res = await this.redis
+        .multi()
+        .incrby(key, bytes)
+        .expire(key, 26 * 3600, 'NX')
+        .exec();
+      const failed = res?.find(([e]) => e)?.[0];
+      if (!res || failed) throw failed ?? new Error('MULTI aborted');
+      total = Number(res[0][1]);
     } catch (err) {
       this.logger.error(
         { err, userId, alert: 'daily_upload_cap_unavailable' },

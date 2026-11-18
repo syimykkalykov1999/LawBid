@@ -12,7 +12,7 @@ import type Redis from 'ioredis';
 import { pipeline } from '../../redis/redis-cluster-safe';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
 import { randomUUID } from 'node:crypto';
-import { HotlineService } from './hotline.service';
+import { AGG_TTL_SEC, HotlineService } from './hotline.service';
 
 /** Socket.IO room of one counter key (`b:<bucket>` or `l:<lang>`). */
 export const hotlineCounterRoom = (key: string) => `hotline:c:${key}`;
@@ -342,7 +342,15 @@ export class HotlineSweeper implements OnApplicationBootstrap, OnModuleDestroy {
     const online = await redis.zcount(k.alive, now, '+inf');
     const aggKey = k.agg(h.hour(now));
     const peak = Number((await redis.hget(aggKey, 'peakOnline')) ?? 0);
-    if (online > peak) await redis.hset(aggKey, 'peakOnline', online);
+    // Verify batch 13 (R1): an hour with lawyers online but no other event
+    // created this hash without a TTL (bumpAgg was its only EXPIRE).
+    if (online > peak) {
+      await redis
+        .multi()
+        .hset(aggKey, 'peakOnline', online)
+        .expire(aggKey, AGG_TTL_SEC, 'NX')
+        .exec();
+    }
 
     const every = s['hotline.counters_interval_sec'] * 1000;
     if ((await redis.set(k.lastCounters, '1', 'PX', every, 'NX')) === 'OK') {

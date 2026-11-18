@@ -53,8 +53,16 @@ export class BarAttemptsService {
     );
     let started = 0;
     for (const k of this.keys(userId, ip)) {
-      const fails = await this.redis.incr(k);
-      await this.redis.expire(k, resetDays * DAY);
+      // One MULTI (verify batch 13, R4): a crash between INCR and EXPIRE
+      // kept a fail count (and its cooldown) for ever.
+      const res = await this.redis
+        .multi()
+        .incr(k)
+        .expire(k, resetDays * DAY)
+        .exec();
+      const failed = res?.find(([e]) => e)?.[0];
+      if (!res || failed) throw failed ?? new Error('MULTI aborted');
+      const fails = Number(res[0][1]);
       if (fails % per === 0 && hours.length > 0) {
         const step = Math.min(fails / per - 1, hours.length - 1);
         const seconds = Math.round(hours[step] * 3600);

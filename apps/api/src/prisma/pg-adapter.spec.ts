@@ -19,6 +19,16 @@ describe('pgAdapterConfig (Prisma 6 URL → node-pg, Prisma 7)', () => {
     expect(pool).not.toHaveProperty('maxLifetimeSeconds');
   });
 
+  it('verify batch 13 (P1): TCP keepalive on; Prisma 6 socket_timeout → node-pg query_timeout', () => {
+    const plain = pgAdapterConfig(BASE).pool;
+    expect(plain.keepAlive).toBe(true);
+    expect(plain.keepAliveInitialDelayMillis).toBe(10_000);
+    expect(plain).not.toHaveProperty('query_timeout');
+    const { pool } = pgAdapterConfig(`${BASE}?socket_timeout=45`);
+    expect(pool.query_timeout).toBe(45_000);
+    expect(pool.connectionString).not.toContain('socket_timeout');
+  });
+
   it('pool: the app defaults (withPoolDefaults) keep their effective values', () => {
     const url = withPoolDefaults(BASE, { DB_POOL_SIZE: '12' });
     const { pool } = pgAdapterConfig(url!);

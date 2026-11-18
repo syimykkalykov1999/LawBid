@@ -1551,4 +1551,13 @@ describe('hotline use cases (real Valkey)', () => {
     expect((await svc.getRequest(client('C1'), a.id)).status).toBe('connected');
     expect(Number(await redis.zscore(k.alive, 'L1'))).toBeGreaterThan(now);
   });
+
+  it('verify batch 13 (R1): an hour with a lawyer online and no other event still gets a TTL on its stats hash', async () => {
+    if (!up) return;
+    await goLine('L1');
+    await tick();
+    const aggKey = k.agg(new Date(now).toISOString().slice(0, 13));
+    expect(await redis.hget(aggKey, 'peakOnline')).toBe('1');
+    expect(await redis.ttl(aggKey)).toBeGreaterThan(0);
+  });
 });
