@@ -132,14 +132,20 @@ describe('SMS only for new numbers and password reset (e2e)', () => {
     const again = await otp(phone);
     expect(again.status).toBe(429);
     expect(code(again)?.code).toBe('RATE_LIMITED');
-    // The app learns it from phone/status (a number WITH a password only).
-    const status = () =>
+    // The app learns it from phone/status. AU1 (17.11): a registered number
+    // with no password says so (the app opens «Забыл пароль»), an unknown
+    // one stays «not registered».
+    const status = (identifier = phone) =>
       api()
         .post('/api/v1/auth/phone/status')
         .set('X-Device-Id', randomUUID())
-        .send({ identifier: phone });
-    expect((await status()).body.data).toEqual({
+        .send({ identifier });
+    expect((await status(fresh())).body.data).toEqual({
       registered: false,
+      hasPassword: false,
+    });
+    expect((await status()).body.data).toEqual({
+      registered: true,
       hasPassword: false,
     });
     await prisma.user.update({

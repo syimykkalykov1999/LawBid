@@ -14,8 +14,10 @@ class PrivacySettingsNotifier extends AsyncNotifier<PrivacySettings> {
   Future<PrivacySettings> build() =>
       ref.watch(privacyRepositoryProvider).settings();
 
-  /// Shows the new value at once; goes back to the old one when the server
-  /// refuses. Throws an `ApiException`.
+  /// Shows the new value at once; when the server refuses, shows what the
+  /// server has (verify batch 7, PS4: going back to the snapshot taken
+  /// before this tap could drop another change that succeeded meanwhile).
+  /// Throws an `ApiException`.
   Future<void> change(PrivacyField field, Audience value) async {
     final before = state.value;
     if (before == null) return;
@@ -29,13 +31,24 @@ class PrivacySettingsNotifier extends AsyncNotifier<PrivacySettings> {
       // The chat list's online dots follow "last seen".
       if (field == PrivacyField.lastSeen) ref.invalidate(conversationsProvider);
     } on Object {
-      state = AsyncData(before);
+      await _reloadAfterError();
       rethrow;
     }
   }
 
+  /// PS4: the server's settings after a refused change. When even that read
+  /// fails (offline), the provider reloads itself on the next watch.
+  Future<void> _reloadAfterError() async {
+    try {
+      final fresh = await ref.read(privacyRepositoryProvider).settings();
+      if (ref.mounted) state = AsyncData(fresh);
+    } on Object {
+      if (ref.mounted) ref.invalidateSelf();
+    }
+  }
+
   /// Owner 2026-10-22 (CCPA): the «Do not sell or share» switch, shown at
-  /// once and rolled back when the server refuses.
+  /// once; when the server refuses, the server's settings are shown.
   Future<void> setDoNotSell({required bool value}) async {
     final before = state.value;
     if (before == null) return;
@@ -45,7 +58,7 @@ class PrivacySettingsNotifier extends AsyncNotifier<PrivacySettings> {
         await ref.read(privacyRepositoryProvider).setDoNotSell(value: value),
       );
     } on Object {
-      state = AsyncData(before);
+      await _reloadAfterError();
       rethrow;
     }
   }

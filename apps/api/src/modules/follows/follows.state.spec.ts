@@ -27,6 +27,12 @@ describe('FollowsService follow state', () => {
         findUnique: jest.fn().mockResolvedValue({ followers_count: 10 }),
       },
       clientProfile: { findUnique: jest.fn() },
+      // Verify batch 7 (BL1): the insert runs under the per-pair lock.
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      userBlock: { findFirst: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn((fn: (t: unknown) => unknown): unknown =>
+        fn(prisma),
+      ),
     };
     const counters = {
       bump: jest.fn().mockResolvedValue(undefined),

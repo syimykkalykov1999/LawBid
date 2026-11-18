@@ -209,7 +209,8 @@ export class AuthService {
     // S14-1: a registered number gets the SAME 200 `sent` as a new one (the
     // cooldown and the registration cap below apply to both, so not even a
     // 429 pattern tells them apart); nothing is sent to it. The app learns
-    // "use your password" from POST /auth/phone/status only.
+    // "use your password" — or, with no password yet, "use «Забыл пароль»"
+    // (AU1, 17.11) — from POST /auth/phone/status only.
     const registeredPhone =
       dto.channel === 'phone'
         ? await this.assertSmsOnlyForNewNumber(identifier)
@@ -638,36 +639,13 @@ export class AuthService {
     meta: RequestMeta,
     extras?: LoginExtras,
   ): Promise<AuthTokensResult> {
-    if (user.status === 'suspended') {
-      await this.authEvents.record({
-        userId: user.id,
-        eventType: AUTH_EVENT_TYPES.LOGIN_BLOCKED_SUSPENDED,
-        success: false,
-        identifier,
-        deviceId: deviceInfo.deviceId,
-        ip: meta.ip,
-        userAgent: meta.userAgent,
-      });
-      throw new ForbiddenException({
-        code: ErrorCode.ACCOUNT_SUSPENDED,
-        message: 'This account has been suspended.',
-      });
-    }
-    if (user.status === 'deleted') {
-      await this.authEvents.record({
-        userId: user.id,
-        eventType: AUTH_EVENT_TYPES.LOGIN_BLOCKED_DELETED,
-        success: false,
-        identifier,
-        deviceId: deviceInfo.deviceId,
-        ip: meta.ip,
-        userAgent: meta.userAgent,
-      });
-      throw new ForbiddenException({
-        code: ErrorCode.ACCOUNT_DELETED,
-        message: 'This account has been deleted.',
-      });
-    }
+    await assertAccountOpen(
+      this.authEvents,
+      user,
+      identifier,
+      deviceInfo,
+      meta,
+    );
     if (deletionCancelled) {
       await this.authEvents.record({
         userId: user.id,
@@ -694,6 +672,8 @@ export class AuthService {
           identifier,
           deviceInfo,
           social: extras?.social,
+          // AU3 (17.11): a password change in the next 5 minutes voids it.
+          pwdAt: passwordStamp(user),
         }),
         'EX',
         PENDING_LOGIN_TTL_SEC,
@@ -741,11 +721,21 @@ export class AuthService {
       identifier: string;
       deviceInfo: DeviceInfo;
       social?: { provider: 'apple' | 'google'; uid: string };
+      pwdAt?: string | null;
     };
     await this.loginMethods.assertPlatformAllowed(p.deviceInfo.platform);
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: p.userId },
     });
+    // AU3 (17.11): the password was reset or dropped after this sign-in was
+    // asked for — it began with credentials that no longer hold. (A token
+    // written before this release has no stamp and keeps its 5 minutes.)
+    if (p.pwdAt !== undefined && p.pwdAt !== passwordStamp(user)) {
+      throw new UnauthorizedException({
+        code: ErrorCode.AUTH_OTP_EXPIRED,
+        message: 'This sign-in expired. Sign in again.',
+      });
+    }
     if (user.status === 'suspended' || user.status === 'deleted') {
       throw new ForbiddenException({
         code:
@@ -1632,6 +1622,56 @@ export class AuthService {
 
 /** How long "continue and sign the other device out" stays possible. */
 const PENDING_LOGIN_TTL_SEC = 300;
+
+/** When the account's password was last set (null: none), as stored in a
+ * pending sign-in (AU3). */
+function passwordStamp(user: Pick<User, 'password_set_at'>): string | null {
+  return user.password_set_at ? user.password_set_at.toISOString() : null;
+}
+
+/**
+ * A suspended or deleted account is refused, with its audit event. Shared by
+ * every sign-in (finishLogin) and by «Забыл пароль», which must refuse
+ * BEFORE it stores a new password or ends sessions (AU2, 17.11).
+ */
+export async function assertAccountOpen(
+  authEvents: AuthEventService,
+  user: Pick<User, 'id' | 'status'>,
+  identifier: string,
+  deviceInfo: DeviceInfo,
+  meta: RequestMeta,
+): Promise<void> {
+  if (user.status === 'suspended') {
+    await authEvents.record({
+      userId: user.id,
+      eventType: AUTH_EVENT_TYPES.LOGIN_BLOCKED_SUSPENDED,
+      success: false,
+      identifier,
+      deviceId: deviceInfo.deviceId,
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+    });
+    throw new ForbiddenException({
+      code: ErrorCode.ACCOUNT_SUSPENDED,
+      message: 'This account has been suspended.',
+    });
+  }
+  if (user.status === 'deleted') {
+    await authEvents.record({
+      userId: user.id,
+      eventType: AUTH_EVENT_TYPES.LOGIN_BLOCKED_DELETED,
+      success: false,
+      identifier,
+      deviceId: deviceInfo.deviceId,
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+    });
+    throw new ForbiddenException({
+      code: ErrorCode.ACCOUNT_DELETED,
+      message: 'This account has been deleted.',
+    });
+  }
+}
 
 /**
  * Verify 18.11 (PV1): a sign-in cancels a pending deletion only while it is
