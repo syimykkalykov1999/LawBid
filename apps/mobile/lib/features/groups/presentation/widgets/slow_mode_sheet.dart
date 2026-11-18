@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/groups/domain/slow_mode.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-11-02 (Telegram «Медленный режим»): Off · 10 s · 30 s · 1 min ·
 /// 5 min · 15 min · 60 min, the current one checked. Returns the seconds

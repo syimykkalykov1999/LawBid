@@ -1,11 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// app_config key of the wait between two SMS codes to one number (admin:
 /// «SMS» → `sms.resend_cooldown_seconds`, the same value the server

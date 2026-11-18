@@ -3,10 +3,10 @@
 // found in the LICENSE file (BSD-3-Clause, flutter/packages go_router 17.5.0
 // lib/src/pages/material.dart `MaterialErrorScreen`, copied; the two words
 // now come from the app's translations).
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Row 148 (go_router 18): the page an unknown address showed on go_router
 /// 17 inside a MaterialApp. go_router 18 builds this from package:material_ui

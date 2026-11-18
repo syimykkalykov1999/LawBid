@@ -1,10 +1,9 @@
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// docs/04 §5.2 / §6 "история торга": every offer by round as a dialogue —
 /// the viewer's own offers on the right, the other side's on the left —

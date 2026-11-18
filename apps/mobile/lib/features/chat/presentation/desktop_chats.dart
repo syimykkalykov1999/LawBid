@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Desktop web plan 2026-10-28 §5.3 / §6.3: on a desktop window `/inbox`
 /// and `/chat/:id` are one page — the chats list on the left and the open

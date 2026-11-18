@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// «Not enough stars» (a premium reaction, 402). Store rules (owner
 /// 2026-10-20): the apps only say where the balance is topped up; the web

@@ -1,9 +1,9 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// LawBid's scales-of-justice logo, drawn with [CustomPainter] (file 07 §5) —
 /// never an image, so it stays crisp at any size and re-themes for free.

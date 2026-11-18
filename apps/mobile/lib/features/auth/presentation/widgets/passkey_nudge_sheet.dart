@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -7,6 +6,7 @@ import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/auth/application/passkeys_providers.dart';
 import 'package:lawbid/features/auth/data/passkey_authenticator.dart';
 import 'package:lawbid/features/auth/presentation/widgets/passkeys_section.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Owner 2026-10-24 (passkey nudge; R-140: every role, 2026-11-03): once after

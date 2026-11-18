@@ -1,6 +1,4 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
@@ -10,6 +8,7 @@ import 'package:lawbid/features/auth/domain/password_reauth_outcome.dart';
 import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart'
     show SwitchChannelLink;
 import 'package:lawbid/features/auth/presentation/widgets/password_form_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Whether to offer «Face ID / отпечаток» on the password step-up: the
 /// device supports passkeys and this account has one (the key lives in the

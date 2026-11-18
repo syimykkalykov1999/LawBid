@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -13,6 +12,7 @@ import 'package:lawbid/features/chat/application/link_preview_providers.dart';
 import 'package:lawbid/features/privacy/application/privacy_providers.dart';
 import 'package:lawbid/features/privacy/data/privacy_repository.dart';
 import 'package:lawbid/features/privacy/privacy_routes.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20: Settings → Privacy and safety. Who sees my last seen,
 /// who may start a chat or call me (everyone / my followers / people I

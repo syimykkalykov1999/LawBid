@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/bars/app_bottom_nav.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_pressable.dart';
 import 'package:lawbid/core/design_system/widgets/motion/hover_surface.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Desktop web plan 2026-10-28 §5.2 (owner Q1, 2026-10-28: yes): an item of
 /// the computer's side menu that the phone's bar does not have — Messages

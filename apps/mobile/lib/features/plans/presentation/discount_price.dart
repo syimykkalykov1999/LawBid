@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/plans/domain/plan_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-07: the price line with a discount, in the owner's
 /// format «$99 / ~~$149~~ month  −33%». Without a discount it is the

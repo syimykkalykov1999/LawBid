@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -18,6 +17,7 @@ import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show feedCardHeight;
+import 'package:material_ui/material_ui.dart';
 
 /// The attorney's chosen practices (feed filter options, §4.2 "из своих
 /// выбранных").

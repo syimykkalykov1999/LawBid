@@ -3,7 +3,6 @@
 import 'package:cupertino_interactive_keyboard/cupertino_interactive_keyboard.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,6 +15,7 @@ import 'package:lawbid/features/chat/presentation/media_preview_screen.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 import 'package:lawbid/shared/presentation/keyboard_media.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'contact_info_test.dart';
 

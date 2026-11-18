@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -31,6 +30,7 @@ import 'package:lawbid/features/legal_qa/presentation/qa_feed_screen.dart'
 import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart';
 import 'package:lawbid/features/team/presentation/tasks_tab.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Owner 2026-10-15: two tabs per role. Client: Cases (Active · Completed
 // inside) · Tasks; the client's Saved moved to Settings.

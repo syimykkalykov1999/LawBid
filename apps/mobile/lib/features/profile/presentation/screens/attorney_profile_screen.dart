@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -13,6 +12,7 @@ import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.
 import 'package:lawbid/features/stars/presentation/gift_widgets.dart'
     show GiftHeaderButton;
 import 'package:lawbid/shared/presentation/guest_gate.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Loads `GET /attorneys/:username` and renders every screen state:
 /// skeleton, error + Retry, offline, "Profile unavailable" (404 — unknown,

@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/task_pickers.dart';
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-15 («Моё › Задачи», the approved mockup, card A «Кольцо
 /// прогресса»): the board of tasks — a hero with today's progress, one ring

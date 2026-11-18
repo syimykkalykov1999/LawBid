@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-11-16 (row 183): wraps a group screen — with the admin switch
 /// «Группы» off the route shows nothing (an empty page with a way back), the

@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-15: every colour of the Tasks board — the ring, the pills,
 /// the hero's week bars, the done mark — reads with enough contrast in every

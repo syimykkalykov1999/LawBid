@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_sheet.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Colour pair (fill, foreground) of a trust level — neutral grey for a
 /// self-declared attorney, growing with each check LawBid did itself.

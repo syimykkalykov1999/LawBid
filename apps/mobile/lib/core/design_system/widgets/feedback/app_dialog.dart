@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart' show SpringDescription, SpringSimulation;
 import 'package:lawbid/core/navigation/shell/shell_layout.dart'
     show isDesktopWindow;
+import 'package:material_ui/material_ui.dart';
 
 /// Owner row 88 (2026-11-13): every dialog of the app comes in the way an
 /// iPhone alert does — it fades in while shrinking from 1.3× to its size,

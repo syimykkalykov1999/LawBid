@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_sheet.dart';
 import 'package:lawbid/features/trust/presentation/trust_payment_notice.dart';
+import 'package:material_ui/material_ui.dart';
 
 const _fixture = PublicTrust(
   attorneyId: 'a1',

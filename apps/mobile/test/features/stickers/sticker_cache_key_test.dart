@@ -1,9 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/media/stable_network_image.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 import 'package:lawbid/features/stickers/presentation/sticker_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// SPEED_MATRIX 2026-11-09 §3 №15: a sticker picture is kept on the phone
 /// under the FILE's address, not under the signed link — a link that

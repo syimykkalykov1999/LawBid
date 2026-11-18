@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/settings/account/presentation/widgets/account_tile.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-11-05: on Settings → Account the «Изменить ›» of the phone
 /// row stood in the middle of the card. The action label and chevron must

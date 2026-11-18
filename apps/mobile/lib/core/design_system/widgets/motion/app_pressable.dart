@@ -1,10 +1,9 @@
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/widgets/feedback/app_dialog.dart'
     show AppDialogMotion;
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Tap target with the design system's press feedback (file 07 §4: scale
 /// 0.98 over 120ms) for custom surfaces — cards, list rows, sheet options.

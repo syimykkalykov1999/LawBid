@@ -135,7 +135,11 @@ dependencies:
   app_badge_plus: ^1.4.0
   flutter_timezone: ^5.1.1
   flutter_stripe: ^15.0.0
-  material_ui: ^1.10.0
+  # Flutter 3.50 (11.11) deprecated the in-SDK material/cupertino libraries
+  # (docs.flutter.dev breaking-changes material-ui-and-cupertino-ui); the app
+  # imports these standalone packages (dart fix migrate_design_widgets).
+  material_ui: ^1.11.1
+  cupertino_ui: ^1.1.7
   record: ^7.1.2
   just_audio: ^0.10.6
   path_provider: ^2.1.6

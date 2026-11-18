@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
@@ -17,6 +16,7 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/presentation/interactive_keyboard.dart';
 import 'package:lawbid/shared/presentation/keyboard_media.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// The message field of a group chat: multi-line text, «+» (photo, file,
 /// poll), a reply bar or an edit bar above it, and the @mention list that

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:drift/drift.dart' show driftRuntimeOptions;
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_bubble_parts.dart';
 import 'package:lawbid/features/chat/presentation/chat_list_layout.dart';
 import 'package:lawbid/features/chat/presentation/conversation_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'contact_info_test.dart';
 

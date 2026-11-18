@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:golden_toolkit/golden_toolkit.dart';
-
+import 'package:golden_toolkit/golden_toolkit.dart' hide materialAppWrapper;
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
+
+import '../../helpers/material_app_wrapper.dart';
 
 /// Golden coverage for AppBottomNav (file 01 §15 acceptance: "нижнее меню
 /// совпадает с разделом 3" — 5 visual slots, 4 selectable tabs + center "+").

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -18,6 +17,7 @@ import 'package:lawbid/features/chat/presentation/chat_message_menu.dart';
 import 'package:lawbid/features/translation/data/device_translator.dart';
 import 'package:lawbid/features/translation/presentation/translate_block.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/long_locale.dart';

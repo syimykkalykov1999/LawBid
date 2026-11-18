@@ -1,5 +1,4 @@
 import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golden_toolkit/golden_toolkit.dart';
@@ -13,7 +12,9 @@ import 'package:lawbid/features/auth/presentation/screens/otp_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/role_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/welcome_screen.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../../helpers/email_flows_overrides.dart';
 
 /// Golden coverage for the 4 auth/onboarding screens (file 07 §9: "4 экрана

@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-15: when a case is finished the client is asked — firmly,
 /// kindly — to leave a review: it helps the next clients choose. Not forced:

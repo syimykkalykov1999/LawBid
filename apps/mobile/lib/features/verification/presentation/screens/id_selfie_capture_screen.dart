@@ -5,7 +5,6 @@ import 'package:camera/camera.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/camera_shots.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -18,6 +17,7 @@ import 'package:lawbid/features/verification/data/selfie_frame_detector.dart';
 import 'package:lawbid/features/verification/domain/selfie_liveness.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/presentation/widgets/id_selfie_capture_view.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The on-device detector; overridden in tests.
 final selfieFrameDetectorProvider = Provider.autoDispose<SelfieFrameDetector>(

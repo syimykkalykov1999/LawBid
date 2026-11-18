@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/sync/synced_list_notifier.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/features/groups/data/group_repository.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// A group repository for widget tests: the Chats list (one page of
 /// [items], the pin / mute / hide calls recorded in [updates]) and, with the

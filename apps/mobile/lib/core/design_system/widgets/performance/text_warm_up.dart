@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Lays out the app's text styles and one text field once, off screen, right
 /// after the first frame. The first use of a font, a text field or a script

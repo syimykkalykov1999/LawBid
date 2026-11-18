@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
 import 'package:lawbid/features/trust/presentation/trust_links.dart';
 import 'package:lawbid/features/trust/presentation/trust_payment_notice.dart';
 import 'package:lawbid/features/trust/presentation/trust_signals_list.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Opens [TrustLevelSheet] for [attorneyId]; [level] is the value already
 /// on the card, shown while the signals load.

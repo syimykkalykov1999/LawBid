@@ -1,10 +1,10 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/addresses/address_field.dart';
 import 'package:lawbid/core/addresses/address_suggestions.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-28: every address field suggests US addresses while the
 /// person types (debounce ≥ 250 ms, 3+ letters, one session per address).

@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/core/navigation/deferred_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'fixtures/deferred_fixture_screen.dart' deferred as d_first;
 import 'fixtures/deferred_fixture_screen.dart' deferred as d_second;

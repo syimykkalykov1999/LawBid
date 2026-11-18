@@ -1,12 +1,12 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/image_size.dart';
 import 'package:lawbid/features/chat/application/image_edit.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22 (WhatsApp): crop a photo before sending it - a frame
 /// with four corner handles over the picture, ratio chips (free, square,

@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// The server numbers a topic's colour 0-6 (`TOPIC_COLORS`); these are the
 /// seven hues, in the same order, at a lightness that carries a white

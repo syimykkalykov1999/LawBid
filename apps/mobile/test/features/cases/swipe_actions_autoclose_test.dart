@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/presentation/widgets/compact_case_row.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner row 190 (2026-11-17, flutter_slidable / Mail / WhatsApp): a case
 /// row swiped open closes by itself — when another row opens, when the

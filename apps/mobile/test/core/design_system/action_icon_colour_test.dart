@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:material_ui/material_ui.dart';
 
 // WCAG 2.x 1.4.11 Non-text Contrast: graphical objects need >= 3:1.
 double _lum(Color c) {

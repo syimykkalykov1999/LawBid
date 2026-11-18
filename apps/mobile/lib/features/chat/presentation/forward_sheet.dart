@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
@@ -17,6 +16,7 @@ import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/shared/people/people_suggest_list.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-21 (Telegram / WhatsApp «Переслать»): «Forward to…» for
 /// any message — picks chats, groups and channels (several at once), then

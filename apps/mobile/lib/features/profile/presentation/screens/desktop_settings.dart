@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart' show mapEquals;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/core/navigation/shell/desktop_layouts.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/features/profile/presentation/screens/settings_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Desktop web plan 2026-10-28 §6.7: on a desktop window Settings is two
 /// panes — the sections list on the left (the same screen as on the phone)

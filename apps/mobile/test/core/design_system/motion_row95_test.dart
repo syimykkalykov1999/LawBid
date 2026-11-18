@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/chat/presentation/in_app_message_banner.dart';
 import 'package:lawbid/features/chat/presentation/message_context_menu.dart';
 import 'package:lawbid/features/stories/presentation/story_hero.dart';
 import 'package:lawbid/shared/presentation/edge_swipe.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner row 95 (2026-11-13): the motion catalog batch and the four look
 /// items the owner said yes to. KE 149: nothing here asserts a value on an

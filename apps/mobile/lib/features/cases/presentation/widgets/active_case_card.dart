@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-15 («Моё > Активные», the approved mockup): a card like
 /// Search → Cases. A header in the practice colour (icon, «practice ·

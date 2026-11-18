@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -6,6 +5,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/demo/presentation/demo_actions.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05 (docs/ops/demo-world.md): the top card of Settings while
 /// in a demo account — «Вы в демо-аккаунте», «Выйти из демо», «Сменить

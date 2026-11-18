@@ -1,9 +1,9 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/features/stories/domain/story_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum StoryRingState {
   /// No live story: a plain avatar.

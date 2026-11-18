@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/config/app_environment.dart';
@@ -13,6 +12,7 @@ import 'package:lawbid/core/platform/web_lifecycle.dart';
 import 'package:lawbid/features/auth/application/qr_login_providers.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/shared/presentation/qr_code_view.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/auth/qr` (owner 2026-10-20, WhatsApp Web / WeChat): the website shows a
 /// QR code; the signed-in phone scans it in "Scan", sees which browser asks

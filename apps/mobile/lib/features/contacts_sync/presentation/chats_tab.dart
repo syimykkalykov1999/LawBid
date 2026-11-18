@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart
 import 'package:lawbid/features/contacts_sync/presentation/contact_actions.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
 import 'package:lawbid/shared/people/my_people.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22: «Chats» — the first tab of the screen the «+» of the
 /// chats opens. My people: those I talk with (the most recent conversation

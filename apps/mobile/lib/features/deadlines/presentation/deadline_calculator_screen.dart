@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -20,6 +19,7 @@ import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Owner 2026-10-20 — «Сроки»: pick a state and a rule, give the date of the

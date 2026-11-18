@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -7,6 +6,7 @@ import 'package:lawbid/features/social/presentation/screens/social_screens.dart'
     show commentThreadSlivers;
 import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart';
 import 'package:lawbid/shared/presentation/guest_gate.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-07: comments open as a sheet that slides up from the
 /// comment icon (Instagram): drag up for the whole screen, down to close;

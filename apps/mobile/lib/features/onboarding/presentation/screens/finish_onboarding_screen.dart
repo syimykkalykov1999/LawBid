@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_actions.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/onboarding/push` and `/onboarding/tour` no longer have a screen (owner
 /// 2026-10-11). An account whose saved step is one of them (an older

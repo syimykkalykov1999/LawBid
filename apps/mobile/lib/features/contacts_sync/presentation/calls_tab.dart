@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -20,6 +19,7 @@ import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-21: «Contacts | Calls» — the sections of the screen the «+»
 /// of the chats opens. A compact segment in the middle of the top bar

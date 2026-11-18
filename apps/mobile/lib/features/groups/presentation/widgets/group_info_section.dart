@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A captioned, rounded block of rows on the info screen (WhatsApp style).
 class GroupInfoSection extends StatelessWidget {

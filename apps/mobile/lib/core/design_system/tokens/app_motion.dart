@@ -2,7 +2,7 @@
 // Motion durations/curves used across the design system (file 07 §4, §5.2, §7.3).
 // Plain const class — durations/curves don't vary by theme.
 import 'package:flutter/animation.dart';
-import 'package:flutter/material.dart' show Durations, Easing;
+import 'package:material_ui/material_ui.dart' show Durations, Easing;
 
 abstract final class AppMotion {
   /// AppButton / RoleCard press-scale (file 07 §4: "Нажатие: масштаб 0.98 за 120 мс").

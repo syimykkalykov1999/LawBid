@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/accessibility/reduce_motion.dart';
 import 'package:lawbid/core/account_status/account_restricted.dart';
@@ -27,6 +26,7 @@ import 'package:lawbid/core/theme/preferences_sync.dart';
 import 'package:lawbid/features/calls/presentation/call_host.dart';
 import 'package:lawbid/features/onboarding/application/countries_providers.dart';
 import 'package:lawbid/features/settings/storage/application/storage_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Perf batch 4 (row 127): today's network use is counted from the start,
 /// kept alive with `listen`, not `watch` — the counter ticks on every

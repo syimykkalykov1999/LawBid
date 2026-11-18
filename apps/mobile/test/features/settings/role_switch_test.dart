@@ -1,5 +1,4 @@
 // ignore_for_file: lines_longer_than_80_chars
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/settings/account/data/account_repository.dart';
 import 'package:lawbid/features/settings/account/domain/account_identifier.dart';
 import 'package:lawbid/features/settings/account/presentation/screens/account_screen.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/fixtures.dart';
 import '../../helpers/onboarding_harness.dart';

@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/demo/presentation/demo_actions.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05 (docs/ops/demo-world.md): wraps the main shell's body.
 /// In a demo session a compact floating banner sits at the top —

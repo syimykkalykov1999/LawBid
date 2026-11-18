@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/contacts_section_title.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/groups/application/people_candidates.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_avatar.dart';
 import 'package:lawbid/shared/people/people_suggest_list.dart';
+import 'package:material_ui/material_ui.dart';
 
 export 'package:lawbid/features/groups/application/people_candidates.dart'
     show PickedPerson;

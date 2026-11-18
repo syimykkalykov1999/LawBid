@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/tokens/app_colors.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Design-system color tokens (file 07 §2). Access via
 /// `Theme.of(context).extension<AppColorTokens>()!`.

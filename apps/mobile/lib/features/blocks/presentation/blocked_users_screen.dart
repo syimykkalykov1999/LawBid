@@ -1,6 +1,4 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
@@ -10,6 +8,7 @@ import 'package:lawbid/features/blocks/data/blocks_repository.dart';
 import 'package:lawbid/features/blocks/presentation/block_actions.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Settings → "Blocked users" (owner 2026-09-29, OQ-028): everyone I
 /// blocked, with Unblock.

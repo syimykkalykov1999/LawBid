@@ -1,9 +1,8 @@
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Semantic tone of a status (colors strictly from docs/01 §8.1 tokens).
 enum StatusTone { gold, info, success, warning, danger, neutral }

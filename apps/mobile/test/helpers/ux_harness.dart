@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
@@ -15,6 +14,7 @@ import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart
 import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
 import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../features/cases/cases_fakes.dart';
 import '../features/social/social_fakes.dart';

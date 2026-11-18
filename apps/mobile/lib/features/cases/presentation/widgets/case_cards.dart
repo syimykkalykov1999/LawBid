@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -18,6 +17,7 @@ import 'package:lawbid/features/social/data/social_repository.dart'
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shared card shell for docs/04 lists: surface, hairline border, soft
 /// shadow, 16 radius, press feedback (AppCard) and a single semantic label.

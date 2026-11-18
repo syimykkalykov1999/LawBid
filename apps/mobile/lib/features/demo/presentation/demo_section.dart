@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/demo/domain/demo_models.dart';
 import 'package:lawbid/features/demo/presentation/demo_actions.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05 — Settings → Partner program → «Демо-режим»
 /// (docs/ops/demo-world.md): the partner's demo accounts (role icon, name,

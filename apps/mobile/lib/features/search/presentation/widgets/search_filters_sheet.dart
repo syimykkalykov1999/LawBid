@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -15,6 +14,7 @@ import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sh
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/search/data/search_repository.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-09-30 (OQ-036): the filter sheet of the Search field shows
 /// the filters of the open tab only — people, cases, the client's own

@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -18,6 +17,7 @@ import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_impression_tracker.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Whether a post opens as a window here: a wide website window with the
 /// switch `web_post_window` on. A phone never gets here.

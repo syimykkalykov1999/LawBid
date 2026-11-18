@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:android_play_install_referrer/android_play_install_referrer.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/core/persistence/local_kv_store.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 const _kPendingCodeKey = 'referral.pending_code';
 const _kReferrerCheckedKey = 'referral.install_referrer_checked';

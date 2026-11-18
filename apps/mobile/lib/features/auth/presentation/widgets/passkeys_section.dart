@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -7,6 +6,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/auth/application/passkeys_providers.dart';
 import 'package:lawbid/features/auth/data/passkey_authenticator.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22 (checklist §1): Settings → Security → «Sign-in keys»
 /// — the account's passkeys (iCloud Keychain / Google Password Manager /

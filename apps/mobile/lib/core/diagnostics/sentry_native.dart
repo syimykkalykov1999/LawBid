@@ -47,7 +47,11 @@ class SentryNative {
     return v.isEmpty ? null : v;
   }
 
-  static SentryNativeSdk _sdk = const _FlutterSdk();
+  // Row 237: the web never starts the SDK ([_allowed]), so its build gets
+  // the no-op one and `sentry_flutter` is tree-shaken out of the web
+  // bundle (kIsWeb is a compile-time constant).
+  static SentryNativeSdk _sdk = _defaultSdk;
+  static const SentryNativeSdk _defaultSdk = kIsWeb ? _NoSdk() : _FlutterSdk();
   static SharedPreferences? _prefs;
   static String? _dsn;
   static double _rate = 0;
@@ -126,7 +130,7 @@ class SentryNative {
     String? compiledDsn,
   }) {
     _compiledDsn = compiledDsn ?? compiledDsnDefine;
-    _sdk = sdk ?? const _FlutterSdk();
+    _sdk = sdk ?? _defaultSdk;
     _prefs = null;
     _dsn = null;
     _rate = 0;
@@ -310,6 +314,29 @@ class _TxSpan implements SentryHttpSpan {
         : SpanStatus.fromHttpStatusCode(statusCode);
     await _tx.finish();
   }
+}
+
+/// The web build's SDK: never started there ([SentryNative._allowed]).
+class _NoSdk implements SentryNativeSdk {
+  const _NoSdk();
+
+  @override
+  Future<void> init(
+    String dsn, {
+    required String release,
+    required String dist,
+  }) async {}
+
+  @override
+  Future<void> close() async {}
+
+  @override
+  Future<void> capture(
+    Object error,
+    StackTrace? stack, {
+    required bool fatal,
+    String? route,
+  }) async {}
 }
 
 class _FlutterSdk implements SentryNativeSdk, SentryTracingSdk {

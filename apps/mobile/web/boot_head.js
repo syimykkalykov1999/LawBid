@@ -125,8 +125,14 @@
   var blink = navigator.vendor === 'Google Inc.' || ua.indexOf('Edg/') !== -1;
   var gc = false;
   try {
-    // A tiny module with a GC struct type: valid only with WasmGC.
-    gc = WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 95, 1, 120, 0]));
+    // Flutter 3.50's loader (flutter_js/src/supports_dart2wasm.js, generated
+    // from dart2wasm's compile.dart, BSD-3-Clause): the WebAssembly build
+    // only where WasmGC, SIMD, js-string builtins and try_table (exnref) all
+    // validate. The same four probes, byte for byte.
+    gc = WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 95, 1, 120, 0])) &&
+      WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11])) &&
+      !WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 2, 23, 1, 14, 119, 97, 115, 109, 58, 106, 115, 45, 115, 116, 114, 105, 110, 103, 4, 99, 97, 115, 116, 0, 0]), { builtins: ['js-string'] }) &&
+      WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 4, 1, 96, 0, 0, 3, 2, 1, 0, 10, 13, 1, 11, 0, 2, 64, 31, 64, 1, 2, 0, 11, 11, 11]));
   } catch (e) { /* no WebAssembly */ }
   /* canvaskit/... lives in the engine's folder, everything else in the app's. */
   function at(href) { return (href.indexOf('canvaskit/') === 0 && E.indexOf('__') !== 0 ? E : V) + '/' + href; }

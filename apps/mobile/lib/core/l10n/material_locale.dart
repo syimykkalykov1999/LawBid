@@ -1,7 +1,8 @@
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'
+    show GlobalWidgetsLocalizations;
 import 'package:lawbid/core/l10n/app_language.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 (phone test): in Russian the date and time dialogs still
 /// said «Select date», «Select time», «Cancel», «OK», «AM/PM» — the app

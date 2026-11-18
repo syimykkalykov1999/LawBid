@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Reduce-motion lookup shared by every animated design-system widget.
 extension AppMotionContext on BuildContext {

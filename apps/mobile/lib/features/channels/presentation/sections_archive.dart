@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/chat/application/chat_selection.dart';
 import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-21 (inbox 22c): «Archive (N)» at the top of a section's own
 /// list (Groups or Channels); opens that section's Archive.

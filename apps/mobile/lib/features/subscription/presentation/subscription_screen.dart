@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -24,6 +23,7 @@ import 'package:lawbid/features/subscription/presentation/seat_purchase_sheet.da
 import 'package:lawbid/features/team/presentation/assistant_code_card.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// docs/06 §1.7 п.1–2, 5 — Settings → «Подписка»: the $399/мес plan card,
 /// the current status with «Управление» / «Отменить», the trial /

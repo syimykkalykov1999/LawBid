@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The sheet that lists the themes (owner 2026-10-13): handle, title, one
 /// row per theme from [AppThemes] with its swatch, the chosen one with a

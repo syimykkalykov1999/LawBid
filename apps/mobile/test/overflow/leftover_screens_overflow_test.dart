@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/features/auth/presentation/widgets/country_waitlist_sheet.dart';
@@ -24,6 +23,7 @@ import 'package:lawbid/features/settings/about/about_screen.dart';
 import 'package:lawbid/features/support/presentation/support_list_screen.dart';
 import 'package:lawbid/features/support/presentation/support_new_screen.dart';
 import 'package:lawbid/features/trust/presentation/my_trust_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../helpers/overflow_harness.dart';
 

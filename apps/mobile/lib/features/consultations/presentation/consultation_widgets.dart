@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -13,6 +12,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/consultations/domain/consultation_ics.dart';
 import 'package:lawbid/features/consultations/domain/consultation_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart';
+import 'package:material_ui/material_ui.dart';
 
 StatusTone consultationTone(ConsultationStatus s) => switch (s) {
       ConsultationStatus.pending => StatusTone.info,

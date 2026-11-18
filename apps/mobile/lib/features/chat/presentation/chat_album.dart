@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
@@ -19,6 +18,7 @@ import 'package:lawbid/features/chat/domain/message_groups.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show docLook, fileSizeLabel;
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-19 (Telegram): the most a photo / album takes in a chat —
 /// about two thirds of the chat's width (never wider than 400 on a big web

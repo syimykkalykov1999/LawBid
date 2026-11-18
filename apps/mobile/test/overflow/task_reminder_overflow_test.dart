@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/notifications/application/task_reminders.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../helpers/long_locale.dart';
 

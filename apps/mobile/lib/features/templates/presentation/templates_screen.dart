@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/files/browser_download.dart';
@@ -19,6 +18,7 @@ import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/subscription/presentation/paywall_screen.dart';
 import 'package:lawbid/features/templates/application/templates_providers.dart';
 import 'package:lawbid/features/templates/domain/doc_template.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Opens the library to choose one template (chat "Attach", the case

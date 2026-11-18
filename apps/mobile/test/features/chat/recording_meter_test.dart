@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 (WhatsApp): the recording strip has its final look from
 /// the first frame; bars never change width as levels arrive.

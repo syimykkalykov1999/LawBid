@@ -1,10 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/auth/domain/password_auth_result.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-13: the shared frame of the password screens (log in,
 /// set a password, forgot password): optional back arrow, a 20sp title, a

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -19,6 +18,7 @@ import 'package:lawbid/features/social/domain/social_models.dart'
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
     show showReportSheet;
 import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/client/:username` — a client's public mini-profile (owner decision
 /// 2026-09-29, OQ-026): "@username" centered, avatar, name, state, member

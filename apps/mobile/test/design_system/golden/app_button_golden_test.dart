@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
-import 'package:golden_toolkit/golden_toolkit.dart';
-
+import 'package:golden_toolkit/golden_toolkit.dart' hide materialAppWrapper;
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
+
+import '../../helpers/material_app_wrapper.dart';
 
 /// Golden coverage for AppButton (file 07 §D.1 acceptance: golden tests of
 /// base widgets in both themes, incl. loading state per file 07 §9).

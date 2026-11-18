@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/platform/web_favicon_badge_stub.dart'
     if (dart.library.js_interop) 'package:lawbid/core/platform/web_favicon_badge_web.dart'
     as favicon;
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner row 113 (2026-11-14, like Telegram Web «(3) Telegram» and WhatsApp
 /// Web «(5) WhatsApp»): on the website the browser tab shows the number of

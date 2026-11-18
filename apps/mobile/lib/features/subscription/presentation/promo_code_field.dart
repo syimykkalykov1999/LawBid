@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-02 — "Have a promo code?" at checkout: collapsed link,
 /// then a field with Apply; the discount is spelled out once it is valid.

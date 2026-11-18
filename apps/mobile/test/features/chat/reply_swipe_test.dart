@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/features/chat/presentation/reply_swipe.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22 (Telegram): a message is quoted by dragging it toward
 /// the start; the screen still goes back by a drag toward the end, even

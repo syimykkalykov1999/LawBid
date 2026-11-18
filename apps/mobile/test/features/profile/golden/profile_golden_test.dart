@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golden_toolkit/golden_toolkit.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/features/profile/presentation/screens/practices_screen.da
 import 'package:lawbid/features/profile/presentation/screens/review_form_screen.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/review_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../profile_fakes.dart';
 

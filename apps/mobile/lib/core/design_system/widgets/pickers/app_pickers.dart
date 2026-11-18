@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-15: the date and time pickers of the app. Colours come from
 /// the theme (`datePickerTheme` / `timePickerTheme` in app_theme.dart, opaque

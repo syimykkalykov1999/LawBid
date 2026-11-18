@@ -1,10 +1,9 @@
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
 import 'package:lawbid/core/design_system/widgets/text/fit_text.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// General-purpose pill chip (file 01 §15 component list). File 07 does not
 /// give this a standalone spec (only the phone screen's 52px-tall country

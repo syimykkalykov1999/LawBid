@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/verification/domain/verification_repository.dart
 import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
 import 'package:lawbid/features/verification/verification_providers.dart';
 import 'package:lawbid/shared/presentation/qr_code_view.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// R-146: false when this device reports no camera at all (a computer

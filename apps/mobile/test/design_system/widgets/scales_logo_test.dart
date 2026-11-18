@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Non-golden animation-behavior tests required by file 07 §9 (§5.2): the
 /// swing must not start under `disableAnimations`, and pausing/disposing

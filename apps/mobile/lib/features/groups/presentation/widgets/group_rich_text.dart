@@ -1,8 +1,8 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/widgets/text/full_text_scale.dart';
 import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// A message's text with tappable links and highlighted @mentions.

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -7,6 +6,7 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/domain/login_identifier.dart';
 import 'package:lawbid/features/auth/presentation/widgets/password_form_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/auth/change-password` (Settings, owner 2026-10-13): the current
 /// password and a new one. The server checks the current one and ends the

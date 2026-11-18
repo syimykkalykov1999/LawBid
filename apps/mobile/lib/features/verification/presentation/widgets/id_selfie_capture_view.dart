@@ -1,11 +1,11 @@
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show ValueListenable;
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/verification/domain/selfie_liveness.dart';
 import 'package:lawbid/features/verification/presentation/widgets/id_selfie_overlay.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-28 (ID selfie camera): everything drawn over the live
 /// front camera, without the camera itself (the screen passes [preview]),

@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/cases/presentation/widgets/compact_case_row.dart';
 import 'package:lawbid/features/mine/presentation/widgets/mine_grid.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// R-248 (owner 2026-10-23: «как в инсте с брифами с кейсами в лентах и в
 /// профилях»): a case's cover never opens as an empty grey box — its

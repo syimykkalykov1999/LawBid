@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22 (WhatsApp / Telegram research): the small parts every
 /// chat bubble is made of, so each message type looks the same in every

@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_colors.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The themes a user can pick (owner 2026-10-22). Adding a theme = one new
 /// value here + one [AppThemeSpec] in [AppThemes] + its tokens in

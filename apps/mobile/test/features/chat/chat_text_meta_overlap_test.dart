@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/chat/presentation/chat_bubble_parts.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Audit 26.10 W4: the time at the end of a text bubble's last line must
 /// never sit on the text. The text is drawn with the screen's default text

@@ -1,7 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:golden_toolkit/golden_toolkit.dart';
+import 'package:golden_toolkit/golden_toolkit.dart' hide materialAppWrapper;
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/plural_rules.dart';
@@ -9,8 +8,10 @@ import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../helpers/long_locale.dart';
+import '../../../helpers/material_app_wrapper.dart';
 import '../../../helpers/ux_harness.dart';
 
 /// Owner 2026-10-23: the Q&A list in the four themes (Day, Night, Blue,

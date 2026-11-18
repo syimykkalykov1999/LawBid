@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,6 +17,7 @@ import 'package:lawbid/features/channels/presentation/channel_actions.dart';
 import 'package:lawbid/features/channels/presentation/channel_pickers.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
 import 'package:lawbid/shared/presentation/handle_hints.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20: create a channel (verified attorneys) or, with
 /// [channelRef], edit one (admins; only the owner renames the @username).

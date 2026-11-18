@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/accessibility/reduce_motion.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22 (checklist §17): one provider carries the phone's
 /// «reduce motion» to the theme (route transitions), to every animated

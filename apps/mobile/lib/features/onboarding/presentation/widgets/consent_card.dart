@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A required consent as a selectable card, in the visual language of the
 /// role cards (docs/07 §4 RoleCard: surface card, gold border and gold

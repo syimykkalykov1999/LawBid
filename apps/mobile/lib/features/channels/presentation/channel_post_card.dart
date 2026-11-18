@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
@@ -21,6 +20,7 @@ import 'package:lawbid/features/social/domain/social_models.dart'
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show PostMediaCarousel;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 /// Owner 2026-10-20: one post of a channel — text (links tappable), photos

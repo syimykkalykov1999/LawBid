@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 (Samsung, Arabic): the lit segment of «Chats | Team'
 /// sat on the wrong one — it was placed from the physical left while the row

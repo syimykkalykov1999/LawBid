@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/shared/presentation/edge_swipe.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('the middle of a row turns the page; the edges act',

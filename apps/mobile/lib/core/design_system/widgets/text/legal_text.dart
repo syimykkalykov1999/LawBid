@@ -1,8 +1,7 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Centered secondary legal copy with tappable links (file 07 §4
 /// "Юридический текст"). Used for the welcome screen's disclaimer and the

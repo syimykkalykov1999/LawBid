@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05 (legal): the partner rules in a scrollable sheet. With
 /// [withAccept] the sheet also offers «Accept» and resolves `true` when it

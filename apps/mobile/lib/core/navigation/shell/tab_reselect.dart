@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/widgets/feedback/app_refresh_indicator.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-06 (Instagram-style): tapping the bottom-nav tab that is
 /// already selected scrolls that tab back to the top and refreshes it.

@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/features/stories/presentation/story_avatar_ring.dart';
 import 'package:lawbid/features/stories/presentation/story_ring.dart';
 import 'package:lawbid/features/stories/stories_routes.dart';
 import 'package:lawbid/shared/presentation/collapsing_header.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'stories_fakes.dart';
 import 'stories_harness.dart';

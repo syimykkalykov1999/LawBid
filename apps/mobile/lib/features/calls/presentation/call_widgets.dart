@@ -1,14 +1,13 @@
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-23: only OUR picture from the FRONT camera is mirrored, like
 /// a mirror (WhatsApp / FaceTime). A rear camera shows the room as it is,

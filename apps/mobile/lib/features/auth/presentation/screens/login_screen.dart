@@ -1,12 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/diagnostics/app_event_names.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
-
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
@@ -17,6 +14,7 @@ import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart'
     show SwitchChannelLink;
 import 'package:lawbid/features/auth/presentation/widgets/passkey_login_link.dart';
 import 'package:lawbid/features/auth/presentation/widgets/password_form_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/auth/login` (owner 2026-10-13): sign in with a phone number or e-mail
 /// and the password — no SMS. After a successful call the session exists
