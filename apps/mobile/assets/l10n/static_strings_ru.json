@@ -4460,6 +4460,7 @@
 "dmca.target.case_comment": "Жалоба на вопрос по кейсу",
 "dmca.target.message": "Жалоба на сообщение",
 "about.dmca": "Авторские права (DMCA)",
+"about.licenses": "Лицензии",
 "cases.accept.unverifiedLine": "Лицензия адвоката не проверена LawBid — проверьте её в коллегии штата.",
 "error.api.ACCOUNT_RESTRICTED": "Аккаунт временно ограничен на время проверки. Если это ошибка, напишите в поддержку.",
 "account.restricted.title": "Аккаунт ограничен",
