@@ -1,5 +1,10 @@
 # LawBid local dev infrastructure — docs/01_FOUNDATION_AUTH.md §15, stage 1.1.
-# PostgreSQL, Redis, MinIO (local S3), Mailhog (local SMTP/email OTP capture).
+# PostgreSQL, Redis, versitygw (local S3), Mailpit (local SMTP/email OTP
+# capture), coturn (TURN); LiveKit dev server with `--profile calls`.
+#
+# The dev tools are pinned by tag + digest (same rule as the CI service
+# containers, S11-7); every one is multi-arch (amd64 + arm64). Bump: the
+# newest stable release that is at least 7 days old (STRICT_RULES rule 10).
 name: lawbid
 
 services:
@@ -42,25 +47,52 @@ services:
       timeout: 5s
       retries: 10
 
-  minio:
-    image: quay.io/minio/minio:latest
-    command: server /data --console-address ":9001"
+  # Local S3. Row 120 (2026-11-14): MinIO no longer publishes images or
+  # binaries; versitygw (Versity S3 Gateway, Apache-2.0) serves the S3 API
+  # over a plain directory. Same port (9000) and the same dev-only keys as
+  # before, so S3_ENDPOINT / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY in
+  # apps/api/.env and the e2e defaults (test/support/e2e-setup-env.ts) are
+  # unchanged. It enforces what the file suites check: the presigned POST
+  # policy (content-length-range, Content-Type), signed PUT headers, private
+  # buckets, link expiry. Configured by env only (the image's entrypoint),
+  # exactly like the CI service container in .github/workflows/api-ci.yml.
+  s3:
+    image: versity/versitygw:v1.11.0@sha256:8319a530d08d537426e2f855bae5280709795dc73a3f0c347973ef915d6343c5
     environment:
-      MINIO_ROOT_USER: lawbid
-      MINIO_ROOT_PASSWORD: lawbid_dev_only
+      ROOT_ACCESS_KEY: lawbid
+      ROOT_SECRET_KEY: lawbid_dev_only
+      VGW_BACKEND: posix
+      VGW_BACKEND_ARG: /data
+      VGW_PORT: ":9000"
+      VGW_HEALTH: /health
+      # Web console (MinIO's console was here too): http://localhost:9001,
+      # sign in with the two keys above.
+      VGW_WEBUI_PORT: ":9001"
+      VGW_WEBUI_NO_TLS: "true"
+      VGW_WEBUI_GATEWAYS: http://localhost:9000
+      # Dev only: any origin, as MinIO answered before. This is the default
+      # Access-Control-Allow-Origin of every bucket without its own CORS
+      # config (versitygw --cors-allow-origin), and the API never sets one:
+      # the local web app (localhost:<port>, http://<mac-ip>) and the admin
+      # read and upload files here from the browser. Never on a shared host.
+      VGW_CORS_ALLOW_ORIGIN: "*"
+      VGW_QUIET: "true"
     ports:
       - "9000:9000" # S3 API
-      - "9001:9001" # Console
+      - "9001:9001" # Web console
     volumes:
-      - minio-data:/data
+      - s3-data:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test:
+        ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9000/health"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  mailhog:
-    image: mailhog/mailhog:latest
+  # Mailpit (MIT): the maintained MailHog successor, same SMTP 1025 and web
+  # UI 8025 (http://localhost:8025). CI runs the same image (api-ci.yml).
+  mailpit:
+    image: axllent/mailpit:v1.34.0@sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e
     ports:
       - "1025:1025" # SMTP
       - "8025:8025" # Web UI
@@ -69,7 +101,7 @@ services:
   # (strict NAT, mobile carriers). Logins are short-lived HMACs from the
   # API (TURN REST API): TURN_SECRET here = TURN_SECRET in apps/api/.env.
   coturn:
-    image: coturn/coturn:4.6
+    image: coturn/coturn:4.18.0@sha256:bbefd3e1fdfdc0d58770fe01b581fd8b00d9f3a5580d00acb77cf719a6bc78e3
     command:
       - -n
       - --log-file=stdout
@@ -80,13 +112,26 @@ services:
       - --static-auth-secret=${TURN_SECRET:-lawbid-dev-turn-secret}
       - --realm=lawbid.local
       - --fingerprint
-      - --no-cli
+      # No --no-cli: coturn 4.18 keeps the CLI off by default and logs
+      # "ERROR no-cli option is deprecated" for the old flag.
     ports:
       - "3478:3478/udp"
       - "3478:3478/tcp"
       - "49160-49200:49160-49200/udp"
 
+  # LiveKit SFU in dev mode, only with `docker compose --profile calls up -d`
+  # (calls.video_provider is p2p by default). Dev keys: LIVEKIT_URL=
+  # ws://localhost:7880, LIVEKIT_API_KEY=devkey, LIVEKIT_API_SECRET=secret.
+  livekit:
+    profiles: ["calls"]
+    image: livekit/livekit-server:v1.13.11@sha256:25cd902de7cacbd5f1f779f6a6ac1eae20ba8f56b0935934ce6b0ab80d1e3d20
+    command: ["--dev", "--bind", "0.0.0.0"]
+    ports:
+      - "7880:7880" # HTTP / WebSocket signalling
+      - "7881:7881" # ICE over TCP
+      - "7882:7882/udp" # ICE over UDP (single port mux)
+
 volumes:
   postgres18-data:
   valkey-data:
-  minio-data:
+  s3-data:

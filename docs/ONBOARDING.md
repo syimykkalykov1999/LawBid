@@ -57,8 +57,38 @@ Prerequisites: Node 26 (CI uses 26), npm, Docker, Flutter (stable) for the app.
 git clone <repo> && cd LawBid
 npm ci                      # root workspace: apps/api, apps/admin, packages/*
 npm run prepare             # installs the husky pre-commit hook (npm ci skips scripts)
-docker compose up -d        # PostgreSQL 16, Redis 7, MinIO (local S3), Mailhog, TURN
+docker compose up -d        # PostgreSQL 16, Redis 7, versitygw (local S3), Mailpit, TURN
+# docker compose --profile calls up -d livekit   # optional: LiveKit SFU in dev mode
 ```
+
+**Once, on a machine that ran the old MinIO (row 120, 14.11).** The local S3 service is now `s3`
+(versitygw) instead of `minio`, on the same port 9000 and with the same dev keys. A plain
+`docker compose up -d` leaves the old `lawbid-minio-1` running on 9000, and `s3` then fails with
+«port is already allocated». Remove the old container once (its volume `lawbid_minio-data` stays
+until you delete it yourself):
+
+```sh
+docker compose up -d --remove-orphans      # or: docker rm -f lawbid-minio-1 && docker compose up -d
+```
+
+The files uploaded to the old MinIO are not in the new store (MinIO's on-disk format is not plain
+files), so local avatars and photos from before show as missing. Optional one-time copy with the
+AWS CLI, starting the old data once more on another port:
+
+```sh
+docker run -d --name minio-old -p 9100:9000 -v lawbid_minio-data:/data \
+  -e MINIO_ROOT_USER=lawbid -e MINIO_ROOT_PASSWORD=lawbid_dev_only \
+  quay.io/minio/minio:latest server /data   # the image the old compose used, already pulled
+export AWS_ACCESS_KEY_ID=lawbid AWS_SECRET_ACCESS_KEY=lawbid_dev_only AWS_DEFAULT_REGION=us-east-1
+for b in $(aws --endpoint-url http://localhost:9100 s3 ls | awk '{print $3}'); do
+  aws --endpoint-url http://localhost:9000 s3 mb "s3://$b" 2>/dev/null || true
+  aws --endpoint-url http://localhost:9100 s3 sync "s3://$b" "./minio-copy/$b"
+  aws --endpoint-url http://localhost:9000 s3 sync "./minio-copy/$b" "s3://$b"
+done
+docker rm -f minio-old    # then delete ./minio-copy
+```
+
+Skip it if the local files do not matter (`npm run seed:demo` uploads fresh demo pictures).
 
 API (`apps/api`):
 
@@ -74,7 +104,7 @@ npm run start:dev --workspace apps/api      # http://localhost:3000, watch mode
 Notes:
 
 - In dev, SMS and e-mail use the mock providers (`SMS_PROVIDER`/`EMAIL_PROVIDER=auto`); codes
-  appear in the API log and Mailhog (<http://localhost:8025>). In staging/production a mock is
+  appear in the API log and Mailpit (<http://localhost:8025>). In staging/production a mock is
   refused at boot ([ADR-0014](adr/0014-no-silent-mock-in-prod.md)).
 - Jobs: `JOBS_ENABLED=true` makes the API also run queues and cron. Production runs a separate
   worker (`node dist/src/worker.js`).
@@ -122,7 +152,7 @@ Core list is `.cursorrules` (Russian, mandatory). The ones that matter most, gro
 - **Lint is clean and `--fix` changes nothing:** `npm run lint` runs ESLint with `--fix`; CI then
   fails if committed files changed. Run lint before you commit. A husky hook (`lint-staged`) lints staged API files.
 - **Typecheck** `tsc --noEmit`; strict TypeScript; no `any`, no `@ts-ignore` without a reason.
-- **Unit and e2e tests** on real PostgreSQL 16, Redis 7, MinIO, Mailhog; e2e also on two databases.
+- **Unit and e2e tests** on real PostgreSQL 16, Redis 7, versitygw (S3), Mailpit; e2e also on two databases.
 - **API contract regeneration:** after changing any controller, DTO or response, run
   `sh packages/api-contract/generate.sh` (needs dev DB and Redis) and commit `openapi.json` plus the
   Dart client. CI regenerates and fails on any difference ("contract drift"). `oasdiff` also fails the

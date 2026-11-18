@@ -8,7 +8,7 @@ npm run seed:demo --workspace apps/api
 
 Нужны `DATABASE_URL` и (для картинок) `S3_ENDPOINT`, `S3_BUCKET_MEDIA`,
 `S3_BUCKET_DOCUMENTS`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` — те же,
-что у API; скрипт читает `apps/api/.env`. Бакеты в MinIO создаются сами.
+что у API; скрипт читает `apps/api/.env`. Бакеты в локальном S3 (versitygw из `docker-compose.yml`) создаются сами.
 Без `S3_*` всё, кроме картинок и документов, всё равно создаётся.
 Перед запуском в базе должны быть справочники (переводы, штаты, практики,
 планы) — на Mac они уже есть. Скрипт отказывается работать, если

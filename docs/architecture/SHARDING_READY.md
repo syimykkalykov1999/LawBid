@@ -130,7 +130,7 @@ Do steps 0 to 5 now (about 76 h): cheap insurance, because IDs and a shard colum
 - **Known cross-DB limitations** (`knownLimitations` in the JSON, 113 suites; each has `kind`, the plan step that fixes it and its first failing test). They pass on one database and are listed, not run, in two-DB mode:
   - `write` (56): one request writes rows of two families in one transaction (for example creating a case also writes `user_consents`, counters or a notification). Fix: step 7 (outbox, audit of the 53 transactions).
   - `read` (57): a response joins or lists across families or shards (feed, lists, counters, cards with `include: { user }`), or the suite seeds/reads sharded rows with an unscoped client that only sees the primary database. Fix: step 6 (`UserDirectory`) and step 8 (feed fan-out, scatter-gather).
-  - Six suites also fail on one database when the local `.env` lacks Stripe keys, DB roles or MailHog (`environmentOnly` in the JSON); unrelated to sharding.
+  - Six suites also fail on one database when the local `.env` lacks Stripe keys, DB roles or Mailpit (`environmentOnly` in the JSON); unrelated to sharding.
 
 ## 11. Status of steps 6 and 7 (2026-10-25)
 

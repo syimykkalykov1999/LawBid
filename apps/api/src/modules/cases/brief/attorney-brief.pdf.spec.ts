@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument } from '@cantoo/pdf-lib';
 import PDFKitDocument from 'pdfkit';
 import sharp from 'sharp';
 import {
