@@ -32,7 +32,7 @@
 Не менялось: `subscription-sync.service.ts` › seatSync. Он меняет только число мест внутри денежной транзакции Stripe, а «Добавить помощника» читает места через кэш, который эта транзакция сбрасывает.
 
 ## Схема
-- `prisma/concurrent/20261219090000_assistant_one_active_team_key.sql`: `CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS … ON assistant_memberships (assistant_user_id) WHERE status = 'active'`. Индекса нет в схеме Prisma. `check-migrations.mjs` проходит.
+- `prisma/concurrent/20261220100000_assistant_one_active_team_key.sql`: `CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS … ON assistant_memberships (assistant_user_id) WHERE status = 'active'`. Индекса нет в схеме Prisma. `check-migrations.mjs` проходит.
 - Одобрен `module-boundaries.baseline.json` (у admin-users было 10 связей, стало 11): блокировка адвоката сбрасывает кэш его помощников.
 
 ## Взято у больших платформ
