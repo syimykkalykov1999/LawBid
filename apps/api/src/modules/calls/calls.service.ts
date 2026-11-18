@@ -28,7 +28,10 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CALL_SILENT_MS } from '../../common/calls/ongoing-call';
+import {
+  CALL_END_SILENT,
+  CALL_SILENT_MS,
+} from '../../common/calls/ongoing-call';
 import { CALL_RING_TIMEOUT_MS } from '../../common/calls/ring';
 import {
   type CallPollClaims,
@@ -1674,7 +1677,8 @@ export class CallsService {
         c.status === 'ringing' ? 'missed' : 'ended',
         null,
         undefined,
-        undefined,
+        // Fix 17.11 (#1235): an active call closed for silence says so.
+        c.status === 'active' ? CALL_END_SILENT : undefined,
         undefined,
         [c.status],
       );

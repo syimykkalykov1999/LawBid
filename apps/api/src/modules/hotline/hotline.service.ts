@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type Redis from 'ioredis';
+import { CALL_END_SILENT } from '../../common/calls/ongoing-call';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
@@ -1278,10 +1279,12 @@ export class HotlineService {
         answeredAt + s['hotline.call_max_minutes'] * 60_000,
       );
     }
-    // Verify 17.11 H2: when the 1:1 call ended first, its own seconds can
-    // include the dead air until it noticed the link was lost (up to its
-    // whole grace); bill no further than the last sign of life, and nothing
-    // when the voice never came up.
+    // Verify 17.11 H2: when the 1:1 call ended because its link died
+    // (`link_lost`, or the calls sweep closing it for silence), its own
+    // seconds include the dead air: bill no further than the last sign of
+    // life. A hang-up is billed in full (fix 17.11, #1235: beats come every
+    // few seconds, so capping a hang-up at the last beat under-billed it),
+    // and nothing when the voice never came up.
     const beatSec = Math.max(
       0,
       Math.round((Number(r.beatAt ?? answeredAt) - answeredAt) / 1000),
@@ -1293,7 +1296,10 @@ export class HotlineService {
           ? beatSec
           : trustCallSeconds
             ? Math.max(0, fromCall.durationSec)
-            : Math.max(0, Math.min(fromCall.durationSec, beatSec))
+            : fromCall.endReason === 'link_lost' ||
+                fromCall.endReason === CALL_END_SILENT
+              ? Math.max(0, Math.min(fromCall.durationSec, beatSec))
+              : Math.max(0, fromCall.durationSec)
       : Math.max(0, Math.round((endAt - answeredAt) / 1000));
     await this.redis.hincrby(this.k.trial(lw), 'seconds', seconds);
     await this.redis.expire(

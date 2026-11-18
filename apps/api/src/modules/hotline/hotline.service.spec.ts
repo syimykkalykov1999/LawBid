@@ -1444,11 +1444,11 @@ describe('hotline use cases (real Valkey)', () => {
       calls.get(callId)!.beat = now;
       await tick(0);
     }
-    // the link died at 40 s; the calls side closed it 160 s later
+    // the link died at 40 s; the calls sweep closed it for silence later
     Object.assign(calls.get(callId)!, {
       status: 'ended',
       dur: 200,
-      end: 'ended',
+      end: 'silent',
     });
     await tick(2001);
     expect(await redis.hget(k.request(a.id), 'seconds')).toBe('40');
@@ -1468,6 +1468,27 @@ describe('hotline use cases (real Valkey)', () => {
     await tick(2001);
     expect(await redis.hget(k.request(b.id), 'endReason')).toBe('failed');
     expect(await redis.hget(k.request(b.id), 'seconds')).toBe('0');
+  });
+
+  it('fix #1235: a hang-up on the call screen is billed in full, not to the last beat', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    const a = await ask('C1');
+    await goLine('L1');
+    const { callId } = (await svc.accept(attorney('L1'), a.id)) as {
+      callId: string;
+    };
+    now += 20_000;
+    calls.get(callId)!.beat = now;
+    await tick(0);
+    // hung up 7 s after the last beat (beats come every few seconds)
+    Object.assign(calls.get(callId)!, {
+      status: 'ended',
+      dur: 27,
+      end: null,
+    });
+    await tick(2001);
+    expect(await redis.hget(k.request(a.id), 'seconds')).toBe('27');
   });
 
   it('verify H3: two racing ends of one failed call count ONE miss', async () => {
