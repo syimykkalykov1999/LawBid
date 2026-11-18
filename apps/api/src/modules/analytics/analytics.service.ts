@@ -9,6 +9,7 @@ import { demoContext } from '../../common/demo/demo-context';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { AnalyticsDto } from './analytics.dto';
+import { AnalyticsConsentService } from './analytics-consent.service';
 import { AppEventsService } from './app-events.service';
 
 /** Period lengths the admin page offers; the daily job keeps all of them. */
@@ -34,6 +35,7 @@ export class AnalyticsService {
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly appEvents: AppEventsService,
     @Optional() private readonly summary?: AdminSummaryService,
+    @Optional() private readonly consent?: AnalyticsConsentService,
   ) {}
 
   /** Writes started by `touch` that have not finished yet. */
@@ -53,8 +55,18 @@ export class AnalyticsService {
   touch(userId: string): void {
     if (demoContext.isDemo()) return;
     const today = dayKey(new Date());
-    const write: Promise<void> = this.redis
-      .set(`act:${today}:${userId}`, '1', 'EX', 36 * 3600, 'NX')
+    // Verify 18.11 (AN1): `user_activity_days` is per-person analytics — a
+    // person who said «no» to analytics or «Do not sell or share» is not
+    // recorded (the same rule as the app events; the answer is cached).
+    const allowed = this.consent
+      ? this.consent.allowed(userId)
+      : Promise.resolve(true);
+    const write: Promise<void> = allowed
+      .then((ok) =>
+        ok
+          ? this.redis.set(`act:${today}:${userId}`, '1', 'EX', 36 * 3600, 'NX')
+          : null,
+      )
       .then(async (fresh) => {
         if (fresh === null) return;
         await this.prisma.$executeRaw`
