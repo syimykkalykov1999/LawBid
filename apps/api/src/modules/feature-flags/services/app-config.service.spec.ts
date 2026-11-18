@@ -212,3 +212,28 @@ describe('verify batch 11 (C9): dropAppConfigCache after a committed save', () =
     await expect(dropAppConfigCache(down as never)).resolves.toBeUndefined();
   });
 });
+
+describe('verify batch 11 (C3): a fresh read never takes the Redis copy', () => {
+  it('getConfig(true) reads the table even when Redis holds a copy', async () => {
+    // A slow fill on another instance wrote the pre-save map back to Redis
+    // after the admin's save dropped it and bumped the version.
+    const store = new Map([
+      [
+        'config:app_config',
+        JSON.stringify({ 'security.turnstile.mode': 'off' }),
+      ],
+    ]);
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([
+        { key: 'security.turnstile.mode', value: 'enforce' },
+      ]);
+    const service = new AppConfigService(
+      { appConfig: { findMany } } as never,
+      buildFakeRedis(store) as never,
+    );
+    expect(await service.getConfig(true)).toEqual({
+      'security.turnstile.mode': 'enforce',
+    });
+  });
+});

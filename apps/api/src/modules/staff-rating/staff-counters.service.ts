@@ -92,21 +92,27 @@ export class StaffCountersService {
       typeof e.handleMs === 'number' && Number.isFinite(e.handleMs)
         ? Math.min(Math.max(0, Math.round(e.handleMs)), MAX_HANDLE_MS)
         : null;
+    const tz = await reportTimeZone(this.settings);
+    const day = reportDayKey(at, tz);
+    // Verify batch 11 (D15c): a decision without its handling time keeps
+    // its day and person in the seen-key ('n|<day>|<admin>'), so a late
+    // time is booked where the decision was counted, not on the day (or
+    // the person) of the duplicate. A bare 'n' is a key of an older build.
     const first = await this.redis.set(
       seenKey(e.itemKind, e.itemId),
-      handle === null ? 'n' : 't',
+      handle === null ? `n|${day}|${e.adminId}` : 't',
       'EX',
       COUNTER_TTL_SEC,
       'NX',
     );
-    const tz = await reportTimeZone(this.settings);
-    const day = reportDayKey(at, tz);
     if (first === null) {
       // Seen. Only a missing handling time can still be added.
-      if (
-        handle !== null &&
-        (await this.redis.get(seenKey(e.itemKind, e.itemId))) === 'n'
-      ) {
+      const seen =
+        handle === null
+          ? null
+          : await this.redis.get(seenKey(e.itemKind, e.itemId));
+      if (handle !== null && seen !== null && seen.startsWith('n')) {
+        const [, seenDay, seenAdmin] = seen.split('|');
         await this.redis.set(
           seenKey(e.itemKind, e.itemId),
           't',
@@ -114,7 +120,7 @@ export class StaffCountersService {
           COUNTER_TTL_SEC,
           'XX',
         );
-        await this.addTime(day, e.adminId, handle);
+        await this.addTime(seenDay || day, seenAdmin || e.adminId, handle);
       }
       return false;
     }

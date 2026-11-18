@@ -238,3 +238,30 @@ describe('verify batch 11 (D7): the hourly flush never lowers a stored day', () 
     expect(sql).not.toMatch(/decided = EXCLUDED\.decided/);
   });
 });
+
+describe("verify batch 11 (D15c): a late handling time lands on the decision's day", () => {
+  it('the time reported after local midnight is added to the day of the decision', async () => {
+    const redis = new FakeStaffRedis();
+    const prisma = { $executeRaw: jest.fn() } as unknown as PrismaService;
+    const svc = new StaffCountersService(prisma, redis.asRedis());
+    // 2026-10-26 23:30 in Nevada, without a handling time...
+    await svc.bump(
+      { adminId: A, itemKind: 'report', itemId: id(7), outcome: 'hide' },
+      new Date('2026-10-27T06:30:00Z'),
+    );
+    // ...the queue reports the time a little after local midnight.
+    await svc.bump(
+      {
+        adminId: A,
+        itemKind: 'report',
+        itemId: id(7),
+        outcome: 'hide',
+        handleMs: 30_000,
+      },
+      new Date('2026-10-27T07:30:00Z'),
+    );
+    const [day] = await svc.readDay('2026-10-26');
+    expect(day).toMatchObject({ decided: 1, handleN: 1, handleMsSum: 30_000 });
+    expect(await svc.readDay('2026-10-27')).toEqual([]);
+  });
+});

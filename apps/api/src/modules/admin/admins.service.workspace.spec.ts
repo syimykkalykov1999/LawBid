@@ -196,6 +196,53 @@ describe('a head hires inside the workspace', () => {
     ).resolves.toBeDefined();
   });
 
+  it('verify batch 11 (B9a): a switched-off person frees the seat; switching back on needs one', async () => {
+    const { svc, prisma } = build(worker(), { team: [], max: 2 });
+    await svc.create(head, 'n@x.io', 'verifier');
+    // Only working (active, not deleted) people take a seat.
+    expect(prisma.adminProfile.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          user: { deleted_at: null, status: 'active' },
+        }),
+      }),
+    );
+    // A full team: the head cannot switch a disabled worker back on.
+    const full = build(row('w1', {}, 'suspended'), {
+      team: [{ permissions: {} }, { permissions: {} }],
+      max: 2,
+    });
+    await expect(full.svc.setEnabled(head, 'w1', true)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(full.prisma.user.update).not.toHaveBeenCalled();
+    // The owner is never capped.
+    await expect(full.svc.setEnabled(owner, 'w1', true)).resolves.toBeDefined();
+  });
+
+  it('verify batch 11 (B9a): the seat is counted inside the hiring transaction', async () => {
+    const { svc, prisma } = build(worker(), { team: [], max: 2 });
+    const order: string[] = [];
+    prisma.adminProfile.findMany.mockImplementation(() => {
+      order.push('count');
+      return Promise.resolve([]);
+    });
+    const tx = jest.requireMock<{
+      withTxRetry: (p: unknown, fn: (t: unknown) => unknown) => unknown;
+    }>('../../prisma/tx-retry.util');
+    const real = tx.withTxRetry;
+    tx.withTxRetry = (p, fn) => {
+      order.push('tx');
+      return fn(p);
+    };
+    try {
+      await svc.create(head, 'n@x.io', 'verifier');
+    } finally {
+      tx.withTxRetry = real;
+    }
+    expect(order).toEqual(['tx', 'count']);
+  });
+
   it('role defaults are cut to the ceiling when nothing is spelled out', async () => {
     const { svc, prisma } = build(worker());
     await svc.create(head, 'n@x.io', 'support');

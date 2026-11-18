@@ -171,6 +171,9 @@ export class AdminSanctionsService {
       );
       return updated;
     });
+    // Verify batch 11 (B8): a lifted block of a person undoes what it
+    // spread to the linked accounts (no-op while they are still blocked).
+    if (before.kind === 'user') void this.fraud?.onRestored(before.value);
     return present(row, null, new Date());
   }
 

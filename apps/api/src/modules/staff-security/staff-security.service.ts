@@ -35,8 +35,8 @@ import {
   isExportRequest,
   openedCard,
   sameNetwork,
-  utcDay,
 } from './staff-security.util';
+import { reportDayKey, reportTimeZone } from '../../common/utils/report-day';
 import { incrWithTtl } from '../../redis/incr-with-ttl';
 
 export const SECURITY_AUDIT = {
@@ -150,7 +150,11 @@ export class StaffSecurityService implements StaffSecurityPort {
     let counterKey: string | null = null;
     if (capped) {
       const cap = await this.staff.number('staff.reveal_per_day');
-      counterKey = ck('adm', `staff:reveal:${admin.id}:${utcDay()}`);
+      // Verify batch 11 (D15a): the day of the report time zone, like the
+      // reveal anomaly and every other staff day (UTC cut it at 16:00 in
+      // Nevada).
+      const day = reportDayKey(new Date(), await reportTimeZone(this.settings));
+      counterKey = ck('adm', `staff:reveal:${admin.id}:${day}`);
       const used = await incrWithTtl(this.redis, counterKey, 2 * 86_400);
       if (used > cap) {
         await this.redis.decr(counterKey);

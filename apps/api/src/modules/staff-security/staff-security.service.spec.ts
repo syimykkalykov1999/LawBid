@@ -60,6 +60,9 @@ function setup(
     stringList: jest.fn((k: string) =>
       Promise.resolve((all[k] as string[]) ?? []),
     ),
+    string: jest.fn((k: string) =>
+      Promise.resolve(typeof all[k] === 'string' ? all[k] : ''),
+    ),
   } as unknown as AppSettingsService;
   const svc = new StaffSecurityService(
     staff,
@@ -155,6 +158,22 @@ describe('StaffSecurityService — reveal', () => {
       }),
     );
     expect(watch.noteReveal).toHaveBeenCalledWith('adm-1');
+  });
+
+  it('verify batch 11 (D15a): the day of the limit is the local (report) day, not UTC', async () => {
+    jest.useFakeTimers({
+      now: new Date('2026-11-18T03:00:00Z'), // 17.11 19:00 in Nevada
+      doNotFake: ['nextTick', 'setImmediate', 'setTimeout', 'setInterval'],
+    });
+    try {
+      const { svc, store } = setup({ 'staff.masking_enabled': true });
+      await svc.reveal(mass(), dto);
+      const keys = [...store.keys()].filter((k) => k.includes('staff:reveal'));
+      expect(keys).toHaveLength(1);
+      expect(keys[0]).toContain('2026-11-17');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('the 21st reveal of the day is 429 STAFF_REVEAL_LIMIT (limit from the settings)', async () => {

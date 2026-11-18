@@ -101,7 +101,7 @@ export class AppConfigService {
    * Redis copy before they bump the config version, so this read is never
    * older than the version the caller keys its copy by. */
   async getConfig(fresh = false): Promise<Record<string, unknown>> {
-    if (fresh) return this.loadConfig();
+    if (fresh) return this.loadFresh();
     const memoOn = process.env.NODE_ENV !== 'test';
     if (memoOn && appConfigMemo) {
       const age = Date.now() - appConfigMemo.at;
@@ -137,6 +137,25 @@ export class AppConfigService {
     const value = await this.loadConfig();
     if (memoOn) appConfigMemo = { at: Date.now(), value };
     return value;
+  }
+
+  /**
+   * Verify batch 11 (C3): the read of a caller that keys what it keeps by
+   * the config version (the bootstrap body) goes to the table, never to the
+   * Redis copy: a fill that began on another instance before an admin save
+   * can write the pre-save map back after the save dropped it, and that map
+   * would then be stored under the new version. One table read per
+   * bootstrap build (per tag), shared by concurrent callers.
+   */
+  private loadFresh(): Promise<Record<string, unknown>> {
+    return singleFlight(`${APP_CONFIG_CACHE_KEY}:fresh`, async () => {
+      const rows = await this.prisma.appConfig.findMany({
+        select: { key: true, value: true },
+      });
+      const config: Record<string, unknown> = {};
+      for (const row of rows) config[row.key] = row.value;
+      return config;
+    });
   }
 
   private async loadConfig(): Promise<Record<string, unknown>> {

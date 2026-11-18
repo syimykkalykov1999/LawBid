@@ -7,6 +7,7 @@ import PDFDocument from 'pdfkit';
 import {
   type CjkEntry,
   FONTS_DIR,
+  cjkCacheDir,
   INTER_PATH,
   PdfWordCache,
   applyPdfFonts,
@@ -170,8 +171,13 @@ describe('PDF fonts: script fallback', () => {
     const fontOf = (family: string): Font | null => {
       if (!fonts.has(family)) {
         const file = `${family.replace(/^Noto-/, '')}-Regular`;
+        // The CJK files are not in git: they live in the download cache
+        // (KNOWN_ERRORS 220 — a Mac with the cache warm failed here).
         const p = ['.ttf', '.otf']
-          .map((e) => join(FONTS_DIR as string, 'noto', file + e))
+          .flatMap((e) => [
+            join(FONTS_DIR as string, 'noto', file + e),
+            join(cjkCacheDir(), file + e),
+          ])
           .find((c) => {
             try {
               readFileSync(c);

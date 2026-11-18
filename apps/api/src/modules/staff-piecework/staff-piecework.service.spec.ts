@@ -266,6 +266,21 @@ describe('StaffPieceworkService recount', () => {
     });
     expect(res.paidDiffs).toEqual([{ adminId: A1, deltaCents: 1100 }]);
   });
+
+  it('verify batch 11 (D13): the difference of a paid day is still reported on the next run', async () => {
+    const fx = typicalDay();
+    const { svc } = makeService(fx);
+    await svc.computeDay(DAY);
+    fx.accruals[0].status = 'paid';
+    fx.leaseDone.push(...done(A1, 'support_ticket', 5));
+    await svc.computeDay(DAY);
+    const again = await svc.computeDay(DAY);
+    expect(again.paidDiffs).toEqual([{ adminId: A1, deltaCents: 1100 }]);
+    // The day's rows keep what was paid.
+    expect(
+      fx.days.reduce((sum, d) => sum + (d.amount_cents as number), 0),
+    ).toBe(3080);
+  });
 });
 
 describe('StaffPieceworkService dispute / rerun', () => {
