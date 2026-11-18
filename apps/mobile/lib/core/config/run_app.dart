@@ -30,6 +30,7 @@ import 'package:lawbid/core/platform/web_isolation.dart';
 import 'package:lawbid/core/platform/web_lifecycle.dart';
 import 'package:lawbid/core/platform/web_semantics.dart';
 import 'package:lawbid/core/security/app_check.dart';
+import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/core/startup/startup_idle_queue.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
@@ -272,6 +273,11 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // Perf batch 4 (row 127): the phone's low-memory warning frees the app's
   // own memory copies too (core/cache/memory_pressure.dart).
   container.read(memoryPressureProvider);
+
+  // Verify 18.11 (AN2): usage events carry the session's token so the
+  // server applies the account's analytics / «Do not sell» answers.
+  AppEvents.bearer = () =>
+      container.read(sessionControllerProvider)?.accessToken;
 
   // docs/ops/demo-world.md: Android Play install referrer → pending referral
   // code (first launch only). Fire-and-forget, never delays first paint.

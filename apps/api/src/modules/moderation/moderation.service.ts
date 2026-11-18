@@ -68,6 +68,30 @@ export class ModerationService {
     @Optional() private readonly outbox?: CrossFamilyOutbox,
   ) {}
 
+  /**
+   * Verify 18.11 (MO5): a moderator's own decision stands — true when the
+   * latest human hide / remove / restore on the object (after [since], when
+   * given) is a hide or a remove. An automatic or picture-check restore
+   * must not undo it.
+   */
+  async humanHiddenSince(
+    type: ReportTargetType,
+    id: string,
+    since?: Date,
+  ): Promise<boolean> {
+    const last = await this.prisma.moderationAction.findFirst({
+      where: {
+        target_type: type,
+        target_id: id,
+        action: { in: ['hide', 'remove', 'restore'] },
+        ...(since ? { created_at: { gte: since } } : {}),
+      },
+      orderBy: { created_at: 'desc' },
+      select: { action: true },
+    });
+    return last?.action === 'hide' || last?.action === 'remove';
+  }
+
   async resolve(
     type: ReportTargetType,
     id: string,
@@ -769,6 +793,9 @@ export class ModerationService {
         });
         const clientId = target.context.clientId;
         if (clientId) {
+          // Verify 17.11: locked like ClientReviewsService.recalc, so a
+          // parallel review write can't leave the older count last.
+          await tx.$queryRaw`SELECT 1 FROM client_profiles WHERE user_id = ${clientId}::uuid FOR UPDATE`;
           const agg = await tx.clientReview.aggregate({
             where: { client_id: clientId, status: 'published' },
             _avg: { rating: true },

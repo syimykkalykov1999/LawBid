@@ -8,6 +8,7 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/photo_jpeg.dart';
 import 'package:lawbid/core/media/photo_metadata.dart';
+import 'package:lawbid/core/platform/paste_files.dart';
 
 /// Lets files be dragged from the computer onto [child], on the website only
 /// (flag `web_file_drop`). On a phone this is [child] and nothing else, and
@@ -17,17 +18,29 @@ class FileDropZone extends ConsumerStatefulWidget {
     required this.onFiles,
     required this.child,
     this.enabled = true,
+    this.paste = false,
     super.key,
   });
 
   /// The dropped files (folders are left out).
   final ValueChanged<List<XFile>> onFiles;
   final bool enabled;
+
+  /// Row 185: files pasted with Ctrl+V / Cmd+V on the website (a
+  /// screenshot) arrive in [onFiles] too, while this screen is on top.
+  final bool paste;
   final Widget child;
 
   /// Tests stand in for the browser.
   @visibleForTesting
   static bool debugAssumeWeb = false;
+
+  /// Tests stand in for the browser's `paste` event.
+  @visibleForTesting
+  static void Function() Function(
+    void Function(List<XFile> files) onFiles, {
+    required bool Function() accept,
+  }) debugListenForPaste = listenForPastedFiles;
 
   @override
   ConsumerState<FileDropZone> createState() => _FileDropZoneState();
@@ -35,6 +48,29 @@ class FileDropZone extends ConsumerStatefulWidget {
 
 class _FileDropZoneState extends ConsumerState<FileDropZone> {
   bool _over = false;
+  void Function()? _stopPaste;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.paste && (kIsWeb || FileDropZone.debugAssumeWeb)) {
+      _stopPaste = FileDropZone.debugListenForPaste(
+        (files) {
+          if (mounted) widget.onFiles(files);
+        },
+        accept: () =>
+            mounted &&
+            widget.enabled &&
+            (ModalRoute.isCurrentOf(context) ?? true),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _stopPaste?.call();
+    super.dispose();
+  }
 
   void _setOver(bool value) {
     if (_over != value && mounted) setState(() => _over = value);

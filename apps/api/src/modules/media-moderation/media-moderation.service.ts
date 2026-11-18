@@ -862,44 +862,81 @@ export class MediaModerationService {
       });
     }
     const hidden = (check.hidden_targets as unknown as HiddenTarget[]) ?? [];
-    if (decision === 'approve') {
-      await this.apply(hidden, 'restore');
-      if (check.purpose === 'sticker' && check.file_id) {
-        await this.prisma.sticker.updateMany({
-          where: { file_id: check.file_id, moderation_status: 'pending' },
-          data: { moderation_status: 'active' },
-        });
-      }
-      for (const t of hidden.filter((h) => h.type === 'avatar')) {
-        if (check.file_id) {
-          await this.prisma.user.updateMany({
-            where: { id: t.id, avatar_file_id: null },
-            data: { avatar_file_id: check.file_id },
-          });
-        }
-      }
-    } else {
-      const targets = await this.targetsOf(check);
-      await this.apply(targets, 'remove');
-      if (check.file_id && check.status !== 'csam_match') {
-        await this.release.release([check.file_id], 'released');
-      }
-      if (
-        check.video_asset_id &&
-        this.videos &&
-        check.status !== 'csam_match'
-      ) {
-        await this.videos.markDeleted([check.video_asset_id]);
-      }
-    }
-    return this.prisma.mediaModerationCheck.update({
-      where: { id },
+    // Verify 18.11 (MM1): the decision is claimed first, in one conditional
+    // write — two moderators at once (approve vs remove) cannot both apply
+    // their effects, and the hourly re-hide sweep (decision IS NULL) no
+    // longer hides what is being approved.
+    const claimed = await this.prisma.mediaModerationCheck.updateMany({
+      where: { id, decision: null },
       data: {
         decision: decision === 'approve' ? 'approved' : 'removed',
         decided_by: adminId,
         decided_at: new Date(),
       },
     });
+    if (claimed.count === 0) {
+      throw new ConflictException({
+        code: ErrorCode.MODERATION_ACTION_NOT_APPLICABLE,
+        message: 'This check was already decided.',
+      });
+    }
+    try {
+      if (decision === 'approve') {
+        // Verify 18.11 (MO5b): what a moderator hid or removed after the
+        // picture check stays as the moderator decided.
+        const back: HiddenTarget[] = [];
+        for (const t of hidden) {
+          if (
+            t.type !== 'avatar' &&
+            t.type !== 'sticker' &&
+            (await this.moderation.humanHiddenSince(
+              t.type,
+              t.id,
+              check.created_at,
+            ))
+          ) {
+            continue;
+          }
+          back.push(t);
+        }
+        await this.apply(back, 'restore');
+        if (check.purpose === 'sticker' && check.file_id) {
+          await this.prisma.sticker.updateMany({
+            where: { file_id: check.file_id, moderation_status: 'pending' },
+            data: { moderation_status: 'active' },
+          });
+        }
+        for (const t of hidden.filter((h) => h.type === 'avatar')) {
+          if (check.file_id) {
+            await this.prisma.user.updateMany({
+              where: { id: t.id, avatar_file_id: null },
+              data: { avatar_file_id: check.file_id },
+            });
+          }
+        }
+      } else {
+        const targets = await this.targetsOf(check);
+        await this.apply(targets, 'remove');
+        if (check.file_id && check.status !== 'csam_match') {
+          await this.release.release([check.file_id], 'released');
+        }
+        if (
+          check.video_asset_id &&
+          this.videos &&
+          check.status !== 'csam_match'
+        ) {
+          await this.videos.markDeleted([check.video_asset_id]);
+        }
+      }
+    } catch (e) {
+      // The effects failed: the check goes back to the queue undecided.
+      await this.prisma.mediaModerationCheck.updateMany({
+        where: { id, decided_by: adminId },
+        data: { decision: null, decided_by: null, decided_at: null },
+      });
+      throw e;
+    }
+    return this.get(id);
   }
 
   /** The admin's «Report to NCMEC» (also called on a hash match). */

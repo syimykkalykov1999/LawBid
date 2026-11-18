@@ -2,6 +2,10 @@ import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { forEachDatabase } from '../../sharding/for-each-database';
 import { FeatureFlagsService } from '../feature-flags/feature-flags.public';
+import {
+  conversationRoom,
+  RealtimePublisher,
+} from '../realtime/realtime-publisher.service';
 
 /** Same key as FirmsService.FIRMS_FLAG (kept here so this file has no
  * import of the firms service: chat, cases and bids all read it). */
@@ -39,6 +43,7 @@ export class BidTeamService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly flags?: FeatureFlagsService,
+    @Optional() private readonly realtime?: RealtimePublisher,
   ) {}
 
   /** The admin switch «Фирмы» (`firm_profiles`, off when missing). */
@@ -197,22 +202,38 @@ export class BidTeamService {
   /** The case chats [userId] works on as a team member (their chat list). */
   async chatIdsOf(userId: string): Promise<string[]> {
     if (!(await this.enabled())) return [];
+    // Verify 17.11 (batch 9): one firm query per joined bid ran on every
+    // chat-list request (up to 200 in a row), and `take` had no order, so
+    // past the cap an arbitrary set of chats was dropped. A lawyer is in
+    // one firm: its active lawyers are read once and the joins are
+    // filtered by them in the same query, newest first.
+    const me = await this.prisma.firmMember.findFirst({
+      where: { attorney_id: userId, status: 'active' },
+      select: { firm_id: true },
+    });
+    if (!me) return [];
+    const colleagues = await this.prisma.firmMember.findMany({
+      where: { firm_id: me.firm_id, status: 'active' },
+      select: { attorney_id: true },
+    });
     const rows = await this.prisma.bidParticipant.findMany({
       where: {
         attorney_id: userId,
-        bid: { status: { in: ['active', 'accepted'] } },
+        bid: {
+          status: { in: ['active', 'accepted'] },
+          attorney_id: {
+            in: colleagues.map((c) => c.attorney_id),
+            not: userId,
+          },
+        },
       },
       select: {
         bid: { select: { id: true, case_id: true, attorney_id: true } },
       },
+      orderBy: [{ created_at: 'desc' }, { bid_id: 'desc' }],
       take: 200,
     });
-    const live: TeamBid[] = [];
-    for (const r of rows) {
-      if ((await this.sameFirm(r.bid.attorney_id, [userId])).has(userId)) {
-        live.push(r.bid);
-      }
-    }
+    const live: TeamBid[] = rows.map((r) => r.bid);
     if (live.length === 0) return [];
     const convs = await this.prisma.conversation.findMany({
       where: {
@@ -249,15 +270,22 @@ export class BidTeamService {
         },
       });
       for (const r of rows) {
+        const convs = await this.prisma.conversation.findMany({
+          where: { case_id: r.bid.case_id, attorney_id: r.bid.attorney_id },
+          select: { id: true },
+        });
         await this.prisma.conversationParticipant.deleteMany({
           where: {
             user_id: r.attorney_id,
-            conversation: {
-              case_id: r.bid.case_id,
-              attorney_id: r.bid.attorney_id,
-            },
+            conversation_id: { in: convs.map((c) => c.id) },
           },
         });
+        // Verify 17.11 (batch 9): as for a removed group member, the
+        // lawyer's open sockets leave the chat's room on every instance —
+        // they kept hearing and sending «печатает…» until a reconnect.
+        for (const c of convs) {
+          this.realtime?.leaveRoom([r.attorney_id], conversationRoom(c.id));
+        }
         await this.prisma.bidParticipant.deleteMany({
           where: { bid_id: r.bid_id, attorney_id: r.attorney_id },
         });

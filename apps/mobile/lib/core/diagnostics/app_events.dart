@@ -43,6 +43,12 @@ class AppEvents {
   static bool? get consent => _consent;
   static bool? _consent;
 
+  /// Verify 18.11 (AN2): the signed-in person's access token (set by the
+  /// app once its session exists). The batch carries it so the server can
+  /// apply the account's answers — analytics «no» and «Do not sell or
+  /// share» — which this device alone does not know.
+  static String? Function()? bearer;
+
   static bool get _allowed =>
       enabled && ClientTuning.eventsEnabled && (_consent ?? false);
 
@@ -203,7 +209,22 @@ class AppEvents {
     }
     final take = queue.take(_batch).toList();
     try {
-      await _dio.post<void>('/app-events', data: {'events': take});
+      String? token;
+      try {
+        token = bearer?.call();
+      } catch (_) {
+        token = null;
+      }
+      await _dio.post<void>(
+        '/app-events',
+        data: {'events': take},
+        options: Options(
+          headers: {
+            if (token != null && token.isNotEmpty)
+              'Authorization': 'Bearer $token',
+          },
+        ),
+      );
       final rest = _read()..removeRange(0, take.length.clamp(0, queue.length));
       _write(rest);
       if (rest.length >= _flushAt) {

@@ -488,6 +488,22 @@ export class SubscriptionsService implements OnModuleDestroy {
     ) {
       return;
     }
+    // Verify 17.11 (batch 9): the order of a session is applied once. A
+    // replay of an old session (a deep link opened again, the app's retry,
+    // a late webhook) re-wrote plan, price, terms and seats from the
+    // session — after a switch to yearly or a seat change the row went back
+    // to what was bought then, while Stripe billed the current items. The
+    // subscription's own events keep an applied row in step.
+    const applied = await this.prisma.subscription.findUnique({
+      where: { user_id: owner },
+      select: { stripe_subscription_id: true, status: true },
+    });
+    if (
+      applied?.stripe_subscription_id === session.subscriptionId &&
+      applied.status !== 'incomplete'
+    ) {
+      return;
+    }
     const first = await this.provider.retrieveSubscription(
       session.subscriptionId,
     );
