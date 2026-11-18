@@ -179,9 +179,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
 
   /// Row 188: the quoted message's id for a non-text send (the «Ответить»
   /// bar closes); null when nothing is quoted.
-  String? _takeReply() => ref
-      .read(chatComposeProvider(widget.conversationId).notifier)
-      .takeReply();
+  String? _takeReply() =>
+      ref.read(chatComposeProvider(widget.conversationId).notifier).takeReply();
 
   @override
   void dispose() {
@@ -2961,7 +2960,7 @@ class _ComposerState extends ConsumerState<_Composer>
                   Expanded(
                     // Row 191: a new line grows the field smoothly (iMessage).
                     child: AnimatedSize(
-                      duration: motion,
+                      duration: context.sizeChangeDuration,
                       curve: Curves.easeOutCubic,
                       alignment: Alignment.bottomCenter,
                       child: AnimatedSwitcher(

@@ -452,7 +452,7 @@ class _GroupComposerState extends ConsumerState<GroupComposer>
                       Expanded(
                         // Row 191: a new line grows the field smoothly.
                         child: AnimatedSize(
-                          duration: motion,
+                          duration: context.sizeChangeDuration,
                           curve: Curves.easeOutCubic,
                           alignment: Alignment.bottomCenter,
                           child: AnimatedSwitcher(
