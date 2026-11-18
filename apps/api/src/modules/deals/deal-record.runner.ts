@@ -295,18 +295,18 @@ export class DealRecordRunner
       },
     });
     if (!row || row.status !== 'sealing' || !row.sign_request) return;
-    const signatures: RecordSignature[] = row.sign_request.signatures.map(
-      (x) => ({
+    const signatures: RecordSignature[] = await Promise.all(
+      row.sign_request.signatures.map(async (x) => ({
         role: x.signer_role as 'client' | 'attorney',
         name: x.signed_name,
-        image: x.image_png ? Buffer.from(x.image_png) : null,
+        image: await this.files.signatureImage(x),
         signedAt: x.signed_at,
         ip: x.ip,
         device: x.device,
         authMethod: x.auth_method as SignerAuthMethod | null,
         lang: x.lang,
         consents: x.consents as unknown as SignedConsent[] | null,
-      }),
+      })),
     );
     if (signatures.length < 2) {
       throw new Error(

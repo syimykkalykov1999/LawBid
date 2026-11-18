@@ -13,11 +13,13 @@ VoiceNoteDto _$VoiceNoteDtoFromJson(Map<String, dynamic> json) => VoiceNoteDto(
       .toList(),
   listened: json['listened'] as bool,
   url: json['url'] as String?,
+  m4aUrl: json['m4aUrl'] as String?,
 );
 
 Map<String, dynamic> _$VoiceNoteDtoToJson(VoiceNoteDto instance) =>
     <String, dynamic>{
       'url': ?instance.url,
+      'm4aUrl': ?instance.m4aUrl,
       'durationMs': instance.durationMs,
       'waveform': instance.waveform,
       'listened': instance.listened,

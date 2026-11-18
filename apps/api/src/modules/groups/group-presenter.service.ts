@@ -316,9 +316,11 @@ export class GroupPresenter {
       m.type === 'voice' && m.file_id && !m.deleted_at ? [m.file_id] : [],
     );
     const reactable = rows.filter((m) => !m.deleted_at && m.type !== 'system');
-    const [urls, voiceUrls, polls, reactionRows] = await Promise.all([
+    const [urls, voiceLinks, polls, reactionRows] = await Promise.all([
       this.files.attachmentUrls(fileIds),
-      this.files.voiceUrls(voiceIds),
+      // voiceLinks: the note's link plus its AAC/M4A copy for the iPhone
+      // (owner row 146), the same as 1:1 notes.
+      this.files.voiceLinks(voiceIds),
       this.polls(
         rows.flatMap((m) => (m.type === 'poll' && !m.deleted_at ? [m.id] : [])),
         viewerId,
@@ -381,7 +383,10 @@ export class GroupPresenter {
       const voice: VoiceNoteDto | null =
         m.type === 'voice' && !deleted
           ? {
-              url: m.file_id ? (voiceUrls.get(m.file_id) ?? null) : null,
+              url: m.file_id ? (voiceLinks.get(m.file_id)?.url ?? null) : null,
+              m4aUrl: m.file_id
+                ? (voiceLinks.get(m.file_id)?.m4aUrl ?? null)
+                : null,
               durationMs: m.duration_ms ?? 0,
               waveform: m.waveform,
               // A group has many listeners: no «played» dot (WhatsApp
