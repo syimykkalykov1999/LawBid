@@ -4,6 +4,7 @@ import Redis from 'ioredis';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { HotlineConflictService } from './hotline-conflict.service';
 import type { HotlineCallBridge } from './hotline-call-bridge';
+import { HotlineGateway } from './hotline.gateway';
 import { HotlineSweeper } from './hotline-sweeper.service';
 import { HotlineService } from './hotline.service';
 import { bucketOf, HotlineKeys } from './hotline.store';
@@ -1385,5 +1386,169 @@ describe('hotline use cases (real Valkey)', () => {
     expect(await svc.requestTag(client('C1'), a.id)).not.toBe(t2);
     expect(await svc.requestTag(client('C2'), a.id)).toBeNull();
     viewSpy.mockRestore();
+  });
+
+  // ── verify 17.11 (batch 5b): each failed before its fix ────────────────
+
+  it('verify H1: «Взять» renews the request / client key TTL', async () => {
+    if (!up) return;
+    const a = await ask('C1');
+    // the creation TTL nearly spent when he takes it
+    await redis.expire(k.request(a.id), 5);
+    await redis.expire(k.client('C1'), 5);
+    await goLine('L1');
+    await svc.accept(attorney('L1'), a.id);
+    expect(await redis.ttl(k.request(a.id))).toBeGreaterThan(5);
+    expect(await redis.ttl(k.client('C1'))).toBeGreaterThan(5);
+  });
+
+  it('verify H1: a request hash expired under a call → cleaned, the sweeper goes on', async () => {
+    if (!up) return;
+    const a = await ask('C1');
+    await goLine('L1');
+    await svc.accept(attorney('L1'), a.id);
+    now += 1;
+    const b = await ask('C2');
+    await goLine('L2');
+    await svc.accept(attorney('L2'), b.id);
+    await redis.del(k.request(a.id)); // the hash expired mid-call
+    await expect(tick(61_000)).resolves.toBeUndefined();
+    expect(await redis.zscore(k.conn, a.id)).toBeNull();
+    expect(await redis.zscore(`${k.p}:connmax`, a.id)).toBeNull();
+    expect(await svc.store.requestState(a.id)).toBeNull();
+    expect(await svc.store.lawyerState('L1')).not.toBe(`b|${a.id}`);
+    // the other lost call was still ended by the same pass
+    expect((await svc.getRequest(client('C2'), b.id)).status).toBe('ended');
+    // and a throwing item never stops the pass
+    const spy = jest
+      .spyOn(svc, 'endCall')
+      .mockRejectedValueOnce(new Error('boom'));
+    now += 1;
+    const c = await ask('C3');
+    await goLine('L3');
+    await svc.accept(attorney('L3'), c.id);
+    await expect(tick(61_000)).resolves.toBeUndefined();
+    spy.mockRestore();
+  });
+
+  it('verify H2: the 1:1 call ended first with dead air → billed to the last beat; voice never up → 0', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    const a = await ask('C1');
+    await goLine('L1');
+    const { callId } = (await svc.accept(attorney('L1'), a.id)) as {
+      callId: string;
+    };
+    for (let i = 0; i < 2; i++) {
+      now += 20_000;
+      calls.get(callId)!.beat = now;
+      await tick(0);
+    }
+    // the link died at 40 s; the calls sweep closed it for silence later
+    Object.assign(calls.get(callId)!, {
+      status: 'ended',
+      dur: 200,
+      end: 'silent',
+    });
+    await tick(2001);
+    expect(await redis.hget(k.request(a.id), 'seconds')).toBe('40');
+    expect(bridgeLog).toContain('finish ended 40');
+    // voice never came up (link lost at 20 s): nothing billed
+    now += 1;
+    const b = await ask('C2');
+    await svc.heartbeat('L1');
+    const r2 = (await svc.accept(attorney('L1'), b.id)) as { callId: string };
+    now += 20_000;
+    calls.get(r2.callId)!.beat = now;
+    Object.assign(calls.get(r2.callId)!, {
+      status: 'ended',
+      dur: 20,
+      end: 'link_lost',
+    });
+    await tick(2001);
+    expect(await redis.hget(k.request(b.id), 'endReason')).toBe('failed');
+    expect(await redis.hget(k.request(b.id), 'seconds')).toBe('0');
+  });
+
+  it('fix #1235: a hang-up on the call screen is billed in full, not to the last beat', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    const a = await ask('C1');
+    await goLine('L1');
+    const { callId } = (await svc.accept(attorney('L1'), a.id)) as {
+      callId: string;
+    };
+    now += 20_000;
+    calls.get(callId)!.beat = now;
+    await tick(0);
+    // hung up 7 s after the last beat (beats come every few seconds)
+    Object.assign(calls.get(callId)!, {
+      status: 'ended',
+      dur: 27,
+      end: null,
+    });
+    await tick(2001);
+    expect(await redis.hget(k.request(a.id), 'seconds')).toBe('27');
+  });
+
+  it('verify H3: two racing ends of one failed call count ONE miss', async () => {
+    if (!up) return;
+    const a = await ask('C1');
+    await goLine('L1');
+    await svc.accept(attorney('L1'), a.id);
+    await Promise.all([
+      svc.endCall(a.id, 'failed'),
+      svc.endCall(a.id, 'failed'),
+    ]);
+    expect(await redis.hget(k.lawyer('L1'), 'misses')).toBe('1');
+  });
+
+  it('verify H4: raiseBeat is an atomic max (a late smaller beat never lowers it) and never recreates an expired hash', async () => {
+    if (!up) return;
+    const a = await ask('C1');
+    const raise = (at: number) =>
+      (
+        svc as unknown as { raiseBeat(r: string, at: number): Promise<void> }
+      ).raiseBeat(a.id, at);
+    await Promise.all([raise(2000), raise(1000)]);
+    expect(await redis.hget(k.request(a.id), 'beatAt')).toBe('2000');
+    await redis.del(k.request(a.id));
+    await raise(3000);
+    expect(await redis.exists(k.request(a.id))).toBe(0);
+  });
+
+  it('verify H5: «away» from one device keeps him on the line while another device still holds a line socket', async () => {
+    if (!up) return;
+    await goLine('L1');
+    const gw = new HotlineGateway(svc);
+    const sock = (id: string) =>
+      ({ id, data: { user: { sub: 'L1' } } }) as never;
+    const phone = sock('s-phone');
+    const tablet = sock('s-tablet');
+    now += 1000;
+    expect((await gw.heartbeat(phone)).line).toBe(true);
+    now += 1000;
+    expect((await gw.heartbeat(tablet)).line).toBe(true);
+    await gw.away(phone);
+    expect((await svc.lineView('L1', null)).online).toBe(true);
+    await gw.away(tablet);
+    expect((await svc.lineView('L1', null)).online).toBe(false);
+  });
+
+  it('verify H6: a long call keeps the busy attorney alive (call beats only, no line beats)', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    const a = await ask('C1');
+    await goLine('L1');
+    const { callId } = (await svc.accept(attorney('L1'), a.id)) as {
+      callId: string;
+    };
+    for (let i = 0; i < 6; i++) {
+      now += 20_000;
+      calls.get(callId)!.beat = now;
+      await tick(0);
+    }
+    expect((await svc.getRequest(client('C1'), a.id)).status).toBe('connected');
+    expect(Number(await redis.zscore(k.alive, 'L1'))).toBeGreaterThan(now);
   });
 });
