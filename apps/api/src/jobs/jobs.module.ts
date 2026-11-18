@@ -26,6 +26,7 @@ import { DISPOSABLE_DOMAINS_FETCHER, JOBS_OPTIONS } from './jobs.constants';
 import { JobsRunner, type JobsModuleOptions } from './jobs.runner';
 import { CronProcessor } from './cron.processor';
 import { SessionsCleanupJob } from './handlers/sessions-cleanup.job';
+import { PresenceSettleJob } from './handlers/presence-settle.job';
 import { OtpCleanupJob } from './handlers/otp-cleanup.job';
 import { DisposableDomainsRefreshJob } from './disposable-domains/disposable-domains-refresh.job';
 import { HttpDisposableDomainsFetcher } from './disposable-domains/disposable-domains.fetcher';
@@ -271,6 +272,8 @@ export class JobsModule {
         FileReleaseService,
         // Owner 2026-10-21: `chat.disappearing`.
         DisappearingSweepService,
+        // Verify 5b (C4): `presence.settle`.
+        PresenceSettleJob,
         CronProcessor,
         JobsRunner,
       ],

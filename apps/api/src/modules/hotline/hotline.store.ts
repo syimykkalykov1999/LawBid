@@ -122,6 +122,10 @@ export class HotlineKeys {
   langLawyers = (l: string) => `${this.p}:ll:${l}`;
   langClients = (l: string) => `${this.p}:lq:${l}`;
   lawyer = (id: string) => `${this.p}:lw:${id}`;
+  /** His live line sockets (one per device): socket id → expiry (ms).
+   * `hotline:away` from one device takes him off only when no other is
+   * left (verify 17.11 H5). */
+  lineSocks = (id: string) => `${this.p}:lsk:${id}`;
   /** Trial bookkeeping (first «Ожидать звонки», minutes talked); lives
    * `hotline.trial_memory_days` from the last use. */
   trial = (id: string) => `${this.p}:lwt:${id}`;

@@ -1278,6 +1278,11 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
    * many seconds unless somebody joins (0 = at once). Owner 2026-10-26: 3 s
    * («when one person is left it must end by itself», like WhatsApp). */
   'calls.solo_end_seconds': 3,
+  /** Verify 5b (17.11): the caller's app was closed (last connection gone)
+   * while a 1:1 call rang — the call is canceled after this many seconds
+   * unless the caller is back, instead of ringing the full minute.
+   * 0 = off (the minute-long ring timeout only). */
+  'calls.caller_gone_seconds': 15,
   /** D1-19 (13.11): «does this call still ring?» asks per minute from ONE
    * rung phone (counted per call and person by the ring push's ticket, not
    * per address: many phones share a carrier / office address). A phone

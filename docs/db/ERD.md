@@ -885,6 +885,7 @@ erDiagram
     DateTime ended_at "nullable"
     Int duration_sec "nullable"
     String end_reason "nullable"
+    DateTime ended_events_due_at "nullable"
     Boolean video
     Boolean is_group
     DateTime solo_since "nullable"
