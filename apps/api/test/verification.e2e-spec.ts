@@ -22,6 +22,7 @@ import {
 } from '../src/modules/verification/services/verification-checks.service';
 import { createHmac } from 'node:crypto';
 import { PersonaClient } from '../src/modules/verification/providers/persona.client';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * docs/03_VERIFICATION_PROFILES.md stages 3.3 (verification request API)
@@ -164,7 +165,7 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       create: { key, value },
       update: { value },
     });
-    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+    await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
   }
 
   function nextPhone(): string {
@@ -521,7 +522,7 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
       await prisma.appConfig.deleteMany({
         where: { key: 'verification.require_identity' },
       });
-      await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+      await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
       try {
         const a = await attorney();
         const id = await createDraft(a.auth);
@@ -597,7 +598,7 @@ describe('Verification (e2e) — docs/03 stages 3.3–3.4', () => {
         where: { key: 'verification.selfie_live_capture_required' },
       });
       const redis = app.get<Redis>(REDIS_CLIENT);
-      await redis.del('config:app_config');
+      await dropAppConfigCache(redis);
       try {
         const a = await attorney();
         const id = await createDraft(a.auth);

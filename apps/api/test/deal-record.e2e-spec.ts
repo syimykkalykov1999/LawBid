@@ -10,6 +10,7 @@ import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { S3StorageService } from '../src/modules/files/storage/s3-storage.service';
 import { DealRecordRunner } from '../src/modules/deals/deal-record.runner';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Deal record 2026-10-27 (docs/architecture/DEAL_RECORD_PLAN_2026-10-27.md):
@@ -137,7 +138,7 @@ describe('Deal record (e2e, 2026-10-27)', () => {
         create: { key, value },
         update: { value },
       });
-    await redis.del('config:app_config'); // bypass the 30 s cache
+    await dropAppConfigCache(redis); // bypass the 30 s cache
   }
 
   async function user(

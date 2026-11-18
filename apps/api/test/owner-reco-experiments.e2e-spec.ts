@@ -16,6 +16,7 @@ import { assignVariant } from '../src/modules/experiments/experiment-math';
 import { POST_WEIGHTS } from '../src/modules/recommendations/posts.scoring';
 import { PostsService } from '../src/modules/posts/posts.service';
 import type { RequestUser } from '../src/modules/auth/decorators/current-user.decorator';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Owner 2026-11-08 («сделай так чтобы он работал»): the attorney case feed
@@ -97,7 +98,7 @@ describe('Recommendations + experiments wiring (e2e)', () => {
         ],
       },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     await app.close();
   });
 
@@ -168,7 +169,7 @@ describe('Recommendations + experiments wiring (e2e)', () => {
         update: { value: value as never },
       });
     }
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
   }
 
   /** Only one formula weight on: the order follows that feature alone. */

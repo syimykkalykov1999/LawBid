@@ -11,6 +11,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { AttorneyTrustService } from '../src/modules/attorney-trust/attorney-trust.service';
 import { LicenseExpiryJob } from '../src/jobs/handlers/license-expiry.job';
 import { adminSession } from './support/admin-login';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Owner 2026-10-24: attorney license expiry. Reminders at 60/30/7 days; on
@@ -79,7 +80,7 @@ describe('License expiry (e2e, owner 2026-10-24)', () => {
         update: { value },
       });
     }
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
   });
 
   afterAll(async () => {
@@ -95,7 +96,7 @@ describe('License expiry (e2e, owner 2026-10-24)', () => {
         },
       },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     await app.close();
   });
 

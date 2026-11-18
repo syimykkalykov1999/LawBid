@@ -153,6 +153,22 @@ describe('ClientBadgeService', () => {
     );
   });
 
+  it('verify 17.11: a comped (free) badge stays comped on the subscription events', async () => {
+    const { service, prisma } = setup(row({ sub_status: 'comped' }));
+    await service.applySubscription({
+      id: 'sub_1',
+      customerId: 'cus',
+      status: 'canceled',
+      currentPeriodEnd: Math.floor(NOW / 1000) + 30 * 86400,
+      cancelAtPeriodEnd: false,
+    } as never);
+    expect(prisma.clientVerification.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ sub_status: 'comped' }),
+      }),
+    );
+  });
+
   it('a failed payment turns the badge off', async () => {
     const { service, notifications } = setup(
       row({
@@ -398,6 +414,15 @@ describe('ClientBadgeService on the card page', () => {
     await expect(service.payPageSession('u1')).rejects.toBeInstanceOf(
       ConflictException,
     );
+  });
+
+  it('verify 17.11: a second «Subscribe» tap hands back the open Stripe session (paying it gives the badge)', async () => {
+    const { service, provider, payLink } = pageSetup(false, null);
+    payLink.enabled.mockResolvedValue(false);
+    const a = await service.checkout('u1');
+    const b = await service.checkout('u1');
+    expect(b.checkoutUrl).toBe(a.checkoutUrl);
+    void provider;
   });
 
   it('checkout: the card page link, not a Stripe session', async () => {

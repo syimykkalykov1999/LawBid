@@ -8,6 +8,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import type Redis from 'ioredis';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Search latency on a big database (owner 2026-10-15: "must not hang with
@@ -62,7 +63,7 @@ jest.setTimeout(30 * 60_000);
       create: { key: 'rate_limit.search_per_minute', value: 100000 },
       update: { value: 100000 },
     });
-    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+    await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
     const att = await prisma.user.create({
       data: { role: 'attorney', first_name: 'Perf', last_name: 'Tester' },
     });

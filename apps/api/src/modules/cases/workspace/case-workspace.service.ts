@@ -106,11 +106,15 @@ export class CaseWorkspaceService {
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
     // PR-5: the client's news reaches the firm's team too; a team
-    // member's reaches the client (and the bid's attorney).
+    // member's reaches the client (and the bid's attorney). Verify 17.11
+    // (batch 9): and the rest of the team — what the attorney or one
+    // colleague added reached nobody else on the lawyers' side.
     const to =
       s.role === 'client'
         ? [s.attorneyId, ...s.team]
-        : [s.clientId, ...(user.sub !== s.attorneyId ? [s.attorneyId] : [])];
+        : [
+            ...new Set([s.clientId, s.attorneyId, ...s.team].filter(Boolean)),
+          ].filter((id) => id !== user.sub);
     for (const recipientId of to) {
       await this.notifications.emit(
         {

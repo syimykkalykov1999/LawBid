@@ -14,6 +14,8 @@ describe('SubscriptionSyncService.onInvoice — paid is what the invoice says', 
   function setup(opts: {
     invoiceStatus: 'paid' | 'open';
     existing?: { status: string } | null;
+    /** What the row is under the invoice lock (default: [existing]). */
+    locked?: { status: string } | null;
   }) {
     const local = {
       id: 'row-1',
@@ -23,13 +25,26 @@ describe('SubscriptionSyncService.onInvoice — paid is what the invoice says', 
       grace_ends_at: null,
     };
     const upserts: Record<string, unknown>[] = [];
+    const updates: Record<string, unknown>[] = [];
     const subUpdates: Record<string, unknown>[] = [];
     const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
       payment: {
-        upsert: jest.fn((a: { create: Record<string, unknown> }) => {
-          upserts.push(a.create);
-          return Promise.resolve({ id: 'pay-1', ...a.create });
-        }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue(
+            opts.locked === undefined ? (opts.existing ?? null) : opts.locked,
+          ),
+        upsert: jest.fn(
+          (a: {
+            create: Record<string, unknown>;
+            update: Record<string, unknown>;
+          }) => {
+            upserts.push(a.create);
+            updates.push(a.update);
+            return Promise.resolve({ id: 'pay-1', ...a.create });
+          },
+        ),
       },
     };
     const prisma = {
@@ -76,7 +91,7 @@ describe('SubscriptionSyncService.onInvoice — paid is what the invoice says', 
       notifications,
       logger: { warn: jest.fn(), debug: jest.fn(), error: jest.fn() },
     });
-    return { svc, upserts, subUpdates, notifications, access };
+    return { svc, upserts, updates, subUpdates, notifications, access };
   }
 
   it('a plain failure: payment failed, past_due + grace, the attorney told', async () => {
@@ -97,6 +112,29 @@ describe('SubscriptionSyncService.onInvoice — paid is what the invoice says', 
     expect(h.notifications.emit).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: 'subscription_payment_failed' }),
     );
+  });
+
+  it('verify 17.11: a retried invoice.paid keeps a payment refunded meanwhile refunded', async () => {
+    const h = setup({
+      invoiceStatus: 'paid',
+      existing: { status: 'refunded' },
+    });
+    await h.svc.onInvoice('in_1', 'invoice.paid');
+    expect(h.updates[0]).not.toHaveProperty('status');
+    expect(h.updates[0]).not.toHaveProperty('paid_at');
+  });
+
+  it('verify 17.11: a failed event racing the paid one re-reads the row under the invoice lock', async () => {
+    // Read before the lock: no row yet; under it: the paid event's row.
+    const h = setup({
+      invoiceStatus: 'open',
+      existing: null,
+      locked: { status: 'succeeded' },
+    });
+    await h.svc.onInvoice('in_1', 'invoice.payment_failed');
+    expect(h.upserts).toHaveLength(0);
+    expect(h.subUpdates).toHaveLength(0);
+    expect(h.notifications.emit).not.toHaveBeenCalled();
   });
 
   it('a late payment_failed never downgrades a payment already succeeded locally', async () => {

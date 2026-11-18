@@ -58,6 +58,7 @@ import {
 } from './domain/payment-terms';
 import { touchClientActive } from '../cases/cases.public';
 import { ConflictCheckService } from './conflict/conflict-check.service';
+import { assertNoBlockBetween } from '../blocks/block-check';
 
 export type BidWithOffers = Bid & { offers: BidOffer[] };
 type BidWithCase = Bid & { case: { client_id: string; status: string } };
@@ -213,6 +214,7 @@ export class BidsService {
         attorney_id: true,
         sent_by: true,
         status: true,
+        case: { select: { client_id: true } },
       },
     });
     const firm = await this.firms?.colleaguesOf(user.sub);
@@ -230,6 +232,10 @@ export class BidsService {
         details: { status: bid.status },
       });
     }
+    // Verify 17.11 (batch 9): a lawyer the client blocked (or who blocked
+    // the client) joined a colleague's bid and so entered the client's
+    // case and chat — a participant is let in ahead of the block checks.
+    await assertNoBlockBetween(this.prisma, user.sub, bid.case.client_id);
     const made = await this.prisma.bidParticipant.createMany({
       data: [{ bid_id: bid.id, attorney_id: user.sub }],
       skipDuplicates: true,

@@ -10,6 +10,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import type Redis from 'ioredis';
 import { DEFAULT_BAR_FORMATS } from '../src/modules/verification/bar-number-format';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Owner 2026-10-14 / 2026-10-18: a bar number must have its state's shape (a
@@ -73,7 +74,7 @@ describe('Bar number format and stepped cooldown (e2e)', () => {
       create: { key: 'verification.require_photo', value: false },
       update: { value: false },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
   });
 
   afterAll(async () => {
@@ -89,7 +90,7 @@ describe('Bar number format and stepped cooldown (e2e)', () => {
       create: { key: 'verification.bar_formats', value: JSON.stringify(loose) },
       update: { value: JSON.stringify(loose) },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     await app.close();
   });
 

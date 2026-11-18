@@ -582,12 +582,14 @@ void main() {
       'lib/features/chat/presentation/conversation_screen.dart',
       'lib/features/groups/presentation/group_conversation_screen.dart',
     ]) {
-      expect(
-        read(p),
-        contains('ScrollViewKeyboardDismissBehavior.onDrag'),
-        reason: p,
-      );
+      // Row 191: on iPhone UIKit moves the keyboard with the finger;
+      // elsewhere a drag still hides it (chatKeyboardDismiss).
+      expect(read(p), contains('chatKeyboardDismiss'), reason: p);
     }
+    expect(
+      read('lib/shared/presentation/interactive_keyboard.dart'),
+      contains('ScrollViewKeyboardDismissBehavior.onDrag'),
+    );
     for (final p in [
       'lib/features/team/presentation/tasks_tab.dart',
       'lib/features/qr/presentation/qr_scanner_screen.dart',

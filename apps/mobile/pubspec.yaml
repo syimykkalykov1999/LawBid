@@ -207,6 +207,7 @@ dependencies:
   # Row 149: 1.8.0, the newest on win32 6 that desktop_drop 0.8.4 allows
   # (wakelock_plus >=1.8.1 needs dbus 0.8, desktop_drop 0.8.4 dbus 0.7).
   wakelock_plus: 1.8.0
+  cupertino_interactive_keyboard: ^1.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

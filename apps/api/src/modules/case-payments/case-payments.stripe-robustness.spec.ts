@@ -551,6 +551,39 @@ describe('CasePaymentsService: new Stripe events', () => {
     );
   });
 
+  it('verify 17.11: a late «dispute updated» after «dispute closed (won)» does not move the payment back', async () => {
+    const h = make(paid({ dispute_id: 'dp_1', dispute_status: 'won' }));
+    // Stripe has the dispute as it is now: won.
+    (h.provider as Record<string, jest.Mock>).retrieveDispute = jest.fn(() =>
+      Promise.resolve({
+        id: 'dp_1',
+        chargeId: 'ch_1',
+        paymentIntentId: 'pi_1',
+        status: 'won',
+        reason: 'fraudulent',
+        amountCents: 51_500,
+        currency: 'usd',
+        dueBy: null,
+        hasEvidence: true,
+        pastDue: false,
+        submissionCount: 1,
+      }),
+    );
+    // A retried event whose stored snapshot still says under_review.
+    const ev = event('charge.dispute.updated', {
+      charge: 'ch_1',
+      status: 'under_review',
+      reason: 'fraudulent',
+      amount: 51_500,
+    });
+    ev.object.id = 'dp_1';
+    await h.svc.handleProviderEvent(ev);
+    expect(h.rows.get('cp_1')).toMatchObject({
+      dispute_status: 'won',
+      status: 'succeeded',
+    });
+  });
+
   it('funds_withdrawn only records the moment; funds_reinstated after a booked loss reverses it', async () => {
     const h = make(
       paid({

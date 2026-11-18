@@ -11,6 +11,7 @@ import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
+import 'package:lawbid/core/platform/paste_files.dart';
 import 'package:lawbid/features/cases/application/case_media_picker.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 
@@ -45,7 +46,10 @@ Future<void> _event(String method, Object? args) =>
     );
 
 void main() {
-  tearDown(() => FileDropZone.debugAssumeWeb = false);
+  tearDown(() {
+    FileDropZone.debugAssumeWeb = false;
+    FileDropZone.debugListenForPaste = listenForPastedFiles;
+  });
 
   group('FileDropZone', () {
     Future<List<XFile>> pump(
@@ -108,6 +112,77 @@ void main() {
       await tester.pump();
       expect(find.byKey(const ValueKey('file-drop-hint')), findsNothing);
       expect(got.single.path, '/tmp/report.pdf');
+    });
+
+    // Row 185: Ctrl+V / Cmd+V of a screenshot on the website.
+    group('paste', () {
+      late void Function(List<XFile>) paste;
+      late bool Function() canTake;
+      var listening = 0;
+      setUp(() {
+        listening = 0;
+        FileDropZone.debugListenForPaste = (onFiles, {required accept}) {
+          paste = onFiles;
+          canTake = accept;
+          listening++;
+          return () => listening--;
+        };
+      });
+
+      Future<List<XFile>> pumpPaste(
+        WidgetTester tester, {
+        bool web = true,
+        bool enabled = true,
+        bool on = true,
+      }) async {
+        FileDropZone.debugAssumeWeb = web;
+        final got = <XFile>[];
+        await tester.pumpWidget(
+          uxApp(
+            FileDropZone(
+              enabled: enabled,
+              paste: on,
+              onFiles: got.addAll,
+              child: const SizedBox.expand(),
+            ),
+            size: const Size(800, 600),
+            theme: AppTheme.light(),
+            overrides: uxOverrides(
+              extra: [
+                featureFlagsControllerProvider.overrideWith(
+                  () => _Flags(on: false),
+                ),
+              ],
+            ),
+          ),
+        );
+        await tester.pump();
+        return got;
+      }
+
+      testWidgets('a pasted screenshot is handed over', (tester) async {
+        final got = await pumpPaste(tester);
+        expect(listening, 1);
+        expect(canTake(), isTrue);
+        paste([XFile.fromData(Uint8List(4), path: 'image.png')]);
+        expect(got.single.name, 'image.png');
+
+        await tester.pumpWidget(const SizedBox());
+        expect(listening, 0, reason: 'the page stops listening when left');
+      });
+
+      testWidgets('disabled: the paste is left to the page', (tester) async {
+        await pumpPaste(tester, enabled: false);
+        expect(canTake(), isFalse);
+      });
+
+      testWidgets('on a phone, or without paste, nothing listens',
+          (tester) async {
+        await pumpPaste(tester, web: false);
+        expect(listening, 0);
+        await pumpPaste(tester, on: false);
+        expect(listening, 0);
+      });
     });
 
     testWidgets('disabled: nothing is taken', (tester) async {

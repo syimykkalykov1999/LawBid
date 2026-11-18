@@ -134,6 +134,26 @@ describe('ledger recipes balance for any amount', () => {
     ).toBe(500);
   });
 
+  it('verify 17.11: partial refunds together return at most the whole fee', () => {
+    // 100¢ paid, 3¢ fee, refunded as 50¢ + 50¢: rounding each share gave
+    // 2¢ + 2¢ = 4¢ of a 3¢ fee.
+    const back = (refund: number, before: number, fee = 3) =>
+      casePaymentRefundLines({
+        attorneyId: 'a',
+        refundCents: refund,
+        clientTotalCents: 100,
+        platformFeeCents: fee,
+        refundApplicationFee: true,
+        refundedBeforeCents: before,
+      }).find(
+        (l) =>
+          l.account.code === 'revenue_case_fees' && l.direction === 'debit',
+      )?.cents ?? 0;
+    expect(back(50, 0) + back(50, 50)).toBe(3);
+    // Three thirds of a 100¢ payment with a 5¢ fee: exactly 5¢ in all.
+    expect(back(33, 0, 5) + back(33, 33, 5) + back(34, 66, 5)).toBe(5);
+  });
+
   it('fees, payouts, suspense and expenses balance', () => {
     expect(isBalanced(stripeFeeLines(88))).toBe(true);
     expect(isBalanced(bankPayoutLines(5000))).toBe(true);

@@ -13,7 +13,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { PAYMENT_PROVIDER } from '../src/modules/billing/billing.constants';
 import type { FakePaymentProvider } from '../src/modules/billing/fake-payment.provider';
 import { proratedCents } from '../src/modules/billing/hotline-addon.logic';
-import { APP_CONFIG_CACHE_KEY } from '../src/modules/feature-flags/services/app-config.service';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import {
   EntitlementsService,
@@ -83,7 +83,7 @@ describe('Hotline add-on billing (e2e, fake provider)', () => {
       create: { key: 'hotline.mode', value: 'by_subscription' },
       update: { value: 'by_subscription' },
     });
-    await redis.del(APP_CONFIG_CACHE_KEY);
+    await dropAppConfigCache(redis);
     await prisma.plan.create({
       data: {
         code: planCode,
@@ -100,7 +100,7 @@ describe('Hotline add-on billing (e2e, fake provider)', () => {
   afterAll(async () => {
     await prisma.featureFlag.deleteMany({ where: { key: 'hotline' } });
     await prisma.appConfig.deleteMany({ where: { key: 'hotline.mode' } });
-    await redis.del(APP_CONFIG_CACHE_KEY);
+    await dropAppConfigCache(redis);
     await flags.invalidate();
     await app.close();
   });
@@ -282,7 +282,7 @@ describe('Hotline add-on billing (e2e, fake provider)', () => {
       where: { key: 'hotline.mode' },
       data: { value: 'on_for_all' },
     });
-    await redis.del(APP_CONFIG_CACHE_KEY);
+    await dropAppConfigCache(redis);
     try {
       const me = await api().get('/api/v1/subscriptions/me').set(a.auth);
       expect(addonOf(me)).toBeNull();
@@ -297,7 +297,7 @@ describe('Hotline add-on billing (e2e, fake provider)', () => {
         where: { key: 'hotline.mode' },
         data: { value: 'by_subscription' },
       });
-      await redis.del(APP_CONFIG_CACHE_KEY);
+      await dropAppConfigCache(redis);
     }
   });
 

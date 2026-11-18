@@ -47,7 +47,7 @@ import {
   type SupportPriority,
   type SupportStatus,
 } from './support.dto';
-import { SupportDeskService } from './support-desk.service';
+import { canAnswer, SupportDeskService } from './support-desk.service';
 import { SupportFilesService } from './support-files.service';
 import {
   activityKeyset,
@@ -157,14 +157,22 @@ export class AdminSupportService {
   /** Owner 2026-10-23 (admin economy pass): ticket counts by status, SLA
    * and the average first answer are read from Redis (recounted at most
    * once per minute for the whole team). */
-  async stats(): Promise<AdminSupportStatsDto> {
-    if (!this.summary) return this.computeStats();
-    return (
-      await this.summary.get('support-stats', () => this.computeStats(), 60)
-    ).data;
+  async stats(countries: CountryScope = null): Promise<AdminSupportStatsDto> {
+    // Verify 18.11 (SU6): a country-scoped agent sees the counts of their
+    // countries only (one cached snapshot per scope, like the list filter).
+    const scope = countries ? [...countries].sort() : null;
+    if (!this.summary) return this.computeStats(scope);
+    const key = scope ? `support-stats:${scope.join(',')}` : 'support-stats';
+    return (await this.summary.get(key, () => this.computeStats(scope), 60))
+      .data;
   }
 
-  private async computeStats(): Promise<AdminSupportStatsDto> {
+  private async computeStats(
+    countries: CountryScope = null,
+  ): Promise<AdminSupportStatsDto> {
+    const inScope: Prisma.SupportTicketWhereInput = countries
+      ? { country_code: { in: countries } }
+      : {};
     const [
       grouped,
       openUnassigned,
@@ -177,22 +185,31 @@ export class AdminSupportService {
     ] = await Promise.all([
       this.prisma.supportTicket.groupBy({
         by: ['status'],
+        where: inScope,
         _count: { _all: true },
       }),
       this.prisma.supportTicket.count({
-        where: { status: 'open', assignee_id: null },
+        where: { ...inScope, status: 'open', assignee_id: null },
       }),
-      this.prisma.supportTicket.count({ where: unreadTicketsWhere() }),
+      this.prisma.supportTicket.count({
+        where: { ...inScope, ...unreadTicketsWhere() },
+      }),
       this.prisma.supportTicket.count({
         where: {
+          ...inScope,
           OR: [{ status: 'open', assignee_id: null }, unreadTicketsWhere()],
         },
       }),
-      this.avgFirstResponseMinutes(),
+      this.avgFirstResponseMinutes(countries),
       this.prisma.supportTicket.count({
-        where: { sla_due_at: { not: null }, sla_breached_at: { not: null } },
+        where: {
+          ...inScope,
+          sla_due_at: { not: null },
+          sla_breached_at: { not: null },
+        },
       }),
-      this.prisma.supportAgent.count({ where: { on_shift: true } }),
+      // Verify 18.11 (SU5): only agents who can still answer count.
+      this.desk.answeringAgentsOnShift().then((ids) => ids.length),
       this.desk.info(),
     ]);
     const byStatus = { open: 0, waiting_user: 0, resolved: 0, closed: 0 };
@@ -262,6 +279,7 @@ export class AdminSupportService {
     adminId: string,
     id: string,
     dto: AdminSupportReplyDto,
+    countries: CountryScope = null,
   ): Promise<AdminSupportMessageDto> {
     const internal = dto.internal ?? false;
     assertHasContent(dto.body, dto.attachments);
@@ -272,7 +290,11 @@ export class AdminSupportService {
       closedNow = false;
       lateAnswer = false;
       const t = await tx.supportTicket.findUnique({ where: { id } });
-      if (!t) throw ticketNotFound();
+      // Verify 18.11 (SU1): out of the agent's countries — the same 404 as
+      // opening it.
+      if (!t || !countryInScope(countries, t.country_code)) {
+        throw ticketNotFound();
+      }
       // Owner 2026-10-18 (OQ-055): `{name}` and `{ticket}` are filled here,
       // on the server, so a ready answer can never go out raw.
       const lang = await tx.user.findUnique({
@@ -366,13 +388,17 @@ export class AdminSupportService {
     id: string,
     dto: AdminUpdateSupportTicketDto,
     adminId?: string,
+    countries: CountryScope = null,
   ): Promise<AdminSupportTicketRowDto> {
     if (dto.assigneeId) await this.assertAdmin(dto.assigneeId);
     let closedNow = false;
     const updated = await withTxRetry(this.prisma, async (tx) => {
       closedNow = false;
       const t = await tx.supportTicket.findUnique({ where: { id } });
-      if (!t) throw ticketNotFound();
+      // Verify 18.11 (SU1): the same country scope as opening the ticket.
+      if (!t || !countryInScope(countries, t.country_code)) {
+        throw ticketNotFound();
+      }
       const data: Prisma.SupportTicketUpdateInput = {};
       if (dto.status && dto.status !== t.status) {
         const next = withResolvedAt(dto.status, t.resolved_at, new Date());
@@ -436,15 +462,19 @@ export class AdminSupportService {
     return t;
   }
 
+  /** Verify 18.11 (SU6): the same rule as the auto-assignment — an active
+   * admin account that holds the right to answer support. */
   private async assertAdmin(userId: string): Promise<void> {
-    const admin = await this.prisma.adminProfile.findUnique({
-      where: { user_id: userId },
-      select: { user_id: true },
+    const admin = await this.prisma.user.findFirst({
+      where: { id: userId, role: 'admin', status: 'active', deleted_at: null },
+      select: {
+        admin_profile: { select: { admin_role: true, permissions: true } },
+      },
     });
-    if (!admin) {
+    if (!admin || !canAnswer(admin.admin_profile)) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
-        message: 'The assignee must be an admin.',
+        message: 'The assignee must be an admin who answers support.',
         details: { field: 'assigneeId' },
       });
     }
@@ -541,10 +571,15 @@ export class AdminSupportService {
 
   /** Two bounded queries: tickets of the last 30 days and the first
    * public admin message of each. */
-  private async avgFirstResponseMinutes(): Promise<number | null> {
+  private async avgFirstResponseMinutes(
+    countries: CountryScope = null,
+  ): Promise<number | null> {
     const since = new Date(Date.now() - STATS_WINDOW_MS);
     const tickets = await this.prisma.supportTicket.findMany({
-      where: { created_at: { gte: since } },
+      where: {
+        created_at: { gte: since },
+        ...(countries ? { country_code: { in: countries } } : {}),
+      },
       select: { id: true, created_at: true },
       orderBy: { created_at: 'desc' },
       take: STATS_MAX_TICKETS,
