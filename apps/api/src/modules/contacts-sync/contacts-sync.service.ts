@@ -190,10 +190,15 @@ export class ContactsSyncService {
   ) {
     if (hashes.length === 0) return;
     // In parts: one command with tens of thousands of arguments is heavy.
+    // The TTL goes first (verify batch 13, R3): a crash part-way through
+    // the parts used to leave the day's set (up to 12 KB) with no TTL.
     for (let i = 0; i < hashes.length; i += 5000) {
-      await this.redis.pfadd(key, ...hashes.slice(i, i + 5000));
+      await this.redis
+        .multi()
+        .pfadd(key, ...hashes.slice(i, i + 5000))
+        .expire(key, KEY_TTL_SECONDS)
+        .exec();
     }
-    await this.redis.expire(key, KEY_TTL_SECONDS);
     const used = await this.redis.pfcount(key);
     const over =
       used > limit ||

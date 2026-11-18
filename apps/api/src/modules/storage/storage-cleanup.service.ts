@@ -63,6 +63,13 @@ export const FILE_REFERENCES = [
 
 const BATCH = 500;
 const MAX_BATCHES = 20;
+/** Live files one orphan-check page looks at (verify batch 13, DB1). */
+const SCAN_PAGE = 2000;
+/** Where the walk over live files goes on next run. */
+const CURSOR_KEY = 'storage:gc:cursor';
+/** A cursor older than this is dropped: the walk starts again. */
+const CURSOR_TTL_SEC = 7 * 24 * 3600;
+type FileCursor = { id: string; at: Date };
 const HOUR_MS = 3600 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 const LAST_RUN_KEY = 'storage:cleanup:last';
@@ -190,26 +197,7 @@ export class StorageCleanupService {
       },
     });
 
-    for (let i = 0; i < MAX_BATCHES; i += 1) {
-      const ids = await this.unused(
-        Prisma.sql`f.deleted_at IS NULL AND f.created_at < ${graceCutoff}`,
-        postCutoff,
-      );
-      if (ids.length === 0) break;
-      // Still listed by a deleted post → `released`; the rest are orphans.
-      const byPost = new Set(await this.onPosts(ids));
-      result.orphansFound += await this.setAside(
-        ids.filter((id) => !byPost.has(id)),
-        'orphan',
-        now,
-      );
-      result.deletedPostMedia += await this.setAside(
-        [...byPost],
-        'released',
-        now,
-      );
-      if (ids.length < BATCH) break;
-    }
+    await this.sweepOrphans(graceCutoff, postCutoff, now, result);
 
     // Owner 2026-10-28: files of a person under a legal hold are never
     // purged from storage.
@@ -272,6 +260,99 @@ export class StorageCleanupService {
       JSON.stringify({ at: now.toISOString(), ...result }),
     );
     return result;
+  }
+
+  /**
+   * Live files nothing uses any more are set aside (orphan / released).
+   * Verify batch 13 (DB1): the live files are walked page by page from a
+   * saved (created_at, id) cursor, so one run checks at most
+   * MAX_BATCHES × SCAN_PAGE files and the next run goes on where this one
+   * stopped (wrapping to the start at the end). Before, every run started
+   * from the oldest file and, with few orphans, checked every live file
+   * ever uploaded, every hour.
+   * @internal exposed for the spec
+   */
+  async sweepOrphans(
+    graceCutoff: Date,
+    postCutoff: Date,
+    now: Date,
+    result: Pick<CleanupResult, 'orphansFound' | 'deletedPostMedia'>,
+  ): Promise<void> {
+    let after = await this.loadCursor();
+    for (let i = 0; i < MAX_BATCHES; i += 1) {
+      const page = await this.livePage(graceCutoff, after);
+      const next = page.length < SCAN_PAGE ? null : page[page.length - 1];
+      const ids = page.length
+        ? await this.unused(
+            Prisma.sql`f.id = ANY(${page.map((p) => p.id)}::UUID[])`,
+            postCutoff,
+          )
+        : [];
+      // Still listed by a deleted post → `released`; the rest are orphans.
+      const byPost = new Set(await this.onPosts(ids));
+      result.orphansFound += await this.setAside(
+        ids.filter((id) => !byPost.has(id)),
+        'orphan',
+        now,
+      );
+      result.deletedPostMedia += await this.setAside(
+        [...byPost],
+        'released',
+        now,
+      );
+      // A full answer (BATCH) may leave more orphans in this page: the
+      // page is read again (what was set aside is no longer live).
+      if (ids.length >= BATCH) continue;
+      after = next;
+      if (next === null) break;
+    }
+    await this.saveCursor(after);
+  }
+
+  /** Live files past the grace period after [after], oldest first. */
+  private async livePage(
+    graceCutoff: Date,
+    after: FileCursor | null,
+  ): Promise<FileCursor[]> {
+    const db = readsAreSplit(this.prisma) ? this.prisma.global() : this.prisma;
+    const from = after
+      ? Prisma.sql`AND (f.created_at, f.id) > (${after.at}, ${after.id}::UUID)`
+      : Prisma.empty;
+    const rows = await db.$queryRaw<{ id: string; created_at: Date }[]>`
+      SELECT f.id::TEXT AS id, f.created_at
+      FROM files f
+      WHERE f.deleted_at IS NULL AND f.created_at < ${graceCutoff} ${from}
+      ORDER BY f.created_at, f.id
+      LIMIT ${SCAN_PAGE}`;
+    return rows.map((r) => ({ id: r.id, at: r.created_at }));
+  }
+
+  private async loadCursor(): Promise<FileCursor | null> {
+    try {
+      const raw = await this.redis.get(CURSOR_KEY);
+      if (!raw) return null;
+      const c = JSON.parse(raw) as { id: string; at: string };
+      return { id: c.id, at: new Date(c.at) };
+    } catch {
+      return null; // no Redis / bad value: from the start, as before
+    }
+  }
+
+  private async saveCursor(c: FileCursor | null): Promise<void> {
+    try {
+      if (c) {
+        await this.redis.set(
+          CURSOR_KEY,
+          JSON.stringify({ id: c.id, at: c.at.toISOString() }),
+          'EX',
+          CURSOR_TTL_SEC,
+        );
+      } else {
+        await this.redis.del(CURSOR_KEY);
+      }
+    } catch {
+      // Next run starts from the beginning: slower, never wrong.
+    }
   }
 
   /**

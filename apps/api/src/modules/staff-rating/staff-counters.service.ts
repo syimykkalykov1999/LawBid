@@ -149,6 +149,9 @@ export class StaffCountersService {
     p.hincrby(key, 'h', ms);
     p.hincrby(key, 'n', 1);
     p.hincrby(key, `b${bucketOf(ms)}`, 1);
+    // Verify batch 13 (R5): a late report of another day / admin created
+    // this hash here, with no TTL.
+    p.expire(key, COUNTER_TTL_SEC, 'NX');
     await p.exec();
   }
 

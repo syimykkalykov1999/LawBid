@@ -117,26 +117,50 @@ export class CaseHistoryExportRunner
         concurrency: 2,
       },
     );
-    this.worker.on('failed', (job: Job<ExportJob> | undefined, error) => {
-      if (!job) return;
-      const { exportId, userId } = job.data;
-      this.logger.error(
-        { exportId, err: error.message },
-        'case history export failed',
+    this.worker.on(
+      'failed',
+      (job: Job<ExportJob> | undefined, error) =>
+        void this.onFailed(job, error),
+    );
+  }
+
+  /**
+   * The last attempt (or a stall) marks the export failed. Verify batch 13
+   * (Q6): the state and row writes had no `.catch`, so in a DB / Redis
+   * outage they were unhandled rejections (a fatal-level log each) and the
+   * row stayed `processing`; now each failure is logged and the rest still
+   * runs. @internal exposed for the spec
+   */
+  async onFailed(job: Job<ExportJob> | undefined, error: Error): Promise<void> {
+    if (!job) return;
+    const { exportId, userId } = job.data;
+    this.logger.error(
+      { exportId, err: error.message },
+      'case history export failed',
+    );
+    if (
+      job.attemptsMade < (job.opts.attempts ?? 1) &&
+      !isStalledFailure(error)
+    ) {
+      return;
+    }
+    const warn = (what: string) => (e: unknown) =>
+      this.logger.warn(
+        { exportId, err: String(e) },
+        `case history export: ${what} not marked failed`,
       );
-      if (
-        job.attemptsMade >= (job.opts.attempts ?? 1) ||
-        isStalledFailure(error)
-      ) {
-        void this.setState(exportId, { userId, status: 'failed', key: null });
-        // Fire-and-forget: a closed connection must not be an unhandled rejection.
-        void this.redis.del(activeKey(userId)).catch(() => undefined);
-        void this.prisma.dataExportJob.updateMany({
+    await Promise.all([
+      this.setState(exportId, { userId, status: 'failed', key: null }).catch(
+        warn('state'),
+      ),
+      this.redis.del(activeKey(userId)).catch(() => undefined),
+      this.prisma.dataExportJob
+        .updateMany({
           where: { id: exportId },
           data: { status: 'failed', error: error.message.slice(0, 500) },
-        });
-      }
-    });
+        })
+        .catch(warn('row')),
+    ]);
   }
 
   async enqueue(user: RequestUser): Promise<CaseHistoryExportDto> {

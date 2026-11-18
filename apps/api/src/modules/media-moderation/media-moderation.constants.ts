@@ -42,6 +42,8 @@ export const CHECK_MAX_PX = 1600;
 /** Delay before a hidden verdict is applied once more (the photo may be
  * attached to a post only after the check finished). */
 export const REHIDE_DELAY_MS = 10 * 60 * 1000;
+/** How long a hidden verdict keeps being re-applied to new content. */
+export const REHIDE_WINDOW_MS = 24 * 3_600_000;
 
 export interface ModerationLabel {
   name: string;

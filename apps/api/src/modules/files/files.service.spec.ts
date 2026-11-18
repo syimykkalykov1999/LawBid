@@ -13,6 +13,7 @@ import type { AppSettingsService } from '../../common/app-settings/app-settings.
 import type { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import type { RateLimitService } from '../auth/services/rate-limit.service';
 import type { FileScanRunner } from './jobs/file-scan.runner';
+import { fakeMulti } from '../../../test/support/fake-redis-multi';
 
 const SHA = 'a'.repeat(64);
 
@@ -131,6 +132,7 @@ function make(
     logger: { setContext: jest.fn(), error: jest.fn(), warn: jest.fn() },
     flags: { isEnabled: jest.fn().mockResolvedValue(false) },
   };
+  Object.assign(deps.redis, { multi: fakeMulti(deps.redis) });
   const service = new FilesService(
     deps.prisma as unknown as PrismaService,
     deps.redis as unknown as Redis,

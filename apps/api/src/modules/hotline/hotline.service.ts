@@ -72,6 +72,8 @@ import {
 const CODE = /^[a-z0-9][a-z0-9_.-]{0,63}$/i;
 const STATE = /^[A-Z]{2}$/;
 const DAY_SEC = 24 * 3600;
+/** How long an hour's hotline stats hash lives (sweeper + bumpAgg). */
+export const AGG_TTL_SEC = 3 * DAY_SEC;
 const FAR = 8.64e15;
 /** Line-off reasons after which the attorney's choice is kept for
  * `POST /hotline/line/resume` (audit 17.11 #3): the network, not him. */
@@ -1959,8 +1961,13 @@ export class HotlineService {
 
   async bumpAgg(field: string, by = 1): Promise<void> {
     const k = this.k.agg(this.hour(this.now()));
-    await this.redis.hincrby(k, field, by);
-    await this.redis.expire(k, 3 * DAY_SEC);
+    // One MULTI (verify batch 13, R1): a crash between the two calls left
+    // the hour's hash without a TTL.
+    await this.redis
+      .multi()
+      .hincrby(k, field, by)
+      .expire(k, AGG_TTL_SEC)
+      .exec();
   }
 
   parseList(json: string | undefined | null): string[] {

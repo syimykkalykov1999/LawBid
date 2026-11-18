@@ -4,6 +4,7 @@ import {
   ContactsSyncService,
   NEW_NUMBERS_PER_DAY,
 } from './contacts-sync.service';
+import { fakeMulti } from '../../../test/support/fake-redis-multi';
 
 /**
  * Security audit 2026-11-08 (L4): attorneys are always findable by number,
@@ -41,6 +42,8 @@ function make(opts: { book?: string[]; bookDayTakenOn?: string } = {}) {
       Promise.resolve(sets.get(key)?.size ?? 0),
     ),
   };
+  Object.assign(redis, { multi: fakeMulti(redis) });
+
   const prisma = {
     user: { findMany: jest.fn().mockResolvedValue([]) },
     userBlock: { findMany: jest.fn().mockResolvedValue([]) },
