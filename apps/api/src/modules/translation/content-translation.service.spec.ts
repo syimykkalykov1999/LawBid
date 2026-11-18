@@ -1,7 +1,9 @@
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
+import type { BlocksService } from '../blocks/blocks.service';
 import type { CaseAccessPolicy } from '../cases/policies/case-access.policy';
+import type { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 import { ContentTranslationService } from './content-translation.service';
 import type { TranslationService } from './translation.service';
 import { zoneAllowed } from './translation-zones';
@@ -9,7 +11,14 @@ import { zoneAllowed } from './translation-zones';
 const client = { sub: 'c1', role: 'client' } as unknown as RequestUser;
 const attorney = { sub: 'a1', role: 'attorney' } as unknown as RequestUser;
 
-function setup(opts: { key?: string | null; caseAccess?: unknown } = {}) {
+function setup(
+  opts: {
+    key?: string | null;
+    caseAccess?: unknown;
+    aboutHidden?: boolean;
+    blocked?: boolean;
+  } = {},
+) {
   const prisma = {
     post: { findFirst: jest.fn().mockResolvedValue({ body: ' Hello ' }) },
     comment: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -54,12 +63,23 @@ function setup(opts: { key?: string | null; caseAccess?: unknown } = {}) {
         }),
     ),
   };
+  // PS1: «кто видит О себе» and blocks, as the public profile applies them.
+  const privacy = {
+    visibleTo: jest.fn((_v: string, ids: string[]) =>
+      Promise.resolve(new Set(opts.aboutHidden ? [] : ids)),
+    ),
+  };
+  const blocks = {
+    isBlockedEitherWay: jest.fn().mockResolvedValue(!!opts.blocked),
+  };
   const service = new ContentTranslationService(
     prisma as unknown as PrismaService,
     access as unknown as CaseAccessPolicy,
     engine as unknown as TranslationService,
+    privacy as unknown as PrivacySettingsService,
+    blocks as unknown as BlocksService,
   );
-  return { service, prisma, access, engine };
+  return { service, prisma, access, engine, privacy, blocks };
 }
 
 describe('ContentTranslationService', () => {
@@ -177,6 +197,38 @@ describe('ContentTranslationService visibility (verify 17.11 T1/T2)', () => {
     await expect(
       s.service.translate(client, 'profile', 'a1', 'ru'),
     ).rejects.toMatchObject({ response: { code: ErrorCode.NOT_FOUND } });
+  });
+});
+
+describe('ContentTranslationService: the bio follows «О себе» and blocks (PS1)', () => {
+  it('404s a bio hidden from this viewer by «кто видит О себе»', async () => {
+    const s = setup({ aboutHidden: true });
+    await expect(
+      s.service.translate(client, 'profile', 'a1', 'ru'),
+    ).rejects.toMatchObject({ response: { code: ErrorCode.NOT_FOUND } });
+    expect(s.privacy.visibleTo).toHaveBeenCalledWith(
+      client.sub,
+      ['a1'],
+      'about_from',
+    );
+    expect(s.engine.translate).not.toHaveBeenCalled();
+  });
+
+  it('404s a bio when the two block each other (either way)', async () => {
+    const s = setup({ blocked: true });
+    await expect(
+      s.service.translate(client, 'profile', 'a1', 'ru'),
+    ).rejects.toMatchObject({ response: { code: ErrorCode.NOT_FOUND } });
+    expect(s.blocks.isBlockedEitherWay).toHaveBeenCalledWith(client.sub, 'a1');
+    expect(s.engine.translate).not.toHaveBeenCalled();
+  });
+
+  it('the owner always translates their own bio', async () => {
+    const s = setup({ aboutHidden: true, blocked: true });
+    const self = { ...attorney, sub: 'a1' };
+    await expect(
+      s.service.translate(self, 'profile', 'a1', 'ru'),
+    ).resolves.toMatchObject({ text: '[Bio]' });
   });
 });
 
