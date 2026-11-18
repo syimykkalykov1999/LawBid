@@ -491,7 +491,6 @@
 "cases.activity.lastSeen.two":"Ikhasimende belisebenza ezinsukwini ezingu-{n} ezedlule",
 "cases.activity.lastSeen.zero":"Ikhasimende belisebenza ezinsukwini ezingu-{n} ezedlule",
 "cases.activity.online":"Oníbàárà wà lórí íntánẹ́ẹ̀tì",
-"cases.activity.responds":"Ngokujwayelekile liphendula ngosuku olulodwa",
 "cases.activity.taskClosed":"Ithasiki “{title}” livalwe ngu-{name}",
 "cases.activity.taskCreated":"{name} létrehozta a(z) „{title}” feladatot",
 "cases.activity.taskDone":"{name} “{title}” tabşyrygyny tamamlady",

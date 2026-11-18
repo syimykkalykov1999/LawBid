@@ -6,53 +6,6 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Row 112 (Airbnb «Typically responds within an hour», Upwork, Thumbtack):
-/// the key of the line for [minutes] — the same four steps as Airbnb.
-String replyTimeKey(int minutes) {
-  if (minutes <= 60) return 'profile.reply.hour';
-  if (minutes <= 6 * 60) return 'profile.reply.hours';
-  if (minutes <= 24 * 60) return 'profile.reply.day';
-  return 'profile.reply.days';
-}
-
-/// The «Обычно отвечает …» line under the name (nothing without a value).
-class ProfileReplyTimeLine extends ConsumerWidget {
-  const ProfileReplyTimeLine({required this.minutes, super.key});
-
-  final int? minutes;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final m = minutes;
-    if (m == null) return const SizedBox.shrink();
-    final t = ref.watch(translatorProvider);
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final typography = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Padding(
-      key: const ValueKey('profile-reply-time'),
-      padding: const EdgeInsets.only(top: AppSpacing.sm),
-      child: Row(
-        children: [
-          AppIcon(
-            AppIcons.scheduleRounded,
-            size: AppSizes.iconSm,
-            color: colors.textSecondary,
-          ),
-          const SizedBox(width: AppSpacing.xs),
-          Expanded(
-            child: Text(
-              t.t(replyTimeKey(m)),
-              style: typography.bodySmall.copyWith(
-                color: colors.textSecondary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// One thing a complete attorney profile has.
 enum ProfilePart { photo, bio, practices, languages, firm }
 

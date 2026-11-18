@@ -491,7 +491,6 @@
 "cases.activity.lastSeen.two":"अशील {n} दिवसांपूर्वी सक्रिय होता",
 "cases.activity.lastSeen.zero":"अशील {n} दिवसांपूर्वी सक्रिय होता",
 "cases.activity.online":"अशील ऑनलाइन आहे",
-"cases.activity.responds":"साधारणपणे एका दिवसात उत्तर देतात",
 "cases.activity.taskClosed":"{name} यांनी “{title}” बंद केले",
 "cases.activity.taskCreated":"{name} यांनी “{title}” हे काम तयार केले",
 "cases.activity.taskDone":"{name} यांनी “{title}” पूर्ण केले",

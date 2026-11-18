@@ -491,7 +491,6 @@
 "cases.activity.lastSeen.two":"العميل كان نشطًا قبل {n} يوم",
 "cases.activity.lastSeen.zero":"العميل كان نشطًا قبل {n} يوم",
 "cases.activity.online":"العميل متصل",
-"cases.activity.responds":"يردّ عادةً خلال يوم",
 "cases.activity.taskClosed":"{name}: إغلاق «{title}»",
 "cases.activity.taskCreated":"{name}: إنشاء المهمة «{title}»",
 "cases.activity.taskDone":"{name}: إتمام «{title}»",

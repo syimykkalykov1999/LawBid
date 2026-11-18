@@ -491,7 +491,6 @@
 "cases.activity.lastSeen.two":"Mandant war vor {n} Tagen aktiv",
 "cases.activity.lastSeen.zero":"Mandant war vor {n} Tagen aktiv",
 "cases.activity.online":"Mandant online",
-"cases.activity.responds":"Antwortet meist innerhalb eines Tages",
 "cases.activity.taskClosed":"{name}: „{title}“ geschlossen",
 "cases.activity.taskCreated":"{name}: Aufgabe „{title}“ erstellt",
 "cases.activity.taskDone":"{name}: „{title}“ erledigt",
