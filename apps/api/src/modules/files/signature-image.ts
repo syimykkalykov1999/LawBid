@@ -38,6 +38,17 @@ export async function storeSignatureImage(
   return key;
 }
 
+/** Final pass 18.11 (FO8): removes a stored picture whose signature row was
+ * never written (the transaction failed), so no object is left orphaned. */
+export async function removeSignatureImage(
+  storage: Pick<S3StorageService, 'remove' | 'awsBucket'>,
+  key: string,
+): Promise<void> {
+  await storage.remove(storage.awsBucket('documents'), [key], {
+    purgeEdge: false,
+  });
+}
+
 /** The picture of a signature row: the stored object first, then the old
  * bytes (rows not yet backfilled), else null (a typed signature). */
 export async function loadSignatureImage(

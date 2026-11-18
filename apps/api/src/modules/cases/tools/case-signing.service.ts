@@ -273,76 +273,95 @@ export class CaseSigningService {
     const imageKey = image
       ? await this.files.storeSignatureImage(requestId, image)
       : null;
-    const completed = await withTxRetry(this.prisma, async (tx) => {
-      const locked = await tx.$queryRaw<{ status: string }[]>`
+    const completed = await this.signInTx(imageKey, () =>
+      withTxRetry(this.prisma, async (tx) => {
+        const locked = await tx.$queryRaw<{ status: string }[]>`
         SELECT status::TEXT AS status FROM case_sign_requests
         WHERE id = ${requestId}::UUID FOR UPDATE`;
-      const alive = await tx.caseSignRequest.count({
-        where: {
-          id: requestId,
-          OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
-        },
-      });
-      if (locked[0]?.status !== 'pending' || alive === 0) {
-        throw new ConflictException({
-          code: ErrorCode.CASE_INVALID_STATE,
-          message: 'This document is no longer waiting for signatures.',
-        });
-      }
-      try {
-        await tx.caseSignature.create({
-          data: {
-            request_id: requestId,
-            signer_id: user.sub,
-            signer_role: s.role,
-            signed_name: dto.name,
-            method: dto.method,
-            // Step 1 of files/signature-image.ts: the object + the old bytes.
-            image_png: image ? new Uint8Array(image) : null,
-            image_key: imageKey,
-            doc_sha256: r.source_sha256,
-            ip: ctx.ip?.slice(0, 64) ?? null,
-            user_agent: ctx.userAgent?.slice(0, 300) ?? null,
+        const alive = await tx.caseSignRequest.count({
+          where: {
+            id: requestId,
+            OR: [{ expires_at: null }, { expires_at: { gt: new Date() } }],
           },
         });
-      } catch (e) {
-        if ((e as { code?: string }).code === 'P2002') {
+        if (locked[0]?.status !== 'pending' || alive === 0) {
           throw new ConflictException({
             code: ErrorCode.CASE_INVALID_STATE,
-            message: 'You have already signed this document.',
+            message: 'This document is no longer waiting for signatures.',
           });
         }
-        throw e;
-      }
-      await this.journal.append(tx, {
-        caseId,
-        clientId: s.clientId,
-        actor: { userId: user.sub, role: s.role },
-        attorneyId: s.attorneyId,
-        event: 'signature_signed',
-        payload: {
-          requestId,
-          role: s.role,
-          method: dto.method,
-          name: dto.name,
-          docSha256: r.source_sha256,
-          ip: ctx.ip?.slice(0, 64) ?? null,
-        },
-      });
-      const count = await tx.caseSignature.count({
-        where: { request_id: requestId },
-      });
-      if (count >= 2) {
-        await tx.caseSignRequest.update({
-          where: { id: requestId },
-          data: { status: 'signed', completed_at: new Date() },
+        try {
+          await tx.caseSignature.create({
+            data: {
+              request_id: requestId,
+              signer_id: user.sub,
+              signer_role: s.role,
+              signed_name: dto.name,
+              method: dto.method,
+              // Step 1 of files/signature-image.ts: the object + the old bytes.
+              image_png: image ? new Uint8Array(image) : null,
+              image_key: imageKey,
+              doc_sha256: r.source_sha256,
+              ip: ctx.ip?.slice(0, 64) ?? null,
+              user_agent: ctx.userAgent?.slice(0, 300) ?? null,
+            },
+          });
+        } catch (e) {
+          if ((e as { code?: string }).code === 'P2002') {
+            throw new ConflictException({
+              code: ErrorCode.CASE_INVALID_STATE,
+              message: 'You have already signed this document.',
+            });
+          }
+          throw e;
+        }
+        await this.journal.append(tx, {
+          caseId,
+          clientId: s.clientId,
+          actor: { userId: user.sub, role: s.role },
+          attorneyId: s.attorneyId,
+          event: 'signature_signed',
+          payload: {
+            requestId,
+            role: s.role,
+            method: dto.method,
+            name: dto.name,
+            docSha256: r.source_sha256,
+            ip: ctx.ip?.slice(0, 64) ?? null,
+          },
         });
-        return true;
-      }
-      return false;
-    });
+        const count = await tx.caseSignature.count({
+          where: { request_id: requestId },
+        });
+        if (count >= 2) {
+          await tx.caseSignRequest.update({
+            where: { id: requestId },
+            data: { status: 'signed', completed_at: new Date() },
+          });
+          return true;
+        }
+        return false;
+      }),
+    );
     if (completed) await this.finalize(requestId, user);
     return this.list(user, caseId);
+  }
+
+  /** Final pass 18.11 (FO8): a signature whose transaction fails (already
+   * signed, no longer waiting, database error) takes back the picture it
+   * stored first — no orphan object in the private bucket. */
+  private async signInTx<T>(
+    imageKey: string | null,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await run();
+    } catch (e) {
+      if (imageKey) {
+        await this.files.dropSignatureImage(imageKey).catch(() => undefined);
+      }
+      throw e;
+    }
   }
 
   async decline(

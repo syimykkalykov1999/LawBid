@@ -32,7 +32,11 @@ import { CostGuardService } from '../../common/cost-guard/cost-guard.service';
 import { EntitlementsService } from '../plans/entitlements.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { RateLimitService } from '../auth/services/rate-limit.service';
-import { loadSignatureImage, storeSignatureImage } from './signature-image';
+import {
+  loadSignatureImage,
+  removeSignatureImage,
+  storeSignatureImage,
+} from './signature-image';
 import { S3StorageService } from './storage/s3-storage.service';
 import { FileScanRunner } from './jobs/file-scan.runner';
 import { ScanHandoff } from './jobs/scan-handoff';
@@ -1696,6 +1700,11 @@ export class FilesService {
    * private documents bucket; returns the key kept on the row. */
   storeSignatureImage(requestId: string, png: Buffer): Promise<string> {
     return storeSignatureImage(this.storage, requestId, png);
+  }
+
+  /** FO8: the picture of a signature whose row was never written. */
+  dropSignatureImage(key: string): Promise<void> {
+    return removeSignatureImage(this.storage, key);
   }
 
   /** The picture of a case signature row (object first, old bytes after). */

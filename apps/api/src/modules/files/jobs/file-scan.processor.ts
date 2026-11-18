@@ -422,6 +422,15 @@ export class FileScanProcessor {
       orderBy: { created_at: 'asc' },
     });
     if (!twin) return false;
+    // Final pass 18.11 (FO9): a browser voice note needs its iPhone copy;
+    // a twin without one (switch off then, ffmpeg failed, or a sticker with
+    // the same bytes) is not reused — this note is processed and gets it.
+    if (
+      !twin.voice_m4a &&
+      needsVoiceTranscode(file.purpose, twin.mime ?? file.mime)
+    ) {
+      return false;
+    }
     const { count } = await this.prisma.file.updateMany({
       where: { id: file.id, scan_status: 'pending' },
       data: {

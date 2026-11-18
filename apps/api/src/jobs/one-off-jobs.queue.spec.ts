@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/require-await */
 import type { ConfigService } from '@nestjs/config';
 
 const add = jest.fn().mockResolvedValue(undefined);
@@ -57,5 +58,52 @@ describe('OneOffJobsQueue.add', () => {
     await q.add('trust.recompute-all', {}, 'trust-recompute-all', 0);
     expect(remove).not.toHaveBeenCalled();
     expect(add).toHaveBeenCalled();
+  });
+});
+
+/** Final pass 18.11 (FO4): a change made while the job already RUNS (it may
+ * have read the old rules) queues one more run; a waiting one still takes
+ * the add (it reads the new rules when it starts). */
+describe('OneOffJobsQueue.add again-if-running', () => {
+  const config = {
+    get: jest.fn().mockReturnValue('redis://localhost:6379'),
+  } as unknown as ConfigService;
+
+  beforeEach(() => {
+    add.mockClear();
+    getJob.mockReset();
+  });
+
+  it('FO4: a running job under the id gets one follow-up run', async () => {
+    getJob.mockImplementation(async (id: string) =>
+      id === 'trust-notify'
+        ? { getState: jest.fn().mockResolvedValue('active'), remove: jest.fn() }
+        : undefined,
+    );
+    const q = new OneOffJobsQueue(config);
+    await q.add('trust.recompute-all', {}, 'trust-notify', 0, {
+      againIfRunning: true,
+    });
+    expect(add).toHaveBeenCalledWith(
+      'trust.recompute-all',
+      {},
+      expect.objectContaining({ jobId: 'trust-notify-again' }),
+    );
+  });
+
+  it('a waiting job under the id takes the add (no follow-up)', async () => {
+    getJob.mockResolvedValue({
+      getState: jest.fn().mockResolvedValue('waiting'),
+      remove: jest.fn(),
+    });
+    const q = new OneOffJobsQueue(config);
+    await q.add('trust.recompute-all', {}, 'trust-notify', 0, {
+      againIfRunning: true,
+    });
+    expect(add).toHaveBeenCalledWith(
+      'trust.recompute-all',
+      {},
+      expect.objectContaining({ jobId: 'trust-notify' }),
+    );
   });
 });

@@ -231,49 +231,90 @@ export class ClientReviewsService {
       });
     }
     const existing = revived ? null : found;
-    // An edit is screened like a new review: otherwise a clean review
-    // could be edited into held text that stays public (coordinator review
-    // 09.11). A held edit is hidden and queued for the moderators.
-    // Verify 17.11: a moderator's hide survives the author's delete. An
-    // edit whose text did not change is not held again: it passed when it
-    // was written, and the repeat rule would count it against itself (C-3).
-    const held =
-      (verdict === 'hold' && (!existing || existing.body !== body)) ||
-      prior === 'hidden';
-    const row = await this.prisma.clientReview.upsert({
-      where: {
-        case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
-      },
-      create: {
-        case_id: caseId,
-        attorney_id: user.sub,
-        client_id: kase.client_id,
-        rating: dto.rating,
-        body,
-        photo_ids: photoIds,
-        ...(held ? { status: 'hidden' as const } : {}),
-      },
-      update: {
-        rating: dto.rating,
-        body,
-        ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
-        ...(held
-          ? { status: 'hidden' as const }
-          : revived
-            ? { status: 'published' as const }
-            : {}),
-      },
-    });
-    await this.recalc(kase.client_id);
-    if (!existing || held) await this.afterSave(user.sub, row.id, body, held);
-    if (!existing && !held) {
-      await this.notifications.emit({
-        type: 'review_received',
-        recipientId: kase.client_id,
-        payload: { caseId, actorId: user.sub, clientReview: true },
+    // Final pass 18.11 (FO7): the pair check and the write run under ONE
+    // lock per attorney and client (as the report dedupe of batch 9). The
+    // pair's reviews can sit with different cases on different databases,
+    // so the lock is on the primary and held until the write committed.
+    return this.withReviewPairLock(user.sub, kase.client_id, async () => {
+      // Re-check under the pair lock: the pair edit above (FA3) covers the
+      // normal case; only two writes racing for the same pair reach here.
+      if (!existing) {
+        const other = await this.prisma.clientReview.findFirst({
+          where: {
+            client_id: kase.client_id,
+            attorney_id: user.sub,
+            status: { not: 'removed' },
+            ...(found ? { id: { not: found.id } } : {}),
+          },
+          select: { id: true },
+        });
+        if (other) {
+          throw new ConflictException({
+            code: ErrorCode.REVIEW_ALREADY_EXISTS,
+            message: 'You have already reviewed this client.',
+          });
+        }
+      }
+      // An edit is screened like a new review: otherwise a clean review
+      // could be edited into held text that stays public (coordinator review
+      // 09.11). A held edit is hidden and queued for the moderators.
+      // Verify 17.11: a moderator's hide survives the author's delete. An
+      // edit whose text did not change is not held again: it passed when it
+      // was written, and the repeat rule would count it against itself (C-3).
+      const held =
+        (verdict === 'hold' && (!existing || existing.body !== body)) ||
+        prior === 'hidden';
+      const row = await this.prisma.clientReview.upsert({
+        where: {
+          case_id_attorney_id: { case_id: caseId, attorney_id: user.sub },
+        },
+        create: {
+          case_id: caseId,
+          attorney_id: user.sub,
+          client_id: kase.client_id,
+          rating: dto.rating,
+          body,
+          photo_ids: photoIds,
+          ...(held ? { status: 'hidden' as const } : {}),
+        },
+        update: {
+          rating: dto.rating,
+          body,
+          ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
+          ...(held
+            ? { status: 'hidden' as const }
+            : revived
+              ? { status: 'published' as const }
+              : {}),
+        },
       });
-    }
-    return (await this.present([row.id], user.sub))[0];
+      await this.recalc(kase.client_id);
+      if (!existing || held) await this.afterSave(user.sub, row.id, body, held);
+      if (!existing && !held) {
+        await this.notifications.emit({
+          type: 'review_received',
+          recipientId: kase.client_id,
+          payload: { caseId, actorId: user.sub, clientReview: true },
+        });
+      }
+      return (await this.present([row.id], user.sub))[0];
+    });
+  }
+
+  /** FO7: one attorney's (or client's) review of one client at a time. */
+  private withReviewPairLock<T>(
+    authorId: string,
+    clientId: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    return withTxRetry(
+      primaryClient(this.prisma),
+      async (lockTx) => {
+        await lockTx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`client-review-pair:${authorId}:${clientId}`}, 0))`;
+        return fn();
+      },
+      { isolation: 'readCommitted', op: 'client_review_pair' },
+    );
   }
 
   /** GET /cases/:id/client-review — the caller's own review, if any. */
@@ -335,68 +376,73 @@ export class ClientReviewsService {
     // Audit 2026-10-01: find → write → rating in one serializable
     // transaction — a double submit can't make two reviews, the rating
     // can't be left stale.
-    const { existing, row, held } = await withTxRetry(
-      this.prisma,
-      async (tx) => {
-        const existing = await tx.clientReview.findFirst({
-          where: {
-            client_id: clientId,
-            attorney_id: user.sub,
-            status: { not: 'removed' },
-          },
-          orderBy: { created_at: 'desc' },
-          select: { id: true, body: true },
-        });
-        // Verify 17.11 (batch 9): a review moderation or an accepted appeal
-        // removed is not written again as a fresh published one (the case
-        // path refuses it too); one a moderator hid goes back hidden.
-        // An unchanged text is not held again (C-3, as above).
-        let held = verdict === 'hold' && existing?.body !== body;
-        if (!existing) {
-          const gone = await tx.clientReview.findFirst({
+    // FO7: the same pair lock as the case path (one review per pair).
+    const { existing, row, held } = await this.withReviewPairLock(
+      user.sub,
+      clientId,
+      () =>
+        withTxRetry(this.prisma, async (tx) => {
+          const existing = await tx.clientReview.findFirst({
             where: {
               client_id: clientId,
               attorney_id: user.sub,
-              case_id: null,
-              status: 'removed',
+              status: { not: 'removed' },
             },
             orderBy: { created_at: 'desc' },
-            select: {
-              id: true,
-              appeal: { select: { status: true, decided_by: true } },
-            },
+            select: { id: true, body: true },
           });
-          const prior = gone
-            ? await lastModeration(tx, gone.id, 'client_review')
-            : null;
-          if (gone && removedByAdmin(gone.appeal, prior)) throw notEditable();
-          if (prior === 'hidden') held = true;
-        }
-        const row = existing
-          ? await tx.clientReview.update({
-              where: { id: existing.id },
-              data: {
-                rating: dto.rating,
-                body,
-                edited_at: new Date(),
-                ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
-                // A held edit is hidden like a held new review (see above).
-                ...(held ? { status: 'hidden' as const } : {}),
-              },
-            })
-          : await tx.clientReview.create({
-              data: {
-                attorney_id: user.sub,
+          // Verify 17.11 (batch 9): a review moderation or an accepted appeal
+          // removed is not written again as a fresh published one (the case
+          // path refuses it too); one a moderator hid goes back hidden.
+          // An unchanged text is not held again (C-3, as above).
+          let held = verdict === 'hold' && existing?.body !== body;
+          if (!existing) {
+            const gone = await tx.clientReview.findFirst({
+              where: {
                 client_id: clientId,
-                rating: dto.rating,
-                body,
-                photo_ids: photoIds,
-                ...(held ? { status: 'hidden' as const } : {}),
+                attorney_id: user.sub,
+                case_id: null,
+                status: 'removed',
+              },
+              orderBy: { created_at: 'desc' },
+              select: {
+                id: true,
+                appeal: { select: { status: true, decided_by: true } },
               },
             });
-        await this.recalc(clientId, tx);
-        return { existing, row, held };
-      },
+            const prior = gone
+              ? await lastModeration(tx, gone.id, 'client_review')
+              : null;
+            if (gone && removedByAdmin(gone.appeal, prior)) throw notEditable();
+            if (prior === 'hidden') held = true;
+          }
+          const row = existing
+            ? await tx.clientReview.update({
+                where: { id: existing.id },
+                data: {
+                  rating: dto.rating,
+                  body,
+                  edited_at: new Date(),
+                  ...(dto.photoIds !== undefined
+                    ? { photo_ids: photoIds }
+                    : {}),
+                  // A held edit is hidden like a held new review (see above).
+                  ...(held ? { status: 'hidden' as const } : {}),
+                },
+              })
+            : await tx.clientReview.create({
+                data: {
+                  attorney_id: user.sub,
+                  client_id: clientId,
+                  rating: dto.rating,
+                  body,
+                  photo_ids: photoIds,
+                  ...(held ? { status: 'hidden' as const } : {}),
+                },
+              });
+          await this.recalc(clientId, tx);
+          return { existing, row, held };
+        }),
     );
     if (!existing || held) await this.afterSave(user.sub, row.id, body, held);
     if (!existing && !held) {
