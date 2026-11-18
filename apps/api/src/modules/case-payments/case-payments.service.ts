@@ -26,7 +26,7 @@ import type {
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { uuidV5 } from '../../common/uuid-v5';
 import {
-  createdBefore,
+  createdKeyset,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -222,9 +222,10 @@ export function strip(p: Party | undefined): CasePaymentPartyDto | null {
 }
 
 function afterCursor(cursor?: string): Prisma.CasePaymentWhereInput {
-  if (!cursor) return {};
-  const c = decodeCursor(cursor);
-  return createdBefore({ t: c.createdAt, id: c.id });
+  // Row 215: the first page too (case_payments_created_id_idx for the
+  // admin list of all payments).
+  const c = cursor ? decodeCursor(cursor) : undefined;
+  return createdKeyset(c && { t: c.createdAt, id: c.id });
 }
 
 /**

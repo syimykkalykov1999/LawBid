@@ -22,6 +22,7 @@ import {
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
   createdBefore,
+  createdKeyset,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -402,7 +403,9 @@ export class StarsService {
     const rows = await this.prisma.starLedger.findMany({
       where: {
         ...where,
-        ...(c ? createdBefore({ t: c.createdAt, id: c.id }) : {}),
+        // Row 215: star_ledger_created_at_id_idx for the admin ledger of
+        // everyone, the first page too.
+        ...createdKeyset(c && { t: c.createdAt, id: c.id }),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,

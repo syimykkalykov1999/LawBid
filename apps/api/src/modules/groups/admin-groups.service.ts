@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdKeyset,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -32,14 +33,8 @@ export class AdminGroupsService {
       ...(q?.trim()
         ? { title: { contains: q.trim(), mode: 'insensitive' } }
         : {}),
-      ...(c
-        ? {
-            OR: [
-              { created_at: { lt: c.createdAt } },
-              { created_at: c.createdAt, id: { lt: c.id } },
-            ],
-          }
-        : {}),
+      // Row 215: a range on chat_groups_created_id_idx.
+      ...createdKeyset(c && { t: c.createdAt, id: c.id }),
     };
     const rows = await this.prisma.chatGroup.findMany({
       where,
