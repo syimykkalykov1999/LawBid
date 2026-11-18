@@ -1,5 +1,15 @@
 import { type CountryScope, userInScope } from '../countries/country-scope';
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { OneOffJobsQueue } from '../../jobs/one-off-jobs.queue';
+import {
+  ONE_OFF_JOBS,
+  TRUST_RECOMPUTE_ALL_JOB_ID,
+} from '../../jobs/jobs.constants';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -92,6 +102,7 @@ export class AdminTrustService {
     private readonly config: AdminConfigService,
     private readonly audit: AuditLogService,
     private readonly blocks: BarNumberBlocksService,
+    @Optional() private readonly oneOff?: OneOffJobsQueue,
   ) {}
 
   async settingsDto(): Promise<TrustSettingsDto> {
@@ -145,14 +156,27 @@ export class AdminTrustService {
     if (gatesChanged) {
       // Owner 2026-10-05 06:07: rules apply at once; attorneys who now
       // miss something are told.
-      void this.trust
-        .recomputeAll(200, { notifyNewlyRequired: true })
-        .catch((e) =>
-          new Logger(AdminTrustService.name).warn(
-            { err: String(e) },
-            'background trust recompute failed',
-          ),
-        );
+      // Verify 17.11: handed to the worker like «Пересчитать всех» (its
+      // own job id: the attorneys who lost the badge must be told); in
+      // this process only without Redis.
+      const queued = await this.oneOff
+        ?.add(
+          ONE_OFF_JOBS.trustRecomputeAll,
+          { notifyNewlyRequired: true },
+          `${TRUST_RECOMPUTE_ALL_JOB_ID}-notify`,
+          0,
+        )
+        .catch(() => false);
+      if (!queued) {
+        void this.trust
+          .recomputeAll(200, { notifyNewlyRequired: true })
+          .catch((e) =>
+            new Logger(AdminTrustService.name).warn(
+              { err: String(e) },
+              'background trust recompute failed',
+            ),
+          );
+      }
     }
     return this.settingsDto();
   }
@@ -872,7 +896,17 @@ export class AdminTrustService {
   }
 
   async recomputeAll(admin: AdminActor): Promise<RecomputeAllResultDto> {
-    const result = await this.trust.recomputeAll();
+    // Verify 17.11 (batch 9): one serializable recompute per attorney ran
+    // inside the HTTP request (a timeout on a large table, no lock against
+    // the nightly run). It is a background job now (one at a time, fixed
+    // job id); without Redis it runs here as before.
+    const queued =
+      (await this.oneOff
+        ?.add(ONE_OFF_JOBS.trustRecomputeAll, {}, TRUST_RECOMPUTE_ALL_JOB_ID, 0)
+        .catch(() => false)) ?? false;
+    const result = queued
+      ? { attorneys: 0, changed: 0, queued: true }
+      : { ...(await this.trust.recomputeAll()), queued: false };
     await this.audit.record({
       adminId: admin.id,
       action: TRUST_AUDIT_ACTION.recompute,
