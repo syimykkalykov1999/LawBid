@@ -34,6 +34,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import type { EmailProvider } from '../../auth/providers/email/email-provider.interface';
 import { buildNotificationEmail } from '../../auth/notifications/email-templates';
 import { RealtimePublisher } from '../../realtime/realtime-publisher.service';
+import { blockedEitherWay } from '../../blocks/block-guard';
 import { BadgesService } from '../badges.service';
 import {
   ALWAYS_PUSH,
@@ -627,6 +628,22 @@ export class PushDispatcher
     return { ...u, quiet_hours: quiet };
   }
 
+  /** The notification's actor (payload.actorId) blocked the recipient, was
+   * blocked by them, or is no longer an active account. */
+  private async actorGone(
+    recipientId: string,
+    payload: unknown,
+  ): Promise<boolean> {
+    const actorId = (payload as Record<string, unknown> | null)?.actorId;
+    if (typeof actorId !== 'string' || actorId === recipientId) return false;
+    if (await blockedEitherWay(this.prisma, actorId, recipientId)) return true;
+    const actor = await this.prisma.user.findUnique({
+      where: { id: actorId },
+      select: { status: true },
+    });
+    return actor?.status !== 'active';
+  }
+
   private async dispatchNotification(
     data: NotificationJobData,
     jobId: string,
@@ -670,6 +687,13 @@ export class PushDispatcher
     if (data.push === false) return 'no_push';
     // Audit 2026-10-02: read in the app while quiet hours held it → no push.
     if (data.deferred && n.read_at) return 'no_push';
+    // Verify batch 8 (17.11, NO3): quiet hours held it for hours; a block
+    // either way or the actor's suspension since then drops it (WhatsApp /
+    // Instagram: nothing arrives from someone you blocked). emit checked
+    // the block when the row was written; a fresh push needs no re-check.
+    if (data.deferred && (await this.actorGone(n.user_id, n.payload))) {
+      return 'no_push';
+    }
     // Owner 2026-10-21 (inbox 30): the switch of this very kind.
     if (
       !ALWAYS_PUSH.has(n.type) &&

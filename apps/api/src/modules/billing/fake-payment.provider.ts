@@ -115,6 +115,24 @@ export class FakePaymentProvider implements PaymentProvider {
     return Promise.resolve();
   }
 
+  /** Verify 8 (RF1): a debit is a negative entry in the same book (one per
+   * idempotency key, like Stripe). */
+  debitCustomerBalance(
+    customerId: string,
+    cents: number,
+    description: string,
+    idempotencyKey: string,
+  ): Promise<void> {
+    if (!this.balanceCredits.has(idempotencyKey)) {
+      this.balanceCredits.set(idempotencyKey, {
+        customerId,
+        cents: -Math.abs(cents),
+        description,
+      });
+    }
+    return Promise.resolve();
+  }
+
   createCoupon(input: ProviderCouponInput): Promise<ProviderCoupon> {
     const couponId = `coupon_fake_${randomUUID().slice(0, 12)}`;
     this.coupons.set(couponId, input);

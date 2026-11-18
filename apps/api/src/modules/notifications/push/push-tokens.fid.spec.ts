@@ -116,7 +116,7 @@ describe('PushTokensService FID transition', () => {
       { token: 'tok-b', fid: false },
     ]);
     expect(prisma.pushToken.deleteMany).toHaveBeenCalledWith({
-      where: { fcm_token: { in: ['tok-dead'] } },
+      where: { user_id: 'u', fcm_token: { in: ['tok-dead'] } },
     });
     expect(await service.activeTokens('u')).toEqual(['fid-a', 'tok-b']);
   });
