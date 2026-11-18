@@ -4,14 +4,16 @@ import { Prisma } from '../../generated/prisma/client';
 import { heldSqlFor } from '../../common/privacy/legal-hold';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
-
-/** Rows per DELETE: small transactions, no long locks. */
-const BATCH = 5000;
-/** A run stops after this many rows; the next night continues. */
-const MAX_PER_RUN = 1_000_000;
+import {
+  deleteInBatches,
+  retentionPace,
+  type RetentionPace,
+} from '../../modules/storage/retention-batches';
 
 /** docs/05 stage 5.8 "очистка старых уведомлений": rows older than
- * `notifications.retention_days` (app_config, default 180). */
+ * `notifications.retention_days` (app_config, default 180). DB scale batch
+ * B: rows per DELETE, the pause and the per-run cap (0 = none) are the
+ * storage.retention_* settings, shared with the other logs. */
 @Injectable()
 export class NotificationsRetentionJob {
   constructor(
@@ -25,31 +27,28 @@ export class NotificationsRetentionJob {
     // Two databases: notifications live with their user; each database
     // is cleaned in its own (one database: one pass, as before).
     const held = await heldSqlFor(this.prisma);
+    const pace = await retentionPace(this.settings);
     const parts = await forEachDatabase(this.prisma, () =>
-      this.runIn(before, held),
+      this.runIn(before, held, pace),
     );
     return { deleted: parts.reduce((a, b) => a + b, 0) };
   }
 
-  private async runIn(
+  private runIn(
     before: Date,
     held: Awaited<ReturnType<typeof heldSqlFor>>,
+    pace: RetentionPace,
   ): Promise<number> {
-    let deleted = 0;
-    while (deleted < MAX_PER_RUN) {
-      const n = await this.prisma.$executeRaw`
+    return deleteInBatches(
+      (limit) => this.prisma.$executeRaw`
         DELETE FROM notifications
         WHERE (id, user_id) IN (
           SELECT id, user_id FROM notifications
           WHERE created_at < ${before}
             AND NOT ${held('user', Prisma.sql`user_id`)}
           ORDER BY created_at
-          LIMIT ${BATCH})`;
-      deleted += n;
-      if (n < BATCH) break;
-      // Short pause so a big backlog never hogs the DB (load review).
-      await new Promise((r) => setTimeout(r, 200));
-    }
-    return deleted;
+          LIMIT ${limit})`,
+      pace,
+    );
   }
 }

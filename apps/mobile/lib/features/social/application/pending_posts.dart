@@ -78,9 +78,7 @@ class PendingPosts extends Notifier<List<PendingPost>> {
     final owner = queue.ownerId;
     if (owner != null) {
       unawaited(
-        queue.db
-            .ofKind(owner, kPostJobKind)
-            .then(_restore, onError: (_) {}),
+        queue.db.ofKind(owner, kPostJobKind).then(_restore, onError: (_) {}),
       );
     }
     return const [];
@@ -157,11 +155,11 @@ class PendingPosts extends Notifier<List<PendingPost>> {
       );
       if (!ref.mounted) return;
       await ref.read(uploadQueueProvider).enqueue(
-            id: id,
-            kind: kPostJobKind,
-            target: _postTarget,
-            payload: {...postDraftToJson(draft), 'photos': entries},
-          );
+        id: id,
+        kind: kPostJobKind,
+        target: _postTarget,
+        payload: {...postDraftToJson(draft), 'photos': entries},
+      );
     } on Object catch (e) {
       failed(id, e);
     }

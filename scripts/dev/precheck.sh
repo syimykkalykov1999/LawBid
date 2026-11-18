@@ -58,7 +58,21 @@ if [ "$FULL" = 1 ]; then
     SPECS=$(echo "$CH" | grep -E '^apps/api/src/.*\.ts$' | sed 's|^apps/api/||' | tr '\n' ' ')
     [ -n "$SPECS" ] && ( cd apps/api && NODE_OPTIONS="${NODE_OPTIONS:-} --experimental-vm-modules" npx jest --findRelatedTests $SPECS ) >/tmp/precheck-jest.log 2>&1 && ok "unit tests related to changed files" || { [ -n "$SPECS" ] && { bad "related unit tests"; tail -25 /tmp/precheck-jest.log; }; }
     # Time bombs: the same specs with the clock 45 days ahead (CI: "Time-bomb check (nightly)").
-    [ -n "$SPECS" ] && { ( cd apps/api && IGN=$(grep -rl useFakeTimers src --include='*.spec.ts' | sed 's#\.#\\.#g' | paste -sd'|'); TIME_SHIFT_DAYS=45 NODE_OPTIONS="${NODE_OPTIONS:-} --experimental-vm-modules" npx jest --setupFiles '<rootDir>/../test/time-shift.setup.js' --testPathIgnorePatterns "$IGN" --findRelatedTests $SPECS ) >/tmp/precheck-jest45.log 2>&1 && ok "related unit tests, clock +45 days" || { bad "a related spec breaks when the date moves forward (fixed calendar date?)"; grep -E "●.*›|FAIL " /tmp/precheck-jest45.log | head -8; }; }
+    # Portable on macOS (BSD paste needs a file operand) and Linux: tr, not
+    # paste. Every option in its --opt=value form and the spec list last, so
+    # an array option cannot swallow the list; an empty ignore pattern would
+    # match every path (no arrays: macOS bash 3.2 + set -u). 0 tests run =
+    # a failure, never a silent pass.
+    if [ -n "$SPECS" ]; then
+      IGN=$(cd apps/api && grep -rl useFakeTimers src --include='*.spec.ts' | sed 's#\.#\\.#g' | tr '\n' '|' | sed 's/|$//')
+      # shellcheck disable=SC2086 # SPECS is a space-separated file list
+      ( cd apps/api && TIME_SHIFT_DAYS=45 NODE_OPTIONS="${NODE_OPTIONS:-} --experimental-vm-modules" npx jest "--setupFiles=<rootDir>/../test/time-shift.setup.js" ${IGN:+"--testPathIgnorePatterns=$IGN"} --findRelatedTests $SPECS ) >/tmp/precheck-jest45.log 2>&1
+      RC45=$?
+      RAN45=$(grep -E '^Tests:' /tmp/precheck-jest45.log | tail -1 | grep -oE '[0-9]+ total' | grep -oE '[0-9]+')
+      if [ "$RC45" = 0 ] && [ "${RAN45:-0}" -gt 0 ]; then ok "related unit tests, clock +45 days ($RAN45 tests)"
+      elif [ "${RAN45:-0}" -eq 0 ] && ! grep -q 'FAIL ' /tmp/precheck-jest45.log; then bad "clock +45 days ran 0 tests (the check would pass silently)"; grep -vE 'trust settings' /tmp/precheck-jest45.log | tail -6
+      else bad "a related spec breaks when the date moves forward (fixed calendar date?)"; grep -E "●.*›|FAIL " /tmp/precheck-jest45.log | head -8; fi
+    fi
   fi
   if has '^apps/api/prisma/schema\.prisma$'; then
     npm run db:erd --workspace apps/api >/dev/null 2>&1; git diff --quiet -- docs/db/ERD.md && ok "ERD up to date" || bad "docs/db/ERD.md changed — commit it"

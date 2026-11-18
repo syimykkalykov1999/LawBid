@@ -20,6 +20,8 @@ export interface AutoHoldInput {
     ReportTargetType,
     | 'post'
     | 'comment'
+    // Verify 17.11: a held case comment is queued too (it stayed hidden).
+    | 'case_comment'
     | 'legal_question'
     | 'legal_answer'
     | 'review'

@@ -93,8 +93,12 @@ final myAttorneyReviewProvider =
 /// OQ-026: a client's public mini-profile by @username.
 final publicClientProfileProvider =
     FutureProvider.autoDispose.family<PublicClientProfile, String>(
-  (ref, username) =>
-      ref.watch(clientProfileRepositoryProvider).fetchPublic(username),
+  (ref, username) async {
+    final profile =
+        await ref.watch(clientProfileRepositoryProvider).fetchPublic(username);
+    settleFollow(ref, profile.id);
+    return profile;
+  },
   retry: (_, __) => null,
 );
 
@@ -103,6 +107,7 @@ final publicAttorneyProfileProvider =
   (ref, username) async {
     final repo = ref.watch(attorneyProfileRepositoryProvider);
     final profile = await repo.fetchPublic(username);
+    settleFollow(ref, profile.id);
     // Owner 2026-10-27 (app indexing): iPhone Spotlight remembers the
     // profiles the user opened (core/platform/spotlight_index.dart).
     indexViewedAttorney(ref, profile);

@@ -1970,8 +1970,12 @@ class ChatThread extends Notifier<ChatThreadState> {
           }
           // A skipped number means a missed message: fetch what is missing.
           final gap = hasSeqGap(state.messages, m);
+          // Verify 17.11: the catch-up starts from the newest message held
+          // BEFORE this one — after the merge it is this one, and the
+          // missing messages were never asked for.
+          final before = state.messages.where((x) => !x.isLocal).firstOrNull;
           _merge([m]);
-          if (gap) unawaited(_catchUp());
+          if (gap) unawaited(_catchUp(afterId: before?.id));
           if (state.typing) state = state.copyWith(typing: false);
         }
       case 'message:updated':
@@ -2142,12 +2146,13 @@ class ChatThread extends Notifier<ChatThreadState> {
   /// §8.5: after a drop (or an open from the phone's copy), fetch
   /// everything after the newest known message. Too much missed
   /// (`409 SYNC_TOO_OLD`): the copy is dropped and the first page read.
-  Future<void> _catchUp() async {
-    final newest = state.messages.where((m) => !m.isLocal).firstOrNull;
+  Future<void> _catchUp({String? afterId}) async {
+    final newest =
+        afterId ?? state.messages.where((m) => !m.isLocal).firstOrNull?.id;
     if (newest == null) return _loadPage();
     final epoch = _liveEpoch;
     try {
-      _merge(await _repo.messagesAfter(id, newest.id));
+      _merge(await _repo.messagesAfter(id, newest));
       if (ref.mounted) _syncedEpoch = epoch;
     } on ApiException catch (e) {
       if (e.code == ApiErrorCodes.syncTooOld) {

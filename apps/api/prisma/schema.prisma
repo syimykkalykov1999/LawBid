@@ -2476,6 +2476,10 @@ model Post {
   // Owner 2026-10-12: views of a video post / reel. 2026-10-18: one per
   // viewer per 24 h = count of post_view_events kind 'view'.
   view_count           Int                      @default(0)
+  // DB scale batch C: views whose post_view_events rows retention removed
+  // (added when it removes them); the nightly recount sets
+  // view_count = view_count_base + count(kind 'view').
+  view_count_base      Int                      @default(0)
   views                PostView[]
   view_events          PostViewEvent[]
   // Owner 2026-10-12: pinned to the top of the author's profile list, slot
@@ -3209,6 +3213,9 @@ model Message {
   sent_by_membership_id String?            @db.Uuid
   sent_by_name          String?            @db.VarChar(80)
   listened_at           DateTime?          @db.Timestamptz
+  /// Verify 17.11: the last reaction added, changed or REMOVED — the
+  /// offline catch-up returns the message (a removal leaves no row).
+  reactions_changed_at  DateTime?          @db.Timestamptz
   // Owner 2026-10-01: a sticker message.
   sticker_id            String?            @db.Uuid
   sticker               Sticker?           @relation(fields: [sticker_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_sticker_fkey")
@@ -3527,6 +3534,9 @@ model ChatGroupMessage {
   waveform            Int[]                      @default([])
   edited_at           DateTime?                  @db.Timestamptz
   deleted_at          DateTime?                  @db.Timestamptz
+  /// Verify 17.11: the last edit, delete for everyone or reaction change —
+  /// the offline catch-up returns messages changed after the phone's newest.
+  changed_at          DateTime?                  @db.Timestamptz
   /// Owner 2026-10-21: disappearing messages — see messages.expires_at.
   expires_at          DateTime?                  @db.Timestamptz
   /// Owner 2026-10-21 (Telegram): «Forwarded from <name>» — the first
@@ -4647,6 +4657,19 @@ model StatCounter {
 
   @@id([metric, bucket, slot])
   @@map("stat_counters")
+}
+
+/// DB scale batch C: one key per counter flush batch applied to this
+/// database (on every physical database). The flusher keeps a drained batch
+/// in Redis until its UPDATE committed; after a hard kill the next flush
+/// applies it again with the same key and the key makes that a no-op.
+/// Cleaned by retention (storage.retention_counter_flush_days).
+model CounterFlushBatch {
+  token      String   @id @db.Uuid
+  applied_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([applied_at])
+  @@map("counter_flush_batches")
 }
 
 /// Owner 2026-10-22 (systems checklist §1): WebAuthn passkeys. One row per

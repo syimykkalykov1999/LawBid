@@ -18,6 +18,7 @@ import 'package:lawbid/core/diagnostics/perf_marks.dart';
 import 'package:lawbid/core/diagnostics/sentry_native.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
+import 'package:lawbid/core/licenses/bundled_licenses.dart';
 import 'package:lawbid/core/media/prefetch_policy.dart';
 import 'package:lawbid/core/network/device_key.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -65,6 +66,9 @@ Future<void> runLawBid(AppFlavor flavor) async {
   PerfMarks.start();
   SentryNative.markProcessStart();
   WidgetsFlutterBinding.ensureInitialized();
+  // Licence audit 17.11: fonts, copied code and native SDK notices join the
+  // Dart packages' licences (read only when a licence list is opened).
+  registerBundledLicenses();
   // Owner 2026-10-15 (web): an address is the screen (`/lawyer/anna`), not
   // `/#/lawyer/anna` — links, reload and the back button all work. A no-op
   // on the phone.

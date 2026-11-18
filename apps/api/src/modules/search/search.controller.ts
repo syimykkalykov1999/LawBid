@@ -195,8 +195,9 @@ export class SearchController {
   @Get('search/trending-tags')
   @ApiOperation({ summary: 'Top hashtags of 7 days (docs/05 §7.2)' })
   @ApiEnvelopeResponse(TagDto, { isArray: true })
-  trending(): Promise<TagDto[]> {
-    return this.search.trending();
+  trending(@CurrentUser() user: RequestUser): Promise<TagDto[]> {
+    // Verify 17.11: covers of people blocked either way are dropped.
+    return this.search.trending(user);
   }
 
   // Security research #5 (2026-10-22), A5: a full-text / ranked query over

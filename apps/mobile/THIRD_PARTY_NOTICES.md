@@ -1015,3 +1015,69 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
+
+## Native iOS / Android SDKs linked by the Flutter plugins (licence audit 2026-11-17)
+
+Flutter puts the LICENSE of every Dart package into the app by itself. The
+native libraries those plugins link (Swift Package Manager pins in
+`ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved`, Maven
+artifacts pulled by the plugins' Gradle files) are listed here so their
+notices ship with the app too. None of them is copied into this repository.
+
+- Firebase Apple SDK 12.19.0, GoogleUtilities 8.1.3, GoogleDataTransport 10.1.1,
+  gtm-session-fetcher 3.5.0, Promises 2.4.1, abseil-cpp-binary, grpc-binary 1.69.1,
+  App Check 11.3.2, interop-ios-for-google-sdks — Apache-2.0, Copyright Google LLC.
+  Firebase Android (Firebase BoM), AndroidX, AndroidX Media3 1.9.2,
+  androidx.security:security-crypto 1.1.0, Kotlin standard library — Apache-2.0,
+  Copyright Google LLC / The Android Open Source Project / JetBrains s.r.o.
+  Full text: https://www.apache.org/licenses/LICENSE-2.0
+- leveldb 1.22.5 (firebase/leveldb) — BSD-3-Clause, Copyright (c) 2011 The LevelDB Authors.
+- nanopb 2.30910.1 — zlib, Copyright (c) 2011 Petteri Aimonen.
+- Stripe iOS SDK 26.9.0 and Stripe Android SDK — MIT, Copyright (c) Stripe, Inc.
+- Sentry Cocoa (sentry-apple-binaries 9.32.0) and Sentry Android — MIT,
+  Copyright (c) Sentry (Functional Software, Inc.).
+- WebRTC (libwebrtc in flutter_webrtc and LiveKit) — BSD-3-Clause,
+  Copyright (c) 2011 The WebRTC project authors; its bundled third-party
+  notices: https://webrtc.googlesource.com/src/+/main/LICENSE
+- CryptoSwift 1.10.0 (pulled by flutter_callkit_incoming) — zlib-style licence:
+
+```
+Copyright (C) 2014-3099 Marcin Krzyżanowski <marcin.krzyzanowski@gmail.com>
+This software is provided 'as-is', without any express or implied warranty.
+
+In no event will the authors be held liable for any damages arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+
+- The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation is required.
+- Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+- This notice may not be removed or altered from any source or binary distribution.
+- Redistributions of any form whatsoever must retain the following acknowledgment: 'This product includes software developed by the "Marcin Krzyzanowski" (http://krzyzanowskim.com/).'
+```
+
+This product includes software developed by the "Marcin Krzyzanowski" (http://krzyzanowskim.com/).
+
+Closed-source Google SDKs used under Google's own terms (free to use, not
+open source, nothing to reproduce): GoogleAppMeasurement 12.19.2 and
+google-ads-on-device-conversion-ios-sdk 3.7.0 (resolved with the Firebase
+package), reCAPTCHA Enterprise mobile SDK 18.9.1 (Firebase App Check),
+Google Play services and ML Kit (translation, language id, face detection,
+text recognition) — https://developers.google.com/ml-kit/terms.
+
+## Fonts and pictures shipped in `assets/`
+
+- Inter (Variable) — SIL Open Font License 1.1, Copyright 2020 The Inter
+  Project Authors (https://github.com/rsms/inter); full text `assets/fonts/OFL-Inter.txt` (shipped).
+- Source Serif 4 (Variable) — SIL Open Font License 1.1, Copyright 2014 The
+  Source Serif 4 Project Authors (https://github.com/adobe-fonts/source-serif); full text `assets/fonts/OFL-SourceSerif4.txt` (shipped).
+- Phosphor Icons (PhosphorBold, PhosphorFill) — MIT, Copyright (c) 2020-2021
+  Phosphor Icons; full text `assets/fonts/LICENSE-Phosphor.txt` (shipped).
+- Font Awesome Free (share-sheet glyphs, through `font_awesome_flutter`):
+  icons CC BY 4.0, font SIL OFL 1.1, code MIT — Copyright Fonticons, Inc.
+  (https://fontawesome.com/license/free); attribution is this line plus the
+  package's own LICENSE in the list.
+- Practice photos `assets/practice_art/` — Unsplash License (free commercial
+  use, no attribution required); photographers credited in `docs/PHOTO_CREDITS.md`.
+  Family law and immigration are the owner's own pictures.
+- Call tones `assets/sounds/` — our own synthesised standard tones (no
+  third-party recording).

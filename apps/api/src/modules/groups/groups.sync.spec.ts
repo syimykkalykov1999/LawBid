@@ -130,6 +130,10 @@ describe('GroupsService deltas', () => {
     jest
       .spyOn(svc as never, 'requireMember' as never)
       .mockResolvedValue({ group: group('g1') } as never);
+    // Verify 17.11: the second read is «changed since» (none here).
+    prisma.chatGroupMessage.findMany
+      .mockResolvedValueOnce(rows)
+      .mockResolvedValueOnce([]);
     const page = await svc.messagesAfter(me, 'g1', 'a');
     expect(page.items).toHaveLength(CATCH_UP_MAX);
     expect(prisma.chatGroupMessage.findMany.mock.calls[0][0]).toMatchObject({

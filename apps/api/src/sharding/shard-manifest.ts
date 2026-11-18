@@ -202,6 +202,9 @@ export const PER_DATABASE_MODELS: ReadonlySet<string> = new Set([
   'ShardDroppedFk',
   // Row 78: counters kept by triggers next to the counted rows.
   'StatCounter',
+  // DB scale batch C: idempotency keys of counter flush batches, next to
+  // the counted rows.
+  'CounterFlushBatch',
 ]);
 
 export const GLOBAL_MODELS: readonly string[] = [
@@ -307,6 +310,9 @@ export const GLOBAL_MODELS: readonly string[] = [
   // Row 78: exact counters kept by triggers (on every database, see
   // PER_DATABASE_MODELS).
   'StatCounter',
+  // DB scale batch C: counter flush keys (on every database, see
+  // PER_DATABASE_MODELS).
+  'CounterFlushBatch',
   'WebauthnCredential',
   'DataExportJob',
   'AssistantMembership',

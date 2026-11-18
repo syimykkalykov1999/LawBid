@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   Inject,
   Injectable,
@@ -151,11 +152,51 @@ export const COUNTER_FLUSH_MS = 10_000;
 export const COUNTER_LOCAL_MS = 1_000;
 const BATCH = 500;
 
-/** Atomic HMGET + HDEL of a batch of pending fields. */
+/** DB scale batch C: a drained batch is kept in Redis (one hash per batch,
+ * listed in a sorted set per entity, both ck(entity, ...) like the pending
+ * hash) until its UPDATE committed. A process killed between the drain and
+ * the commit used to lose the batch for good — repaired nightly only where a
+ * recount exists, never for case_promotion / channel / channel_post. The next
+ * flush applies a left-over batch again under the same key; the key row in
+ * counter_flush_batches makes a second apply a no-op (idea: the Redis
+ * «reliable queue» pattern, RPOPLPUSH into a processing list, plus an
+ * idempotency key in the database). */
+export const batchKey = (e: string, token: string) =>
+  ck(e, `cnt:batch:${e}:${token}`);
+export const batchesKey = (e: string) => ck(e, `cnt:batches:${e}`);
+/** Field of a batch hash that names the counter field (ids are UUIDs). */
+const BATCH_FIELD = '~field';
+
+/** Atomic HMGET + HDEL of a batch of pending fields; the non-zero deltas
+ * are written to the batch hash and the batch is listed.
+ * KEYS = pending hash, batch hash, batch list; ARGV = token, now ms, field,
+ * then the ids. */
 const DRAIN = `
-local vals = redis.call('HMGET', KEYS[1], unpack(ARGV))
-redis.call('HDEL', KEYS[1], unpack(ARGV))
+local ids = {}
+for i = 4, #ARGV do ids[#ids + 1] = ARGV[i] end
+local vals = redis.call('HMGET', KEYS[1], unpack(ids))
+redis.call('HDEL', KEYS[1], unpack(ids))
+local kept = 0
+for i = 1, #ids do
+  local v = vals[i]
+  if v and tonumber(v) ~= 0 then
+    redis.call('HSET', KEYS[2], ids[i], v)
+    kept = kept + 1
+  end
+end
+if kept > 0 then
+  redis.call('HSET', KEYS[2], '${BATCH_FIELD}', ARGV[3])
+  redis.call('ZADD', KEYS[3], ARGV[2], ARGV[1])
+end
 return vals`;
+
+/** The batch landed: forget it. KEYS = batch hash, batch list; ARGV = token. */
+const BATCH_DONE = `
+redis.call('DEL', KEYS[1])
+redis.call('ZREM', KEYS[2], ARGV[1])
+return 1`;
+/** Left-over batches looked at per entity and flush. */
+const RECOVER_BATCH = 100;
 
 /** Pending bumps of one hash shard + "touched today" marks + the dirty
  * marker of that shard in one call: ARGV = ttl, dirty member, then id,
@@ -169,6 +210,21 @@ redis.call('SADD', KEYS[3], ARGV[2])
 redis.call('EXPIRE', KEYS[2], ARGV[1])
 redis.call('EXPIRE', KEYS[3], ARGV[1])
 return 1`;
+
+/**
+ * DB scale batch C: a post's views = the stored base (views whose events
+ * retention removed, added by it in the same statement) + the events left.
+ * The base is read by a sub-select, not as `p.view_count_base`: when a
+ * retention commit changes the row while this UPDATE waits for it, the
+ * UPDATE re-reads the ROW but its sub-selects keep the statement snapshot,
+ * so base and event count always come from the same moment (with the column
+ * the moved views were counted twice: proven in
+ * test/db-scale-retention-counters.e2e-spec.ts).
+ */
+const VIEW_COUNT_SQL = Prisma.sql`(
+  (SELECT b.view_count_base FROM posts b WHERE b.id = p.id)
+  + (SELECT count(*) FROM post_view_events v
+     WHERE v.post_id = p.id AND v.kind = 'view'))`;
 
 @Injectable()
 export class CounterAggregator
@@ -396,7 +452,9 @@ export class CounterAggregator
       'counters.flush',
       COUNTER_FLUSH_MS,
       async () => {
-        let rows = 0;
+        // Under the flush lock every listed batch belongs to a flush that
+        // died or failed (or lost its lock; the key makes that safe too).
+        let rows = await this.recoverBatches();
         const full = this.flushRuns % FULL_SWEEP_EVERY === 0;
         this.flushRuns += 1;
         if (full) {
@@ -497,9 +555,18 @@ export class CounterAggregator
       cursor = next;
       const ids = flat.filter((_, i) => i % 2 === 0);
       if (ids.length === 0) continue;
-      const raw = (await this.redis.eval(DRAIN, 1, hash, ...ids)) as (
-        string | null
-      )[];
+      const token = randomUUID();
+      const raw = (await this.redis.eval(
+        DRAIN,
+        3,
+        hash,
+        batchKey(entity, token),
+        batchesKey(entity),
+        token,
+        Date.now(),
+        field,
+        ...ids,
+      )) as (string | null)[];
       const keep: string[] = [];
       const deltas: number[] = [];
       ids.forEach((id, i) => {
@@ -515,31 +582,19 @@ export class CounterAggregator
       keep.forEach((id, i) =>
         this.moveInflight(`${entity}|${field}|${id}`, deltas[i]),
       );
+      // On an error the batch stays listed in Redis and the error ends this
+      // flush: the next one applies the batch under the same key (once, even
+      // if this UPDATE did commit after all).
       try {
-        // Identifiers come from the COUNTERS constant, never from input.
-        const update = () =>
-          this.prisma.$executeRaw(Prisma.sql`
-          UPDATE ${Prisma.raw(`"${table}"`)} AS t
-          SET ${Prisma.raw(`"${field}"`)} = GREATEST(t.${Prisma.raw(`"${field}"`)} + v.delta, 0)
-          FROM (
-            SELECT unnest(${keep}::UUID[]) AS id, unnest(${deltas}::INT[]) AS delta
-          ) AS v
-          WHERE t.${Prisma.raw(`"${key}"`)} = v.id`);
-        // Shard-ready step 8: posts / comments / cases live on the shard
-        // databases and the id could be on any of them; the other databases
-        // simply match no row. The profile tables are global.
-        if (GLOBAL_COUNTER_TABLES.has(table) || !readsAreSplit(this.prisma)) {
-          await update();
-        } else {
-          await forEachDatabase(this.prisma, update);
-        }
+        await this.applyBatch(token, table, key, field, keep, deltas);
         applied += keep.length;
-      } catch (error) {
-        // Put the deltas back; the next flush retries them.
-        const restore = this.redis.multi();
-        keep.forEach((id, i) => restore.hincrby(hash, id, deltas[i]));
-        await restore.exec();
-        throw error;
+        await this.redis.eval(
+          BATCH_DONE,
+          2,
+          batchKey(entity, token),
+          batchesKey(entity),
+          token,
+        );
       } finally {
         keep.forEach((id, i) =>
           this.moveInflight(`${entity}|${field}|${id}`, -deltas[i]),
@@ -549,10 +604,107 @@ export class CounterAggregator
     return applied;
   }
 
+  /** One UPDATE of [keep] += [deltas] on every database that may hold the
+   * rows, under the batch key [token]: the key row and the counter change
+   * commit together, and a batch applied again (after a hard kill) finds its
+   * key and changes nothing. */
+  private async applyBatch(
+    token: string,
+    table: string,
+    key: string,
+    field: string,
+    keep: string[],
+    deltas: number[],
+  ): Promise<void> {
+    // Identifiers come from the COUNTERS constant, never from input.
+    const update = () =>
+      this.prisma.$executeRaw(Prisma.sql`
+      WITH k AS (
+        INSERT INTO counter_flush_batches (token) VALUES (${token}::UUID)
+        ON CONFLICT (token) DO NOTHING RETURNING 1)
+      UPDATE ${Prisma.raw(`"${table}"`)} AS t
+      SET ${Prisma.raw(`"${field}"`)} = GREATEST(t.${Prisma.raw(`"${field}"`)} + v.delta, 0)
+      FROM (
+        SELECT unnest(${keep}::UUID[]) AS id, unnest(${deltas}::INT[]) AS delta
+      ) AS v
+      WHERE t.${Prisma.raw(`"${key}"`)} = v.id AND EXISTS (SELECT 1 FROM k)`);
+    // Shard-ready step 8: posts / comments / cases live on the shard
+    // databases and the id could be on any of them; the other databases
+    // simply match no row. The profile tables are global.
+    if (GLOBAL_COUNTER_TABLES.has(table) || !readsAreSplit(this.prisma)) {
+      await update();
+    } else {
+      await forEachDatabase(this.prisma, update);
+    }
+  }
+
+  /** Applies the batches a dead or failed flush left in Redis (see DRAIN).
+   * Runs under the flush lock; a batch that fails again stays for the next
+   * flush and stops this one (the database is likely down). */
+  private async recoverBatches(): Promise<number> {
+    let rows = 0;
+    for (const [entity, def] of Object.entries(COUNTERS)) {
+      const tokens = await this.redis.zrange(
+        batchesKey(entity),
+        '0',
+        String(RECOVER_BATCH - 1),
+      );
+      for (const token of tokens) {
+        const hash = await this.redis.hgetall(batchKey(entity, token));
+        const field = hash[BATCH_FIELD];
+        const known = (def.fields as readonly string[]).includes(field);
+        const ids = Object.keys(hash).filter((k) => k !== BATCH_FIELD);
+        if (known && ids.length > 0) {
+          const deltas = ids.map((id) => Number(hash[id]));
+          await this.applyBatch(token, def.table, def.key, field, ids, deltas);
+          rows += ids.length;
+          this.logger.warn(
+            { entity, field, rows: ids.length },
+            'counter batch of a dead flush applied',
+          );
+        }
+        await this.redis.eval(
+          BATCH_DONE,
+          2,
+          batchKey(entity, token),
+          batchesKey(entity),
+          token,
+        );
+      }
+    }
+    return rows;
+  }
+
+  /**
+   * Runs [fn] holding the flush lock, so no flush is between draining a
+   * delta and committing it while [fn] drops pending deltas and recounts
+   * (DB scale batch C: a delta a flusher had already drained used to land
+   * AFTER the recount and was counted twice). Waits for a running flush
+   * like flush() does; null when the lock stayed taken.
+   */
+  private async underFlushLock<T>(fn: () => Promise<T>): Promise<T | null> {
+    const until = Date.now() + 3 * COUNTER_FLUSH_MS;
+    for (;;) {
+      await this.flushLocal();
+      const out = await withJobLock(
+        this.redis,
+        'counters.flush',
+        COUNTER_FLUSH_MS,
+        async () => ({ v: await fn() }),
+      );
+      if (out) return out.v;
+      if (Date.now() >= until) return null;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+
   /**
    * Nightly: rows touched in the last day are recomputed from the source
    * tables (likes, comments, saves, follows, posts). Pending deltas for a
-   * row are dropped first — the recount is the truth.
+   * row are dropped first — the recount is the truth. Each batch holds the
+   * flush lock (underFlushLock). What stays open: a change committed while
+   * a batch runs, whose delta still sits in another pod's one-second local
+   * buffer, is counted by the recount and once more by its delta.
    */
   async reconcile(): Promise<{ rows: number }> {
     await this.flushLocal();
@@ -567,10 +719,18 @@ export class CounterAggregator
           for (;;) {
             const ids = await this.redis.spop(touchedKey(entity), BATCH);
             if (!ids || ids.length === 0) break;
-            for (const field of COUNTERS[entity].fields) {
-              await this.dropPending(entity, field, ids);
+            const done = await this.underFlushLock(async () => {
+              for (const field of COUNTERS[entity].fields) {
+                await this.dropPending(entity, field, ids);
+              }
+              await this.recount(entity, ids);
+              return true;
+            });
+            if (!done) {
+              // The flush lock stayed taken: the rows wait for the next night.
+              await this.redis.sadd(touchedKey(entity), ...ids);
+              break;
             }
-            await this.recount(entity, ids);
             rows += ids.length;
           }
         }
@@ -621,10 +781,14 @@ export class CounterAggregator
       }
       if (before.length === 0) continue;
       const ids = before.map((r) => r.id);
-      for (const field of COUNTERS[entity].fields) {
-        await this.dropPending(entity, field, ids);
-      }
-      await this.recount(entity, ids);
+      const done = await this.underFlushLock(async () => {
+        for (const field of COUNTERS[entity].fields) {
+          await this.dropPending(entity, field, ids);
+        }
+        await this.recount(entity, ids);
+        return true;
+      });
+      if (!done) continue;
       const after = await this.prisma.global().$queryRaw<
         { id: string; p: number; f: number; g: number }[]
       >(Prisma.sql`SELECT user_id::TEXT AS id, posts_count AS p,
@@ -702,8 +866,7 @@ export class CounterAggregator
           save_count = COALESCE((SELECT s.n FROM unnest(${ids}::UUID[], ${saves}::INT[])
                                  AS s(id, n) WHERE s.id = p.id), 0),
           share_count = (SELECT count(*) FROM post_shares x WHERE x.post_id = p.id),
-          view_count = (SELECT count(*) FROM post_view_events v
-                        WHERE v.post_id = p.id AND v.kind = 'view')
+          view_count = ${VIEW_COUNT_SQL}
         WHERE p.id = ANY(${ids}::UUID[])`,
       );
       return;
@@ -770,8 +933,7 @@ export class CounterAggregator
                         WHERE s.item_type = 'post' AND s.item_id = p.id),
           share_count = (SELECT count(*) FROM post_shares x WHERE x.post_id = p.id),
           -- Owner 2026-10-18: views once per viewer per 24 h (post_view_events).
-          view_count = (SELECT count(*) FROM post_view_events v
-                        WHERE v.post_id = p.id AND v.kind = 'view')
+          view_count = ${VIEW_COUNT_SQL}
         WHERE p.id = ANY(${ids}::UUID[])`;
     } else if (entity === 'comment') {
       await this.prisma.$executeRaw`

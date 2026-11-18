@@ -242,15 +242,21 @@ int compareGroups(api.GroupDto a, api.GroupDto b) {
 /// The same message twice, or one older than the preview, changes nothing.
 api.GroupDto applyGroupMessage(api.GroupDto g, api.GroupMessageDto m) {
   final shownAt = g.lastMessageAt;
-  if (g.lastMessage?.id == m.id ||
-      (shownAt != null && m.createdAt.isBefore(shownAt))) {
-    return g;
+  // Verify 17.11: the preview itself edited or deleted for everyone — it is
+  // replaced, the unread count stays (the old text stayed in the list).
+  if (g.lastMessage?.id == m.id) {
+    return api.GroupDto.fromJson({...g.toJson(), 'lastMessage': m.toJson()});
   }
+  if (shownAt != null && m.createdAt.isBefore(shownAt)) return g;
+  // Verify 17.11: service lines and tombstones are not unread (as the
+  // server's count, which skips `system`).
+  final counts =
+      !m.mine && m.type != api.GroupMessageDtoType.system && !m.deleted;
   return api.GroupDto.fromJson({
     ...g.toJson(),
     'lastMessage': m.toJson(),
     'lastMessageAt': m.createdAt.toIso8601String(),
-    if (!m.mine) 'unreadCount': g.unreadCount + 1,
+    if (counts) 'unreadCount': g.unreadCount + 1,
     'updatedAt': (m.createdAt.isAfter(g.updatedAt) ? m.createdAt : g.updatedAt)
         .toIso8601String(),
   });

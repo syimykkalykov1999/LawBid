@@ -32,7 +32,8 @@ void main() {
           const ConversationScreen(conversationId: 'c1'),
           pushed: [],
           extra: [
-            stickerLibraryProvider.overrideWith((_) async => StickerLibrary.empty),
+            stickerLibraryProvider
+                .overrideWith((_) async => StickerLibrary.empty),
             featuredStickerPacksProvider.overrideWith((_) async => const []),
           ],
         ),
@@ -46,7 +47,8 @@ void main() {
         matching: find.byType(IconButton),
       );
 
-  testWidgets('keyboard icon <-> panel, and a tap on the field', (tester) async {
+  testWidgets('keyboard icon <-> panel, and a tap on the field',
+      (tester) async {
     await open(tester);
     await tester.tap(find.byType(TextField));
     await tester.pump();

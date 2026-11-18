@@ -23,7 +23,10 @@ function setup(found: unknown = row) {
     chatGroupMessageReaction: { upsert: jest.fn().mockResolvedValue({}) },
   };
   const prisma = {
-    chatGroupMessage: { findFirst: jest.fn().mockResolvedValue(found) },
+    chatGroupMessage: {
+      findFirst: jest.fn().mockResolvedValue(found),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
     chatGroupMessageReaction: {
       deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
     },

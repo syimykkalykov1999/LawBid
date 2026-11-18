@@ -145,4 +145,51 @@ describe('1:1 catch-up after a long offline (e2e, audit 17.11)', () => {
     expect(byId.has(untouched.id)).toBe(false);
     expect(byId.has(anchor.id)).toBe(false);
   });
+
+  it('verify 17.11: a reaction made while offline comes back; a removed anchor is still a position', async () => {
+    const c = await chat();
+    const liked = await put(c.id, c.client.id, 'like me');
+    const anchor = await put(c.id, c.client.id, 'newest on the phone');
+    await api()
+      .put(`/api/v1/conversations/${c.id}/messages/${liked.id}/reaction`)
+      .set(bearer(c.attorney.id, 'attorney'))
+      .send({ emoji: '👍' })
+      .expect((r) => expect(r.status).toBeLessThan(300));
+    const res = await after(c, anchor.id).expect(200);
+    const got = (
+      res.body.data as { id: string; reactions?: { emoji: string }[] }[]
+    ).find((m) => m.id === liked.id);
+    expect(got?.reactions?.map((r) => r.emoji)).toContain('👍');
+    // A moderator removes the phone's newest message: still a position.
+    await prisma.message.update({
+      where: { id_conversation_id: { id: anchor.id, conversation_id: c.id } },
+      data: { deleted_at: new Date() },
+    });
+    await put(c.id, c.attorney.id, 'after the removed one');
+    const again = await after(c, anchor.id).expect(200);
+    expect((again.body.data as unknown[]).length).toBeGreaterThan(0);
+  });
+
+  it('verify 17.11: a reaction REMOVED while offline comes back as the current set', async () => {
+    const c = await chat();
+    const liked = await put(c.id, c.client.id, 'like me');
+    await api()
+      .put(`/api/v1/conversations/${c.id}/messages/${liked.id}/reaction`)
+      .set(bearer(c.attorney.id, 'attorney'))
+      .send({ emoji: '👍' })
+      .expect((r) => expect(r.status).toBeLessThan(300));
+    // The phone saw the 👍 and its newest message is this one.
+    const anchor = await put(c.id, c.client.id, 'newest on the phone');
+    await api()
+      .put(`/api/v1/conversations/${c.id}/messages/${liked.id}/reaction`)
+      .set(bearer(c.attorney.id, 'attorney'))
+      .send({ emoji: null })
+      .expect((r) => expect(r.status).toBeLessThan(300));
+    const res = await after(c, anchor.id).expect(200);
+    const got = (
+      res.body.data as { id: string; reactions?: { emoji: string }[] }[]
+    ).find((m) => m.id === liked.id);
+    expect(got).toBeDefined();
+    expect(got?.reactions ?? []).toEqual([]);
+  });
 });

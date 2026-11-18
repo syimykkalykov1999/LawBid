@@ -1,3 +1,4 @@
+import type { SuggestItem } from '../search.provider';
 import { Injectable, Optional } from '@nestjs/common';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { DEFAULT_TEXT_WEIGHTS } from '../../../common/search/fts-sql';
@@ -232,10 +233,7 @@ export class OpenSearchProvider implements SearchProvider {
 
   /** Small tables and btree prefixes: Postgres answers these in a
    * millisecond, there is nothing to move. */
-  suggest(
-    prefix: string,
-    perKind: number,
-  ): Promise<{ kind: 'tag' | 'person' | 'practice'; text: string }[]> {
+  suggest(prefix: string, perKind: number): Promise<SuggestItem[]> {
     return this.pg.suggest(prefix, perKind);
   }
 
