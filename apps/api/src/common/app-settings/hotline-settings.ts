@@ -205,6 +205,76 @@ export const HOTLINE_SETTING_DEFS: readonly HotlineSettingDef[] = [
     labelRu:
       'Горячая линия: версия текстов-предупреждений («Звонки не записываются…»). Текст показывается один раз — при первом звонке; увеличьте число после правки текста, и все увидят его ещё раз',
   },
+  {
+    key: 'hotline.access_check_beats',
+    default: 10,
+    min: 0,
+    labelRu:
+      'Горячая линия: раз во столько сигналов «я здесь» сервер заново проверяет право адвоката быть на линии (выключатель, режим, план, дополнение, пробный срок, лицензия); после каждого звонка — всегда. Нет права — снимает с линии с причиной (0 — только после звонка)',
+  },
+  {
+    key: 'hotline.line_resume_sec',
+    default: 43_200,
+    min: 0,
+    labelRu:
+      'Горячая линия: столько секунд сервер помнит выбор адвоката (штаты, темы, языки) после обрыва связи или выкатки, чтобы приложение вернуло его на линию одним запросом (0 — не помнить)',
+  },
+  {
+    key: 'hotline.callback_window_hours',
+    default: 168,
+    min: 0,
+    labelRu:
+      'Горячая линия: сколько часов после звонка клиент может сам перезвонить тому же адвокату через линию (адвокат клиенту не звонит никогда; 0 — без предела)',
+  },
+  {
+    key: 'hotline.skip_memory_sec',
+    default: 86_400,
+    min: 1,
+    labelRu:
+      'Горячая линия: сколько секунд помнить «Пропустить», пропущенный звонок и конфликт — этому адвокату заявку не предлагать снова',
+  },
+  {
+    key: 'hotline.key_ttl_hours',
+    default: 48,
+    min: 1,
+    labelRu:
+      'Горячая линия: сколько часов живут данные одной заявки и адвоката в памяти сервера (не меньше сроков ожидания выше; «без предела» у подписки «Сообщите мне» значит до этого срока)',
+  },
+  {
+    key: 'hotline.sweep_batch',
+    default: 500,
+    min: 1,
+    labelRu:
+      'Горячая линия: сколько записей уборщик берёт за один проход из каждого списка (просроченные брони, заявки, адвокаты без связи)',
+  },
+  {
+    key: 'hotline.conflict_cases_max',
+    default: 300,
+    min: 1,
+    labelRu:
+      'Горячая линия: сколько последних дел адвоката просматривать при проверке конфликта интересов с клиентом',
+  },
+  {
+    key: 'hotline.poll_cache_sec',
+    default: 5,
+    min: 0,
+    labelRu:
+      'Горячая линия: сколько секунд телефон может держать ответ «состояние заявки» и «счётчики» без нового запроса (Cache-Control; 0 — не держать)',
+  },
+  {
+    key: 'hotline.ack_ttl_days',
+    default: 365,
+    min: 1,
+    labelRu:
+      'Горячая линия: сколько дней помнить, что человек нажал «Понятно» под предупреждением (потом покажется ещё раз)',
+  },
+  {
+    key: 'hotline.trial_memory_days',
+    default: 400,
+    min: 1,
+    labelRu:
+      'Горячая линия: сколько дней без линии помнить пробный срок и минуты адвоката (каждое включение и звонок продлевает)',
+  },
 ];
 
 /** Literal (not derived from the list) so `AppSettingKey` stays a union of
@@ -237,6 +307,16 @@ export const OWNER_HOTLINE_SETTINGS = {
   'hotline.disclosure_version': 1,
   'hotline.trial_days': 0,
   'hotline.trial_minutes': 0,
+  'hotline.access_check_beats': 10,
+  'hotline.line_resume_sec': 43_200,
+  'hotline.callback_window_hours': 168,
+  'hotline.skip_memory_sec': 86_400,
+  'hotline.key_ttl_hours': 48,
+  'hotline.sweep_batch': 500,
+  'hotline.conflict_cases_max': 300,
+  'hotline.poll_cache_sec': 5,
+  'hotline.ack_ttl_days': 365,
+  'hotline.trial_memory_days': 400,
   /** Owner 16.11 ~19:45 / ~20:05: who may wait for hotline calls — the same
    * three modes as «Вложения в постах» (attachments_in_posts): on_for_all
    * («Вкл для всех», the start while payments are off), by_subscription
@@ -253,6 +333,14 @@ export const OWNER_HOTLINE_SETTINGS = {
   /** Owner 16.11 ~18:45: clients see bands, never exact counts (like Uber's
    * «cars nearby»): 0 = «нет», below the 2nd band = «есть», then «10+», «50+»… */
   'hotline.counter_bands': [1, 10, 50, 100] as number[],
+  /** Audit 17.11 (#8): the offer's «Ещё звонят: N» steps (were in code). */
+  'hotline.waiting_more_bands': [1, 2, 5, 10, 50] as number[],
+  /** Audit 17.11 (#8): the client's rough place «1 / 2–5 / 6–20 / 20+» —
+   * the upper ends of the steps (were in code). */
+  'hotline.position_bands': [1, 5, 20] as number[],
+  /** Audit 17.11 (#8): the rough wait «до 5 / 5–15 / 15–30 / больше 30
+   * минут» — the step ends in minutes (were in code). */
+  'hotline.wait_band_minutes': [5, 15, 30] as number[],
 } as const;
 
 export type HotlineSettingKey = Exclude<
@@ -260,6 +348,9 @@ export type HotlineSettingKey = Exclude<
   | 'hotline.mode'
   | 'hotline.short_notice_enabled'
   | 'hotline.counter_bands'
+  | 'hotline.waiting_more_bands'
+  | 'hotline.position_bands'
+  | 'hotline.wait_band_minutes'
   | 'hotline.review_enabled'
   | 'hotline.client_steps_enabled'
 >;
@@ -290,7 +381,22 @@ export const DEFAULT_COUNTER_BANDS: readonly number[] = [1, 10, 50, 100];
 export function hotlineCounterBandsFrom(
   appConfig: Readonly<Record<string, unknown>>,
 ): number[] {
-  const v = appConfig['hotline.counter_bands'];
+  return hotlineBandsFrom(appConfig, 'hotline.counter_bands');
+}
+
+/** The band lists of the hotline (audit 17.11 #8: none of them in code). */
+export type HotlineBandKey =
+  | 'hotline.counter_bands'
+  | 'hotline.waiting_more_bands'
+  | 'hotline.position_bands'
+  | 'hotline.wait_band_minutes';
+
+/** Ascending positive whole numbers; anything else = that list's default. */
+export function hotlineBandsFrom(
+  appConfig: Readonly<Record<string, unknown>>,
+  key: HotlineBandKey,
+): number[] {
+  const v = appConfig[key];
   if (
     Array.isArray(v) &&
     v.length > 0 &&
@@ -298,7 +404,29 @@ export function hotlineCounterBandsFrom(
   ) {
     return v as number[];
   }
-  return [...DEFAULT_COUNTER_BANDS];
+  return [...OWNER_HOTLINE_SETTINGS[key]];
+}
+
+/** The client's rough place from the 0-based rank: `[1, 5, 20]` →
+ * «1», «2-5», «6-20», «20+». */
+export function placeBand(rank0: number, ends: readonly number[]): string {
+  const p = rank0 + 1;
+  let lo = 1;
+  for (const hi of ends) {
+    if (p <= hi) return lo === hi ? String(hi) : `${lo}-${hi}`;
+    lo = hi + 1;
+  }
+  return `${ends[ends.length - 1]}+`;
+}
+
+/** The rough wait from minutes: `[5, 15, 30]` → lt5 · 5to15 · 15to30 · gt30. */
+export function minutesBand(minutes: number, ends: readonly number[]): string {
+  let lo: number | null = null;
+  for (const hi of ends) {
+    if (minutes < hi) return lo === null ? `lt${hi}` : `${lo}to${hi}`;
+    lo = hi;
+  }
+  return `gt${ends[ends.length - 1]}`;
 }
 
 /** What a client sees instead of an exact count: 0 → "0", below the second

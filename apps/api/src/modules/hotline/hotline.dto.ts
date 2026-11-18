@@ -4,8 +4,11 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsInt,
   IsOptional,
   IsString,
+  IsUUID,
+  Min,
   Length,
   MaxLength,
 } from 'class-validator';
@@ -137,6 +140,41 @@ export class HotlineRequestDto {
   @IsString()
   @MaxLength(500)
   topic!: string;
+}
+
+/** POST /hotline/call-back — the client calls the same attorney again
+ * (audit 17.11 #6; the attorney never calls the client). */
+export class HotlineCallBackDto {
+  @ApiProperty({ description: 'The attorney of a recent hotline call.' })
+  @IsUUID()
+  attorneyId!: string;
+
+  @ApiProperty({ type: [String], description: 'Up to hotline.max_languages.' })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  @MaxLength(16, { each: true })
+  languages!: string[];
+
+  @ApiProperty({
+    description: '«О чём звонок», up to hotline.topic_max_chars.',
+  })
+  @IsString()
+  @MaxLength(500)
+  topic!: string;
+}
+
+/** POST /hotline/disclosure/ack — «Понятно» under the disclosure. */
+export class HotlineDisclosureAckDto {
+  @ApiPropertyOptional({
+    description:
+      'The text version the person saw (HotlineDisclosureDto.version); an older one is not counted.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  version?: number;
 }
 
 export class HotlineLanguagesDto {

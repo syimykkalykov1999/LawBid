@@ -10,7 +10,8 @@ variable "growth" {
       db_proxy_enabled           RDS Proxy in front of the database (needs db_proxy_secret_arn).
       db_proxy_secret_arn        Secrets Manager secret {username,password} of the app role.
       opensearch_enabled         OpenSearch domain for the search engine. The app finds it by itself (OPENSEARCH_URL); admin Settings: search.engine = shadow, then engine, turns it on. docs/architecture/SEARCH_READY.md.
-      opensearch_instance_type / _count / _volume_gb   size of that domain.
+      opensearch_instance_type / _count / _volume_gb   size of that domain (_count: 1 or even up to 10).
+      opensearch_engine_version   OpenSearch_3.7 (default: a new domain is created on it, 16.11); OpenSearch_2.15 -> 2.19 -> 3.7 only for a domain that already runs 2.x, one hop per apply.
       opensearch_serverless_enabled   Amazon OpenSearch Serverless collection INSTEAD of the domain (admin Settings: search.engine_kind = serverless). about $350 a month minimum (2 OCU, AWS pricing page 2026-10-26) vs about $28 for the t3.small domain: keep false until the domain needs several nodes. Never applied by helpers.
       opensearch_serverless_standby   false = no standby nodes (about $175, staging only).
       redis_cluster_mode         MOVED: set the stack variable redis_cluster_mode = "standby" | "on" (docs/runbooks/redis-cluster.md); this field stays false.
@@ -29,6 +30,7 @@ variable "growth" {
     opensearch_instance_type      = optional(string, "t3.small.search")
     opensearch_instance_count     = optional(number, 1)
     opensearch_volume_gb          = optional(number, 20)
+    opensearch_engine_version     = optional(string, "OpenSearch_3.7")
     opensearch_serverless_enabled = optional(bool, false)
     opensearch_serverless_standby = optional(bool, true)
     redis_cluster_mode            = optional(bool, false)
@@ -53,8 +55,18 @@ variable "growth" {
   validation {
     # Owner 2026-11-12: the search engine data nodes, 1, 2 or 4. Across two
     # Availability Zones AWS accepts only an even count of data nodes.
-    condition     = contains([1, 2, 4], var.growth.opensearch_instance_count)
-    error_message = "growth.opensearch_instance_count: 1, 2 or 4 (two zones need an even count)."
+    # Owner 15.11 (search.max_nodes): 1 or an even count up to 10. Two zones
+    # need a multiple of the zone count (AWS multi-AZ guide); 10 = the AWS
+    # total node limit of the T3 family (OpenSearch Service quotas).
+    condition     = var.growth.opensearch_instance_count == 1 || (var.growth.opensearch_instance_count % 2 == 0 && var.growth.opensearch_instance_count >= 2 && var.growth.opensearch_instance_count <= 10)
+    error_message = "growth.opensearch_instance_count: 1 or an even count 2..10 (two zones; AWS T3 limit 10 nodes)."
+  }
+  validation {
+    # Owner 15.11 «обнови всё до новейшего»: the search engine version, one
+    # AWS hop per apply (2.15 -> 2.19 -> 3.7; aws opensearch
+    # get-compatible-versions 15.11). modules/growth explains the order.
+    condition     = contains(["OpenSearch_2.15", "OpenSearch_2.19", "OpenSearch_3.7"], var.growth.opensearch_engine_version)
+    error_message = "growth.opensearch_engine_version: OpenSearch_2.15, OpenSearch_2.19 or OpenSearch_3.7."
   }
   validation {
     condition     = contains(["cloudfront", "bunny"], var.growth.cdn_images_provider)
@@ -128,6 +140,7 @@ module "growth" {
   opensearch_instance_type  = var.growth.opensearch_instance_type
   opensearch_instance_count = var.growth.opensearch_instance_count
   opensearch_volume_gb      = var.growth.opensearch_volume_gb
+  opensearch_engine_version = var.growth.opensearch_engine_version
 
   event_loop_p99_alarm_ms = var.growth.event_loop_p99_alarm_ms
 }

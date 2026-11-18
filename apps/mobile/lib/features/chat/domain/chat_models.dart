@@ -1,6 +1,8 @@
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/core/audio/web_audio_support_stub.dart'
+    if (dart.library.js_interop) 'package:lawbid/core/audio/web_audio_support_web.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
@@ -353,6 +355,27 @@ class CallLog {
   /// ended · missed · declined · busy · canceled · failed
   final String outcome;
   final int durationSec;
+}
+
+/// Owner row 146: a note recorded on the website in Firefox / Linux Chrome
+/// is Opus in WebM, which the iPhone's player (AVPlayer) cannot play; the
+/// server stores an AAC/M4A copy and sends it as `voice.m4aUrl`. The iPhone
+/// app plays that copy (the original when there is none); Android keeps the
+/// original link. The website keeps it too, unless the browser says it
+/// cannot play Opus in WebM (`canPlayType`, e.g. Safari on an older iPhone):
+/// then it gets the copy (R2 review).
+String? playableVoiceUrl(
+  String? url,
+  String? m4aUrl, {
+  TargetPlatform? platform,
+  bool web = kIsWeb,
+  bool Function()? webPlaysWebm,
+}) {
+  if (m4aUrl == null) return url;
+  if (web) return (webPlaysWebm ?? canPlayWebmOpus)() ? url : m4aUrl;
+  return (platform ?? defaultTargetPlatform) == TargetPlatform.iOS
+      ? m4aUrl
+      : url;
 }
 
 /// OQ-040: the audio of a voice message, like Telegram's.

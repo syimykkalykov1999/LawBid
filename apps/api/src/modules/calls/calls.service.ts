@@ -1,7 +1,7 @@
 import { SloMetricsService } from '../../common/ops/slo-metrics.service';
 import { shardContext } from '../../sharding/shard-context';
 import { viewerContext } from '../../common/viewer/viewer-context';
-import { createHmac } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import {
   Optional,
   ConflictException,
@@ -102,6 +102,11 @@ import {
   type VideoCallProvider,
 } from './video-call-provider';
 import { incrWithTtl } from '../../redis/incr-with-ttl';
+
+/** Audit 17.11 (problem 6): the lock around «is the callee busy?» and the
+ * new call row — a few database round trips, far below this. */
+const START_LOCK_TTL_MS = 5_000;
+const START_LOCK_POLL_MS = 50;
 
 /** Unanswered after this → missed (the phones ring CALL_RING_SECONDS, like
  * WhatsApp; common/calls/ring.ts). Re-exported for the existing imports. */
@@ -518,6 +523,7 @@ export class CallsService {
       callId: call.id,
       userId: user.sub,
       canPublish,
+      video: call.video,
       joinedUserIds: rows
         .filter((r) => r.status === 'joined')
         .map((r) => r.user_id),
@@ -794,59 +800,69 @@ export class CallsService {
     await this.limits.consume('message', user.sub);
     await this.sweepIfDue();
 
-    let mine = await this.liveCallOf(user.sub);
-    if (mine) mine = await this.declineRingingForNewCall(user, mine);
-    if (mine) {
-      // The id lets the app offer "end it there" (Telegram) when this
-      // device has no call of its own.
-      throw new ConflictException({
-        code: ErrorCode.CALL_IN_PROGRESS,
-        message: 'You are already in a call.',
-        details: { callId: mine.id },
-      });
-    }
-    // Row 216 (owner 17.11, WhatsApp call waiting since Dec 2019): a callee
-    // talking in one 1:1 call is rung for this one too — their phone shows
-    // «Decline» / «End & Accept» and the caller hears ringing until they
-    // choose or the ring times out (missed, like any unanswered call).
-    // Busy at once stays for everything else: the callee rings or dials
-    // out, a second call already waits, a group call, or the admin switch
-    // `calls.call_waiting` is off.
-    if ((await this.liveCallOf(callee)) && !(await this.mayWait(callee))) {
-      // The other side is talking: record "busy" right away.
-      const busy = await this.prisma.call.create({
+    // Audit 17.11 (problem 6): the busy check and the new call run under
+    // one lock on both people (in a fixed order, so A→B and B→A cannot
+    // deadlock): two people calling the same person — or each other — at
+    // the same second no longer make two ringing calls. One wins, the
+    // other sees «busy» (or, calling each other, the second call declines
+    // the first ringing one, as before). Valkey down: no lock, as before.
+    const started = await this.underStartLock([user.sub, callee], async () => {
+      let mine = await this.liveCallOf(user.sub);
+      if (mine) mine = await this.declineRingingForNewCall(user, mine);
+      if (mine) {
+        // The id lets the app offer "end it there" (Telegram) when this
+        // device has no call of its own.
+        throw new ConflictException({
+          code: ErrorCode.CALL_IN_PROGRESS,
+          message: 'You are already in a call.',
+          details: { callId: mine.id },
+        });
+      }
+      // Row 216 (owner 17.11, WhatsApp call waiting since Dec 2019): a callee
+      // talking in one 1:1 call is rung for this one too — their phone shows
+      // «Decline» / «End & Accept» and the caller hears ringing until they
+      // choose or the ring times out (missed, like any unanswered call).
+      // Busy at once stays for everything else: the callee rings or dials
+      // out, a second call already waits, a group call, or the admin switch
+      // `calls.call_waiting` is off.
+      if ((await this.liveCallOf(callee)) && !(await this.mayWait(callee))) {
+        // The other side is talking: record "busy" right away.
+        const busy = await this.prisma.call.create({
+          data: {
+            conversation_id: conv.id,
+            caller_id: user.sub,
+            callee_id: callee,
+            status: 'busy',
+            ended_at: new Date(),
+            end_reason: 'busy',
+            video,
+          },
+        });
+        await this.logCall(busy, 'busy');
+        // The busy person sees it in their missed calls too.
+        await this.notifications.emit({
+          type: 'missed_call',
+          recipientId: callee,
+          payload: {
+            callId: busy.id,
+            conversationId: conv.id,
+            actorId: user.sub,
+          },
+        });
+        return { busy: await this.toDto(busy, user.sub) };
+      }
+
+      return this.prisma.call.create({
         data: {
           conversation_id: conv.id,
           caller_id: user.sub,
           callee_id: callee,
-          status: 'busy',
-          ended_at: new Date(),
-          end_reason: 'busy',
           video,
         },
       });
-      await this.logCall(busy, 'busy');
-      // The busy person sees it in their missed calls too.
-      await this.notifications.emit({
-        type: 'missed_call',
-        recipientId: callee,
-        payload: {
-          callId: busy.id,
-          conversationId: conv.id,
-          actorId: user.sub,
-        },
-      });
-      return this.toDto(busy, user.sub);
-    }
-
-    const call = await this.prisma.call.create({
-      data: {
-        conversation_id: conv.id,
-        caller_id: user.sub,
-        callee_id: callee,
-        video,
-      },
     });
+    if ('busy' in started) return started.busy;
+    const call = started;
     // OQ-048: a call to the attorney also rings assistants who hold the
     // "calls" duty (their own devices; whoever answers takes it).
     // Owner 2026-10-20: an assistant's own "who can call me" applies too
@@ -3217,6 +3233,58 @@ export class CallsService {
         code: ErrorCode.SUBSCRIPTION_REQUIRED,
         message: 'The attorney needs an active subscription for calls.',
       });
+    }
+  }
+
+  /**
+   * Audit 17.11 (problem 6): runs [fn] while holding `lock:call:start:{id}`
+   * of every person in [userIds] (sorted, SET NX PX like SfuStateStore; a
+   * holder that died frees it after START_LOCK_TTL_MS). Waiting longer than
+   * the TTL, or a Valkey error, runs [fn] without the lock (never blocks a
+   * call).
+   */
+  private async underStartLock<T>(
+    userIds: string[],
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const r = this.redis;
+    if (!r) return fn();
+    const keys = [...new Set(userIds)]
+      .sort()
+      .map((u) => `lock:call:start:${u}`);
+    const token = randomUUID();
+    const held: string[] = [];
+    const deadline = Date.now() + START_LOCK_TTL_MS;
+    try {
+      for (const key of keys) {
+        for (;;) {
+          if (
+            (await r.set(key, token, 'PX', START_LOCK_TTL_MS, 'NX')) === 'OK'
+          ) {
+            held.push(key);
+            break;
+          }
+          if (Date.now() > deadline) break;
+          await new Promise((res) => setTimeout(res, START_LOCK_POLL_MS));
+        }
+      }
+    } catch {
+      // Valkey unreachable: go on without the lock.
+    }
+    try {
+      return await fn();
+    } finally {
+      for (const key of held) {
+        // Release only our own lock (it may have expired and been retaken).
+        await r
+          .eval(
+            "if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end",
+            1,
+            key,
+            token,
+          )
+          .catch(() => undefined);
+      }
     }
   }
 
