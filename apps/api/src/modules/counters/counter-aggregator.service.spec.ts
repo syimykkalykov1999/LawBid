@@ -4,6 +4,8 @@ import type { PinoLogger } from 'nestjs-pino';
 import type { PrismaService } from '../../prisma/prisma.service';
 import {
   COUNTER_SHARDS,
+  batchKey,
+  batchesKey,
   FULL_SWEEP_EVERY,
   CounterAggregator,
   counterShard,
@@ -126,7 +128,14 @@ function fakeRedis() {
     zrange: async (k: string) => [...(zsets.get(k) ?? [])],
     hgetall: async () => ({}) as Record<string, string>,
   };
-  return { redis: redis as unknown as Redis, hashes, sets, evalCalls, strings };
+  return {
+    redis: redis as unknown as Redis,
+    hashes,
+    sets,
+    evalCalls,
+    strings,
+    zsets,
+  };
 }
 
 function aggregator(r: Redis) {
@@ -145,6 +154,7 @@ function aggregator(r: Redis) {
   const logger = {
     setContext: jest.fn(),
     error: jest.fn(),
+    warn: jest.fn(),
   } as unknown as PinoLogger;
   return { agg: new CounterAggregator(prisma, r, logger), executed };
 }
@@ -210,21 +220,50 @@ describe('CounterAggregator (S6-6)', () => {
     const { agg } = aggregator(redis);
     const id = ID('4');
     await agg.bump('post', id, 'like_count', 2);
-    // The Redis write is in flight: the delta is neither local nor in Redis.
+    // Final pass 18.11 (FB1): one connection runs commands in the order they
+    // are sent, so the EVAL sent first has run when a later read runs; only
+    // its reply is still on the way. The delta is in Redis and no longer
+    // local: counted once (the old in-process "in flight" copy made it 4).
     const realEval = redis.eval.bind(redis);
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
     jest
       .spyOn(redis, 'eval')
       .mockImplementationOnce(async (...a: Parameters<Redis['eval']>) => {
+        const out = await realEval(...a);
         await gate;
-        return realEval(...a);
+        return out;
       });
     const flushing = agg.flushLocal();
     expect((await agg.pending('post', 'like_count', [id])).get(id)).toBe(2);
     release();
     await flushing;
     expect((await agg.pending('post', 'like_count', [id])).get(id)).toBe(2);
+  });
+
+  it('FB1: a local flush landing while a read waits for its batch list never hides the delta (e2e two-db likeCount 1 → 0)', async () => {
+    const { redis } = fakeRedis();
+    const { agg } = aggregator(redis);
+    const id = ID('8');
+    await agg.bump('post', id, 'like_count', 1);
+    // The read's HMGET of the pending hash runs first (the delta is still in
+    // this process); its batch-list round trip is slower, and meanwhile the
+    // one-second local flush sends the delta to Redis and its reply lands.
+    const realZrange = redis.zrange.bind(redis);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    jest
+      .spyOn(redis, 'zrange')
+      .mockImplementationOnce(async (...a: Parameters<Redis['zrange']>) => {
+        const out = await realZrange(...a);
+        await gate;
+        return out;
+      });
+    const reading = agg.pending('post', 'like_count', [id]);
+    await agg.flushLocal();
+    release();
+    expect((await reading).get(id)).toBe(1);
+    expect((await agg.pending('post', 'like_count', [id])).get(id)).toBe(1);
   });
 
   it('a read while the database update runs still sees the drained delta once', async () => {
@@ -474,5 +513,39 @@ describe('CounterAggregator: touched marks and a failed recount (verify 8)', () 
     };
     await expect(agg.reconcile()).rejects.toThrow('db down');
     expect(sets.get(touchedKey('post'))?.has(id)).toBe(true);
+  });
+});
+
+describe('CounterAggregator: a recount after a failed flush (final pass 18.11)', () => {
+  it('FB4: a batch a failed flush left in Redis lands BEFORE the recount, never on top of it', async () => {
+    const { redis, hashes, strings, zsets } = fakeRedis();
+    const { agg, executed } = aggregator(redis);
+    const id = ID('9');
+    // A flush drained +1 and died before its UPDATE committed.
+    const token = '11111111-1111-4111-8111-111111111111';
+    const key = batchKey('post', token);
+    hashes.set(key, new Map([[id, 1]]));
+    strings.set(`${key}#field`, 'like_count');
+    zsets.set(batchesKey('post'), [token]);
+    (redis as unknown as { hgetall: unknown }).hgetall = async (k: string) => {
+      const out: Record<string, string> = {};
+      for (const [a, b] of hashes.get(k) ?? []) out[a] = String(b);
+      const f = strings.get(`${k}#field`);
+      if (f) out['~field'] = f;
+      return out;
+    };
+    let appliedBeforeRecount = -1;
+    await (
+      agg as unknown as {
+        underFlushLock: (fn: () => Promise<boolean>) => Promise<boolean>;
+      }
+    ).underFlushLock(async () => {
+      appliedBeforeRecount = executed.flatMap((e) => e.keep).length;
+      return true;
+    });
+    // Applied first (its key row keeps a later re-apply a no-op), and gone
+    // from the list, so no flush applies it again after the recount.
+    expect(appliedBeforeRecount).toBe(1);
+    expect(zsets.get(batchesKey('post')) ?? []).toEqual([]);
   });
 });

@@ -239,16 +239,6 @@ export class CounterAggregator
   private timerFlush?: Promise<unknown>;
   /** entity|field|id -> delta not yet sent to Redis (S6-6). */
   private local = new Map<string, number>();
-  /** Deltas this process has taken out of `local` (on their way to Redis)
-   * or out of Redis (on their way to the database) and not yet landed:
-   * [pending] adds them, so a read in this process never sees a delta in
-   * neither place (read-your-writes during a flush). */
-  private inflight = new Map<string, number>();
-  private moveInflight(k: string, delta: number): void {
-    const v = (this.inflight.get(k) ?? 0) + delta;
-    if (v === 0) this.inflight.delete(k);
-    else this.inflight.set(k, v);
-  }
   /** Set once a flush saw every legacy (unsharded) hash empty; reads then
    * skip the extra HMGET. Flush keeps draining the legacy hashes anyway. */
   private legacyDrained = false;
@@ -331,9 +321,10 @@ export class CounterAggregator
    * the deltas of that group are merged back and retried next second. */
   async flushLocal(): Promise<void> {
     if (this.local.size === 0) return;
+    // The EVALs below are sent in this same tick, before any later read
+    // (see pending(): one connection runs commands in the order sent).
     const taken = this.local;
     this.local = new Map();
-    for (const [k, d] of taken) this.moveInflight(k, d);
     const groups = new Map<
       string,
       {
@@ -373,11 +364,6 @@ export class CounterAggregator
             this.local.set(k, (this.local.get(k) ?? 0) + Number(g.args[i + 1]));
           }
           throw error;
-        } finally {
-          for (let i = 0; i < g.args.length; i += 2) {
-            const k = `${g.entity}|${g.field}|${String(g.args[i])}`;
-            this.moveInflight(k, -Number(g.args[i + 1]));
-          }
         }
       }),
     );
@@ -392,6 +378,23 @@ export class CounterAggregator
   ): Promise<Map<string, number>> {
     if (ids.length === 0) return new Map();
     const out = new Map<string, number>();
+    // Final pass 18.11 (FB1, e2e two-db likeCount 1 → 0): this process'
+    // unsent deltas are read NOW, in the same tick as the HMGETs below are
+    // sent. A delta is in exactly one place at that moment: still local
+    // (counted from this copy; a local flush that takes it sends its EVAL
+    // after these reads, so they do not see it in Redis), or already
+    // handed to Redis (its EVAL was sent before these reads, and one
+    // connection — or the one cluster node of the entity's {tag} — runs
+    // commands in the order sent, so the reads see it). Read after the
+    // awaits instead, a local flush landing while the batch-list round trip
+    // was still out hid the delta (in neither place), and a reply still on
+    // its way counted it twice. Only a failed EVAL (Redis error; the delta
+    // goes back to `local`) can hide it, for that one read.
+    const unsent = new Map<string, number>();
+    for (const id of ids) {
+      const l = this.local.get(`${entity}|${field}|${id}`);
+      if (l) unsent.set(id, l);
+    }
     const byShard = new Map<number, string[]>();
     for (const id of ids) {
       const sh = counterShard(id);
@@ -449,12 +452,7 @@ export class CounterAggregator
       })(),
     );
     await Promise.all(reads);
-    for (const id of ids) {
-      const l = this.local.get(`${entity}|${field}|${id}`);
-      if (l) add(id, l);
-      const f = this.inflight.get(`${entity}|${field}|${id}`);
-      if (f) add(id, f);
-    }
+    for (const [id, l] of unsent) add(id, l);
     for (const [id, v] of out) if (v === 0) out.delete(id);
     return out;
   }
@@ -714,7 +712,13 @@ export class CounterAggregator
         this.redis,
         'counters.flush',
         COUNTER_FLUSH_MS,
-        async () => ({ v: await fn() }),
+        async () => {
+          // Final pass 18.11 (FB4): a batch a dead or failed flush left in
+          // Redis is applied FIRST. Left there, the next flush applied it
+          // on top of the recount, which had already counted its rows.
+          await this.recoverBatches();
+          return { v: await fn() };
+        },
       );
       if (out) return out.v;
       if (Date.now() >= until) return null;

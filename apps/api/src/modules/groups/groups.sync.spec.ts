@@ -146,6 +146,21 @@ describe('GroupsService deltas', () => {
     });
   });
 
+  it('FB5: the «changed since» read has the same filters as the new one (no expired message, no hidden service rows)', async () => {
+    const { svc, prisma } = setup();
+    jest.spyOn(svc as never, 'requireMember' as never).mockResolvedValue({
+      group: group('g1', { show_service_messages: false }),
+    } as never);
+    prisma.chatGroupMessage.findMany.mockResolvedValue([]);
+    await svc.messagesAfter(me, 'g1', 'a');
+    const changed = JSON.stringify(
+      prisma.chatGroupMessage.findMany.mock.calls[1][0],
+    );
+    expect(changed).toContain('changed_at');
+    expect(changed).toContain('expires_at');
+    expect(changed).toContain('"type":{"not":"system"}');
+  });
+
   it('group:update carries the shared card for a card change, not for an invite', async () => {
     const { svc, toUsers } = setup({
       members: [{ user_id: 'u1' }, { user_id: 'u2' }],

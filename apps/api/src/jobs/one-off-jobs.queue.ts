@@ -35,6 +35,11 @@ export class OneOffJobsQueue implements OnModuleDestroy {
       CRON_FAST_QUEUE,
       bullOptions(CRON_FAST_QUEUE, url),
     );
+    // Final pass 18.11 (FB6): a FAILED job kept under this id (removeOnFail
+    // keeps 200) made BullMQ ignore every later add — «queued», nothing ran.
+    // It is removed first; a waiting / running one still takes the add.
+    const old = await this.queue.getJob(jobId);
+    if (old && (await old.getState()) === 'failed') await old.remove();
     await this.queue.add(name, data, {
       jobId,
       delay: Math.max(0, delayMs),

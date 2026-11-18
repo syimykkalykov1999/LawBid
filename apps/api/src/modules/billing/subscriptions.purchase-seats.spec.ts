@@ -94,8 +94,11 @@ describe('SubscriptionsService.applyOrder purchase-time assistants (seat lock)',
       phones: '+13125550101',
     });
     await run();
+    // Final pass 18.11 (FB3): the SAME lock key as «Add assistant» and a
+    // seat decrease (lockAssistantSeats); hashtext() was another key, so
+    // the two never waited for each other.
     expect(order[0]).toBe(
-      'raw:SELECT pg_advisory_xact_lock(hashtext(?)):assistant-seats:att-1',
+      'raw:SELECT pg_advisory_xact_lock(hashtextextended(?, 0)):assistant-seats:att-1',
     );
     expect(order.indexOf('count')).toBeGreaterThan(0);
     expect(order.indexOf('create')).toBeGreaterThan(order.indexOf('count'));
