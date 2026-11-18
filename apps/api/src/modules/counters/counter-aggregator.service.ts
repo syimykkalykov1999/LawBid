@@ -425,8 +425,8 @@ export class CounterAggregator
       (async () => {
         const tokens = await this.redis.zrange(
           batchesKey(entity),
-          0,
-          RECOVER_BATCH - 1,
+          '0',
+          String(RECOVER_BATCH - 1),
         );
         await Promise.all(
           tokens.map(async (t) => {
