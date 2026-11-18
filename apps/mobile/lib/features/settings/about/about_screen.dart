@@ -39,6 +39,14 @@ class AboutScreen extends ConsumerWidget {
     }
   }
 
+  /// Flutter's standard licence page with the app's name and version
+  /// ([AppVersion.current] is read before runApp).
+  void _openLicenses(BuildContext context, Translator t) => showLicensePage(
+        context: context,
+        applicationName: t.t('brand.name'),
+        applicationVersion: AppVersion.current,
+      );
+
   /// The app's own title for a known document type, else the server's.
   String _docTitle(Translator t, LegalDocumentBrief d) {
     final own = t.t('legal.doc.${d.docType}');
@@ -251,6 +259,15 @@ class AboutScreen extends ConsumerWidget {
                     icon: AppIcons.policyOutlined,
                     label: t.t('about.dmca'),
                     onTap: () => context.push(AppRoutes.dmcaNotice),
+                  ),
+                  // Owner 17.11 (like WhatsApp / Instagram / Telegram): the
+                  // open-source licences, the last row; Flutter's own page
+                  // (texts registered in core/licenses/bundled_licenses).
+                  AppListRow(
+                    key: const ValueKey('about-licenses'),
+                    icon: AppIcons.descriptionOutlined,
+                    label: t.t('about.licenses'),
+                    onTap: () => _openLicenses(context, t),
                   ),
                 ],
               ),
