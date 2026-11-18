@@ -60,7 +60,7 @@ export class SocialAuthService {
 
   private async loginCancelsDeletion(): Promise<boolean> {
     return (
-      (await this.settings?.boolean('privacy.login_cancels_deletion')) ?? false
+      (await this.settings?.boolean('privacy.login_cancels_deletion')) ?? true
     );
   }
 

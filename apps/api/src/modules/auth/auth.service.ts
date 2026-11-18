@@ -619,10 +619,10 @@ export class AuthService {
     );
   }
 
-  /** Setting `privacy.login_cancels_deletion` (default off). */
+  /** Setting `privacy.login_cancels_deletion` (default on, verify 18.11). */
   async loginCancelsDeletion(): Promise<boolean> {
     return (
-      (await this.settings?.boolean('privacy.login_cancels_deletion')) ?? false
+      (await this.settings?.boolean('privacy.login_cancels_deletion')) ?? true
     );
   }
 
