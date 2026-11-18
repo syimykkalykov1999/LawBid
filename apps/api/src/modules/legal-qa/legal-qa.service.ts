@@ -414,20 +414,37 @@ export class LegalQaService {
         throw this.forbidden();
       }
       const wasLive = existing.status === 'published' && !existing.deleted_at;
-      // An edit of a live answer is only flagged; a re-posted one can be held.
-      const holdNow = hold && !wasLive;
+      // Audit 17.11 (Q8): an edit goes through the same filters as a new
+      // answer (Reddit AutoModerator re-checks edited comments, Stack
+      // Overflow runs edits through its spam/quality filters). A held edit
+      // or re-post waits hidden for a moderator.
       const updated = await tx.legalAnswer.update({
         where: { id: existing.id },
         data: {
           body: text,
-          status: holdNow ? 'hidden' : 'published',
+          status: hold ? 'hidden' : 'published',
           deleted_at: null,
+          ...(hold ? { is_best: false } : {}),
           ...safety,
         },
       });
+      if (hold && wasLive) {
+        // The live answer leaves the page: its slot is given back and it
+        // stops being «best», exactly as in removeAnswer (the moderator's
+        // restore counts it again). `existing` is read in this serializable
+        // tx, so the decrement runs only for an answer that was published.
+        await tx.legalQuestion.updateMany({
+          where: withDeleted({ id }),
+          data: { answer_count: { decrement: 1 } },
+        });
+        await tx.legalQuestion.updateMany({
+          where: withDeleted({ id, best_answer_id: existing.id }),
+          data: { best_answer_id: null },
+        });
+      }
       // Audit 17.11 (Q4): a re-post takes its slot back, but the asker was
       // already told about this attorney's answer — no second alert.
-      if (!wasLive && !holdNow) await this.takeSlot(tx, id);
+      if (!wasLive && !hold) await this.takeSlot(tx, id);
       return updated;
     });
     // R-401: who typed it — the assistant's id, null for the attorney (an

@@ -282,6 +282,7 @@ class FakeTeamRepository implements TeamRepository {
     TaskStatus status, {
     String? note,
     DateTime? rescheduleTo,
+    int? version,
   }) async {
     calls.add('status:$id:${status.wire}:$note');
     final updated = makeTask(id, status: status, note: note);
@@ -330,7 +331,11 @@ class FakeTeamRepository implements TeamRepository {
   }
 
   @override
-  Future<TaskItem> updateTask(String id, TaskDraft draft) async {
+  Future<TaskItem> updateTask(
+    String id,
+    TaskDraft draft, {
+    int? version,
+  }) async {
     calls.add('update:$id:${draft.title}');
     lastDraft = draft;
     final t = makeTask(id, kind: draft.kind, by: null);
