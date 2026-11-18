@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Diesen Code gibt es nicht",
   "error.api.REFERRAL_NOT_ALLOWED": "Dieser Code kann nicht angewendet werden",
   "error.api.REFUND_NOT_ALLOWED": "Die Frist für Erstattungen in der App ist abgelaufen – kontaktieren Sie den Support",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe hat nicht geantwortet. Erneut tippen – dieselbe Erstattung wird gesendet, keine zweite",
   "error.api.REPOST_OWN_POST": "Sie können Ihren eigenen Beitrag nicht reposten.",
   "error.api.REVIEW_ALREADY_EXISTS": "Sie haben diesen Fall bereits bewertet.",
   "error.api.REVIEW_APPEAL_EXISTS": "Gegen diese Bewertung wurde bereits Einspruch eingelegt.",

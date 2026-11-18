@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Не постои таков код",
   "error.api.REFERRAL_NOT_ALLOWED": "Овој код не може да се примени",
   "error.api.REFUND_NOT_ALLOWED": "Рокот за враќање во апликацијата помина — контактирајте ја поддршката",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe не одговори. Допрете повторно — оди истото враќање, не второ",
   "error.api.REPOST_OWN_POST": "Не можете повторно да споделите сопствена објава.",
   "error.api.REVIEW_ALREADY_EXISTS": "Веќе сте оставиле оцена за овој случај.",
   "error.api.REVIEW_APPEAL_EXISTS": "Оваа оцена е веќе обжалена.",

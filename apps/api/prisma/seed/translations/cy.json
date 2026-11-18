@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Nid oes cod o'r fath",
   "error.api.REFERRAL_NOT_ALLOWED": "Ni ellir defnyddio'r cod hwn",
   "error.api.REFUND_NOT_ALLOWED": "Mae'r cyfnod ad-dalu yn yr ap wedi mynd heibio — cysylltwch â chymorth",
+  "error.api.REFUND_PROVIDER_FAILED": "Ni atebodd Stripe. Tapiwch eto — mae'r un ad-daliad yn mynd, nid ail un",
   "error.api.REPOST_OWN_POST": "Ni allwch ailbostio eich post eich hun.",
   "error.api.REVIEW_ALREADY_EXISTS": "Rydych eisoes wedi adolygu'r achos hwn.",
   "error.api.REVIEW_APPEAL_EXISTS": "Apeliwyd yn erbyn yr adolygiad hwn eisoes.",

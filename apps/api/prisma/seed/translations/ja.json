@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "このコードは存在しません",
   "error.api.REFERRAL_NOT_ALLOWED": "このコードは適用できません",
   "error.api.REFUND_NOT_ALLOWED": "アプリ内返金の期限を過ぎています。サポートにご連絡ください",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe から応答がありません。もう一度タップしてください。同じ返金が送られ、二重にはなりません",
   "error.api.REPOST_OWN_POST": "自分の投稿はリポストできません。",
   "error.api.REVIEW_ALREADY_EXISTS": "この案件はすでにレビュー済みです。",
   "error.api.REVIEW_APPEAL_EXISTS": "このレビューにはすでに異議が申し立てられています。",

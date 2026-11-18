@@ -3969,6 +3969,7 @@
 "cpay.fee.sheet.sent": "Proposal sent",
 "cpay.fee.noRounds": "No more counter-offers: accept or withdraw the invoice",
 "error.api.REFUND_NOT_ALLOWED": "The in-app refund window has passed — contact support",
+"error.api.REFUND_PROVIDER_FAILED": "Stripe did not answer. Tap again — the same refund goes, not a second one",
 "notif.list.case_payment_received": "A client paid you through LawBid",
 "notif.list.case_payment_sent": "Your payment to the attorney went through",
 "notif.list.case_payment_refunded": "The attorney refunded you",

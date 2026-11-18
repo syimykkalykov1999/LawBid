@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Ese código no existe",
   "error.api.REFERRAL_NOT_ALLOWED": "No se puede aplicar este código",
   "error.api.REFUND_NOT_ALLOWED": "El plazo de reembolso en la app ha terminado — contacta con soporte",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe no respondió. Toca de nuevo: se envía el mismo reembolso, no otro",
   "error.api.REPOST_OWN_POST": "No puedes republicar tu propia publicación.",
   "error.api.REVIEW_ALREADY_EXISTS": "Ya ha reseñado este caso.",
   "error.api.REVIEW_APPEAL_EXISTS": "Esta reseña ya fue apelada.",

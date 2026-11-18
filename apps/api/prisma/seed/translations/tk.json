@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Beýle kod ýok",
   "error.api.REFERRAL_NOT_ALLOWED": "Bu kody ulanyp bolmaýar",
   "error.api.REFUND_NOT_ALLOWED": "Programma içinde yzyna gaýtarma möhleti geçdi — goldaw bilen habarlaşyň",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe jogap bermedi. Ýene basyň — ikinjisi däl, şol yzyna gaýtarma gider",
   "error.api.REPOST_OWN_POST": "Öz ýazgyňyzy repost edip bilmeýärsiňiz.",
   "error.api.REVIEW_ALREADY_EXISTS": "Siz bu iş barada eýýäm syn galdyrdyňyz.",
   "error.api.REVIEW_APPEAL_EXISTS": "Bu syna eýýäm şikaýat edilen.",

@@ -33,4 +33,17 @@ void main() {
     );
     expect(apiErrorText(t, phone(null)), contains('этой страны'));
   });
+
+  // Final pass 18.11 (FA2): Stripe did not answer a refund (503). The
+  // attorney is told to try again (the same refund goes), not «Что-то
+  // пошло не так».
+  test('a refund Stripe did not answer says to try again', () {
+    const e = ApiException(
+      code: ApiErrorCodes.refundProviderFailed,
+      message: 'x',
+      statusCode: 503,
+    );
+    expect(apiErrorText(t, e), contains('Stripe'));
+    expect(apiErrorText(const StaticTranslatorEn(), e), contains('Stripe'));
+  });
 }

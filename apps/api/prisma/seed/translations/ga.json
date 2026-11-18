@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Níl aon chód den sórt sin ann",
   "error.api.REFERRAL_NOT_ALLOWED": "Ní féidir an cód seo a chur i bhfeidhm",
   "error.api.REFUND_NOT_ALLOWED": "Tá tréimhse aisíocaíochta san aip caite — déan teagmháil le tacaíocht",
+  "error.api.REFUND_PROVIDER_FAILED": "Níor fhreagair Stripe. Tapáil arís — téann an aisíocaíocht chéanna, ní an dara ceann",
   "error.api.REPOST_OWN_POST": "Ní féidir leat do phostáil féin a athphostáil.",
   "error.api.REVIEW_ALREADY_EXISTS": "Rinne tú léirmheas ar an gcás seo cheana.",
   "error.api.REVIEW_APPEAL_EXISTS": "Rinneadh achomharc ar an léirmheas seo cheana.",

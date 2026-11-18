@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Nu există un astfel de cod",
   "error.api.REFERRAL_NOT_ALLOWED": "Acest cod nu poate fi aplicat",
   "error.api.REFUND_NOT_ALLOWED": "Perioada de rambursare din aplicație a expirat — contactează asistența",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe nu a răspuns. Atingeți din nou — pleacă aceeași rambursare, nu a doua",
   "error.api.REPOST_OWN_POST": "Nu poți reposta propria postare.",
   "error.api.REVIEW_ALREADY_EXISTS": "Ați lăsat deja o recenzie pentru acest caz.",
   "error.api.REVIEW_APPEAL_EXISTS": "Această recenzie a fost deja contestată.",

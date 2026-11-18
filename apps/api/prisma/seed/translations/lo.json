@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "ບໍ່ມີລະຫັດນີ້",
   "error.api.REFERRAL_NOT_ALLOWED": "ບໍ່ສາມາດນຳໃຊ້ລະຫັດນີ້ໄດ້",
   "error.api.REFUND_NOT_ALLOWED": "ໄລຍະຄືນເງິນໃນແອັບໝົດແລ້ວ — ຕິດຕໍ່ຝ່າຍຊ່ວຍເຫຼືອ",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe ບໍ່ໄດ້ຕອບ. ແຕະອີກຄັ້ງ — ການຄືນເງິນອັນດຽວກັນຈະຖືກສົ່ງ, ບໍ່ແມ່ນອັນທີສອງ",
   "error.api.REPOST_OWN_POST": "ທ່ານໂພສຊ້ຳໂພສຂອງຕົນເອງບໍ່ໄດ້.",
   "error.api.REVIEW_ALREADY_EXISTS": "ທ່ານໄດ້ຣີວິວຄະດີນີ້ແລ້ວ.",
   "error.api.REVIEW_APPEAL_EXISTS": "ຣີວິວນີ້ຖືກອຸທອນແລ້ວ.",

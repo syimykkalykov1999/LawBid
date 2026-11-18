@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Такого кода нет",
   "error.api.REFERRAL_NOT_ALLOWED": "Этот код нельзя применить",
   "error.api.REFUND_NOT_ALLOWED": "Срок возврата из приложения истёк — напишите в поддержку",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe не ответил. Нажмите ещё раз — уйдёт тот же возврат, не второй",
   "error.api.REPOST_OWN_POST": "Свой пост нельзя репостнуть.",
   "error.api.REVIEW_ALREADY_EXISTS": "Вы уже оставили отзыв по этому кейсу.",
   "error.api.REVIEW_APPEAL_EXISTS": "Этот отзыв уже обжалован.",

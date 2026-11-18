@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Det finns ingen sådan kod",
   "error.api.REFERRAL_NOT_ALLOWED": "Den här koden kan inte användas",
   "error.api.REFUND_NOT_ALLOWED": "Tiden för återbetalning i appen har gått ut — kontakta supporten",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe svarade inte. Tryck igen — samma återbetalning skickas, inte en till",
   "error.api.REPOST_OWN_POST": "Du kan inte dela vidare ditt eget inlägg.",
   "error.api.REVIEW_ALREADY_EXISTS": "Du har redan recenserat det här ärendet.",
   "error.api.REVIEW_APPEAL_EXISTS": "Det här omdömet har redan överklagats.",

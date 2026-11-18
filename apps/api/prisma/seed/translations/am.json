@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "እንዲህ ያለ ኮድ የለም",
   "error.api.REFERRAL_NOT_ALLOWED": "ይህ ኮድ ሊተገበር አይችልም",
   "error.api.REFUND_NOT_ALLOWED": "በመተግበሪያ ውስጥ የተመላሽ ጊዜ አልፏል — ድጋፍን ያግኙ",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe አልመለሰም። እንደገና ይንኩ — ያው ተመላሽ ይላካል፣ ሁለተኛ አይደለም",
   "error.api.REPOST_OWN_POST": "የራስዎን ልጥፍ እንደገና መለጠፍ አይችሉም።",
   "error.api.REVIEW_ALREADY_EXISTS": "ለዚህ ጉዳይ አስቀድመው ግምገማ ሰጥተዋል።",
   "error.api.REVIEW_APPEAL_EXISTS": "በዚህ ግምገማ ላይ አስቀድሞ ይግባኝ ተብሏል።",

@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Þessi kóði er ekki til",
   "error.api.REFERRAL_NOT_ALLOWED": "Ekki er hægt að nota þennan kóða",
   "error.api.REFUND_NOT_ALLOWED": "Endurgreiðslufrestur í forritinu er liðinn — hafðu samband við þjónustuver",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe svaraði ekki. Ýttu aftur — sama endurgreiðslan fer, ekki önnur",
   "error.api.REPOST_OWN_POST": "Þú getur ekki endurbirt þína eigin færslu.",
   "error.api.REVIEW_ALREADY_EXISTS": "Þú hefur þegar skrifað umsögn um þetta mál.",
   "error.api.REVIEW_APPEAL_EXISTS": "Þessari umsögn hefur þegar verið áfrýjað.",

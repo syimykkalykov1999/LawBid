@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "គ្មានកូដបែបនេះទេ",
   "error.api.REFERRAL_NOT_ALLOWED": "មិនអាចអនុវត្តកូដនេះបានទេ",
   "error.api.REFUND_NOT_ALLOWED": "រយៈពេលបង្វិលប្រាក់ក្នុងកម្មវិធីបានកន្លងផុត — ទាក់ទងផ្នែកជំនួយ",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe មិនបានឆ្លើយតបទេ។ ចុចម្តងទៀត — ការសងប្រាក់ដដែលនឹងផ្ញើ មិនមែនលើកទីពីរទេ",
   "error.api.REPOST_OWN_POST": "អ្នកមិនអាចបង្ហោះការបង្ហោះរបស់ខ្លួនឯងឡើងវិញបានទេ។",
   "error.api.REVIEW_ALREADY_EXISTS": "អ្នកបានវាយតម្លៃសំណុំរឿងនេះរួចហើយ។",
   "error.api.REVIEW_APPEAL_EXISTS": "ការវាយតម្លៃនេះត្រូវបានប្តឹងតវ៉ារួចហើយ។",

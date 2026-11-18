@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "അങ്ങനെയൊരു കോഡ് ഇല്ല",
   "error.api.REFERRAL_NOT_ALLOWED": "ഈ കോഡ് പ്രയോഗിക്കാൻ കഴിയില്ല",
   "error.api.REFUND_NOT_ALLOWED": "ആപ്പിനുള്ളിലെ റീഫണ്ട് കാലാവധി കഴിഞ്ഞു — സപ്പോർട്ടുമായി ബന്ധപ്പെടുക",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe പ്രതികരിച്ചില്ല. വീണ്ടും ടാപ്പ് ചെയ്യുക — അതേ റീഫണ്ട് പോകും, രണ്ടാമത്തേതല്ല",
   "error.api.REPOST_OWN_POST": "സ്വന്തം പോസ്റ്റ് റീപോസ്റ്റ് ചെയ്യാനാവില്ല.",
   "error.api.REVIEW_ALREADY_EXISTS": "ഈ കേസിന് നിങ്ങൾ ഇതിനകം റിവ്യൂ നൽകിയിട്ടുണ്ട്.",
   "error.api.REVIEW_APPEAL_EXISTS": "ഈ റിവ്യൂവിനെതിരെ ഇതിനകം അപ്പീൽ നൽകിയിട്ടുണ്ട്.",

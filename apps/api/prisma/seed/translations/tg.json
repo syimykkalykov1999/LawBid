@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Чунин рамз вуҷуд надорад",
   "error.api.REFERRAL_NOT_ALLOWED": "Ин рамзро татбиқ кардан мумкин нест",
   "error.api.REFUND_NOT_ALLOWED": "Мӯҳлати баргардонидан дар барнома гузашт — бо дастгирӣ тамос гиред",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe ҷавоб надод. Боз пахш кунед — ҳамон баргардонидан меравад, на дуюм",
   "error.api.REPOST_OWN_POST": "Шумо наметавонед пости худро репост кунед.",
   "error.api.REVIEW_ALREADY_EXISTS": "Шумо барои ин парванда аллакай шарҳ гузоштаед.",
   "error.api.REVIEW_APPEAL_EXISTS": "Ба ин шарҳ аллакай эътироз шудааст.",

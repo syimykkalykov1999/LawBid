@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "該邀請碼不存在",
   "error.api.REFERRAL_NOT_ALLOWED": "該邀請碼無法使用",
   "error.api.REFUND_NOT_ALLOWED": "應用內退款期限已過——請聯絡客服",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe 沒有回應。請再點一次——送出的是同一筆退款，不會重複退款",
   "error.api.REPOST_OWN_POST": "不能轉發自己的帖子。",
   "error.api.REVIEW_ALREADY_EXISTS": "您已評價過此案件。",
   "error.api.REVIEW_APPEAL_EXISTS": "此評價已被申訴。",

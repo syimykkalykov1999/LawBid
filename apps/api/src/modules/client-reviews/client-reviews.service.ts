@@ -186,6 +186,42 @@ export class ClientReviewsService {
     if (found?.status === 'removed' && removedByAdmin(found.appeal, prior)) {
       throw notEditable();
     }
+    // Verify 17.11 (batch 9): one counted review per attorney and client
+    // (as on attorney reviews, owner 2026-10-06; Airbnb/Uber: one per
+    // pair). Final pass 18.11 (FA3): the attorney's live review of this
+    // client from another case (or the open one) is the one edited, as
+    // PUT …/reviews/mine does. It used to be a 409 the app cannot get past
+    // (an attorney has no client id on a case, and the queued review came
+    // back refused at every start).
+    const pair =
+      !found || found.status === 'removed'
+        ? await this.prisma.clientReview.findFirst({
+            where: {
+              client_id: kase.client_id,
+              attorney_id: user.sub,
+              status: { not: 'removed' },
+              ...(found ? { id: { not: found.id } } : {}),
+            },
+            orderBy: { created_at: 'desc' },
+            select: { id: true, body: true },
+          })
+        : null;
+    if (pair) {
+      const heldEdit = verdict === 'hold' && pair.body !== body;
+      const edited = await this.prisma.clientReview.update({
+        where: { id: pair.id },
+        data: {
+          rating: dto.rating,
+          body,
+          edited_at: new Date(),
+          ...(dto.photoIds !== undefined ? { photo_ids: photoIds } : {}),
+          ...(heldEdit ? { status: 'hidden' as const } : {}),
+        },
+      });
+      await this.recalc(kase.client_id);
+      if (heldEdit) await this.afterSave(user.sub, edited.id, body, true);
+      return (await this.present([edited.id], user.sub))[0];
+    }
     const revived = found?.status === 'removed';
     if (revived) {
       // Its appeal was closed by the author's delete: the client may
@@ -200,11 +236,8 @@ export class ClientReviewsService {
     // pair's reviews can sit with different cases on different databases,
     // so the lock is on the primary and held until the write committed.
     return this.withReviewPairLock(user.sub, kase.client_id, async () => {
-      // Verify 17.11 (batch 9): one counted review per attorney and client
-      // (as on attorney reviews, owner 2026-10-06; Airbnb/Uber: one per
-      // pair). A new case review next to the attorney's live review of this
-      // client (open, or of another case) made two in the client's rating;
-      // that one is edited instead (PUT …/reviews/mine finds it).
+      // Re-check under the pair lock: the pair edit above (FA3) covers the
+      // normal case; only two writes racing for the same pair reach here.
       if (!existing) {
         const other = await this.prisma.clientReview.findFirst({
           where: {
@@ -295,7 +328,29 @@ export class ClientReviewsService {
       },
       select: { id: true },
     });
-    return row ? (await this.present([row.id], user.sub))[0] : null;
+    if (row) return (await this.present([row.id], user.sub))[0];
+    // FA3 (final pass 18.11): with no review of this case, the hired
+    // attorney's live review of this client from elsewhere is the one a
+    // save here edits, so the case shows it. Only for the hired attorney:
+    // nobody else learns who the case's client is.
+    const kase = await this.prisma.case.findFirst({
+      where: { id: caseId, deleted_at: null },
+      select: {
+        client_id: true,
+        accepted_bid: { select: { attorney_id: true } },
+      },
+    });
+    if (!kase || kase.accepted_bid?.attorney_id !== user.sub) return null;
+    const pair = await this.prisma.clientReview.findFirst({
+      where: {
+        client_id: kase.client_id,
+        attorney_id: user.sub,
+        status: { not: 'removed' },
+      },
+      orderBy: { created_at: 'desc' },
+      select: { id: true },
+    });
+    return pair ? (await this.present([pair.id], user.sub))[0] : null;
   }
 
   /** PUT /clients/:id/reviews/mine (owner 2026-09-30): any attorney or

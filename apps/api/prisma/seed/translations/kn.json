@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "ಅಂತಹ ಕೋಡ್ ಇಲ್ಲ",
   "error.api.REFERRAL_NOT_ALLOWED": "ಈ ಕೋಡ್ ಅನ್ನು ಅನ್ವಯಿಸಲು ಸಾಧ್ಯವಿಲ್ಲ",
   "error.api.REFUND_NOT_ALLOWED": "ಆ್ಯಪ್‌ನಲ್ಲಿ ಮರುಪಾವತಿ ಅವಧಿ ಮುಗಿದಿದೆ — ಬೆಂಬಲವನ್ನು ಸಂಪರ್ಕಿಸಿ",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe ಪ್ರತಿಕ್ರಿಯಿಸಲಿಲ್ಲ. ಮತ್ತೆ ಟ್ಯಾಪ್ ಮಾಡಿ — ಅದೇ ಮರುಪಾವತಿ ಹೋಗುತ್ತದೆ, ಎರಡನೆಯದಲ್ಲ",
   "error.api.REPOST_OWN_POST": "ನಿಮ್ಮ ಸ್ವಂತ ಪೋಸ್ಟ್ ಅನ್ನು ಮರುಪೋಸ್ಟ್ ಮಾಡಲಾಗದು.",
   "error.api.REVIEW_ALREADY_EXISTS": "ನೀವು ಈಗಾಗಲೇ ಈ ಪ್ರಕರಣವನ್ನು ವಿಮರ್ಶಿಸಿದ್ದೀರಿ.",
   "error.api.REVIEW_APPEAL_EXISTS": "ಈ ವಿಮರ್ಶೆಯ ವಿರುದ್ಧ ಈಗಾಗಲೇ ಮೇಲ್ಮನವಿ ಸಲ್ಲಿಸಲಾಗಿದೆ.",

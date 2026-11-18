@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "אין קוד כזה",
   "error.api.REFERRAL_NOT_ALLOWED": "לא ניתן להחיל את הקוד הזה",
   "error.api.REFUND_NOT_ALLOWED": "חלון ההחזר באפליקציה חלף — פנו לתמיכה",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe לא הגיב. הקישו שוב — יישלח אותו החזר, לא החזר שני",
   "error.api.REPOST_OWN_POST": "אי אפשר לשתף מחדש פוסט משלכם.",
   "error.api.REVIEW_ALREADY_EXISTS": "כבר כתבתם חוות דעת על תיק זה.",
   "error.api.REVIEW_APPEAL_EXISTS": "כבר הוגש ערעור על חוות דעת זו.",

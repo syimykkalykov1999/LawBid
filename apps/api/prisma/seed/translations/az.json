@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Belə kod yoxdur",
   "error.api.REFERRAL_NOT_ALLOWED": "Bu kodu tətbiq etmək olmaz",
   "error.api.REFUND_NOT_ALLOWED": "Tətbiqdaxili geri qaytarma müddəti keçib — dəstəklə əlaqə saxlayın",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe cavab vermədi. Yenidən toxunun — ikincisi yox, həmin geri ödəniş gedir",
   "error.api.REPOST_OWN_POST": "Öz paylaşımınızı yenidən paylaşa bilməzsiniz.",
   "error.api.REVIEW_ALREADY_EXISTS": "Bu iş üzrə artıq rəy yazmısınız.",
   "error.api.REVIEW_APPEAL_EXISTS": "Bu rəyə artıq etiraz edilib.",

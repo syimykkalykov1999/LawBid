@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Esse código não existe",
   "error.api.REFERRAL_NOT_ALLOWED": "Este código não pode ser aplicado",
   "error.api.REFUND_NOT_ALLOWED": "O prazo para reembolso no app passou — fale com o suporte",
+  "error.api.REFUND_PROVIDER_FAILED": "O Stripe não respondeu. Toque novamente — vai o mesmo reembolso, não um segundo",
   "error.api.REPOST_OWN_POST": "Você não pode repostar sua própria publicação.",
   "error.api.REVIEW_ALREADY_EXISTS": "Você já avaliou este caso.",
   "error.api.REVIEW_APPEAL_EXISTS": "Esta avaliação já foi contestada.",

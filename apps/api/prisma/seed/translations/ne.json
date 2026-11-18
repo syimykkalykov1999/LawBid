@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "यस्तो कोड छैन",
   "error.api.REFERRAL_NOT_ALLOWED": "यो कोड लागू गर्न मिल्दैन",
   "error.api.REFUND_NOT_ALLOWED": "एप भित्रको फिर्ता अवधि सकियो — सहयोगलाई सम्पर्क गर्नुहोस्",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe ले जवाफ दिएन। फेरि ट्याप गर्नुहोस् — उही फिर्ता जान्छ, दोस्रो होइन",
   "error.api.REPOST_OWN_POST": "तपाईं आफ्नै पोस्ट रिपोस्ट गर्न सक्नुहुन्न।",
   "error.api.REVIEW_ALREADY_EXISTS": "तपाईंले यो मुद्दाको समीक्षा पहिले नै गरिसक्नुभएको छ।",
   "error.api.REVIEW_APPEAL_EXISTS": "यो समीक्षामा पहिले नै पुनरावेदन गरिएको छ।",

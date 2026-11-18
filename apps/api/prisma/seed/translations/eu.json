@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Ez dago horrelako koderik",
   "error.api.REFERRAL_NOT_ALLOWED": "Kode hau ezin da aplikatu",
   "error.api.REFUND_NOT_ALLOWED": "Aplikazioko itzulketa-epea amaitu da — jarri harremanetan laguntzarekin",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe-k ez du erantzun. Sakatu berriro: itzulketa bera bidaltzen da, ez bigarren bat",
   "error.api.REPOST_OWN_POST": "Ezin duzu zure argitalpena berrargitaratu.",
   "error.api.REVIEW_ALREADY_EXISTS": "Dagoeneko eman duzu iritzia auzi honi buruz.",
   "error.api.REVIEW_APPEAL_EXISTS": "Iritzi honen aurka helegitea jarri da jada.",

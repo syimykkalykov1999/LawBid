@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Babu irin wannan lamba",
   "error.api.REFERRAL_NOT_ALLOWED": "Ba za a iya amfani da wannan lamba ba",
   "error.api.REFUND_NOT_ALLOWED": "Lokacin mayar da kuɗi a cikin manhaja ya wuce — tuntuɓi tallafi",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe bai amsa ba. Sake taɓawa — maido ɗaya ne zai tafi, ba na biyu ba",
   "error.api.REPOST_OWN_POST": "Ba za ka iya sake saka saƙonka ba.",
   "error.api.REVIEW_ALREADY_EXISTS": "Kun riga kun yi bita kan wannan shari'a.",
   "error.api.REVIEW_APPEAL_EXISTS": "An riga an ɗaukaka ƙara kan wannan bita.",

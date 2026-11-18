@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Няма такъв код",
   "error.api.REFERRAL_NOT_ALLOWED": "Този код не може да бъде приложен",
   "error.api.REFUND_NOT_ALLOWED": "Срокът за възстановяване в приложението изтече — свържете се с поддръжката",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe не отговори. Докоснете отново — тръгва същото възстановяване, не второ",
   "error.api.REPOST_OWN_POST": "Не можете да репоствате собствена публикация.",
   "error.api.REVIEW_ALREADY_EXISTS": "Вече сте оставили отзив за това дело.",
   "error.api.REVIEW_APPEAL_EXISTS": "Този отзив вече е обжалван.",

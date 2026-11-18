@@ -4,6 +4,7 @@ import 'package:cupertino_interactive_keyboard/cupertino_interactive_keyboard.da
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:intl/date_symbol_data_local.dart';
@@ -11,6 +12,7 @@ import 'package:lawbid/core/platform/paste_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/conversation_screen.dart';
 import 'package:lawbid/features/chat/presentation/media_preview_screen.dart';
+import 'package:lawbid/features/chat/presentation/message_actions.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 import 'package:lawbid/shared/presentation/keyboard_media.dart';
 import 'package:material_ui/material_ui.dart';
@@ -131,6 +133,46 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(MediaPreviewScreen), findsOneWidget);
+    await close(tester);
+  });
+
+  // Final pass 18.11 (FA4): a picture that arrives while an old message is
+  // being edited (keyboard GIF, paste, drop, the paperclip) does not take
+  // the edited text as its caption, and the edit stays as it was.
+  testWidgets('a GIF while editing keeps the edited text out of the caption',
+      (tester) async {
+    await open(tester);
+    final c = ProviderScope.containerOf(
+      tester.element(find.byType(ConversationScreen)),
+    );
+    final mine = ChatMessage(
+      id: 'm1',
+      conversationId: 'c1',
+      kind: MessageKind.text,
+      body: 'message 1',
+      senderId: 'me',
+      createdAt: DateTime(2026, 11).add(const Duration(minutes: 1)),
+    );
+    c.read(chatComposeProvider('c1').notifier).edit(mine);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, 'message 1');
+
+    field.contentInsertionConfiguration!.onContentInserted(
+      KeyboardInsertedContent(
+        mimeType: 'image/gif',
+        uri: 'content://gboard/1',
+        data: _gif,
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    final preview =
+        tester.widget<MediaPreviewScreen>(find.byType(MediaPreviewScreen));
+    expect(preview.caption, isEmpty);
+    expect(field.controller!.text, 'message 1');
+    expect(c.read(chatComposeProvider('c1')).editing?.id, 'm1');
     await close(tester);
   });
 

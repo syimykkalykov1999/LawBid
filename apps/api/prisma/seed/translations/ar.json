@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "لا يوجد رمز كهذا",
   "error.api.REFERRAL_NOT_ALLOWED": "لا يمكن تطبيق هذا الرمز",
   "error.api.REFUND_NOT_ALLOWED": "انتهت مهلة الاسترداد داخل التطبيق — تواصل مع الدعم",
+  "error.api.REFUND_PROVIDER_FAILED": "لم يستجب Stripe. انقر مرة أخرى — يُرسل الاسترداد نفسه وليس استردادًا ثانيًا",
   "error.api.REPOST_OWN_POST": "لا يمكنك إعادة نشر منشورك.",
   "error.api.REVIEW_ALREADY_EXISTS": "لقد قيّمت هذه القضية بالفعل.",
   "error.api.REVIEW_APPEAL_EXISTS": "تم الاعتراض على هذا التقييم بالفعل.",

@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Tällaista koodia ei ole",
   "error.api.REFERRAL_NOT_ALLOWED": "Tätä koodia ei voi käyttää",
   "error.api.REFUND_NOT_ALLOWED": "Sovelluksen sisäinen palautusaika on umpeutunut — ota yhteyttä tukeen",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe ei vastannut. Napauta uudelleen — sama hyvitys lähtee, ei toista",
   "error.api.REPOST_OWN_POST": "Et voi jakaa omaa julkaisuasi edelleen.",
   "error.api.REVIEW_ALREADY_EXISTS": "Olet jo arvostellut tämän asian.",
   "error.api.REVIEW_APPEAL_EXISTS": "Tästä arvostelusta on jo valitettu.",

@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Nie ma takiego kodu",
   "error.api.REFERRAL_NOT_ALLOWED": "Nie można zastosować tego kodu",
   "error.api.REFUND_NOT_ALLOWED": "Termin zwrotu w aplikacji minął — skontaktuj się z pomocą",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe nie odpowiedział. Stuknij ponownie — pójdzie ten sam zwrot, nie drugi",
   "error.api.REPOST_OWN_POST": "Nie możesz ponownie udostępnić własnego posta.",
   "error.api.REVIEW_ALREADY_EXISTS": "Ta sprawa została już przez Ciebie oceniona.",
   "error.api.REVIEW_APPEAL_EXISTS": "Od tej opinii już się odwołano.",

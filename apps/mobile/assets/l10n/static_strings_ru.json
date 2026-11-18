@@ -3662,6 +3662,7 @@
 "cpay.fee.sheet.sent": "Предложение отправлено",
 "cpay.fee.noRounds": "Встречных предложений больше нет: примите или отзовите счёт",
 "error.api.REFUND_NOT_ALLOWED": "Срок возврата из приложения истёк — напишите в поддержку",
+"error.api.REFUND_PROVIDER_FAILED": "Stripe не ответил. Нажмите ещё раз — уйдёт тот же возврат, не второй",
 "notif.list.case_payment_received": "Клиент оплатил вам через LawBid",
 "notif.list.case_payment_sent": "Ваш платёж адвокату прошёл",
 "notif.list.case_payment_refunded": "Адвокат вернул вам деньги",

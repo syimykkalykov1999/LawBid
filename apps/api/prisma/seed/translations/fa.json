@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "چنین کدی وجود ندارد",
   "error.api.REFERRAL_NOT_ALLOWED": "این کد قابل اعمال نیست",
   "error.api.REFUND_NOT_ALLOWED": "مهلت بازپرداخت درون‌برنامه گذشته — با پشتیبانی تماس بگیرید",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe پاسخ نداد. دوباره بزنید — همان بازپرداخت ارسال می‌شود، نه دومی",
   "error.api.REPOST_OWN_POST": "نمی‌توانید پست خودتان را بازنشر کنید.",
   "error.api.REVIEW_ALREADY_EXISTS": "شما قبلاً برای این پرونده نظر ثبت کرده‌اید.",
   "error.api.REVIEW_APPEAL_EXISTS": "به این نظر قبلاً اعتراض شده است.",

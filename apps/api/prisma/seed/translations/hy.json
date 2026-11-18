@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Այդպիսի կոդ չկա",
   "error.api.REFERRAL_NOT_ALLOWED": "Այս կոդը հնարավոր չէ կիրառել",
   "error.api.REFUND_NOT_ALLOWED": "Հավելվածում վերադարձի ժամկետն անցել է — կապվեք աջակցության հետ",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe-ը չպատասխանեց։ Կրկին հպեք — կգնա նույն վերադարձը, ոչ երկրորդը",
   "error.api.REPOST_OWN_POST": "Չեք կարող վերահրապարակել ձեր սեփական գրառումը։",
   "error.api.REVIEW_ALREADY_EXISTS": "Դուք արդեն թողել եք կարծիք այս գործի վերաբերյալ։",
   "error.api.REVIEW_APPEAL_EXISTS": "Այս կարծիքն արդեն բողոքարկվել է։",

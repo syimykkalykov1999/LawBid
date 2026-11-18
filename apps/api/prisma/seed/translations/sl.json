@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Take kode ni",
   "error.api.REFERRAL_NOT_ALLOWED": "Te kode ni mogoče uporabiti",
   "error.api.REFUND_NOT_ALLOWED": "Rok za vračilo v aplikaciji je potekel — obrnite se na podporo",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe ni odgovoril. Tapnite znova — gre isto vračilo, ne drugo",
   "error.api.REPOST_OWN_POST": "Lastne objave ne morete deliti naprej.",
   "error.api.REVIEW_ALREADY_EXISTS": "To zadevo ste že ocenili.",
   "error.api.REVIEW_APPEAL_EXISTS": "Na to oceno je bila že vložena pritožba.",

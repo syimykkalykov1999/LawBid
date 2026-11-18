@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "అటువంటి కోడ్ లేదు",
   "error.api.REFERRAL_NOT_ALLOWED": "ఈ కోడ్‌ను వర్తింపజేయలేము",
   "error.api.REFUND_NOT_ALLOWED": "యాప్‌లో రీఫండ్ గడువు ముగిసింది — సపోర్ట్‌ను సంప్రదించండి",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe స్పందించలేదు. మళ్లీ నొక్కండి — అదే రీఫండ్ వెళ్తుంది, రెండవది కాదు",
   "error.api.REPOST_OWN_POST": "మీ సొంత పోస్ట్‌ను రీపోస్ట్ చేయలేరు.",
   "error.api.REVIEW_ALREADY_EXISTS": "మీరు ఇప్పటికే ఈ కేసుకు రివ్యూ ఇచ్చారు.",
   "error.api.REVIEW_APPEAL_EXISTS": "ఈ రివ్యూపై ఇప్పటికే అప్పీల్ చేయబడింది.",

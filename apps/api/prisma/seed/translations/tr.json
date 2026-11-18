@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Böyle bir kod yok",
   "error.api.REFERRAL_NOT_ALLOWED": "Bu kod uygulanamıyor",
   "error.api.REFUND_NOT_ALLOWED": "Uygulama içi iade süresi doldu — destekle iletişime geçin",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe yanıt vermedi. Tekrar dokunun — ikinci değil, aynı iade gider",
   "error.api.REPOST_OWN_POST": "Kendi gönderinizi yeniden paylaşamazsınız.",
   "error.api.REVIEW_ALREADY_EXISTS": "Bu davayı zaten değerlendirdiniz.",
   "error.api.REVIEW_APPEAL_EXISTS": "Bu değerlendirmeye zaten itiraz edildi.",

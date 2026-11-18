@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Aquest codi no existeix",
   "error.api.REFERRAL_NOT_ALLOWED": "Aquest codi no es pot aplicar",
   "error.api.REFUND_NOT_ALLOWED": "El termini de reemborsament a l'app ha passat — contacta amb l'assistència",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe no ha respost. Toca de nou: s'envia el mateix reemborsament, no un altre",
   "error.api.REPOST_OWN_POST": "No pots republicar la teva pròpia publicació.",
   "error.api.REVIEW_ALREADY_EXISTS": "Ja heu valorat aquest cas.",
   "error.api.REVIEW_APPEAL_EXISTS": "Aquesta ressenya ja s’ha impugnat.",

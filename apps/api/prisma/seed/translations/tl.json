@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Walang ganyang code",
   "error.api.REFERRAL_NOT_ALLOWED": "Hindi mailalapat ang code na ito",
   "error.api.REFUND_NOT_ALLOWED": "Lumipas na ang panahon ng in-app refund — makipag-ugnayan sa support",
+  "error.api.REFUND_PROVIDER_FAILED": "Hindi sumagot ang Stripe. I-tap muli — ang parehong refund ang ipapadala, hindi pangalawa",
   "error.api.REPOST_OWN_POST": "Hindi mo mai-repost ang sarili mong post.",
   "error.api.REVIEW_ALREADY_EXISTS": "Nag-review ka na sa kasong ito.",
   "error.api.REVIEW_APPEAL_EXISTS": "Naiapela na ang review na ito.",

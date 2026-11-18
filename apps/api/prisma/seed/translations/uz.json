@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Bunday kod yo‘q",
   "error.api.REFERRAL_NOT_ALLOWED": "Bu kodni qo‘llab bo‘lmaydi",
   "error.api.REFUND_NOT_ALLOWED": "Ilovada qaytarish muddati o'tdi — qo'llab-quvvatlashga murojaat qiling",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe javob bermadi. Yana bosing — ikkinchisi emas, o‘sha qaytarish yuboriladi",
   "error.api.REPOST_OWN_POST": "O'z postingizni repost qila olmaysiz.",
   "error.api.REVIEW_ALREADY_EXISTS": "Bu ish bo‘yicha sharh qoldirgansiz.",
   "error.api.REVIEW_APPEAL_EXISTS": "Bu sharhga allaqachon e’tiroz bildirilgan.",

@@ -127,6 +127,8 @@ const casePaymentsRu = <String, String>{
       'Встречных предложений больше нет: примите или отзовите счёт',
   'error.api.REFUND_NOT_ALLOWED':
       'Срок возврата из приложения истёк — напишите в поддержку',
+  'error.api.REFUND_PROVIDER_FAILED':
+      'Stripe не ответил. Нажмите ещё раз — уйдёт тот же возврат, не второй',
   'notif.list.case_payment_received': 'Клиент оплатил вам через LawBid',
   'notif.list.case_payment_sent': 'Ваш платёж адвокату прошёл',
   'notif.list.case_payment_refunded': 'Адвокат вернул вам деньги',
@@ -326,6 +328,8 @@ const casePaymentsEn = <String, String>{
   'cpay.fee.noRounds': 'No more counter-offers: accept or withdraw the invoice',
   'error.api.REFUND_NOT_ALLOWED':
       'The in-app refund window has passed — contact support',
+  'error.api.REFUND_PROVIDER_FAILED':
+      'Stripe did not answer. Tap again — the same refund goes, not a second one',
   'notif.list.case_payment_received': 'A client paid you through LawBid',
   'notif.list.case_payment_sent': 'Your payment to the attorney went through',
   'notif.list.case_payment_refunded': 'The attorney refunded you',

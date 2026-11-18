@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Nuk ekziston një kod i tillë",
   "error.api.REFERRAL_NOT_ALLOWED": "Ky kod nuk mund të aplikohet",
   "error.api.REFUND_NOT_ALLOWED": "Afati i rimbursimit në aplikacion ka kaluar — kontaktoni mbështetjen",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe nuk u përgjigj. Prekni sërish — shkon i njëjti rimbursim, jo një i dytë",
   "error.api.REPOST_OWN_POST": "Nuk mund të ripostoni postimin tuaj.",
   "error.api.REVIEW_ALREADY_EXISTS": "E keni vlerësuar tashmë këtë çështje.",
   "error.api.REVIEW_APPEAL_EXISTS": "Ky vlerësim është apeluar tashmë.",

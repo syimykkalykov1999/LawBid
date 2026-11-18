@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Koodh sidaas ah ma jiro",
   "error.api.REFERRAL_NOT_ALLOWED": "Koodhkan lama dhaqan geli karo",
   "error.api.REFUND_NOT_ALLOWED": "Muddada lacag-celinta app-ka way dhaaftay — la xiriir taageerada",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe ma jawaabin. Mar kale taabo — isla lacag-celintii ayaa baxaysa, ma aha mid labaad",
   "error.api.REPOST_OWN_POST": "Ma dib u qori kartid qoraalkaaga.",
   "error.api.REVIEW_ALREADY_EXISTS": "Hore ayaad u dib-u-eegtay kiiskan.",
   "error.api.REVIEW_APPEAL_EXISTS": "Dib-u-eegistan hore ayaa rafcaan looga qaaday.",

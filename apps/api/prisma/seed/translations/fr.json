@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Ce code n'existe pas",
   "error.api.REFERRAL_NOT_ALLOWED": "Ce code ne peut pas être appliqué",
   "error.api.REFUND_NOT_ALLOWED": "Le délai de remboursement dans l'app est dépassé — contactez l'assistance",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe n'a pas répondu. Touchez à nouveau : le même remboursement part, pas un second",
   "error.api.REPOST_OWN_POST": "Vous ne pouvez pas republier votre propre publication.",
   "error.api.REVIEW_ALREADY_EXISTS": "Vous avez déjà laissé un avis sur cette affaire.",
   "error.api.REVIEW_APPEAL_EXISTS": "Cet avis a déjà été contesté.",
