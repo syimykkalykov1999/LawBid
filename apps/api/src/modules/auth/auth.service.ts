@@ -595,6 +595,15 @@ export class AuthService {
           ageSource,
         );
         if (found.user.status === 'deletion_pending' && cancelsOnLogin) {
+          // Final pass 18.11 (FO5): only an allowed sign-in cancels the
+          // deletion — the person's own bans are checked first (issueLogin
+          // checks again), as Apple / Google and password sign-in do.
+          await this.bans.assertAllowed({
+            userId: found.user.id,
+            phone: found.user.phone_e164,
+            email: found.user.email,
+            deviceId: deviceInfo.deviceId,
+          });
           const back = await cancelDeletionOnLogin(tx, found.user);
           return {
             user: back.user,

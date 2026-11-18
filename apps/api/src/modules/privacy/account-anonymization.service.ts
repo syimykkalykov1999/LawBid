@@ -287,6 +287,21 @@ export class AccountAnonymizationService implements AccountEraser {
    * here is retried by the `videos.sweep`. */
   /** Verify 17.11: soft-deletes [userId]'s post and case comments (and the
    * replies under its top-level ones); returns the counter moves. */
+  /** Final pass 18.11 (FO2): removeComments on every database, each in its
+   * own transaction there (comments sit with their post, case comments with
+   * their case). Idempotent: a second run finds nothing left to remove. */
+  private async removeAllComments(
+    userId: string,
+    now: Date,
+  ): Promise<
+    Awaited<ReturnType<AccountAnonymizationService['removeComments']>>
+  > {
+    const parts = await forEachDatabase(this.prisma, () =>
+      withTxRetry(this.prisma, (tx) => this.removeComments(tx, userId, now)),
+    );
+    return parts.flat();
+  }
+
   private async removeComments(
     tx: Prisma.TransactionClient,
     userId: string,
@@ -594,6 +609,14 @@ export class AccountAnonymizationService implements AccountEraser {
     if (user.anonymized_at) {
       // Resume: the account is scrubbed, the registry walk may be open.
       if (this.erasure && (await this.erasure.hasOpenRun(userId))) {
+        // FO2: a run stopped between the transaction and the comments
+        // finishes them (nothing left: no-op).
+        for (const [entity, id, field, delta] of await this.removeAllComments(
+          userId,
+          now,
+        )) {
+          await this.counters?.bump(entity, id, field, delta);
+        }
         await this.completeErasure(userId, now);
       }
       return false;
@@ -759,16 +782,6 @@ export class AccountAnonymizationService implements AccountEraser {
     // 4. One transaction over the user's entities.
     let follows: { follower_id: string; followee_id: string }[] = [];
     let postsRemoved = 0;
-    // Verify 17.11 (owner: like Instagram / Facebook) — the counter moves of
-    // the account's comments removed with it.
-    let commentBumps: Array<
-      [
-        entity: 'post' | 'comment' | 'case' | 'case_comment',
-        id: string,
-        field: 'comment_count' | 'reply_count',
-        delta: number,
-      ]
-    > = [];
     const chains = await withTxRetry(this.prisma, async (tx) => {
       follows = [];
       postsRemoved = 0;
@@ -995,9 +1008,11 @@ export class AccountAnonymizationService implements AccountEraser {
       // Verify 17.11 (owner 17.11: like Instagram / Facebook): the account's
       // comments go with it and leave every count — post and case comments,
       // with the other people's replies under its top-level ones (they are
-      // not shown without them). Messages are scrubbed in batches after
-      // this transaction (largest table, load review).
-      commentBumps = await this.removeComments(tx, userId, now);
+      // not shown without them). Final pass 18.11 (FO2): they live with
+      // their post / case, on ANY database, so they are removed on every
+      // database right after this transaction (removeAllComments), not in
+      // it (it only reached this person's database). Messages are scrubbed
+      // in batches after this transaction (largest table, load review).
       // Verification provider payloads may hold the person's name (§5.1
       // "ID-документы удаляются"): emptied, the row itself stays.
       await tx.verificationCheck.updateMany({
@@ -1033,6 +1048,9 @@ export class AccountAnonymizationService implements AccountEraser {
         );
       }
     }
+    // Verify 17.11 (owner: like Instagram / Facebook) — the counter moves of
+    // the account's comments removed with it (FO2: on every database).
+    const commentBumps = await this.removeAllComments(userId, now);
     for (const [entity, id, field, delta] of commentBumps) {
       // The (entity, field) pairs are the ones the comments services bump.
       await this.counters?.bump(entity, id, field, delta);

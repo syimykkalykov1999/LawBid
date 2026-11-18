@@ -536,41 +536,48 @@ export class FirmsService {
     // the delete lost its new member silently. The close re-checks under
     // the firm row lock that accepts take. Only the owner's «leave» while
     // alone asks this; «Close the firm» closes it with everyone in it.
-    if (aloneOnly) {
-      const joined = await primaryClient(this.prisma).$transaction(
-        async (tx) => {
-          await tx.$queryRaw`SELECT 1 FROM firms WHERE id = ${firmId}::uuid FOR UPDATE`;
-          return tx.firmMember.count({
-            where: { firm_id: firmId, status: 'active', ...notMe },
-          });
-        },
-      );
-      if (joined > 0) {
-        throw new ConflictException({
-          code: ErrorCode.FIRM_OWNER_MUST_TRANSFER,
-          message: 'Make another lawyer the owner, or close the firm.',
+    // Final pass 18.11 (FO6): the check, the reads and the delete share ONE
+    // transaction holding that lock (before, the lock was released before
+    // the delete, so an accept could still land in between).
+    const closed = await primaryClient(this.prisma).$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT 1 FROM firms WHERE id = ${firmId}::uuid FOR UPDATE`;
+      if (aloneOnly) {
+        const joined = await tx.firmMember.count({
+          where: { firm_id: firmId, status: 'active', ...notMe },
         });
+        if (joined > 0) {
+          throw new ConflictException({
+            code: ErrorCode.FIRM_OWNER_MUST_TRANSFER,
+            message: 'Make another lawyer the owner, or close the firm.',
+          });
+        }
       }
-    }
-    const [members, invited] = await Promise.all([
-      this.prisma.firmMember.findMany({
-        where: { firm_id: firmId, ...notMe },
-        select: { attorney_id: true },
-      }),
-      this.prisma.firmInvitation.findMany({
-        where: { firm_id: firmId, expires_at: { gt: new Date() }, ...notMe },
-        select: { attorney_id: true },
-      }),
-    ]);
+      const [members, invited, all] = await Promise.all([
+        tx.firmMember.findMany({
+          where: { firm_id: firmId, ...notMe },
+          select: { attorney_id: true },
+        }),
+        tx.firmInvitation.findMany({
+          where: {
+            firm_id: firmId,
+            expires_at: { gt: new Date() },
+            ...notMe,
+          },
+          select: { attorney_id: true },
+        }),
+        tx.firmMember.findMany({
+          where: { firm_id: firmId },
+          select: { attorney_id: true },
+        }),
+      ]);
+      const gone = await tx.firm.deleteMany({ where: { id: firmId } });
+      return gone.count === 0 ? null : { members, invited, all };
+    });
+    if (!closed) return;
+    const { members, invited, all } = closed;
     const others = [
       ...new Set([...members, ...invited].map((o) => o.attorney_id)),
     ];
-    const all = await this.prisma.firmMember.findMany({
-      where: { firm_id: firmId },
-      select: { attorney_id: true },
-    });
-    const gone = await this.prisma.firm.deleteMany({ where: { id: firmId } });
-    if (gone.count === 0) return;
     await this.bidTeam?.revoke(all.map((m) => m.attorney_id));
     await this.notify(
       others,

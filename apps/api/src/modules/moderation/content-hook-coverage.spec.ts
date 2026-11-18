@@ -207,6 +207,8 @@ describe('client review (open)', () => {
     const notifications = { emit: jest.fn(() => Promise.resolve()) };
     const writes: Record<string, unknown>[] = [];
     const tx = {
+      // Final pass 18.11 (FO7): the review-pair lock.
+      $executeRaw: jest.fn(() => Promise.resolve(1)),
       clientReview: {
         findFirst: jest.fn(() => Promise.resolve(existing)),
         create: jest.fn((a: { data: Record<string, unknown> }) => {
