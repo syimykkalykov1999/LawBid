@@ -10,7 +10,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import { chunks } from '../../common/admin-bulk/admin-bulk';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
-  createdBefore,
+  createdKeyset,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -57,7 +57,9 @@ const nameOf = (u: Named) =>
 /** Keyset paging on (created_at, id) desc, shared by the admin lists. */
 function keyset(cursor?: string) {
   const c = cursor ? decodeCursor(cursor) : undefined;
-  return c ? createdBefore({ t: c.createdAt, id: c.id }) : {};
+  // Row 215: the first page too, so the partial (created_at, id) indexes
+  // of posts / comments / reviews apply (createdKeyset).
+  return createdKeyset(c && { t: c.createdAt, id: c.id });
 }
 
 /** Owner 2026-10-04 (bulk moderation): author + time window of a list. */
