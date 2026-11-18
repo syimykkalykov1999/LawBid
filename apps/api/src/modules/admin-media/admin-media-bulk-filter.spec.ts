@@ -1,3 +1,4 @@
+import { createdKeyset } from '../../common/pagination/cursor.util';
 import { AdminMediaController } from './admin-media.controller';
 import { AdminStickersService } from './admin-stickers.service';
 import { AdminVideosService } from './admin-videos.service';
@@ -87,9 +88,14 @@ describe('admin media bulk by filter', () => {
     const q = { kind: 'user' as const, status: 'active' as const, q: 'cat' };
     await stickers.list(q);
     await stickers.idsByFilter(q, null);
-    expect(whereOf(prisma.stickerPack, true)).toEqual(
-      whereOf(prisma.stickerPack, false),
-    );
+    // The list's AND also carries its first-page keyset (row 215:
+    // createdKeyset, `created_at <= KEYSET_END`, which keeps every row).
+    const list = whereOf(prisma.stickerPack, false) as { AND: unknown[] };
+    const page1 = JSON.stringify(createdKeyset(undefined));
+    expect(whereOf(prisma.stickerPack, true)).toEqual({
+      ...list,
+      AND: list.AND.filter((x) => JSON.stringify(x) !== page1),
+    });
   });
 
   it('take down by filter: staff capped by the setting, audited', async () => {

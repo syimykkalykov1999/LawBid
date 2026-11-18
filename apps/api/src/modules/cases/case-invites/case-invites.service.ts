@@ -25,6 +25,7 @@ import { loadUrgencyThresholds, urgencyFields } from '../domain/case-urgency';
 import { caseNotFound } from '../domain/case-state-machine';
 import { CaseAccessPolicy } from '../policies/case-access.policy';
 import { CasePhotosService } from '../services/case-photos.service';
+import { createdBefore } from '../../../common/pagination/cursor.util';
 import {
   INVITES_PAGE_SIZE,
   type CaseInviteDto,
@@ -361,14 +362,8 @@ export class CaseInvitesService {
               case: { deleted_at: null, status: 'open' },
             }
           : {}),
-        ...(cursor
-          ? {
-              OR: [
-                { created_at: { lt: cursor.at } },
-                { created_at: cursor.at, id: { lt: cursor.id } },
-              ],
-            }
-          : {}),
+        // Row 215: a range on case_invites_attorney_created_id_idx.
+        ...(cursor ? createdBefore({ t: cursor.at, id: cursor.id }) : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: since ? 500 : INVITES_PAGE_SIZE + 1,
