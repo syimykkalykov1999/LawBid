@@ -1030,8 +1030,6 @@ class _AboutSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Row 112 (Airbnb): «Обычно отвечает в течение часа».
-        ProfileReplyTimeLine(minutes: profile.replyMinutesMedian),
         // Owner 2026-09-30: the "★ — · New" line is gone; ratings live on
         // the Reviews tab.
         // Owner 2026-10-22 (audit #4 §5): «Attorney Advertising» where the
