@@ -8,6 +8,7 @@ import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Owner 2026-10-15: the search ranking weights are editable in the admin
@@ -49,7 +50,7 @@ describe('Search ranking weights (e2e)', () => {
     await prisma.appConfig.deleteMany({
       where: { key: { startsWith: 'search.weight_' } },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     await app.close();
   });
 
@@ -68,7 +69,7 @@ describe('Search ranking weights (e2e)', () => {
     await prisma.appConfig.deleteMany({
       where: { key: { startsWith: 'search.weight_' } },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     // The stem uses the letters a-f only and the two names end in y / z: the
     // trigram similarity that is compared before the weights is then the
     // same for both (a suffix letter that also sits in the stem made one
@@ -117,7 +118,7 @@ describe('Search ranking weights (e2e)', () => {
       create: { key: 'search.weight_rating', value: 100 },
       update: { value: 100 },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     // (A ranked list is cached per query: another filter = a fresh list.)
     const flipped = await order(0);
     expect(flipped.indexOf(ratedId)).toBeLessThan(flipped.indexOf(verifiedId));

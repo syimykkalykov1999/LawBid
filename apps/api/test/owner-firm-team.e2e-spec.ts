@@ -11,6 +11,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { FeatureFlagsService } from '../src/modules/feature-flags/feature-flags.public';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { shardContext } from '../src/sharding/shard-context';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Firms audit 16.11 (PR-5, owner): a lawyer who joined a colleague's bid
@@ -80,7 +81,7 @@ describe('Firm team on a bid (e2e)', () => {
       create: { key: 'deal_record.enabled', value: false },
       update: { value: false },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     await setFlag(true);
   });
 
@@ -96,7 +97,7 @@ describe('Firm team on a bid (e2e)', () => {
         where: { key: 'deal_record.enabled' },
       });
     }
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     await app.close();
   });
 

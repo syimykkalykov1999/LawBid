@@ -12,7 +12,10 @@ import {
   costCounterKey,
   moneyCounterKey,
 } from '../src/common/cost-guard/cost-guard.service';
-import { AppConfigService } from '../src/modules/feature-flags/services/app-config.service';
+import {
+  AppConfigService,
+  dropAppConfigCache,
+} from '../src/modules/feature-flags/services/app-config.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 
@@ -68,7 +71,7 @@ describe('Cost guard (e2e)', () => {
         ],
       },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
   }
 
   async function setAppConfig(key: string, value: number | string[]) {
@@ -77,7 +80,7 @@ describe('Cost guard (e2e)', () => {
       create: { key, value },
       update: { value },
     });
-    await redis.del('config:app_config'); // bypass the 30 s cache
+    await dropAppConfigCache(redis); // bypass the 30 s cache
   }
 
   function otpRequest(

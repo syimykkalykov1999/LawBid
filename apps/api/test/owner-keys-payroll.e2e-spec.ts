@@ -18,6 +18,7 @@ import {
   adminStepUp,
   type AdminSession,
 } from './support/admin-login';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Owner 2026-10-05:
@@ -65,7 +66,7 @@ describe('Key sets + payroll (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+    await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
   });
 
   afterAll(async () => {

@@ -9,6 +9,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { ensurePostPractices } from './support/post-practices';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * OQ-048 (owner 2026-09-30): attorney assistants — seats from the plan,
@@ -54,7 +55,7 @@ describe('Assistants (e2e, OQ-048)', () => {
     await prisma.appConfig.deleteMany({
       where: { key: 'assistants.max_duties' },
     });
-    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+    await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
     await app.close();
   });
 
@@ -65,7 +66,7 @@ describe('Assistants (e2e, OQ-048)', () => {
       update: { value },
     });
     // AppConfigService caches the whole table in Redis for 30 s.
-    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+    await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
   }
 
   const api = () => request(base);
