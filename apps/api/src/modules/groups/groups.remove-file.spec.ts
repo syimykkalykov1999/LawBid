@@ -22,7 +22,7 @@ function setup(fileId: string | null) {
     chatGroupMessageReaction: {
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
-    chatGroup: { update: jest.fn() },
+    chatGroup: { update: jest.fn(), updateMany: jest.fn() },
   };
   const releases = { releaseMessageFile: jest.fn().mockResolvedValue(true) };
   const none = {} as never;

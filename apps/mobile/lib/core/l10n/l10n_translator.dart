@@ -34,7 +34,10 @@ class L10nTranslator implements Translator {
   final Map<String, String> _englishCache;
   final Map<String, String>? _compiled;
 
-  static final Map<String, String> _compiledEnglish = compiledSeedFor('en')!;
+  // A getter, not a cached field: on the web the English strings arrive
+  // from an asset at start (static_strings.dart), after this class loads.
+  static Map<String, String> get _compiledEnglish =>
+      compiledSeedFor('en') ?? const {};
 
   /// Layers 1–3; `null` when the key is unknown everywhere.
   String? lookup(String key) =>

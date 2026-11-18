@@ -13,8 +13,9 @@ import 'package:v_video_compressor/v_video_compressor.dart';
 /// (`lawbid/video_encoder`); the old plugin runs only when that fails.
 /// CMV 17.11 №5: the maintained fallback plugin, faked at its Dart API.
 class _FakePlugin extends VVideoCompressor {
-  _FakePlugin(this.outPath);
+  _FakePlugin(this.outPath, {this.info});
   final String outPath;
+  final VVideoInfo? info;
   String? path;
   VVideoCompressionConfig? config;
   bool cancelled = false;
@@ -49,6 +50,9 @@ class _FakePlugin extends VVideoCompressor {
       spaceSaved: 700,
     );
   }
+
+  @override
+  Future<VVideoInfo?> getVideoInfo(String videoPath) async => info;
 
   @override
   Future<void> cancelCompression() async => cancelled = true;
@@ -388,5 +392,37 @@ void main() {
     expect(File(source.path).existsSync(), isTrue);
     await c.cancel();
     expect(plugin.cancelled, isTrue);
+  });
+
+  test('hardware path fails: the plugin keeps the admin height 540 exactly',
+      () async {
+    final source = file('in540.mp4', 1000);
+    final encoded = file('plugin540.mp4', 300);
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      throw PlatformException(code: 'no_encoder');
+    });
+    final plugin = _FakePlugin(
+      encoded.path,
+      info: VVideoInfo(
+        path: source.path,
+        name: 'in540.mp4',
+        fileSizeBytes: 1000,
+        durationMillis: 1000,
+        width: 1080,
+        height: 1920,
+      ),
+    );
+    final c = PluginVideoCompressor(
+      platform: TargetPlatform.android,
+      plugin: plugin,
+    );
+    await c.compress(source, limits: (maxHeight: 540, frameRate: 30));
+    expect(plugin.config?.advanced?.customWidth, 540);
+    expect(plugin.config?.advanced?.customHeight, 960);
+    expect(
+      plugin.config?.advanced?.dimensionHandling,
+      VDimensionHandling.exact,
+    );
+    expect(plugin.config?.advanced?.videoBitrate, 1200 * 1000);
   });
 }

@@ -357,7 +357,15 @@ export class SearchIndexerService {
     budgetMs = 20_000,
   ): Promise<{ on: boolean; pruned?: number; drained?: number }> {
     const on = await this.engineOn();
-    if (!on) return { on, pruned: await this.prune(false) };
+    if (!on) {
+      const pruned = await this.prune(false);
+      // Verify 17.11 (owner: a broken piece of «Авто»): changes dropped
+      // while the engine is off must reach it when it comes back — the
+      // finished fill is forgotten, so the next «on» tick refills the index
+      // from the rows (it used to keep serving the stale one for ever).
+      if (pruned > 0) await this.resetReindex();
+      return { on, pruned };
+    }
     if (!(await this.client.isConfigured())) {
       this.log.warn('search.engine is on but the engine address is not set');
       return { on };

@@ -309,6 +309,87 @@ describe('Group chats and polls (e2e)', () => {
     expect(gone.body).toBe('');
   });
 
+  it('verify 17.11: offline catch-up brings edits, deletes and reactions; a tombstone anchor is fine', async () => {
+    const { owner, ann, id } = await makeGroup();
+    const send = (uid: string, body: string) =>
+      api()
+        .post(`/api/v1/groups/${id}/messages`)
+        .set(bearer(uid))
+        .send({ body, type: 'text', clientMessageId: cmid() })
+        .expect(201);
+    const m1 = (await send(owner.id, 'first')).body.data.id as string;
+    const m2 = (await send(owner.id, 'secret')).body.data.id as string;
+    const m3 = (await send(owner.id, 'third')).body.data.id as string;
+    // Ann's phone holds m1..m3 and goes offline.
+    await api()
+      .patch(`/api/v1/groups/${id}/messages/${m1}`)
+      .set(bearer(owner.id))
+      .send({ body: 'first, edited' })
+      .expect(200);
+    await api()
+      .delete(`/api/v1/groups/${id}/messages/${m2}`)
+      .set(bearer(owner.id))
+      .expect((r) => expect(r.status).toBeLessThan(300));
+    await api()
+      .put(`/api/v1/groups/${id}/messages/${m3}/reaction`)
+      .set(bearer(owner.id))
+      .send({ emoji: '👍' })
+      .expect(200);
+    const back = await api()
+      .get(`/api/v1/groups/${id}/messages`)
+      .query({ afterId: m3 })
+      .set(bearer(ann.id))
+      .expect(200);
+    const byId = new Map(
+      (
+        back.body.data as {
+          id: string;
+          body: string;
+          deleted: boolean;
+          reactions?: unknown[];
+        }[]
+      ).map((m) => [m.id, m]),
+    );
+    expect(byId.get(m1)?.body).toBe('first, edited');
+    expect(byId.get(m2)?.deleted).toBe(true);
+    expect(byId.get(m2)?.body).toBe('');
+    expect(byId.has(m3)).toBe(true);
+    // The newest message deleted for everyone is still a valid position,
+    // and reading up to it clears the unread count.
+    await api()
+      .delete(`/api/v1/groups/${id}/messages/${m3}`)
+      .set(bearer(owner.id))
+      .expect((r) => expect(r.status).toBeLessThan(300));
+    await api()
+      .get(`/api/v1/groups/${id}/messages`)
+      .query({ afterId: m3 })
+      .set(bearer(ann.id))
+      .expect(200);
+  });
+
+  it('verify 17.11: someone an admin removed is added back only by an admin (Telegram)', async () => {
+    const { owner, ann, bob, id } = await makeGroup();
+    await prisma.chatGroup.update({
+      where: { id },
+      data: { who_can_add: 'all' },
+    });
+    await api()
+      .delete(`/api/v1/groups/${id}/members/${bob.id}`)
+      .set(bearer(owner.id))
+      .expect((r) => expect(r.status).toBeLessThan(300));
+    const byMember = await api()
+      .post(`/api/v1/groups/${id}/members`)
+      .set(bearer(ann.id))
+      .send({ userIds: [bob.id] });
+    expect(byMember.status).toBe(403);
+    expect(byMember.body.error.details.reason).toBe('removed_by_admin');
+    await api()
+      .post(`/api/v1/groups/${id}/members`)
+      .set(bearer(owner.id))
+      .send({ userIds: [bob.id] })
+      .expect((r) => expect(r.status).toBeLessThan(300));
+  });
+
   it('roles: admins add / remove, only the owner promotes; removal is announced', async () => {
     const { owner, ann, bob, cy, id } = await makeGroup();
     const removed: unknown[] = [];

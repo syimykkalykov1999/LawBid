@@ -17,6 +17,7 @@ describe('CaseCommentsService.remove under a double DELETE', () => {
     };
     const db = {
       caseComment: {
+        count: jest.fn(() => Promise.resolve(0)),
         findFirst: jest.fn(() =>
           Promise.resolve(row.deleted_at ? null : { ...row }),
         ),
@@ -71,5 +72,60 @@ describe('CaseCommentsService.remove under a double DELETE', () => {
       'comment_count',
       -1,
     );
+  });
+});
+
+describe('verify 17.11: deleting a held top-level case comment', () => {
+  it('takes its published replies out of the count and deletes every reply', async () => {
+    const updates: unknown[] = [];
+    const db = {
+      caseComment: {
+        findFirst: jest.fn(() =>
+          Promise.resolve({
+            id: 'c1',
+            author_id: 'u1',
+            case_id: 'k1',
+            parent_comment_id: null,
+            status: 'hidden',
+            case: { client_id: 'owner' },
+          }),
+        ),
+        // Two published replies (a held one is not in the count).
+        count: jest.fn(() => Promise.resolve(2)),
+        updateMany: jest.fn((args: unknown) => {
+          updates.push(args);
+          return Promise.resolve({ count: 1 });
+        }),
+      },
+    };
+    const prisma = {
+      ...db,
+      $transaction: jest.fn((fn: (tx: unknown) => Promise<unknown>) => fn(db)),
+    };
+    const counters = { bump: jest.fn(() => Promise.resolve()) };
+    const svc = new CaseCommentsService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      counters as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    await svc.remove({ sub: 'u1' } as never, 'c1');
+    expect(counters.bump).toHaveBeenCalledWith(
+      'case',
+      'k1',
+      'comment_count',
+      -2,
+    );
+    // Every live reply goes, held ones too.
+    expect(updates[1]).toMatchObject({
+      where: { parent_comment_id: 'c1', deleted_at: null },
+    });
+    expect(
+      (updates[1] as { where: Record<string, unknown> }).where.status,
+    ).toBeUndefined();
   });
 });

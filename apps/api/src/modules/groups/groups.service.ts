@@ -564,8 +564,11 @@ export class GroupsService {
     await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
     const topic = topicId ? await this.topicOf(id, topicId) : null;
+    // Verify 17.11: the phone's newest message may be a tombstone (deleted
+    // for everyone): it still marks the position (the soft-delete filter
+    // made it a 404 on every open and reconnect).
     const anchor = await this.prisma.chatGroupMessage.findFirst({
-      where: { id: afterId, group_id: id },
+      where: { id: afterId, group_id: id, deleted_at: {} },
       select: { id: true, created_at: true },
     });
     if (!anchor) throw notFound();
@@ -594,7 +597,29 @@ export class GroupsService {
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       take: CATCH_UP_MAX + 1,
     });
-    if (rows.length > CATCH_UP_MAX) {
+    // Verify 17.11 (as the 1:1 catch-up): the messages the phone already
+    // holds that changed after its newest one — edits, deletes for everyone
+    // (a tombstone replaces the text) and reactions. Before, only new
+    // messages came, so a deleted message stayed readable offline.
+    const changed = await this.prisma.chatGroupMessage.findMany({
+      where: {
+        group_id: id,
+        deleted_at: {},
+        changed_at: { gt: anchor.created_at },
+        OR: [
+          { created_at: { lt: anchor.created_at } },
+          { created_at: anchor.created_at, id: { lte: anchor.id } },
+        ],
+        ...(topic
+          ? topic.is_general
+            ? { AND: [{ OR: [{ topic_id: topic.id }, { topic_id: null }] }] }
+            : { topic_id: topic.id }
+          : {}),
+      },
+      orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
+      take: CATCH_UP_MAX + 1,
+    });
+    if (rows.length > CATCH_UP_MAX || changed.length > CATCH_UP_MAX) {
       throw new ConflictException({
         ...SYNC_TOO_OLD_ERROR,
         message: 'Too many messages since afterId — reload the page.',
@@ -602,7 +627,7 @@ export class GroupsService {
       });
     }
     return {
-      items: await this.presenter.messages(rows, user.sub),
+      items: await this.presenter.messages([...changed, ...rows], user.sub),
       nextCursor: null,
     };
   }
@@ -949,6 +974,30 @@ export class GroupsService {
     const m = await this.requireMember(user.sub, id);
     if (!(m.can('invite') || m.group.who_can_add === 'all')) throw forbidden();
     const wanted = await this.addableIds(user.sub, dto.userIds);
+    // Verify 17.11 (owner, like Telegram): someone an admin removed comes
+    // back only through an admin, not through any member.
+    if (!m.can('invite') && wanted.length > 0) {
+      const removed = await this.prisma.chatGroupMember.findMany({
+        where: {
+          group_id: id,
+          user_id: { in: wanted },
+          left_at: { not: null },
+          left_reason: 'removed',
+        },
+        select: { user_id: true },
+      });
+      if (removed.length > 0) {
+        throw new ForbiddenException({
+          code: ErrorCode.GROUP_FORBIDDEN,
+          message:
+            'An admin removed this person; only an admin can add them back.',
+          details: {
+            reason: 'removed_by_admin',
+            userIds: removed.map((r) => r.user_id),
+          },
+        });
+      }
+    }
     const { held } = await this.sendInvites(id, user.sub, wanted);
     const notAdded = dto.userIds.filter(
       (u) => u !== user.sub && !wanted.includes(u),
@@ -2134,8 +2183,9 @@ export class GroupsService {
     }
     const updated = await this.prisma.chatGroupMessage.update({
       where: { id_group_id: { id: messageId, group_id: id } },
-      data: { body: text, edited_at: new Date() },
+      data: { body: text, edited_at: new Date(), changed_at: new Date() },
     });
+    await this.lastMessageChanged(id, messageId);
     await this.broadcast(id, updated);
     return this.one(updated, user.sub);
   }
@@ -2155,7 +2205,12 @@ export class GroupsService {
     if (row.sender_id !== user.sub && !m.can('delete')) throw forbidden();
     const updated = await this.prisma.chatGroupMessage.update({
       where: { id_group_id: { id: messageId, group_id: id } },
-      data: { deleted_at: new Date(), body: '', mention_ids: [] },
+      data: {
+        deleted_at: new Date(),
+        changed_at: new Date(),
+        body: '',
+        mention_ids: [],
+      },
     });
     // As in the 1:1 chat (ChatActionsService.revoke): a message deleted for
     // everyone keeps no reactions.
@@ -2169,8 +2224,19 @@ export class GroupsService {
       });
     }
     if (row.file_id) await this.releaseFile(row.file_id, messageId);
+    await this.lastMessageChanged(id, messageId);
     await this.broadcast(id, updated);
     await this.groupChanged(id, 'pinned');
+  }
+
+  /** Verify 17.11: an edit or a delete of the group's LAST message changes
+   * its list row (preview) — `updated_at` moves so `updatedSince` returns
+   * it to the members' other devices (the old text stayed there). */
+  private async lastMessageChanged(id: string, messageId: string) {
+    await this.prisma.chatGroup.updateMany({
+      where: { id, last_message_id: messageId },
+      data: { updated_at: new Date() },
+    });
   }
 
   /**
@@ -2243,8 +2309,10 @@ export class GroupsService {
   ): Promise<{ lastReadMessageId: string | null }> {
     await this.assertEnabled();
     const m = await this.requireMember(user.sub, id);
+    // Verify 17.11: reading up to a tombstone is reading the group (the
+    // unread count never cleared when the newest was deleted for everyone).
     const target = await this.prisma.chatGroupMessage.findFirst({
-      where: { id: lastReadMessageId, group_id: id },
+      where: { id: lastReadMessageId, group_id: id, deleted_at: {} },
       select: { id: true, created_at: true },
     });
     if (!target) {
