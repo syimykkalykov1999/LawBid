@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 // The sheet moved to the design system (row 109); old imports keep working.
 export 'package:lawbid/core/design_system/widgets/feedback/app_confirm_sheet.dart'

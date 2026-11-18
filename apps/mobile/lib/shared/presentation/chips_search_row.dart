@@ -1,11 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 import 'package:lawbid/shared/presentation/list_search_field.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 (Telegram): the chips and the search in ONE row —
 /// the folder chips on the left (they scroll when the words are long), a

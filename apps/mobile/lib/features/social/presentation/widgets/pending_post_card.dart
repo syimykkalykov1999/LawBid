@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -6,6 +5,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/social/application/pending_posts.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-23 (Instagram): the posts being published, as cards at the
 /// top of a feed or a profile. A thin line runs along the bottom edge of

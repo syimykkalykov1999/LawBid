@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:intl/intl.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/consultations/application/consultations_providers.dart';
 import 'package:lawbid/features/consultations/domain/consultation_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Zones offered besides the phone's own (the server accepts any IANA
 /// name; these cover the countries LawBid works in).

@@ -1,6 +1,5 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/app_update/app_update_gate.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/network/headers_interceptor.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/fake_http_adapter.dart';
 import 'app_update_test_harness.dart';

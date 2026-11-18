@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
@@ -14,6 +13,7 @@ import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/domain/reel_cut.dart';
 import 'package:lawbid/features/reels/presentation/video_editor_screen.dart';
 import 'package:lawbid/features/social/presentation/screens/create_post_screen.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../helpers/long_locale.dart';

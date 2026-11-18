@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -13,6 +12,7 @@ import 'package:lawbid/features/notifications/presentation/notifications_view.da
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/comment_widgets.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../features/social/social_fakes.dart';
 import '../helpers/ux_harness.dart';

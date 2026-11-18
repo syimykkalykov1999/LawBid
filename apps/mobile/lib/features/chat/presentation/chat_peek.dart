@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/message_context_menu.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner row 95 (2026-11-13, owner «Конечно»): a long press on a chat in
 /// the list lifts a preview of that chat over the blurred list with its

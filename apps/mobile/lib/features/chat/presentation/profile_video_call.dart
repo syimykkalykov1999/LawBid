@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -7,6 +6,7 @@ import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The direct chat with a person, from the chat list saved on the phone
 /// (no server request; rule «no needless server requests»). Null when

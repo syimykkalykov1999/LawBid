@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Desktop web plan 2026-10-28 §7: the one hover effect of the desktop web
 /// — the row or item under the mouse gets a light tint (the text colour at

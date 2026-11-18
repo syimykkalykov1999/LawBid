@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/addresses/open_in_maps.dart';
@@ -38,6 +37,7 @@ import 'package:lawbid/features/translation/data/content_translation_repository.
 import 'package:lawbid/features/translation/presentation/translatable_text.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// Opens the subscription call-to-action when the server answers
 /// SUBSCRIPTION_REQUIRED (docs/04 §2); true when it handled [e].

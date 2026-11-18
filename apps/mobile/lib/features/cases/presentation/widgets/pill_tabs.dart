@@ -3,12 +3,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Segmented tabs (owner decision 2026-09-29, replaces the scrolling
 /// underline row): every tab takes the same width, labels are centered,

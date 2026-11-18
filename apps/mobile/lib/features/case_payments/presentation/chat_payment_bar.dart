@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payment_widgets.dart';
 import 'package:lawbid/features/case_payments/presentation/payment_request_sheet.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05 — a thin bar above the chat composer of a case chat:
 /// the client sees the attorney's open invoice(s) with «Оплатить» (two

@@ -1,9 +1,8 @@
 import 'dart:ui' show PlatformDispatcher;
 
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Window width in logical pixels, whatever [MediaQuery] says at [context].
 double _windowWidth(BuildContext context) {

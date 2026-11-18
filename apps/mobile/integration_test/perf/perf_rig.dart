@@ -6,11 +6,11 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:lawbid/core/design_system/widgets/bars/app_bottom_nav.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:vm_service/vm_service.dart' as vm;
 import 'package:vm_service/vm_service_io.dart' as vm_io;
 

@@ -1,6 +1,4 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/session/guest_mode.dart';
@@ -10,6 +8,7 @@ import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/screens/verification_required_screen.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/presentation/guest_gate.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// "Моё" (docs/04 §11): clients get "Мои кейсы" / "Сохранённое",
 /// attorneys "Мои биды" / "В работе" / "Сохранённое".

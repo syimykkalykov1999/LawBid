@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/tokens/app_media_overlay.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-19 («кнопки динамика и плей стилизуйте под наш стиль»):
 /// the round button over a video — play / pause, sound on / off. One look for

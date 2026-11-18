@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_colors.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-17: chat colours like WhatsApp / Telegram, but in each
 /// LawBid theme — my bubble is a calm shade of the theme (never the gold

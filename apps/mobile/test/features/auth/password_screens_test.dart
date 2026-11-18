@@ -1,7 +1,6 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -19,10 +18,10 @@ import 'package:lawbid/features/auth/presentation/screens/change_password_screen
 import 'package:lawbid/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/login_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/set_password_screen.dart';
-
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/fixtures.dart';
 import '../../helpers/onboarding_harness.dart';

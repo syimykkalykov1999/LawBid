@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -15,6 +14,7 @@ import 'package:lawbid/features/profile/presentation/screens/firm_screen.dart'
     show myFirmProvider;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/onboarding_harness.dart';
 import '../profile/profile_fakes.dart';

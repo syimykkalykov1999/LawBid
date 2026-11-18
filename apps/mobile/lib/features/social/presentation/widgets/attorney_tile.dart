@@ -1,5 +1,4 @@
 // ignore_for_file: lines_longer_than_80_chars
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -17,6 +16,7 @@ import 'package:lawbid/features/trust/domain/trust_models.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_chip.dart';
 import 'package:lawbid/features/trust/presentation/trust_level_sheet.dart';
 import 'package:lawbid/shared/presentation/guest_gate.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A practice name by its i18n key; a readable fallback while the key is
 /// not in the local bundle yet.

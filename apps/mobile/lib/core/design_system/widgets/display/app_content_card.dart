@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
@@ -7,6 +5,7 @@ import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_card.dart';
 import 'package:lawbid/core/design_system/widgets/feedback/app_skeleton.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Reusable content card for list items that carry an author/owner, a
 /// headline, a short body and tags — the shape shared by feed posts

@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -16,6 +14,7 @@ import 'package:lawbid/features/auth/presentation/widgets/passkeys_section.dart'
 import 'package:lawbid/features/settings/active_devices/application/active_devices_controller.dart';
 import 'package:lawbid/features/settings/active_devices/domain/device_session_info.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/profile/settings/devices` (docs/01 §10.4 "Активные устройства"): the
 /// account's active sessions with per-row revoke and "sign out

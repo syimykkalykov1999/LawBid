@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/theme/app_theme_id.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:material_ui/material_ui.dart';
 
 double _contrast(Color a, Color b) {
   final x = a.computeLuminance();

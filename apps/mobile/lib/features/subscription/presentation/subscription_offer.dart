@@ -1,7 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -10,6 +8,7 @@ import 'package:lawbid/features/subscription/application/subscription_providers.
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/pay_for_plan.dart';
 import 'package:lawbid/features/subscription/subscription_routes.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-04: the ONE subscription offer an attorney sees — as the
 /// onboarding step after the practice areas, and whenever an action needs

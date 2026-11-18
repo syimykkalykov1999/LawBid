@@ -1,14 +1,13 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-26 (exactly like WhatsApp / FaceTime): the small picture
 /// of a 1:1 video call — a 96 × 136 card with soft corners in a corner of

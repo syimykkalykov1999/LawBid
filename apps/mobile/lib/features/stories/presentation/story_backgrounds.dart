@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The gradient of each text-story background key (stories.dto.ts). A
 /// story's colours are the author's content, so — like a photo — they look

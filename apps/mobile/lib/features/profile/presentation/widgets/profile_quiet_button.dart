@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Instagram-style secondary button: soft fill, no icon, small type.
 class ProfileQuietButton extends StatelessWidget {

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/features/groups/domain/group_message_ext.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_section.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// Sends a settings change and returns an error text to show, or null when
 /// it worked (the screen then refreshes from the answer).

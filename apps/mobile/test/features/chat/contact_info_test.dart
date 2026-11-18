@@ -1,6 +1,5 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:drift/drift.dart' show driftRuntimeOptions;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +19,7 @@ import 'package:lawbid/features/chat/presentation/conversation_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/ux_harness.dart';
 

@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
@@ -14,6 +13,7 @@ import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/platform/paste_files.dart';
 import 'package:lawbid/features/cases/application/case_media_picker.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../helpers/ux_harness.dart';
 

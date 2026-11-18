@@ -1,5 +1,4 @@
 // ignore_for_file: lines_longer_than_80_chars
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/language_catalog_provider.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/widgets/language_picker_sheet.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'l10n_test_harness.dart';
 

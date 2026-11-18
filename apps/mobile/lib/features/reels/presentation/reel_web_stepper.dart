@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Row 193 (instagram.com/reels, tiktok.com): on the website the mouse
 /// wheel, the trackpad and the arrow keys page through the reels one at a

@@ -52,7 +52,7 @@ jobs:
         run: echo "v=$(jq -r .flutter apps/mobile/.fvmrc)" >> "$GITHUB_OUTPUT"
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with: { flutter-version: "${{ steps.fv.outputs.v }}", channel: stable, cache: true }
-      - uses: ruby/setup-ruby@4e97ecde5048e1e0816923020652678063ffbf65 # v1.339.0
+      - uses: ruby/setup-ruby@20eb24b0d509e2b9ed9b6d42ddfeb992915e0564 # v1.341.0
         with: { ruby-version: "4.0", bundler-cache: true, working-directory: apps/mobile }
       - name: Dart defines + Firebase config + upload keystore
         working-directory: apps/mobile
@@ -111,7 +111,7 @@ jobs:
         run: echo "v=$(jq -r .flutter apps/mobile/.fvmrc)" >> "$GITHUB_OUTPUT"
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with: { flutter-version: "${{ steps.fv.outputs.v }}", channel: stable, cache: true }
-      - uses: ruby/setup-ruby@4e97ecde5048e1e0816923020652678063ffbf65 # v1.339.0
+      - uses: ruby/setup-ruby@20eb24b0d509e2b9ed9b6d42ddfeb992915e0564 # v1.341.0
         with: { ruby-version: "4.0", bundler-cache: true, working-directory: apps/mobile }
       - name: Xcode with the current iOS SDK (fail now, not at the store upload)
         run: bash scripts/ci/select-xcode.sh

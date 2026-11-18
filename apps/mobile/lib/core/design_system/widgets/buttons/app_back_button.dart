@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/widgets/bars/header_ink.dart';
 import 'package:lawbid/core/design_system/widgets/display/brand_glyphs.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Back-navigation chevron used on the phone/otp auth screens (file 07 §6.2:
 /// "Стрелка назад (22)"; file 07 §9 a11y: "стрелка назад 44×44 зона"). Not a

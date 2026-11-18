@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/network/auth_interceptor.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/core/uploads/upload_files.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/auth/application/sign_out.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/fake_http_adapter.dart';
 

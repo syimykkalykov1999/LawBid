@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Row 112 (Airbnb «Typically responds within an hour», Upwork, Thumbtack):
 /// the key of the line for [minutes] — the same four steps as Airbnb.

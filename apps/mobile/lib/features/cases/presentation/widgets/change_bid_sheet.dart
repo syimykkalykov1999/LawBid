@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/features/cases/deals/deal_record_data.dart';
 import 'package:lawbid/features/cases/deals/pay_block.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/domain/contingency.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-11-05: «Поменять бид». The list starts empty, the current terms
 /// are on the «Изменения» screen behind it. [free]: the client changed the

@@ -1,5 +1,4 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/http_cache_interceptor.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Attaches `Authorization: Bearer <accessToken>` to every request that
 /// doesn't opt out via `extra['skipAuth'] == true` (the 4 token-issuing

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_pickers.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20: write a channel post (admins) — text up to 4000, up to
 /// the admin's limit of photos OR one video; with [editing] it changes the

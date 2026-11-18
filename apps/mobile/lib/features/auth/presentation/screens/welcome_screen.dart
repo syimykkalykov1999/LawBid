@@ -1,6 +1,5 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -13,6 +12,7 @@ import 'package:lawbid/core/theme/theme_picker_sheet.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/demo/presentation/demo_code_sheet.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/welcome` (file 07 §6.1). Layout, 2026-09-22 revision (owner request,
 /// this conversation, after seeing it run on-device): title text first,

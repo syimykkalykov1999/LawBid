@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
@@ -28,6 +27,7 @@ import 'package:lawbid/shared/people/people_suggest_list.dart';
 import 'package:lawbid/shared/presentation/list_search_field.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-21 (Instagram «Поделиться», inbox 17): the share sheet of
 /// a post / reel. Search on top; «Чаты» (a grid of recent chats) and

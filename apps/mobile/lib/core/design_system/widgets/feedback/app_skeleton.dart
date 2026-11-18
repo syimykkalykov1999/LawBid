@@ -1,12 +1,11 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Loading-state placeholder (file 01 §15 component list; `.cursorrules`
 /// requires a loading/skeleton state on every screen). A block with a soft

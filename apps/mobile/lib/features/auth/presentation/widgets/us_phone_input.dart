@@ -1,12 +1,11 @@
 // ignore_for_file: lines_longer_than_80_chars
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/onboarding/application/countries_providers.dart';
 import 'package:lawbid/features/onboarding/domain/region_catalog.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Phone helpers shared by the sign-in phone screen and the contacts
 /// screens (docs/01_FOUNDATION_AUTH.md §10.2 C: "по умолчанию +1 США").

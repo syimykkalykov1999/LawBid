@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/config/app_environment.dart';
@@ -52,6 +51,7 @@ import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/attorney_advertising_label.dart';
 import 'package:lawbid/shared/presentation/guest_gate.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Owner 2026-09-30: News — the attorney's news posts, apart.
 // Owner 2026-10-18: three tabs — Posts | Briefs & reposts | Reviews (plus

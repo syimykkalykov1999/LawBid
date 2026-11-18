@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_info_section.d
 import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// Whether the info screen shows the link block for [detail]: a public or
 /// closed group whose link is on and that the server gave a link for, or a

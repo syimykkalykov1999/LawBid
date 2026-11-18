@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/features/cases/application/invites_providers.dart';
 import 'package:lawbid/features/cases/domain/case_invite.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05: on the client's own case — the attorneys they
 /// offered it to, where each invite stands, and Cancel while it waits.

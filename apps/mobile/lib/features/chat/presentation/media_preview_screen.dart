@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/features/chat/application/image_edit.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show PickedChatFile;
 import 'package:lawbid/features/chat/presentation/image_crop_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// What the preview hands back: the files in the order shown (edited ones
 /// replaced) and the one caption.

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -15,6 +14,7 @@ import 'package:lawbid/core/payments/pay_page_look.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
 import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 — the stars balance: top up (the payment page is on the
 /// web, no store purchase), gifts I received, the history.

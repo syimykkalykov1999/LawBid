@@ -1,8 +1,8 @@
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner row 88 (2026-11-13): pushes and pops run Flutter's iPhone timing
 /// (500 ms), and a screen that is not a Material page itself (the tab

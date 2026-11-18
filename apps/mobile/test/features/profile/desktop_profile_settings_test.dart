@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -26,6 +25,7 @@ import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/team/team_routes.dart';
 import 'package:lawbid/features/trust/trust_routes.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/referral_overrides.dart';
 import 'profile_fakes.dart';

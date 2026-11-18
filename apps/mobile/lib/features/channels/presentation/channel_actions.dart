@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/channels/presentation/channel_widgets.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `https://lawbid.dev/c/<username>` (the host is the app's deep-link
 /// host), with `?post=<id>` for one post.

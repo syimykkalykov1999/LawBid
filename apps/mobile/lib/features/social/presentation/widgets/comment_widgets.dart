@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -27,6 +26,7 @@ import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/translation/data/content_translation_repository.dart';
 import 'package:lawbid/features/translation/presentation/translatable_text.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Who a new comment answers (§5.1: one level; a reply to a reply goes to
 /// the top-level comment, the server prefixes "@username").

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -6,6 +5,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/data/seat_limit_repository.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05: "You can add up to N assistants. Need more? Send a
 /// request and we'll raise your limit." Shows a waiting request or the

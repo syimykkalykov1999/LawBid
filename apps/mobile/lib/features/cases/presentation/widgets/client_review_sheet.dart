@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -22,6 +21,7 @@ import 'package:lawbid/features/profile/domain/profile_models.dart'
     show ReviewPhoto;
 import 'package:lawbid/features/social/application/social_providers.dart'
     show SocialActions, socialActionsProvider;
+import 'package:material_ui/material_ui.dart';
 
 /// OQ-038: "Review the client" on a case in work — the hired attorney
 /// rates the client (1–5 stars + optional text). Editable; every signed-in

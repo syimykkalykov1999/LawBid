@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart'
     show MessageReactionButton, kQuickReactions;
 import 'package:lawbid/features/chat/presentation/message_context_menu.dart'
     show MessageReactionBar;
+import 'package:material_ui/material_ui.dart';
 
 /// What the long-press menu of a message can do. Owner 2026-10-21
 /// (Telegram): forward, select, and — in a group that restricts saving

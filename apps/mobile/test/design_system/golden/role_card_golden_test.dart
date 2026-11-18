@@ -1,8 +1,9 @@
 // ignore_for_file: lines_longer_than_80_chars
-import 'package:flutter/material.dart';
-import 'package:golden_toolkit/golden_toolkit.dart';
-
+import 'package:golden_toolkit/golden_toolkit.dart' hide materialAppWrapper;
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
+
+import '../../helpers/material_app_wrapper.dart';
 
 /// Golden coverage for RoleCard (file 07 §D.1/§D.3 acceptance: selected-card
 /// state, both role variants, both themes).

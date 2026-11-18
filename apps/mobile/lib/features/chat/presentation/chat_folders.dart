@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
@@ -20,6 +19,7 @@ import 'package:lawbid/features/groups/application/group_providers.dart'
     show groupsEnabledProvider;
 import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart'
     show muteDuration, pickMute;
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-01: small Instagram-like sub-tabs inside Chats —
 /// All · Unread · Groups · Cases · Waiting · Requests (with counts).

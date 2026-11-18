@@ -2,13 +2,13 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/photo_jpeg.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// How one photo sits in its frame: the zoom over «fills the frame» (1 =
 /// just covers it) and the shift of the photo's centre, as a share of the

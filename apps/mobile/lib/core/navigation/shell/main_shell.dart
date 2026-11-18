@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -39,6 +38,7 @@ import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
 import 'package:lawbid/features/social/application/pending_posts.dart';
 import 'package:lawbid/shared/presentation/guest_gate.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shell scaffold for the 4 `StatefulShellRoute.indexedStack` branches
 /// (Лента/Поиск/Моё/Профиль), hosting [AppBottomNav]. The "+" tab is not a

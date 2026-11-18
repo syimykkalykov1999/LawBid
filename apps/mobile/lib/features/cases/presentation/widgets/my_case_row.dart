@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/cases/presentation/widgets/compact_case_row.dart
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/promotions/presentation/promote_case_card.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A client's own case as a compact row ("My cases", Search). With
 /// [swipe], a swipe left offers delete (open or archived case). Owner

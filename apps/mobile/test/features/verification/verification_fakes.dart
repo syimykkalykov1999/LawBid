@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:go_router/go_router.dart';
@@ -16,6 +15,7 @@ import 'package:lawbid/features/verification/presentation/document_source.dart';
 import 'package:lawbid/features/verification/presentation/screens/verification_status_screen.dart';
 import 'package:lawbid/features/verification/presentation/screens/verification_wizard_screen.dart';
 import 'package:lawbid/features/verification/verification_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/ux_harness.dart';
 import '../profile/profile_fakes.dart';

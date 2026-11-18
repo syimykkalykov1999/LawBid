@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/assistant_code_card.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22: the 11 duties in three groups — what reaches the
 /// assistant (calls, chats, files), the work they prepare, and what they

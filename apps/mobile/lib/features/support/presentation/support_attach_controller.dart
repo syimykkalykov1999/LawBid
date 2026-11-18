@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/design_system/design_system.dart'
@@ -16,6 +15,7 @@ import 'package:lawbid/features/support/application/support_providers.dart';
 import 'package:lawbid/features/support/domain/support_models.dart';
 import 'package:lawbid/shared/presentation/attachment_kit.dart'
     show pickChatFiles;
+import 'package:material_ui/material_ui.dart';
 
 /// One file on its way to a ticket message.
 enum SupportDraftState { uploading, ready, failed }

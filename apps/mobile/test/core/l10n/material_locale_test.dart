@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/l10n/material_locale.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20: the system date / time dialogs spoke English in every
 /// language (no Flutter delegates). Every shipped language now loads, with a

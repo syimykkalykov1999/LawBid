@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -7,6 +6,7 @@ import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_documents.dart';
 import 'package:lawbid/features/social/social_routes.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-13: «ещё» on a post or reel opens the whole description in
 /// a sheet that rises from the bottom, like the comments: author, title,

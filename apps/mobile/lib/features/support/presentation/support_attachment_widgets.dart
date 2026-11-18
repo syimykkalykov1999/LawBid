@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/support/domain/support_models.dart';
 import 'package:lawbid/features/support/presentation/support_attach_controller.dart';
 import 'package:lawbid/shared/presentation/attachment_kit.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 const double _thumb = 64;

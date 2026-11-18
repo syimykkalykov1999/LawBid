@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -15,6 +14,7 @@ import 'package:lawbid/features/onboarding/application/contact_verification_cont
 import 'package:lawbid/features/onboarding/application/countries_providers.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/domain/contact_type.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// What the flow does with the phone/email.
 enum AccountContactMode {

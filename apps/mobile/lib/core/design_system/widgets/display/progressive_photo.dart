@@ -1,8 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-23 (Instagram): a photo never opens as an empty grey box.
 /// The small 320 px copy (the one the grids and the blurred backdrop

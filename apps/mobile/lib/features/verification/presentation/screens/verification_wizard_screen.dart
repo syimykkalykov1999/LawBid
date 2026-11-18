@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
@@ -21,6 +20,7 @@ import 'package:lawbid/features/verification/presentation/widgets/license_sheet.
 import 'package:lawbid/features/verification/presentation/widgets/phone_handoff_panel.dart';
 import 'package:lawbid/features/verification/presentation/widgets/wizard_stepper.dart';
 import 'package:lawbid/features/verification/presentation/widgets/wizard_steps.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/verification/wizard` — the verification wizard (docs/03 §8 steps
 /// 1–5, stage 3.8): intro → licenses (several states) → identity document

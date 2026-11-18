@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -19,6 +18,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_text_cover.dart
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-07 (bug 16, "no huge cards"): Search shows posts as the
 /// profile's 3-column grid of squares (a tap opens them as a feed from

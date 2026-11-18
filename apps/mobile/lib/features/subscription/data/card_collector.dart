@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
 // flutter_stripe 15 takes ThemeMode from the Material package that left the
 // Flutter SDK (material_ui, official, BSD-3).
 import 'package:material_ui/material_ui.dart' as mui;
+import 'package:material_ui/material_ui.dart';
 
 /// What the PaymentSheet needs (docs/06 §1.4 step 2).
 @immutable

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -24,6 +23,7 @@ import 'package:lawbid/features/subscription/application/subscription_providers.
     show checkoutLauncherProvider;
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/promo_code_field.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-15 (mockup v4): the Boost setup in five steps — goal,
 /// audience, budget and days (with the reach estimate), the button under

@@ -1,5 +1,4 @@
 // ignore_for_file: lines_longer_than_80_chars
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
@@ -20,6 +19,7 @@ import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
 import 'package:lawbid/features/social/application/social_providers.dart'
     show currentUserIdProvider;
+import 'package:material_ui/material_ui.dart';
 
 /// The tabs of the chat's files screen (owner 2026-10-18, WhatsApp:
 /// «Медиа, ссылки и документы»).

@@ -1,12 +1,11 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/auth/application/onboarding_flow.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The attorney's one-time code as typed: letters and digits, upper case,
 /// a dash after every 4 (XXXX-XXXX-XXXX). The server ignores dashes.

@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/verification/presentation/document_source.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Guide frame over the camera preview: dims everything outside the
 /// frame, draws a gold outline (card corners / face oval) that gently

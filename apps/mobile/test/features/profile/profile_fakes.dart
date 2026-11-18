@@ -2,7 +2,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/features/profile/data/avatar_upload_repository.dart';
 import 'package:lawbid/features/profile/data/profile_repositories.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/onboarding_harness.dart';
 import '../cases/cases_fakes.dart';

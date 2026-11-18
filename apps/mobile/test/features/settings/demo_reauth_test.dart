@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -20,6 +19,7 @@ import 'package:lawbid/features/profile/presentation/screens/delete_account_scre
 import 'package:lawbid/features/settings/data_export/application/data_export_providers.dart';
 import 'package:lawbid/features/settings/data_export/data/data_export_repository.dart';
 import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/stub_auth_repository.dart';
 import '../../helpers/ux_harness.dart';

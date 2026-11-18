@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/text/bidi.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-18 («как в инсте»): free @usernames under the username
 /// field; a tap puts one in the field.

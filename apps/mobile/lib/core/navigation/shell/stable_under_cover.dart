@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-11-04 (R-391): a bottom sheet («Фильтры») opened over the
 /// empty state «Вопросов нет» and the block jumped up, then slid back down.

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/features/cases/application/invites_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_format.dart';
 import 'package:lawbid/shared/presentation/guest_gate.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05 ("Предложить дело"): the client offers one of their
 /// open cases to the attorney whose profile they are on. Optional budget

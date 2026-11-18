@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -20,6 +19,7 @@ import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.da
 import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
     show VerifiedCheck;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20: a channel — header, subscribe / mute / share, ⋯ menu
 /// and the posts feed (newest first). [channelRef] is the id or @username;

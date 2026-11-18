@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/long_locale.dart';
 

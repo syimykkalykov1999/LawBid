@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart' show XFile;
@@ -14,6 +13,7 @@ import 'package:lawbid/features/chat/data/chat_repository.dart'
     show kChatAttachmentMaxBytes;
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_attach.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Row 149 review (file_picker 13): «Files» in a chat and in a group refuse
 /// a file over the limit, of unknown size or whose size cannot be read

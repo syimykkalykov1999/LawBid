@@ -1,11 +1,10 @@
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_icon_medallion.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shared layout for empty / error / offline states (UI modernization
 /// pass, 2026-09-27): tinted medallion, optional serif [title], [message],

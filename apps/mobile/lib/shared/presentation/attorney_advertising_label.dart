@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22 (audit #4 §5, NY Rule 7.1(f)): the «Attorney
 /// Advertising» line on an attorney profile, shown when the server says the

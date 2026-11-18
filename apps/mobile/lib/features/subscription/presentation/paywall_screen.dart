@@ -1,6 +1,4 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -8,6 +6,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/features/subscription/presentation/subscription_offer.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Which gate sent the attorney here (docs/06 §1.7 п.3): the paywall
 /// names the locked action instead of a generic "нужна подписка".

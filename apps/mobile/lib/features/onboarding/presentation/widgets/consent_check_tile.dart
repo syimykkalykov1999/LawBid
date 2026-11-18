@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Checkbox row for the consents step (docs/01_FOUNDATION_AUTH.md §10.2 H).
 /// The whole row toggles (≥ 44px tall, grows with text scale); [content]

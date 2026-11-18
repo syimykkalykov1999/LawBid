@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart'
     show initialsOf;
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Initials of a free-form name ("Anna Kowalski" → "AK").
 String personInitials(String name) {

@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -17,6 +16,7 @@ import 'package:lawbid/features/promotions/domain/promotion_models.dart';
 import 'package:lawbid/features/social/application/post_insights_providers.dart';
 import 'package:lawbid/features/social/domain/post_insights_models.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-18 (Instagram Insights): one post's statistics for its
 /// author — the post and its date, the big numbers, a chart by day, who was

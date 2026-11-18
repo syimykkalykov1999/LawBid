@@ -1,7 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -20,6 +18,7 @@ import 'package:lawbid/features/settings/account/presentation/screens/account_co
 import 'package:lawbid/features/settings/account/presentation/widgets/account_tile.dart';
 import 'package:lawbid/features/settings/account/presentation/widgets/role_switch_sheet.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Settings → Account (docs/01 §10.3): the account's phone/email contact
 /// (change = reauth + code on the new contact, §11 3A), every linked

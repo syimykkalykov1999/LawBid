@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
@@ -23,6 +22,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_urgency_picker.d
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// docs/04 §3.1 — the client's "+" flow: five steps, local draft, publish.
 class CreateCaseScreen extends ConsumerStatefulWidget {

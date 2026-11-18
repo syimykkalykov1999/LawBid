@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -15,6 +14,7 @@ import 'package:lawbid/features/verification/application/verification_wizard_con
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/presentation/document_source.dart';
 import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// "Добавить штат" (docs/03 §8 step 2, §2.1): state, bar number and the
 /// optional expiry. The server keeps it in the draft right away; the bar

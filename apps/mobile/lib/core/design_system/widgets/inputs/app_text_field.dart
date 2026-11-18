@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
@@ -6,6 +5,7 @@ import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/inputs/field_counter.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_motion_bits.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// General-purpose text field (file 07 §4 "AppTextField"): height 52, radius
 /// 12, `surface` fill, 1px `border`, focused border `gold` 1.5px, text 16.

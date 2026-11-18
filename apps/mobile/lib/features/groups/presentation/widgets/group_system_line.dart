@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A centered chip with a service sentence («Ann added Bob»).
 class GroupSystemLine extends StatelessWidget {

@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/theme/app_typography_tokens.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/text/bidi.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-19: a field's «18/2200» sits INSIDE the field, in its
 /// bottom right corner, small and grey, out of the text's way — never under

@@ -1,11 +1,11 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/app.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Perf batch 4 (row 127): the network-usage counter ticks on every

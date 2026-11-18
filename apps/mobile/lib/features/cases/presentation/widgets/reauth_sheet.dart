@@ -1,10 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/cases/application/case_history_controller.dart';
 import 'package:lawbid/features/cases/presentation/widgets/reauth_gate_view.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Detective R2B-12 (14.11): «Подтвердите, что это вы» right before a
 /// sensitive download, as a sheet over the screen (the screen and its

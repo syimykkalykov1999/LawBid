@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
@@ -21,6 +20,7 @@ import 'package:lawbid/features/subscription/application/subscription_providers.
 import 'package:lawbid/features/subscription/domain/subscription_models.dart';
 import 'package:lawbid/features/subscription/presentation/plan_tier_card.dart';
 import 'package:lawbid/features/subscription/presentation/subscription_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05 (plan builder) — Settings → «Подписка клиента»: the
 /// client plans for sale as cards (the current one marked «Ваш план»),

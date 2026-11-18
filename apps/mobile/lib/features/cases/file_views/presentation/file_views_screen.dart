@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/file_views/application/file_views_providers.dart';
 import 'package:lawbid/features/cases/file_views/domain/file_view.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Opens «Просмотры» of one case document (owner 2026-10-24). A pushed
 /// screen: the list is the device's own copy at once, newer rows join it

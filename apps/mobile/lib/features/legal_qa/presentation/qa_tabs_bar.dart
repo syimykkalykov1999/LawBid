@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-21: the four sections of «Вопрос юристу» as a compact
 /// segment in the header, right of the back arrow: All · Mine · Best ·

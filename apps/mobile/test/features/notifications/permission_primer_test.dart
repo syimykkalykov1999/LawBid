@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/permissions/permission_primer.dart';
 import 'package:lawbid/core/permissions/permission_primer_host.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/long_locale.dart';

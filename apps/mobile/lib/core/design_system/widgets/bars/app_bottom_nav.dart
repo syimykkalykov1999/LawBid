@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_pressable.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum AppTabKey { feed, search, mine, profile }
 

@@ -1,7 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -12,6 +10,7 @@ import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/domain/onboarding_flow_state.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
 import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Loose client-side shape check; the server is the authority (it also
 /// rejects relay/disposable domains for contacts — CONTACT_DOMAIN_BLOCKED).

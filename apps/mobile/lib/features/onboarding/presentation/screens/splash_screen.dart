@@ -1,13 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/splash` (docs/01_FOUNDATION_AUTH.md §10.2 A): runs the startup
 /// sequence (token check, feature flags + legal docs + min version,

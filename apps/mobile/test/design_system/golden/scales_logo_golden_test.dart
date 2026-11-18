@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
-import 'package:golden_toolkit/golden_toolkit.dart';
-
+import 'package:golden_toolkit/golden_toolkit.dart' hide materialAppWrapper;
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
+
+import '../../helpers/material_app_wrapper.dart';
 
 /// Golden coverage for the static ScalesLogo pose (file 07 §D.1 acceptance).
 /// The animated pose is NOT golden-tested (animation timing makes a single

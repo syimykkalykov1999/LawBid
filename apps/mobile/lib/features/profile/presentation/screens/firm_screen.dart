@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/feedback/app_confirm_sheet.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-14: the viewer's firm; null when there is none (404).
 final myFirmProvider = FutureProvider.autoDispose<api.FirmDto?>((ref) async {

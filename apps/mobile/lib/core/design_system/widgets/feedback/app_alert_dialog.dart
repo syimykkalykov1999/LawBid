@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/navigation/shell/content_column_frame.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-14: every dialog of the app has its buttons centred, as
 /// wide as the dialog and one under another (RTL too) — never pushed to one

@@ -1,9 +1,8 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-04: a case card never shows the client's face (their
 /// photos stay private until a bid is accepted), so every practice has a

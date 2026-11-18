@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show ValueListenable;
-import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,6 +29,7 @@ import 'package:lawbid/features/social/presentation/widgets/post_card.dart'
 import 'package:lawbid/features/stories/presentation/stories_tray.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Feed tab (docs/01 §3.1, docs/05 §2). Header per docs/07 §10: the small
 /// static ScalesLogo on the left; the right side ([AppFeedHeader.trailing])

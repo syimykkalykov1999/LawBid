@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
 import 'package:lawbid/features/consultations/application/consultations_providers.dart';
 import 'package:lawbid/features/consultations/consultations_routes.dart';
 import 'package:lawbid/features/consultations/presentation/consultation_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The id in a chat system line `consult:<id>`, or null for any other line.
 String? consultationIdOfSystemLine(String body) =>

@@ -1,7 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
@@ -12,6 +10,7 @@ import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_trailing_cap.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The numbered step rail of the attorney's «Верификация» wizard (owner
 /// 2026-11-05: the same numbered stepper everywhere instead of the bars):

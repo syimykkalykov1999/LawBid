@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/verification/application/verification_wizard_controller.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/features/verification/presentation/widgets/capture_guide_
 import 'package:lawbid/features/verification/presentation/widgets/document_slot_card.dart';
 import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
 import 'package:lawbid/features/verification/presentation/widgets/phone_handoff_panel.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Callbacks the step bodies need from the wizard screen.
 class StepActions {

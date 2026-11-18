@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -23,6 +22,7 @@ import 'package:lawbid/features/cases/workspace/workspace_view.dart';
 import 'package:lawbid/features/team/presentation/case_tasks_section.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/onboarding_harness.dart';
 import '../../helpers/ux_harness.dart';

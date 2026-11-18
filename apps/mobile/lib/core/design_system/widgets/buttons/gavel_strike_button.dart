@@ -1,13 +1,12 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/app_button.dart';
 import 'package:lawbid/core/design_system/widgets/buttons/app_icon_button.dart';
+import 'package:material_ui/material_ui.dart';
 
 // `GavelStrikeIconButton` (stage 1.7, docs/CHANGELOG.md — file 07 §7.4 lists
 // the welcome screen's 3 social-login icon buttons among the gavel-strike

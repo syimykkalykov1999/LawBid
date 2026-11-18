@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/core/uploads/upload_queue_database.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-11-08 («never lose the user's input»): a queued job the server
 /// refused for good, where its screen has no «not sent» element (a review,

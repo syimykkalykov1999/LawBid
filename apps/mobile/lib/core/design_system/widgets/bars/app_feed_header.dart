@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
 import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
 import 'package:lawbid/core/design_system/tokens/app_sizes.dart';
 import 'package:lawbid/core/design_system/tokens/app_spacing.dart';
 import 'package:lawbid/core/design_system/widgets/bars/header_ink.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Feed top bar. Owner decision 2026-09-29 (OQ-027, replaces docs/07 §10
 /// "scales logo left"): a centered TEXT wordmark "LawBid" in the brand

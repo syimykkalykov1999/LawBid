@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/addresses/address_field.dart';
@@ -17,6 +16,7 @@ import 'package:lawbid/features/team/presentation/task_links.dart';
 import 'package:lawbid/features/team/presentation/task_pickers.dart';
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
 import 'package:lawbid/features/team/team_routes.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Opens a task: everything about it and — for the attorney — take /

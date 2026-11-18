@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/shared/presentation/qr_code_view.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('draws at the asked size, in RTL too, with a logo', (t) async {

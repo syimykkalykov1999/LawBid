@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/translation/presentation/translate_action.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 (Telegram): «Перевести» lives in the long-press menu of
 /// a message, never under it. Off until the admin switches `chat_translate`

@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_selection_bar.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 (Telegram): the chats I moved to the Archive. Owner
 /// 2026-10-21 (inbox 22c): groups and channels have an Archive of their own.

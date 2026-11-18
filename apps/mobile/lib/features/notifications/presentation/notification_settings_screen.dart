@@ -1,7 +1,6 @@
 // ignore_for_file: lines_longer_than_80_chars
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -24,6 +23,7 @@ import 'package:lawbid/features/notifications/presentation/new_case_alerts_secti
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// docs/05 §9.5 Settings → Notifications: a switch per kind of
 /// notification grouped in blocks (owner 2026-10-21, inbox 30; only the

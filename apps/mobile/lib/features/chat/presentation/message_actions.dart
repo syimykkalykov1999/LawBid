@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -24,6 +23,7 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
 import 'package:lawbid/features/stars/presentation/low_stars_sheet.dart';
+import 'package:material_ui/material_ui.dart';
 
 export 'package:lawbid/features/chat/presentation/reply_swipe.dart'
     show SwipeToReply;

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -38,6 +37,7 @@ import 'package:lawbid/features/groups/presentation/widgets/slow_mode_sheet.dart
 import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 enum _MemberAction { makeAdmin, rights, removeAdmin, transfer, remove }
 

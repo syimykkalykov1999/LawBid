@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/profile/presentation/widgets/star_rating.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/translation/data/content_translation_repository.dart';
 import 'package:lawbid/features/translation/presentation/translatable_text.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// "4.5" in the interface language, or "—" when there are no reviews
 /// (docs/03 §4.2 "вместо числа прочерк").

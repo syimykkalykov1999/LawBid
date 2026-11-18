@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/deeplinks/deep_link.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/features/verification/application/verification_wizard_con
 import 'package:lawbid/features/verification/domain/verification_repository.dart';
 import 'package:lawbid/features/verification/presentation/screens/verification_wizard_screen.dart';
 import 'package:lawbid/features/verification/presentation/widgets/phone_handoff_panel.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'verification_fakes.dart';
 

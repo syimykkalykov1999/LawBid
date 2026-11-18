@@ -1,8 +1,8 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/core/platform/web_tab_title.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner row 113: on the website a right-click opens the long-press menu,
 /// message / post text can be selected, and the tab title carries the

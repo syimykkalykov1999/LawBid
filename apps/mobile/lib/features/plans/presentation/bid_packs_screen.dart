@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/payments/pay_page_look.dart';
 import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-14: offers bought on top of the plan's monthly limit.
 final bidPacksProvider = FutureProvider.autoDispose<api.BidPacksDto>(

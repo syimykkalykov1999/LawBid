@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/shared/presentation/chips_search_row.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 (Telegram): the chat folders and the search in ONE row.
 class ChatsFilterRow extends StatelessWidget {

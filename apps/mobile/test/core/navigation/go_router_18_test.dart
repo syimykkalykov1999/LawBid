@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -8,9 +7,11 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/core/navigation/router_error_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Row 148 (go_router 17 -> 18): go_router 18 looks for package:material_ui's
-/// MaterialApp; inside this app's flutter/material one it would build every
+/// MaterialApp (the app's own since row 237, Flutter 3.50); inside the old
+/// flutter/material one it would build every
 /// `builder:` route as a NoTransitionPage, give its navigators a plain
 /// HeroController and show the plain error page. The app builds its own
 /// pages, so links, back and the look stay as on go_router 17.
@@ -70,9 +71,13 @@ void main() {
     return r;
   }
 
+  // Row 237 (Flutter 3.50): the app's MaterialApp is package:material_ui's
+  // now, so go_router 18 recognises it and a plain `builder:` route gets
+  // its MaterialPage again (it was a NoTransitionPage inside the old
+  // flutter/material one). The app's routes still build their own pages.
   testWidgets(
-      'the cause: a plain `builder:` route gets a NoTransitionPage on 18 '
-      'inside a flutter/material MaterialApp', (tester) async {
+      'a plain `builder:` route gets a MaterialPage on 18 inside the '
+      'material_ui MaterialApp', (tester) async {
     final r = GoRouter(
       routes: [
         GoRoute(path: '/', builder: (_, __) => const Text('plain')),
@@ -82,7 +87,8 @@ void main() {
     await tester.pumpWidget(MaterialApp.router(routerConfig: r));
     await tester.pumpAndSettle();
     final route = ModalRoute.of(tester.element(find.text('plain')))!;
-    expect(route.settings, isA<NoTransitionPage<void>>());
+    expect(route.settings, isA<MaterialPage<void>>());
+    expect(route.settings, isNot(isA<NoTransitionPage<void>>()));
   });
 
   testWidgets('a tab root is a MaterialPage, as on go_router 17',

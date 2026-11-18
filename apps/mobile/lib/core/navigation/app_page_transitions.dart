@@ -1,12 +1,11 @@
-import 'package:flutter/cupertino.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart' show MaterialPage;
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/accessibility/reduce_motion.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/navigation/back_swipe.dart' show PageBackground;
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
+import 'package:material_ui/material_ui.dart' show MaterialPage;
 
 /// go_router page builders with LawBid's page motion (UI modernization
 /// pass, 2026-09-27). Calm "shared axis" style: the incoming page fades in

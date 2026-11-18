@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/features/cases/deals/deal_record_format.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_option_picker.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:material_ui/material_ui.dart';
 
 /// Deal record 2026-10-27: the rich payment terms of a bid (plan §2.3), shown
 /// in the bid form only while `bids.rich_terms_enabled`. The classic fee

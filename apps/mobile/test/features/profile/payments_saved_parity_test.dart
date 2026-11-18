@@ -1,5 +1,4 @@
 // ignore_for_file: lines_longer_than_80_chars
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -16,6 +15,7 @@ import 'package:lawbid/features/settings/saved/saved_screen.dart';
 import 'package:lawbid/features/social/presentation/screens/social_screens.dart' show SavedPostsList;
 import 'package:lawbid/features/subscription/application/subscription_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/long_locale.dart';
 import '../subscription/subscription_fakes.dart';

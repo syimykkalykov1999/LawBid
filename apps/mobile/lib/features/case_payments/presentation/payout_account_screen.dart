@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payment_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_status.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05 — Settings → «Приём оплат»: the attorney's Stripe
 /// Express account (connect / continue / dashboard) and the legal text.

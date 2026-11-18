@@ -2,8 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
@@ -81,6 +79,7 @@ import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 import 'package:lawbid/shared/presentation/interactive_keyboard.dart';
 import 'package:lawbid/shared/presentation/keyboard_media.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// docs/05 §8.2: 2000 characters, text only.
 int get kMessageMaxChars => TextLimits.of(TextLimit.chatMessage);

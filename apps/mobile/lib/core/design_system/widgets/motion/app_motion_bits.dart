@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner row 95 (2026-11-13, docs/dev/MOTION_CATALOG_2026-11-13.md): the
 /// small motions the catalog asks for in many places, built once here.

@@ -1,13 +1,14 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:golden_toolkit/golden_toolkit.dart';
+import 'package:golden_toolkit/golden_toolkit.dart' hide materialAppWrapper;
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/theme/theme_picker_sheet.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../core/l10n/l10n_test_harness.dart';
+import '../../helpers/material_app_wrapper.dart';
 
 /// Owner 2026-10-22: the four themes side by side (Day, Night, Blue = the
 /// Citi look, Green = the Credit Karma look): a typical screen (top bar,

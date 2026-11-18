@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/widgets/bars/app_side_nav.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/core/navigation/shell/desktop_side_nav.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/features/create/presentation/create_sheet.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Placed by the main shell: a screen pushed inside a tab already sits next
 /// to the shell's menu and in its column, so [WebPageFrame] does nothing.

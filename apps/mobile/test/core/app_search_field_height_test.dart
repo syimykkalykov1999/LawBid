@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-23: the contacts search field («Поиск по контактам») was too
 /// tall. The search-style AppTextField (`compact`) is 44 dp (the touch

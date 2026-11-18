@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One line of text that shrinks its font to fit the width it gets instead
 /// of wrapping or overflowing (owner 2026-10-05: in long languages buttons

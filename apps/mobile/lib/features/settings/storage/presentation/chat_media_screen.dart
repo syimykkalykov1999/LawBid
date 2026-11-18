@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/chat_media_index.dart';
 import 'package:lawbid/core/cache/chat_media_providers.dart';
@@ -9,6 +8,7 @@ import 'package:lawbid/core/text/byte_size.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/settings/storage/application/storage_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-11-02 (Telegram «Данные и память» → by chat): how much of the
 /// chat pictures on the phone each chat takes, with «Очистить» per chat.

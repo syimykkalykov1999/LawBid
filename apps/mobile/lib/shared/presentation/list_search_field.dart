@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/shared/presentation/flip_search_bar.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-18: the search box above a list whose matching the server
 /// does (chats, followers, following) — the app's 36 px search field with

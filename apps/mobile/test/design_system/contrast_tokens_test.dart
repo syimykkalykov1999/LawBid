@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// WCAG contrast of the text colour tokens against the surfaces they sit on,
 /// in all four themes. Replaces the pixel-sampling guideline (which reads

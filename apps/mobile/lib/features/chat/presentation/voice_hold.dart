@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
@@ -14,6 +13,7 @@ import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/hold_gesture.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The round button of a composer (send, mic): gold when [on].
 typedef ComposerCircle = Widget Function({

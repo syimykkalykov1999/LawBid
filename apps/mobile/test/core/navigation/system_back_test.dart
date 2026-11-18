@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/root_messenger.dart';
 import 'package:lawbid/core/navigation/system_back.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-22: the Android SYSTEM back (hardware key, gesture, gesture
 /// bar — all reach the app as `popRoute`) goes to the previous screen

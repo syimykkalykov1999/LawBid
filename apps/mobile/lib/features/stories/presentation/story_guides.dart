@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart' show setEquals;
-import 'package:flutter/material.dart';
 import 'package:lawbid/features/stories/domain/story_snap.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-21 (Instagram story editor): the thin lines a dragged
 /// sticker sits on — the centre lines, the safe edges, and a level line

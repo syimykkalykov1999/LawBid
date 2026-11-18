@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
@@ -6,6 +5,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/translation/data/device_translator.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20: translates [text] into the app language when the person
 /// asks (a menu item). It runs on the phone (ML Kit, free; the language model

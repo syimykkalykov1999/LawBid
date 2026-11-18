@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -15,6 +14,7 @@ import 'package:lawbid/features/support/data/support_context.dart';
 import 'package:lawbid/features/support/domain/support_models.dart';
 import 'package:lawbid/features/support/presentation/support_attach_controller.dart';
 import 'package:lawbid/features/support/presentation/support_attachment_widgets.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-02 — a new request to the team: topic, subject, message.
 class SupportNewScreen extends ConsumerStatefulWidget {

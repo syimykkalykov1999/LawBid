@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +11,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/referrals/application/referrals_providers.dart';
 import 'package:lawbid/features/referrals/domain/referral_models.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// What a reward is worth, in words ("$10 on your balance", "20% off the
 /// first invoice", "3 days of promotion").

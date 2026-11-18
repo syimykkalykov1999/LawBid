@@ -1,12 +1,11 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Block / unblock [userId] with a confirmation for blocking (owner
 /// 2026-09-29, OQ-028). Returns true when the state changed. Callers

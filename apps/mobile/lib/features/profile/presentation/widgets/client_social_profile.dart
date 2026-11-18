@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/config/app_environment.dart';
@@ -39,6 +38,7 @@ import 'package:lawbid/features/stories/presentation/story_avatar_ring.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/shared/presentation/share_sheet.dart';
+import 'package:material_ui/material_ui.dart';
 
 // Owner 2026-10-18: Instagram's tabs, as on an attorney's profile — Посты
 // (photo posts) | Рилсы (video posts / reels) | Брифы и репосты | Отзывы

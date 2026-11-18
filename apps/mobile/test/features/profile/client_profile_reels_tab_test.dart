@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -10,6 +9,7 @@ import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/client_public_profile_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/profile_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'profile_fakes.dart';
 

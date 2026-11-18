@@ -1,6 +1,5 @@
-import 'package:flutter/material.dart';
-
 import 'package:lawbid/core/design_system/tokens/app_fonts.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Design-system type scale (file 07 §3). Access via
 /// `Theme.of(context).extension<AppTypographyTokens>()!`.

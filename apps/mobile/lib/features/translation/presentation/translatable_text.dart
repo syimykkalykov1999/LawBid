@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/features/translation/data/content_translation_repository.dart';
 import 'package:lawbid/features/translation/presentation/translate_block.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-05, changed 2026-10-20: a text with «Перевести» under it.
 /// The translation runs on the phone ([TranslateBlock]); the paid server

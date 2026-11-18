@@ -7,15 +7,16 @@
 // bump must come with an update of boot_head.js (and of this check), instead
 // of silently pre-downloading 6 MB of the wrong build.
 //
-// What boot_head.js mirrors (Flutter 3.47, flutter.js):
-//   - wasm build only when WebAssembly.validate() accepts the WasmGC probe
-//     module [0,97,115,109,1,0,0,0,1,5,1,95,1,120,0];
+// What boot_head.js mirrors (Flutter 3.50, flutter.js):
+//   - wasm build only when WebAssembly.validate() accepts the loader's
+//     probes (supports_dart2wasm.js): WasmGC, SIMD, js-string builtins,
+//     try_table (exnref);
 //   - only the blink engine (Chrome / Edge / Opera) runs it: the loader's
 //     default allow list is {blink:true, gecko:false, webkit:false};
 //   - engine detected by navigator.vendor === "Google Inc." or "Edg/" in the UA.
-// Flutter 3.50+ also asks for JS string builtins and exnref (docs.flutter.dev
-// /platform-integration/web/wasm, 2026-10-25): bumping the pin past 3.47 must
-// add those probes to boot_head.js first; this check then looks for them.
+// Flutter 3.50 (row 237, 2026-11-18) added the SIMD, js-string builtins and
+// try_table probes; boot_head.js carries all four and the check below
+// compares them byte for byte with the loader in the build.
 //
 // Usage: node scripts/deploy/web-boot-check.mjs <flutter_bootstrap.js> <boot_head.js> <flutter version>
 import { readFileSync } from 'node:fs';
@@ -32,7 +33,8 @@ const checks = [
   ['loader has the WasmGC probe boot_head.js uses', loader.includes('[0,97,115,109,1,0,0,0,1,5,1,95,1,120,0]') && head.includes('0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 95, 1, 120, 0')],
   ['loader runs wasm only on blink by default (gecko/webkit off)', /\{blink:!0,gecko:!1,webkit:!1/.test(loader) || /blink:\s*true,\s*gecko:\s*false,\s*webkit:\s*false/.test(loader)],
   ['loader detects blink by vendor/UA like boot_head.js', loader.includes('navigator.vendor==="Google Inc."') && loader.includes('Edg/') && head.includes("'Google Inc.'") && head.includes("'Edg/'")],
-  ['loader picks wasm by supportsWasmGC', loader.includes('supportsWasmGC')],
+  // 3.47 named it supportsWasmGC; 3.50 supportsDart2Wasm (all four probes).
+  ['loader picks wasm by supportsDart2Wasm', loader.includes('supportsDart2Wasm')],
   // Row 170: our apps/mobile/web/flutter_bootstrap.js template is the one in
   // the build (no deprecated serviceWorkerSettings step), and its engine
   // revision is declared (web-immutable.py keys the engine folder on it).
@@ -47,6 +49,12 @@ const newer = /string[-_ ]?builtins|exnref|jsStringBuiltins/i.test(loader);
 if (newer) {
   checks.push(['loader needs js-string-builtins / exnref: boot_head.js must probe them too', /builtins|exnref/i.test(head)]);
 }
+// Flutter 3.50: every WebAssembly feature probe the loader validates
+// (supports_dart2wasm.js: WasmGC, SIMD, js-string builtins, try_table) is in
+// boot_head.js byte for byte, so both pick the same build.
+const flat = head.replace(/\s+/g, '');
+const probes = [...loader.matchAll(/new Uint8Array\(\[([0-9,]+)\]\)/g)].map((m) => m[1]);
+checks.push([`boot_head.js has all ${probes.length} WebAssembly probes of the loader`, probes.length > 0 && probes.every((p) => flat.includes(`[${p}]`))]);
 
 let bad = 0;
 for (const [name, ok] of checks) {

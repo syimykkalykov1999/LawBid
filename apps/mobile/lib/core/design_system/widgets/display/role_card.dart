@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
 import 'package:lawbid/core/design_system/theme/app_color_tokens.dart';
@@ -8,6 +7,7 @@ import 'package:lawbid/core/design_system/tokens/app_motion.dart';
 import 'package:lawbid/core/design_system/tokens/app_radii.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_pressable.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Role-selection card (file 07 §4 "RoleCard", used on `/onboarding/role`,
 /// file 07 §6.4 — that screen itself is built in stage 1.7; this widget is

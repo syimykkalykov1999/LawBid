@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/camera_shots.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -11,6 +10,7 @@ import 'package:lawbid/core/platform/secure_screen.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/presentation/document_source.dart';
 import 'package:lawbid/features/verification/presentation/widgets/capture_guide_overlay.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// In-app camera for the identity document and the selfie (docs/03 §8
 /// steps 3–4 "съёмка", "экран камеры с подсказками"): live preview under

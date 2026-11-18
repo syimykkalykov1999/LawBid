@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner row 88 (2026-11-13, WhatsApp / Telegram): a message that arrives
 /// while the person is at the bottom of the chat grows in from its side

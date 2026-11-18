@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/verification/domain/selfie_liveness.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-28 (ID selfie camera): the guide over the front-camera
 /// preview — a face oval and an ID-card frame beside it, the rest dimmed.

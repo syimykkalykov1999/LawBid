@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One line of a [CaseOptionPicker]: the name and a short hint under it.
 class CaseOption<T> {

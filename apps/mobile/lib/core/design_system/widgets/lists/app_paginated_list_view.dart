@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/scheduler.dart';
 import 'package:lawbid/core/design_system/icons/app_icon.dart';
 import 'package:lawbid/core/design_system/icons/app_icons.dart';
@@ -13,6 +11,7 @@ import 'package:lawbid/core/design_system/widgets/buttons/app_button.dart';
 import 'package:lawbid/core/design_system/widgets/feedback/app_refresh_indicator.dart';
 import 'package:lawbid/core/design_system/widgets/lists/load_ahead.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// State of the "next page" slot at the end of a paginated list
 /// (docs/01 §8.3 "Pagination-loader").

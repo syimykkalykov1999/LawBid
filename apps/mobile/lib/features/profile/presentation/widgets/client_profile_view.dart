@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/config/app_environment.dart';
@@ -15,6 +14,7 @@ import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/widgets/client_social_profile.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_avatar.dart';
 import 'package:lawbid/features/stories/presentation/story_avatar_ring.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The client's private profile (docs/03 §5): photo, name, state — no
 /// follower counters — and the "My cases" tab: a lock + "Visible only to

@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart' show listEquals;
-import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart'
     show SliverMinExtent;
+import 'package:material_ui/material_ui.dart';
 
 /// Where a case link opens (`?tab=`): the section and, in a case in work, the
 /// tab inside it. Owner 2026-11-05: Overview = Case + Activity, Files =

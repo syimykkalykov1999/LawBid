@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
@@ -16,6 +15,7 @@ import 'package:lawbid/features/trust/trust_routes.dart';
 import 'package:lawbid/features/verification/application/verification_overview_controller.dart';
 import 'package:lawbid/features/verification/domain/verification_models.dart';
 import 'package:lawbid/features/verification/presentation/widgets/inline_notice.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// `/verification` — verification status (docs/03 §8 step 6, §6.1):
 /// unverified → what is needed + "Start"; a saved draft → "Continue";
