@@ -269,6 +269,10 @@ export class CaseSigningService {
         message: 'The document no longer matches the one that was requested.',
       });
     }
+    // CMV 17.11 №7: the picture goes to the private bucket before the row.
+    const imageKey = image
+      ? await this.files.storeSignatureImage(requestId, image)
+      : null;
     const completed = await withTxRetry(this.prisma, async (tx) => {
       const locked = await tx.$queryRaw<{ status: string }[]>`
         SELECT status::TEXT AS status FROM case_sign_requests
@@ -293,7 +297,9 @@ export class CaseSigningService {
             signer_role: s.role,
             signed_name: dto.name,
             method: dto.method,
+            // Step 1 of files/signature-image.ts: the object + the old bytes.
             image_png: image ? new Uint8Array(image) : null,
+            image_key: imageKey,
             doc_sha256: r.source_sha256,
             ip: ctx.ip?.slice(0, 64) ?? null,
             user_agent: ctx.userAgent?.slice(0, 300) ?? null,
@@ -570,17 +576,19 @@ export class CaseSigningService {
       journalRows.map((j) => [j.actor_user_id, j.row_hash]),
     );
     const requestedBy = await this.support.nameOf(r.created_by);
-    const signers: SignedBy[] = r.signatures.map((x) => ({
-      role: x.signer_role as 'client' | 'attorney',
-      name: x.signed_name,
-      method: x.method as 'drawn' | 'typed',
-      image: x.image_png ? Buffer.from(x.image_png) : null,
-      signedAt: x.signed_at,
-      ip: x.ip,
-      userAgent: x.user_agent,
-      docSha256: x.doc_sha256,
-      journalHash: hashOf.get(x.signer_id) ?? null,
-    }));
+    const signers: SignedBy[] = await Promise.all(
+      r.signatures.map(async (x) => ({
+        role: x.signer_role as 'client' | 'attorney',
+        name: x.signed_name,
+        method: x.method as 'drawn' | 'typed',
+        image: await this.files.signatureImage(x),
+        signedAt: x.signed_at,
+        ip: x.ip,
+        userAgent: x.user_agent,
+        docSha256: x.doc_sha256,
+        journalHash: hashOf.get(x.signer_id) ?? null,
+      })),
+    );
     // The client's field first, as on a contract.
     signers.sort((a, b) =>
       a.role === b.role ? 0 : a.role === 'client' ? -1 : 1,

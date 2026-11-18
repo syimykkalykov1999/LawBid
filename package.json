@@ -24,7 +24,7 @@
   },
   "devDependencies": {
     "husky": "^9.1.7",
-    "lint-staged": "^17.6.0"
+    "lint-staged": "^17.6.1"
   },
   "overrides": {
     "body-parser": "^2.4.0",
