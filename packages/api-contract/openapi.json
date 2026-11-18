@@ -7437,7 +7437,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -7778,7 +7778,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -7833,7 +7833,7 @@
             "admin": []
           }
         ],
-        "summary": "Re-enable a disabled administrator",
+        "summary": "Re-enable a disabled administrator (needs a fresh step-up)",
         "tags": [
           "admin-admins"
         ]
@@ -7878,7 +7878,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: FORBIDDEN",
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -7933,7 +7933,7 @@
             "admin": []
           }
         ],
-        "summary": "Remove an administrator: account closed, login and password wiped, sessions revoked",
+        "summary": "Remove an administrator: account closed, login and password wiped, sessions revoked (needs a fresh step-up)",
         "tags": [
           "admin-admins"
         ]

@@ -177,6 +177,34 @@ const CASES: Case[] = [
         { role: 'support' } as never,
       ),
   },
+  // Verify batch 11 (B7): who may see which countries, giving rights back
+  // and deleting for good are identity changes like role and permissions.
+  {
+    name: 'PUT /admin/admins/:id/countries',
+    method: 'setCountries',
+    run: (auth, svc) =>
+      new AdminsController(svc as never, auth as never).setAdminCountries(
+        actor,
+        { id: 'other' },
+        { countries: [] },
+      ),
+  },
+  {
+    name: 'POST /admin/admins/:id/enable',
+    method: 'setEnabled',
+    run: (auth, svc) =>
+      new AdminsController(svc as never, auth as never).enableAdmin(actor, {
+        id: 'other',
+      }),
+  },
+  {
+    name: 'DELETE /admin/admins/:id',
+    method: 'remove',
+    run: (auth, svc) =>
+      new AdminsController(svc as never, auth as never).removeAdmin(actor, {
+        id: 'other',
+      }),
+  },
   {
     name: 'PATCH /admin/admins/:id/permissions',
     method: 'setPermissions',

@@ -200,9 +200,28 @@ export class LeaseService implements LeasePort {
     }
   }
 
+  /** Verify batch 11 (D4): taken off the queue by the owner (`paused`
+   * until `state_until`, or `offboarded`). The state was written and shown
+   * («Снят с очереди до …») but nothing read it. */
+  private async offQueue(adminId: string): Promise<boolean> {
+    const st = await this.prisma.staffMemberState.findUnique({
+      where: { admin_id: adminId },
+      select: { state: true, state_until: true },
+    });
+    if (!st) return false;
+    if (st.state === 'offboarded') return true;
+    return (
+      st.state === 'paused' &&
+      (st.state_until === null || st.state_until.getTime() > Date.now())
+    );
+  }
+
   async next(kind: string, actor: LeaseActorRef): Promise<NextOutcome> {
     const src = leaseSourceFor(kind);
     if (!src || !(await this.servesQueue(kind))) return { status: 'off' };
+    // Verify batch 11 (D4): the owner's «Снять с очереди» / pause and a
+    // replaced person: no new item until the pause ends.
+    if (await this.offQueue(actor.adminId)) return { status: 'offline' };
     const cfg = await this.staff.get();
     if (cfg.switches['staff.presence_enabled']) {
       const st = await this.presence.status(actor.adminId);
@@ -279,6 +298,7 @@ export class LeaseService implements LeasePort {
   ): Promise<LeaseView | null> {
     const src = leaseSourceFor(kind);
     if (!src || !(await this.servesQueue(kind))) return null;
+    if (await this.offQueue(adminId)) return null;
     const cfg = await this.staff.get();
     const ttlSec = cfg.numbers[src.ttlSetting] * 60;
     const lease = await withTxRetry(

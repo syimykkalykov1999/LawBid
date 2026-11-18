@@ -105,6 +105,7 @@ export const ADMIN_AUDIT = {
   passwordRecovered: 'admin.password_recovered',
   inviteCreated: 'admin.invite_created',
   inviteAccepted: 'admin.invite_accepted',
+  onCallSet: 'admin.on_call_set',
 } as const;
 
 /** Owner 2026-10-16: an invite link is valid for 72 hours, once. */
@@ -287,7 +288,9 @@ export class AdminAuthService {
     const setup = !cred?.totp_enabled_at;
     const ttl = setup ? SETUP_TICKET_TTL_SECONDS : TICKET_TTL_SECONDS;
     const jti = randomUUID();
-    await this.redis.set(this.ticketKey(jti), '0', 'EX', ttl);
+    // Verify batch 11 (A8): the value is the issue time (ms); a password
+    // changed after it ends the ticket (openTicket).
+    await this.redis.set(this.ticketKey(jti), String(Date.now()), 'EX', ttl);
     const ticket = this.tokens.signAdminTicket({ sub: adminId, jti }, ttl);
     const passkeyAvailable =
       !setup && ((await this.passkeys?.count(adminId, 'admin')) ?? 0) > 0;
@@ -323,6 +326,7 @@ export class AdminAuthService {
     const passkeys = this.requirePasskeys();
     const { admin, jti, cred } = await this.openTicket(ticket);
     if (!cred.totp_enabled_at) throw ticketInvalid();
+    const tries = await this.takeAttempt(jti);
     try {
       await passkeys.verifyAuthentication('admin', challengeId, response, {
         userId: admin.id,
@@ -330,7 +334,7 @@ export class AdminAuthService {
       });
     } catch (err) {
       if (err instanceof UnauthorizedException) {
-        await this.failAttempt(jti, ErrorCode.PASSKEY_INVALID);
+        await this.failAttempt(jti, ErrorCode.PASSKEY_INVALID, tries);
       }
       throw err;
     }
@@ -524,6 +528,7 @@ export class AdminAuthService {
     const cipher = this.assertConfigured();
     const { admin, jti, cred } = await this.openTicket(ticket);
     if (!cred || cred.totp_enabled_at) throw ticketInvalid();
+    const tries = await this.takeAttempt(jti);
     const fresh =
       verifyTotp(cipher.decrypt(cred.totp_secret_enc, admin.id), code) &&
       (await this.redis.set(
@@ -533,7 +538,9 @@ export class AdminAuthService {
         TOTP_REPLAY_WINDOW_SECONDS,
         'NX',
       )) === 'OK';
-    if (!fresh) await this.failAttempt(jti, ErrorCode.ADMIN_TOTP_INVALID);
+    if (!fresh) {
+      await this.failAttempt(jti, ErrorCode.ADMIN_TOTP_INVALID, tries);
+    }
     await this.consumeTicket(jti);
     const recoveryCodes = Array.from(
       { length: RECOVERY_CODES },
@@ -572,9 +579,10 @@ export class AdminAuthService {
     const cipher = this.assertConfigured();
     const { admin, jti, cred } = await this.openTicket(ticket);
     if (!cred?.totp_enabled_at) throw ticketInvalid();
+    const tries = await this.takeAttempt(jti);
     const secret = cipher.decrypt(cred.totp_secret_enc, admin.id);
     if (!verifyTotp(secret, code)) {
-      await this.failAttempt(jti, ErrorCode.ADMIN_TOTP_INVALID);
+      await this.failAttempt(jti, ErrorCode.ADMIN_TOTP_INVALID, tries);
     }
     await this.rewriteTotpSecret(
       cipher,
@@ -593,7 +601,7 @@ export class AdminAuthService {
       'NX',
     );
     if (fresh !== 'OK') {
-      await this.failAttempt(jti, ErrorCode.ADMIN_TOTP_INVALID);
+      await this.failAttempt(jti, ErrorCode.ADMIN_TOTP_INVALID, tries);
     }
     await this.consumeTicket(jti);
 
@@ -612,19 +620,24 @@ export class AdminAuthService {
   ): Promise<AdminSessionDto> {
     this.assertConfigured();
     const { admin, jti, cred } = await this.openTicket(ticket);
+    const tries = await this.takeAttempt(jti);
     const hash = hashRecoveryCode(recoveryCode);
     if (!cred.totp_enabled_at || !cred.recovery_codes_hash.includes(hash)) {
-      await this.failAttempt(jti, ErrorCode.ADMIN_RECOVERY_CODE_INVALID);
+      await this.failAttempt(jti, ErrorCode.ADMIN_RECOVERY_CODE_INVALID, tries);
     }
     await this.consumeTicket(jti);
-    const remaining = cred.recovery_codes_hash.filter((h) => h !== hash);
-    // Conditional: the code must still be in the list when we remove it, so
-    // two concurrent requests with one code cannot both succeed.
-    const { count } = await this.prisma.adminCredential.updateMany({
-      where: { user_id: admin.id, recovery_codes_hash: { has: hash } },
-      data: { recovery_codes_hash: remaining, last_login_at: new Date() },
-    });
-    if (count === 0) throw ticketInvalid();
+    // Conditional AND atomic (verify batch 11, A2): the code must still be
+    // in the list, and only this code leaves it. Writing back a list read
+    // earlier let two different codes used at once bring one of them back.
+    const rows = await this.prisma.$queryRaw<{ left: number }[]>`
+      UPDATE admin_credentials
+         SET recovery_codes_hash = array_remove(recovery_codes_hash, ${hash}),
+             last_login_at = now()
+       WHERE user_id = ${admin.id}::uuid
+         AND ${hash} = ANY(recovery_codes_hash)
+      RETURNING cardinality(recovery_codes_hash) AS left`;
+    if (rows.length === 0) throw ticketInvalid();
+    const remaining = { length: Number(rows[0].left) };
     await this.audit.record({
       adminId: admin.id,
       action: ADMIN_AUDIT.recoveryUsed,
@@ -786,6 +799,16 @@ export class AdminAuthService {
       where: { user_id: actor.id },
       data: { on_call_enabled: enabled },
     });
+    // Verify batch 11 (A9): the route skips the generic audit row, so the
+    // service writes its own (it wrote none before).
+    await this.audit.record({
+      adminId: actor.id,
+      action: ADMIN_AUDIT.onCallSet,
+      targetType: 'admin',
+      targetId: actor.id,
+      after: { enabled },
+      ip: actor.ip,
+    });
   }
 
   // ---- login + password management -------------------------------------
@@ -836,6 +859,10 @@ export class AdminAuthService {
       login,
       password: dto.newPassword,
     });
+    // Verify batch 11 (A7): the other sessions end right after the new
+    // password is written — an audit write that fails must not leave them.
+    if (dto.newPassword)
+      await this.revokeOtherSessions(actor.id, actor.sessionId);
     await this.audit.record({
       adminId: actor.id,
       action: ADMIN_AUDIT.credentialsChanged,
@@ -848,8 +875,6 @@ export class AdminAuthService {
       },
       ip: actor.ip,
     });
-    if (dto.newPassword)
-      await this.revokeOtherSessions(actor.id, actor.sessionId);
   }
 
   /**
@@ -884,6 +909,8 @@ export class AdminAuthService {
       login,
       password: input.password,
     });
+    // Verify batch 11 (A7): sessions end before the audit row (see above).
+    if (input.password || login) await this.sessions.revokeAllForUser(targetId);
     await this.audit.record({
       adminId: actor.id,
       action: ADMIN_AUDIT.credentialsChanged,
@@ -896,7 +923,6 @@ export class AdminAuthService {
       },
       ip: actor.ip,
     });
-    if (input.password || login) await this.sessions.revokeAllForUser(targetId);
   }
 
   /**
@@ -983,6 +1009,10 @@ export class AdminAuthService {
         message: 'Only the super admin can set a security question.',
       });
     }
+    // Verify batch 11 (A5): the answer alone resets the password (public
+    // recovery form), so planting a new one needs a fresh 2FA code — like
+    // adding a passkey. A stolen session token alone cannot do it.
+    await this.assertStepUp(actor.sessionId);
     const q = question.trim();
     const a = normalizeAnswer(answer);
     if (q.length < 3 || a.length < 4)
@@ -1006,6 +1036,9 @@ export class AdminAuthService {
 
   /** The question to show on the recovery form. */
   async recoverQuestion(login: string, ip: string | null): Promise<string> {
+    // Verify batch 11 (A6): the optional IP allowlist covers the recovery
+    // form like the sign-in (it was checked on sign-in only).
+    await this.security?.assertIpAllowed(ip);
     const normalized = normalizeLogin(login);
     await this.limit(
       ['admin-recover-q', 'login', this.rateLimit.hashIdentifier(normalized)],
@@ -1029,6 +1062,7 @@ export class AdminAuthService {
     ip: string | null,
   ): Promise<void> {
     this.assertConfigured();
+    await this.security?.assertIpAllowed(ip);
     const normalized = normalizeLogin(login);
     await this.limit(
       ['admin-recover', 'login', this.rateLimit.hashIdentifier(normalized)],
@@ -1244,9 +1278,8 @@ export class AdminAuthService {
     } catch {
       throw ticketInvalid();
     }
-    if (!(await this.redis.exists(this.ticketKey(claims.jti)))) {
-      throw ticketInvalid();
-    }
+    const issuedRaw = await this.redis.get(this.ticketKey(claims.jti));
+    if (issuedRaw === null) throw ticketInvalid();
     const user = await this.prisma.user.findUnique({
       where: { id: claims.sub },
       select: {
@@ -1269,6 +1302,15 @@ export class AdminAuthService {
     ) {
       throw ticketInvalid();
     }
+    // Verify batch 11 (A8): a ticket issued before the password last
+    // changed (reset by a manager, recovery) is over — the old password
+    // must not finish a sign-in or an authenticator setup. A ticket of an
+    // older build holds '0' (no time): it keeps working until it expires.
+    const issued = Number(issuedRaw);
+    const changed = user.admin_credential.password_changed_at;
+    if (issued > 0 && changed && changed.getTime() > issued) {
+      throw ticketInvalid();
+    }
     return {
       jti: claims.jti,
       cred: user.admin_credential,
@@ -1286,9 +1328,31 @@ export class AdminAuthService {
       throw ticketInvalid();
   }
 
-  /** Counts a wrong second factor; the 5th burns the ticket. */
-  private async failAttempt(jti: string, code: ErrorCode): Promise<never> {
-    const attempts = await this.redis.incr(this.ticketKey(jti));
+  /**
+   * Verify batch 11 (A1): one try of the second factor is counted BEFORE
+   * the code is checked, on its own counter that expires with the ticket.
+   * Counting after the check let parallel requests all pass the "ticket
+   * still live" test and try more than 5 codes, and an INCR on the burnt
+   * ticket key brought the ticket back (with no expiry).
+   */
+  private async takeAttempt(jti: string): Promise<number> {
+    const key = `${this.ticketKey(jti)}:tries`;
+    const n = await this.redis.incr(key);
+    if (n === 1) await this.redis.expire(key, SETUP_TICKET_TTL_SECONDS);
+    if (n > TICKET_MAX_ATTEMPTS) {
+      await this.redis.del(this.ticketKey(jti));
+      throw ticketInvalid();
+    }
+    return n;
+  }
+
+  /** A wrong second factor (its try already counted by takeAttempt); the
+   * 5th burns the ticket. */
+  private async failAttempt(
+    jti: string,
+    code: ErrorCode,
+    attempts: number,
+  ): Promise<never> {
     if (attempts >= TICKET_MAX_ATTEMPTS) {
       await this.redis.del(this.ticketKey(jti));
       throw ticketInvalid();

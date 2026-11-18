@@ -51,7 +51,8 @@ describe('AdminUsersService.suspend (an attorney with assistants)', () => {
     };
     const prisma = {
       user: {
-        findUnique: jest.fn().mockResolvedValue({
+        // Verify batch 11 (B2): the target is read with the country scope.
+        findFirst: jest.fn().mockResolvedValue({
           id: 'atty-1',
           role,
           status: 'active',

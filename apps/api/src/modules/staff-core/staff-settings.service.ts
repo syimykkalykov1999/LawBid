@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { configMemoGeneration } from '../../common/app-settings/config-memo-generation';
 import {
   OWNER_STAFF_SETTINGS,
   STAFF_NUMBER_DEFS,
@@ -30,7 +31,11 @@ const LEASE_SUB: readonly StaffSwitchKey[] = [
   'staff.lease_finance_enabled',
 ];
 
-const CACHE_MS = 60_000;
+/** Verify batch 11 (C4): as long as the app_config memo it is built from
+ * (5 s), and dropped with it on every admin write — a 60 s copy no save
+ * cleared kept e.g. the CSV export block off for a minute after the owner
+ * switched it on. Building it is a loop over ~60 keys. */
+const CACHE_MS = 5_000;
 
 /**
  * Staff package T1 (plan part D): the ONE typed reader of the staff
@@ -41,22 +46,30 @@ const CACHE_MS = 60_000;
  *    switches also need `staff.lease_enabled`;
  *  - a number outside its [min, max] (or not a number) is clamped / falls
  *    back to the default, so a bad stored value cannot break a job;
- *  - one read of the cached app_config per 60 s (no DB query: app_config is
- *    cached in memory + Redis by AppConfigService).
+ *  - one read of the cached app_config per 5 s and after every admin write
+ *    (no DB query: app_config is cached in memory + Redis by
+ *    AppConfigService).
  */
 @Injectable()
 export class StaffSettingsService {
-  private cache: { at: number; value: StaffSettings } | null = null;
+  private cache: { at: number; gen: number; value: StaffSettings } | null =
+    null;
 
   constructor(private readonly settings: AppSettingsService) {}
 
   async get(): Promise<StaffSettings> {
     const memo = process.env.NODE_ENV !== 'test';
-    if (memo && this.cache && Date.now() - this.cache.at < CACHE_MS) {
+    const gen = configMemoGeneration();
+    if (
+      memo &&
+      this.cache &&
+      this.cache.gen === gen &&
+      Date.now() - this.cache.at < CACHE_MS
+    ) {
       return this.cache.value;
     }
     const value = resolveStaffSettings(await this.settings.all());
-    if (memo) this.cache = { at: Date.now(), value };
+    if (memo) this.cache = { at: Date.now(), gen, value };
     return value;
   }
 
