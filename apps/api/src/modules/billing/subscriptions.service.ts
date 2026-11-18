@@ -76,6 +76,7 @@ import type {
 import { SubscriptionSyncService } from './subscription-sync.service';
 import { DisputeRefundService } from './dispute-refund.service';
 import { DuplicateSubscriptionsService } from './duplicate-subscriptions.service';
+import { lockAssistantSeats } from './seat-limit';
 
 const PAYMENTS_PAGE = 20;
 
@@ -712,7 +713,9 @@ export class SubscriptionsService implements OnModuleDestroy {
       await withTxRetry(
         this.prisma,
         async (tx) => {
-          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`assistant-seats:${owner}`}))`;
+          // Final pass 18.11 (FB3): the one seat lock «Add assistant» and a
+          // seat decrease take (a hashtext() key never excluded them).
+          await lockAssistantSeats(tx, owner);
           const live = await tx.assistantMembership.findFirst({
             where: { phone_e164: phone, status: { not: 'removed' } },
             select: { id: true },

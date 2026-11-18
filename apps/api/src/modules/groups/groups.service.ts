@@ -606,15 +606,28 @@ export class GroupsService {
         group_id: id,
         deleted_at: {},
         changed_at: { gt: anchor.created_at },
-        OR: [
-          { created_at: { lt: anchor.created_at } },
-          { created_at: anchor.created_at, id: { lte: anchor.id } },
+        // Final pass 18.11 (FB5): the same filters as the new messages
+        // above — an expired disappearing message is never sent again (its
+        // text with it), and hidden service rows stay hidden.
+        ...(m.group.show_service_messages
+          ? {}
+          : { type: { not: 'system' as const } }),
+        AND: [
+          notExpired(),
+          {
+            OR: [
+              { created_at: { lt: anchor.created_at } },
+              { created_at: anchor.created_at, id: { lte: anchor.id } },
+            ],
+          },
+          ...(topic
+            ? [
+                topic.is_general
+                  ? { OR: [{ topic_id: topic.id }, { topic_id: null }] }
+                  : { topic_id: topic.id },
+              ]
+            : []),
         ],
-        ...(topic
-          ? topic.is_general
-            ? { AND: [{ OR: [{ topic_id: topic.id }, { topic_id: null }] }] }
-            : { topic_id: topic.id }
-          : {}),
       },
       orderBy: [{ created_at: 'asc' }, { id: 'asc' }],
       take: CATCH_UP_MAX + 1,

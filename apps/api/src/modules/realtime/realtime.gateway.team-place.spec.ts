@@ -15,7 +15,11 @@ import { RealtimeGateway } from './realtime.gateway';
  * left the firm) that row still let `conversation:join` put them into the
  * room — they heard and sent «печатает…» in the client's chat.
  */
-function setup(opts: { liveTeam: boolean; joinedBid: boolean }) {
+function setup(opts: {
+  liveTeam: boolean;
+  joinedBid: boolean;
+  firmsOn?: boolean;
+}) {
   const deleteMany = jest.fn().mockResolvedValue({ count: 1 });
   const prisma = {
     conversationParticipant: {
@@ -38,7 +42,10 @@ function setup(opts: { liveTeam: boolean; joinedBid: boolean }) {
         .mockResolvedValue(opts.joinedBid ? { bid_id: 'bid-1' } : null),
     },
   };
-  const bidTeam = { inChat: jest.fn().mockResolvedValue(opts.liveTeam) };
+  const bidTeam = {
+    inChat: jest.fn().mockResolvedValue(opts.liveTeam),
+    enabled: jest.fn().mockResolvedValue(opts.firmsOn ?? true),
+  };
   const gateway = new RealtimeGateway(
     {} as TokenService,
     {} as SessionRevocationService,
@@ -87,6 +94,15 @@ describe('RealtimeGateway conversation:join — a team place must be live', () =
     });
     expect(h.join).not.toHaveBeenCalled();
     expect(h.deleteMany).toHaveBeenCalled();
+  });
+
+  it('FB2: with «Фирмы» switched off the colleague is kept out, but the place stays for when it is on again', async () => {
+    const h = setup({ liveTeam: false, joinedBid: true, firmsOn: false });
+    expect(await h.gateway.join(h.socket, { conversationId: id })).toEqual({
+      ok: false,
+    });
+    expect(h.join).not.toHaveBeenCalled();
+    expect(h.deleteMany).not.toHaveBeenCalled();
   });
 
   it('a colleague on the live team joins as before', async () => {

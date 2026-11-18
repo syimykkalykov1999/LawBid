@@ -1216,6 +1216,11 @@ export class RealtimeGateway
       select: { bid_id: true },
     });
     if (!joined) return true;
+    // Final pass 18.11 (FB2): with «Фирмы» switched off the team is hidden,
+    // not over: the colleague stays out of the room, but the place is kept
+    // for when the switch is on again (only a bid or membership that really
+    // ended removes it).
+    if (!(await this.bidTeam.enabled())) return false;
     await this.prisma.conversationParticipant.deleteMany({
       where: { conversation_id: conversationId, user_id: userId },
     });
