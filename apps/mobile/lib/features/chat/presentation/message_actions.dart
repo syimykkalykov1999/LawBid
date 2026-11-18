@@ -460,7 +460,9 @@ Future<void> showMessageMenu(
                     'translate',
                     AppIcons.translateRounded,
                     t.t(
-                      ref.read(chatTranslationsProvider).containsKey(m.id)
+                      ref
+                              .read(chatTranslationsProvider)
+                              .containsKey(chatTranslationKey(m))
                           ? 'chat.translate.original'
                           : 'chat.translate',
                     ),

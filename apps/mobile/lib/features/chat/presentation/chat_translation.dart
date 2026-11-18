@@ -9,8 +9,12 @@ import 'package:lawbid/features/translation/presentation/translate_action.dart';
 /// a message, never under it. Off until the admin switches `chat_translate`
 /// on; while off nothing shows and no language model is downloaded.
 
-/// Translations the person asked for, by message id. A message is in this
-/// map while its translation is shown; «Показать оригинал» removes it.
+/// Translations the person asked for, by [chatTranslationKey] (message id +
+/// its text). A message is in this map while its translation is shown;
+/// «Показать оригинал» removes it.
+///
+/// Verify 17.11 T4: keyed by the text too, so an edited message never shows
+/// the translation of its old text (the new text simply has none yet).
 final chatTranslationsProvider =
     NotifierProvider<ChatTranslations, Map<String, String>>(
   ChatTranslations.new,
@@ -40,6 +44,14 @@ class ChatTranslations extends Notifier<Map<String, String>> {
   String? cached(String id) => _cache[id];
 }
 
+/// The key of [m]'s translation: its id and its current text.
+String chatTranslationKey(ChatMessage m) => '${m.id}#${m.body.hashCode}';
+
+/// The translation shown for [m] in [shown], if any — never for a revoked
+/// message, nor for a text it no longer has.
+String? chatTranslationOf(Map<String, String> shown, ChatMessage m) =>
+    m.revoked ? null : shown[chatTranslationKey(m)];
+
 /// Whether the menu of [m] offers translation: the master and the chat zone
 /// on (FeatureFlagsState.translationOn), someone else's
 /// plain text.
@@ -63,13 +75,14 @@ Future<void> toggleChatTranslation(
   ChatMessage m,
 ) async {
   final notifier = ref.read(chatTranslationsProvider.notifier);
-  if (ref.read(chatTranslationsProvider).containsKey(m.id)) {
-    notifier.show(m.id, null);
+  final key = chatTranslationKey(m);
+  if (ref.read(chatTranslationsProvider).containsKey(key)) {
+    notifier.show(key, null);
     return;
   }
-  final cached = notifier.cached(m.id);
+  final cached = notifier.cached(key);
   if (cached != null) {
-    notifier.show(m.id, cached);
+    notifier.show(key, cached);
     return;
   }
   final text = await translateOnRequest(
@@ -79,5 +92,5 @@ Future<void> toggleChatTranslation(
     server: (target) =>
         ref.read(chatRepositoryProvider).translate(threadId, m.id, target),
   );
-  if (text != null) notifier.show(m.id, text);
+  if (text != null) notifier.show(key, text);
 }

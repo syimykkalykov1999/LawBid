@@ -155,6 +155,18 @@ export function waitBand(
   return minutesBand(minutes, ends);
 }
 
+/** `beatAt = max(beatAt, ARGV[1])` in one step, only on a live request
+ * hash (verify 17.11 H4). Single key: safe on Redis Cluster. */
+const RAISE_BEAT_LUA = `
+if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
+local prev = tonumber(redis.call('HGET', KEYS[1], 'beatAt') or '0') or 0
+if tonumber(ARGV[1]) > prev then
+  redis.call('HSET', KEYS[1], 'beatAt', ARGV[1])
+  return 1
+end
+return 0
+`;
+
 /** How long one request's / attorney's keys live: the admin's
  * `hotline.key_ttl_hours`, never shorter than the waits they serve. */
 export function hotlineKeyTtlSec(s: HotlineSettings): number {
@@ -578,6 +590,7 @@ export class HotlineService {
    * his choice for `POST /hotline/line/resume` (audit 17.11 #3). */
   async goOffline(lw: string, reason: string, detail?: string): Promise<void> {
     const [kind, req] = await this.store.lawyerOff(lw);
+    await this.redis.del(this.k.lineSocks(lw));
     const d = await this.lawyerDetail(lw);
     const { s } = await this.cfg();
     const keep = s['hotline.line_resume_sec'];
@@ -701,6 +714,15 @@ export class HotlineService {
       );
       if (socketId) {
         await this.redis.hset(this.k.lawyer(userId), 'sock', socketId);
+        if (line) {
+          const ttlMs = s['hotline.presence_ttl_sec'] * 1000;
+          await this.redis.zadd(
+            this.k.lineSocks(userId),
+            now + ttlMs,
+            socketId,
+          );
+          await this.redis.pexpire(this.k.lineSocks(userId), 2 * ttlMs);
+        }
       }
       const st = await this.store.lawyerState(userId);
       if (st?.startsWith('b|')) await this.touchCall(st.slice(2), s, now);
@@ -756,15 +778,44 @@ export class HotlineService {
     );
     if ((await this.redis.zscore(this.k.conn, req)) !== null) {
       await this.raiseBeat(req, beatAt);
+      // Verify 17.11 H6: a busy attorney stays alive while his call does
+      // (a long call must not drop him as «lost» between his own beats).
+      const st = await this.store.requestState(req);
+      if (st?.startsWith('c|')) {
+        await this.redis.zadd(
+          this.k.alive,
+          'XX',
+          'GT',
+          now + s['hotline.presence_ttl_sec'] * 1000,
+          st.slice(2),
+        );
+      }
     }
   }
 
+  /** Verify 17.11 H4: one atomic max-set (two beats racing could lower
+   * it with get-then-set); never recreates an expired request hash. */
   private async raiseBeat(req: string, at: number): Promise<void> {
-    const prev = Number(
-      (await this.redis.hget(this.k.request(req), 'beatAt')) ?? 0,
-    );
-    if (at > prev) {
-      await this.redis.hset(this.k.request(req), 'beatAt', String(at));
+    await this.redis.eval(RAISE_BEAT_LUA, 1, this.k.request(req), String(at));
+  }
+
+  /** The request hash expired under a connected call (verify 17.11 H1):
+   * drop its sweep entries and state, free the attorney. */
+  private async dropExpiredCall(req: string, lw: string): Promise<void> {
+    await this.redis.zrem(this.k.conn, req);
+    await this.redis.zrem(`${this.k.p}:connmax`, req);
+    await this.redis.zrem(this.k.callsync, req);
+    if (!lw) {
+      await this.redis.hdel(this.k.rst, req);
+      return;
+    }
+    const d = await this.lawyerDetail(lw);
+    const next =
+      !d || d.leaving === '1' ? 'x' : d.accepting === '0' ? 'n' : 'i';
+    if ((await this.store.endCall(req, lw, next)) !== 'ok') return;
+    if (next === 'x') await this.redis.del(this.k.lawyer(lw));
+    else if (next === 'i' && (await this.recheckAccess(lw))) {
+      await this.freeLawyer(lw);
     }
   }
 
@@ -775,6 +826,7 @@ export class HotlineService {
    * socket's heartbeat, or `POST /hotline/line/resume`). Off at once only by
    * `hotline:away` (left the section) and «Выключить линию». */
   async lineSocketClosed(userId: string, socketId: string): Promise<void> {
+    await this.redis.zrem(this.k.lineSocks(userId), socketId);
     const d = await this.lawyerDetail(userId);
     if (!d || d.sock !== socketId) return;
     const { s } = await this.cfg();
@@ -786,6 +838,18 @@ export class HotlineService {
       this.now() + s['hotline.presence_ttl_sec'] * 1000,
       userId,
     );
+  }
+
+  /** `hotline:away` from one socket (the app went to the background / left
+   * the section): off the line at once — unless another device of his still
+   * holds a live line socket (verify 17.11 H5). True when he went off. */
+  async lineAway(userId: string, socketId: string): Promise<boolean> {
+    const key = this.k.lineSocks(userId);
+    await this.redis.zrem(key, socketId);
+    await this.redis.zremrangebyscore(key, '-inf', this.now());
+    if ((await this.redis.zcard(key)) > 0) return false;
+    await this.goOffline(userId, 'away');
+    return true;
   }
 
   // ── matching (each step one atomic script) ─────────────────────────
@@ -932,6 +996,12 @@ export class HotlineService {
         answeredAt: String(now),
         beatAt: String(now),
       });
+      // Verify 17.11 H1: the request / client keys were given their TTL at
+      // creation; a call answered late in it must not lose them mid-call.
+      const ttl = hotlineKeyTtlSec(s);
+      await this.redis.expire(this.k.request(req), ttl);
+      const client = await this.redis.hget(this.k.request(req), 'client');
+      if (client) await this.redis.expire(this.k.client(client), ttl);
       await this.redis.zrem(this.k.calive, req);
       await this.redis.zrem(this.k.qwait, req);
       await this.redis.zadd(
@@ -1032,7 +1102,7 @@ export class HotlineService {
   /** The sweeper's sync with the 1:1 calls: a call the phones hung up
    * (`POST /calls/:id/end`) or the calls sweep closed ends the hotline call;
    * a live call whose screens still beat keeps the hotline call alive. */
-  async syncCalls(reqs: string[]): Promise<void> {
+  async syncCalls(reqs: string[], afterOff = false): Promise<void> {
     if (!this.bridge || reqs.length === 0) return;
     const { s } = await this.cfg();
     const now = this.now();
@@ -1056,6 +1126,7 @@ export class HotlineService {
           callVoiceUp(c) ? 'ended' : 'failed',
           undefined,
           c,
+          afterOff,
         );
         continue;
       }
@@ -1138,10 +1209,23 @@ export class HotlineService {
     reason: string,
     byUser?: string,
     fromCall?: HotlineCallState,
+    /** The hotline heard no beats meanwhile (its switch was off): the 1:1
+     * call's own seconds are the only measure. */
+    trustCallSeconds = false,
   ) {
     const st = await this.store.requestState(req);
     const r = await this.requestDetail(req);
-    if (!r) throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
+    if (!r) {
+      // Verify 17.11 H1: the request hash expired under a running call.
+      // Clean what still points at it (else the sweeper meets it first on
+      // every tick forever) and free the attorney.
+      const gone = st?.startsWith('c|') ? st.slice(2) : '';
+      if (byUser && byUser !== gone) {
+        throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
+      }
+      await this.dropExpiredCall(req, gone);
+      return { ok: true, seconds: 0 };
+    }
     const lw = st?.startsWith('c|') ? st.slice(2) : (r.lawyer ?? '');
     if (byUser && byUser !== r.client && byUser !== lw) {
       throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
@@ -1153,18 +1237,16 @@ export class HotlineService {
     // like an unanswered offer; `hotline.max_no_answer` in a row → off the
     // line. A real conversation breaks the row.
     const failed = reason === 'failed';
-    let missedOut = false;
-    if (d && failed) {
-      const misses = await this.redis.hincrby(this.k.lawyer(lw), 'misses', 1);
-      const max = s['hotline.max_no_answer'];
-      missedOut = max > 0 && misses >= max;
-    } else if (d) {
-      await this.redis.hset(this.k.lawyer(lw), 'misses', '0');
-    }
+    const max = s['hotline.max_no_answer'];
+    // Verify 17.11 H3: the miss is COUNTED only by the one caller that wins
+    // the atomic end below (two racing ends counted one failed call twice);
+    // here it is only foreseen, to pick his next state.
+    const willMissOut =
+      !!d && failed && max > 0 && Number(d.misses ?? 0) + 1 >= max;
     const next =
       !d || d.leaving === '1'
         ? 'x'
-        : d.accepting === '0' || missedOut
+        : d.accepting === '0' || willMissOut
           ? 'n'
           : 'i';
     if ((await this.store.endCall(req, lw, next)) !== 'ok') {
@@ -1173,6 +1255,13 @@ export class HotlineService {
         seconds: 0,
         ...(this.bridge ? { conversationId: r.conversationId ?? null } : {}),
       };
+    }
+    let missedOut = false;
+    if (d && failed) {
+      const misses = await this.redis.hincrby(this.k.lawyer(lw), 'misses', 1);
+      missedOut = max > 0 && misses >= max;
+    } else if (d) {
+      await this.redis.hset(this.k.lawyer(lw), 'misses', '0');
     }
     const now = this.now();
     const answeredAt = Number(r.answeredAt ?? now);
@@ -1189,9 +1278,23 @@ export class HotlineService {
         answeredAt + s['hotline.call_max_minutes'] * 60_000,
       );
     }
-    const seconds =
-      fromCall?.durationSec ??
-      Math.max(0, Math.round((endAt - answeredAt) / 1000));
+    // Verify 17.11 H2: when the 1:1 call ended first, its own seconds can
+    // include the dead air until it noticed the link was lost (up to its
+    // whole grace); bill no further than the last sign of life, and nothing
+    // when the voice never came up.
+    const beatSec = Math.max(
+      0,
+      Math.round((Number(r.beatAt ?? answeredAt) - answeredAt) / 1000),
+    );
+    const seconds = fromCall
+      ? !callVoiceUp(fromCall)
+        ? 0
+        : fromCall.durationSec == null
+          ? beatSec
+          : trustCallSeconds
+            ? Math.max(0, fromCall.durationSec)
+            : Math.max(0, Math.min(fromCall.durationSec, beatSec))
+      : Math.max(0, Math.round((endAt - answeredAt) / 1000));
     await this.redis.hincrby(this.k.trial(lw), 'seconds', seconds);
     await this.redis.expire(
       this.k.trial(lw),
