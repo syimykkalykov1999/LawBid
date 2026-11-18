@@ -99,7 +99,7 @@ for (const x of report.sameAsEnglishStrict) strictPerLang[x.lang] = (strictPerLa
 report.dartMissing = [];
 {
   const dir = path.join(ROOT, 'apps/mobile/lib/core/l10n/strings');
-  const files = [...fs.readdirSync(dir).map((f) => path.join(dir, f)), path.join(ROOT, 'apps/mobile/lib/core/l10n/static_translator.dart')];
+  const files = [...fs.readdirSync(dir).map((f) => path.join(dir, f)), path.join(ROOT, 'apps/mobile/lib/core/l10n/static_strings_compiled.dart')];
   const dartKeys = new Set();
   for (const f of files) for (const m of fs.readFileSync(f, 'utf8').matchAll(/^\s*'([a-zA-Z0-9_.]+)':/gm)) dartKeys.add(m[1]);
   for (const k of dartKeys) if (!have.has(k)) report.dartMissing.push(k);
