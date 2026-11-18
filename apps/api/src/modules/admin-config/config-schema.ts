@@ -55,6 +55,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     // through this generic editor (area `settings`).
     if (key.startsWith('treasury.')) continue;
     out[key] = inferred(def);
+    // Verify batch 11 (C6): search ranking weights are fractions (the
+    // title weight is 0…1 in ts_rank); a whole-number default made the
+    // editor refuse 0.8.
+    if (key.startsWith('search.weight_') && out[key].type === 'integer') {
+      out[key] = { ...out[key], type: 'number' };
+    }
   }
   // Owner 2026-10-22: calls. The provider switch is checked again on save
   // (livekit needs LIVEKIT_URL / LIVEKIT_API_KEY / LIVEKIT_API_SECRET).
@@ -2458,7 +2464,10 @@ export function validateConfigValue(
       return `must be ≤ ${schema.max}`;
     return null;
   };
-  const str = (v: unknown): string | null => {
+  const str = (v: unknown, top = false): string | null => {
+    // Verify batch 11 (C5): a setting whose documented value is empty
+    // ("empty = not enforced / not set") can be put back to empty.
+    if (top && v === '' && schema.defaultValue === '') return null;
     if (typeof v !== 'string' || v.length === 0 || v.length > 500)
       return 'must be a non-empty string (≤ 500)';
     if (schema.pattern && !schema.pattern.test(v))
@@ -2473,7 +2482,7 @@ export function validateConfigValue(
     case 'boolean':
       return typeof value === 'boolean' ? null : 'must be true or false';
     case 'string':
-      return str(value);
+      return str(value, true);
     case 'string[]':
     case 'integer[]': {
       if (!Array.isArray(value) || value.length > 1000)

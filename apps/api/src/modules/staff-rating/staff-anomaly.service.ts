@@ -1,4 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { reportDayBounds, reportTimeZone } from '../../common/utils/report-day';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import type { DayCounters } from './staff-counters.service';
@@ -10,7 +12,8 @@ const MIN_DECIDED = 10;
 /** «Always the same answer»: this share of a day's decisions. */
 const IDENTICAL_SHARE = 0.98;
 const IDENTICAL_MIN_DECIDED = 30;
-/** Night access: hours (UTC) counted as night, minimum decisions, share. */
+/** Night access: hours (of the report time zone, like the counters)
+ * counted as night, minimum decisions, share. */
 const NIGHT_HOURS = [1, 2, 3, 4, 5];
 const NIGHT_MIN = 10;
 const NIGHT_MIN_SHARE = 0.5;
@@ -176,6 +179,8 @@ export class StaffAnomalyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: StaffSettingsService,
+    // Verify batch 11 (D5): the day's window of the report time zone.
+    @Optional() private readonly appSettings?: AppSettingsService,
   ) {}
 
   async detect(
@@ -183,12 +188,16 @@ export class StaffAnomalyService {
     rows: readonly DailyRow[],
     counters: readonly DayCounters[],
   ): Promise<number> {
+    // The stored `day` is the label (UTC midnight of the date), as before.
     const from = new Date(`${day}T00:00:00.000Z`);
-    const to = new Date(from.getTime() + 86_400_000);
+    // Verify batch 11 (D5): cards taken in the same local day as the
+    // decisions they are compared with (the day's rows and counters are
+    // report-zone days); UTC midnight put 16:00–24:00 of the day before in.
+    const window = reportDayBounds(day, await reportTimeZone(this.appSettings));
     const takenRows = await this.prisma.workLeaseEvent.groupBy({
       by: ['admin_id'],
       where: {
-        created_at: { gte: from, lt: to },
+        created_at: { gte: window.from, lt: window.to },
         event: 'taken',
         admin_id: { not: null },
       },

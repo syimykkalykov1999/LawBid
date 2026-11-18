@@ -50,3 +50,26 @@ describe('owner «no limits»: «Авто» numbers have only a technical floor'
     }
   });
 });
+
+describe('verify batch 11: a setting can go back to its documented value', () => {
+  const schema = configSchema();
+  it.each([
+    'security.google_nonce_min_app_version',
+    'security.export_reauth_min_app_version',
+    'verification.bar_formats',
+    'compliance.email.footer_address',
+    'ops.cron_timeout_minutes',
+  ])('C5: %s can be cleared to "" (empty = off / not set)', (key) => {
+    expect(validateConfigValue(schema[key], '')).toBeNull();
+  });
+
+  it('C5: a key whose default is not empty still refuses ""', () => {
+    expect(
+      validateConfigValue(schema['media.public_store'], ''),
+    ).not.toBeNull();
+  });
+
+  it('C6: a ranking weight takes a fraction', () => {
+    expect(validateConfigValue(schema['search.weight_title'], 0.8)).toBeNull();
+  });
+});

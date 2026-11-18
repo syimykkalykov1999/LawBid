@@ -269,12 +269,15 @@ export class AdminsController {
       'Countries an employee works with (owner 2026-10-05): their lists, queues and workspace show only people, cases and tickets of these countries. Empty = every country.',
   })
   @ApiEnvelopeResponse(AdminAccountDto)
-  @ApiErrors(TARGET_ERRORS)
-  setAdminCountries(
+  @ApiErrors({ ...TARGET_ERRORS, 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async setAdminCountries(
     @CurrentAdmin() actor: AdminActor,
     @Param() params: AdminIdParamDto,
     @Body() dto: SetAdminCountriesDto,
   ): Promise<AdminAccountDto> {
+    // Verify batch 11 (B7): an empty list opens every country — the reach
+    // of a person's data, so a fresh 2FA code like role and permissions.
+    await this.auth.assertStepUp(actor.sessionId);
     return this.admins.setCountries(actor, params.id, dto.countries);
   }
 
@@ -317,13 +320,18 @@ export class AdminsController {
 
   @Post(':id/enable')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Re-enable a disabled administrator' })
+  @ApiOperation({
+    summary: 'Re-enable a disabled administrator (needs a fresh step-up)',
+  })
   @ApiEnvelopeResponse(AdminAccountDto)
-  @ApiErrors(TARGET_ERRORS)
-  enableAdmin(
+  @ApiErrors({ ...TARGET_ERRORS, 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async enableAdmin(
     @CurrentAdmin() actor: AdminActor,
     @Param() params: AdminIdParamDto,
   ): Promise<AdminAccountDto> {
+    // Verify batch 11 (B7): every right of the person comes back at once.
+    // Switching someone off stays one click (a protective action).
+    await this.auth.assertStepUp(actor.sessionId);
     return this.admins.setEnabled(actor, params.id, true);
   }
 
@@ -331,13 +339,15 @@ export class AdminsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:
-      'Remove an administrator: account closed, login and password wiped, sessions revoked',
+      'Remove an administrator: account closed, login and password wiped, sessions revoked (needs a fresh step-up)',
   })
-  @ApiErrors(TARGET_ERRORS)
+  @ApiErrors({ ...TARGET_ERRORS, 403: [E.ADMIN_STEP_UP_REQUIRED] })
   async removeAdmin(
     @CurrentAdmin() actor: AdminActor,
     @Param() params: AdminIdParamDto,
   ): Promise<void> {
+    // Verify batch 11 (B7): cannot be undone — a fresh 2FA code first.
+    await this.auth.assertStepUp(actor.sessionId);
     await this.admins.remove(actor, params.id);
   }
 

@@ -1,4 +1,8 @@
-import { AppConfigService, clearAppConfigMemo } from './app-config.service';
+import {
+  AppConfigService,
+  clearAppConfigMemo,
+  dropAppConfigCache,
+} from './app-config.service';
 
 function buildFakeRedis(store: Map<string, string> = new Map()) {
   return {
@@ -176,5 +180,35 @@ describe('AppConfigService.getConfig: expired memo (row 69, KE 123)', () => {
     await flush();
     gate = Promise.resolve();
     expect(await service.getConfig()).toEqual({ k: 'new' });
+  });
+
+  it('verify batch 11 (C2): a memo older than 2 minutes is not served; the read waits for the table', async () => {
+    process.env.NODE_ENV = 'production';
+    clearAppConfigMemo();
+    let rows = [{ key: 'billing.dispute_auto_cancel', value: true }];
+    const findMany = jest.fn(() => Promise.resolve(rows));
+    const service = new AppConfigService(
+      { appConfig: { findMany } } as never,
+      { get: jest.fn(() => Promise.resolve(null)), set: jest.fn() } as never,
+    );
+    let now = 3_000_000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    await service.getConfig();
+    // An hourly job on an idle worker: the owner switched it off at 10:00.
+    now += 60 * 60_000;
+    rows = [{ key: 'billing.dispute_auto_cancel', value: false }];
+    expect(await service.getConfig()).toEqual({
+      'billing.dispute_auto_cancel': false,
+    });
+  });
+});
+
+describe('verify batch 11 (C9): dropAppConfigCache after a committed save', () => {
+  it('a Redis outage does not turn the saved change into a 500', async () => {
+    const down = {
+      del: jest.fn(() => Promise.reject(new Error('ECONNREFUSED'))),
+      incr: jest.fn(() => Promise.reject(new Error('ECONNREFUSED'))),
+    };
+    await expect(dropAppConfigCache(down as never)).resolves.toBeUndefined();
   });
 });

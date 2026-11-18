@@ -7,6 +7,7 @@ import { failSoftRedis } from '../../../redis/fail-soft-redis';
 import { throttledWarn } from '../../../common/logging/throttled-warn';
 import { CircuitBreaker } from '../../../common/resilience/resilience';
 import { bumpConfigVersion } from './config-version';
+import { bumpConfigMemoGeneration } from '../../../common/app-settings/config-memo-generation';
 
 /** Same TTL reasoning as FeatureFlagsService — see that file's doc
  * comment. app_config changes even less often than feature_flags in
@@ -23,6 +24,13 @@ export const APP_CONFIG_CACHE_KEY = 'config:app_config';
  * instance shows up within this TTL. Off under jest (NODE_ENV=test): the
  * specs reset the Redis key directly and expect an immediate re-read. */
 const APP_CONFIG_MEMO_TTL_MS = 5_000;
+/** Verify batch 11 (C2): an expired memo is answered at once (row 69) only
+ * while it is at most this old. A busy instance refreshes it every few
+ * seconds; an idle one (an hourly job on the worker) would otherwise act
+ * once on a value of any age, e.g. a switch the owner turned off an hour
+ * ago. Older than this, the read waits for the table like a cold start. */
+const APP_CONFIG_STALE_MAX_MS = 120_000;
+
 let appConfigMemo: { at: number; value: Record<string, unknown> } | null = null;
 /** Row 69: the one background refresh of a stale memo, and a counter that
  * makes a refresh started before clearAppConfigMemo() drop its result. */
@@ -32,12 +40,23 @@ let appConfigGeneration = 0;
 export function clearAppConfigMemo(): void {
   appConfigMemo = null;
   appConfigGeneration += 1;
+  // Verify batch 11 (C4): derived copies (staff switches) drop theirs too.
+  bumpConfigMemoGeneration();
 }
 
 /** Admin write paths: drop the in-process memo and the Redis copy. */
 export async function dropAppConfigCache(redis: Redis): Promise<void> {
   clearAppConfigMemo();
-  await redis.del(APP_CONFIG_CACHE_KEY);
+  // Verify batch 11 (C9): runs after the change is committed — a Redis
+  // outage must not answer 500 for a saved change (a retry would then hit
+  // 409 STALE_VERSION). While Redis is away its copy is not read either;
+  // it expires within APP_CONFIG_CACHE_TTL_SECONDS. Best effort, like the
+  // version bump.
+  try {
+    await redis.del(APP_CONFIG_CACHE_KEY);
+  } catch {
+    // see above
+  }
   await bumpConfigVersion(redis);
 }
 
@@ -85,9 +104,14 @@ export class AppConfigService {
     if (fresh) return this.loadConfig();
     const memoOn = process.env.NODE_ENV !== 'test';
     if (memoOn && appConfigMemo) {
-      if (Date.now() - appConfigMemo.at < APP_CONFIG_MEMO_TTL_MS) {
-        return appConfigMemo.value;
-      }
+      const age = Date.now() - appConfigMemo.at;
+      if (age < APP_CONFIG_MEMO_TTL_MS) return appConfigMemo.value;
+    }
+    if (
+      memoOn &&
+      appConfigMemo &&
+      Date.now() - appConfigMemo.at < APP_CONFIG_STALE_MAX_MS
+    ) {
       // Row 69 (KE 123): stale-while-revalidate (RFC 5861). Settings are
       // read inside many interactive transactions (case create, bid accept,
       // moderation ...). Awaiting the reload there meant, on a Redis miss, a

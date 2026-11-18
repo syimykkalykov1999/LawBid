@@ -1,10 +1,10 @@
-import { monthKey } from './ai-assistant.logic';
 import { GithubMergeError } from '../admin-launch/infra-github';
 import {
   AiAssistantError,
   AiAssistantService,
   AiPullError,
 } from './ai-assistant.service';
+import { monthKey } from './ai-assistant.logic';
 
 const SHA = 'a'.repeat(40);
 const PR_URL = 'https://github.com/o/r/pull/9';
@@ -36,10 +36,8 @@ function make(
 ) {
   const store = new Map<string, string>();
   if (o.spent !== undefined && o.spent !== null) {
-    // The month of the fixed NOW, and the real current month: `trigger()`
-    // reads the gate at `new Date()` (it failed from December 2026 and in
-    // the +45-day time-bomb run while only the November key was set).
     store.set('ai:usd:2026-11', o.spent);
+    // trigger() reads the month of the real clock (time-bomb check, +45 days).
     store.set(monthKey(new Date()), o.spent);
   }
   const list: string[] = [];

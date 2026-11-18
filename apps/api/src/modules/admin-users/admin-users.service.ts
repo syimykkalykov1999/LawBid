@@ -509,7 +509,7 @@ export class AdminUsersService {
     admin: AdminActor,
     id: string,
   ): Promise<SanctionResultDto> {
-    const u = await this.target(id);
+    const u = await this.target(id, admin.countries);
     await this.passwordAuth.clearPasswordByAdmin(id, admin.id);
     await this.audit.record({
       adminId: admin.id,
@@ -531,7 +531,7 @@ export class AdminUsersService {
     admin: AdminActor,
     id: string,
   ): Promise<SanctionResultDto> {
-    const u = await this.target(id);
+    const u = await this.target(id, admin.countries);
     const chains = await this.sessions.revokeAllChainsForUser(
       id,
       'admin_block',
@@ -566,7 +566,7 @@ export class AdminUsersService {
     phone: string,
     reason: string,
   ): Promise<PhoneChangedDto> {
-    await this.target(id);
+    await this.target(id, admin.countries);
     // Security audit 2026-10-01: a phone change is an account takeover
     // path — a real US mobile only (like sign-in) and at most 10 changes
     // a day per staff admin. Owner 2026-11-12: the owner (super_admin) has
@@ -662,7 +662,7 @@ export class AdminUsersService {
     id: string,
     reason: string,
   ): Promise<SanctionResultDto> {
-    const u = await this.target(id);
+    const u = await this.target(id, admin.countries);
     await withTxRetry(this.prisma, async (tx) => {
       const action = await tx.moderationAction.create({
         data: {
@@ -812,7 +812,7 @@ export class AdminUsersService {
     id: string,
     reason: string,
   ): Promise<SanctionResultDto> {
-    const u = await this.target(id);
+    const u = await this.target(id, admin.countries);
     if (u.status === 'suspended') {
       throw new ConflictException({
         code: ErrorCode.ACCOUNT_SUSPENDED,
@@ -907,7 +907,7 @@ export class AdminUsersService {
 
   /** §3.4 restore: `active`; a client's archived cases stay archived. */
   async restore(admin: AdminActor, id: string): Promise<SanctionResultDto> {
-    const u = await this.target(id);
+    const u = await this.target(id, admin.countries);
     if (u.status !== 'suspended') {
       throw new ConflictException({
         code: ErrorCode.VALIDATION_ERROR,
@@ -967,7 +967,7 @@ export class AdminUsersService {
     id: string,
     reason: string,
   ): Promise<MinorConfirmedDto> {
-    const u = await this.target(id);
+    const u = await this.target(id, admin.countries);
     if (!this.eraser) {
       throw new HttpException(
         {
@@ -990,9 +990,11 @@ export class AdminUsersService {
     return { userId: id, outcome };
   }
 
-  private async target(id: string) {
-    const u = await this.prisma.user.findUnique({
-      where: { id },
+  /** Verify batch 11 (B2): the person must be inside the admin's country
+   * scope, like the card and contacts (404 otherwise). */
+  private async target(id: string, scope: CountryScope) {
+    const u = await this.prisma.user.findFirst({
+      where: { id, ...userInScope(scope) },
       select: {
         id: true,
         role: true,
