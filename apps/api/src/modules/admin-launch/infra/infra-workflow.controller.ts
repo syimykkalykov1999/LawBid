@@ -53,7 +53,12 @@ export class InfraWorkflowController {
     private readonly github: InfraGithubClient,
   ) {}
 
-  private async caller(auth: string | undefined): Promise<WorkflowCaller> {
+  // Not `caller`: Nest 12.5 maps every controller for wildcard middleware
+  // through Object.create(Controller), and `caller` is a strict-mode
+  // accessor of Function.prototype (boot threw; KNOWN_ERRORS 205).
+  private async workflowCaller(
+    auth: string | undefined,
+  ): Promise<WorkflowCaller> {
     try {
       return await this.github.verifyCaller(auth);
     } catch (e) {
@@ -90,7 +95,7 @@ export class InfraWorkflowController {
     @Headers('authorization') auth: string | undefined,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<InfraJobDto> {
-    const c = await this.caller(auth);
+    const c = await this.workflowCaller(auth);
     try {
       return await this.infra.jobStart(id, c);
     } catch (e) {
@@ -112,7 +117,7 @@ export class InfraWorkflowController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: InfraPlanReportDto,
   ): Promise<InfraRequestDto> {
-    const c = await this.caller(auth);
+    const c = await this.workflowCaller(auth);
     try {
       return await this.infra.planReady(id, c, dto);
     } catch (e) {
@@ -132,7 +137,7 @@ export class InfraWorkflowController {
     @Headers('authorization') auth: string | undefined,
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<InfraDecisionDto> {
-    const c = await this.caller(auth);
+    const c = await this.workflowCaller(auth);
     try {
       return await this.infra.decision(id, c);
     } catch (e) {
@@ -154,7 +159,7 @@ export class InfraWorkflowController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: InfraStatusReportDto,
   ): Promise<InfraRequestDto> {
-    const c = await this.caller(auth);
+    const c = await this.workflowCaller(auth);
     try {
       return await this.infra.report(id, c, dto);
     } catch (e) {
