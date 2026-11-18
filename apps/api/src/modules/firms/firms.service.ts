@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { primaryClient } from '../../prisma/primary-client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { Prisma } from '../../generated/prisma/client';
@@ -363,7 +364,7 @@ export class FirmsService {
       throw new ForbiddenException({ code: ErrorCode.FORBIDDEN });
     }
     try {
-      await this.prisma.$transaction(async (tx) => {
+      await primaryClient(this.prisma).$transaction(async (tx) => {
         // Verify 17.11: the member limit was counted outside the
         // transaction (parallel accepts went past it) and the invitation
         // was not read again (one withdrawn, or a firm closed meanwhile,
@@ -536,12 +537,14 @@ export class FirmsService {
     // the firm row lock that accepts take. Only the owner's «leave» while
     // alone asks this; «Close the firm» closes it with everyone in it.
     if (aloneOnly) {
-      const joined = await this.prisma.$transaction(async (tx) => {
-        await tx.$queryRaw`SELECT 1 FROM firms WHERE id = ${firmId}::uuid FOR UPDATE`;
-        return tx.firmMember.count({
-          where: { firm_id: firmId, status: 'active', ...notMe },
-        });
-      });
+      const joined = await primaryClient(this.prisma).$transaction(
+        async (tx) => {
+          await tx.$queryRaw`SELECT 1 FROM firms WHERE id = ${firmId}::uuid FOR UPDATE`;
+          return tx.firmMember.count({
+            where: { firm_id: firmId, status: 'active', ...notMe },
+          });
+        },
+      );
       if (joined > 0) {
         throw new ConflictException({
           code: ErrorCode.FIRM_OWNER_MUST_TRANSFER,

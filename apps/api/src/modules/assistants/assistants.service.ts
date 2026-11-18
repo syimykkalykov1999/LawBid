@@ -6,6 +6,7 @@ import {
   NotFoundException,
   Optional,
 } from '@nestjs/common';
+import { primaryClient } from '../../prisma/primary-client';
 import type {
   AssistantMembership,
   Prisma,
@@ -413,7 +414,7 @@ export class AssistantsService {
     // per-attorney lock — two taps or two devices can no longer both take
     // the last seat. Batch 9: the same lock as the seat decrease
     // (lockAssistantSeats, taken inside assertFreeSeat).
-    const m = await this.prisma.$transaction(async (tx) => {
+    const m = await primaryClient(this.prisma).$transaction(async (tx) => {
       await this.assertFreeSeat(user.sub, tx);
       return tx.assistantMembership.create({
         data: {

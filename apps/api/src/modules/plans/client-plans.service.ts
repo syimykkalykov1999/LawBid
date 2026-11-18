@@ -8,6 +8,7 @@ import {
   Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { primaryClient } from '../../prisma/primary-client';
 import { ConfigService } from '@nestjs/config';
 import type { ClientSubscription, Plan } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -298,39 +299,45 @@ export class ClientPlansService {
     // app. Under one lock per client: a live plan keeps its subscription
     // and the newcomer is cancelled (as on the checkout path); an earlier
     // one still waiting (incomplete) is cancelled and replaced.
-    const verdict = await this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`client-plan:${user.sub}`}, 0))`;
-      const row = await tx.clientSubscription.findUnique({
-        where: { user_id: user.sub },
-      });
-      const previous = row?.stripe_subscription_id ?? null;
-      if (previous && previous !== remote.id && clientSubscriptionActive(row)) {
-        return { keep: false as const, previous };
-      }
-      await tx.clientSubscription.upsert({
-        where: { user_id: user.sub },
-        create: {
-          user_id: user.sub,
-          plan_id: o.plan.id,
-          stripe_checkout_id: setupIntentId,
-          stripe_subscription_id: remote.id,
-          status: 'incomplete',
-          price_cents: o.amount,
-          entitlements: this.plans.entitlementsOf(o.plan),
-        },
-        update: {
-          plan_id: o.plan.id,
-          stripe_checkout_id: setupIntentId,
-          stripe_subscription_id: remote.id,
-          price_cents: o.amount,
-          entitlements: this.plans.entitlementsOf(o.plan),
-        },
-      });
-      return {
-        keep: true as const,
-        previous: previous && previous !== remote.id ? previous : null,
-      };
-    });
+    const verdict = await primaryClient(this.prisma).$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`client-plan:${user.sub}`}, 0))`;
+        const row = await tx.clientSubscription.findUnique({
+          where: { user_id: user.sub },
+        });
+        const previous = row?.stripe_subscription_id ?? null;
+        if (
+          previous &&
+          previous !== remote.id &&
+          clientSubscriptionActive(row)
+        ) {
+          return { keep: false as const, previous };
+        }
+        await tx.clientSubscription.upsert({
+          where: { user_id: user.sub },
+          create: {
+            user_id: user.sub,
+            plan_id: o.plan.id,
+            stripe_checkout_id: setupIntentId,
+            stripe_subscription_id: remote.id,
+            status: 'incomplete',
+            price_cents: o.amount,
+            entitlements: this.plans.entitlementsOf(o.plan),
+          },
+          update: {
+            plan_id: o.plan.id,
+            stripe_checkout_id: setupIntentId,
+            stripe_subscription_id: remote.id,
+            price_cents: o.amount,
+            entitlements: this.plans.entitlementsOf(o.plan),
+          },
+        });
+        return {
+          keep: true as const,
+          previous: previous && previous !== remote.id ? previous : null,
+        };
+      },
+    );
     if (!verdict.keep) {
       if (remote.status !== 'canceled')
         await this.provider.cancelNow(remote.id);

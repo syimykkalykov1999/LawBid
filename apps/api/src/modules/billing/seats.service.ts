@@ -5,6 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { primaryClient } from '../../prisma/primary-client';
 import type { Subscription } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -242,7 +243,7 @@ export class SeatsService {
     // too — an assistant added between the count and the schedule used to
     // stay on a seat nobody paid for after the renewal. Stripe's quantity
     // changes after the row; a refusal puts the row back.
-    const change = await this.prisma.$transaction(async (tx) => {
+    const change = await primaryClient(this.prisma).$transaction(async (tx) => {
       await lockAssistantSeats(tx, user.sub);
       const inUse = await tx.assistantMembership.count({
         where: { attorney_id: user.sub, status: { not: 'removed' } },

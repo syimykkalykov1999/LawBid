@@ -1,4 +1,5 @@
 import { type CountryScope, userInScope } from '../countries/country-scope';
+import { primaryClient } from '../../prisma/primary-client';
 import type { Prisma } from '../../generated/prisma/client';
 import {
   ConflictException,
@@ -929,18 +930,26 @@ export class ClientReviewsService {
     }
   }
 
-  async recalc(clientId: string, tx?: Prisma.TransactionClient): Promise<void> {
+  async recalc(
+    clientId: string,
+    tx?: Prisma.TransactionClient,
+    reviews: Prisma.TransactionClient | PrismaService = tx ?? this.prisma,
+  ): Promise<void> {
     // Verify 17.11 (batch 9): two reviews of one client written at once
     // could leave the older count last (aggregate, then update). The
     // profile row is locked first, so the later recalculation reads every
     // review committed before it (the attorney rating is one statement).
     if (!tx) {
-      await this.prisma.$transaction((t) => this.recalc(clientId, t));
+      // client_profiles is global: lock it on the primary database.
+      // The reviews are read through the routed client, as before.
+      await primaryClient(this.prisma).$transaction((t) =>
+        this.recalc(clientId, t, this.prisma),
+      );
       return;
     }
     const db = tx;
     await db.$queryRaw`SELECT 1 FROM client_profiles WHERE user_id = ${clientId}::uuid FOR UPDATE`;
-    const agg = await db.clientReview.aggregate({
+    const agg = await reviews.clientReview.aggregate({
       where: { client_id: clientId, status: 'published' },
       _avg: { rating: true },
       _count: { _all: true },
