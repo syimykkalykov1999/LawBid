@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "එවැනි කේතයක් නැත",
   "error.api.REFERRAL_NOT_ALLOWED": "මෙම කේතය යෙදිය නොහැක",
   "error.api.REFUND_NOT_ALLOWED": "යෙදුම තුළ මුදල් ආපසු ගෙවීමේ කාලය ඉකුත් වී ඇත — සහාය අමතන්න",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe ප්‍රතිචාර දැක්වූයේ නැත. නැවත තට්ටු කරන්න — යන්නේ එම ආපසු ගෙවීමයි, දෙවැන්නක් නොවේ",
   "error.api.REPOST_OWN_POST": "ඔබේම පළ කිරීමක් නැවත පළ කළ නොහැක.",
   "error.api.REVIEW_ALREADY_EXISTS": "ඔබ දැනටමත් මෙම නඩුව සමාලෝචනය කර ඇත.",
   "error.api.REVIEW_APPEAL_EXISTS": "මෙම සමාලෝචනයට දැනටමත් අභියාචනා කර ඇත.",

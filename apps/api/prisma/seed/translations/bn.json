@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "এমন কোনো কোড নেই",
   "error.api.REFERRAL_NOT_ALLOWED": "এই কোডটি প্রয়োগ করা যাবে না",
   "error.api.REFUND_NOT_ALLOWED": "অ্যাপে রিফান্ডের সময়সীমা পেরিয়ে গেছে — সাপোর্টে যোগাযোগ করুন",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe সাড়া দেয়নি। আবার ট্যাপ করুন — একই রিফান্ড যাবে, দ্বিতীয়টি নয়",
   "error.api.REPOST_OWN_POST": "নিজের পোস্ট রিপোস্ট করা যায় না।",
   "error.api.REVIEW_ALREADY_EXISTS": "আপনি এই মামলার রিভিউ আগেই দিয়েছেন।",
   "error.api.REVIEW_APPEAL_EXISTS": "এই রিভিউয়ের বিরুদ্ধে ইতিমধ্যে আপিল করা হয়েছে।",

@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "ასეთი კოდი არ არსებობს",
   "error.api.REFERRAL_NOT_ALLOWED": "ეს კოდი ვერ გამოიყენება",
   "error.api.REFUND_NOT_ALLOWED": "აპლიკაციაში დაბრუნების ვადა გავიდა — დაუკავშირდით მხარდაჭერას",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe-მა არ უპასუხა. შეეხეთ ხელახლა — წავა იგივე დაბრუნება, არა მეორე",
   "error.api.REPOST_OWN_POST": "საკუთარი პოსტის რეპოსტი არ შეგიძლიათ.",
   "error.api.REVIEW_ALREADY_EXISTS": "ამ საქმეზე შეფასება უკვე დაგიტოვებიათ.",
   "error.api.REVIEW_APPEAL_EXISTS": "ეს შეფასება უკვე გასაჩივრებულია.",

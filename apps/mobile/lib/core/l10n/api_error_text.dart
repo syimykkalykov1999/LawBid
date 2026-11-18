@@ -158,6 +158,7 @@ const _keys = <String, String>{
   ApiErrorCodes.paymentFeeMaxRoundsReached:
       'error.api.PAYMENT_FEE_MAX_ROUNDS_REACHED',
   ApiErrorCodes.refundNotAllowed: 'error.api.REFUND_NOT_ALLOWED',
+  ApiErrorCodes.refundProviderFailed: 'error.api.REFUND_PROVIDER_FAILED',
   ApiErrorCodes.videoTooLong: 'error.api.VIDEO_TOO_LONG',
   ApiErrorCodes.videoNotReady: 'error.api.VIDEO_NOT_READY',
   ApiErrorCodes.commentsDisabled: 'error.api.COMMENTS_DISABLED',

@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Pa gen kòd konsa",
   "error.api.REFERRAL_NOT_ALLOWED": "Kòd sa a pa ka aplike",
   "error.api.REFUND_NOT_ALLOWED": "Peryòd ranbousman nan aplikasyon an pase — kontakte sipò",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe pa reponn. Tape ankò — se menm ranbousman an ki ale, pa yon dezyèm",
   "error.api.REPOST_OWN_POST": "Ou pa ka repataje pwòp piblikasyon ou.",
   "error.api.REVIEW_ALREADY_EXISTS": "Ou deja kite yon avi pou ka sa a.",
   "error.api.REVIEW_APPEAL_EXISTS": "Yo deja fè apèl kont avi sa a.",

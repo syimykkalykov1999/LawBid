@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Msimbo huo haupo",
   "error.api.REFERRAL_NOT_ALLOWED": "Msimbo huu hauwezi kutumika",
   "error.api.REFUND_NOT_ALLOWED": "Muda wa marejesho ndani ya programu umepita — wasiliana na usaidizi",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe haikujibu. Gusa tena — marejesho yale yale yanatumwa, si ya pili",
   "error.api.REPOST_OWN_POST": "Huwezi kuchapisha upya chapisho lako mwenyewe.",
   "error.api.REVIEW_ALREADY_EXISTS": "Tayari umetoa maoni kuhusu kesi hii.",
   "error.api.REVIEW_APPEAL_EXISTS": "Maoni haya tayari yamekatiwa rufaa.",

@@ -300,6 +300,72 @@ describe('Client profile: posts, follows, attorney reviews (e2e, OQ-038)', () =>
     expect(ones.body.data).toHaveLength(0);
   });
 
+  // Final pass 18.11 (FA3): one counted review per attorney and client.
+  // A second closed case with the same client edits that review (the app
+  // has no client id on a case, so a 409 there could never be fixed).
+  it("a second case of the same client edits the attorney's one review", async () => {
+    const cli = await client();
+    await withProfile(cli.id);
+    const att = await attorney();
+    async function closedCase(): Promise<string> {
+      const caseId = (await postCase(cli.auth)).body.data.id as string;
+      const bid = await prisma.bid.create({
+        data: {
+          case_id: caseId,
+          attorney_id: att.id,
+          fee_type: 'fixed',
+          amount_cents: 50000,
+          message: 'I handle these every week and can start today.',
+          start_availability: 'immediately',
+          turn: 'client',
+          status: 'accepted',
+          decided_at: new Date(),
+        },
+      });
+      await prisma.case.update({
+        where: { id: caseId },
+        data: {
+          accepted_bid_id: bid.id,
+          status: 'closed',
+          closed_at: new Date(),
+        },
+      });
+      return caseId;
+    }
+    const first = await closedCase();
+    const second = await closedCase();
+    const ok = await api()
+      .put(`/api/v1/cases/${first}/client-review`)
+      .set(att.auth)
+      .send({ rating: 4, body: 'Clear, on time, answered fast.' });
+    expect(ok.status).toBe(200);
+
+    // The second case shows that review, and a save there edits it.
+    const shown = await api()
+      .get(`/api/v1/cases/${second}/client-review`)
+      .set(att.auth);
+    expect(shown.status).toBe(200);
+    expect(shown.body.data?.id).toBe(ok.body.data.id);
+    const again = await api()
+      .put(`/api/v1/cases/${second}/client-review`)
+      .set(att.auth)
+      .send({ rating: 2, body: 'Changed my mind after the second case.' });
+    expect(again.status).toBe(200);
+    expect(again.body.data.id).toBe(ok.body.data.id);
+    expect(again.body.data.rating).toBe(2);
+    expect(
+      await prisma.clientReview.count({
+        where: { client_id: cli.id, attorney_id: att.id },
+      }),
+    ).toBe(1);
+
+    // Another attorney asking about the case learns nothing.
+    const stranger = await api()
+      .get(`/api/v1/cases/${second}/client-review`)
+      .set((await attorney()).auth);
+    expect(stranger.body.data ?? null).toBeNull();
+  });
+
   it('anyone reviews a client once; the author deletes; the client appeals', async () => {
     const cli = await client();
     await withProfile(cli.id);

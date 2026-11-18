@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "આવો કોઈ કોડ નથી",
   "error.api.REFERRAL_NOT_ALLOWED": "આ કોડ લાગુ કરી શકાતો નથી",
   "error.api.REFUND_NOT_ALLOWED": "ઍપમાં રિફંડની મુદત વીતી ગઈ છે — સપોર્ટનો સંપર્ક કરો",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe એ જવાબ ન આપ્યો. ફરી ટૅપ કરો — એ જ રિફંડ જશે, બીજું નહીં",
   "error.api.REPOST_OWN_POST": "તમે તમારી પોતાની પોસ્ટ રીપોસ્ટ કરી શકતા નથી.",
   "error.api.REVIEW_ALREADY_EXISTS": "તમે આ કેસની સમીક્ષા પહેલેથી આપી દીધી છે.",
   "error.api.REVIEW_APPEAL_EXISTS": "આ સમીક્ષા સામે પહેલેથી અપીલ કરવામાં આવી છે.",

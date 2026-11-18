@@ -31,19 +31,26 @@ class PrivacySettingsNotifier extends AsyncNotifier<PrivacySettings> {
       // The chat list's online dots follow "last seen".
       if (field == PrivacyField.lastSeen) ref.invalidate(conversationsProvider);
     } on Object {
-      await _reloadAfterError();
+      await _reloadAfterError(
+        (now) => now.withField(field, before.of(field)),
+      );
       rethrow;
     }
   }
 
   /// PS4: the server's settings after a refused change. When even that read
-  /// fails (offline), the provider reloads itself on the next watch.
-  Future<void> _reloadAfterError() async {
+  /// fails (offline), only the tapped row goes back to its old value
+  /// ([undo]): the rows stay on screen (final pass 18.11, FA1: reloading
+  /// the provider here put a full-screen error in place of the settings).
+  Future<void> _reloadAfterError(
+    PrivacySettings Function(PrivacySettings now) undo,
+  ) async {
     try {
       final fresh = await ref.read(privacyRepositoryProvider).settings();
       if (ref.mounted) state = AsyncData(fresh);
     } on Object {
-      if (ref.mounted) ref.invalidateSelf();
+      final now = state.value;
+      if (ref.mounted && now != null) state = AsyncData(undo(now));
     }
   }
 
@@ -58,7 +65,9 @@ class PrivacySettingsNotifier extends AsyncNotifier<PrivacySettings> {
         await ref.read(privacyRepositoryProvider).setDoNotSell(value: value),
       );
     } on Object {
-      await _reloadAfterError();
+      await _reloadAfterError(
+        (now) => now.copyWith(doNotSell: before.doNotSell),
+      );
       rethrow;
     }
   }

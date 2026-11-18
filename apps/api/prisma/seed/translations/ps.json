@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "داسې کوډ نشته",
   "error.api.REFERRAL_NOT_ALLOWED": "دا کوډ نه شي پلي کیدلی",
   "error.api.REFUND_NOT_ALLOWED": "په اپ کې د بیرته ورکړې موده تېره شوې — له ملاتړ سره اړیکه ونیسئ",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe ځواب ورنه کړ. بیا ټک کړئ — هماغه بیرته ورکړه ځي، دویمه نه",
   "error.api.REPOST_OWN_POST": "تاسو خپل پوسټ نشئ بیا خپرولی.",
   "error.api.REVIEW_ALREADY_EXISTS": "تاسو لا دمخه پر دې قضیه نظر لیکلی دی.",
   "error.api.REVIEW_APPEAL_EXISTS": "پر دې نظر لا اعتراض شوی دی.",

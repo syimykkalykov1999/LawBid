@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "ไม่มีรหัสนี้",
   "error.api.REFERRAL_NOT_ALLOWED": "ไม่สามารถใช้รหัสนี้ได้",
   "error.api.REFUND_NOT_ALLOWED": "หมดช่วงเวลาคืนเงินในแอปแล้ว — ติดต่อฝ่ายสนับสนุน",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe ไม่ตอบสนอง แตะอีกครั้ง — ระบบส่งการคืนเงินรายการเดิม ไม่ใช่รายการที่สอง",
   "error.api.REPOST_OWN_POST": "คุณรีโพสต์โพสต์ของตัวเองไม่ได้",
   "error.api.REVIEW_ALREADY_EXISTS": "คุณได้รีวิวคดีนี้แล้ว",
   "error.api.REVIEW_APPEAL_EXISTS": "รีวิวนี้ถูกอุทธรณ์แล้ว",

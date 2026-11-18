@@ -142,7 +142,12 @@ class ReelWheelTarget extends StatelessWidget {
 /// The reels pager on the website: the wheel, the trackpad and the arrow
 /// keys page it while it is on screen ([ReelWebStepper.wheel],
 /// [ReelWebStepper.key]). On a phone this is [child] alone.
-class ReelWebPager extends StatelessWidget {
+///
+/// Final pass 18.11 (FA5): the feed keeps the Reels page alive beside
+/// Posts with its tickers off. The keys follow that: the pager takes the
+/// focus when its page comes on screen and lets it go when the page
+/// leaves, so ↑ / ↓ on Posts never page the hidden reels.
+class ReelWebPager extends StatefulWidget {
   const ReelWebPager({
     required this.stepper,
     required this.child,
@@ -153,15 +158,48 @@ class ReelWebPager extends StatelessWidget {
   final Widget child;
 
   @override
+  State<ReelWebPager> createState() => _ReelWebPagerState();
+}
+
+class _ReelWebPagerState extends State<ReelWebPager> {
+  final _focus = FocusNode(debugLabel: 'reels');
+  bool? _shown;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!ReelWebStepper.on) return;
+    final shown = TickerMode.valuesOf(context).enabled;
+    if (shown == _shown) return;
+    _shown = shown;
+    if (shown) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _shown == true) _focus.requestFocus();
+      });
+    } else if (_focus.hasFocus) {
+      _focus.unfocus();
+    }
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  KeyEventResult _key(FocusNode node, KeyEvent event) =>
+      _shown ?? true ? widget.stepper.key(node, event) : KeyEventResult.ignored;
+
+  @override
   Widget build(BuildContext context) {
-    if (!ReelWebStepper.on) return child;
+    if (!ReelWebStepper.on) return widget.child;
     return Focus(
-      autofocus: true,
-      onKeyEvent: stepper.key,
+      focusNode: _focus,
+      onKeyEvent: _key,
       child: Listener(
         behavior: HitTestBehavior.translucent,
-        onPointerSignal: stepper.wheel,
-        child: child,
+        onPointerSignal: widget.stepper.wheel,
+        child: widget.child,
       ),
     );
   }

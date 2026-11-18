@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -116,6 +118,42 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 500));
     expect(prefs.getString('chat.textDrafts.v1.me'), contains('Draft text'));
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 6));
+  });
+
+  // Final pass 18.11 (FA4): a GIF from the keyboard while an old message
+  // is edited goes without that text as its caption; the edit stays.
+  testWidgets('a keyboard GIF during an edit leaves the edited text alone',
+      (tester) async {
+    await pump(tester, app(repo()));
+    await tester.longPress(find.text('My old note'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(_en.t('group.conv.edit')));
+    await tester.pumpAndSettle();
+    final field = tester.widget<TextField>(find.byType(TextField).last);
+    expect(field.controller!.text, 'My old note');
+
+    field.contentInsertionConfiguration!.onContentInserted(
+      KeyboardInsertedContent(
+        mimeType: 'image/gif',
+        uri: 'content://gboard/1',
+        data: Uint8List.fromList(const [
+          0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, //
+          0x80, 0x00, 0x00, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x21,
+          0xf9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2c, 0x00, 0x00,
+          0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x02, 0x44,
+          0x01, 0x00, 0x3b,
+        ]),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(
+      tester.widget<TextField>(find.byType(TextField).last).controller!.text,
+      'My old note',
+    );
+    expect(find.text(_en.t('group.conv.editing')), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 6));
   });

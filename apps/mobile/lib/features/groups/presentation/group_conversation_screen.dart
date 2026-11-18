@@ -469,7 +469,10 @@ class _GroupConversationScreenState
     required bool fromDisk,
   }) async {
     if (files.isEmpty || !mounted) return;
-    final caption = _text.text.trim();
+    // Final pass 18.11 (FA4): while an old message is being edited the
+    // field holds that message, not a caption (a keyboard GIF, a paste or
+    // a drop can arrive then): the files go without it, the edit stays.
+    final caption = _editing != null ? '' : _text.text.trim();
     if (caption.isNotEmpty) _text.clear();
     final reply = _replyTo;
     if (reply != null) setState(() => _replyTo = null);

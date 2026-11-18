@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Der findes ingen sådan kode",
   "error.api.REFERRAL_NOT_ALLOWED": "Denne kode kan ikke anvendes",
   "error.api.REFUND_NOT_ALLOWED": "Fristen for refusion i appen er udløbet — kontakt support",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe svarede ikke. Tryk igen — den samme refusion sendes, ikke en ny",
   "error.api.REPOST_OWN_POST": "Du kan ikke dele dit eget opslag igen.",
   "error.api.REVIEW_ALREADY_EXISTS": "Du har allerede anmeldt denne sag.",
   "error.api.REVIEW_APPEAL_EXISTS": "Denne anmeldelse er allerede anket.",

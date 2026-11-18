@@ -356,19 +356,24 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     // Owner 2026-10-22 (WhatsApp): nothing is sent yet - the preview opens
     // (big picture, thumbnails, caption, rotate / crop); the typed text is
     // its caption. Backing out keeps the text where it was.
+    // Final pass 18.11 (FA4): while an old message is being edited the
+    // field holds that message, not a caption — the files go without it
+    // and the edit stays open as it was.
+    final editing =
+        ref.read(chatComposeProvider(widget.conversationId)).editing != null;
     final shown = await showMediaPreview(
       context,
       files: files,
-      caption: _text.text,
+      caption: editing ? '' : _text.text,
     );
     if (shown == null || !mounted) return;
-    if (_text.text.isNotEmpty) _text.clear();
+    if (!editing && _text.text.isNotEmpty) _text.clear();
     unawaited(
       sendPickedFiles(
         _thread,
         shown.files,
         shown.caption,
-        replyToId: _takeReply(),
+        replyToId: editing ? null : _takeReply(),
       ),
     );
   }

@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Tokio kodo nėra",
   "error.api.REFERRAL_NOT_ALLOWED": "Šio kodo pritaikyti negalima",
   "error.api.REFUND_NOT_ALLOWED": "Grąžinimo programėlėje laikotarpis baigėsi — susisiekite su pagalba",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe neatsakė. Bakstelėkite dar kartą — išeis tas pats grąžinimas, ne antras",
   "error.api.REPOST_OWN_POST": "Negalite pakartoti savo paties įrašo.",
   "error.api.REVIEW_ALREADY_EXISTS": "Jau įvertinote šią bylą.",
   "error.api.REVIEW_APPEAL_EXISTS": "Dėl šio atsiliepimo jau pateikta apeliacija.",

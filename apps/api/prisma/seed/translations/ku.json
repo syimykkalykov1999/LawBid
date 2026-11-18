@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Koda wiha tune",
   "error.api.REFERRAL_NOT_ALLOWED": "Ev kod nayê bicîhanîn",
   "error.api.REFUND_NOT_ALLOWED": "Dema vegerandinê di sepanê de derbas bû — bi piştgiriyê re têkilî deyne",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe bersiv neda. Dîsa bitikîne — heman vegerandin diçe, ne ya duyem",
   "error.api.REPOST_OWN_POST": "Tu nikarî posta xwe ji nû ve biweşînî.",
   "error.api.REVIEW_ALREADY_EXISTS": "We jixwe ev doz nirxandiye.",
   "error.api.REVIEW_APPEAL_EXISTS": "Li ser vê nirxandinê jixwe îtiraz hatiye kirin.",

@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "ထိုကုဒ် မရှိပါ",
   "error.api.REFERRAL_NOT_ALLOWED": "ဤကုဒ်ကို အသုံးပြု၍ မရပါ",
   "error.api.REFUND_NOT_ALLOWED": "အက်ပ်အတွင်း ငွေပြန်အမ်းကာလ ကုန်သွားပါပြီ — အထောက်အကူကို ဆက်သွယ်ပါ",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe မှ မတုံ့ပြန်ပါ။ ထပ်နှိပ်ပါ — ပြန်အမ်းငွေ တစ်ခုတည်းသာ ပို့မည်၊ နှစ်ခါမဟုတ်ပါ",
   "error.api.REPOST_OWN_POST": "သင့်ကိုယ်ပိုင် ပို့စ်ကို ပြန်တင်၍ မရပါ။",
   "error.api.REVIEW_ALREADY_EXISTS": "ဤအမှုကို သင် သုံးသပ်ပြီးဖြစ်ပါသည်။",
   "error.api.REVIEW_APPEAL_EXISTS": "ဤသုံးသပ်ချက်ကို အယူခံဝင်ပြီးဖြစ်ပါသည်။",

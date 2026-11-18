@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,25 +12,33 @@ void main() {
 
   late PageController pages;
 
-  Future<void> pump(WidgetTester tester, {bool web = true}) async {
+  Future<void> pump(
+    WidgetTester tester, {
+    bool web = true,
+    ValueListenable<bool>? shown,
+  }) async {
     ReelWebStepper.debugAssumeWeb = web;
     pages = PageController();
     addTearDown(pages.dispose);
     final stepper = ReelWebStepper(pages);
     await tester.pumpWidget(
       MaterialApp(
-        home: ReelWebPager(
-          stepper: stepper,
-          child: PageView.builder(
-            controller: pages,
-            physics: stepper.physics,
-            scrollDirection: Axis.vertical,
-            itemCount: 10,
-            itemBuilder: (_, i) => ReelWheelTarget(
-              stepper: stepper,
-              child: ColoredBox(
-                color: Colors.black,
-                child: Center(child: Text('reel $i')),
+        home: ValueListenableBuilder<bool>(
+          valueListenable: shown ?? ValueNotifier(true),
+          builder: (_, on, child) => TickerMode(enabled: on, child: child!),
+          child: ReelWebPager(
+            stepper: stepper,
+            child: PageView.builder(
+              controller: pages,
+              physics: stepper.physics,
+              scrollDirection: Axis.vertical,
+              itemCount: 10,
+              itemBuilder: (_, i) => ReelWheelTarget(
+                stepper: stepper,
+                child: ColoredBox(
+                  color: Colors.black,
+                  child: Center(child: Text('reel $i')),
+                ),
               ),
             ),
           ),
@@ -125,6 +134,32 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
     await tester.pumpAndSettle();
     expect(page(), 0, reason: 'nothing above the first reel');
+  });
+
+  // Final pass 18.11 (FA5): the feed keeps the Reels page alive beside
+  // Posts with its tickers off; the arrow keys there must not page it.
+  testWidgets('the keys page the reels only while their page is shown',
+      (tester) async {
+    final shown = ValueNotifier(true);
+    addTearDown(shown.dispose);
+    await pump(tester, shown: shown);
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(page(), 1);
+
+    shown.value = false; // Posts slid in.
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(page(), 1, reason: 'the hidden reels stay where they were');
+
+    shown.value = true; // Back on Reels: where it was, the keys work.
+    await tester.pumpAndSettle();
+    expect(page(), 1, reason: 'no step was waiting behind the page');
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(page(), 2);
   });
 
   testWidgets('on a phone the pager is as it was', (tester) async {

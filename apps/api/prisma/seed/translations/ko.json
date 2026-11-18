@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "존재하지 않는 코드입니다",
   "error.api.REFERRAL_NOT_ALLOWED": "이 코드는 적용할 수 없습니다",
   "error.api.REFUND_NOT_ALLOWED": "앱 내 환불 기간이 지났습니다. 고객 지원에 문의하세요",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe가 응답하지 않았습니다. 다시 탭하세요. 같은 환불이 전송되며 두 번 되지 않습니다",
   "error.api.REPOST_OWN_POST": "내 게시물은 리포스트할 수 없습니다.",
   "error.api.REVIEW_ALREADY_EXISTS": "이 사건에 이미 리뷰를 남기셨습니다.",
   "error.api.REVIEW_APPEAL_EXISTS": "이 리뷰에는 이미 이의가 제기되었습니다.",

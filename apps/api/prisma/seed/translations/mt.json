@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Ma jeżisti ebda kodiċi bħal dan",
   "error.api.REFERRAL_NOT_ALLOWED": "Dan il-kodiċi ma jistax jiġi applikat",
   "error.api.REFUND_NOT_ALLOWED": "Il-perjodu ta' rifużjoni fl-app għadda — ikkuntattja s-sapport",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe ma wieġbitx. Erġa' agħfas — imur l-istess rifużjoni, mhux it-tieni waħda",
   "error.api.REPOST_OWN_POST": "Ma tistax terġa' tippubblika l-post tiegħek stess.",
   "error.api.REVIEW_ALREADY_EXISTS": "Diġà rrevedejt dan il-każ.",
   "error.api.REVIEW_APPEAL_EXISTS": "Din ir-reviżjoni diġà ġiet appellata.",

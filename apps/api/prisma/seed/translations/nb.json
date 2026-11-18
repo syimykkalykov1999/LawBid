@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Denne koden finnes ikke",
   "error.api.REFERRAL_NOT_ALLOWED": "Denne koden kan ikke brukes",
   "error.api.REFUND_NOT_ALLOWED": "Fristen for refusjon i appen er utløpt — kontakt kundestøtte",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe svarte ikke. Trykk igjen — den samme refusjonen sendes, ikke en ny",
   "error.api.REPOST_OWN_POST": "Du kan ikke dele videre ditt eget innlegg.",
   "error.api.REVIEW_ALREADY_EXISTS": "Du har allerede anmeldt denne saken.",
   "error.api.REVIEW_APPEAL_EXISTS": "Det er allerede klaget på denne anmeldelsen.",

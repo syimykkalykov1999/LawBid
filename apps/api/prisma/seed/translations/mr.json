@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "असा कोड नाही",
   "error.api.REFERRAL_NOT_ALLOWED": "हा कोड लागू करता येत नाही",
   "error.api.REFUND_NOT_ALLOWED": "अॅपमधील परताव्याची मुदत संपली — सपोर्टशी संपर्क साधा",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe ने उत्तर दिले नाही. पुन्हा टॅप करा — तोच परतावा जाईल, दुसरा नाही",
   "error.api.REPOST_OWN_POST": "तुम्ही तुमची स्वतःची पोस्ट रीपोस्ट करू शकत नाही.",
   "error.api.REVIEW_ALREADY_EXISTS": "आपण या प्रकरणाचा रिव्ह्यू आधीच दिला आहे.",
   "error.api.REVIEW_APPEAL_EXISTS": "या रिव्ह्यूवर आधीच अपील केले आहे.",

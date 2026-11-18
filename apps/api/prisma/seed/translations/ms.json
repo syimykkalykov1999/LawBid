@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Kod sedemikian tidak wujud",
   "error.api.REFERRAL_NOT_ALLOWED": "Kod ini tidak boleh digunakan",
   "error.api.REFUND_NOT_ALLOWED": "Tempoh bayaran balik dalam apl telah tamat — hubungi sokongan",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe tidak menjawab. Ketik sekali lagi — bayaran balik yang sama dihantar, bukan yang kedua",
   "error.api.REPOST_OWN_POST": "Anda tidak boleh menyiarkan semula siaran anda sendiri.",
   "error.api.REVIEW_ALREADY_EXISTS": "Anda sudah memberi ulasan untuk kes ini.",
   "error.api.REVIEW_APPEAL_EXISTS": "Ulasan ini sudah dirayu.",

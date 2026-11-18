@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Kode tersebut tidak ada",
   "error.api.REFERRAL_NOT_ALLOWED": "Kode ini tidak dapat diterapkan",
   "error.api.REFUND_NOT_ALLOWED": "Masa pengembalian dana dalam aplikasi telah lewat — hubungi dukungan",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe tidak merespons. Ketuk lagi — pengembalian dana yang sama dikirim, bukan yang kedua",
   "error.api.REPOST_OWN_POST": "Anda tidak dapat memposting ulang postingan sendiri.",
   "error.api.REVIEW_ALREADY_EXISTS": "Anda sudah mengulas kasus ini.",
   "error.api.REVIEW_APPEAL_EXISTS": "Ulasan ini sudah diajukan banding.",

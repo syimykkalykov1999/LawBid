@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "There is no such code",
   "error.api.REFERRAL_NOT_ALLOWED": "This code can't be applied",
   "error.api.REFUND_NOT_ALLOWED": "The in-app refund window has passed — contact support",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe did not answer. Tap again — the same refund goes, not a second one",
   "error.api.REPOST_OWN_POST": "You can't repost your own post.",
   "error.api.REVIEW_ALREADY_EXISTS": "You have already reviewed this case.",
   "error.api.REVIEW_APPEAL_EXISTS": "This review was already appealed.",

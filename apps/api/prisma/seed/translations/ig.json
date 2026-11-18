@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Enweghị koodu dị otú ahụ",
   "error.api.REFERRAL_NOT_ALLOWED": "Enweghị ike itinye koodu a",
   "error.api.REFUND_NOT_ALLOWED": "Oge nkwụghachi n'ime ngwa agafeela — kpọtụrụ nkwado",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe azaghị. Pịa ọzọ — otu nkwụghachi ahụ na-aga, ọ bụghị nke abụọ",
   "error.api.REPOST_OWN_POST": "Ị nweghị ike itinyegharị post nke gị.",
   "error.api.REVIEW_ALREADY_EXISTS": "Ị nyochala ikpe a.",
   "error.api.REVIEW_APPEAL_EXISTS": "Agbala akwa maka nyocha a.",

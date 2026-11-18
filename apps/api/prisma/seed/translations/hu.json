@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Nincs ilyen kód",
   "error.api.REFERRAL_NOT_ALLOWED": "Ez a kód nem váltható be",
   "error.api.REFUND_NOT_ALLOWED": "Az alkalmazáson belüli visszatérítés határideje lejárt — forduljon az ügyfélszolgálathoz",
+  "error.api.REFUND_PROVIDER_FAILED": "A Stripe nem válaszolt. Koppintson újra — ugyanaz a visszatérítés megy, nem egy második",
   "error.api.REPOST_OWN_POST": "A saját bejegyzését nem oszthatja meg újra.",
   "error.api.REVIEW_ALREADY_EXISTS": "Ezt az ügyet már értékelte.",
   "error.api.REVIEW_APPEAL_EXISTS": "Ez az értékelés ellen már fellebbeztek.",

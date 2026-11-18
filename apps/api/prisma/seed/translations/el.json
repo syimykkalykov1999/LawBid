@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Δεν υπάρχει τέτοιος κωδικός",
   "error.api.REFERRAL_NOT_ALLOWED": "Αυτός ο κωδικός δεν μπορεί να εφαρμοστεί",
   "error.api.REFUND_NOT_ALLOWED": "Το περιθώριο επιστροφής μέσω της εφαρμογής πέρασε — επικοινωνήστε με την υποστήριξη",
+  "error.api.REFUND_PROVIDER_FAILED": "Το Stripe δεν απάντησε. Πατήστε ξανά — πηγαίνει η ίδια επιστροφή, όχι δεύτερη",
   "error.api.REPOST_OWN_POST": "Δεν μπορείτε να αναδημοσιεύσετε τη δική σας ανάρτηση.",
   "error.api.REVIEW_ALREADY_EXISTS": "Έχετε ήδη αξιολογήσει αυτή την υπόθεση.",
   "error.api.REVIEW_APPEAL_EXISTS": "Αυτή η αξιολόγηση έχει ήδη προσβληθεί.",

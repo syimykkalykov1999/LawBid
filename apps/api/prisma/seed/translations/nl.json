@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Deze code bestaat niet",
   "error.api.REFERRAL_NOT_ALLOWED": "Deze code kan niet worden toegepast",
   "error.api.REFUND_NOT_ALLOWED": "De termijn voor terugbetaling in de app is verstreken — neem contact op met ondersteuning",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe gaf geen antwoord. Tik opnieuw — dezelfde terugbetaling gaat, geen tweede",
   "error.api.REPOST_OWN_POST": "Je kunt je eigen bericht niet reposten.",
   "error.api.REVIEW_ALREADY_EXISTS": "U hebt deze zaak al beoordeeld.",
   "error.api.REVIEW_APPEAL_EXISTS": "Tegen deze beoordeling is al beroep aangetekend.",

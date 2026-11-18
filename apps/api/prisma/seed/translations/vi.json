@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Không có mã này",
   "error.api.REFERRAL_NOT_ALLOWED": "Không thể áp dụng mã này",
   "error.api.REFUND_NOT_ALLOWED": "Đã hết thời hạn hoàn tiền trong ứng dụng — liên hệ hỗ trợ",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe không phản hồi. Chạm lại — cùng một khoản hoàn tiền được gửi, không phải khoản thứ hai",
   "error.api.REPOST_OWN_POST": "Bạn không thể đăng lại bài của chính mình.",
   "error.api.REVIEW_ALREADY_EXISTS": "Bạn đã đánh giá vụ việc này.",
   "error.api.REVIEW_APPEAL_EXISTS": "Đánh giá này đã được khiếu nại.",

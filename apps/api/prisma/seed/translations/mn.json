@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Ийм код байхгүй",
   "error.api.REFERRAL_NOT_ALLOWED": "Энэ кодыг ашиглах боломжгүй",
   "error.api.REFUND_NOT_ALLOWED": "Апп доторх буцаан олголтын хугацаа дууссан — дэмжлэгтэй холбогдоно уу",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe хариу өгсөнгүй. Дахин дарна уу — хоёр дахь биш, нөгөө л буцаалт явна",
   "error.api.REPOST_OWN_POST": "Өөрийн нийтлэлийг дахин нийтлэх боломжгүй.",
   "error.api.REVIEW_ALREADY_EXISTS": "Та энэ хэрэгт сэтгэгдэл аль хэдийн үлдээсэн байна.",
   "error.api.REVIEW_APPEAL_EXISTS": "Энэ сэтгэгдлийг аль хэдийн давж заалдсан байна.",

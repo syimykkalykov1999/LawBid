@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Kóòdù bẹ́ẹ̀ kò sí",
   "error.api.REFERRAL_NOT_ALLOWED": "A kò lè lo kóòdù yìí",
   "error.api.REFUND_NOT_ALLOWED": "Àkókò ìdápadà owó nínú ìṣàmúlò ti kọjá — kàn sí ìrànlọ́wọ́",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe kò dáhùn. Tẹ̀ lẹ́ẹ̀kan sí i — ìdápadà kan náà ló ń lọ, kì í ṣe èkejì",
   "error.api.REPOST_OWN_POST": "O kò lè tún ìfiránṣẹ́ tìrẹ fi ránṣẹ́.",
   "error.api.REVIEW_ALREADY_EXISTS": "O ti yẹ ẹjọ́ yìí wò tẹ́lẹ̀.",
   "error.api.REVIEW_APPEAL_EXISTS": "A ti pe àtúnyẹ̀wò yìí níjà tẹ́lẹ̀.",

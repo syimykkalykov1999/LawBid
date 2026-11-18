@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Šāda koda nav",
   "error.api.REFERRAL_NOT_ALLOWED": "Šo kodu nevar pielietot",
   "error.api.REFUND_NOT_ALLOWED": "Atmaksas periods lietotnē ir beidzies — sazinieties ar atbalstu",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe neatbildēja. Pieskarieties vēlreiz — aizies tā pati atmaksa, nevis otra",
   "error.api.REPOST_OWN_POST": "Nevar pārpublicēt savu ierakstu.",
   "error.api.REVIEW_ALREADY_EXISTS": "Jūs jau esat atstājis atsauksmi par šo lietu.",
   "error.api.REVIEW_APPEAL_EXISTS": "Šī atsauksme jau ir apstrīdēta.",

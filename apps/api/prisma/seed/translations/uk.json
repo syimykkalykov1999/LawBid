@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Такого коду не існує",
   "error.api.REFERRAL_NOT_ALLOWED": "Цей код не можна застосувати",
   "error.api.REFUND_NOT_ALLOWED": "Термін повернення в застосунку минув — зверніться в підтримку",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe не відповів. Натисніть ще раз — піде те саме повернення, не друге",
   "error.api.REPOST_OWN_POST": "Не можна зробити репост власної публікації.",
   "error.api.REVIEW_ALREADY_EXISTS": "Ви вже залишили відгук щодо цієї справи.",
   "error.api.REVIEW_APPEAL_EXISTS": "Цей відгук уже оскаржено.",

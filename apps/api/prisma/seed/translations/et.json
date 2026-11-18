@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Sellist koodi pole",
   "error.api.REFERRAL_NOT_ALLOWED": "Seda koodi ei saa rakendada",
   "error.api.REFUND_NOT_ALLOWED": "Rakendusesisese tagasimakse aeg on möödas — võta ühendust toega",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe ei vastanud. Puudutage uuesti — läheb sama tagastus, mitte teine",
   "error.api.REPOST_OWN_POST": "Oma postitust ei saa uuesti jagada.",
   "error.api.REVIEW_ALREADY_EXISTS": "Olete selle juhtumi kohta juba arvustuse jätnud.",
   "error.api.REVIEW_APPEAL_EXISTS": "See arvustus on juba vaidlustatud.",

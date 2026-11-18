@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Daar is geen sodanige kode nie",
   "error.api.REFERRAL_NOT_ALLOWED": "Hierdie kode kan nie toegepas word nie",
   "error.api.REFUND_NOT_ALLOWED": "Die in-app-terugbetalingsvenster het verstryk — kontak ondersteuning",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe het nie geantwoord nie. Tik weer — dieselfde terugbetaling gaan, nie 'n tweede nie",
   "error.api.REPOST_OWN_POST": "Jy kan nie jou eie plasing herplaas nie.",
   "error.api.REVIEW_ALREADY_EXISTS": "Jy het hierdie saak reeds beoordeel.",
   "error.api.REVIEW_APPEAL_EXISTS": "Hierdie resensie is reeds betwis.",

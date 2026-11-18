@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Taký kód neexistuje",
   "error.api.REFERRAL_NOT_ALLOWED": "Tento kód nemožno použiť",
   "error.api.REFUND_NOT_ALLOWED": "Lehota na vrátenie peňazí v aplikácii uplynula — kontaktujte podporu",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe neodpovedal. Ťuknite znova — odíde rovnaká refundácia, nie druhá",
   "error.api.REPOST_OWN_POST": "Vlastný príspevok nemôžete zdieľať znova.",
   "error.api.REVIEW_ALREADY_EXISTS": "Tento prípad ste už ohodnotili.",
   "error.api.REVIEW_APPEAL_EXISTS": "Táto recenzia už bola napadnutá.",

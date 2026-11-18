@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Ayikho ikhodi enjalo",
   "error.api.REFERRAL_NOT_ALLOWED": "Le khodi ayikwazi ukusetshenziswa",
   "error.api.REFUND_NOT_ALLOWED": "Isikhathi sokubuyiselwa kwemali ku-app sidlulile — xhumana nabasekeli",
+  "error.api.REFUND_PROVIDER_FAILED": "I-Stripe ayiphendulanga. Thepha futhi — kuhamba ukubuyiselwa okufanayo, hhayi okwesibili",
   "error.api.REPOST_OWN_POST": "Awukwazi ukuthumela futhi okwakho okuthunyelwe.",
   "error.api.REVIEW_ALREADY_EXISTS": "Usubuyekeze kakade leli cala.",
   "error.api.REVIEW_APPEAL_EXISTS": "Lokhu kubuyekezwa kuvele kuphikisiwe.",

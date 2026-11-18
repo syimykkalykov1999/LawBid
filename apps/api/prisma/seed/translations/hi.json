@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "ऐसा कोई कोड नहीं है",
   "error.api.REFERRAL_NOT_ALLOWED": "यह कोड लागू नहीं किया जा सकता",
   "error.api.REFUND_NOT_ALLOWED": "ऐप में रिफ़ंड की अवधि बीत चुकी है — सहायता से संपर्क करें",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe ने जवाब नहीं दिया। फिर से टैप करें — वही रिफ़ंड जाएगा, दूसरा नहीं",
   "error.api.REPOST_OWN_POST": "आप अपनी ही पोस्ट रीपोस्ट नहीं कर सकते।",
   "error.api.REVIEW_ALREADY_EXISTS": "आप इस मामले की समीक्षा पहले ही दे चुके हैं।",
   "error.api.REVIEW_APPEAL_EXISTS": "इस समीक्षा के विरुद्ध पहले ही अपील की जा चुकी है।",

@@ -2222,6 +2222,7 @@
   "error.api.REFERRAL_CODE_INVALID": "Мындай код жок",
   "error.api.REFERRAL_NOT_ALLOWED": "Бул кодду колдонууга болбойт",
   "error.api.REFUND_NOT_ALLOWED": "Тиркемеде кайтаруу мөөнөтү өттү — колдоо кызматына кайрылыңыз",
+  "error.api.REFUND_PROVIDER_FAILED": "Stripe жооп берген жок. Дагы басыңыз — экинчиси эмес, ошол эле кайтаруу кетет",
   "error.api.REPOST_OWN_POST": "Өз постуңузду репост кыла албайсыз.",
   "error.api.REVIEW_ALREADY_EXISTS": "Сиз бул ишке пикир калтыргансыз.",
   "error.api.REVIEW_APPEAL_EXISTS": "Бул пикирге нааразычылык мурунтан билдирилген.",
