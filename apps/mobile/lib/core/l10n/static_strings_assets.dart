@@ -4,6 +4,17 @@ import 'dart:convert';
 /// as web assets): Russian and English. See static_strings.dart.
 const kBuiltInStringLanguages = ['ru', 'en'];
 
+/// Web start: the pauses between tries when reading the strings fails
+/// (about 15 s in all, then the cached translations answer). boot_head.js
+/// already repeats a dropped download of the app's own files three times.
+const kBuiltInStringsRetryDelays = [
+  Duration(milliseconds: 500),
+  Duration(seconds: 1),
+  Duration(seconds: 2),
+  Duration(seconds: 4),
+  Duration(seconds: 8),
+];
+
 /// The web asset with the compiled-in strings of [code].
 String builtInStringsAsset(String code) =>
     'assets/l10n/static_strings_$code.json';

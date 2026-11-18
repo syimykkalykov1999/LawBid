@@ -241,6 +241,15 @@ Future<void> runLawBid(AppFlavor flavor) async {
   // IndexedDB database (drift); when it is slow or stuck the translator
   // answers from the compiled-in seed (L10nTranslator's layered fallback)
   // and the cached bundle lands by itself when the read finishes.
+  // Web bundle budget (17.11): on the web the built-in ru/en strings are
+  // assets (core/l10n/static_strings.dart, pre-downloaded by boot_head.js
+  // beside main.dart.wasm). No frame before they are in memory — the HTML
+  // splash stays, a failed read is tried again with pauses — so the first
+  // frame never shows a raw key. No timeout here, by design. Phones: no wait.
+  await container
+      .read(l10nCacheControllerProvider.notifier)
+      .builtInStringsReady();
+
   await container
       .read(l10nCacheControllerProvider.notifier)
       .bootstrap()

@@ -77,6 +77,13 @@ class L10nCacheState {
       );
 }
 
+/// How the start waits for the built-in strings (static_strings.dart:
+/// `waitForBuiltInStrings`; `null` on phones). Tests replace it.
+final builtInStringsWaitProvider =
+    Provider<Future<bool>? Function(String code)>(
+  (ref) => waitForBuiltInStrings,
+);
+
 /// Owns the in-memory translation maps [translatorProvider] reads from —
 /// docs/01_FOUNDATION_AUTH.md §9.4's boot sequence: "читает кэш из drift →
 /// показывает UI → в фоне запрашивает bundle?since= → обновляет".
@@ -95,6 +102,7 @@ class L10nCacheState {
 /// so a later switch (picker, server value after login, auto-detection)
 /// re-runs load-then-refresh for the new language without first resetting
 /// the maps (no flash of raw keys).
+
 @Riverpod(keepAlive: true)
 class L10nCacheController extends _$L10nCacheController {
   @override
@@ -106,6 +114,21 @@ class L10nCacheController extends _$L10nCacheController {
       unawaited(_loadAndRefresh(language));
     });
     return const L10nCacheState();
+  }
+
+  /// Web (static_strings.dart): returns once the built-in strings of the
+  /// selected language and of English are in memory, so the first frame
+  /// never shows a raw key; a failed read is tried again with pauses
+  /// (`kBuiltInStringsRetryDelays`, the HTML splash stays), then the start
+  /// goes on with the cached translations. Phones: returns at once (the
+  /// strings are compiled in).
+  Future<void> builtInStringsReady() async {
+    final wait = ref.read(builtInStringsWaitProvider);
+    final english = wait(AppLanguage.fallback.code);
+    if (english == null) return;
+    final language = await _currentLanguage();
+    final own = language == AppLanguage.fallback ? null : wait(language.code);
+    await Future.wait<bool>([english, if (own != null) own]);
   }
 
   Future<void> bootstrap() async {

@@ -25,6 +25,27 @@ Future<void>? loadBuiltInStrings(String code) {
       .whenComplete(() => _loading.removeWhere((key, _) => key == code));
 }
 
+/// Web start (run_app.dart, before the first frame): waits until the strings
+/// of [code] are in memory, trying again after each of [retryDelays] when a
+/// read fails (offline, a dropped connection). `true` once they are in
+/// memory (or [code] has none built in); `false` after the last try, and the
+/// start goes on with the cached translations. The HTML splash stays the
+/// whole time: no frame is drawn before this ends.
+Future<bool>? waitForBuiltInStrings(
+  String code, {
+  List<Duration> retryDelays = kBuiltInStringsRetryDelays,
+}) async {
+  for (var attempt = 0;; attempt++) {
+    final reading = loadBuiltInStrings(code);
+    if (reading != null) await reading;
+    if (_loaded.containsKey(code) || !kBuiltInStringLanguages.contains(code)) {
+      return true;
+    }
+    if (attempt >= retryDelays.length) return false;
+    await Future<void>.delayed(retryDelays[attempt]);
+  }
+}
+
 /// How the asset text is read (tests read the file from disk).
 @visibleForTesting
 Future<String> Function(String asset) readBuiltInStringsAsset =
