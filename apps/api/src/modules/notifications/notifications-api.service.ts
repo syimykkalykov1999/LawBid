@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
 } from '@nestjs/common';
 import { readsAreSplit } from '../../sharding/split-reads';
@@ -23,6 +25,7 @@ import { isValidTimeZone } from '../../common/utils/zoned-time';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   parseUpdatedSince,
+  SYNC_TOO_OLD_ERROR,
   syncedAt,
   type SyncPage,
 } from '../../common/sync/sync.util';
@@ -45,6 +48,8 @@ import { TOPICS, TOPIC_BY_KEY, readTopics } from './notification-topics';
 import { notificationTypesOf } from './notifications.service';
 
 const PAGE = 20;
+/** The most changed rows one `?updatedSince` answer carries. */
+const DELTA_MAX = 500;
 
 function invalid(field: string, message: string): BadRequestException {
   return new BadRequestException({
@@ -97,8 +102,18 @@ export class NotificationsApiService {
             : { not: 'new_message' },
         },
         orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-        take: 500,
+        take: DELTA_MAX + 1,
       });
+      // Verify batch 8 (17.11, NO2): more changes than one answer holds
+      // used to send 500 and move syncedAt past the rest for good. The app
+      // cannot page a delta, so it reloads the list — Telegram's
+      // `updates.differenceTooLong`, the 409 the app already handles.
+      if (rows.length > DELTA_MAX) {
+        throw new HttpException(
+          { ...SYNC_TOO_OLD_ERROR, details: { field: 'updatedSince' } },
+          HttpStatus.CONFLICT,
+        );
+      }
       return {
         items: await this.present(rows),
         nextCursor: null,
@@ -248,23 +263,24 @@ export class NotificationsApiService {
     }
     // Owner 2026-10-22 (package F): the answer names the rows that flipped,
     // so the app edits exactly those instead of reloading the list.
-    const unread = await this.prisma.notification.findMany({
+    // Verify batch 8 (17.11, NO1 / NO4): one UPDATE … RETURNING for every
+    // unread row (the old read-then-update stopped at 1000), cut at the
+    // moment of the request — a like that re-opened its row while the call
+    // ran (updated_at moved past it) stays unread, as in Instagram.
+    const at = new Date();
+    const flipped = await this.prisma.notification.updateManyAndReturn({
       where: {
         user_id: userId,
         read_at: null,
+        updated_at: { lte: at },
         ...(input.all ? {} : { id: { in: input.ids } }),
       },
+      data: { read_at: at },
       select: { id: true },
-      take: 1000,
     });
-    const readIds = unread.map((r) => r.id);
-    if (readIds.length === 0) return { updated: 0, readIds };
-    const { count } = await this.prisma.notification.updateMany({
-      where: { user_id: userId, read_at: null, id: { in: readIds } },
-      data: { read_at: new Date() },
-    });
-    if (count > 0) await this.badges.notificationsChanged(userId);
-    return { updated: count, readIds };
+    const readIds = flipped.map((r) => r.id);
+    if (readIds.length > 0) await this.badges.notificationsChanged(userId);
+    return { updated: readIds.length, readIds };
   }
 
   async settings(userId: string): Promise<NotificationSettingsDto> {

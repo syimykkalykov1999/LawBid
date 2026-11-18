@@ -19,6 +19,7 @@ import {
   SELF_ATTESTED_NOTE,
 } from '../src/modules/verification/services/verification-checks.service';
 import { adminSession } from './support/admin-login';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 // audit_log.seq (hash chain) is a BigInt, which JSON.stringify refuses.
 const bigintSafe = (_k: string, v: unknown) =>
@@ -139,7 +140,7 @@ describe('State bar registries (e2e, owner 2026-10-05)', () => {
       create: { key, value },
       update: { value },
     });
-    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+    await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
   }
 
   async function attorney() {

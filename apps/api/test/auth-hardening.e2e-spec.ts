@@ -18,6 +18,7 @@ import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { PasswordService } from '../src/modules/auth/services/password.service';
 import type Redis from 'ioredis';
 import { randomUUID } from 'node:crypto';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /** Captures every email instead of dialing SMTP/SES. */
 class RecordingEmailProvider implements EmailProvider {
@@ -524,7 +525,7 @@ describe('Auth hardening (e2e)', () => {
         create: { key, value: value as never },
         update: { value: value as never },
       });
-      await redis.del('config:app_config');
+      await dropAppConfigCache(redis);
     };
     const ipOf = (n: number) => `198.51.100.${n}`;
 

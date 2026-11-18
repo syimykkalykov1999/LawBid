@@ -35,6 +35,8 @@ import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import type { AdminBulkResultDto } from '../admin-content/admin-content.dto';
 import { createdWindow } from '../admin-content/admin-content.service';
 import { eachIdInChunks } from '../admin-content/bulk.util';
+import { AssistantContextService } from '../auth/assistant/assistant-context';
+import { endAssistantSessions } from '../assistants/end-assistant-sessions';
 import { PasswordAuthService } from '../auth/password-auth.service';
 import { OtpService } from '../auth/services/otp.service';
 import { RateLimitService } from '../auth/services/rate-limit.service';
@@ -160,6 +162,8 @@ export class AdminUsersService {
     @Optional()
     @Inject(ACCOUNT_ERASER)
     private readonly eraser?: AccountEraser,
+    // Verify 17.11 (A1): a suspended attorney's assistants stop at once.
+    @Optional() private readonly assistantContext?: AssistantContextService,
   ) {}
 
   /** The list's filter as a Prisma where (without the paging cursor); the
@@ -866,6 +870,7 @@ export class AdminUsersService {
       u.role === 'client'
         ? (await this.lifecycle.archiveOpenCasesOfClient(id)).length
         : 0;
+    if (u.role === 'attorney') await this.stopAssistantsOf(id);
     void this.fraud?.onBanned(id);
     return {
       userId: id,
@@ -874,6 +879,30 @@ export class AdminUsersService {
       archivedCases,
       withdrawnBids,
     };
+  }
+
+  /**
+   * Verify 17.11 (A1): the attorney's active assistants worked as the
+   * attorney until their 30 s context cache ran out and kept their open
+   * sockets. The same two steps as removing an assistant
+   * (AssistantsService.remove, AdminTeamsService): the cache is dropped
+   * and every session ends. The seats stay (a restore brings the team
+   * back; they sign in again), and AssistantContextService refuses a
+   * suspended attorney from now on.
+   */
+  private async stopAssistantsOf(attorneyId: string): Promise<void> {
+    const rows = await this.prisma.assistantMembership.findMany({
+      where: {
+        attorney_id: attorneyId,
+        status: 'active',
+        assistant_user_id: { not: null },
+      },
+      select: { assistant_user_id: true },
+    });
+    for (const r of rows) {
+      await this.assistantContext?.invalidate(r.assistant_user_id);
+      await endAssistantSessions(this.sessions, r.assistant_user_id);
+    }
   }
 
   /** §3.4 restore: `active`; a client's archived cases stay archived. */

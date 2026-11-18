@@ -321,6 +321,53 @@ describe('DmcaService.decide', () => {
   });
 });
 
+describe('DmcaService.decide double click (D1)', () => {
+  it('remove: a notice another click already claimed gives no second strike', async () => {
+    const { svc, prisma, adminModeration } = setup();
+    prisma.dmcaNotice.updateMany.mockResolvedValue({ count: 0 });
+    await expect(
+      svc.decide(ADMIN, NOTICE_ID, { action: 'remove' }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(prisma.dmcaNotice.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: NOTICE_ID, status: 'new' },
+      }),
+    );
+    expect(adminModeration.act).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('restore: a notice another click already claimed takes no second strike back', async () => {
+    const { svc, prisma, adminModeration } = setup({
+      notice: { status: 'counter_received', author_user_id: 'author' },
+      target: { status: 'removed' },
+    });
+    prisma.dmcaNotice.updateMany.mockResolvedValue({ count: 0 });
+    await expect(
+      svc.decide(ADMIN, NOTICE_ID, { action: 'restore' }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(adminModeration.act).not.toHaveBeenCalled();
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('a failed side effect gives the claim back', async () => {
+    const { svc, prisma, adminModeration } = setup();
+    adminModeration.act.mockRejectedValue(new Error('db down'));
+    await expect(
+      svc.decide(ADMIN, NOTICE_ID, { action: 'remove' }),
+    ).rejects.toThrow('db down');
+    expect(prisma.dmcaNotice.updateMany).toHaveBeenLastCalledWith({
+      where: { id: NOTICE_ID, status: 'removed' },
+      data: {
+        status: 'new',
+        decided_by: null,
+        decided_at: null,
+        decision_note: null,
+      },
+    });
+  });
+});
+
 describe('DmcaService.counter', () => {
   const COUNTER = {
     name: 'Author',

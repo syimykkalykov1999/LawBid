@@ -13,6 +13,7 @@ import {
 import { totpCode } from '../src/modules/admin-auth/totp.util';
 import { StaffPieceworkService } from '../src/modules/staff-piecework/staff-piecework.service';
 import { adminSession, type AdminSession } from './support/admin-login';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Staff package T7: piecework pay in the real API. The owner sets rates
@@ -125,7 +126,7 @@ describe('Staff piecework (e2e)', () => {
       create: { key: 'staff.piecework_enabled', value: on },
       update: { value: on },
     });
-    await redis.del('config:app_config'); // bypass the cache
+    await dropAppConfigCache(redis); // bypass the cache
   }
 
   /** Steps up (valid 5 min). A repeat inside the same 30 s code window is

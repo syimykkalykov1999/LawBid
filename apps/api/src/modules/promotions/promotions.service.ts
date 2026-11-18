@@ -970,9 +970,10 @@ export class PromotionsService {
   /**
    * Owner 2026-10-22: closes the promotion's open payment (our card page's
    * PaymentIntent or Stripe's hosted session). Returns true when it turned
-   * out to be paid already — it is then applied, not cancelled.
+   * out to be paid already — it is then applied, not cancelled. Batch 8
+   * PM1: the admin cancel calls it too.
    */
-  private async voidPayment(providerId: string | null): Promise<boolean> {
+  async voidPayment(providerId: string | null): Promise<boolean> {
     if (!providerId || !this.provider) return false;
     if (isPaymentIntentId(providerId)) {
       const pi = await this.provider.cancelPaymentIntent?.(providerId);
@@ -1149,24 +1150,56 @@ export class PromotionsService {
     const started = await withTxRetry(this.prisma, async (tx) => {
       const p = await tx.casePromotion.findUnique({ where: { id } });
       if (!p || p.stripe_checkout_id !== session.id) return null;
-      const revivable =
+      // Already booked (a replayed webhook): nothing twice.
+      if (p.payment_id) return null;
+      let revivable =
         p.status === 'pending_payment' ||
         (p.status === 'canceled' &&
           !p.canceled_by &&
           REVIVABLE_REASONS.includes(p.cancel_reason ?? ''));
-      if (!revivable) return null;
+      // Batch 8 PM2: abandon / supersede gave the credit days back; a
+      // revived checkout takes the same days again, or (spent elsewhere
+      // meanwhile) is not revived and its payment goes back below.
+      if (
+        revivable &&
+        p.status === 'canceled' &&
+        !(await this.referrals.reconsumePromotionCredits(tx, p.user_id, p.id))
+      ) {
+        revivable = false;
+      }
+      // Only a closed promotion takes the refund path below; any other
+      // state (already live) changes nothing, as before.
+      if (!revivable && !['canceled', 'rejected'].includes(p.status)) {
+        return null;
+      }
       const now = new Date();
+      const paidCents = session.amountTotalCents ?? p.total_cents;
       const payment = await tx.payment.create({
         data: {
           user_id: p.user_id,
           stripe_payment_intent_id: session.paymentIntentId ?? null,
-          amount_cents: session.amountTotalCents ?? p.total_cents,
+          amount_cents: paidCents,
           currency: 'usd',
           status: 'succeeded',
           paid_at: now,
         },
       });
       await this.ledger?.paymentReceived(tx, payment, 'revenue_promotions');
+      if (!revivable) {
+        // Batch 8 PM1: money for a promotion that can no longer start (an
+        // admin canceled it, a rejected one, credit days gone) is booked
+        // and refunded in full after this transaction — never kept without
+        // the promotion (like Stripe / Airbnb: a canceled order is refunded).
+        await tx.casePromotion.update({
+          where: { id: p.id },
+          data: { payment_id: payment.id },
+        });
+        return {
+          row: p,
+          live: false,
+          refund: { paymentId: payment.id, cents: paidCents },
+        };
+      }
       if (review) {
         const row = await tx.casePromotion.update({
           where: { id: p.id },
@@ -1212,6 +1245,21 @@ export class PromotionsService {
       return { row, live: true };
     });
     if (!started) return false;
+    if ('refund' in started && started.refund) {
+      if (this.unspent) {
+        await this.unspent.refundUnapplied(
+          started.row.id,
+          started.refund.paymentId,
+          started.refund.cents,
+        );
+      } else {
+        this.logger.error(
+          { promotionId: started.row.id, paymentId: started.refund.paymentId },
+          'paid promotion could not start and no refund path is wired: refund by hand',
+        );
+      }
+      return false;
+    }
     if (started.live) await this.started(started.row);
     return true;
   }

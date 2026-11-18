@@ -668,10 +668,10 @@ export class PartnersService {
       if (!r || r.status === 'rejected') return 'referral_rejected';
     }
     if (c.kind === 'attorney_subscription' && c.referred_user_id) {
-      const refunded = await this.prisma.payment.count({
-        where: { user_id: c.referred_user_id, status: 'refunded' },
-      });
-      if (refunded > 0) return 'payment_refunded';
+      // Batch 8 PA1: only the subscription invoice that earned it counts
+      // (a refunded boost or stars top-up of the attorney does not).
+      const earnedOn = await this.qualifyingInvoice(c);
+      if (earnedOn?.status === 'refunded') return 'payment_refunded';
     }
     if (c.referred_user_id) {
       const u = await this.prisma.user.findUnique({
@@ -733,6 +733,66 @@ export class PartnersService {
       );
       return 0;
     }
+  }
+
+  /**
+   * Batch 8 PA1 (audit 2026-11-17): a full refund of one payment reverses
+   * only the commission that payment earned — the attorney commission of
+   * the subscription invoice it accrued on. A refunded promotion, stars
+   * top-up or a later invoice leaves the partner's commissions alone
+   * (Stripe-style: a reversal follows the charge it belongs to). Never
+   * throws.
+   */
+  async reverseForRefundedPayment(
+    paymentId: string,
+    reason: string,
+    now = new Date(),
+  ): Promise<number> {
+    try {
+      const payment = await this.prisma.payment.findUnique({
+        where: { id: paymentId },
+        select: { id: true, user_id: true, stripe_invoice_id: true },
+      });
+      if (!payment?.stripe_invoice_id) return 0;
+      const rows = await this.prisma.partnerCommission.findMany({
+        where: {
+          referred_user_id: payment.user_id,
+          kind: 'attorney_subscription',
+          status: { in: ['held', 'approved', 'paid'] },
+        },
+      });
+      let n = 0;
+      for (const c of rows) {
+        if ((await this.qualifyingInvoice(c))?.id !== payment.id) continue;
+        if (await this.reverseOne(c.id, reason, now)) n += 1;
+      }
+      return n;
+    } catch (e) {
+      this.logger.warn(
+        { paymentId, reason, err: String(e) },
+        'partner commission reversal failed',
+      );
+      return 0;
+    }
+  }
+
+  /** The subscription invoice an attorney commission accrued on: the last
+   * paid one up to the commission (it accrues on that invoice's event). */
+  private qualifyingInvoice(
+    c: Pick<PartnerCommission, 'referred_user_id' | 'created_at'>,
+  ): Promise<{ id: string; status: string } | null> {
+    if (!c.referred_user_id) return Promise.resolve(null);
+    return this.prisma.payment.findFirst({
+      where: {
+        user_id: c.referred_user_id,
+        stripe_invoice_id: { not: null },
+        amount_cents: { gt: 0 },
+        status: { in: ['succeeded', 'refunded'] },
+        created_at: { lte: c.created_at },
+      },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      select: { id: true, status: true },
+    });
   }
 
   /** An admin rejected the referral (fraud): same as above, by referral. */

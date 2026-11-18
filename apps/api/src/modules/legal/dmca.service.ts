@@ -345,6 +345,8 @@ export class DmcaService {
     let authorUserId = notice.author_user_id;
     let next: DmcaStatus;
     const outcome: Record<string, unknown> = {};
+    // The checks read only; the content is touched after the claim below.
+    let effects: () => Promise<void>;
 
     if (dto.action === 'remove') {
       if (notice.status !== 'new') {
@@ -355,67 +357,102 @@ export class DmcaService {
           'This notice points at a URL, not at content on LawBid; handle it by hand.',
         );
       }
-      const target = await this.moderation.resolve(
-        notice.target_type,
-        notice.target_id,
-      );
+      const targetType = notice.target_type;
+      const targetId = notice.target_id;
+      const target = await this.moderation.resolve(targetType, targetId);
       if (!target) {
         throw new NotFoundException({
           code: ErrorCode.NOT_FOUND,
           message: 'The reported content no longer exists.',
         });
       }
-      // Already gone (another moderator, the author): no second action,
-      // but the notice is still recorded as a removal.
-      if (target.status !== 'removed') {
-        await this.adminModeration.act(
-          admin,
-          notice.target_type,
-          notice.target_id,
-          'remove',
-          reason,
-        );
-      }
       authorUserId = target.authorId;
-      if (authorUserId) {
-        const strikes = await this.addStrike(admin, authorUserId);
-        outcome.strikes = strikes.strikes;
-        outcome.suspended = strikes.suspended;
-      }
+      effects = async () => {
+        // Already gone (another moderator, the author): no second action,
+        // but the notice is still recorded as a removal.
+        if (target.status !== 'removed') {
+          await this.adminModeration.act(
+            admin,
+            targetType,
+            targetId,
+            'remove',
+            reason,
+          );
+        }
+        if (target.authorId) {
+          const strikes = await this.addStrike(admin, target.authorId);
+          outcome.strikes = strikes.strikes;
+          outcome.suspended = strikes.suspended;
+        }
+      };
       next = 'removed';
     } else if (dto.action === 'reject') {
       if (notice.status !== 'new') {
         throw invalidState('Only a new notice can be rejected.');
       }
+      effects = () => Promise.resolve();
       next = 'rejected';
     } else {
       // restore
       if (notice.status !== 'counter_received' && notice.status !== 'removed') {
         throw invalidState('Only removed content can be restored.');
       }
-      if (notice.target_type && notice.target_id) {
-        const target = await this.moderation.resolve(
-          notice.target_type,
-          notice.target_id,
-        );
-        if (target && target.status !== 'published') {
+      const targetType = notice.target_type;
+      const targetId = notice.target_id;
+      const target =
+        targetType && targetId
+          ? await this.moderation.resolve(targetType, targetId)
+          : null;
+      effects = async () => {
+        if (targetType && targetId && target && target.status !== 'published') {
           await this.adminModeration.act(
             admin,
-            notice.target_type,
-            notice.target_id,
+            targetType,
+            targetId,
             'restore',
             reason,
           );
         }
-      }
-      if (authorUserId) {
-        // The strike goes back (never below zero).
-        await this.prisma.user.updateMany({
-          where: { id: authorUserId, copyright_strikes: { gt: 0 } },
-          data: { copyright_strikes: { decrement: 1 } },
-        });
-      }
+        if (authorUserId) {
+          // The strike goes back (never below zero).
+          await this.prisma.user.updateMany({
+            where: { id: authorUserId, copyright_strikes: { gt: 0 } },
+            data: { copyright_strikes: { decrement: 1 } },
+          });
+        }
+      };
       next = 'restored';
+    }
+
+    // Audit 17.11 (D1): claim the notice first, so a double click (or two
+    // admins) gives one strike / one restore; the loser gets the same
+    // invalid-state answer as for a decided notice.
+    const claimed = await this.prisma.dmcaNotice.updateMany({
+      where: { id, status: notice.status },
+      data: {
+        status: next,
+        decided_by: admin.id,
+        decided_at: now,
+        decision_note: dto.note ?? null,
+      },
+    });
+    if (claimed.count === 0) {
+      throw invalidState('The notice was decided meanwhile.');
+    }
+    try {
+      await effects();
+    } catch (e) {
+      // The content was not handled: the notice goes back to be decided.
+      await this.prisma.dmcaNotice.updateMany({
+        where: { id, status: next },
+        data: {
+          status: notice.status,
+          decided_by: notice.decided_by,
+          decided_at: notice.decided_at,
+          decision_note: notice.decision_note,
+        },
+      });
+      throw e;
     }
 
     const after = await this.prisma.dmcaNotice.update({

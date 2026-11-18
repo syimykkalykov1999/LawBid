@@ -62,17 +62,21 @@ abstract interface class TeamRepository {
   Future<List<TaskItem>> tasks({bool done = false, bool mine = false});
   Future<TaskItem> task(String id);
   Future<TaskItem> createTask(TaskDraft draft);
+
+  /// [version]: the task's `version`, sent as `If-Match` (409
+  /// STALE_VERSION when someone saved it first); null = no check.
   Future<TaskItem> setTaskStatus(
     String id,
     TaskStatus status, {
     String? note,
     DateTime? rescheduleTo,
+    int? version,
   });
   Future<String> uploadTaskFile(Uint8List bytes, String mime);
 
   /// Owner 2026-10-01: edit a planner card (every field of [draft];
   /// null optional fields are cleared) / delete it with its steps.
-  Future<TaskItem> updateTask(String id, TaskDraft draft);
+  Future<TaskItem> updateTask(String id, TaskDraft draft, {int? version});
   Future<void> deleteTask(String id);
 
   /// Owner 2026-10-05: "postpone" — the task gets a new time (and a new
@@ -219,6 +223,7 @@ class ApiTeamRepository implements TeamRepository, TeamTasksSync {
 
   static TaskItem _task(api.TaskDto t) => TaskItem(
         id: t.id,
+        version: t.version,
         kind: TaskKind.parse(t.kind.json),
         title: t.title,
         notes: t.notes,
@@ -597,11 +602,13 @@ class ApiTeamRepository implements TeamRepository, TeamTasksSync {
     TaskStatus status, {
     String? note,
     DateTime? rescheduleTo,
+    int? version,
   }) async =>
       _task(
         (await guardApiCall(
           () => _api.setTaskStatus(
             id: id,
+            ifMatch: version,
             body: api.UpdateTaskStatusDto(
               status: api.UpdateTaskStatusDtoStatus.fromJson(status.wire),
               outcomeNote: note,
@@ -613,10 +620,16 @@ class ApiTeamRepository implements TeamRepository, TeamTasksSync {
       );
 
   @override
-  Future<TaskItem> updateTask(String id, TaskDraft d) async => _task(
+  Future<TaskItem> updateTask(
+    String id,
+    TaskDraft d, {
+    int? version,
+  }) async =>
+      _task(
         (await guardApiCall(
           () => _api.updateTask(
             id: id,
+            ifMatch: version,
             body: api.UpdateTaskDto(
               kind: api.AttorneyTaskKind.fromJson(d.kind.wire),
               title: d.title,

@@ -8,6 +8,7 @@ import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { ensurePostPractices } from './support/post-practices';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * docs/05 §16 stage 5.2 acceptance: a client and an unverified attorney
@@ -46,9 +47,7 @@ describe('Posts (e2e, docs/05 §3, stage 5.2)', () => {
       create: { key: 'attachments_in_posts', value: 'on_for_all' },
       update: { value: 'on_for_all' },
     });
-    await app
-      .get<import('ioredis').default>(REDIS_CLIENT)
-      .del('config:app_config');
+    await dropAppConfigCache(app.get<import('ioredis').default>(REDIS_CLIENT));
     await ensurePostPractices(prisma);
     tokens = app.get(TokenService);
   });
