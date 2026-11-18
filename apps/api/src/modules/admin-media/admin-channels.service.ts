@@ -7,6 +7,7 @@ import {
 import type { Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
+  createdKeyset,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -70,14 +71,8 @@ export class AdminChannelsService {
         ],
       });
     }
-    if (c) {
-      and.push({
-        OR: [
-          { created_at: { lt: c.createdAt } },
-          { created_at: c.createdAt, id: { lt: c.id } },
-        ],
-      });
-    }
+    // Row 215: a range on channels_created_id_idx.
+    and.push(createdKeyset(c && { t: c.createdAt, id: c.id }));
     const rows = await this.prisma.channel.findMany({
       where: { AND: and },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],

@@ -1,3 +1,4 @@
+import { createdKeyset } from '../../common/pagination/cursor.util';
 import { AdminContentController } from './admin-content.controller';
 import { AdminContentBulkService } from './admin-content-bulk.service';
 import { AdminContentExtrasService } from './admin-content-extras.service';
@@ -80,23 +81,22 @@ describe('content bulk by filter', () => {
     return { list, ids };
   }
 
-  /** A where with the list's empty keyset `{}` left out of its AND. */
+  /** A where with the list's first-page keyset (row 215: createdKeyset,
+   * `created_at <= KEYSET_END`, which keeps every row) left out of its AND. */
+  const page1 = createdKeyset(undefined);
+  const isPage1 = (x: unknown) =>
+    JSON.stringify(x) === JSON.stringify(page1) ||
+    JSON.stringify(x) === JSON.stringify(page1.AND[0]);
   const noKeyset = (w: unknown) => {
     const o = w as { AND?: unknown[] };
-    return o.AND
-      ? {
-          ...o,
-          AND: o.AND.filter(
-            (x) =>
-              !(
-                x &&
-                typeof x === 'object' &&
-                Object.keys(x).length === 0 &&
-                o.AND!.indexOf(x) === o.AND!.length - 1
-              ),
-          ),
-        }
-      : o;
+    if (!o.AND) return o;
+    const AND = o.AND.filter((x) => !isPage1(x));
+    if (AND.length === 0) {
+      const rest = { ...o };
+      delete rest.AND;
+      return rest;
+    }
+    return { ...o, AND };
   };
 
   it('posts: the ids come from the very where of the posts list', async () => {
@@ -113,11 +113,11 @@ describe('content bulk by filter', () => {
     await content.comments('post', filter.q, undefined, filter);
     await bulk.idsByFilter('comment', filter, null);
     let w = wheres(prisma.comment);
-    expect(w.ids).toEqual(w.list);
+    expect(w.ids).toEqual(noKeyset(w.list));
     await content.comments('case', filter.q, undefined, filter);
     await bulk.idsByFilter('case_comment', filter, null);
     w = wheres(prisma.caseComment);
-    expect(w.ids).toEqual(w.list);
+    expect(w.ids).toEqual(noKeyset(w.list));
   });
 
   it('reviews and reviews of clients: the list where', async () => {

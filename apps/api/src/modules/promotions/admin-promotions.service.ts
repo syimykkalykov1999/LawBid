@@ -8,7 +8,7 @@ import {
 import type { CasePromotion, Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
-  createdBefore,
+  createdKeyset,
   decodeCursor,
   encodeCursor,
 } from '../../common/pagination/cursor.util';
@@ -181,9 +181,8 @@ export class AdminPromotionsService {
         ...(q.caseId ? { case_id: q.caseId } : {}),
         ...(q.postId ? { post_id: q.postId } : {}),
         ...(q.userId ? { user_id: q.userId } : {}),
-        ...(cursor
-          ? createdBefore({ t: cursor.createdAt, id: cursor.id })
-          : {}),
+        // Row 215: case_promotions_created_id_idx, the first page too.
+        ...createdKeyset(cursor && { t: cursor.createdAt, id: cursor.id }),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
       take: PAGE + 1,
