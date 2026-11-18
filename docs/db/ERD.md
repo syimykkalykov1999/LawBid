@@ -955,6 +955,7 @@ erDiagram
     String sent_by_membership_id "nullable"
     String sent_by_name "nullable"
     DateTime listened_at "nullable"
+    DateTime reactions_changed_at "nullable"
     String sticker_id FK "nullable"
     String gift_send_id FK "nullable"
     DateTime deleted_at "nullable"
@@ -1073,6 +1074,7 @@ erDiagram
     Int duration_ms "nullable"
     DateTime edited_at "nullable"
     DateTime deleted_at "nullable"
+    DateTime changed_at "nullable"
     DateTime expires_at "nullable"
     Boolean forwarded
     String forwarded_from_name "nullable"

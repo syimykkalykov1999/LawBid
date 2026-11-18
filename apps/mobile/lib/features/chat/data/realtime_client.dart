@@ -393,9 +393,18 @@ class RealtimeClient {
   // --- lifecycle / network (part C9) ---------------------------------------
 
   /// The app went to the background: keep the socket, stop the timers.
+  /// Verify 17.11: the open chats are left (kept in [_rooms]) — the server
+  /// counted them as «on screen» and sent no push while the phone sat in
+  /// the background; [resume] joins them again.
   void pause() {
     _policy.pause();
     _poller.stop();
+    final s = _socket;
+    if (s != null && s.connected) {
+      for (final id in _rooms) {
+        s.emit('conversation:leave', {'conversationId': id});
+      }
+    }
   }
 
   /// The app came back: renew the token if it is about to end, then
@@ -413,7 +422,14 @@ class RealtimeClient {
       return;
     }
     _policy.resume();
-    if (!connected) _poller.start();
+    if (!connected) {
+      _poller.start();
+    } else {
+      // The chats left in [pause] are on screen again.
+      for (final id in _rooms) {
+        _join(id);
+      }
+    }
   }
 
   /// The network came back: reconnect at once when the socket is down.

@@ -158,6 +158,31 @@
     add('preload', 'canvaskit/canvaskit.js', 'script');
     start('canvaskit/canvaskit.wasm', 'application/wasm');
   }
+
+  /* Web bundle budget (17.11): the app's built-in English and Russian texts
+     are assets (lib/core/l10n/static_strings.dart), and the app draws no
+     frame before they are in memory. So they download now, beside the app,
+     and the app's own fetch of the same address is handed this download.
+     English is always needed (the fallback of every language); Russian when
+     it was picked in the app (shared_preferences: localStorage
+     "flutter.l10n.language") or, before any choice, when it is the
+     browser's first language. A failed download here is not final: the app
+     reads the file again itself. */
+  var lang = '';
+  try {
+    var saved = window.localStorage.getItem('flutter.l10n.language');
+    if (saved) lang = String(JSON.parse(saved));
+  } catch (e) { /* no storage: the browser's language below */ }
+  if (!lang) lang = (navigator.languages && navigator.languages[0]) || navigator.language || '';
+  lang = lang.toLowerCase().split(/[-_]/)[0];
+  var texts = lang === 'ru' ? ['en', 'ru'] : ['en'];
+  for (var i = 0; i < texts.length; i++) {
+    var tu = abs(at('assets/assets/l10n/static_strings_' + texts[i] + '.json'));
+    try {
+      early[tu] = resilient(tu, 'application/json');
+      early[tu].catch((function (u) { return function () { delete early[u]; }; })(tu));
+    } catch (e) { delete early[tu]; }
+  }
 })();
 
 /* Owner 2026-10-23: a person who picked the Blue or Green theme sees that

@@ -42,6 +42,7 @@ import {
   VISIBLE_POST_WHERE,
 } from '../posts/post-presenter.service';
 import { BlocksService } from '../blocks/blocks.service';
+import type { SuggestItem } from './search.provider';
 import { ClientProfilesService } from '../profiles/services/client-profiles.service';
 import { RecommendationsService } from '../recommendations/recommendations.service';
 import { reorderWithinTiers } from '../recommendations/ranking.math';
@@ -438,22 +439,22 @@ export class SearchService {
     const q = normalizeQuery(rawQ);
     if (q.length < 1) return [];
     const hash = createHash('sha256').update(q).digest('base64url');
-    const hit = await this.cache.get(`search:suggest:${hash}`);
-    if (hit)
-      return JSON.parse(hit) as {
-        kind: 'tag' | 'person' | 'practice';
-        text: string;
-      }[];
-    return singleFlight(`search:suggest:${hash}`, async () => {
-      const items = await this.provider.suggest(q, 4);
-      await this.cache.set(
-        `search:suggest:${hash}`,
-        JSON.stringify(items),
-        'EX',
-        jitterTtl(60),
-      );
-      return items;
-    });
+    // v2: rows carry the person's id (Verify 17.11).
+    const key = `search:suggest:v2:${hash}`;
+    const hit = await this.cache.get(key);
+    const items: SuggestItem[] = hit
+      ? (JSON.parse(hit) as SuggestItem[])
+      : await singleFlight(key, async () => {
+          const rows = await this.provider.suggest(q, 4);
+          await this.cache.set(key, JSON.stringify(rows), 'EX', jitterTtl(60));
+          return rows;
+        });
+    // Verify 17.11: the shared list is viewer-agnostic — people blocked
+    // either way leave it per viewer (as every other search list).
+    const hidden = await this.blocks.hiddenIds(user.sub);
+    return items
+      .filter((i) => !(i.userId && hidden.has(i.userId)))
+      .map(({ kind, text }) => ({ kind, text }));
   }
 
   async postsByText(
@@ -496,12 +497,54 @@ export class SearchService {
     // Type-ahead, same for everyone: a short shared cache (like suggest).
     const key = `search:tags:${createHash('sha256').update(prefix).digest('base64url')}`;
     const hit = await this.cache.get(key);
-    if (hit) return JSON.parse(hit) as TagDto[];
-    return singleFlight(key, async () => {
-      const out = await this.tagsUncached(prefix);
-      await this.cache.set(key, JSON.stringify(out), 'EX', jitterTtl(60));
-      return out;
+    const list = hit
+      ? (JSON.parse(hit) as TagDto[])
+      : await singleFlight(key, async () => {
+          const out = await this.tagsUncached(prefix);
+          await this.cache.set(key, JSON.stringify(out), 'EX', jitterTtl(60));
+          return out;
+        });
+    return this.hideBlockedCovers(user, list);
+  }
+
+  /**
+   * Verify 17.11: covers are picked once for everyone (shared cache); a
+   * cover from the post of someone blocked either way, or one the viewer's
+   * «only legal» setting excludes, is dropped per viewer (one primary-key
+   * read of the shown cover posts).
+   */
+  private async hideBlockedCovers(
+    user: RequestUser | undefined,
+    list: TagDto[],
+  ): Promise<TagDto[]> {
+    const ids = [
+      ...new Set(list.flatMap((t) => (t.coverPostId ? [t.coverPostId] : []))),
+    ];
+    if (!user?.sub || ids.length === 0) return list;
+    const [hidden, only] = await Promise.all([
+      this.blocks.hiddenIds(user.sub),
+      this.viewerOnly(user.sub),
+    ]);
+    if (hidden.size === 0 && !only) return list;
+    const posts = await this.prisma.post.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, author_id: true, content_class: true },
     });
+    // Verify 17.11: also a cover the viewer's «only legal» setting excludes
+    // (a general post's picture), as every post list does.
+    const blocked = new Set(
+      posts
+        .filter(
+          (p) => hidden.has(p.author_id) || (only && p.content_class !== only),
+        )
+        .map((p) => p.id),
+    );
+    if (blocked.size === 0) return list;
+    return list.map((t) =>
+      t.coverPostId && blocked.has(t.coverPostId)
+        ? { ...t, coverUrl: null, coverPostId: null }
+        : t,
+    );
   }
 
   private async tagsUncached(prefix: string): Promise<TagDto[]> {
@@ -648,9 +691,12 @@ export class SearchService {
   }
 
   /** §7.2 "Популярные темы": written by TrendingTagsJob. */
-  async trending(): Promise<TagDto[]> {
+  async trending(user?: RequestUser): Promise<TagDto[]> {
     const raw = await this.redis.get(TRENDING_TAGS_KEY);
-    return this.withCovers(raw ? (JSON.parse(raw) as TagDto[]) : []);
+    return this.hideBlockedCovers(
+      user,
+      await this.withCovers(raw ? (JSON.parse(raw) as TagDto[]) : []),
+    );
   }
 
   /** GET /tags/:tag/posts — "Топ" by the §2.2.2 score, "Новые" by date. */

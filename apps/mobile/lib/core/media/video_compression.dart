@@ -132,31 +132,63 @@ bool needsVideoCompression({
   return bytes * 8 / durationMs > reencodeAboveKbps;
 }
 
-/// The fallback plugin's preset for a target short side (CMV 17.11 №5:
-/// v_video_compressor has 1080p / 720p / 480p; the main hardware path above
-/// keeps the admin's exact height, 540 included).
+/// The fallback plugin's preset for a target short side, used only when the
+/// source size is unknown (CMV 17.11 №5). The presets bound the LONG side
+/// (high 1920, medium 1280, low 960), so this is the nearest preset that is
+/// at least the admin height for a 16:9 video; with a known size
+/// [pluginConfigFor] asks for the admin's exact height instead.
 VVideoCompressQuality videoQualityFor(int maxHeight) => maxHeight < 720
     ? VVideoCompressQuality.low
     : maxHeight < 1080
         ? VVideoCompressQuality.medium
         : VVideoCompressQuality.high;
 
-/// The fallback plugin's settings: the admin's preset height, frame rate and
+/// The fallback plugin's output size for a source shown as [width] x
+/// [height]: the short side is exactly the admin's [maxHeight] (never above
+/// the source), the long side keeps the aspect, both even (H.264 needs
+/// even sides). Null when the source size is unknown.
+({int width, int height})? pluginOutputSizeFor(
+  int maxHeight,
+  int width,
+  int height,
+) {
+  if (maxHeight <= 0 || width <= 0 || height <= 0) return null;
+  final short = math.min(width, height);
+  final long = math.max(width, height);
+  final s = math.min(maxHeight, short) & ~1;
+  if (s < 16) return null;
+  final l = math.max(s, ((long * s / short) / 2).round() * 2);
+  return width <= height ? (width: s, height: l) : (width: l, height: s);
+}
+
+/// The fallback plugin's settings: the admin's exact height when the source
+/// size is known ([pluginOutputSizeFor], the plugin's own custom size, no
+/// 16-pixel rounding), else the nearest preset; the admin's frame rate and
 /// bitrate (the same ladder as the hardware path), H.264 + AAC MP4, moov
 /// first; the original is never deleted and is kept when not smaller.
-VVideoCompressionConfig pluginConfigFor(VideoLimits limits, int bitrateKbps) =>
-    VVideoCompressionConfig(
-      quality: videoQualityFor(limits.maxHeight),
-      includeMetadata: false,
-      copyMetadata: false,
-      advanced: VVideoAdvancedConfig(
-        videoBitrate: bitrateKbps * 1000,
-        frameRate: limits.frameRate.toDouble(),
-        videoCodec: VVideoCodec.h264,
-        audioCodec: VAudioCodec.aac,
-        autoCorrectOrientation: true,
-      ),
-    );
+VVideoCompressionConfig pluginConfigFor(
+  VideoLimits limits,
+  int bitrateKbps, {
+  int sourceWidth = 0,
+  int sourceHeight = 0,
+}) {
+  final size = pluginOutputSizeFor(limits.maxHeight, sourceWidth, sourceHeight);
+  return VVideoCompressionConfig(
+    quality: videoQualityFor(limits.maxHeight),
+    includeMetadata: false,
+    copyMetadata: false,
+    advanced: VVideoAdvancedConfig(
+      videoBitrate: bitrateKbps * 1000,
+      frameRate: limits.frameRate.toDouble(),
+      videoCodec: VVideoCodec.h264,
+      audioCodec: VAudioCodec.aac,
+      autoCorrectOrientation: true,
+      customWidth: size?.width,
+      customHeight: size?.height,
+      dimensionHandling: size == null ? null : VDimensionHandling.exact,
+    ),
+  );
+}
 
 /// Re-encodes a video on the device; null = keep the original (failed,
 /// cancelled, not smaller, or the browser build — no encoder there, the
@@ -301,9 +333,22 @@ class PluginVideoCompressor implements VideoCompressor {
     try {
       final ladder =
           _ladder?.call() ?? (kbps1080: 4500, kbps720: 2000, kbps540: 1200);
+      // The source's displayed size (rotation applied by the plugin), so
+      // the output gets the admin's exact height; unknown → the preset.
+      VVideoInfo? src;
+      try {
+        src = await _plugin.getVideoInfo(source.path);
+      } on Object {
+        src = null;
+      }
       final info = await _plugin.compressVideo(
         source.path,
-        pluginConfigFor(limits, videoBitrateKbpsFor(limits, ladder)),
+        pluginConfigFor(
+          limits,
+          videoBitrateKbpsFor(limits, ladder),
+          sourceWidth: src?.width ?? 0,
+          sourceHeight: src?.height ?? 0,
+        ),
         onProgress: (p) => onProgress?.call(p.clamp(0, 1).toDouble()),
       );
       if (info == null ||

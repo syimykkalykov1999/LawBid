@@ -561,9 +561,26 @@ export class ModerationService {
         if (delta) {
           const postId = target.context.postId;
           const parentId = target.context.parentCommentId;
+          // Verify 17.11: a top-level comment takes its published replies
+          // out of (and back into) the post's count — they are not shown
+          // without it.
+          const replies = parentId
+            ? 0
+            : await tx.comment.count({
+                where: {
+                  parent_comment_id: target.id,
+                  status: 'published',
+                  deleted_at: null,
+                },
+              });
           if (postId) {
             after.push(() =>
-              this.counters.bump('post', postId, 'comment_count', delta),
+              this.counters.bump(
+                'post',
+                postId,
+                'comment_count',
+                delta * (1 + replies),
+              ),
             );
           }
           if (parentId) {
@@ -588,9 +605,24 @@ export class ModerationService {
         if (delta) {
           const caseId = target.context.caseId;
           const parentId = target.context.parentCommentId;
+          // Verify 17.11: as post comments — the replies go with the top one.
+          const replies = parentId
+            ? 0
+            : await tx.caseComment.count({
+                where: {
+                  parent_comment_id: target.id,
+                  status: 'published',
+                  deleted_at: null,
+                },
+              });
           if (caseId) {
             after.push(() =>
-              this.counters.bump('case', caseId, 'comment_count', delta),
+              this.counters.bump(
+                'case',
+                caseId,
+                'comment_count',
+                delta * (1 + replies),
+              ),
             );
           }
           if (parentId) {

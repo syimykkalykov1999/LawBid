@@ -104,6 +104,47 @@ void main() {
     expect(c.isValid(), isTrue);
   });
 
+  // Coordinator 17.11 (after #1223): the fallback must not drop below the
+  // admin height. With the source size known, the plugin is asked for the
+  // admin's exact short side (540 is not a plugin preset).
+  test('fallback: admin 540 gives exactly 540 on the short side', () {
+    final land = pluginConfigFor(
+      (maxHeight: 540, frameRate: 30),
+      1200,
+      sourceWidth: 1920,
+      sourceHeight: 1080,
+    );
+    expect(land.advanced?.customWidth, 960);
+    expect(land.advanced?.customHeight, 540);
+    expect(land.advanced?.dimensionHandling, VDimensionHandling.exact);
+    expect(land.advanced?.videoBitrate, 1200 * 1000); // ladder kept
+    expect(land.isValid(), isTrue);
+
+    // Portrait 4:3 (a preset bounds the long side to 960 → short 720).
+    final tall = pluginConfigFor(
+      (maxHeight: 540, frameRate: 30),
+      1200,
+      sourceWidth: 1080,
+      sourceHeight: 1440,
+    );
+    expect(tall.advanced?.customWidth, 540);
+    expect(tall.advanced?.customHeight, 720);
+  });
+
+  test('fallback: any admin height, even sides, never above the source', () {
+    expect(pluginOutputSizeFor(720, 1920, 1080), (width: 1280, height: 720));
+    expect(pluginOutputSizeFor(1080, 1080, 1920), (width: 1080, height: 1920));
+    // An odd admin value or aspect still gives even sides.
+    expect(pluginOutputSizeFor(601, 1918, 1080), (width: 1066, height: 600));
+    // Smaller than the admin height: keep the source size, no upscaling.
+    expect(pluginOutputSizeFor(1080, 1280, 720), (width: 1280, height: 720));
+    // Unknown size → null (the preset is used).
+    expect(pluginOutputSizeFor(540, 0, 0), isNull);
+    final c = pluginConfigFor((maxHeight: 540, frameRate: 30), 1200);
+    expect(c.advanced?.customWidth, isNull);
+    expect(c.quality, VVideoCompressQuality.low);
+  });
+
   // Owner rows 101/102: the numbers that were built into the app are the
   // admin's now, with the old values as defaults.
   test('chat/case/support height: 720 by default, the admin value, 0 = off',

@@ -1,3 +1,4 @@
+import type { SuggestItem } from './search.provider';
 import { Injectable, Optional } from '@nestjs/common';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
@@ -1254,18 +1255,22 @@ export class PostgresSearchProvider implements SearchProvider {
    * Suggestions while typing (owner 2026-10-15): topics, attorney handles
    * and practice names that start with [prefix] — one cheap round trip.
    */
-  async suggest(
-    prefix: string,
-    perKind: number,
-  ): Promise<{ kind: 'tag' | 'person' | 'practice'; text: string }[]> {
+  async suggest(prefix: string, perKind: number): Promise<SuggestItem[]> {
     const like = `${escapeLike(prefix)}%`;
     const [tags, people, practices] = await Promise.all([
       this.searchTags(prefix, perKind),
-      this.db.$queryRaw<{ username: string }[]>`
-        SELECT username FROM attorney_profiles
-        WHERE username_lower LIKE ${like}
-          AND verification_status <> 'suspended'
-        ORDER BY rating_count DESC, username_lower
+      // Verify 17.11: only live attorney accounts (deleted, suspended or
+      // closing ones kept showing: no join to users); the id goes up for
+      // the per-viewer block filter.
+      this.db.$queryRaw<{ username: string; user_id: string }[]>`
+        SELECT ap.username, ap.user_id::TEXT AS user_id
+        FROM attorney_profiles ap
+        JOIN users u ON u.id = ap.user_id
+        WHERE ap.username_lower LIKE ${like}
+          AND ap.verification_status <> 'suspended'
+          AND u.role = 'attorney' AND u.status = 'active'
+          AND u.deleted_at IS NULL
+        ORDER BY ap.rating_count DESC, ap.username_lower
         LIMIT ${perKind}`,
       this.db.$queryRaw<{ name: string }[]>`
         SELECT name_en AS name FROM practice_areas
@@ -1274,7 +1279,11 @@ export class PostgresSearchProvider implements SearchProvider {
     ]);
     return [
       ...tags.map((text) => ({ kind: 'tag' as const, text })),
-      ...people.map((r) => ({ kind: 'person' as const, text: r.username })),
+      ...people.map((r) => ({
+        kind: 'person' as const,
+        text: r.username,
+        userId: r.user_id,
+      })),
       ...practices.map((r) => ({ kind: 'practice' as const, text: r.name })),
     ];
   }

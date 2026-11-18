@@ -163,4 +163,34 @@ void main() {
       ['c-live'],
     );
   });
+
+  test('verify 17.11: my reply goes on top, as the server orders replies',
+      () async {
+    final repo = _RepliesRepo();
+    final c = _container(repo);
+    await c.read(repliesProvider('c-parent').future);
+    final keep = c.listen(repliesProvider('c-parent'), (_, __) {});
+    addTearDown(keep.close);
+    await c
+        .read(commentSenderProvider.notifier)
+        .send(postId: 'p1', body: 'New', parentId: 'c-parent');
+    expect(
+      c.read(repliesProvider('c-parent')).value!.items.map((x) => x.id),
+      ['c-live', 'r2', 'r1'],
+    );
+  });
+}
+
+class _RepliesRepo extends _CommentingRepo {
+  @override
+  Future<CursorPage<Comment>> replies(
+    String commentId, {
+    String? cursor,
+  }) async =>
+      CursorPage(
+        items: [
+          _live('r2', 'p1', 'newer', parentId: 'c-parent'),
+          _live('r1', 'p1', 'older', parentId: 'c-parent'),
+        ],
+      );
 }
