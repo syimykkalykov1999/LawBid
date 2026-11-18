@@ -16,6 +16,7 @@ import { TokenService } from './token.service';
 import { SessionRevocationService } from './session-revocation.service';
 import { AuthEventService, AUTH_EVENT_TYPES } from './auth-event.service';
 import { RateLimitService } from './rate-limit.service';
+import { AccountBansService } from '../../account-bans/account-bans.service';
 
 export interface DeviceInfo {
   deviceId?: string;
@@ -79,6 +80,8 @@ export class SessionService {
     private readonly rateLimit: RateLimitService,
     // S14-3: the 10 s replay cache of a just-rotated refresh token.
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+    // Verify batch 7 (BA1): phone / e-mail / device bans on refresh.
+    @Optional() private readonly bans?: AccountBansService,
   ) {}
 
   private readonly logger = new Logger(SessionService.name);
@@ -134,10 +137,40 @@ export class SessionService {
     // account to assistants instead of buying seats, nor can several
     // assistants share one assistant account.
     const web = device.platform === 'web';
-    const ended = await this.revocation.revokeSameKindChains(
-      userId,
-      web,
-      'signed_in_elsewhere',
+    // SE1 (17.11): two sign-ins of one account on two phones at the same
+    // moment both found «no other phone» and both kept a session. Ending
+    // the other same-kind sessions and creating this one now run in one
+    // transaction behind a per-account, per-kind advisory lock (the
+    // bids / quick-replies pattern): the second waits, then sees and ends
+    // the first one's row. READ COMMITTED is enough under the lock.
+    const { session, ended } = await withTxRetry(
+      this.prisma,
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`session-kind:${userId}:${web ? 'web' : 'app'}`}, 0))`;
+        const ended = await this.revocation.revokeSameKindChains(
+          userId,
+          web,
+          'signed_in_elsewhere',
+          tx,
+        );
+        const session = await tx.session.create({
+          data: {
+            user_id: userId,
+            session_chain_id: sessionChainId,
+            device_id: device.deviceId,
+            device_name: device.deviceName,
+            platform: device.platform,
+            app_version: device.appVersion,
+            ip: meta.ip,
+            user_agent: meta.userAgent,
+            refresh_hash: hash,
+            last_used_at: new Date(),
+            expires_at: this.tokenService.refreshExpiryDate(),
+          },
+        });
+        return { session, ended };
+      },
+      { isolation: 'readCommitted', op: 'session.create' },
     );
     if (ended.length > 0 && !web) {
       await this.prisma.pushToken.deleteMany({
@@ -154,22 +187,6 @@ export class SessionService {
         },
       });
     }
-
-    const session = await this.prisma.session.create({
-      data: {
-        user_id: userId,
-        session_chain_id: sessionChainId,
-        device_id: device.deviceId,
-        device_name: device.deviceName,
-        platform: device.platform,
-        app_version: device.appVersion,
-        ip: meta.ip,
-        user_agent: meta.userAgent,
-        refresh_hash: hash,
-        last_used_at: new Date(),
-        expires_at: this.tokenService.refreshExpiryDate(),
-      },
-    });
 
     return { session, refreshTokenRaw: raw };
   }
@@ -215,7 +232,9 @@ export class SessionService {
     const hash = this.tokenService.hashRefreshToken(rawRefreshToken);
     const found = await this.prisma.session.findUnique({
       where: { refresh_hash: hash },
-      include: { user: { select: { status: true } } },
+      include: {
+        user: { select: { status: true, phone_e164: true, email: true } },
+      },
     });
 
     if (!found) {
@@ -285,7 +304,18 @@ export class SessionService {
     // tooling, a direct DB fix, a half-failed admin action) must not
     // leave a 60-day refresh token working. The chain is revoked so the
     // access token dies too (blacklist), not just the refresh.
-    const status = found.user.status;
+    // Verify batch 7 (BA1): an active ban of the account, its phone, its
+    // e-mail or this device ends the chain the way a suspension does (a
+    // phone / e-mail / device ban left users.status 'active').
+    const banned =
+      found.user.status === 'active' &&
+      (await this.bans?.findActive({
+        userId: found.user_id,
+        phone: found.user.phone_e164,
+        email: found.user.email,
+        deviceId: found.device_id,
+      }));
+    const status = banned ? 'suspended' : found.user.status;
     if (status === 'suspended' || status === 'deleted') {
       await withTxRetry(this.prisma, async (tx) => {
         await this.revocation.revokeChain(

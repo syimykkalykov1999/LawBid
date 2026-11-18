@@ -1,10 +1,43 @@
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/l10n/static_translator.dart';
+import 'package:lawbid/core/network/auth_interceptor.dart';
 import 'package:lawbid/core/network/idempotency_interceptor.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/core/network/retry_interceptor.dart';
+import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/session/session_state.dart';
 
 import '../../helpers/fake_http_adapter.dart';
+
+/// A signed-in session whose `clear()` is only counted.
+class _Session extends SessionController {
+  int clears = 0;
+
+  @override
+  SessionState? build() => _state('demo-token', 's1');
+
+  /// The real account signs in while a request of the old one is on the way.
+  void signIn(String token) => state = _state(token, 's2');
+
+  static SessionState _state(String token, String sid) => SessionState(
+        accessToken: token,
+        sub: 'me',
+        role: 'client',
+        sid: sid,
+        verified: true,
+        subscriptionStatus: 'none',
+        accessTokenExpiresAt: DateTime.utc(2100),
+      );
+
+  @override
+  Future<void> clear() async {
+    clears++;
+    state = null;
+  }
+}
 
 void main() {
   late FakeHttpAdapter adapter;
@@ -201,5 +234,60 @@ void main() {
       );
       expect(adapter.requests, hasLength(1));
     });
+  });
+
+  group('AuthInterceptor (CL1, 17.11)', () {
+    late _Session session;
+    late Dio authDio;
+
+    setUp(() {
+      session = _Session();
+      final c = ProviderContainer(
+        overrides: [
+          sessionControllerProvider.overrideWith(() => session),
+          translatorProvider.overrideWithValue(const StaticTranslatorEn()),
+        ],
+      );
+      addTearDown(c.dispose);
+      final dioP = Provider<Dio>((ref) {
+        final d = Dio(BaseOptions(baseUrl: 'http://test'))
+          ..httpClientAdapter = FakeHttpAdapter(
+            (o) async => apiError(401, 'AUTH_SESSION_REVOKED'),
+          );
+        d.interceptors.add(AuthInterceptor(ref, d));
+        return d;
+      });
+      c.read(sessionControllerProvider);
+      authDio = c.read(dioP);
+    });
+
+    for (final code in ['AUTH_SESSION_REVOKED', 'AUTH_SIGNED_IN_ELSEWHERE']) {
+      test(
+          'a late $code for a request sent with an OLD token (e.g. the demo '
+          'session) keeps the new session', () async {
+        (authDio.httpClientAdapter as FakeHttpAdapter).handler = (o) async {
+          expect(o.headers['Authorization'], 'Bearer demo-token');
+          session.signIn('real-token');
+          return apiError(401, code);
+        };
+        await expectLater(
+          authDio.get<dynamic>('/me'),
+          throwsA(isA<DioException>()),
+        );
+        expect(session.clears, 0);
+        expect(session.state?.accessToken, 'real-token');
+      });
+
+      test('$code for the CURRENT token still signs out', () async {
+        (authDio.httpClientAdapter as FakeHttpAdapter).handler =
+            (o) async => apiError(401, code);
+        await expectLater(
+          authDio.get<dynamic>('/me'),
+          throwsA(isA<DioException>()),
+        );
+        expect(session.clears, 1);
+        expect(session.state, isNull);
+      });
+    }
   });
 }

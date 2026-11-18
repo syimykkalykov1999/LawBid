@@ -17,7 +17,7 @@ describe('SessionService.rotate (atomic, idempotent retry)', () => {
     revoked_reason: null,
     expires_at: new Date(Date.now() + 86_400_000),
     updated_at: new Date(),
-    user: { status: 'active' },
+    user: { status: 'active', phone_e164: '+15551234567', email: 'a@b.co' },
   };
 
   function make(
@@ -25,6 +25,7 @@ describe('SessionService.rotate (atomic, idempotent retry)', () => {
       claimCount?: number;
       redisDown?: boolean;
       tokensDown?: boolean;
+      banned?: boolean;
     } = {},
   ) {
     const store = new Map<string, string>();
@@ -101,6 +102,12 @@ describe('SessionService.rotate (atomic, idempotent retry)', () => {
     const rateLimit = {
       consumeFixedWindow: jest.fn().mockResolvedValue({ allowed: true }),
     };
+    // Verify batch 7 (BA1): a phone / e-mail / device ban ends a live chain.
+    const bans = {
+      findActive: jest.fn(() =>
+        Promise.resolve(opts.banned ? { id: 'b1', kind: 'phone' } : null),
+      ),
+    };
     const service = new SessionService(
       prisma as never,
       tokens as never,
@@ -109,9 +116,28 @@ describe('SessionService.rotate (atomic, idempotent retry)', () => {
       config as never,
       rateLimit as never,
       redis as never,
+      bans as never,
     );
-    return { service, tx, prisma, redis, revocation, current, store };
+    return { service, tx, prisma, redis, revocation, current, store, bans };
   }
+
+  it('BA1: an active phone / e-mail / device ban refuses the refresh as a suspended account, chain revoked', async () => {
+    const { service, tx, revocation, bans } = make({ banned: true });
+    const out = await service.rotate('raw-old', { deviceId: 'x' }, {});
+    expect(out).toEqual({ status: 'blocked', reason: 'suspended' });
+    expect(bans.findActive).toHaveBeenCalledWith({
+      userId: 'u1',
+      phone: '+15551234567',
+      email: 'a@b.co',
+      deviceId: 'dev-A',
+    });
+    expect(revocation.revokeChain).toHaveBeenCalledWith(
+      'chain',
+      'admin_block',
+      expect.anything(),
+    );
+    expect(tx.session.create).not.toHaveBeenCalled();
+  });
 
   it('the winner claims the row with a revoked_at:null guard, mints the child and caches it', async () => {
     const { service, tx, store } = make();

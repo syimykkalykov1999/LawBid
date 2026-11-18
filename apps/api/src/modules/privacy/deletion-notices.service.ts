@@ -36,9 +36,9 @@ interface CancelPayload {
  * anonymization) the person gets a push and an e-mail saying when the
  * account will be deleted, with a one-tap cancel link; nothing else (no
  * sign-in) is needed to cancel. Each notice is sent once (`deletion_steps`
- * `notice_day0` / `notice_day13`). A sign-in no longer cancels the request
- * on its own (setting `privacy.login_cancels_deletion`), so these messages
- * and `POST /users/me/deletion/cancel` are the way back.
+ * `notice_day0` / `notice_day13`). A sign-in also cancels the request
+ * (setting `privacy.login_cancels_deletion`, on by default since verify
+ * 18.11), like these messages and `POST /users/me/deletion/cancel`.
  */
 @Injectable()
 export class DeletionNoticesService implements DeletionNotices {

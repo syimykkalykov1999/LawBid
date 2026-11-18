@@ -295,8 +295,8 @@ export class PublicDirectoryService {
         displayName: [r.user.first_name, r.user.last_name]
           .filter((s): s is string => !!s)
           .join(' '),
-        // Verify 18.11 (PS1): «about» follows the person's privacy choice,
-        // the same rule as the photo and as the in-app profile.
+        // Verify batch 7 (PS3): «About» is honoured like the photo above —
+        // a static public page is "everyone", so only that audience shows it.
         bio:
           (r.user.privacy_settings?.about_from ?? 'everyone') === 'everyone'
             ? r.bio

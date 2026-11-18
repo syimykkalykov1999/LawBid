@@ -35,6 +35,11 @@ import {
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BlocksService } from '../blocks/blocks.service';
+import {
+  assertNoBlockBetween,
+  assertNoBlockRouted,
+  withBlockPairLock,
+} from '../blocks/block-check';
 import { ClientProfilesService } from '../profiles/services/client-profiles.service';
 import { RecommendationsService } from '../recommendations/recommendations.service';
 import type {
@@ -120,10 +125,35 @@ export class FollowsService {
     // OQ-028: no follows across a block.
     await this.blocks.assertNotBlocked(user.sub, attorneyId);
     await this.limits.consume('follow', user.sub);
-    const { count } = await this.prisma.follow.createMany({
-      data: [{ follower_id: user.sub, followee_id: attorneyId }],
-      skipDuplicates: true,
-    });
+    // Verify batch 7 (BL1): the insert waits for the per-pair lock a block
+    // of the same two people holds (BlocksService.block) and checks the
+    // block again under it, so a follow never survives a block that won the
+    // race. Read committed: the re-check sees the block that just committed.
+    // Several databases (KNOWN_ERRORS 215): the lock is on the primary, the
+    // re-check reads each blocker's database and the follow is written in
+    // the follower's (withBlockPairLock).
+    const { count } = await withBlockPairLock(
+      this.prisma,
+      user.sub,
+      attorneyId,
+      'follows.follow',
+      async (db, split) => {
+        if (split) {
+          await assertNoBlockRouted(db, user.sub, attorneyId);
+          return shardContext.runForUser(user.sub, () =>
+            db.follow.createMany({
+              data: [{ follower_id: user.sub, followee_id: attorneyId }],
+              skipDuplicates: true,
+            }),
+          );
+        }
+        await assertNoBlockBetween(db, user.sub, attorneyId);
+        return db.follow.createMany({
+          data: [{ follower_id: user.sub, followee_id: attorneyId }],
+          skipDuplicates: true,
+        });
+      },
+    );
     if (count === 0) return this.state(attorneyId, target.role, true);
     // B-c7: a follow again cancels the unfollow tombstone (sync deltas).
     await this.prisma.followTombstone.deleteMany({

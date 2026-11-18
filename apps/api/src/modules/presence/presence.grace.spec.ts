@@ -30,9 +30,14 @@ describe('PresenceService offline grace + permission cache', () => {
       lastSeenVisibleTo: jest.fn(async () => new Set(['t'])),
     };
     const svc = new PresenceService(
-      { user: { updateMany, findMany } } as never,
+      {
+        user: { updateMany, findMany },
+        userBlock: { findMany: jest.fn(async () => []) },
+      } as never,
       redis as never,
       privacy as never,
+      // Block-set cache (verify batch 7, BL2): no blocks here.
+      { get: async () => null, set: async () => 'OK' } as never,
     );
     return { svc, redis, updateMany, findMany };
   }

@@ -6,6 +6,7 @@ import request from 'supertest';
 import { CounterAggregator } from '../src/modules/counters/counter-aggregator.service';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { shardContext } from '../src/sharding/shard-context';
 import { TokenService } from '../src/modules/auth/services/token.service';
 
 /**
@@ -359,6 +360,82 @@ describe('User blocks (e2e, OQ-028)', () => {
     expect(
       (await api().get(`/api/v1/posts/${attPost.id}`).set(cli.auth)).status,
     ).toBe(200);
+  });
+
+  // Verify batch 7 (BL1, 2026-11-17): a block and a follow of the same two
+  // people take one per-pair advisory lock. The test holds that lock in its
+  // own transaction (as the other side of the race would), writes there,
+  // and lets the API call wait behind it.
+  const pairKey = (a: string, b: string) =>
+    a < b ? `block-pair:${a}:${b}` : `block-pair:${b}:${a}`;
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  // KNOWN_ERRORS 215: the lock is the app's, on the primary database (this
+  // transaction has no shard context, so it runs there, as the app's
+  // `global()` lock does); the row the other side writes goes to its
+  // owner's database, where the app reads it (UserBlock: the blocker's,
+  // Follow: the follower's). In one database both are the same one.
+  const ownerWrites = <T>(ownerId: string, fn: () => Promise<T>) =>
+    shardContext.runForUser(ownerId, fn);
+
+  it('BL1: a follow racing a block waits for it and is refused; no follow survives', async () => {
+    const att = await attorney(`${token}.race1`);
+    const cli = await client(`${token}.racec1`);
+    let follow: Promise<request.Response> | undefined;
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${pairKey(cli.id, att.id)}, 0))`;
+        follow = api()
+          .post(`/api/v1/attorneys/${att.id}/follow`)
+          .set(cli.auth)
+          .then((r) => r);
+        await sleep(2000);
+        // The follow passed its first check and waits for the lock; the
+        // block lands now, in the blocker's database (KNOWN_ERRORS 215).
+        await ownerWrites(att.id, () =>
+          prisma.userBlock.create({
+            data: { blocker_id: att.id, blocked_id: cli.id },
+          }),
+        );
+      },
+      { timeout: 30_000 },
+    );
+    const res = await follow!;
+    expect(res.status).toBe(403);
+    expect(
+      await prisma.follow.count({
+        where: { follower_id: cli.id, followee_id: att.id },
+      }),
+    ).toBe(0);
+  });
+
+  it('BL1: a block racing a follow waits for it and removes that follow', async () => {
+    const att = await attorney(`${token}.race2`);
+    const cli = await client(`${token}.racec2`);
+    let block: Promise<request.Response> | undefined;
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${pairKey(cli.id, att.id)}, 0))`;
+        block = api()
+          .put(`/api/v1/users/${att.id}/block`)
+          .set(cli.auth)
+          .then((r) => r);
+        await sleep(2000);
+        // The block waits for the lock; the follow lands now, in the
+        // follower's database (KNOWN_ERRORS 215).
+        await ownerWrites(cli.id, () =>
+          prisma.follow.create({
+            data: { follower_id: cli.id, followee_id: att.id },
+          }),
+        );
+      },
+      { timeout: 30_000 },
+    );
+    expect((await block!).status).toBe(204);
+    expect(
+      await prisma.follow.count({
+        where: { follower_id: cli.id, followee_id: att.id },
+      }),
+    ).toBe(0);
   });
 
   it('cannot block yourself; unknown user is 404', async () => {
