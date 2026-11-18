@@ -83,6 +83,7 @@ class ChatMediaHandler extends UploadJobHandler {
               for (final v in (p['waveform'] as List?) ?? const [])
                 (v as num).toInt(),
             ],
+            replyToId: p['replyToId'] as String?,
           );
           _sentIds[job.id] = sent.id;
         case ChatMediaKind.attachment:
@@ -93,6 +94,7 @@ class ChatMediaHandler extends UploadJobHandler {
             fileId: job.fileId!,
             fileName: p['name'] as String? ?? 'file',
             caption: caption == null || caption.isEmpty ? null : caption,
+            replyToId: p['replyToId'] as String?,
           );
           final media = sent.attachment;
           if (media != null) _sentMedia[job.id] = media;
@@ -102,6 +104,7 @@ class ChatMediaHandler extends UploadJobHandler {
             job.target,
             job.id,
             stickerId: p['stickerId']! as String,
+            replyToId: p['replyToId'] as String?,
           );
           unawaited(_ref.read(appSoundsProvider).messageOut());
           _ref.invalidate(stickerLibraryProvider);
@@ -213,6 +216,9 @@ ChatMessage chatMessageOfJob(
   String? localPath,
   Uint8List? previewBytes,
   double progress = 0,
+
+  /// Row 188: the quote the bubble shows while it is sent.
+  ReplyPreview? replyTo,
 }) {
   final p = job.payload;
   List<int> waveform() => [
@@ -235,6 +241,7 @@ ChatMessage chatMessageOfJob(
     createdAt: job.createdAt,
     delivery: job.failed ? DeliveryState.failed : DeliveryState.sending,
     failedCode: job.failedCode,
+    replyTo: replyTo,
     voice: job.kind == ChatMediaKind.voice
         ? VoiceNote(
             localPath: localPath,
