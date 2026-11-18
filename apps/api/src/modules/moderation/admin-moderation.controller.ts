@@ -65,9 +65,10 @@ export class AdminModerationController {
   @ApiEnvelopeResponse(ModerationCardDto)
   @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
   moderationCard(
+    @CurrentAdmin() admin: AdminActor,
     @Param() params: ModerationTargetParamDto,
   ): Promise<ModerationCardDto> {
-    return this.moderation.card(params.type, params.id);
+    return this.moderation.card(params.type, params.id, admin.countries);
   }
 
   @Post('targets/:type/:id/actions')
@@ -94,6 +95,7 @@ export class AdminModerationController {
       params.id,
       dto.action,
       dto.reason,
+      admin.countries,
     );
     await closeStaffDecision(
       { lease: this.lease },

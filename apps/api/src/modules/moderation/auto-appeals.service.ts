@@ -342,6 +342,22 @@ export class AutoAppealsService {
     const decided: string[] = [];
     for (const h of hidden) {
       if (!h.target_type || !h.target_id) continue;
+      // Verify 18.11 (MO5c): a moderator hid or removed it after the
+      // automatic decision — that human decision (and its strike) stands;
+      // only the automatic one is undone.
+      if (
+        await this.moderation.humanHiddenSince(
+          h.target_type,
+          h.target_id,
+          h.created_at,
+        )
+      ) {
+        await this.prisma.moderationAutoAction.update({
+          where: { id: h.id },
+          data: { reversed_at: now },
+        });
+        continue;
+      }
       const after: (() => Promise<void>)[] = [];
       const reporterIds = await withTxRetry(this.prisma, async (tx) => {
         after.length = 0;
@@ -373,7 +389,9 @@ export class AutoAppealsService {
             },
           });
         }
-        return open.map((r) => r.reporter_id);
+        // Verify 18.11 (MO4): the system «auto_hold» row (reporter = the
+        // author) is no complaint to score.
+        return open.map((r) => r.reporter_id).filter((r) => r !== h.user_id);
       });
       for (const f of after) await f();
       decided.push(...reporterIds);
