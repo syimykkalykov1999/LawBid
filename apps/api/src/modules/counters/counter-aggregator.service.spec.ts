@@ -9,6 +9,7 @@ import {
   counterShard,
   legacyKey,
   pendingKey,
+  touchedKey,
 } from './counter-aggregator.service';
 
 /** Small in-memory Redis: just the commands the aggregator uses. The Lua
@@ -51,15 +52,19 @@ function fakeRedis() {
         (sets.get(keys[2]) ?? sets.set(keys[2], new Set()).get(keys[2])!).add(
           String(args[1]),
         );
-        for (let i = 2; i < args.length; i += 2) {
+        // ARGV = ttl, dirty member, touch flag, then id/delta pairs.
+        const touch = String(args[2]) === '1';
+        for (let i = 3; i < args.length; i += 2) {
           const m = h(keys[0]);
           m.set(
             String(args[i]),
             (m.get(String(args[i])) ?? 0) + Number(args[i + 1]),
           );
-          (sets.get(keys[1]) ?? sets.set(keys[1], new Set()).get(keys[1])!).add(
-            String(args[i]),
-          );
+          if (touch) {
+            (
+              sets.get(keys[1]) ?? sets.set(keys[1], new Set()).get(keys[1])!
+            ).add(String(args[i]));
+          }
         }
         return 1;
       }
@@ -435,5 +440,39 @@ describe('CounterAggregator: a flush in flight on another instance (e2e two-db r
     expect(
       (await b.pending('post', 'view_count', [id])).get(id),
     ).toBeUndefined();
+  });
+});
+
+describe('CounterAggregator: touched marks and a failed recount (verify 8)', () => {
+  it('CO1: an entity without a nightly recount is never marked touched', async () => {
+    const { redis, sets } = fakeRedis();
+    const { agg } = aggregator(redis);
+    await agg.bump('channel_post', ID('4'), 'view_count', 1);
+    await agg.bump('post', ID('5'), 'like_count', 1);
+    await agg.flushLocal();
+    expect(sets.get(touchedKey('channel_post'))?.size ?? 0).toBe(0);
+    expect(sets.get(touchedKey('post'))?.has(ID('5'))).toBe(true);
+  });
+
+  it('CO2: a recount that fails puts its rows back for the next run', async () => {
+    const { redis, sets } = fakeRedis();
+    const prisma = {
+      $executeRaw: jest.fn(async () => {
+        throw new Error('db down');
+      }),
+    } as unknown as PrismaService;
+    const logger = { setContext: jest.fn(), error: jest.fn() };
+    const agg = new CounterAggregator(prisma, redis, logger as never);
+    const id = ID('6');
+    // Touched yesterday, nothing pending now.
+    sets.set(touchedKey('post'), new Set([id]));
+    (redis as unknown as { spop: unknown }).spop = async (k: string) => {
+      const s = sets.get(k) ?? new Set<string>();
+      const out = [...s];
+      s.clear();
+      return out;
+    };
+    await expect(agg.reconcile()).rejects.toThrow('db down');
+    expect(sets.get(touchedKey('post'))?.has(id)).toBe(true);
   });
 });
