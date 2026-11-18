@@ -213,6 +213,67 @@ describe('verify batch 11 (C9): dropAppConfigCache after a committed save', () =
   });
 });
 
+describe('KNOWN_ERRORS 227: a fill that began before a save never writes the old map back', () => {
+  function versionedRedis(store: Map<string, string>) {
+    return {
+      get: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
+      set: jest.fn((k: string, v: string) => {
+        store.set(k, v);
+        return Promise.resolve('OK');
+      }),
+      del: jest.fn((k: string) => {
+        store.delete(k);
+        return Promise.resolve(1);
+      }),
+      incr: jest.fn((k: string) => {
+        const n = Number(store.get(k) ?? '0') + 1;
+        store.set(k, String(n));
+        return Promise.resolve(n);
+      }),
+    };
+  }
+
+  it('the save lands while the table read is out: the old map is not left in Redis', async () => {
+    const store = new Map<string, string>();
+    const redis = versionedRedis(store);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const findMany = jest.fn(async () => {
+      await gate;
+      // The rows as they were when the read started (before the save).
+      return [{ key: 'budget.id_check.daily_max', value: 100 }];
+    });
+    const service = new AppConfigService(
+      { appConfig: { findMany } } as never,
+      redis as never,
+    );
+    const reading = service.getConfig();
+    await new Promise((r) => setImmediate(r));
+    // The admin's save commits and drops the copy (del + version bump).
+    await dropAppConfigCache(redis as never);
+    release();
+    await reading;
+    // The next reader must go to the table, not to the pre-save map.
+    expect(store.has('config:app_config')).toBe(false);
+  });
+
+  it('no save during the read: the map is cached as before', async () => {
+    const store = new Map<string, string>();
+    const redis = versionedRedis(store);
+    const findMany = jest
+      .fn()
+      .mockResolvedValue([{ key: 'budget.id_check.daily_max', value: 5 }]);
+    const service = new AppConfigService(
+      { appConfig: { findMany } } as never,
+      redis as never,
+    );
+    await service.getConfig();
+    expect(JSON.parse(store.get('config:app_config') ?? '{}')).toEqual({
+      'budget.id_check.daily_max': 5,
+    });
+  });
+});
+
 describe('verify batch 11 (C3): a fresh read never takes the Redis copy', () => {
   it('getConfig(true) reads the table even when Redis holds a copy', async () => {
     // A slow fill on another instance wrote the pre-save map back to Redis

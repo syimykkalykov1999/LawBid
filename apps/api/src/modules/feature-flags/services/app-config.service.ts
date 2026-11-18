@@ -6,7 +6,7 @@ import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { failSoftRedis } from '../../../redis/fail-soft-redis';
 import { throttledWarn } from '../../../common/logging/throttled-warn';
 import { CircuitBreaker } from '../../../common/resilience/resilience';
-import { bumpConfigVersion } from './config-version';
+import { bumpConfigVersion, CONFIG_VERSION_KEY } from './config-version';
 import { bumpConfigMemoGeneration } from '../../../common/app-settings/config-memo-generation';
 
 /** Same TTL reasoning as FeatureFlagsService — see that file's doc
@@ -58,6 +58,15 @@ export async function dropAppConfigCache(redis: Redis): Promise<void> {
     // see above
   }
   await bumpConfigVersion(redis);
+  // KNOWN_ERRORS 227: a fill that read the table before this save and
+  // wrote its map between the delete above and the bump is dropped too
+  // (a fill that writes after the bump sees the new version and drops its
+  // own map, see loadConfig).
+  try {
+    await redis.del(APP_CONFIG_CACHE_KEY);
+  } catch {
+    // see above
+  }
 }
 
 /**
@@ -163,6 +172,12 @@ export class AppConfigService {
     if (cached !== null) return JSON.parse(cached) as Record<string, unknown>;
 
     return singleFlight(APP_CONFIG_CACHE_KEY, async () => {
+      // KNOWN_ERRORS 227: the config version before the table read. A save
+      // that commits meanwhile drops the copy and bumps the version; this
+      // fill must then not leave its (pre-save) map in Redis, or the save is
+      // silently undone for the copy's life (cost-guard e2e: the daily cap
+      // just saved was not seen).
+      const before = await this.cache.get(CONFIG_VERSION_KEY);
       const rows = await this.prisma.appConfig.findMany({
         select: { key: true, value: true },
       });
@@ -175,6 +190,9 @@ export class AppConfigService {
         'EX',
         jitterTtl(APP_CONFIG_CACHE_TTL_SECONDS),
       );
+      if ((await this.cache.get(CONFIG_VERSION_KEY)) !== before) {
+        await this.cache.del(APP_CONFIG_CACHE_KEY);
+      }
       return config;
     });
   }
