@@ -71,6 +71,7 @@ class _FakeVoiceChat implements ChatRepository {
     required String fileId,
     required int durationMs,
     required List<int> waveform,
+    String? replyToId,
   }) async =>
       ChatMessage(
         id: 'srv-$fileId',

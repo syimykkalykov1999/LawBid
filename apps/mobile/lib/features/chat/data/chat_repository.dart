@@ -99,6 +99,7 @@ abstract interface class ChatRepository {
     required String fileId,
     required int durationMs,
     required List<int> waveform,
+    String? replyToId,
   });
 
   /// OQ-047: presign → upload → confirm → clean scan of a photo or a
@@ -116,6 +117,7 @@ abstract interface class ChatRepository {
     required String fileId,
     required String fileName,
     String? caption,
+    String? replyToId,
   });
 
   /// Owner 2026-10-20: passes message [sourceId] on to chat [id]; the server
@@ -142,6 +144,7 @@ abstract interface class ChatRepository {
     String id,
     String clientMessageId, {
     required String stickerId,
+    String? replyToId,
   });
 
   /// OQ-047: only the chat's photos and documents (its "Files" screen).
@@ -245,6 +248,7 @@ class ApiChatRepository implements ChatRepository {
     required String fileId,
     required int durationMs,
     required List<int> waveform,
+    String? replyToId,
   }) async =>
       _m(
         (await guardApiCall(
@@ -256,6 +260,7 @@ class ApiChatRepository implements ChatRepository {
               fileId: fileId,
               durationMs: durationMs,
               waveform: waveform,
+              replyToId: replyToId,
             ),
           ),
         ))
@@ -292,6 +297,7 @@ class ApiChatRepository implements ChatRepository {
     required String fileId,
     required String fileName,
     String? caption,
+    String? replyToId,
   }) async =>
       _m(
         (await guardApiCall(
@@ -303,6 +309,7 @@ class ApiChatRepository implements ChatRepository {
               fileId: fileId,
               fileName: fileName,
               body: caption,
+              replyToId: replyToId,
             ),
           ),
         ))
@@ -396,6 +403,7 @@ class ApiChatRepository implements ChatRepository {
     String id,
     String clientMessageId, {
     required String stickerId,
+    String? replyToId,
   }) async =>
       _m(
         (await guardApiCall(
@@ -405,6 +413,7 @@ class ApiChatRepository implements ChatRepository {
               clientMessageId: clientMessageId,
               type: api.SendMessageType.sticker,
               stickerId: stickerId,
+              replyToId: replyToId,
             ),
           ),
         ))
