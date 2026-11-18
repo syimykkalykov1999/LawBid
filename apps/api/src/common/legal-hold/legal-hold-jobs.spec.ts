@@ -112,13 +112,15 @@ describe('every deletion job respects a legal hold', () => {
   });
 
   it('notifications.retention', async () => {
-    const $executeRaw = jest.fn().mockResolvedValue(0);
+    // Verify batch 8 (NO7): DELETE … RETURNING, the owners' badges dropped.
+    const $queryRaw = jest.fn().mockResolvedValue([{ n: 0n, users: [] }]);
     const job = new NotificationsRetentionJob(
-      prismaWith({ $executeRaw }),
+      prismaWith({ $queryRaw }),
       settings({ 'notifications.retention_days': 180 }),
+      { invalidateNotificationsMany: jest.fn() } as never,
     );
     await job.run();
-    expect(heldInSql($executeRaw.mock.calls[0])).toBe(true);
+    expect(heldInSql($queryRaw.mock.calls[0])).toBe(true);
   });
 
   it('journal.retention (held case and held people)', async () => {

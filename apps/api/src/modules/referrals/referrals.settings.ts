@@ -28,6 +28,10 @@ export interface ReferralReward {
 export interface ReferralRewardSnapshot extends ReferralReward {
   issuedAt?: string;
   uses?: Record<string, number>;
+  /** Batch 8 PM2: days given back by a promotion that did not run (expired
+   * or replaced checkout), kept so a late payment takes the same days again.
+   * Not counted as used. */
+  restored?: Record<string, number>;
 }
 
 export interface ReferralProgramSettings {
@@ -340,19 +344,22 @@ export function rewardFor(
 export function snapshotOf(v: unknown): ReferralRewardSnapshot | null {
   if (!isReward(v)) return null;
   const r = v as unknown as Record<string, unknown>;
-  const uses =
-    r.uses && typeof r.uses === 'object' && !Array.isArray(r.uses)
+  const numbers = (x: unknown): Record<string, number> | undefined =>
+    x && typeof x === 'object' && !Array.isArray(x)
       ? Object.fromEntries(
-          Object.entries(r.uses as Record<string, unknown>).filter(
+          Object.entries(x as Record<string, unknown>).filter(
             (e): e is [string, number] => typeof e[1] === 'number',
           ),
         )
       : undefined;
+  const uses = numbers(r.uses);
+  const restored = numbers(r.restored);
   return {
     type: v.type,
     value: v.value,
     ...(typeof r.issuedAt === 'string' ? { issuedAt: r.issuedAt } : {}),
     ...(uses ? { uses } : {}),
+    ...(restored ? { restored } : {}),
   };
 }
 

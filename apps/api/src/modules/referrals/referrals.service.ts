@@ -310,17 +310,6 @@ export class ReferralsService {
     ) {
       throw invalid;
     }
-    if (settings.maxInvitesPerReferrer > 0) {
-      const taken = await this.prisma.referral.count({
-        where: { referrer_id: owner.user_id, status: { not: 'rejected' } },
-      });
-      if (taken >= settings.maxInvitesPerReferrer) {
-        throw notAllowed(
-          'limit_reached',
-          'This code has reached its limit of invitations.',
-        );
-      }
-    }
     if (mutual) {
       throw notAllowed('mutual', 'You invited this person yourself.');
     }
@@ -337,17 +326,33 @@ export class ReferralsService {
       : none;
     let created: Referral;
     try {
-      created = await this.prisma.referral.create({
-        data: {
-          referrer_id: owner.user_id,
-          referee_id: userId,
-          code,
-          status: 'pending',
-          referrer_role: referrerRole,
-          referee_role: refereeRole,
-          referrer_reward: json(referrerReward),
-          referee_reward: json(refereeReward),
-        },
+      // Batch 8 RF2 (audit 2026-11-17): the invitation limit is counted and
+      // the referral created in one serializable transaction, so parallel
+      // sign-ups can not push a code past its limit.
+      created = await withTxRetry(this.prisma, async (tx) => {
+        if (settings.maxInvitesPerReferrer > 0) {
+          const taken = await tx.referral.count({
+            where: { referrer_id: owner.user_id, status: { not: 'rejected' } },
+          });
+          if (taken >= settings.maxInvitesPerReferrer) {
+            throw notAllowed(
+              'limit_reached',
+              'This code has reached its limit of invitations.',
+            );
+          }
+        }
+        return tx.referral.create({
+          data: {
+            referrer_id: owner.user_id,
+            referee_id: userId,
+            code,
+            status: 'pending',
+            referrer_role: referrerRole,
+            referee_role: refereeRole,
+            referrer_reward: json(referrerReward),
+            referee_reward: json(refereeReward),
+          },
+        });
       });
     } catch (e) {
       if (isUniqueViolation(e)) {
@@ -476,6 +481,33 @@ export class ReferralsService {
       where: { id: referralId },
     });
     if (!r || r.status !== 'qualified') return r;
+    // Batch 8 RF1 (audit 2026-11-17): both accounts must still be live when
+    // the reward is paid. A closed (deleted) account forfeits it — the
+    // referral is rejected, like Uber / Airbnb referral terms; a suspended
+    // one waits (stays qualified, paid if it is reinstated).
+    const [referrer, referee] = await Promise.all(
+      [r.referrer_id, r.referee_id].map((id) =>
+        this.prisma.user.findUnique({
+          where: { id },
+          select: { status: true, deleted_at: true },
+        }),
+      ),
+    );
+    const closed = (u: typeof referrer) =>
+      !u ||
+      !!u.deleted_at ||
+      u.status === 'deleted' ||
+      u.status === 'deletion_pending';
+    if (closed(referrer) || closed(referee)) {
+      await this.prisma.referral.updateMany({
+        where: { id: r.id, status: 'qualified' },
+        data: { status: 'rejected', rejected_reason: 'account_closed' },
+      });
+      return this.prisma.referral.findUnique({ where: { id: r.id } });
+    }
+    if (referrer?.status !== 'active' || referee?.status !== 'active') {
+      return r;
+    }
     const issuedAt = new Date();
     const issued: { referrer: boolean; referee: boolean } = {
       referrer: false,
@@ -538,6 +570,80 @@ export class ReferralsService {
         .catch(() => undefined);
     }
     return updated;
+  }
+
+  /**
+   * Batch 8 RF1 (audit 2026-11-17): a full refund of a payment. When it is
+   * the subscription invoice that qualified an attorney's referral, the
+   * reward does not stand: the referral is rejected (unspent promotion days
+   * disappear with it; a first-invoice discount went back with the
+   * invoice). A Stripe balance credit already issued cannot be taken back
+   * through the provider seam (it only credits), so it is recorded on the
+   * referral for staff (admin «Рефералы» list) and logged. Never throws.
+   */
+  async onPaymentRefunded(paymentId: string): Promise<void> {
+    try {
+      const payment = await this.prisma.payment.findUnique({
+        where: { id: paymentId },
+        select: {
+          id: true,
+          user_id: true,
+          stripe_invoice_id: true,
+          created_at: true,
+        },
+      });
+      if (!payment?.stripe_invoice_id) return;
+      const r = await this.prisma.referral.findUnique({
+        where: { referee_id: payment.user_id },
+      });
+      if (
+        !r ||
+        r.referee_role !== 'attorney' ||
+        !['qualified', 'rewarded'].includes(r.status)
+      ) {
+        return;
+      }
+      // The qualifying invoice: the last paid subscription invoice up to
+      // the qualification (the first paid one qualifies it).
+      const qualifying = await this.prisma.payment.findFirst({
+        where: {
+          user_id: payment.user_id,
+          stripe_invoice_id: { not: null },
+          amount_cents: { gt: 0 },
+          status: { in: ['succeeded', 'refunded'] },
+          created_at: { lte: r.qualified_at ?? new Date() },
+        },
+        orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+        select: { id: true },
+      });
+      if (qualifying?.id !== payment.id) return;
+      const credited: string[] = [];
+      for (const side of ['referrer', 'referee'] as const) {
+        const snap = snapshotOf(
+          side === 'referrer' ? r.referrer_reward : r.referee_reward,
+        );
+        if (snap?.type === 'balance_cents' && snap.value > 0 && snap.issuedAt)
+          credited.push(`${side} ${snap.value} cents`);
+      }
+      const reason = credited.length
+        ? `payment_refunded: Stripe balance credit already issued (${credited.join(', ')}), reverse it by hand`
+        : 'payment_refunded';
+      await this.prisma.referral.updateMany({
+        where: { id: r.id, status: { in: ['qualified', 'rewarded'] } },
+        data: { status: 'rejected', rejected_reason: reason.slice(0, 300) },
+      });
+      if (credited.length) {
+        this.logger.error(
+          { referralId: r.id, paymentId },
+          'refunded referral: balance credit already issued, reverse by hand',
+        );
+      }
+    } catch (e) {
+      this.logger.warn(
+        { paymentId, err: String(e) },
+        'referral refund handling failed',
+      );
+    }
   }
 
   private async creditBalance(
@@ -690,7 +796,13 @@ export class ReferralsService {
       if (!used) continue;
       const uses = { ...(row.snap.uses ?? {}) };
       delete uses[promotionId];
-      const snap = { ...row.snap, uses };
+      // Batch 8 PM2: remembered, so a late payment of this checkout takes
+      // the same days again (reconsumePromotionCredits).
+      const restoredDays = {
+        ...(row.snap.restored ?? {}),
+        [promotionId]: used,
+      };
+      const snap = { ...row.snap, uses, restored: restoredDays };
       await tx.referral.update({
         where: { id: row.id },
         data:
@@ -703,13 +815,62 @@ export class ReferralsService {
     return restored;
   }
 
+  /**
+   * Batch 8 PM2 (audit 2026-11-17): a checkout that was expired or replaced
+   * (its days given back) is paid after all. Takes the same days again in
+   * the caller's transaction; false when they were spent elsewhere
+   * meanwhile (the caller then refunds the payment instead of reviving).
+   */
+  async reconsumePromotionCredits(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    promotionId: string,
+  ): Promise<boolean> {
+    const rows = await this.creditRows(tx, userId, true);
+    const need = roundDays(
+      rows.reduce((sum, r) => sum + (r.snap.restored?.[promotionId] ?? 0), 0),
+    );
+    if (need <= 0) return true;
+    const available = roundDays(
+      rows
+        .filter((r) => r.status !== 'rejected')
+        .reduce((sum, r) => sum + remainingDays(r.snap), 0),
+    );
+    if (available < need) return false;
+    for (const r of rows) {
+      if (r.snap.restored?.[promotionId] === undefined) continue;
+      const restored = { ...r.snap.restored };
+      delete restored[promotionId];
+      r.snap = { ...r.snap, restored };
+      await tx.referral.update({
+        where: { id: r.id },
+        data:
+          r.side === 'referrer'
+            ? { referrer_reward: json(r.snap) }
+            : { referee_reward: json(r.snap) },
+      });
+    }
+    const taken = await this.consumePromotionCredits(
+      tx,
+      userId,
+      promotionId,
+      need,
+    );
+    return taken >= need;
+  }
+
   /** Issued promotion-day rewards of the user, oldest first. */
   private async creditRows(
     db: Db,
     userId: string,
     includeRejected = false,
   ): Promise<
-    { id: string; side: 'referrer' | 'referee'; snap: ReferralRewardSnapshot }[]
+    {
+      id: string;
+      side: 'referrer' | 'referee';
+      status: string;
+      snap: ReferralRewardSnapshot;
+    }[]
   > {
     const rows = await db.referral.findMany({
       where: {
@@ -722,6 +883,7 @@ export class ReferralsService {
     const out: {
       id: string;
       side: 'referrer' | 'referee';
+      status: string;
       snap: ReferralRewardSnapshot;
     }[] = [];
     for (const r of rows) {
@@ -730,7 +892,7 @@ export class ReferralsService {
         side === 'referrer' ? r.referrer_reward : r.referee_reward,
       );
       if (snap?.type === 'promotion_days' && snap.issuedAt) {
-        out.push({ id: r.id, side, snap });
+        out.push({ id: r.id, side, status: r.status, snap });
       }
     }
     return out;

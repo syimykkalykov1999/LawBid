@@ -139,7 +139,7 @@ describe('push tokens keyed on the sign-in chain', () => {
       { token: 'tok-c', fid: false },
     ]);
     expect(p.pushToken.deleteMany).toHaveBeenCalledWith({
-      where: { fcm_token: { in: ['tok-b', 'tok-x'] } },
+      where: { user_id: 'u', fcm_token: { in: ['tok-b', 'tok-x'] } },
     });
     expect(p.$queryRaw).not.toHaveBeenCalled();
   });
