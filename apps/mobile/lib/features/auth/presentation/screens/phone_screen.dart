@@ -81,6 +81,15 @@ class _PhoneScreenState extends ConsumerState<PhoneScreen> {
       context.push(AuthRoutes.login, extra: e164);
       return;
     }
+    // AU1 (17.11, like WhatsApp / Telegram): a registered account with no
+    // password (the admin reset it, or sign-up never set one) gets no
+    // sign-up code — the server sends nothing to a registered number. It
+    // sets a new password through «Забыл пароль», whose SMS is allowed.
+    if (status != null && status.registered && !status.hasPassword) {
+      // ignore: unawaited_futures
+      context.push(AuthRoutes.forgotPassword, extra: e164);
+      return;
+    }
     final ok =
         await ref.read(onboardingFlowProvider.notifier).submitPhoneNumber(e164);
     // ignore: unawaited_futures

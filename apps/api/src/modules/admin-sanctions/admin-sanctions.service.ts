@@ -32,6 +32,10 @@ export const SANCTIONS_AUDIT = {
 
 const PAGE = 50;
 const DAY_MS = 86_400_000;
+/** `users.suspended_reason` of an account disabled by a lasting user ban
+ * (verify batch 7, BA2). Only this reason is restored when the ban is
+ * lifted, so another suspension (admin, fraud, compliance) is never undone. */
+export const BAN_SUSPENDED_REASON = 'account_ban';
 
 /**
  * Sign-in blocks (owner 2026-10-02): block a user (for days or for good),
@@ -130,9 +134,84 @@ export class AdminSanctionsService {
       );
       return created;
     });
-    if (userId)
+    if (userId) {
+      if (!row.expires_at) await this.disableAccount(userId);
       await this.revocation.revokeAllChainsForUser(userId, 'admin_block');
+    } else {
+      await this.endSessionsMatching(kind, value);
+    }
     return present(row, null, new Date());
+  }
+
+  /**
+   * Verify batch 7 (BA2): a lasting user ban disables the account, so it
+   * disappears from profiles, search, suggestions and follows the way a
+   * disabled Instagram / Facebook account does. Conditional: only an
+   * active account flips, so another suspension keeps its own reason.
+   * A timed ban leaves the status alone: it ends by itself with no job,
+   * and nothing would turn the account back on.
+   */
+  private async disableAccount(userId: string): Promise<void> {
+    await this.prisma.user.updateMany({
+      where: { id: userId, status: 'active' },
+      data: { status: 'suspended', suspended_reason: BAN_SUSPENDED_REASON },
+    });
+  }
+
+  /** BA2: the last lasting user ban was lifted: the account is back, but
+   * only when the ban is what disabled it. A timed ban still running does
+   * not hold it (nothing would restore it when that ban runs out; sign-in
+   * stays refused by the ban itself until then). */
+  private async restoreAccount(userId: string): Promise<void> {
+    const other = await this.prisma.accountBan.findFirst({
+      where: {
+        kind: 'user',
+        value: userId,
+        lifted_at: null,
+        expires_at: null,
+      },
+      select: { id: true },
+    });
+    if (other) return;
+    await this.prisma.user.updateMany({
+      where: {
+        id: userId,
+        status: 'suspended',
+        suspended_reason: BAN_SUSPENDED_REASON,
+      },
+      data: { status: 'active', suspended_reason: null },
+    });
+  }
+
+  /**
+   * Verify batch 7 (BA1): a phone or e-mail ban ends every session of the
+   * accounts with that phone / e-mail (sign-in with it is refused anyway);
+   * a device ban ends the chains signed in on that device. The refresh
+   * check (SessionService.rotate) refuses whatever is left.
+   */
+  private async endSessionsMatching(
+    kind: BanKind,
+    value: string,
+  ): Promise<void> {
+    if (kind === 'device') {
+      const chains = await this.prisma.session.findMany({
+        where: { device_id: value, revoked_at: null },
+        select: { session_chain_id: true },
+        distinct: ['session_chain_id'],
+      });
+      for (const c of chains)
+        await this.revocation.revokeChain(c.session_chain_id, 'admin_block');
+      return;
+    }
+    if (kind !== 'phone' && kind !== 'email') return;
+    const users = await this.prisma.user.findMany({
+      // Both unique columns; e-mails are stored lower-cased (AuthService
+      // normalize), as the ban value is.
+      where: kind === 'phone' ? { phone_e164: value } : { email: value },
+      select: { id: true },
+    });
+    for (const u of users)
+      await this.revocation.revokeAllChainsForUser(u.id, 'admin_block');
   }
 
   async lift(
@@ -142,21 +221,26 @@ export class AdminSanctionsService {
   ): Promise<AdminBanDto> {
     const before = await this.prisma.accountBan.findUnique({ where: { id } });
     if (!before) throw notFound();
-    if (before.lifted_at) {
-      throw new ConflictException({
-        code: ErrorCode.VALIDATION_ERROR,
-        message: 'The block is already lifted.',
-      });
-    }
+    if (before.lifted_at) throw alreadyLifted();
     const row = await withTxRetry(this.prisma, async (tx) => {
-      const updated = await tx.accountBan.update({
-        where: { id },
+      // Verify batch 7 (BA3): one conditional update, so of two admins
+      // lifting at once one wins and the other gets the same 409.
+      const liftedAt = new Date();
+      const { count } = await tx.accountBan.updateMany({
+        where: { id, lifted_at: null },
         data: {
-          lifted_at: new Date(),
+          lifted_at: liftedAt,
           lifted_by: admin.id,
           lift_reason: reason,
         },
       });
+      if (count === 0) throw alreadyLifted();
+      const updated: AccountBan = {
+        ...before,
+        lifted_at: liftedAt,
+        lifted_by: admin.id,
+        lift_reason: reason,
+      };
       await this.audit.record(
         {
           adminId: admin.id,
@@ -171,6 +255,8 @@ export class AdminSanctionsService {
       );
       return updated;
     });
+    if (row.kind === 'user' && row.user_id)
+      await this.restoreAccount(row.user_id);
     return present(row, null, new Date());
   }
 
@@ -219,6 +305,7 @@ export class AdminSanctionsService {
       );
       return out;
     });
+    if (!dto.days) await this.disableAccount(userId);
     const chains = await this.revocation.revokeAllChainsForUser(
       userId,
       'admin_block',
@@ -317,6 +404,13 @@ function isUuid(v: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
     v,
   );
+}
+
+function alreadyLifted(): ConflictException {
+  return new ConflictException({
+    code: ErrorCode.VALIDATION_ERROR,
+    message: 'The block is already lifted.',
+  });
 }
 
 function notFound(): NotFoundException {

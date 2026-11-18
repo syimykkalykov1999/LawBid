@@ -153,8 +153,10 @@ export class SessionRevocationService {
     userId: string,
     web: boolean,
     reason: RevokeReason,
+    tx?: Prisma.TransactionClient | PrismaClient,
   ): Promise<string[]> {
-    const active = await this.prisma.session.findMany({
+    const client = tx ?? this.prisma;
+    const active = await client.session.findMany({
       where: {
         user_id: userId,
         revoked_at: null,
@@ -167,7 +169,7 @@ export class SessionRevocationService {
     });
     const chainIds = active.map((s) => s.session_chain_id);
     if (chainIds.length === 0) return chainIds;
-    await this.prisma.session.updateMany({
+    await client.session.updateMany({
       where: { session_chain_id: { in: chainIds }, revoked_at: null },
       data: { revoked_at: new Date(), revoked_reason: reason },
     });

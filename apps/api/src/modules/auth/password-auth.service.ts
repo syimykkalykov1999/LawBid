@@ -14,7 +14,7 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccountBansService } from '../account-bans/account-bans.service';
-import { AuthService } from './auth.service';
+import { AuthService, assertAccountOpen } from './auth.service';
 import type { RequestUser } from './decorators/current-user.decorator';
 import type { DeviceInfo } from './services/session.service';
 import type { RequestMeta } from './services/session.service';
@@ -121,6 +121,9 @@ export class PasswordAuthService {
     await this.loginMethods.assertEnabled('password');
     await this.loginMethods.assertPlatformAllowed(dto.deviceInfo?.platform);
     const { channel, identifier } = this.parseIdentifier(dto.identifier);
+    // AU4 (17.11): sign-in is phone + password; an e-mail identifier works
+    // only while the admin's e-mail switch is on (off on prod).
+    if (channel === 'email') await this.loginMethods.assertEnabled('email');
     const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};
 
     const idHash = this.rateLimit.hashIdentifier(identifier);
@@ -240,11 +243,15 @@ export class PasswordAuthService {
       await this.limit(['phone-status', 'ip', meta.ip], LOGIN_PER_IP);
     }
     const user = await this.findUser(channel, identifier);
-    // Owner 2026-10-14 (audit): the answer must not tell "no account" from
-    // "account without a password" — both go to the SMS code. Only a
-    // number that has a password says so (that is what the screen needs).
+    // AU1 (17.11, like WhatsApp / Telegram): a registered account without a
+    // password (the admin's «Сбросить пароль», a sign-up that never set one)
+    // gets no sign-up SMS — POST /auth/otp/request answers `sent` and sends
+    // nothing to a registered number (S14-1). It is told so here and the
+    // app opens «Забыл пароль», whose reset SMS is one of the two allowed
+    // cases. A number with a password already says «registered» here, so
+    // this tells no more than before.
     const hasPassword = user?.password_hash != null;
-    return { registered: hasPassword, hasPassword };
+    return { registered: user !== null, hasPassword };
   }
 
   // POST /auth/password (signed in)
@@ -429,13 +436,22 @@ export class PasswordAuthService {
       });
     }
 
+    // AU2 (17.11): a suspended or deleted account is refused (the same
+    // answer and audit event the sign-in gives) BEFORE anything changes.
+    await assertAccountOpen(
+      this.authEvents,
+      user,
+      identifier,
+      deviceInfo,
+      meta,
+    );
     await this.bans.assertAllowed({
       userId: user.id,
       phone: user.phone_e164,
       email: user.email,
       deviceId: deviceInfo.deviceId,
     });
-    await this.storePassword(user.id, dto.newPassword);
+    const updated = await this.storePassword(user.id, dto.newPassword);
     // A forgotten password may mean someone else has it: end every session.
     await this.revocation.revokeAllChainsForUser(user.id, 'logout_all');
     await this.authEvents.record({
@@ -447,11 +463,20 @@ export class PasswordAuthService {
       ip: meta.ip,
       userAgent: meta.userAgent,
     });
-    return this.signIn(user, `password:${identifier}`, deviceInfo, meta);
+    // The row as stored now (its new password_set_at goes into a pending
+    // «continue on this phone?» sign-in, AU3).
+    return this.signIn(
+      { ...user, ...updated },
+      `password:${identifier}`,
+      deviceInfo,
+      meta,
+    );
   }
 
-  /** Admin «Сбросить пароль»: drops the password and every session; the
-   * person signs in with an SMS code once and sets a new one. */
+  /** Admin «Сбросить пароль»: drops the password and every session. The
+   * person's number then shows as registered without a password
+   * (phoneStatus), the app opens «Забыл пароль», and the reset SMS sets a
+   * new one (AU1, 17.11; no sign-up SMS goes to a registered number). */
   async clearPasswordByAdmin(userId: string, adminId?: string): Promise<void> {
     await this.prisma.user.update({
       where: { id: userId },
@@ -512,9 +537,9 @@ export class PasswordAuthService {
     }
   }
 
-  private async storePassword(userId: string, password: string): Promise<void> {
+  private async storePassword(userId: string, password: string): Promise<User> {
     const hash = await this.passwords.hash(password);
-    await this.prisma.user.update({
+    return this.prisma.user.update({
       where: { id: userId },
       data: { password_hash: hash, password_set_at: new Date() },
     });

@@ -15,6 +15,7 @@ import 'package:lawbid/features/auth/domain/onboarding_flow_state.dart';
 import 'package:lawbid/features/auth/domain/onboarding_step.dart';
 import 'package:lawbid/features/auth/domain/otp_verify_result.dart';
 import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
+import 'package:lawbid/features/auth/presentation/screens/forgot_password_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/otp_screen.dart';
 import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart';
 
@@ -31,6 +32,15 @@ class _SlowStatusRepository extends RecordingAuthRepository {
   @override
   Future<({bool registered, bool hasPassword})?> phoneStatus(String phone) =>
       status.future;
+}
+
+/// A registered account with no password (admin «Сбросить пароль»).
+class _NoPasswordRepository extends RecordingAuthRepository {
+  @override
+  Future<({bool registered, bool hasPassword})?> phoneStatus(
+    String phone,
+  ) async =>
+      (registered: true, hasPassword: false);
 }
 
 void main() {
@@ -320,6 +330,34 @@ void main() {
     slow.status.complete((registered: false, hasPassword: false));
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets(
+      'AU1 (17.11, WhatsApp / Telegram): a registered number without a '
+      'password opens «Забыл пароль» with the number, and asks for no '
+      'sign-up code', (tester) async {
+    repo = _NoPasswordRepository();
+    final c = await container();
+    final router =
+        GoRouter(initialLocation: AuthRoutes.phone, routes: authRoutes());
+    addTearDown(router.dispose);
+    await tester.pumpWidget(routedApp(c, router));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(EditableText).first, '2025550123');
+    await tester.pump();
+    await tester.tap(find.byType(AppButton).first);
+    await tester.pump(const Duration(milliseconds: 600));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ForgotPasswordScreen), findsOneWidget);
+    expect(
+      tester
+          .widget<ForgotPasswordScreen>(find.byType(ForgotPasswordScreen))
+          .initialIdentifier,
+      _phone,
+    );
+    expect(find.byType(OtpScreen), findsNothing);
+    expect(repo.requested, isEmpty);
   });
 
   group('double submit (owner bug 2026-10-16)', () {

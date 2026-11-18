@@ -229,7 +229,9 @@ export class PublicDirectoryService {
             first_name: true,
             last_name: true,
             avatar_file_id: true,
-            privacy_settings: { select: { photo_from: true } },
+            privacy_settings: {
+              select: { photo_from: true, about_from: true },
+            },
           },
         },
         practice_areas: {
@@ -293,7 +295,12 @@ export class PublicDirectoryService {
         displayName: [r.user.first_name, r.user.last_name]
           .filter((s): s is string => !!s)
           .join(' '),
-        bio: r.bio,
+        // Verify batch 7 (PS3): «About» is honoured like the photo above —
+        // a static public page is "everyone", so only that audience shows it.
+        bio:
+          (r.user.privacy_settings?.about_from ?? 'everyone') === 'everyone'
+            ? r.bio
+            : null,
         firmNames: r.firm_names,
         languages: r.languages,
         ratingAvg: Number(r.rating_avg),

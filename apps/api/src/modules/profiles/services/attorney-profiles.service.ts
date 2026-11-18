@@ -27,6 +27,7 @@ import { CounterAggregator } from '../../counters/counter-aggregator.service';
 import { PrismaReadService } from '../../../prisma/prisma-read.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { weakEtag } from '../../../common/sync/cheap-etag';
+import { viewerContext } from '../../../common/viewer/viewer-context';
 
 /** The public profile ETag rotates at least this often (see publicEtag). */
 export const PUBLIC_PROFILE_ETAG_BUCKET_MS = 600_000;
@@ -501,14 +502,17 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
             rating_count: number;
             verification_status: string;
             trust_level: string | null;
+            privacy_updated_at: Date | null;
           }[]
         >`
         SELECT ap.user_id, ap.updated_at, u.updated_at AS user_updated_at,
                ap.posts_count, ap.followers_count, ap.rating_count,
                ap.verification_status::TEXT AS verification_status,
-               ap.trust_level::TEXT AS trust_level
+               ap.trust_level::TEXT AS trust_level,
+               ps.updated_at AS privacy_updated_at
         FROM attorney_profiles ap
         JOIN users u ON u.id = ap.user_id
+        LEFT JOIN user_privacy_settings ps ON ps.user_id = ap.user_id
         WHERE ap.username_lower = ${username.toLowerCase()}
         LIMIT 1`,
     );
@@ -539,6 +543,8 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
       r.rating_count,
       r.verification_status,
       r.trust_level,
+      // Verify batch 7 (PS2): «who sees my photo / about» changed.
+      r.privacy_updated_at,
       r.following ? 1 : 0,
       Math.floor(now / PUBLIC_PROFILE_ETAG_BUCKET_MS),
     );
@@ -723,7 +729,12 @@ export class AttorneyProfilesService implements OnApplicationShutdown {
     // Public photo only (a clean `avatar` file); documents never.
     const [avatar, practiceAreas, pPosts, pFollowers, pFollowing, membership] =
       await Promise.all([
-        this.files.avatarUrls(row.user.avatar_file_id),
+        // Verify batch 7 (PR1): built as the owner sees it (the owner always
+        // sees their own photo), never under the first viewer's photo rule;
+        // getPublic masks it per viewer after the cache.
+        viewerContext.run(row.user_id, () =>
+          this.files.avatarUrls(row.user.avatar_file_id),
+        ),
         this.practices.selectedOf(row.user_id),
         // docs/05 §4–§6: counters shown = DB + not yet flushed deltas.
         this.counters.pending('attorney', 'posts_count', [row.user_id]),

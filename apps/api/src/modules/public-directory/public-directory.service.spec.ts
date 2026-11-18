@@ -78,6 +78,38 @@ describe('PublicDirectoryService updatedAt (sitemap lastmod)', () => {
   });
 });
 
+/** Verify batch 7 (PS3, 2026-11-17): the static page honours «About». */
+describe('PublicDirectoryService bio and about_from', () => {
+  const withAbout = (aboutFrom: string | undefined) => ({
+    ...row(null),
+    bio: 'Twenty years in family law.',
+    user: {
+      ...row(null).user,
+      privacy_settings: aboutFrom
+        ? { photo_from: 'everyone', about_from: aboutFrom }
+        : null,
+    },
+  });
+
+  it('shows the bio only when About is open to everyone', async () => {
+    const open = make({ rows: [withAbout('everyone'), withAbout(undefined)] });
+    const a = await open.svc.attorneys({});
+    expect(a.items.map((i) => i.bio)).toEqual([
+      'Twenty years in family law.',
+      'Twenty years in family law.',
+    ]);
+    const closed = make({ rows: [withAbout('contacts'), withAbout('nobody')] });
+    const b = await closed.svc.attorneys({});
+    expect(b.items.map((i) => i.bio)).toEqual([null, null]);
+    const arg = closed.prisma.attorneyProfile.findMany.mock.calls[0][0] as {
+      select: { user: { select: { privacy_settings: unknown } } };
+    };
+    expect(arg.select.user.select.privacy_settings).toEqual({
+      select: { photo_from: true, about_from: true },
+    });
+  });
+});
+
 describe('PublicDirectoryService photoUrl (og:image)', () => {
   it('uses the R2 public domain for an R2 avatar, no AWS CDN configured', async () => {
     const { svc } = make({

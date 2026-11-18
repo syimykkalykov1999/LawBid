@@ -361,6 +361,67 @@ describe('User blocks (e2e, OQ-028)', () => {
     ).toBe(200);
   });
 
+  // Verify batch 7 (BL1, 2026-11-17): a block and a follow of the same two
+  // people take one per-pair advisory lock. The test holds that lock in its
+  // own transaction (as the other side of the race would), writes there,
+  // and lets the API call wait behind it.
+  const pairKey = (a: string, b: string) =>
+    a < b ? `block-pair:${a}:${b}` : `block-pair:${b}:${a}`;
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it('BL1: a follow racing a block waits for it and is refused; no follow survives', async () => {
+    const att = await attorney(`${token}.race1`);
+    const cli = await client(`${token}.racec1`);
+    let follow: Promise<request.Response> | undefined;
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${pairKey(cli.id, att.id)}, 0))`;
+        await tx.userBlock.create({
+          data: { blocker_id: att.id, blocked_id: cli.id },
+        });
+        follow = api()
+          .post(`/api/v1/attorneys/${att.id}/follow`)
+          .set(cli.auth)
+          .then((r) => r);
+        await sleep(2000);
+      },
+      { timeout: 30_000 },
+    );
+    const res = await follow!;
+    expect(res.status).toBe(403);
+    expect(
+      await prisma.follow.count({
+        where: { follower_id: cli.id, followee_id: att.id },
+      }),
+    ).toBe(0);
+  });
+
+  it('BL1: a block racing a follow waits for it and removes that follow', async () => {
+    const att = await attorney(`${token}.race2`);
+    const cli = await client(`${token}.racec2`);
+    let block: Promise<request.Response> | undefined;
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${pairKey(cli.id, att.id)}, 0))`;
+        await tx.follow.create({
+          data: { follower_id: cli.id, followee_id: att.id },
+        });
+        block = api()
+          .put(`/api/v1/users/${att.id}/block`)
+          .set(cli.auth)
+          .then((r) => r);
+        await sleep(2000);
+      },
+      { timeout: 30_000 },
+    );
+    expect((await block!).status).toBe(204);
+    expect(
+      await prisma.follow.count({
+        where: { follower_id: cli.id, followee_id: att.id },
+      }),
+    ).toBe(0);
+  });
+
   it('cannot block yourself; unknown user is 404', async () => {
     const cli = await client(`${token}.self`);
     expect(

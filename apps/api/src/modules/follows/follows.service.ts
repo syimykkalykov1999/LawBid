@@ -35,6 +35,8 @@ import {
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BlocksService } from '../blocks/blocks.service';
+import { assertNoBlockBetween, lockBlockPair } from '../blocks/block-check';
+import { withTxRetry } from '../../prisma/tx-retry.util';
 import { ClientProfilesService } from '../profiles/services/client-profiles.service';
 import { RecommendationsService } from '../recommendations/recommendations.service';
 import type {
@@ -120,10 +122,22 @@ export class FollowsService {
     // OQ-028: no follows across a block.
     await this.blocks.assertNotBlocked(user.sub, attorneyId);
     await this.limits.consume('follow', user.sub);
-    const { count } = await this.prisma.follow.createMany({
-      data: [{ follower_id: user.sub, followee_id: attorneyId }],
-      skipDuplicates: true,
-    });
+    // Verify batch 7 (BL1): the insert waits for the per-pair lock a block
+    // of the same two people holds (BlocksService.block) and checks the
+    // block again under it, so a follow never survives a block that won the
+    // race. Read committed: the re-check sees the block that just committed.
+    const { count } = await withTxRetry(
+      this.prisma,
+      async (tx) => {
+        await lockBlockPair(tx, user.sub, attorneyId);
+        await assertNoBlockBetween(tx, user.sub, attorneyId);
+        return tx.follow.createMany({
+          data: [{ follower_id: user.sub, followee_id: attorneyId }],
+          skipDuplicates: true,
+        });
+      },
+      { isolation: 'readCommitted', op: 'follows.follow' },
+    );
     if (count === 0) return this.state(attorneyId, target.role, true);
     // B-c7: a follow again cancels the unfollow tombstone (sync deltas).
     await this.prisma.followTombstone.deleteMany({

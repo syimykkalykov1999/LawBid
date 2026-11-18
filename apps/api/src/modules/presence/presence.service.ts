@@ -1,9 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from '../../redis/redis.constants';
 import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 import { pipeline } from '../../redis/redis-cluster-safe';
+import { cachedBlockSet } from '../blocks/block-set.cache';
+import { presencePermKey } from './presence-perm';
 
 /** A socket counts as online this long after its last heartbeat. */
 export const PRESENCE_TTL_MS = 120_000;
@@ -12,8 +14,7 @@ const key = (userId: string) => `presence:${userId}`;
 /** S1-4: set while a person's "offline" announcement is held back. */
 const offlineKey = (userId: string) => `presence:off:${userId}`;
 /** S1-4: cached "may [viewer] see [target]'s status" answer. */
-const permKey = (viewerId: string, targetId: string) =>
-  `presence:perm:${viewerId}:${targetId}`;
+const permKey = presencePermKey;
 
 export interface PresenceView {
   online: boolean;
@@ -34,6 +35,8 @@ export class PresenceService {
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly privacy: PrivacySettingsService,
+    // Verify batch 7 (BL2): the viewer's cached block set (both ways).
+    @Inject(REDIS_CACHE_CLIENT) private readonly cache: Redis,
   ) {}
 
   /** Connect / heartbeat. True when the user just came online. */
@@ -164,14 +167,21 @@ export class PresenceService {
   /**
    * What [viewerId] may see about [ids]: nothing when the viewer hides
    * their own status, or the other person hides theirs from the viewer
-   * (nobody, or contacts only and the viewer is not one).
+   * (nobody, or contacts only and the viewer is not one), or a block
+   * stands between the two either way (verify batch 7, BL2: as Instagram
+   * and WhatsApp, a blocked person sees no activity status).
    */
   async snapshot(
     viewerId: string,
     ids: string[],
   ): Promise<Map<string, PresenceView>> {
     const out = new Map<string, PresenceView>();
-    const unique = [...new Set(ids)].filter((id) => id !== viewerId);
+    const asked = [...new Set(ids)].filter((id) => id !== viewerId);
+    if (asked.length === 0) return out;
+    const blocked = new Set(
+      await cachedBlockSet(this.prisma, this.cache, viewerId),
+    );
+    const unique = asked.filter((id) => !blocked.has(id));
     if (unique.length === 0) return out;
     const users = await this.prisma.user.findMany({
       where: { id: { in: [viewerId, ...unique] } },

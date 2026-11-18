@@ -3,13 +3,14 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
-import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
+import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from '../../redis/redis.constants';
 import { bumpFeedVersion } from '../../common/cache/feed-version';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import {
@@ -18,6 +19,8 @@ import {
 } from '../counters/counter-aggregator.service';
 import { FilesService } from '../files/files.service';
 import { cachedBlockSet, dropBlockSets } from './block-set.cache';
+import { lockBlockPair } from './block-check';
+import { dropPresencePerms } from '../presence/presence-perm';
 import type { BlockedUserDto } from './blocks.dto';
 import { userDirectory } from '../../sharding/user-directory';
 
@@ -40,6 +43,8 @@ export class BlocksService {
     private readonly counters: CounterAggregator,
     // Caching round 2 (S2-2): the block set is a per-user cache.
     @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
+    // Verify batch 7 (BL2): the presence permission cache lives here.
+    @Optional() @Inject(REDIS_CLIENT) private readonly main?: Redis,
   ) {}
 
   async block(userId: string, targetId: string): Promise<void> {
@@ -65,19 +70,29 @@ export class BlocksService {
         { follower_id: targetId, followee_id: userId },
       ],
     };
-    const removed = await withTxRetry(this.prisma, async (tx) => {
-      await tx.userBlock.createMany({
-        data: [{ blocker_id: userId, blocked_id: targetId }],
-        skipDuplicates: true,
-      });
-      // No follows either way while blocked.
-      const rows = await tx.follow.findMany({
-        where: between,
-        select: { follower_id: true, followee_id: true },
-      });
-      await tx.follow.deleteMany({ where: between });
-      return rows;
-    });
+    // Verify batch 7 (BL1): the same per-pair lock FollowsService.follow
+    // takes, so no follow is inserted between this block and its clean-up.
+    // Read committed: every statement after the lock sees a follow that a
+    // racing transaction committed while this one waited (a serializable
+    // snapshot, taken before the wait, would miss it).
+    const removed = await withTxRetry(
+      this.prisma,
+      async (tx) => {
+        await lockBlockPair(tx, userId, targetId);
+        await tx.userBlock.createMany({
+          data: [{ blocker_id: userId, blocked_id: targetId }],
+          skipDuplicates: true,
+        });
+        // No follows either way while blocked.
+        const rows = await tx.follow.findMany({
+          where: between,
+          select: { follower_id: true, followee_id: true },
+        });
+        await tx.follow.deleteMany({ where: between });
+        return rows;
+      },
+      { isolation: 'readCommitted', op: 'blocks.block' },
+    );
     // Shard-ready step 6: roles come from the user directory, not a join.
     const roles = await userDirectory(this.prisma).select(
       removed.flatMap((f) => [f.follower_id, f.followee_id]),
@@ -85,6 +100,9 @@ export class BlocksService {
     );
     // Owner 2026-10-18 (speed): both users' cached block sets are stale now.
     await dropBlockSets(this.redis, userId, targetId);
+    // BL2: a watcher who opened the chat before the block is dropped on the
+    // next presence announcement (PresenceService.mayWatch asks again).
+    if (this.main) await dropPresencePerms(this.main, userId, targetId);
     // S2-3: both feeds change (blocked authors, removed follows).
     await bumpFeedVersion(this.redis, userId, targetId);
     // Audit 2026-10-01: the removed follows leave both profiles' counters
@@ -110,6 +128,7 @@ export class BlocksService {
       where: { blocker_id: userId, blocked_id: targetId },
     });
     await dropBlockSets(this.redis, userId, targetId);
+    if (this.main) await dropPresencePerms(this.main, userId, targetId);
     await bumpFeedVersion(this.redis, userId, targetId);
   }
 
