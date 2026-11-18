@@ -64,6 +64,7 @@ erDiagram
     Int height "nullable"
     String blurhash "nullable"
     Boolean avif_twins
+    Boolean voice_m4a
     enum_ScanStatus scan_status
     String scan_skipped "nullable"
     Boolean is_public
@@ -3299,6 +3300,7 @@ erDiagram
     String signed_name
     String method
     Bytes image_png "nullable"
+    String image_key "nullable"
     String doc_sha256
     String ip "nullable"
     String user_agent "nullable"

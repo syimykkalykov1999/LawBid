@@ -164,8 +164,7 @@ class _ClientMineViewState extends ConsumerState<ClientMineView>
                             : MyCasesFilter.completed,
                         // Owner 2026-11-09: the stage filters belong to
                         // «Active»; «Done» keeps its order.
-                        search:
-                            isActive ? _search : _search.withoutListFilters,
+                        search: isActive ? _search : _search.withoutListFilters,
                         cards: true,
                         scale: isActive,
                       );

@@ -11,101 +11,28 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/TerminusHealthCheckResult"
+                    }
+                  ],
                   "properties": {
                     "status": {
-                      "type": "string",
                       "enum": [
                         "ok",
                         "degraded"
                       ],
                       "example": "ok"
                     },
-                    "info": {
-                      "type": "object",
-                      "example": {
-                        "database": {
-                          "status": "up",
-                          "responseTime": 12
-                        }
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
-                          },
-                          "responseTime": {
-                            "type": "number",
-                            "description": "Time the health indicator took to respond, in ms"
-                          }
-                        },
-                        "additionalProperties": true
-                      },
-                      "nullable": true
-                    },
                     "error": {
-                      "type": "object",
-                      "example": {},
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
-                          },
-                          "responseTime": {
-                            "type": "number",
-                            "description": "Time the health indicator took to respond, in ms"
-                          }
-                        },
-                        "additionalProperties": true
-                      },
-                      "nullable": true
+                      "example": {}
                     },
                     "details": {
-                      "type": "object",
                       "example": {
                         "database": {
                           "status": "up",
                           "responseTime": 12
                         }
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
-                          },
-                          "responseTime": {
-                            "type": "number",
-                            "description": "Time the health indicator took to respond, in ms"
-                          }
-                        },
-                        "additionalProperties": true
                       }
                     }
                   }
@@ -118,81 +45,29 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/TerminusHealthCheckResult"
+                    }
+                  ],
                   "properties": {
                     "status": {
-                      "type": "string",
                       "enum": [
                         "error",
                         "shutting_down"
                       ],
                       "example": "error"
                     },
-                    "info": {
-                      "type": "object",
-                      "example": {
-                        "database": {
-                          "status": "up",
-                          "responseTime": 12
-                        }
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
-                          },
-                          "responseTime": {
-                            "type": "number",
-                            "description": "Time the health indicator took to respond, in ms"
-                          }
-                        },
-                        "additionalProperties": true
-                      },
-                      "nullable": true
-                    },
                     "error": {
-                      "type": "object",
                       "example": {
                         "redis": {
                           "status": "down",
                           "message": "Could not connect",
                           "responseTime": 3005
                         }
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
-                          },
-                          "responseTime": {
-                            "type": "number",
-                            "description": "Time the health indicator took to respond, in ms"
-                          }
-                        },
-                        "additionalProperties": true
-                      },
-                      "nullable": true
+                      }
                     },
                     "details": {
-                      "type": "object",
                       "example": {
                         "database": {
                           "status": "up",
@@ -203,27 +78,6 @@
                           "message": "Could not connect",
                           "responseTime": 3005
                         }
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
-                          },
-                          "responseTime": {
-                            "type": "number",
-                            "description": "Time the health indicator took to respond, in ms"
-                          }
-                        },
-                        "additionalProperties": true
                       }
                     }
                   }
@@ -252,101 +106,28 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/TerminusHealthCheckResult"
+                    }
+                  ],
                   "properties": {
                     "status": {
-                      "type": "string",
                       "enum": [
                         "ok",
                         "degraded"
                       ],
                       "example": "ok"
                     },
-                    "info": {
-                      "type": "object",
-                      "example": {
-                        "database": {
-                          "status": "up",
-                          "responseTime": 12
-                        }
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
-                          },
-                          "responseTime": {
-                            "type": "number",
-                            "description": "Time the health indicator took to respond, in ms"
-                          }
-                        },
-                        "additionalProperties": true
-                      },
-                      "nullable": true
-                    },
                     "error": {
-                      "type": "object",
-                      "example": {},
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
-                          },
-                          "responseTime": {
-                            "type": "number",
-                            "description": "Time the health indicator took to respond, in ms"
-                          }
-                        },
-                        "additionalProperties": true
-                      },
-                      "nullable": true
+                      "example": {}
                     },
                     "details": {
-                      "type": "object",
                       "example": {
                         "database": {
                           "status": "up",
                           "responseTime": 12
                         }
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
-                          },
-                          "responseTime": {
-                            "type": "number",
-                            "description": "Time the health indicator took to respond, in ms"
-                          }
-                        },
-                        "additionalProperties": true
                       }
                     }
                   }
@@ -359,81 +140,29 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/TerminusHealthCheckResult"
+                    }
+                  ],
                   "properties": {
                     "status": {
-                      "type": "string",
                       "enum": [
                         "error",
                         "shutting_down"
                       ],
                       "example": "error"
                     },
-                    "info": {
-                      "type": "object",
-                      "example": {
-                        "database": {
-                          "status": "up",
-                          "responseTime": 12
-                        }
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
-                          },
-                          "responseTime": {
-                            "type": "number",
-                            "description": "Time the health indicator took to respond, in ms"
-                          }
-                        },
-                        "additionalProperties": true
-                      },
-                      "nullable": true
-                    },
                     "error": {
-                      "type": "object",
                       "example": {
                         "redis": {
                           "status": "down",
                           "message": "Could not connect",
                           "responseTime": 3005
                         }
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
-                          },
-                          "responseTime": {
-                            "type": "number",
-                            "description": "Time the health indicator took to respond, in ms"
-                          }
-                        },
-                        "additionalProperties": true
-                      },
-                      "nullable": true
+                      }
                     },
                     "details": {
-                      "type": "object",
                       "example": {
                         "database": {
                           "status": "up",
@@ -444,27 +173,6 @@
                           "message": "Could not connect",
                           "responseTime": 3005
                         }
-                      },
-                      "additionalProperties": {
-                        "type": "object",
-                        "required": [
-                          "status"
-                        ],
-                        "properties": {
-                          "status": {
-                            "type": "string",
-                            "enum": [
-                              "up",
-                              "degraded",
-                              "down"
-                            ]
-                          },
-                          "responseTime": {
-                            "type": "number",
-                            "description": "Time the health indicator took to respond, in ms"
-                          }
-                        },
-                        "additionalProperties": true
                       }
                     }
                   }
@@ -39072,7 +38780,7 @@
     },
     "/cases/{id}/files": {
       "get": {
-        "description": "With `limit`: one page, oldest first, meta.nextCursor for the next one; filters `kind`, `source`, `sample`. Without it: every file (apps released before 2026-11-10).",
+        "description": "One page, oldest first (`limit`, default and max CASE_FILES_PAGE_MAX), meta.nextCursor for the next one; filters `kind`, `source`, `sample`.",
         "operationId": "listCaseFiles",
         "parameters": [
           {
@@ -78045,6 +77753,160 @@
         ]
       }
     },
+    "/hotline/line/resume": {
+      "post": {
+        "operationId": "hotlineLineResume",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineLineViewEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED, FORBIDDEN, ATTORNEY_NOT_VERIFIED, ENTITLEMENT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Back on the line after a reconnect with the kept choice (screen still open)",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/hotline/disclosure/ack": {
+      "post": {
+        "operationId": "hotlineDisclosureAck",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotlineDisclosureAckDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineDisclosureEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Понятно» under the one-time disclosure",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
     "/hotline/line/accepting": {
       "post": {
         "operationId": "hotlineSetAccepting",
@@ -78559,6 +78421,103 @@
           }
         ],
         "summary": "«Связаться с адвокатом» (one active request per client)",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/hotline/call-back": {
+      "post": {
+        "operationId": "hotlineCallBack",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotlineCallBackDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineRequestViewEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Перезвонить»: the client calls the same attorney again (only the client)",
         "tags": [
           "hotline"
         ]
@@ -140866,6 +140825,107 @@
       }
     },
     "schemas": {
+      "TerminusHealthIndicatorResult": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "degraded",
+              "down"
+            ],
+            "description": "The status of this health indicator"
+          },
+          "responseTime": {
+            "type": "number",
+            "description": "Time the health indicator took to respond, in ms"
+          },
+          "cachedResponse": {
+            "type": "boolean",
+            "description": "Whether this result was served from the cache"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "TerminusHealthCheckResult": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "error",
+              "ok",
+              "degraded",
+              "shutting_down"
+            ],
+            "example": "ok"
+          },
+          "info": {
+            "type": "object",
+            "additionalProperties": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/TerminusHealthIndicatorResult"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              ]
+            },
+            "example": {
+              "database": {
+                "status": "up",
+                "responseTime": 12
+              }
+            },
+            "nullable": true
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/TerminusHealthIndicatorResult"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              ]
+            },
+            "example": {},
+            "nullable": true
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/TerminusHealthIndicatorResult"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              ]
+            },
+            "example": {
+              "database": {
+                "status": "up",
+                "responseTime": 12
+              }
+            }
+          }
+        },
+        "required": [
+          "status",
+          "details"
+        ]
+      },
       "ErrorCode": {
         "type": "string",
         "enum": [
@@ -182560,6 +182620,30 @@
           "data"
         ]
       },
+      "HotlineDisclosureAckDto": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "minimum": 1,
+            "description": "The text version the person saw (HotlineDisclosureDto.version); an older one is not counted."
+          }
+        }
+      },
+      "HotlineDisclosureEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HotlineDisclosureDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "HotlineAcceptingDto": {
         "type": "object",
         "properties": {
@@ -182804,6 +182888,36 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "HotlineCallBackDto": {
+        "type": "object",
+        "properties": {
+          "attorneyId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The attorney of a recent hotline call."
+          },
+          "languages": {
+            "minItems": 1,
+            "maxItems": 10,
+            "description": "Up to hotline.max_languages.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 16
+            }
+          },
+          "topic": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "«О чём звонок», up to hotline.topic_max_chars."
+          }
+        },
+        "required": [
+          "attorneyId",
+          "languages",
+          "topic"
         ]
       },
       "HotlineLanguagesDto": {
@@ -199564,6 +199678,11 @@
             "type": "string",
             "nullable": true,
             "description": "Short signed link; null in chat-list previews."
+          },
+          "m4aUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Owner row 146: short signed link to the AAC/M4A copy of a note recorded in a browser as Opus/WebM (players without WebM, the iPhone, use it). Null when the note is already AAC, the copy is not made, or in chat-list previews."
           },
           "durationMs": {
             "type": "integer"

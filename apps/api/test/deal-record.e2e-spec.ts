@@ -561,6 +561,38 @@ describe('Deal record (e2e, 2026-10-27)', () => {
       );
     });
 
+    it('verify 17.11: a counter after the first signature — the record fails, the bid is NOT accepted on other terms', async () => {
+      const client = await user('client');
+      const att = await user('attorney');
+      const caseId = await kase(client.id);
+      const bidId = await bidOn(att.auth, caseId);
+      const rec = (await start(client.auth, bidId)).body.data;
+      await settle(client.auth, rec.id, 'unsigned', 'awaiting_signatures');
+      expect((await sign(client.auth, rec.id, 'Anna Petrova')).status).toBe(
+        200,
+      );
+      const counter = (auth: Record<string, string>, amountCents: number) =>
+        api()
+          .post(`/api/v1/bids/${bidId}/counter`)
+          .set(auth)
+          .set('Idempotency-Key', randomUUID())
+          .send({ amountCents });
+      // The client asks for less, the attorney asks for more.
+      expect((await counter(client.auth, 80_000)).status).toBeLessThan(300);
+      expect((await counter(att.auth, 120_000)).status).toBeLessThan(300);
+      const signed = await sign(att.auth, rec.id, 'Saul Goodman');
+      expect(signed.status).toBe(409);
+      const bid = await prisma.bid.findUniqueOrThrow({ where: { id: bidId } });
+      expect(bid.status).toBe('active');
+      const row = await prisma.dealRecord.findUniqueOrThrow({
+        where: { id: rec.id },
+      });
+      expect(row.status).toBe('failed');
+      expect(
+        (await prisma.case.findUniqueOrThrow({ where: { id: caseId } })).status,
+      ).toBe('open');
+    });
+
     it('decline before the second signature: nothing happened, the case stays open, a new record can start', async () => {
       const client = await user('client');
       const att = await user('attorney');

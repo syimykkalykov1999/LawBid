@@ -214,15 +214,20 @@ export class StarsService {
 
   /** GET /stars */
   async overview(userId: string): Promise<StarsOverviewDto> {
-    const enabled = await this.enabled();
+    // Verify 17.11: the settings once, not four reads of app_config.
+    const [enabled, balance, c] = await Promise.all([
+      this.enabled(),
+      this.balance(userId),
+      this.cfg(),
+    ]);
     return {
       enabled,
-      balance: await this.balance(userId),
+      balance,
       packs: enabled ? await this.packs() : [],
-      giftConvertPercent: (await this.cfg()).giftConvertPercent,
-      starCents: (await this.cfg()).starCents,
-      reactionStars: (await this.cfg()).reactionStars,
-      premiumReactions: (await this.cfg()).premiumReactions,
+      giftConvertPercent: c.giftConvertPercent,
+      starCents: c.starCents,
+      reactionStars: c.reactionStars,
+      premiumReactions: c.premiumReactions,
       freeReactions: [...FREE_REACTIONS],
     };
   }
@@ -271,9 +276,11 @@ export class StarsService {
     opts: { refId?: string; note?: string; bought?: boolean } = {},
   ): Promise<boolean> {
     const ins = await tx.$queryRaw<{ id: string }[]>`
-      INSERT INTO star_ledger (user_id, delta, balance_after, kind, ref_id, note, idem_key)
+      INSERT INTO star_ledger (user_id, delta, balance_after, kind, ref_id, note, idem_key, created_at)
       VALUES (${userId}::uuid, ${amount}, 0, ${kind}, ${opts.refId ?? null}::uuid,
-              ${opts.note ?? null}, ${idemKey})
+              ${opts.note ?? null}, ${idemKey},
+              -- Verify 17.11: ms, like the ledger page cursor (a JS date).
+              date_trunc('milliseconds', now()))
       ON CONFLICT (idem_key) DO NOTHING
       RETURNING id`;
     if (ins.length === 0) return false;
@@ -330,9 +337,11 @@ export class StarsService {
     opts: { refId?: string; note?: string } = {},
   ): Promise<boolean> {
     const ins = await tx.$queryRaw<{ id: string }[]>`
-      INSERT INTO star_ledger (user_id, delta, balance_after, kind, ref_id, note, idem_key)
+      INSERT INTO star_ledger (user_id, delta, balance_after, kind, ref_id, note, idem_key, created_at)
       VALUES (${userId}::uuid, ${-amount}, 0, ${kind}, ${opts.refId ?? null}::uuid,
-              ${opts.note ?? null}, ${idemKey})
+              ${opts.note ?? null}, ${idemKey},
+              -- Verify 17.11: ms, like the ledger page cursor (a JS date).
+              date_trunc('milliseconds', now()))
       ON CONFLICT (idem_key) DO NOTHING
       RETURNING id`;
     if (ins.length === 0) return false;
@@ -606,9 +615,10 @@ export class StarsService {
         const take = Math.min(w?.balance ?? 0, p.stars);
         const owed = p.stars - take;
         const ins = await tx.$queryRaw<{ id: string }[]>`
-          INSERT INTO star_ledger (user_id, delta, balance_after, kind, ref_id, note, idem_key)
+          INSERT INTO star_ledger (user_id, delta, balance_after, kind, ref_id, note, idem_key, created_at)
           VALUES (${p.user_id}::uuid, ${-take}, 0, 'refund', ${p.id}::uuid,
-                  ${owed > 0 ? `debt ${owed}` : null}, ${`refund:${p.id}`})
+                  ${owed > 0 ? `debt ${owed}` : null}, ${`refund:${p.id}`},
+                  date_trunc('milliseconds', now()))
           ON CONFLICT (idem_key) DO NOTHING
           RETURNING id`;
         if (ins.length === 0) return false;
@@ -797,6 +807,40 @@ export class StarsService {
       data: { sent_count: { increment: 1 } },
     });
     return { send, gift };
+  }
+
+  /**
+   * Verifier 17.11 (two databases): a gift charged for a chat message that
+   * was never stored is undone — the stars go back to the giver (ledger
+   * `refund`, idem key `gift-undo:<send>`, so twice is once), the gift-send
+   * row goes and the gift's counter drops. One primary transaction. Returns
+   * false when there is nothing to undo (already undone, or the send rolled
+   * back with the message in the one-database setup).
+   */
+  async undoGift(sendId: string): Promise<boolean> {
+    const run = () =>
+      this.prisma.$transaction((g) => this.undoGiftIn(g as Tx, sendId));
+    return readsAreSplit(this.prisma) ? shardContext.runOnPrimary(run) : run();
+  }
+
+  private async undoGiftIn(tx: Tx, sendId: string): Promise<boolean> {
+    const send = await tx.giftSend.findUnique({ where: { id: sendId } });
+    if (!send) return false;
+    const back = await this.creditIn(
+      tx,
+      send.sender_id,
+      send.price_stars,
+      'refund',
+      `gift-undo:${send.id}`,
+      { refId: send.id, note: 'gift message not sent' },
+    );
+    if (!back) return false;
+    await tx.giftSend.delete({ where: { id: send.id } });
+    await tx.gift.update({
+      where: { id: send.gift_id },
+      data: { sent_count: { decrement: 1 } },
+    });
+    return true;
   }
 
   /** POST /stars/gifts/:giftId/send — a gift to a profile (no chat). */

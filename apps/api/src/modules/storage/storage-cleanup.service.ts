@@ -391,7 +391,7 @@ export class StorageCleanupService {
         AND NOT EXISTS (
           SELECT 1 FROM channel_posts cp
           WHERE cp.media_file_ids @> ARRAY[f.id] AND cp.deleted_at IS NULL)
-        AND NOT EXISTS (SELECT 1 FROM document_templates d WHERE d.file_id = f.id)
+        AND NOT EXISTS (SELECT 1 FROM document_templates d WHERE d.file_id = f.id AND d.deleted_at IS NULL)
         AND NOT EXISTS (SELECT 1 FROM gifts g WHERE g.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM ai_attachments aa WHERE aa.file_id = f.id)
         AND NOT EXISTS (SELECT 1 FROM attorney_tasks t WHERE t.file_ids @> ARRAY[f.id])
@@ -439,7 +439,7 @@ export class StorageCleanupService {
           AND NOT EXISTS (SELECT 1 FROM data_export_jobs e WHERE e.file_id = f.id)
           AND NOT EXISTS (SELECT 1 FROM support_message_files smf WHERE smf.file_id = f.id)
           AND NOT EXISTS (SELECT 1 FROM stickers s WHERE s.file_id = f.id)
-          AND NOT EXISTS (SELECT 1 FROM document_templates d WHERE d.file_id = f.id)
+          AND NOT EXISTS (SELECT 1 FROM document_templates d WHERE d.file_id = f.id AND d.deleted_at IS NULL)
           AND NOT EXISTS (SELECT 1 FROM gifts g WHERE g.file_id = f.id)
           AND NOT EXISTS (SELECT 1 FROM ai_attachments aa WHERE aa.file_id = f.id)
           AND NOT EXISTS (

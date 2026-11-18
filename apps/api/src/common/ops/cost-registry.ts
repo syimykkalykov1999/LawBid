@@ -197,6 +197,55 @@ const capControl = (provider: string): CostControl => ({
 });
 
 /**
+ * Owner 15.11 («максимум узлов поиска в админке»): search domain data nodes
+ * at most (AWS «Total node limit by instance family»: T3 = 10) and by
+ * default (search.max_nodes). Steps of two, one node per zone each. Same
+ * numbers as infra-switches.ts SEARCH_NODES_* (this file has no imports;
+ * infra-switches.spec checks they match).
+ */
+export const SEARCH_NODES_HARD_MAX = 10;
+export const SEARCH_NODES_DEFAULT = 4;
+
+/**
+ * Rows of the node steps past four (`aws.opensearch_nodes_6`, `_8`, `_10`).
+ * Same rule and price per node as the steps before. «Масштаб» shows a row
+ * only while it is inside search.max_nodes or the step is on
+ * (cost-registry.service).
+ */
+function moreSearchNodeRows(): CostEntry[] {
+  const out: CostEntry[] = [];
+  for (let n = SEARCH_NODES_DEFAULT + 2; n <= SEARCH_NODES_HARD_MAX; n += 2) {
+    out.push({
+      id: `aws.opensearch_nodes_${n}`,
+      name: `Узлы поискового движка ${n - 1} и ${n}`,
+      purpose: `Ещё два узла поискового движка (по ${n / 2} в каждой зоне), когда ${n - 2} узлам тяжело (процессор выше порога economy.db_cpu_limit_percent или память JVM выше 75 %).`,
+      kind: 'aws',
+      control: tf(['growth.opensearch_instance_count'], {
+        off: `growth = { opensearch_instance_count = ${n - 2} }`,
+        on: `growth = { opensearch_instance_count = ${n} }`,
+      }),
+      states: ['off', 'on', 'auto'],
+      defaultState: 'off',
+      ceiling: tfCeil(
+        'growth.opensearch_instance_count',
+        'Сколько узлов (1 или чётное до 10)',
+      ),
+      price: price(
+        'fixed',
+        'Как узел того же размера: t3.small ≈ $28 в месяц за узел',
+        U.os,
+      ),
+      usd: { launch: R(0), k100: R(0), m1: R(0) },
+      ifOnUsd: R(56, 60),
+      needed: 'later',
+      neededNote: `Владелец 15.11: включается сама (Авто), только пока работает поисковый движок и узлов не больше настройки search.max_nodes (по умолчанию 4, предел AWS для t3 — 10); уходит сама, когда процессор ниже половины порога и память JVM ниже 50 %; по шагу, лишние — первыми.`,
+      alarm: null,
+    });
+  }
+  return out;
+}
+
+/**
  * Owner 15.11: database servers in all at most (the primary + 15 extra) and
  * by default (db.max_servers). Same numbers as infra-switches.ts
  * DB_SERVERS_HARD_MAX / DB_SERVERS_DEFAULT (this file has no imports;
@@ -1684,7 +1733,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     defaultState: 'off',
     ceiling: tfCeil(
       'growth.opensearch_instance_count',
-      'Сколько узлов (1, 2 или 4)',
+      'Сколько узлов (1 или чётное до 10)',
     ),
     price: price(
       'fixed',
@@ -1712,7 +1761,7 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     defaultState: 'off',
     ceiling: tfCeil(
       'growth.opensearch_instance_count',
-      'Сколько узлов (1, 2 или 4)',
+      'Сколько узлов (1 или чётное до 10)',
     ),
     price: price(
       'fixed',
@@ -1724,6 +1773,69 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     needed: 'later',
     neededNote:
       'Владелец 12.11, по совету AWS (масштабировать, когда процессор узлов выше порога или память JVM выше 75 %): включается сама (Авто), только пока работает поисковый движок, и уходит сама, когда процессор ниже половины порога и память JVM ниже 50 %; по шагу, лишние — первыми.',
+    alarm: null,
+  },
+  // Owner 15.11: six, eight and ten nodes, up to search.max_nodes.
+  ...moreSearchNodeRows(),
+  {
+    // Owner 15.11, verbatim: «обнови всё до новейшего». AWS allows 2.15 ->
+    // 2.19 -> 3.7 only (get-compatible-versions 15.11); infra/modules/growth.
+    id: 'aws.opensearch_2_19',
+    name: 'Поиск: новая версия OpenSearch 2.19 (шаг 1 из 2)',
+    purpose:
+      'Обновляет поисковый движок с OpenSearch 2.15 на 2.19 — обязательный шаг AWS перед версией 3. AWS обновляет на месте: проверка, снимок, сине-зелёная замена узлов, адрес тот же, поиск работает всё время. Назад нельзя (AWS не умеет понижать версию); план с заменой движка админка откажет.',
+    kind: 'aws',
+    control: tf(['growth.opensearch_engine_version'], {
+      off: 'growth = { opensearch_engine_version = "OpenSearch_2.15" }',
+      on: 'growth = { opensearch_engine_version = "OpenSearch_2.19" }',
+    }),
+    // 16.11: a new domain is created on 3.7, so this step is done by
+    // default; Выкл (a step back) is refused (infra-change.logic
+    // ONE_WAY_SWITCHES).
+    states: ['off', 'on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'free',
+      'Обновление на месте у AWS бесплатно; узлы стоят столько же',
+      U.os,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0),
+    needed: 'yes',
+    neededNote:
+      '16.11: новый движок сразу создаётся на 3.7, этот шаг не нужен. Только для движка, который уже работает на 2.x: от 15 минут до нескольких часов.',
+    alarm: null,
+  },
+  {
+    // Owner 15.11, verbatim: «обнови всё до новейшего». Newest on AWS 15.11:
+    // OpenSearch_3.7 (aws opensearch list-versions); t3.small.search is
+    // offered on 3.7 (list-instance-type-details).
+    id: 'aws.opensearch_3',
+    name: 'Поиск: новейшая версия OpenSearch 3.7 (шаг 2 из 2)',
+    purpose:
+      'Обновляет поисковый движок с 2.19 на самую новую у AWS версию 3.7 (Lucene 10, быстрее поиск). Только после шага 1. AWS обновляет на месте: проверка, снимок, сине-зелёная замена узлов, адрес тот же, поиск работает всё время. Назад нельзя; план с заменой движка админка откажет.',
+    kind: 'aws',
+    control: tf(['growth.opensearch_engine_version'], {
+      off: 'growth = { opensearch_engine_version = "OpenSearch_2.19" }',
+      on: 'growth = { opensearch_engine_version = "OpenSearch_3.7" }',
+    }),
+    // 16.11: a new domain is created on 3.7, so this step is done by
+    // default; Выкл (a step back) is refused (infra-change.logic
+    // ONE_WAY_SWITCHES).
+    states: ['off', 'on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'free',
+      'Обновление на месте у AWS бесплатно; узлы стоят столько же (t3.small есть и на 3.7)',
+      U.os,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0),
+    needed: 'yes',
+    neededNote:
+      '16.11: новый движок сразу создаётся на 3.7 (настройка по умолчанию). Только для движка, который уже работает на 2.19: от 15 минут до нескольких часов.',
     alarm: null,
   },
   {
@@ -3367,6 +3479,10 @@ export const INFRA_MODE_KEYS: Readonly<Record<string, string>> = {
   'aws.opensearch': 'infra.mode.opensearch',
   'aws.opensearch_nodes_2': 'infra.mode.opensearch_nodes_2',
   'aws.opensearch_nodes_4': 'infra.mode.opensearch_nodes_4',
+  // Owner 15.11: the steps past four nodes (search.max_nodes).
+  'aws.opensearch_nodes_6': 'infra.mode.opensearch_nodes_6',
+  'aws.opensearch_nodes_8': 'infra.mode.opensearch_nodes_8',
+  'aws.opensearch_nodes_10': 'infra.mode.opensearch_nodes_10',
   'aws.waf_bot_control': 'infra.mode.waf_bot_control',
   'aws.waf_extra_rules': 'infra.mode.waf_extra_rules',
   'aws.events_stream': 'infra.mode.events_stream',

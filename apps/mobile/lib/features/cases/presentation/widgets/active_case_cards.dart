@@ -16,8 +16,7 @@ import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 
 // Owner 2026-11-09: `caseStageOf` lives in the domain (the lists sort by
 // it); the screens keep importing it from here.
-export 'package:lawbid/features/cases/domain/case_models.dart'
-    show caseStageOf;
+export 'package:lawbid/features/cases/domain/case_models.dart' show caseStageOf;
 
 String caseStageLabel(Translator t, int stage) =>
     t.t('mine.stage.short', {'n': '${stage + 1}'});

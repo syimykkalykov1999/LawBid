@@ -142,6 +142,70 @@ describe('Likes, comments, saves, reports (e2e, docs/05 §4–§5, stage 5.4)', 
     expect((replies.body.data as unknown[]).length).toBe(2);
   });
 
+  it('verify 17.11: a reply to a reply tells the answered person; no fake @handle', async () => {
+    const att = await user('attorney');
+    const anna = await user('client');
+    const bob = await user('client');
+    await prisma.user.update({
+      where: { id: anna.id },
+      data: { first_name: 'Anna', last_name: 'Kowalski' },
+    });
+    await prisma.state.upsert({
+      where: { code: 'NY' },
+      update: {},
+      create: { code: 'NY', name: 'New York' },
+    });
+    // Someone else owns the handle the old "@AnnaK." fallback produced.
+    const stranger = await user('client');
+    await prisma.clientProfile.create({
+      data: {
+        user_id: stranger.id,
+        state_code: 'NY',
+        preferred_languages: ['en'],
+        username: 'annak',
+        username_lower: 'annak',
+      },
+    });
+    const postId = await publishedPost(att.id);
+    const top = await api()
+      .post(`/api/v1/posts/${postId}/comments`)
+      .set(att.auth)
+      .send({ body: 'Top' });
+    const annaReply = await api()
+      .post(`/api/v1/posts/${postId}/comments`)
+      .set(anna.auth)
+      .send({ body: 'Mine', parentCommentId: top.body.data.id });
+    expect(annaReply.status).toBe(201);
+    const bobReply = await api()
+      .post(`/api/v1/posts/${postId}/comments`)
+      .set(bob.auth)
+      .send({ body: 'To Anna', parentCommentId: annaReply.body.data.id });
+    expect(bobReply.status).toBe(201);
+    expect(bobReply.body.data.parentCommentId).toBe(top.body.data.id);
+    // Anna has no @username: no prefix that reads as someone else's handle.
+    expect(bobReply.body.data.body).toBe('To Anna');
+    const notes = await prisma.notification.findMany({
+      where: { user_id: { in: [anna.id, stranger.id] } },
+      select: { user_id: true, type: true },
+    });
+    expect(notes).toEqual([{ user_id: anna.id, type: 'comment_reply' }]);
+    // With a client @username it is the prefix (Instagram).
+    await prisma.clientProfile.create({
+      data: {
+        user_id: anna.id,
+        state_code: 'NY',
+        preferred_languages: ['en'],
+        username: 'anna_k',
+        username_lower: 'anna_k',
+      },
+    });
+    const again = await api()
+      .post(`/api/v1/posts/${postId}/comments`)
+      .set(bob.auth)
+      .send({ body: 'Again', parentCommentId: annaReply.body.data.id });
+    expect(again.body.data.body).toBe('@anna_k Again');
+  });
+
   it('the post author deletes a comment under their post; a stranger cannot', async () => {
     const att = await user('attorney');
     const writer = await user('client');

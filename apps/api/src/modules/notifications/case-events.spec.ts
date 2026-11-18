@@ -45,6 +45,25 @@ describe('case events from notifications', () => {
     ).toMatchObject({ kind: 'updated' });
   });
 
+  it('verify 17.11: a counter patch hands the turn to the other side', () => {
+    expect(
+      bidOf(
+        eventOf('offer_countered', {
+          caseId: 'c',
+          bidId: 'b',
+          byRole: 'attorney',
+          amountCents: 9000,
+        }),
+      ),
+    ).toEqual({
+      bidId: 'b',
+      status: 'active',
+      amountCents: 9000,
+      countered: true,
+      turn: 'client',
+    });
+  });
+
   it('a bid event carries the one-bid patch (status, amount) for the app', () => {
     expect(
       bidOf(

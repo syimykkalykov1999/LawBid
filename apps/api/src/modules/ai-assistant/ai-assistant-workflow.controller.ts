@@ -89,7 +89,12 @@ export class AiAssistantWorkflowController {
     private readonly github: InfraGithubClient,
   ) {}
 
-  private async caller(auth: string | undefined): Promise<WorkflowCaller> {
+  // Not `caller`: Nest 12.5 maps every controller for wildcard middleware
+  // through Object.create(Controller), and `caller` is a strict-mode
+  // accessor of Function.prototype (boot threw; KNOWN_ERRORS 205).
+  private async workflowCaller(
+    auth: string | undefined,
+  ): Promise<WorkflowCaller> {
     try {
       return await this.github.verifyCaller(auth, {
         file: AI_WORKFLOW_FILE,
@@ -114,7 +119,7 @@ export class AiAssistantWorkflowController {
     @Headers('authorization') auth: string | undefined,
     @Body() dto: AiGateDto,
   ) {
-    await this.caller(auth);
+    await this.workflowCaller(auth);
     // No kind = an old workflow: the stricter «task» (Авто refuses it).
     const g = await this.ai.gate(new Date(), dto?.kind ?? 'task');
     return {
@@ -131,7 +136,7 @@ export class AiAssistantWorkflowController {
   @Post('digest')
   @HttpCode(HttpStatus.OK)
   async aiWorkflowDigest(@Headers('authorization') auth: string | undefined) {
-    await this.caller(auth);
+    await this.workflowCaller(auth);
     return this.ai.digest();
   }
 
@@ -148,7 +153,7 @@ export class AiAssistantWorkflowController {
     @Headers('authorization') auth: string | undefined,
     @Body() dto: AiTaskImagesDto,
   ) {
-    await this.caller(auth);
+    await this.workflowCaller(auth);
     return this.ai.taskImages(dto.issueNumber, dto.ids);
   }
 
@@ -160,7 +165,7 @@ export class AiAssistantWorkflowController {
     @Headers('authorization') auth: string | undefined,
     @Body() dto: AiRunReportDto,
   ) {
-    const run = await this.caller(auth);
+    const run = await this.workflowCaller(auth);
     return this.ai.report(run, dto);
   }
 }

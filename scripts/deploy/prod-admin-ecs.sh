@@ -25,6 +25,10 @@
 #        256 px / 1024 px variants of avatars stored before the scan job did
 #        (src/cli/backfill-avatar-variants.ts). "" = dry run (counts only);
 #        "--limit=20 --apply" a first batch; "--apply" the rest.
+#   scripts/deploy/prod-admin-ecs.sh <image tag> signatures "<args>"   CMV 17.11 №7:
+#        drawn signature pictures from the database to the private documents bucket
+#        (src/cli/backfill-signature-images.ts). "" = dry run; "--limit=20 --apply",
+#        then "--apply"; in the NEXT release "--apply --clear" empties the old bytes.
 # Seed = reference data + all 85 languages from prisma/seed/translations/
 # .xlsx (in the image) + the admin row. The e-mail, login and password are
 # typed here (hidden), go into a temporary Secrets Manager secret that only
@@ -129,7 +133,18 @@ case "$MODE" in
     LOG_TAIL=400
     CMD="{ NODE_OPTIONS=--max-old-space-size=1400 node dist/src/cli/backfill-avatar-variants.js ${AV_ARGS} 2>&1; echo \$? > /tmp/avatars.rc; } | cut -c1-400; exit \$(cat /tmp/avatars.rc)"
     ;;
-  *) echo "unknown mode: $MODE (admin | i18n | i18n-full | config | purge | avatars)" >&2; exit 2 ;;
+  signatures)
+    # CMV 17.11 №7: old case signature pictures → the documents bucket
+    # (src/cli/backfill-signature-images.ts). Without --apply it only counts.
+    echo "1/3 (no secret needed)"
+    TMP_SECRET_ARN_FOR_TD=""
+    SG_ARGS="${3:-}"
+    printf '%s' "$SG_ARGS" | grep -Eq '^[A-Za-z0-9= -]*$' \
+      || { echo "signatures: unexpected characters in the arguments" >&2; exit 2; }
+    LOG_TAIL=400
+    CMD="{ NODE_OPTIONS=--max-old-space-size=1400 node dist/src/cli/backfill-signature-images.js ${SG_ARGS} 2>&1; echo \$? > /tmp/signatures.rc; } | cut -c1-400; exit \$(cat /tmp/signatures.rc)"
+    ;;
+  *) echo "unknown mode: $MODE (admin | i18n | i18n-full | config | purge | avatars | signatures)" >&2; exit 2 ;;
 esac
 
 echo "2/3 task definition (copy of ${CLUSTER}-api, image ${TAG})"

@@ -6,9 +6,12 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/hotline_accepting_dto.dart';
+import '../models/hotline_call_back_dto.dart';
 import '../models/hotline_claim_dto.dart';
 import '../models/hotline_config_envelope.dart';
 import '../models/hotline_counters_envelope.dart';
+import '../models/hotline_disclosure_ack_dto.dart';
+import '../models/hotline_disclosure_envelope.dart';
 import '../models/hotline_end_envelope.dart';
 import '../models/hotline_languages_dto.dart';
 import '../models/hotline_line_dto.dart';
@@ -40,6 +43,19 @@ abstract class HotlineClient {
   /// «Выключить линию»
   @DELETE('/hotline/line')
   Future<HotlineLineViewEnvelope> hotlineLineOff({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Back on the line after a reconnect with the kept choice (screen still open)
+  @POST('/hotline/line/resume')
+  Future<HotlineLineViewEnvelope> hotlineLineResume({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// «Понятно» under the one-time disclosure
+  @POST('/hotline/disclosure/ack')
+  Future<HotlineDisclosureEnvelope> hotlineDisclosureAck({
+    @Body() required HotlineDisclosureAckDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -81,6 +97,13 @@ abstract class HotlineClient {
   @POST('/hotline/requests')
   Future<HotlineRequestViewEnvelope> hotlineCreateRequest({
     @Body() required HotlineRequestDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// «Перезвонить»: the client calls the same attorney again (only the client)
+  @POST('/hotline/call-back')
+  Future<HotlineRequestViewEnvelope> hotlineCallBack({
+    @Body() required HotlineCallBackDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

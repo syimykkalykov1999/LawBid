@@ -98,8 +98,7 @@ class MyCaseRow extends ConsumerWidget {
     );
     final canDelete = open || c.status == CaseStatus.archived;
     // OQ-054: the question / the pause, right under the case it is about.
-    final stale =
-        open &&
+    final stale = open &&
         CaseStaleBanner.needed(paused: c.paused, pending: c.stillNeededPending);
     final shown = stale
         ? Column(

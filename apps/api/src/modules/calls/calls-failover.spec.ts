@@ -242,6 +242,7 @@ describe('chaos: Cloudflare SFU dies mid-call', () => {
           callId: 'other',
           userId: `x${i}`,
           canPublish: true,
+          video: true,
           joinedUserIds: [],
         })
         .catch(() => undefined);

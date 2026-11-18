@@ -22,6 +22,7 @@ import {
   purposesOfProfile,
   FILE_MIME,
   MB,
+  voiceM4aKey,
 } from '../files.policy';
 import {
   avifSince,
@@ -33,6 +34,11 @@ import { ReadBudget, SCAN_READ_BUDGET_MB } from '../read-budget';
 import { RealtimePublisher } from '../../realtime/realtime-publisher.service';
 import { ScanHandoff } from './scan-handoff';
 import { readUploadLimits } from '../upload-limits';
+import {
+  FfmpegUnavailableError,
+  needsVoiceTranscode,
+  VoiceTranscoder,
+} from '../processing/voice-transcode';
 
 /** files.scan_skipped: over the antivirus size limit (R1). */
 export const SCAN_SKIPPED_TOO_LARGE = 'too_large';
@@ -101,6 +107,8 @@ export class FileScanProcessor {
     // push that replaces the app's polling of the scan.
     @Optional() private readonly handoff?: ScanHandoff,
     @Optional() private readonly realtime?: RealtimePublisher,
+    // Owner row 146: the AAC/M4A copy of a browser (WebM/Opus) voice note.
+    @Optional() private readonly voice?: VoiceTranscoder,
   ) {
     this.logger.setContext(FileScanProcessor.name);
   }
@@ -284,11 +292,19 @@ export class FileScanProcessor {
         }),
       ]);
       lap('store');
+      // Owner row 146: the copy is stored before the row turns clean, so a
+      // voice message is never sent with a copy still to come.
+      const voiceM4a =
+        mime && needsVoiceTranscode(file.purpose, mime)
+          ? await this.storeVoiceCopy(file, data, finalAttempt)
+          : undefined;
+      if (voiceM4a !== undefined) lap('voice');
       await this.prisma.file.updateMany({
         where: { id: fileId, scan_status: 'pending' },
         data: {
           scan_status: 'clean',
           avif_twins: stored.avifTwins,
+          ...(voiceM4a !== undefined ? { voice_m4a: voiceM4a } : {}),
           ...(blurhash ? { blurhash } : {}),
           // Owner 2026-10-18: videos get their shown size too (the app
           // draws the bubble at that shape before the video loads).
@@ -417,6 +433,7 @@ export class FileScanProcessor {
         height: twin.height,
         blurhash: twin.blurhash,
         avif_twins: twin.avif_twins,
+        voice_m4a: twin.voice_m4a,
         scan_status: 'clean',
       },
     });
@@ -434,6 +451,69 @@ export class FileScanProcessor {
       );
     }
     return true;
+  }
+
+  /**
+   * Owner row 146: the AAC/M4A copy of a browser voice note, written next to
+   * the original (`<key>.m4a`). True once it is stored. The original stays
+   * as it is whatever happens here: switch off, no ffmpeg in the image, a
+   * note ffmpeg cannot read or a timeout → false (the note is still clean
+   * and plays everywhere but on the iPhone). Only storing the ready copy is
+   * retried (throws), and on the last attempt it gives up the same way.
+   */
+  private async storeVoiceCopy(
+    file: File,
+    data: Buffer,
+    finalAttempt: boolean,
+  ): Promise<boolean> {
+    if (!this.voice || !this.settings) return false;
+    if (!(await this.settings.boolean('media.voice_transcode_enabled'))) {
+      return false;
+    }
+    const [bitrateKbps, sampleRateHz, timeoutSec] = await Promise.all([
+      this.settings.number('media.voice_bitrate_kbps'),
+      this.settings.number('media.voice_sample_rate_hz'),
+      this.settings.number('media.voice_transcode_timeout_sec'),
+    ]);
+    let copy: Buffer;
+    try {
+      copy = await this.voice.toM4a(data, {
+        bitrateKbps,
+        sampleRateHz,
+        timeoutMs: timeoutSec * 1000,
+      });
+    } catch (err) {
+      const missing = err instanceof FfmpegUnavailableError;
+      this.logger.warn(
+        {
+          fileId: file.id,
+          alert: missing
+            ? 'voice_transcode_unavailable'
+            : 'voice_transcode_failed',
+          err,
+        },
+        missing
+          ? 'No ffmpeg in the image (WITH_FFMPEG=1): WebM voice note kept without an AAC copy'
+          : 'WebM voice note could not be transcoded: kept without an AAC copy',
+      );
+      return false;
+    }
+    try {
+      await this.storage.put(
+        file.s3_bucket,
+        voiceM4aKey(file.s3_key),
+        copy,
+        FILE_MIME.m4a,
+      );
+      return true;
+    } catch (err) {
+      if (!finalAttempt) throw err;
+      this.logger.warn(
+        { fileId: file.id, alert: 'voice_transcode_failed', err },
+        'AAC copy of a voice note not stored on the last attempt',
+      );
+      return false;
+    }
   }
 
   /** Owner row 106: `images.keep_small_originals` (see ImageProcessor). */

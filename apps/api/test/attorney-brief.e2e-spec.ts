@@ -349,4 +349,72 @@ describe('Attorney case brief (e2e, sweep A-c1)', () => {
       await prisma.file.count({ where: { id: briefFileIdOf(bidId) } }),
     ).toBe(1);
   });
+
+  it('verify 17.11: the brief set aside by the orphan cleanup comes back, not re-rendered', async () => {
+    const { client, att, caseId, bidId } = await hired();
+    await api()
+      .post(`/api/v1/bids/${bidId}/accept`)
+      .set(client.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({})
+      .expect(200);
+    const first = await pdf(att.auth, caseId);
+    expect(first.status).toBe(200);
+    const id = briefFileIdOf(bidId);
+    const before = await prisma.file.findUniqueOrThrow({ where: { id } });
+    // What storage-cleanup does to an unreferenced file after the grace.
+    await prisma.file.updateMany({
+      where: { id },
+      data: { deleted_at: new Date(), deleted_reason: 'orphan' },
+    });
+    const again = await pdf(att.auth, caseId);
+    expect(again.status).toBe(200);
+    const after = await prisma.file.findUniqueOrThrow({ where: { id } });
+    expect(after.deleted_at).toBeNull();
+    expect(after.s3_key).toBe(before.s3_key);
+    const list = await api()
+      .get(`/api/v1/cases/${caseId}/files`)
+      .set(att.auth)
+      .expect(200);
+    expect(
+      (list.body.data as { fileId: string }[]).map((f) => f.fileId),
+    ).toContain(id);
+  });
+
+  it('verify 17.11: the files list is one capped page with a cursor, even without limit', async () => {
+    const { client, att, caseId, bidId } = await hired();
+    await api()
+      .post(`/api/v1/bids/${bidId}/accept`)
+      .set(client.auth)
+      .set('Idempotency-Key', randomUUID())
+      .send({})
+      .expect(200);
+    // 120 more files on the case (rows only: the list does not read bytes).
+    const rows = Array.from({ length: 120 }, (_, i) => ({
+      id: randomUUID(),
+      owner_user_id: client.id,
+      purpose: 'case_photo' as const,
+      s3_bucket: 'fake-documents',
+      s3_key: `case_photo/${client.id}/bulk-${i}`,
+      mime: 'image/jpeg',
+      size_bytes: 1000n,
+      sha256: randomUUID().replace(/-/g, '').padEnd(64, '0'),
+      scan_status: 'clean' as const,
+    }));
+    await prisma.file.createMany({ data: rows });
+    await prisma.casePhoto.createMany({
+      data: rows.map((r, i) => ({
+        case_id: caseId,
+        file_id: r.id,
+        position: 100 + i,
+        source: 'case' as const,
+      })),
+    });
+    const page = await api()
+      .get(`/api/v1/cases/${caseId}/files`)
+      .set(att.auth)
+      .expect(200);
+    expect((page.body.data as unknown[]).length).toBeLessThanOrEqual(100);
+    expect(page.body.meta?.nextCursor).toBeTruthy();
+  });
 });

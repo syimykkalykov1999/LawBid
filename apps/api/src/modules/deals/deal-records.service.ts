@@ -12,6 +12,7 @@ import type {
 } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { assertExpectedVersion } from '../../common/concurrency/optimistic-lock';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { shardContext } from '../../sharding/shard-context';
@@ -233,6 +234,7 @@ export class DealRecordsService {
     const snapshot: DealRecordSnapshot = {
       version: 1,
       recordId,
+      bidVersion: bid.version,
       case: {
         id: bid.case.id,
         title: bid.case.title,
@@ -322,6 +324,8 @@ export class DealRecordsService {
         });
       }
       const fresh = await tx.bid.findUniqueOrThrow({ where: { id: bid.id } });
+      // Verify 17.11: the snapshot above was read before this transaction.
+      assertExpectedVersion(fresh.version, bid.version);
       planBidTransition(fresh, 'accept', by, now);
       const row = await tx.dealRecord.create({
         data: {
@@ -463,6 +467,11 @@ export class DealRecordsService {
     }
     const name = dto.name.trim();
     const requestId = row.sign_request_id;
+    // CMV 17.11 №7: the picture goes to the private bucket before the row.
+    const imageKey = await this.files.storeSignatureImage(
+      requestId ?? id,
+      image,
+    );
     const audit = await this.signerAudit(user, meta);
     const chat: ChatChange[] = [];
     let accepted: { case_id: string } | null = null;
@@ -492,7 +501,9 @@ export class DealRecordsService {
               signer_role: role,
               signed_name: name,
               method: 'drawn',
+              // Step 1 of files/signature-image.ts: the object + the old bytes.
               image_png: new Uint8Array(image),
+              image_key: imageKey,
               doc_sha256:
                 row.sign_request?.source_sha256 ?? row.snapshot_sha256,
               ip: meta.ip?.slice(0, 64) ?? null,
@@ -541,6 +552,7 @@ export class DealRecordsService {
             row.initiator_id,
             meta,
             chat,
+            (row.snapshot as unknown as DealRecordSnapshot).bidVersion,
           );
           await tx.caseSignRequest.update({
             where: { id: requestId },
@@ -565,6 +577,14 @@ export class DealRecordsService {
       if (translated !== error) {
         // The attorney is no longer eligible: the record cannot be sealed.
         await this.markFailed(id, 'awaiting_signatures', 'attorney_inactive');
+      } else if (
+        error instanceof ConflictException &&
+        (error.getResponse() as { code?: string }).code ===
+          ErrorCode.STALE_VERSION
+      ) {
+        // Verify 17.11: the terms moved after the first signature (a
+        // counter) — this record is not those terms; a new one is needed.
+        await this.markFailed(id, 'awaiting_signatures', 'bid_changed');
       }
       throw translated;
     }

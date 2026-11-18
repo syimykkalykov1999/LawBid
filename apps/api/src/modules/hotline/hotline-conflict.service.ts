@@ -6,7 +6,8 @@ import { blockedEitherWay } from '../blocks/block-guard';
 import { matchesIn } from '../bids/conflict/conflict.logic';
 import type { HotlineKeys } from './hotline.store';
 
-/** The attorney's own accepted cases looked through (same as the bid check). */
+/** The attorney's own accepted cases looked through (same as the bid check);
+ * the admin's `hotline.conflict_cases_max` (audit 17.11 #8). */
 const LOOKBACK = 300;
 
 /**
@@ -30,19 +31,24 @@ export class HotlineConflictService {
     lawyerId: string,
     clientId: string,
     cacheSec: number,
+    lookback: number = LOOKBACK,
   ): Promise<boolean> {
     const k = keys.conflict(lawyerId, clientId);
     if (cacheSec > 0) {
       const hit = await this.redis.get(k);
       if (hit !== null) return hit === '1';
     }
-    const blocked = await this.compute(lawyerId, clientId);
+    const blocked = await this.compute(lawyerId, clientId, lookback);
     if (cacheSec > 0)
       await this.redis.set(k, blocked ? '1' : '0', 'EX', cacheSec);
     return blocked;
   }
 
-  private async compute(lawyerId: string, clientId: string): Promise<boolean> {
+  private async compute(
+    lawyerId: string,
+    clientId: string,
+    lookback: number,
+  ): Promise<boolean> {
     if (lawyerId === clientId) return true;
     if (await blockedEitherWay(this.prisma, lawyerId, clientId)) return true;
     const client = await this.prisma.user.findUnique({
@@ -59,7 +65,7 @@ export class HotlineConflictService {
         accepted_bid: { is: { attorney_id: lawyerId } },
       },
       orderBy: { created_at: 'desc' },
-      take: LOOKBACK,
+      take: lookback,
       select: { title: true, description: true },
     });
     const person = { name, phone: null, email: null };

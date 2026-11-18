@@ -496,29 +496,42 @@ class CaseBid {
 
   /// Owner 2026-10-22 (delta audit D-P4): the same bid with what a
   /// `case:update` event said changed (status, the new offer's amount).
-  CaseBid patched({BidStatus? status, int? amountCents, int? percentBps}) =>
-      CaseBid(
-        id: id,
-        caseId: caseId,
-        attorneyId: attorneyId,
-        status: status ?? this.status,
-        feeType: feeType,
-        amountCents: amountCents ?? this.amountCents,
-        percentBps: percentBps ?? this.percentBps,
-        message: message,
-        startAvailability: startAvailability,
-        startDate: startDate,
-        estimatedDurationDays: estimatedDurationDays,
-        roundCount: roundCount,
-        turn: turn,
-        createdAt: createdAt,
-        decidedAt: decidedAt,
-        attorney: attorney,
-        offers: offers,
-        outsidePractice: outsidePractice,
-        outsideLicensedStates: outsideLicensedStates,
-        teamNames: teamNames,
-      );
+  /// Verify 17.11: every field is kept (version, terms, the «waiting» mark
+  /// were dropped — the next answer got 409 STALE_VERSION); a counter
+  /// ([counteredTo]) adds a round and a version and gives that side the turn.
+  CaseBid patched({
+    BidStatus? status,
+    int? amountCents,
+    int? percentBps,
+    PartyRole? counteredTo,
+  }) {
+    final countered = counteredTo != null && counteredTo != PartyRole.$unknown;
+    return CaseBid(
+      id: id,
+      caseId: caseId,
+      attorneyId: attorneyId,
+      status: status ?? this.status,
+      feeType: feeType,
+      amountCents: amountCents ?? this.amountCents,
+      percentBps: percentBps ?? this.percentBps,
+      message: message,
+      startAvailability: startAvailability,
+      startDate: startDate,
+      estimatedDurationDays: estimatedDurationDays,
+      roundCount: countered ? roundCount + 1 : roundCount,
+      turn: countered ? counteredTo : turn,
+      createdAt: createdAt,
+      decidedAt: decidedAt,
+      attorney: attorney,
+      offers: offers,
+      outsidePractice: outsidePractice,
+      outsideLicensedStates: outsideLicensedStates,
+      paymentTerms: paymentTerms,
+      version: countered ? version + 1 : version,
+      confirmationRequiredAt: confirmationRequiredAt,
+      teamNames: teamNames,
+    );
+  }
 
   /// §6.1: counters are possible below the cap and never for free
   /// consultations.

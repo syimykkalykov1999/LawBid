@@ -435,6 +435,27 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Горячая линия: как клиенту показывать число адвокатов на линии — ступени по возрастанию. 0 — «нет», меньше второй ступени — «есть», дальше «10+», «50+», «100+» (точное число клиент не видит). По умолчанию 1, 10, 50, 100 (hotline.counter_bands).',
     min: 1,
   };
+  out['hotline.waiting_more_bands'] = {
+    type: 'integer[]',
+    defaultValue: [1, 2, 5, 10, 50],
+    description:
+      'Горячая линия: как адвокату в предложении показывать «Ещё звонят: N» — ступени по возрастанию, точное число не показывается. По умолчанию 1, 2, 5, 10, 50 (hotline.waiting_more_bands).',
+    min: 1,
+  };
+  out['hotline.position_bands'] = {
+    type: 'integer[]',
+    defaultValue: [1, 5, 20],
+    description:
+      'Горячая линия: как клиенту показывать его место в очереди — верхние границы ступеней по возрастанию. По умолчанию 1, 5, 20 = «1», «2–5», «6–20», «20+» (hotline.position_bands).',
+    min: 1,
+  };
+  out['hotline.wait_band_minutes'] = {
+    type: 'integer[]',
+    defaultValue: [5, 15, 30],
+    description:
+      'Горячая линия: как клиенту показывать примерное ожидание — границы ступеней в минутах по возрастанию. По умолчанию 5, 15, 30 = «до 5», «5–15», «15–30», «больше 30 минут» (hotline.wait_band_minutes).',
+    min: 1,
+  };
   out['hotline.review_enabled'] = {
     type: 'boolean',
     defaultValue: true,
@@ -683,6 +704,9 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'infra.mode.opensearch',
     'infra.mode.opensearch_nodes_2',
     'infra.mode.opensearch_nodes_4',
+    'infra.mode.opensearch_nodes_6',
+    'infra.mode.opensearch_nodes_8',
+    'infra.mode.opensearch_nodes_10',
     'infra.mode.waf_bot_control',
     'infra.mode.waf_extra_rules',
     'infra.mode.events_stream',
@@ -717,6 +741,17 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Database servers in all (the primary plus the extra servers of the split) that the cloud automation may reach: it adds the fifth, sixth and further server only up to this number (1–16; default 4).',
     min: 1,
     max: 16,
+  };
+  // Owner 15.11: search domain data nodes «Авто» may reach (owner only, 2FA:
+  // admin-config.service OWNER_ONLY_CONFIG_KEYS). 10 = AWS limit for the T3
+  // family (infra-switches.ts SEARCH_NODES_HARD_MAX); odd counts above 1 act
+  // as the even step below (two zones).
+  out['search.max_nodes'] = {
+    ...out['search.max_nodes'],
+    description:
+      'Search engine data nodes the cloud automation may reach: past four it adds two nodes at a time (one per zone), 6, 8, 10, and takes them back the same way (1–10, the AWS limit for t3 nodes; default 4).',
+    min: 1,
+    max: 10,
   };
   out['db.shards_move_hours'] = {
     ...out['db.shards_move_hours'],
@@ -2137,9 +2172,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       8000,
       48000,
     ],
+    [
+      'media.voice_transcode_timeout_sec',
+      'Owner row 146: at most this many seconds of ffmpeg per browser (WebM/Opus) voice note while its AAC/M4A copy is made; slower = the note goes out as WebM only.',
+      5,
+      3600,
+    ],
   ] as const) {
     out[key] = { ...out[key], description, min, max };
   }
+  out['media.voice_transcode_enabled'] = {
+    ...out['media.voice_transcode_enabled'],
+    description:
+      'Owner row 146: a voice note recorded on the website in Firefox / Linux Chrome (Opus in WebM, which the iPhone cannot play) gets an AAC/M4A copy next to it in the scan worker (ffmpeg, the voice bitrate and sample rate above); the iPhone app plays the copy, the original is kept. Off: no new copies (copies already made are still served).',
+  };
   // Owner row 199: one encode for the videos Bunny re-encodes anyway.
   out['media.bunny_one_encode'] = {
     ...out['media.bunny_one_encode'],
