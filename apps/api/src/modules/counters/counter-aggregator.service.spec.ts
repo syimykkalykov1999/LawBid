@@ -17,6 +17,7 @@ function fakeRedis() {
   const hashes = new Map<string, Map<string, number>>();
   const sets = new Map<string, Set<string>>();
   const strings = new Map<string, string>();
+  const zsets = new Map<string, string[]>();
   const evalCalls: { keys: string[]; args: unknown[] }[] = [];
   const h = (k: string) => hashes.get(k) ?? hashes.set(k, new Map()).get(k)!;
   const redis = {
@@ -29,6 +30,15 @@ function fakeRedis() {
       const keys = rest.slice(0, n).map(String);
       const args = rest.slice(n);
       if (script.includes("redis.call('PEXPIRE'")) return 1;
+      if (script.includes("'ZREM'")) {
+        // BATCH_DONE: the batch landed.
+        hashes.delete(keys[0]);
+        zsets.set(
+          keys[1],
+          (zsets.get(keys[1]) ?? []).filter((t) => t !== String(args[0])),
+        );
+        return 1;
+      }
       if (
         script.includes("redis.call('DEL', KEYS[1])") &&
         !script.includes('HMGET')
@@ -54,21 +64,36 @@ function fakeRedis() {
         return 1;
       }
       if (script.includes('HMGET')) {
-        // DB scale batch C: ARGV = token, now, field, then the ids (the
-        // batch hash itself is not modelled: no test here kills a flush).
+        // DB scale batch C: ARGV = token, now, field, then the ids; the
+        // non-zero deltas go to the batch hash (KEYS[2], with '~field'), the
+        // token to the batch list (KEYS[3]).
         const m = h(keys[0]);
         const ids = args.slice(3);
         const vals = ids.map((a) =>
           m.has(String(a)) ? String(m.get(String(a))) : null,
         );
         ids.forEach((a) => m.delete(String(a)));
+        const kept = ids.filter((_, i) => vals[i] && Number(vals[i]) !== 0);
+        if (kept.length > 0) {
+          const b = h(keys[1]);
+          ids.forEach((a, i) => {
+            if (vals[i] && Number(vals[i]) !== 0)
+              b.set(String(a), Number(vals[i]));
+          });
+          strings.set(`${keys[1]}#field`, String(args[2]));
+          zsets.set(keys[2], [...(zsets.get(keys[2]) ?? []), String(args[0])]);
+        }
         return vals;
       }
       throw new Error('unknown script');
     },
     hmget: async (k: string, ...ids: string[]) =>
       ids.map((i) =>
-        hashes.get(k)?.has(i) ? String(hashes.get(k)!.get(i)) : null,
+        i === '~field'
+          ? (strings.get(`${k}#field`) ?? null)
+          : hashes.get(k)?.has(i)
+            ? String(hashes.get(k)!.get(i))
+            : null,
       ),
     hscan: async (k: string) => [
       '0',
@@ -93,7 +118,7 @@ function fakeRedis() {
       m.forEach((x) => s.add(x));
       return m.length;
     },
-    zrange: async () => [] as string[],
+    zrange: async (k: string) => [...(zsets.get(k) ?? [])],
     hgetall: async () => ({}) as Record<string, string>,
   };
   return { redis: redis as unknown as Redis, hashes, sets, evalCalls, strings };
@@ -372,5 +397,43 @@ describe('CounterAggregator (S6-6)', () => {
       const out = await agg.flush(); // marker is back: drained now
       expect(out.rows).toBe(1);
     });
+  });
+});
+
+describe('CounterAggregator: a flush in flight on another instance (e2e two-db reel views 1 → 0)', () => {
+  it('another instance reading while this one applies a drained batch sees the deltas, then the row', async () => {
+    const { redis } = fakeRedis();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let applying!: () => void;
+    const started = new Promise<void>((r) => (applying = r));
+    const prisma = {
+      $executeRaw: jest.fn(async () => {
+        applying();
+        await gate;
+        return 1;
+      }),
+    } as unknown as PrismaService;
+    const logger = { setContext: jest.fn(), error: jest.fn() };
+    const a = new CounterAggregator(prisma, redis, logger as never);
+    const { agg: b } = aggregator(redis);
+    const id = ID('7');
+    await a.bump('post', id, 'view_count', 2);
+    await a.flushLocal();
+    expect((await b.pending('post', 'view_count', [id])).get(id)).toBe(2);
+    const flushing = a.flush();
+    await started;
+    // Drained from the pending hash, not yet committed: still 2 for B.
+    expect((await b.pending('post', 'view_count', [id])).get(id)).toBe(2);
+    // Another field of the same entity is not affected.
+    expect(
+      (await b.pending('post', 'like_count', [id])).get(id),
+    ).toBeUndefined();
+    release();
+    await flushing;
+    // Committed and forgotten: the row holds it now, nothing pending.
+    expect(
+      (await b.pending('post', 'view_count', [id])).get(id),
+    ).toBeUndefined();
   });
 });
