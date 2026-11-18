@@ -9,6 +9,7 @@ import { SecretsService } from '../src/common/secrets/secrets.service';
 import { AppCheckService } from '../src/modules/auth/app-check/app-check.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Security research #5 (2026-10-22), A4: Firebase App Check on the costly
@@ -34,7 +35,7 @@ describe('App Check (e2e)', () => {
         create: { key, value: mode },
         update: { value: mode },
       });
-    await redis.del('config:app_config'); // bypass the 30 s cache
+    await dropAppConfigCache(redis); // bypass the 30 s cache
   }
 
   function otp(

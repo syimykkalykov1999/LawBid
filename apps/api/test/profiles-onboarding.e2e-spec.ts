@@ -13,6 +13,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { reauthByPassword } from './support/password-reauth';
 import { attachCleanAvatar } from './support/clean-avatar';
 import { attachPractice } from './support/attach-practice';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * docs/01_FOUNDATION_AUTH.md §11 steps 3A/3B + docs/02 §4.C: the
@@ -97,7 +98,7 @@ describe('Profiles onboarding (e2e) — client_profiles / attorney_profiles', ()
       create: { key, value: value as never },
       update: { value: value as never },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
   }
 
   async function login(phone: string): Promise<Record<string, string>> {

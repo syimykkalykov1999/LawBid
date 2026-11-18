@@ -11,6 +11,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { PostsService } from '../src/modules/posts/posts.service';
 import type { RequestUser } from '../src/modules/auth/decorators/current-user.decorator';
 import { PromotionDeliveryService } from '../src/modules/promotions/promotion-delivery.service';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Owner 2026-10-15 (Boost, mockup v4), against real PostgreSQL/Redis:
@@ -353,7 +354,7 @@ describe('Boost (e2e, owner 2026-10-15)', () => {
       create: { key: 'reco.reels_ranked', value: false as never },
       update: { value: false as never },
     });
-    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+    await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
     const viewer = await user('attorney');
     const author = await user('attorney');
     const adOwner = await user('attorney');
@@ -413,7 +414,7 @@ describe('Boost (e2e, owner 2026-10-15)', () => {
     expect(ads[0].p.promotionId).toBe(promo.id);
     expect(ads[0].p.promotionCta).toMatchObject({ type: 'profile' });
     await prisma.appConfig.deleteMany({ where: { key: 'reco.reels_ranked' } });
-    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+    await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
 
     // Extend: a running boost cannot be bought again, but can be extended.
     const buy = (body: Record<string, unknown>) =>

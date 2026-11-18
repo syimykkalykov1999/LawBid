@@ -12,6 +12,7 @@ import {
   type RetaliationPort,
 } from '../src/modules/staff-core/retaliation.port';
 import { adminSession, adminStepUp } from './support/admin-login';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Staff package T6 (plan B3): complaints against a head, the retaliation
@@ -39,7 +40,7 @@ describe('Staff appeals + retaliation guard (e2e)', () => {
       create: { key, value },
       update: { value },
     });
-    await redis.del('config:app_config'); // bypass the cache
+    await dropAppConfigCache(redis); // bypass the cache
   }
 
   beforeAll(async () => {
@@ -77,7 +78,7 @@ describe('Staff appeals + retaliation guard (e2e)', () => {
     await prisma.appConfig.deleteMany({
       where: { key: 'staff.reveal_per_day' },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     await app.close();
   });
 

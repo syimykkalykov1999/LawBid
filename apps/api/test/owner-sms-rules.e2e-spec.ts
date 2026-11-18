@@ -9,6 +9,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { reauthByPassword } from './support/password-reauth';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Owner 2026-10-16: fewer SMS. A code goes only to a NEW number (once per
@@ -31,7 +32,7 @@ describe('SMS only for new numbers and password reset (e2e)', () => {
       create: { key, value: value as never },
       update: { value: value as never },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
   };
 
   beforeAll(async () => {
