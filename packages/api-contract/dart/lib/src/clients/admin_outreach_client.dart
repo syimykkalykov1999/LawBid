@@ -3,7 +3,6 @@
 // ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
 
 import 'dart:convert';
-
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
