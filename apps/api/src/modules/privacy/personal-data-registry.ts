@@ -152,6 +152,9 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'VideoAsset',
       'File',
       'ConnectedCustomer',
+      // Verify 18.11 (PV4): an erased attorney's own planner (steps, places
+      // and people go with each task).
+      'AttorneyTask',
       // Firms audit 16.11 (PR-2): the lawyer leaves the firm
       // (FirmsService.onAccountErased).
       'FirmMember',
@@ -176,16 +179,13 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'LegalAnswer',
       'Session',
       'Consultation',
-      'AttorneyTask',
       'AttorneyTaskPerson',
       'SupportMessage',
       'SupportTicket',
       'Username',
       'UsernameHold',
-      'ContractGrant',
+      // Verify 18.11 (PV4): a demo account's admin label goes with it.
       'DemoAccount',
-      'OutreachLead',
-      'Partner',
     ),
     pseudonymize: list(
       'StickerPack',
@@ -375,6 +375,14 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'StaffAction',
       'AdminAppeal',
       'StaffRetaliationFlag',
+      // Verify 18.11 (PV4): commercial records kept for contract and tax
+      // claims (GDPR Art. 17(3)(b), (e)) — a contract grant, a partner's
+      // agreement and payout terms — and an outreach lead, whose phone and
+      // e-mail are the do-not-contact suppression (TCPA / CAN-SPAM opt-outs
+      // must keep being honoured after the account is gone).
+      'ContractGrant',
+      'Partner',
+      'OutreachLead',
     ),
   };
 

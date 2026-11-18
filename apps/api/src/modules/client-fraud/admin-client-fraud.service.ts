@@ -11,6 +11,7 @@ import {
   FRAUD_AUDIT,
   FRAUD_EVENT,
   FRAUD_STATUS,
+  FRAUD_SUSPENDED_REASON,
   PRESET_VALUES,
   STRONG_KINDS,
   type FpKind,
@@ -279,15 +280,27 @@ export class AdminClientFraudService {
     note: string | null,
   ): Promise<FraudCardDto> {
     const user = await this.target(userId);
-    if (user.status === 'suspended') await this.users.restore(admin, userId);
+    // Verify 18.11 (CF1): «Снять» lifts what the fraud desk did — a block
+    // by the fraud score, a linked account or a fraud ban. A suspension by
+    // a moderator, the strikes or the automatic moderation is not the fraud
+    // desk's to undo (that is /admin/users/:id/restore, moderators only).
+    const profile = await this.prisma.clientFraudProfile.findUnique({
+      where: { user_id: userId },
+      select: { status: true },
+    });
+    const fraudBlock =
+      user.status === 'suspended' &&
+      (profile?.status === FRAUD_STATUS.banned ||
+        (Object.values(FRAUD_SUSPENDED_REASON) as string[]).includes(
+          user.suspended_reason ?? '',
+        ));
+    if (fraudBlock) await this.users.restore(admin, userId);
     await this.fraud.setByStaff(
       userId,
       FRAUD_STATUS.ok,
       admin.id,
       note,
-      user.status === 'suspended'
-        ? FRAUD_EVENT.staffUnbanned
-        : FRAUD_EVENT.staffCleared,
+      fraudBlock ? FRAUD_EVENT.staffUnbanned : FRAUD_EVENT.staffCleared,
     );
     await this.audit.record({
       adminId: admin.id,
@@ -345,9 +358,17 @@ export class AdminClientFraudService {
     for (const id of ids) {
       const u = await this.prisma.user.findUnique({
         where: { id },
-        select: { status: true, admin_profile: { select: { user_id: true } } },
+        select: {
+          status: true,
+          role: true,
+          admin_profile: { select: { user_id: true } },
+        },
       });
       if (!u || u.admin_profile || u.status === 'deleted') continue;
+      // Verify 18.11 (CF1): the client-fraud desk blocks clients; an
+      // attorney's (or anyone else's) suspension stays with the super admin
+      // and the moderators (/admin/users/:id/suspend).
+      if (u.role !== 'client' && admin.adminRole !== 'super_admin') continue;
       if (u.status !== 'suspended') {
         await this.users.suspend(admin, id, dto.note);
       }
@@ -430,6 +451,7 @@ export class AdminClientFraudService {
       select: {
         id: true,
         status: true,
+        suspended_reason: true,
         admin_profile: { select: { user_id: true } },
       },
     });

@@ -67,6 +67,10 @@ export class LegalExportService {
     if (request.status === 'fulfilled' || request.status === 'rejected') {
       throw bad('The request is closed.');
     }
+    // Verify 18.11 (LD1): a request naming its subject covers only them.
+    if (request.subject_user_id && request.subject_user_id !== dto.userId) {
+      throw bad('The user is not the subject of this request.');
+    }
     const subject = await this.prisma.user.findUnique({
       where: withDeleted({ id: dto.userId }),
       select: { id: true },

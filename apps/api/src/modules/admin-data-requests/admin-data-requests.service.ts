@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -192,6 +197,21 @@ export class AdminDataRequestsService {
       where: { id },
     });
     if (!request) throw notFound();
+    // Verify 18.11 (LD1): a closed request releases nothing more, and a
+    // request naming its subject releases only that person's data (same
+    // rule as the evidence archive, LegalExportService.queue).
+    if (request.status === 'fulfilled' || request.status === 'rejected') {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'The request is closed.',
+      });
+    }
+    if (request.subject_user_id && request.subject_user_id !== dto.userId) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'The user is not the subject of this request.',
+      });
+    }
     const user = await this.prisma.user.findUnique({
       where: withDeleted({ id: dto.userId }),
       select: {

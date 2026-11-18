@@ -86,8 +86,10 @@ export class AdminSupportController {
     summary: 'Counts per status, unassigned / unread (dashboard badge)',
   })
   @ApiEnvelopeResponse(AdminSupportStatsDto)
-  getAdminSupportStats(): Promise<AdminSupportStatsDto> {
-    return this.support.stats();
+  getAdminSupportStats(
+    @CurrentAdmin() admin: AdminActor,
+  ): Promise<AdminSupportStatsDto> {
+    return this.support.stats(admin.countries);
   }
 
   @Get('tickets/:id')
@@ -117,7 +119,7 @@ export class AdminSupportController {
     @Param() p: SupportTicketIdParamDto,
     @Body() dto: AdminSupportReplyDto,
   ): Promise<AdminSupportMessageDto> {
-    return this.support.reply(admin.id, p.id, dto);
+    return this.support.reply(admin.id, p.id, dto, admin.countries);
   }
 
   /** Owner 2026-10-18 (OQ-055): step 1 of attaching a file to a reply —
@@ -181,7 +183,7 @@ export class AdminSupportController {
     @Param() p: SupportTicketIdParamDto,
     @Body() dto: AdminUpdateSupportTicketDto,
   ): Promise<AdminSupportTicketRowDto> {
-    return this.support.update(p.id, dto, admin.id);
+    return this.support.update(p.id, dto, admin.id, admin.countries);
   }
 
   // --- support 24/7 (owner 2026-10-05) -------------------------------------

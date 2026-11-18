@@ -124,6 +124,19 @@ export class AdminModerationService {
     const targets = await Promise.all(
       page.map((r) => this.moderation.resolve(r.target_type, r.target_id)),
     );
+    // Verify 18.11 (RP1): an object that no longer exists (a story removed
+    // with its author's account, …) cannot be opened or decided — its open
+    // reports are closed here instead of heading the queue for ever.
+    if (status === 'open') {
+      await this.closeVanished(
+        page
+          .filter((_, i) => !targets[i])
+          .map((r) => ({
+            type: r.target_type,
+            id: r.target_id,
+          })),
+      );
+    }
     const authors = await this.authors(
       targets.map((t) => t?.authorId).filter((id): id is string => !!id),
     );
@@ -155,9 +168,17 @@ export class AdminModerationService {
     };
   }
 
-  async card(type: ReportTargetType, id: string): Promise<ModerationCardDto> {
+  async card(
+    type: ReportTargetType,
+    id: string,
+    countries: CountryScope = null,
+  ): Promise<ModerationCardDto> {
+    await this.assertInScope(type, id, countries);
     const target = await this.moderation.resolve(type, id);
-    if (!target) throw notFound();
+    if (!target) {
+      await this.closeVanished([{ type, id }]);
+      throw notFound();
+    }
     const [reports, author] = await Promise.all([
       this.prisma.report.findMany({
         where: { target_type: type, target_id: id },
@@ -197,9 +218,14 @@ export class AdminModerationService {
     id: string,
     action: ModerationActionName,
     reason: string,
+    countries: CountryScope = null,
   ): Promise<ModerationActionResultDto> {
+    await this.assertInScope(type, id, countries);
     const target = await this.moderation.resolve(type, id);
-    if (!target) throw notFound();
+    if (!target) {
+      await this.closeVanished([{ type, id }]);
+      throw notFound();
+    }
     const author = target.authorId ? await this.author(target.authorId) : null;
     if (!availableActions(target, author).includes(action)) {
       throw new ConflictException({
@@ -230,7 +256,10 @@ export class AdminModerationService {
       type !== 'user' &&
       type !== 'case' &&
       (await this.dismissRestoresEnabled()) &&
-      !(await this.hiddenByModerator(type, id));
+      !(await this.hiddenByModerator(type, id)) &&
+      // Verify 18.11 (MO5a): a picture check that hid it is still undecided
+      // — the media queue decides that one, not «Отклонить жалобы».
+      !(await this.hiddenByMediaCheck(type, id, target.authorId));
     // Two databases (SHARDING_READY step 7): a post / comment / message lives
     // in the database its id names, so the transaction runs there (the global
     // rows of it — reports, actions, strikes — go global-first via the facade).
@@ -299,7 +328,13 @@ export class AdminModerationService {
             },
           });
         }
-        if (action !== 'dismiss') {
+        // Verify 18.11 (MO3): warn / suspend / restore of a user account is
+        // already recorded by AdminUsersService — a second row doubled the
+        // author's warnings and the person's notices.
+        const userSanction =
+          type === 'user' &&
+          (action === 'warn' || action === 'suspend' || action === 'restore');
+        if (action !== 'dismiss' && !userSanction) {
           const created = await tx.moderationAction.create({
             data: {
               report_id: open[0]?.id ?? null,
@@ -328,6 +363,19 @@ export class AdminModerationService {
               reason,
             });
             if (done) after.push(done);
+          }
+          // Verify 18.11 (MO1): a moderator's restore is the decision that
+          // the content was fine — its strike (and the limit it caused) goes.
+          const author = target.authorId;
+          if (
+            action === 'restore' &&
+            author &&
+            type !== 'user' &&
+            type !== 'case'
+          ) {
+            after.push(() =>
+              this.strikes.revokeForTarget(admin, author, type, id, reason),
+            );
           }
         }
         await this.audit.record(
@@ -406,6 +454,60 @@ export class AdminModerationService {
 
   /** True when the latest human hide / restore decision on the object is
    * a hide (the object is hidden on purpose, not by a rule or threshold). */
+  /** Verify 18.11 (RP1): open reports on objects that are gone are closed
+   * (nothing to decide, nobody can open the card). */
+  private async closeVanished(
+    gone: { type: ReportTargetType; id: string }[],
+  ): Promise<void> {
+    if (gone.length === 0) return;
+    const closed = await this.prisma.report.updateMany({
+      where: {
+        status: 'open',
+        OR: gone.map((g) => ({ target_type: g.type, target_id: g.id })),
+      },
+      data: { status: 'dismissed', handled_at: new Date() },
+    });
+    if (closed.count > 0) {
+      await this.summary?.dropFamily(ADMIN_COUNTS_SUMMARY_KEY);
+    }
+  }
+
+  /** Verify 18.11 (MO6): a country-scoped moderator sees the queue of
+   * reports made by people of their countries (owner 2026-10-05); the card
+   * and the actions keep the same scope instead of opening any object. */
+  private async assertInScope(
+    type: ReportTargetType,
+    id: string,
+    countries: CountryScope,
+  ): Promise<void> {
+    if (!countries) return;
+    const rows = await this.prisma.$queryRaw<{ n: number }[]>`
+      SELECT count(*)::INT AS n FROM reports
+      WHERE target_type = ${type}::report_target_type
+        AND target_id = ${id}::UUID
+        AND reporter_id IN (
+          SELECT id FROM users WHERE country_code::TEXT = ANY(${countries}::TEXT[]))`;
+    if ((rows[0]?.n ?? 0) === 0) throw notFound();
+  }
+
+  /** Verify 18.11 (MO5a): an undecided picture check hid this object. */
+  private async hiddenByMediaCheck(
+    type: ReportTargetType,
+    id: string,
+    ownerId: string | null,
+  ): Promise<boolean> {
+    if (!ownerId) return false;
+    const n = await this.prisma.mediaModerationCheck.count({
+      where: {
+        owner_user_id: ownerId,
+        decision: null,
+        status: { in: ['hidden', 'csam_match'] },
+        hidden_targets: { array_contains: [{ type, id }] },
+      },
+    });
+    return n > 0;
+  }
+
   private async hiddenByModerator(
     type: ReportTargetType,
     id: string,
