@@ -1,14 +1,27 @@
+import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
 import { pipeline } from '../../redis/redis-cluster-safe';
+import {
+  livePresenceCount,
+  presenceKey,
+} from '../../common/presence/live-presence';
 
 /** A socket counts as online this long after its last heartbeat. */
 export const PRESENCE_TTL_MS = 120_000;
 
-const key = (userId: string) => `presence:${userId}`;
+const key = presenceKey;
+
+/** Verify 5b (C3): delete the held "offline" mark only when it is still
+ * the one this hold wrote (Redis "SET … / compare-and-delete" lock pattern,
+ * redis.io/docs/latest/develop/use/patterns/distributed-locks). */
+const SETTLE_OWN_HOLD_LUA = `if redis.call('get', KEYS[1]) == ARGV[1] then
+  return redis.call('del', KEYS[1])
+end
+return 0`;
 /** S1-4: set while a person's "offline" announcement is held back. */
 const offlineKey = (userId: string) => `presence:off:${userId}`;
 /** S1-4: cached "may [viewer] see [target]'s status" answer. */
@@ -96,8 +109,13 @@ export class PresenceService {
 
   /** S1-4: the last connection dropped; the "offline" announcement waits
    * [graceSec] seconds for a reconnect (a flapping phone never shows). */
-  async holdOffline(userId: string, graceSec: number): Promise<void> {
-    await this.redis.set(offlineKey(userId), '1', 'EX', graceSec + 30);
+  /** Returns this hold's token: only [settleOffline] with the same token
+   * may settle it (verify 5b, C3 — an older instance's timer must not
+   * remove a newer hold written after a reconnect + drop elsewhere). */
+  async holdOffline(userId: string, graceSec: number): Promise<string> {
+    const token = randomUUID();
+    await this.redis.set(offlineKey(userId), token, 'EX', graceSec + 30);
+    return token;
   }
 
   /** S1-4: a connection came back. True when an "offline" announcement was
@@ -109,9 +127,24 @@ export class PresenceService {
 
   /** S1-4: the grace is over. True (and `last_active_at` written) when the
    * person is still away and nobody else settled it; the caller announces. */
-  async settleOffline(userId: string, leftAt: Date): Promise<boolean> {
-    if ((await this.redis.del(offlineKey(userId))) === 0) return false;
-    const live = await this.redis.zcount(key(userId), Date.now(), '+inf');
+  async settleOffline(
+    userId: string,
+    leftAt: Date,
+    token?: string,
+  ): Promise<boolean> {
+    const removed =
+      token === undefined
+        ? await this.redis.del(offlineKey(userId))
+        : Number(
+            await this.redis.eval(
+              SETTLE_OWN_HOLD_LUA,
+              1,
+              offlineKey(userId),
+              token,
+            ),
+          );
+    if (removed === 0) return false;
+    const live = await livePresenceCount(this.redis, userId);
     if (live > 0) return false;
     await this.prisma.user.updateMany({
       where: { id: userId },

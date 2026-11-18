@@ -7,8 +7,10 @@ import {
   CRON_HEAVY_FREQUENT_QUEUE,
   CRON_HEAVY_QUEUE,
   CRON_SCHEDULES,
+  ONE_OFF_JOBS,
   cronLaneOf,
   isSubHourly,
+  type OneOffJobName,
 } from './jobs.constants';
 import { CronRunStats, runUnderLock, timeLimitMs } from './cron-run';
 import { JobStoppedError } from '../common/queues/job-signal';
@@ -515,6 +517,23 @@ export class CronProcessor {
     } catch (error) {
       await this.idleBackoff.record(name, null, true);
       throw error;
+    }
+  }
+
+  /**
+   * Verify 5b (17.11): a one-off delayed job (ONE_OFF_JOBS) with its data.
+   * No per-name lock, stats or back-off: each job is about one record and
+   * its handler is idempotent (BullMQ already runs one job id once).
+   */
+  async runOneOff(name: OneOffJobName, data: unknown): Promise<unknown> {
+    const d = (data ?? {}) as { callId?: unknown };
+    switch (name) {
+      case ONE_OFF_JOBS.callerGone:
+        return typeof d.callId === 'string'
+          ? this.calls.endIfCallerGone(d.callId)
+          : { skipped: 'no call id' };
+      default:
+        return { skipped: 'unknown one-off job' };
     }
   }
 

@@ -102,6 +102,7 @@ import {
   type VideoCallProvider,
 } from './video-call-provider';
 import { incrWithTtl } from '../../redis/incr-with-ttl';
+import { livePresenceCount } from '../../common/presence/live-presence';
 
 /** Audit 17.11 (problem 6): the lock around «is the callee busy?» and the
  * new call row — a few database round trips, far below this. */
@@ -1069,7 +1070,13 @@ export class CallsService {
   }
 
   /** POST /calls/:id/end — hang up (either side), idempotent. */
-  async end(user: RequestUser, id: string, dto: EndCallDto): Promise<CallDto> {
+  async end(
+    user: RequestUser,
+    id: string,
+    dto: EndCallDto,
+    /** Verify 5b (C2): the call changed state under this end; re-decided once. */
+    again = false,
+  ): Promise<CallDto> {
     const call = await this.load(user, id);
     if (!LIVE.includes(call.status)) return this.toDto(call, user.sub);
     if (call.is_group) {
@@ -1123,14 +1130,56 @@ export class CallsService {
     if (neverUp) void this.onNeverConnected(call).catch(() => undefined);
     if (outcome === 'ended' && !neverUp) this.slo?.count('callConnected');
     if (outcome === 'failed' || neverUp) this.slo?.count('callFailed');
-    return this.finish(
+    // Verify 5b (C2): the outcome was decided from the status read above, so
+    // the end may only move the call from THAT status. An accept landing in
+    // between (ringing → active) used to turn an answered call into
+    // «canceled»; now this end misses, and the hang-up is decided again
+    // against the fresh row (an answered call ends as a normal «ended»).
+    const done = await this.finish(
       call,
       outcome,
       user.sub,
       undefined,
       dropped ? 'link_lost' : undefined,
       user.sid,
+      [call.status],
     );
+    if (!again && done.status !== call.status && LIVE.includes(done.status)) {
+      return this.end(user, id, dto, true);
+    }
+    return done;
+  }
+
+  /**
+   * Verify 5b (17.11): the `calls.caller-gone` job — the caller's last app
+   * connection closed while this 1:1 call rang (RealtimeGateway). Still
+   * ringing and the caller has no live connection on any instance (the
+   * presence set in Redis) → canceled through [finish], so the callee's
+   * ring stops (VoIP / FCM cancel push, `call:ended`), the chat gets the
+   * call line and the callee the missed-call notice, exactly once. The
+   * caller back on any instance, or the call already answered / ended →
+   * nothing. Idempotent.
+   */
+  async endIfCallerGone(
+    callId: string,
+  ): Promise<{ ended: boolean; reason?: string }> {
+    const call = await this.prisma.call.findUnique({ where: { id: callId } });
+    if (!call || call.is_group || call.status !== 'ringing') {
+      return { ended: false, reason: 'not ringing' };
+    }
+    if (this.redis && (await livePresenceCount(this.redis, call.caller_id))) {
+      return { ended: false, reason: 'caller back' };
+    }
+    const dto = await this.finish(
+      call,
+      'canceled',
+      null,
+      undefined,
+      'caller_gone',
+      undefined,
+      ['ringing'],
+    );
+    return { ended: dto.status === 'canceled' };
   }
 
   private pollKey?: Buffer | null;
@@ -1614,7 +1663,17 @@ export class CallsService {
       take: 200,
     });
     for (const c of stale) {
-      await this.finish(c, c.status === 'ringing' ? 'missed' : 'ended', null);
+      // Verify 5b (C2): only from the status that was read (a ring answered
+      // since the read is not marked missed).
+      await this.finish(
+        c,
+        c.status === 'ringing' ? 'missed' : 'ended',
+        null,
+        undefined,
+        undefined,
+        undefined,
+        [c.status],
+      );
     }
     await this.sweepInvites(now);
     await this.sweepSilentMembers(now);
