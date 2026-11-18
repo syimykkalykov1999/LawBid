@@ -87,8 +87,9 @@ class ChatExtrasRepository {
   Future<ChatMessage> sendContact(
     String conversationId,
     String clientMessageId,
-    String userId,
-  ) async =>
+    String userId, {
+    String? replyToId,
+  }) async =>
       ChatMappers.message(
         (await guardApiCall(
           () => _chat.sendMessage(
@@ -97,6 +98,7 @@ class ChatExtrasRepository {
               clientMessageId: clientMessageId,
               type: api.SendMessageType.contact,
               contactUserId: userId,
+              replyToId: replyToId,
             ),
           ),
         ))
@@ -128,8 +130,9 @@ class ChatExtrasRepository {
   Future<ChatMessage> sendPlace(
     String conversationId,
     String clientMessageId,
-    String address,
-  ) async =>
+    String address, {
+    String? replyToId,
+  }) async =>
       ChatMappers.message(
         (await guardApiCall(
           () => _chat.sendMessage(
@@ -138,6 +141,7 @@ class ChatExtrasRepository {
               clientMessageId: clientMessageId,
               type: api.SendMessageType.place,
               body: address,
+              replyToId: replyToId,
             ),
           ),
         ))

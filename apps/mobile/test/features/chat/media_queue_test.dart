@@ -10,11 +10,16 @@ import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/chat/application/send_picked.dart';
+import 'package:lawbid/features/chat/data/chat_extras_repository.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_local_database.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
+import 'package:lawbid/features/templates/application/templates_providers.dart';
+import 'package:lawbid/features/templates/data/templates_repository.dart';
+import 'package:lawbid/features/templates/domain/doc_template.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -24,6 +29,7 @@ import '../../helpers/ux_harness.dart';
 class _Chat implements ChatRepository {
   final sent = <String>[];
   final clientIds = <String>[];
+  final replyIds = <String?>[];
   ApiException? failSend;
 
   ChatMessage _msg(String cmid, MessageKind kind, String body) => ChatMessage(
@@ -59,10 +65,12 @@ class _Chat implements ChatRepository {
     required String fileId,
     required String fileName,
     String? caption,
+    String? replyToId,
   }) async {
     final f = failSend;
     if (f != null) throw f;
     sent.add(fileName);
+    replyIds.add(replyToId);
     clientIds.add(clientMessageId);
     return _msg(clientMessageId, MessageKind.attachment, caption ?? '');
   }
@@ -72,10 +80,12 @@ class _Chat implements ChatRepository {
     String id,
     String clientMessageId, {
     required String stickerId,
+    String? replyToId,
   }) async {
     final f = failSend;
     if (f != null) throw f;
     sent.add('sticker:$stickerId');
+    replyIds.add(replyToId);
     clientIds.add(clientMessageId);
     return _msg(clientMessageId, MessageKind.sticker, '');
   }
@@ -84,7 +94,46 @@ class _Chat implements ChatRepository {
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
 }
 
-ProviderContainer _container(_Chat chat, FakeStorageUploader uploader) {
+/// Row 188: the card sender (a contact or a place).
+class _Cards implements ChatExtrasRepository {
+  final replyIds = <String?>[];
+
+  @override
+  Future<ChatMessage> sendContact(
+    String conversationId,
+    String clientMessageId,
+    String userId, {
+    String? replyToId,
+  }) async {
+    replyIds.add(replyToId);
+    return ChatMessage(
+      id: 'srv-card',
+      conversationId: conversationId,
+      senderId: 'me',
+      kind: MessageKind.contact,
+      body: '',
+      clientMessageId: clientMessageId,
+      createdAt: DateTime.now(),
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
+}
+
+class _Templates implements TemplatesRepository {
+  @override
+  Future<String> copy(String id, TemplateTarget target) async => 'file-$id';
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
+}
+
+ProviderContainer _container(
+  _Chat chat,
+  FakeStorageUploader uploader, {
+  _Cards? cards,
+}) {
   final db = SocialLocalDatabase(NativeDatabase.memory());
   final c = ProviderContainer(
     overrides: [
@@ -95,6 +144,8 @@ ProviderContainer _container(_Chat chat, FakeStorageUploader uploader) {
       realtimeClientProvider.overrideWithValue(null),
       networkInterfaceMonitorProvider.overrideWithValue(FakeNetworkMonitor()),
       reachabilityProbeProvider.overrideWithValue(FakeProbe().call),
+      if (cards != null) chatExtrasRepositoryProvider.overrideWithValue(cards),
+      templatesRepositoryProvider.overrideWithValue(_Templates()),
     ],
   );
   addTearDown(() async {
@@ -262,5 +313,71 @@ void main() {
     s = c.read(chatThreadProvider('c1'));
     expect(s.voiceOutbox, isEmpty);
     expect(await c.read(uploadQueueDatabaseProvider).pending('me'), isEmpty);
+  });
+
+  test('row 188: an album and a sticker go out as answers', () async {
+    final chat = _Chat();
+    final c = _container(chat, FakeStorageUploader());
+    final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+    addTearDown(sub.close);
+    await _settle();
+    final thread = c.read(chatThreadProvider('c1').notifier);
+
+    await sendPickedFiles(
+      thread,
+      [
+        for (final n in ['1.pdf', '2.pdf'])
+          (
+            bytes: Uint8List.fromList([1, 2]),
+            name: n,
+            mime: 'application/pdf',
+            path: null,
+            diskBytes: null,
+          ),
+      ],
+      'both',
+      replyToId: 'quoted-1',
+    );
+    await thread.sendSticker(
+      const ChatSticker(id: 's1', packId: 'p', emoji: '🙂'),
+      replyToId: 'quoted-2',
+    );
+    await c.read(chatMediaOutboxProvider).drain();
+    await _settle();
+    // The album answers once (its first file), like groups and WhatsApp.
+    expect(Map.fromIterables(chat.sent, chat.replyIds), {
+      '1.pdf': 'quoted-1',
+      '2.pdf': null,
+      'sticker:s1': 'quoted-2',
+    });
+  });
+
+  test('row 188: a template and a contact card go out as answers', () async {
+    final chat = _Chat();
+    final cards = _Cards();
+    final c = _container(chat, FakeStorageUploader(), cards: cards);
+    final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+    addTearDown(sub.close);
+    await _settle();
+    final thread = c.read(chatThreadProvider('c1').notifier);
+
+    await thread.sendTemplate(
+      const DocTemplate(
+        id: 't1',
+        title: 'Lease',
+        description: '',
+        fileName: 'Lease.pdf',
+        mime: 'application/pdf',
+        sizeBytes: 10,
+        language: 'en',
+        lawyersOnly: false,
+        downloadCount: 0,
+      ),
+      replyToId: 'quoted-1',
+    );
+    await thread.sendCard(contactUserId: 'u9', replyToId: 'quoted-2');
+    expect(chat.sent, ['Lease.pdf']);
+    expect(chat.replyIds, ['quoted-1']);
+    expect(cards.replyIds, ['quoted-2']);
   });
 }
