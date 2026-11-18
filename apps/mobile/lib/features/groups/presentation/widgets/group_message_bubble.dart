@@ -650,7 +650,9 @@ class GroupPendingBubble extends ConsumerWidget {
                       messages: () => const [],
                       played: (_) async {},
                     ),
-                    avatarUrl: ref.watch(currentUserControllerProvider).user
+                    avatarUrl: ref
+                        .watch(currentUserControllerProvider)
+                        .user
                         ?.avatarUrl,
                   ),
                 if (file != null)

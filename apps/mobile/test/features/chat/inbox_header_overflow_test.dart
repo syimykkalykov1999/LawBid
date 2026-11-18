@@ -169,8 +169,7 @@ void main() {
     for (final MapEntry(key: name, value: (t, dir)) in cases.entries) {
       testWidgets(
           'call button ${live ? 'shows' : 'is hidden'} above «+» '
-          'at 360 dp ($name, x1.1)',
-          (tester) async {
+          'at 360 dp ($name, x1.1)', (tester) async {
         useNarrowPhone(tester);
         await tester.pumpWidget(
           uxApp(

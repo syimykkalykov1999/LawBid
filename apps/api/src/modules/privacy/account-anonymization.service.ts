@@ -252,6 +252,122 @@ export class AccountAnonymizationService implements AccountEraser {
   /** Owner 2026-10-22 (audit #4 §5): the person's videos (reels, story and
    * channel videos) are marked deleted and removed at Bunny; what fails
    * here is retried by the `videos.sweep`. */
+  /** Verify 17.11: soft-deletes [userId]'s post and case comments (and the
+   * replies under its top-level ones); returns the counter moves. */
+  private async removeComments(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    now: Date,
+  ): Promise<
+    Array<
+      [
+        'post' | 'comment' | 'case' | 'case_comment',
+        string,
+        'comment_count' | 'reply_count',
+        number,
+      ]
+    >
+  > {
+    const out: Array<
+      [
+        'post' | 'comment' | 'case' | 'case_comment',
+        string,
+        'comment_count' | 'reply_count',
+        number,
+      ]
+    > = [];
+    const add = (
+      entity: 'post' | 'comment' | 'case' | 'case_comment',
+      id: string,
+      field: 'comment_count' | 'reply_count',
+    ) => {
+      const hit = out.find(
+        (o) => o[0] === entity && o[1] === id && o[2] === field,
+      );
+      if (hit) hit[3] -= 1;
+      else out.push([entity, id, field, -1]);
+    };
+    // Post comments.
+    const mine = await tx.comment.findMany({
+      where: { author_id: userId, deleted_at: null },
+      select: {
+        id: true,
+        post_id: true,
+        parent_comment_id: true,
+        status: true,
+      },
+    });
+    const tops = mine.filter((c) => !c.parent_comment_id).map((c) => c.id);
+    const under = tops.length
+      ? await tx.comment.findMany({
+          where: {
+            parent_comment_id: { in: tops },
+            author_id: { not: userId },
+            deleted_at: null,
+          },
+          select: { id: true, post_id: true, status: true },
+        })
+      : [];
+    const topSet = new Set(tops);
+    for (const c of mine) {
+      if (c.status !== 'published') continue;
+      add('post', c.post_id, 'comment_count');
+      if (c.parent_comment_id && !topSet.has(c.parent_comment_id)) {
+        add('comment', c.parent_comment_id, 'reply_count');
+      }
+    }
+    for (const r of under) {
+      if (r.status === 'published') add('post', r.post_id, 'comment_count');
+    }
+    const ids = [...mine.map((c) => c.id), ...under.map((r) => r.id)];
+    if (ids.length) {
+      await tx.comment.updateMany({
+        where: { id: { in: ids }, deleted_at: null },
+        data: { deleted_at: now },
+      });
+    }
+    // Case comments.
+    const mineC = await tx.caseComment.findMany({
+      where: { author_id: userId, deleted_at: null },
+      select: {
+        id: true,
+        case_id: true,
+        parent_comment_id: true,
+        status: true,
+      },
+    });
+    const topsC = mineC.filter((c) => !c.parent_comment_id).map((c) => c.id);
+    const underC = topsC.length
+      ? await tx.caseComment.findMany({
+          where: {
+            parent_comment_id: { in: topsC },
+            author_id: { not: userId },
+            deleted_at: null,
+          },
+          select: { id: true, case_id: true, status: true },
+        })
+      : [];
+    const topSetC = new Set(topsC);
+    for (const c of mineC) {
+      if (c.status !== 'published') continue;
+      add('case', c.case_id, 'comment_count');
+      if (c.parent_comment_id && !topSetC.has(c.parent_comment_id)) {
+        add('case_comment', c.parent_comment_id, 'reply_count');
+      }
+    }
+    for (const r of underC) {
+      if (r.status === 'published') add('case', r.case_id, 'comment_count');
+    }
+    const idsC = [...mineC.map((c) => c.id), ...underC.map((r) => r.id)];
+    if (idsC.length) {
+      await tx.caseComment.updateMany({
+        where: { id: { in: idsC }, deleted_at: null },
+        data: { deleted_at: now },
+      });
+    }
+    return out;
+  }
+
   private async deleteVideos(userId: string): Promise<void> {
     const assets = await this.prisma.videoAsset.findMany({
       // Verify 17.11: the already-deleted ones too (still at Bunny until
@@ -543,6 +659,16 @@ export class AccountAnonymizationService implements AccountEraser {
     // 4. One transaction over the user's entities.
     let follows: { follower_id: string; followee_id: string }[] = [];
     let postsRemoved = 0;
+    // Verify 17.11 (owner: like Instagram / Facebook) — the counter moves of
+    // the account's comments removed with it.
+    let commentBumps: Array<
+      [
+        entity: 'post' | 'comment' | 'case' | 'case_comment',
+        id: string,
+        field: 'comment_count' | 'reply_count',
+        delta: number,
+      ]
+    > = [];
     const chains = await withTxRetry(this.prisma, async (tx) => {
       follows = [];
       postsRemoved = 0;
@@ -757,9 +883,12 @@ export class AccountAnonymizationService implements AccountEraser {
         select: { follower_id: true, followee_id: true },
       });
       await tx.follow.deleteMany({ where: between });
-      // Comments keep their rows: the author renders as "Deleted User"
-      // through the scrubbed user row (§5.1). Messages are scrubbed in
-      // batches after this transaction (largest table, load review).
+      // Verify 17.11 (owner 17.11: like Instagram / Facebook): the account's
+      // comments go with it and leave every count — post and case comments,
+      // with the other people's replies under its top-level ones (they are
+      // not shown without them). Messages are scrubbed in batches after
+      // this transaction (largest table, load review).
+      commentBumps = await this.removeComments(tx, userId, now);
       // Verification provider payloads may hold the person's name (§5.1
       // "ID-документы удаляются"): emptied, the row itself stays.
       await tx.verificationCheck.updateMany({
@@ -793,6 +922,10 @@ export class AccountAnonymizationService implements AccountEraser {
           -1,
         );
       }
+    }
+    for (const [entity, id, field, delta] of commentBumps) {
+      // The (entity, field) pairs are the ones the comments services bump.
+      await this.counters?.bump(entity, id, field, delta);
     }
     if (postsRemoved > 0) {
       await this.counters?.bump(

@@ -17,6 +17,7 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
+import { AutoHoldService } from '../moderation/auto-hold.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BoostActions } from '../promotions/boost-actions.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -64,6 +65,9 @@ export class CaseCommentsService {
     private readonly moderation: ContentModerationHook,
     // Owner 2026-10-27: a question counts for the case's boost paid per action.
     @Optional() private readonly boostActions?: BoostActions,
+    // Verify 17.11 (as post comments, CONTENT C-2): a held comment goes to
+    // the moderators' queue.
+    @Optional() private readonly autoHold?: AutoHoldService,
   ) {}
 
   /** Access check; returns the case owner's id. */
@@ -109,6 +113,9 @@ export class CaseCommentsService {
         where: { id: parentCommentId, case_id: caseId, ...LIVE },
       });
       if (!replyTo) throw commentNotFound();
+      // Verify 17.11: blocks between any two people in the thread (not
+      // only with the case owner).
+      await assertNoBlockBetween(this.prisma, userId, replyTo.author_id);
       parent = replyTo.parent_comment_id
         ? await this.prisma.caseComment.findFirst({
             where: { id: replyTo.parent_comment_id, ...LIVE },
@@ -126,6 +133,14 @@ export class CaseCommentsService {
         status: verdict === 'hold' ? 'hidden' : 'published',
       },
     });
+    if (created.status === 'hidden') {
+      await this.autoHold?.queue({
+        targetType: 'case_comment',
+        targetId: created.id,
+        authorId: userId,
+        rule: 'rules',
+      });
+    }
     if (created.status === 'published') {
       await this.counters.bump('case', caseId, 'comment_count', 1);
       if (parent) {
@@ -230,6 +245,22 @@ export class CaseCommentsService {
     if (verdict === 'hold' && c.status === 'published') {
       // Held for review after the edit: out of the counts like a new hold.
       await this.counters.bump('case', c.case_id, 'comment_count', -1);
+      // Verify 17.11: a held reply leaves its parent's count too, and goes
+      // to the moderators' queue (it stayed hidden for ever).
+      if (c.parent_comment_id) {
+        await this.counters.bump(
+          'case_comment',
+          c.parent_comment_id,
+          'reply_count',
+          -1,
+        );
+      }
+      await this.autoHold?.queue({
+        targetType: 'case_comment',
+        targetId: c.id,
+        authorId: c.author_id,
+        rule: 'rules',
+      });
     }
     const fresh = await this.prisma.caseComment.findUniqueOrThrow({
       where: { id: c.id },
@@ -302,20 +333,26 @@ export class CaseCommentsService {
       });
       if (claimed.count === 0) return null;
       if (c.parent_comment_id) return 0;
-      const r = await tx.caseComment.updateMany({
+      // Verify 17.11 (as post comments): only the published replies were in
+      // the count, but EVERY reply goes — a held one approved later would
+      // count an orphan.
+      const counted = await tx.caseComment.count({
         where: { parent_comment_id: c.id, ...LIVE },
+      });
+      await tx.caseComment.updateMany({
+        where: { parent_comment_id: c.id, deleted_at: null },
         data: { deleted_at: now },
       });
-      return r.count;
+      return counted;
     });
     if (removedReplies === null) return { deleted: true };
+    // Verify 17.11: the published replies leave the count even when the top
+    // comment itself was held (the whole decrement was skipped).
+    const gone = (c.status === 'published' ? 1 : 0) + removedReplies;
+    if (gone > 0) {
+      await this.counters.bump('case', c.case_id, 'comment_count', -gone);
+    }
     if (c.status === 'published') {
-      await this.counters.bump(
-        'case',
-        c.case_id,
-        'comment_count',
-        -(1 + removedReplies),
-      );
       if (c.parent_comment_id) {
         await this.counters.bump(
           'case_comment',
@@ -335,6 +372,7 @@ export class CaseCommentsService {
     });
     if (!c) throw commentNotFound();
     await this.caseOwner(user, c.case_id);
+    await assertNoBlockBetween(this.prisma, user.sub, c.author_id);
     await this.limits.consume('like', user.sub);
     const { count } = await this.prisma.caseCommentLike.createMany({
       data: [{ comment_id: commentId, user_id: user.sub }],
@@ -381,10 +419,26 @@ export class CaseCommentsService {
     cursor?: string,
   ): Promise<CaseCommentPage> {
     const c = cursor ? decodeCursor(cursor) : undefined;
+    // Verify 17.11 (as post comments): comments of people blocked either
+    // way and of deleted / suspended accounts are not shown.
+    const blocks = await this.prisma.userBlock.findMany({
+      where: { OR: [{ blocker_id: viewerId }, { blocked_id: viewerId }] },
+      select: { blocker_id: true, blocked_id: true },
+      take: 5000,
+    });
+    const hidden = [
+      ...new Set(
+        blocks.map((b) =>
+          b.blocker_id === viewerId ? b.blocked_id : b.blocker_id,
+        ),
+      ),
+    ];
     const rows = await this.prisma.caseComment.findMany({
       where: {
         ...where,
         ...LIVE,
+        author: { status: 'active' },
+        ...(hidden.length ? { author_id: { notIn: hidden } } : {}),
         ...(c ? createdBefore({ t: c.createdAt, id: c.id }) : {}),
       },
       orderBy: [{ created_at: 'desc' }, { id: 'desc' }],

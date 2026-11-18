@@ -3209,6 +3209,9 @@ model Message {
   sent_by_membership_id String?            @db.Uuid
   sent_by_name          String?            @db.VarChar(80)
   listened_at           DateTime?          @db.Timestamptz
+  /// Verify 17.11: the last reaction added, changed or REMOVED — the
+  /// offline catch-up returns the message (a removal leaves no row).
+  reactions_changed_at  DateTime?          @db.Timestamptz
   // Owner 2026-10-01: a sticker message.
   sticker_id            String?            @db.Uuid
   sticker               Sticker?           @relation(fields: [sticker_id], references: [id], onDelete: SetNull, onUpdate: NoAction, map: "messages_sticker_fkey")
@@ -3527,6 +3530,9 @@ model ChatGroupMessage {
   waveform            Int[]                      @default([])
   edited_at           DateTime?                  @db.Timestamptz
   deleted_at          DateTime?                  @db.Timestamptz
+  /// Verify 17.11: the last edit, delete for everyone or reaction change —
+  /// the offline catch-up returns messages changed after the phone's newest.
+  changed_at          DateTime?                  @db.Timestamptz
   /// Owner 2026-10-21: disappearing messages — see messages.expires_at.
   expires_at          DateTime?                  @db.Timestamptz
   /// Owner 2026-10-21 (Telegram): «Forwarded from <name>» — the first

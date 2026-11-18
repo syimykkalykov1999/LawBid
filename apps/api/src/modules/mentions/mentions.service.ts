@@ -29,14 +29,16 @@ export class MentionsService {
       this.prisma.attorneyProfile.findMany({
         where: {
           username_lower: { in: handles },
-          user: { deleted_at: null },
+          // Verify 17.11: not suspended / closing accounts either.
+          user: { deleted_at: null, status: 'active' },
         },
         select: { user_id: true, username_lower: true },
       }),
       this.prisma.clientProfile.findMany({
         where: {
           username_lower: { in: handles },
-          user: { deleted_at: null },
+          // Verify 17.11: not suspended / closing accounts either.
+          user: { deleted_at: null, status: 'active' },
         },
         select: { user_id: true, username_lower: true },
       }),

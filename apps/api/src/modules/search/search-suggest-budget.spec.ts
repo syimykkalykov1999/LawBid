@@ -22,8 +22,16 @@ describe('SearchService type-ahead budget', () => {
       string,
       unknown
     >;
-    Object.assign(svc, { limits, provider, redis: cache, cacheRedis: cache });
-    return { svc: svc as unknown as SearchService, limits };
+    const hidden = new Set<string>();
+    const blocks = { hiddenIds: jest.fn(() => Promise.resolve(hidden)) };
+    Object.assign(svc, {
+      limits,
+      provider,
+      blocks,
+      redis: cache,
+      cacheRedis: cache,
+    });
+    return { svc: svc as unknown as SearchService, limits, provider, hidden };
   }
   const user = { sub: 'u1', role: 'client' } as never;
 
@@ -46,5 +54,20 @@ describe('SearchService type-ahead budget', () => {
     const provider = (svc as unknown as { provider: { searchTags: jest.Mock } })
       .provider;
     expect(provider.searchTags).toHaveBeenCalledTimes(1);
+  });
+
+  it('verify 17.11: a person blocked either way leaves the shared type-ahead per viewer', async () => {
+    const { svc, provider, hidden } = make();
+    provider.suggest.mockResolvedValue([
+      { kind: 'person', text: 'janedoe', userId: 'u-jane' },
+      { kind: 'person', text: 'jan_law', userId: 'u-other' },
+      { kind: 'tag', text: 'janitor' },
+    ]);
+    hidden.add('u-jane');
+    const out = await svc.suggest(user, 'jan');
+    expect(out).toEqual([
+      { kind: 'person', text: 'jan_law' },
+      { kind: 'tag', text: 'janitor' },
+    ]);
   });
 });
