@@ -260,6 +260,13 @@ flutter:
     # Web bundle budget (15.11): the pickers' CLDR language names
     # (tool/gen_language_display_names.mjs), read by language_catalog.dart.
     - assets/l10n/language_display_names.json
+    # Web bundle budget (17.11): the compiled-in ru/en strings for the web
+    # build only (tool/gen_static_strings.dart, lib/core/l10n/static_strings.dart);
+    # phones keep them as Dart constants.
+    - path: assets/l10n/static_strings_ru.json
+      platforms: [web]
+    - path: assets/l10n/static_strings_en.json
+      platforms: [web]
 
   fonts:
     # Owner 2026-10-01: Phosphor icons (MIT, assets/fonts/LICENSE-Phosphor.txt).

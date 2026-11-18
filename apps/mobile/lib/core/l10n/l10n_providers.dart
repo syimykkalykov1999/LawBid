@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_database.dart';
 import 'package:lawbid/core/l10n/l10n_repository.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
+import 'package:lawbid/core/l10n/static_strings.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/dio_client.dart';
@@ -136,10 +137,13 @@ class L10nCacheController extends _$L10nCacheController {
     final code = language.code;
     // Owner 2026-10-18 (speed): the language and the English fallback are
     // seeded/read side by side.
-    Future<Map<String, String>> seedAndLoad(
-      String lang,
-      Map<String, String>? seed,
-    ) async {
+    Future<Map<String, String>> seedAndLoad(String lang) async {
+      // Web: the compiled-in strings are an asset read here, once
+      // (static_strings.dart); elsewhere they are constants (no await).
+      final reading = loadBuiltInStrings(lang);
+      if (reading != null) await reading;
+      if (!ref.mounted) return const <String, String>{};
+      final seed = compiledSeedFor(lang);
       if (seed != null) {
         await repo.seedIfEmpty(lang, seed);
         // The container may be gone (and the database closed with it)
@@ -151,9 +155,8 @@ class L10nCacheController extends _$L10nCacheController {
 
     final enCode = AppLanguage.fallback.code;
     final loaded = await Future.wait([
-      seedAndLoad(code, compiledSeedFor(code)),
-      if (language != AppLanguage.fallback)
-        seedAndLoad(enCode, compiledSeedFor(enCode)),
+      seedAndLoad(code),
+      if (language != AppLanguage.fallback) seedAndLoad(enCode),
     ]);
     final cached = loaded[0];
     final english = loaded.length > 1 ? loaded[1] : const <String, String>{};
