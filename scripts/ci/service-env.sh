@@ -9,8 +9,10 @@
 #
 # Input (env, from `${{ job.services.<name>.ports['<port>'] }}`):
 #   PG_PORT, REDIS_PORT          required
-#   SMTP_MAPPED_PORT             optional (mailhog)
-# Output: appends DATABASE_URL, REDIS_URL [, SMTP_PORT] to $GITHUB_ENV; the
+#   SMTP_MAPPED_PORT             optional (mailpit)
+#   S3_MAPPED_PORT               optional (versitygw, the local S3)
+# Output: appends DATABASE_URL, REDIS_URL [, SMTP_PORT] [, S3_ENDPOINT] to
+# $GITHUB_ENV; the
 # step-level values override the workflow-level defaults in api-ci.yml.
 set -euo pipefail
 : "${PG_PORT:?postgres host port missing}"
@@ -20,5 +22,6 @@ out="${GITHUB_ENV:?GITHUB_ENV not set}"
   echo "DATABASE_URL=postgresql://root:lawbid@localhost:${PG_PORT}/lawbid_ci?schema=public"
   echo "REDIS_URL=redis://localhost:${REDIS_PORT}"
   if [ -n "${SMTP_MAPPED_PORT:-}" ]; then echo "SMTP_PORT=${SMTP_MAPPED_PORT}"; fi
+  if [ -n "${S3_MAPPED_PORT:-}" ]; then echo "S3_ENDPOINT=http://localhost:${S3_MAPPED_PORT}"; fi
 } >> "$out"
-echo "service ports: postgres=${PG_PORT} redis=${REDIS_PORT} smtp=${SMTP_MAPPED_PORT:-none}"
+echo "service ports: postgres=${PG_PORT} redis=${REDIS_PORT} smtp=${SMTP_MAPPED_PORT:-none} s3=${S3_MAPPED_PORT:-none}"

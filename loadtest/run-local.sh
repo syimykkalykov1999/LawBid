@@ -9,7 +9,7 @@
 #     --keep   leave the API and the Docker containers running afterwards
 #
 # Needs: Docker (the repo's compose containers lawbid-postgres-1 /
-# lawbid-redis-1 / lawbid-minio-1), k6 (brew install k6), node, python3.
+# lawbid-redis-1 / lawbid-s3-1), k6 (brew install k6), node, python3.
 # Uses its OWN database `lawbid_loadtest` and Redis db 7: your dev data is
 # not touched. Results: loadtest/results/local-<time>/ (report.md inside).
 set -euo pipefail
@@ -22,7 +22,7 @@ for t in docker k6 node python3 curl; do
   command -v "$t" >/dev/null || { echo "missing tool: $t$([ "$t" = k6 ] && echo ' (brew install k6)')" >&2; exit 2; }
 done
 
-PG=lawbid-postgres-1; RD=lawbid-redis-1; MN=lawbid-minio-1
+PG=lawbid-postgres-1; RD=lawbid-redis-1; MN=lawbid-s3-1
 DB=lawbid_loadtest
 LT_PORT="${LOADTEST_PORT:-3055}"
 started=()

@@ -483,7 +483,7 @@ AWS закрывает **Performance Insights 31.07.2026** и переводит
 Как включить: `documents_object_lock = true` (и при желании `sealed_records_retention_days = …`) в
 `infra/envs/prod/terraform.tfvars` → `terraform plan` (ожидается: 1 ресурс Object Lock, новая версия task
 definition API/воркера с одной переменной, одна IAM-строка) → `apply` → деплой подхватит переменную.
-Локально, на MinIO и в R2 переменная пустая — заголовков Object Lock нет.
+Локально (versitygw) и в R2 переменная пустая — заголовков Object Lock нет.
 
 ## Очистка тестовых данных (R-374, 2026-11-04)
 
