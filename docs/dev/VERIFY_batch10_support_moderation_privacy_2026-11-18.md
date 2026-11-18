@@ -76,4 +76,9 @@
 - Чужого кода, библиотек, брендов и текстов нет.
 
 ## Проверки
-См. описание PR (unit, e2e одна и две базы, flutter, precheck).
+- Новые unit-тесты: на старом коде красные (поддержка 8, аналитика 2, модерация 20 из 21, приватность 11 + 1, вход 2 — не компилируется без исправления), на новом зелёные. Flutter: CR1 2 из 2 красные на старом; SU3 и AN2 на старом не компилируются.
+- unit по затронутым папкам: support 53, analytics+users 62, moderation/reports/media/fraud/legal/admin-users 218, privacy+admin-data-requests+public-directory 305, auth 336 — все зелёные.
+- `precheck.sh --full` после слияния со свежим main: всё ✔ (typecheck, связанные unit и они же с часами +45 дней — 1736, контракт, i18n, gitleaks, flutter analyze всего приложения).
+- e2e одна база: 28 наборов, 180 из 184; два красных — не код: `owner-attorney-trust` (firm-email — на Маке не запущен SMTP, ECONNREFUSED) и `owner-analytics`, упавший от параллельного прогона в той же базе Redis (один — 3 из 3 зелёный). После слияния с main 9 ключевых наборов — 61 из 61.
+- e2e две базы (`E2E_TWO_DB=all`): 17 наборов из списка two-db, касающихся изменённого кода, — 105 из 105.
+- Flutter: `flutter analyze` — замечаний нет; тесты support, diagnostics, cache, privacy — 178 из 178.
