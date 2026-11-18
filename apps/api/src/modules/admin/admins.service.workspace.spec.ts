@@ -448,14 +448,46 @@ describe('ceilings for everybody else', () => {
       admin_role: 'finance',
       workspace: 'finance',
       is_workspace_head: false,
+      // Verify batch 11 (B6): verification is outside the finance ceiling.
+      permissions: {},
     });
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         action: 'admins.set_role',
-        after: { role: 'finance', workspace: 'finance' },
+        after: { role: 'finance', workspace: 'finance', permissions: {} },
       }),
       expect.anything(),
     );
+  });
+});
+
+describe('setRole keeps the workspace ceiling (verify batch 11, B6)', () => {
+  it('a moderator made finance loses the sections outside the finance ceiling', async () => {
+    const mod = row('w1', {
+      admin_role: 'moderator',
+      permissions: { moderation: 'manage', countries: ['US'] },
+    });
+    const { svc, prisma } = build(mod);
+    prisma.user.findFirst.mockResolvedValue(mod);
+    await svc.setRole(owner, 'w1', 'finance');
+    const upd = prisma.user.update.mock.calls[0][0].data.admin_profile.update;
+    expect(upd.workspace).toBe('finance');
+    expect(upd.permissions).toBeDefined();
+    expect(upd.permissions.moderation).toBeUndefined();
+    // Everything else stored with the rights stays (countries).
+    expect(upd.permissions.countries).toEqual(['US']);
+  });
+
+  it('nothing is cut while the workspaces are off', async () => {
+    const mod = row('w1', {
+      admin_role: 'moderator',
+      permissions: { moderation: 'manage' },
+    });
+    const { svc, prisma } = build(mod, { on: false });
+    prisma.user.findFirst.mockResolvedValue(mod);
+    await svc.setRole(owner, 'w1', 'finance');
+    const upd = prisma.user.update.mock.calls[0][0].data.admin_profile.update;
+    expect(upd.permissions).toBeUndefined();
   });
 });
 
@@ -622,6 +654,18 @@ describe('setHead (owner only, one per workspace)', () => {
     );
     await expect(svc.setHead(deputy, 'w1', true)).rejects.toBeInstanceOf(
       ForbiddenException,
+    );
+  });
+});
+
+describe('remove frees the head seat (verify batch 11, B1)', () => {
+  it('a deleted head stops being the head of the workspace', async () => {
+    const { svc, prisma } = build(row('h2', { is_workspace_head: true }));
+    await svc.remove(owner, 'h2');
+    expect(prisma.user.update.mock.calls[0][0].data).toEqual(
+      expect.objectContaining({
+        admin_profile: { update: { is_workspace_head: false } },
+      }),
     );
   });
 });

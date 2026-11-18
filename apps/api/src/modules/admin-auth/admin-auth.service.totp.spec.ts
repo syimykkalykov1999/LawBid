@@ -42,6 +42,10 @@ function build(opts: { enabled?: boolean; stepUpTtl?: number } = {}) {
       Promise.resolve(store.has(k) ? (ttls.get(k) ?? 1) : -2),
     ),
     del: jest.fn((k: string) => Promise.resolve(store.delete(k) ? 1 : 0)),
+    expire: jest.fn((k: string, sec: number) => {
+      ttls.set(k, sec);
+      return Promise.resolve(store.has(k) ? 1 : 0);
+    }),
     incr: jest.fn((k: string) => {
       const n = Number(store.get(k) ?? '0') + 1;
       store.set(k, String(n));
@@ -86,6 +90,18 @@ function build(opts: { enabled?: boolean; stepUpTtl?: number } = {}) {
       }),
       update: jest.fn().mockResolvedValue({}),
     },
+    // One atomic statement (array_remove … WHERE hash = ANY(…)), the way
+    // PostgreSQL runs it: two parallel removals never resurrect a code.
+    $queryRaw: jest.fn((_s: TemplateStringsArray, ...v: unknown[]) => {
+      const hash = v.find(
+        (x) => typeof x === 'string' && cred.recovery_codes_hash.includes(x),
+      ) as string | undefined;
+      if (!hash) return Promise.resolve([]);
+      cred.recovery_codes_hash = cred.recovery_codes_hash.filter(
+        (h) => h !== hash,
+      );
+      return Promise.resolve([{ left: cred.recovery_codes_hash.length }]);
+    }),
   };
   const tokens = {
     signAdminTicket: jest.fn().mockReturnValue('ticket-jwt'),
@@ -308,5 +324,106 @@ describe('owner 14.11 (row 179, B8): the step-up window is an owner setting', ()
     const { svc } = build({ enabled: true });
     const r = await svc.stepUp('u1', 'sess-1', totpCode('JBSWY3DPEHPK3PXP'));
     expect(r.validForSeconds).toBe(300);
+  });
+});
+
+describe('verify batch 11: the 5-try budget of a sign-in ticket', () => {
+  it('A1: parallel wrong codes try at most 5 and never revive the ticket', async () => {
+    const { svc, store } = build({ enabled: true });
+    const out = await Promise.allSettled(
+      Array.from({ length: 10 }, () =>
+        svc.totpVerify('ticket-jwt', '000000', null),
+      ),
+    );
+    const codes = out.map((r) =>
+      r.status === 'rejected'
+        ? (r.reason as { response: { code: string } }).response.code
+        : 'ok',
+    );
+    // 4 wrong answers say "try again"; the 5th and every later one end it.
+    expect(codes.filter((c) => c === 'ADMIN_TOTP_INVALID')).toHaveLength(4);
+    expect(codes.filter((c) => c === 'ADMIN_TICKET_INVALID')).toHaveLength(6);
+    expect(store.has('adm:ticket:j1')).toBe(false);
+    await expect(
+      svc.totpVerify('ticket-jwt', '000000', null),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_TICKET_INVALID' } });
+    expect(store.has('adm:ticket:j1')).toBe(false);
+  });
+
+  it('A1: a slow try that lands after the burn does not bring the ticket back', async () => {
+    const { svc, store, prisma } = build({ enabled: true });
+    const real = prisma.user.findUnique.getMockImplementation() as (
+      ...a: unknown[]
+    ) => Promise<unknown>;
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    prisma.user.findUnique.mockImplementationOnce(async (...a: unknown[]) => {
+      await gate;
+      return real(...a);
+    });
+    // The slow request has already seen a live ticket…
+    const slow = svc.totpVerify('ticket-jwt', '000000', null);
+    // …while five wrong codes burn it.
+    for (let i = 0; i < 5; i++) {
+      await svc.totpVerify('ticket-jwt', '000000', null).catch(() => undefined);
+    }
+    expect(store.has('adm:ticket:j1')).toBe(false);
+    release();
+    await expect(slow).rejects.toMatchObject({
+      response: { code: 'ADMIN_TICKET_INVALID' },
+    });
+    expect(store.has('adm:ticket:j1')).toBe(false);
+    await expect(
+      svc.totpVerify('ticket-jwt', '000000', null),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_TICKET_INVALID' } });
+  });
+
+  it('A1: the try counter expires with the ticket', async () => {
+    const { svc, ttls } = build({ enabled: true });
+    await expect(
+      svc.totpVerify('ticket-jwt', '000000', null),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_TOTP_INVALID' } });
+    expect([...ttls.values()].some((t) => t > 0)).toBe(true);
+  });
+
+  it('A2: two different recovery codes used at once are both gone', async () => {
+    const { svc, cred, store } = build({ enabled: true });
+    cred.recovery_codes_hash = ['AAAA-BBBB', 'CCCC-DDDD', 'EEEE-FFFF'].map(
+      hashRecoveryCode,
+    );
+    // Two sign-in tickets (two windows), each with its own code.
+    store.set('adm:ticket:j2', '0');
+    const tokens = (
+      svc as unknown as { tokens: { verifyAdminTicket: jest.Mock } }
+    ).tokens;
+    tokens.verifyAdminTicket.mockImplementation((t: string) => ({
+      sub: 'u1',
+      jti: t === 't2' ? 'j2' : 'j1',
+    }));
+    await Promise.all([
+      svc.recovery('t1', 'AAAA-BBBB', null),
+      svc.recovery('t2', 'CCCC-DDDD', null),
+    ]);
+    expect(cred.recovery_codes_hash).toEqual([hashRecoveryCode('EEEE-FFFF')]);
+  });
+});
+
+describe('verify batch 11 (A8): a password change ends the sign-in tickets issued before it', () => {
+  it('a setup ticket from before a password reset cannot bind an authenticator', async () => {
+    const { svc, cred, store } = build();
+    // The ticket was issued a minute ago…
+    store.set('adm:ticket:j1', String(Date.now() - 60_000));
+    // …then the manager set a new password.
+    Object.assign(cred, { password_changed_at: new Date() });
+    await expect(svc.totpSetupBegin('ticket-jwt')).rejects.toMatchObject({
+      response: { code: 'ADMIN_TICKET_INVALID' },
+    });
+  });
+
+  it('a ticket issued after the change works', async () => {
+    const { svc, cred, store } = build();
+    Object.assign(cred, { password_changed_at: new Date(Date.now() - 60_000) });
+    store.set('adm:ticket:j1', String(Date.now()));
+    await expect(svc.totpSetupBegin('ticket-jwt')).resolves.toBeDefined();
   });
 });

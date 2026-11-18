@@ -71,7 +71,10 @@ export class StaffHeadScoreService {
         this.prisma.adminAppeal.findMany({
           where: {
             head_admin_id: h.user_id,
-            owner_decision: { not: 'nothing' },
+            // Verify batch 11 (D9): both decisions against the complaint
+            // («nothing» to do, «fire_worker» — the author was let go) are
+            // left out; open and «fire_head» ones count.
+            owner_decision: { notIn: ['nothing', 'fire_worker'] },
             created_at: {
               gte: since(now, n['staff.head.complaints_window_days']),
             },

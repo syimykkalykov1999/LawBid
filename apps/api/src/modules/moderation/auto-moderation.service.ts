@@ -3,6 +3,8 @@ import type { ReportTargetType } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { StrikeGate } from '../../common/usage-limits/strike-gate.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import { withTxRetry } from '../../prisma/tx-retry.util';
+import { PERSON_REPORTS_ONLY } from './auto-hold.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReporterReputationService } from './reporter-reputation.service';
 
@@ -105,6 +107,8 @@ export class AutoModerationService {
           target_author_id: userId,
           created_at: { gte: since },
           status: { in: ['open', 'actioned'] },
+          // Verify 18.11 (MO4): the system «auto_hold» ticket is no report.
+          ...PERSON_REPORTS_ONLY,
         },
         select: { reporter_id: true },
         distinct: ['reporter_id'],
@@ -242,25 +246,7 @@ export class AutoModerationService {
             ? t.tempAt
             : t.limitAt;
       const now = new Date();
-      // Already at this step or higher (still in force or unreversed)?
-      const prior = await this.prisma.moderationAutoAction.findMany({
-        where: {
-          user_id: userId,
-          kind: { in: Object.keys(RANK) },
-          reversed_at: null,
-          created_at: { gte: new Date(now.getTime() - 30 * DAY_MS) },
-          OR: [{ expires_at: null }, { expires_at: { gt: now } }],
-        },
-        select: { kind: true, enforced: true },
-      });
       const enforce = mode === 'enforce';
-      if (
-        prior.some(
-          (p) => (RANK[p.kind] ?? 0) >= RANK[kind] && p.enforced === enforce,
-        )
-      ) {
-        return null;
-      }
       const factor = await this.settings.number(
         'moderation.auto.borderline_factor',
       );
@@ -277,18 +263,42 @@ export class AutoModerationService {
           : kind === 'account_suspend_temp'
             ? 'Publishing on your account is paused for a few days automatically: many independent reports and moderation decisions were recorded.'
             : 'Your account was limited automatically: several independent reports and moderation decisions were recorded.';
-      const row = await this.prisma.moderationAutoAction.create({
-        data: {
-          kind,
-          user_id: userId,
-          score: score.total,
-          threshold,
-          borderline: score.total < threshold * factor,
-          enforced: enforce,
-          reason,
-          expires_at: until,
-        },
+      // Verify 18.11 (MO7): «already at this step?» and the new row are one
+      // SERIALIZABLE transaction — two reports at once no longer create two
+      // decisions (each with its own limit) for the same step.
+      const row = await withTxRetry(this.prisma, async (tx) => {
+        // Already at this step or higher (still in force or unreversed)?
+        const prior = await tx.moderationAutoAction.findMany({
+          where: {
+            user_id: userId,
+            kind: { in: Object.keys(RANK) },
+            reversed_at: null,
+            created_at: { gte: new Date(now.getTime() - 30 * DAY_MS) },
+            OR: [{ expires_at: null }, { expires_at: { gt: now } }],
+          },
+          select: { kind: true, enforced: true },
+        });
+        if (
+          prior.some(
+            (p) => (RANK[p.kind] ?? 0) >= RANK[kind] && p.enforced === enforce,
+          )
+        ) {
+          return null;
+        }
+        return tx.moderationAutoAction.create({
+          data: {
+            kind,
+            user_id: userId,
+            score: score.total,
+            threshold,
+            borderline: score.total < threshold * factor,
+            enforced: enforce,
+            reason,
+            expires_at: until,
+          },
+        });
       });
+      if (!row) return null;
       if (!enforce) return kind;
       if (kind === 'account_suspend') {
         await this.prisma.user.update({

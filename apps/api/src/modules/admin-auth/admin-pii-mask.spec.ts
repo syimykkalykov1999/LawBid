@@ -146,3 +146,55 @@ describe('partial mask of the mass-work workspace (staff package T11)', () => {
 function items0(v: { items: Record<string, unknown>[] }) {
   return v.items[0];
 }
+
+describe('verify batch 11 (A3): «без персональных данных» misses no person field', () => {
+  it('masks person names, e-mails and phones under any *Name / *Email / *Phone key', () => {
+    expect(
+      maskPii({
+        ownerName: 'John Smith',
+        authorName: 'Ann Lee',
+        userName: 'Bob Stone',
+        complainantName: 'Kim Park',
+        ownerEmail: 'john@x.io',
+        complainantEmail: 'kim@x.io',
+        complainantPhone: '+14155552680',
+        planName: 'Pro',
+      }),
+    ).toEqual({
+      ownerName: 'J. S.',
+      authorName: 'A. L.',
+      userName: 'B. S.',
+      complainantName: 'K. P.',
+      ownerEmail: maskEmail('john@x.io'),
+      complainantEmail: maskEmail('kim@x.io'),
+      complainantPhone: maskPhone('+14155552680'),
+      planName: 'Pro',
+    });
+  });
+
+  it('masks `name` of a person object (partner commissions), not of a plan', () => {
+    expect(
+      maskPii({
+        partner: { id: 'p', name: 'John Smith', email: 'j@x.io' },
+        referredUser: { id: 'r', name: 'Ann Lee', email: null },
+        plan: { name: 'Pro' },
+      }),
+    ).toEqual({
+      partner: { id: 'p', name: 'J. S.', email: maskEmail('j@x.io') },
+      referredUser: { id: 'r', name: 'A. L.', email: null },
+      plan: { name: 'Pro' },
+    });
+  });
+
+  it('document and payment numbers keep only the last four', () => {
+    expect(
+      maskPii({ passportNumber: 'X1234567', iban: 'DE89370400440532013000' }),
+    ).toEqual({ passportNumber: '*****4567', iban: '*****3000' });
+  });
+
+  it('leaves a non-address under an *Email key alone (a switch, a label)', () => {
+    expect(maskPii({ firmLinkAutoEmail: 'weekly' })).toEqual({
+      firmLinkAutoEmail: 'weekly',
+    });
+  });
+});

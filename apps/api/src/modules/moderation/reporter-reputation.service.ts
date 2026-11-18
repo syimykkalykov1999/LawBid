@@ -9,6 +9,7 @@ import { Prisma } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PERSON_REPORTS_ONLY, PERSON_REPORTS_SQL } from './auto-hold.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -148,6 +149,7 @@ export class ReporterReputationService {
           FROM reports
           WHERE reporter_id = ANY(${ids}::UUID[])
             AND status IN ('actioned', 'dismissed')
+            AND ${Prisma.raw(PERSON_REPORTS_SQL)}
         ) r
         WHERE rn <= 100
         GROUP BY reporter_id`,
@@ -313,6 +315,7 @@ export class ReporterReputationService {
         reporter_id: userId,
         status: { in: ['actioned', 'dismissed'] },
         handled_at: { gte: since },
+        ...PERSON_REPORTS_ONLY,
       },
       _count: { _all: true },
     });
@@ -412,6 +415,7 @@ export class ReporterReputationService {
              count(*) FILTER (WHERE r.status = 'open')::INT AS pending
       FROM reports r
       WHERE r.created_at >= now() - interval '180 days'
+        AND ${Prisma.raw(PERSON_REPORTS_SQL.replace(/note/g, 'r.note'))}
         ${
           countries
             ? Prisma.sql`AND r.reporter_id IN (SELECT id FROM users WHERE country_code::TEXT = ANY(${countries}::TEXT[]))`

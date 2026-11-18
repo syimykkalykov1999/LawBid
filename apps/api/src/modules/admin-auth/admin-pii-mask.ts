@@ -109,13 +109,67 @@ function partialField(key: string, value: unknown): unknown {
   return value;
 }
 
+/** Verify batch 11 (A3): person-name keys beyond the first list (author,
+ * owner, complainant… of the admin lists). Names of things (plan, file,
+ * firm, country) stay. */
+const PERSON_NAME_KEYS = new Set([
+  'ownername',
+  'authorname',
+  'authordisplayname',
+  'actorname',
+  'username',
+  'sendername',
+  'contactname',
+  'createdbyname',
+  'changedbyname',
+  'complainantname',
+  'appellantname',
+  'assigneename',
+  'viewername',
+  'leadername',
+  'headname',
+  'employeename',
+  'adminname',
+  'fromname',
+]);
+/** Objects that stand for a person: their plain `name` is a person's name
+ * (e.g. the partner and the referred user of a commission row). */
+const PERSON_OBJECT_KEYS = new Set([
+  'partner',
+  'referreduser',
+  'user',
+  'client',
+  'attorney',
+  'owner',
+  'author',
+  'complainant',
+  'recipient',
+  'sender',
+]);
+const DIGITS_PHONE = /\d{7,}/;
+
 function maskField(key: string, value: unknown): unknown {
   if (typeof value !== 'string' || value === '') return value;
   const k = norm(key);
   if (PHONE_KEYS.has(k)) return maskPhone(value);
   if (EMAIL_KEYS.has(k)) return maskEmail(value);
-  if (NAME_KEYS.has(k)) return maskName(value);
+  if (NAME_KEYS.has(k) || PERSON_NAME_KEYS.has(k)) return maskName(value);
+  // Any other *Email / *Phone key that really holds an address or number.
+  if (k.endsWith('email') && value.includes('@')) return maskEmail(value);
+  if (k.endsWith('phone') && DIGITS_PHONE.test(value.replace(/\D/g, ''))) {
+    return maskPhone(value);
+  }
+  // Documents and payment numbers: the last four only (like a card).
+  if (DOC_KEYS.has(k) || PAYMENT_KEYS.has(k)) return maskDocPartial(value);
   return value;
+}
+
+/** Inside a person object a plain `name` is that person's name. */
+function personField(key: string, value: unknown): unknown {
+  if (norm(key) === 'name' && typeof value === 'string' && value !== '') {
+    return maskName(value);
+  }
+  return maskField(key, value);
 }
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
@@ -161,7 +215,13 @@ function walk(value: unknown, field: FieldMasker, depth: number): unknown {
   for (const [k, v] of Object.entries(value)) {
     const masked = field(k, v);
     if (masked === DROP) continue;
-    out[k] = masked !== v ? masked : walk(v, field, depth + 1);
+    const inner =
+      field === maskField && PERSON_OBJECT_KEYS.has(norm(k))
+        ? personField
+        : field === personField
+          ? maskField
+          : field;
+    out[k] = masked !== v ? masked : walk(v, inner, depth + 1);
   }
   return out;
 }

@@ -574,11 +574,26 @@ export class DataExportService {
         }),
       'support.json': () =>
         object({
+          // Verify 18.11 (PV7): the person's own fields only — no staff
+          // ids (assignee, first responder, resolver) and no internal
+          // triage / SLA fields.
           tickets: () =>
             rows(
               fetchById((a) =>
                 p.supportTicket.findMany({
                   where: { user_id: userId },
+                  select: {
+                    id: true,
+                    subject: true,
+                    category: true,
+                    status: true,
+                    country_code: true,
+                    client_context: true,
+                    created_at: true,
+                    updated_at: true,
+                    last_message_at: true,
+                    resolved_at: true,
+                  },
                   orderBy: { id: 'asc' },
                   ...a,
                 }),
@@ -597,6 +612,16 @@ export class DataExportService {
                 yield* byId((a) =>
                   p.supportMessage.findMany({
                     where: { internal: false, ticket_id: { in: ids } },
+                    // The staff member's id stays out (PV7); a reply
+                    // without author_user_id is the support team's.
+                    select: {
+                      id: true,
+                      ticket_id: true,
+                      author_user_id: true,
+                      auto: true,
+                      body: true,
+                      created_at: true,
+                    },
                     orderBy: { id: 'asc' },
                     ...a,
                   }),
@@ -604,6 +629,280 @@ export class DataExportService {
               })(),
             ),
         }),
+      // ---- verify 18.11 (PV8): the person's own rows still missing ----
+      'legal-qa.json': () =>
+        object({
+          questions: () =>
+            rows(
+              fetchById((a) =>
+                p.legalQuestion.findMany({
+                  where: { author_id: userId },
+                  select: {
+                    id: true,
+                    practice_area_id: true,
+                    state_code: true,
+                    title: true,
+                    body: true,
+                    is_anonymous: true,
+                    status: true,
+                    answer_count: true,
+                    best_answer_id: true,
+                    created_at: true,
+                    updated_at: true,
+                    closed_at: true,
+                  },
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+          answers: () =>
+            rows(
+              fetchById((a) =>
+                p.legalAnswer.findMany({
+                  where: { attorney_id: userId },
+                  select: {
+                    id: true,
+                    question_id: true,
+                    body: true,
+                    status: true,
+                    like_count: true,
+                    is_best: true,
+                    created_at: true,
+                    updated_at: true,
+                  },
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+        }),
+      'channels.json': () =>
+        object({
+          owned: () =>
+            rows(
+              fetchById((a) =>
+                p.channel.findMany({
+                  where: { owner_id: userId },
+                  select: {
+                    id: true,
+                    title: true,
+                    username: true,
+                    description: true,
+                    avatar_file_id: true,
+                    comments_enabled: true,
+                    protect_content: true,
+                    status: true,
+                    subscriber_count: true,
+                    post_count: true,
+                    created_at: true,
+                    updated_at: true,
+                  },
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+          posts: () =>
+            rows(
+              fetchById((a) =>
+                p.channelPost.findMany({
+                  where: { author_id: userId },
+                  select: {
+                    id: true,
+                    channel_id: true,
+                    body: true,
+                    media_file_ids: true,
+                    video_asset_id: true,
+                    status: true,
+                    created_at: true,
+                    edited_at: true,
+                  },
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+          comments: () =>
+            rows(
+              fetchById((a) =>
+                p.channelComment.findMany({
+                  where: { author_id: userId },
+                  select: {
+                    id: true,
+                    post_id: true,
+                    body: true,
+                    created_at: true,
+                  },
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+        }),
+      'saved.json': () =>
+        object({
+          items: () =>
+            rows(
+              fetchByOffset((a) =>
+                p.savedItem.findMany({
+                  where: { user_id: userId },
+                  select: {
+                    item_type: true,
+                    item_id: true,
+                    created_at: true,
+                  },
+                  orderBy: [{ created_at: 'asc' }, { item_id: 'asc' }],
+                  ...a,
+                }),
+              )(),
+            ),
+          chatMessages: () =>
+            rows(
+              fetchByOffset((a) =>
+                p.savedChatMessage.findMany({
+                  where: { user_id: userId },
+                  select: {
+                    message_id: true,
+                    conversation_id: true,
+                    kind: true,
+                    created_at: true,
+                  },
+                  orderBy: [{ created_at: 'asc' }, { message_id: 'asc' }],
+                  ...a,
+                }),
+              )(),
+            ),
+        }),
+      'quick-replies.json': () =>
+        rows(
+          fetchById((a) =>
+            p.quickReply.findMany({
+              where: { user_id: userId },
+              select: {
+                id: true,
+                title: true,
+                body: true,
+                position: true,
+                created_at: true,
+                updated_at: true,
+              },
+              orderBy: { id: 'asc' },
+              ...a,
+            }),
+          )(),
+        ),
+      'reposts.json': () =>
+        rows(
+          fetchById((a) =>
+            p.postRepost.findMany({
+              where: { user_id: userId },
+              select: {
+                id: true,
+                post_id: true,
+                created_at: true,
+              },
+              orderBy: { id: 'asc' },
+              ...a,
+            }),
+          )(),
+        ),
+      'purchases.json': () =>
+        object({
+          payments: () =>
+            rows(
+              fetchById((a) =>
+                p.payment.findMany({
+                  where: { user_id: userId },
+                  select: {
+                    id: true,
+                    amount_cents: true,
+                    tax_cents: true,
+                    subtotal_cents: true,
+                    currency: true,
+                    status: true,
+                    paid_at: true,
+                    created_at: true,
+                  },
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+          bidPacks: () =>
+            rows(
+              fetchById((a) =>
+                p.bidPackPurchase.findMany({
+                  where: { user_id: userId },
+                  select: {
+                    id: true,
+                    pack_id: true,
+                    bids: true,
+                    price_cents: true,
+                    status: true,
+                    created_at: true,
+                    paid_at: true,
+                  },
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+          refunds: () =>
+            rows(
+              fetchById((a) =>
+                p.refund.findMany({
+                  where: { user_id: userId },
+                  select: {
+                    id: true,
+                    payment_id: true,
+                    amount_cents: true,
+                    reason: true,
+                    status: true,
+                    created_at: true,
+                  },
+                  orderBy: { id: 'asc' },
+                  ...a,
+                }),
+              )(),
+            ),
+        }),
+      'case-updates.json': () =>
+        rows(
+          fetchById((a) =>
+            p.caseUpdate.findMany({
+              where: { author_id: userId },
+              select: {
+                id: true,
+                case_id: true,
+                body: true,
+                created_at: true,
+              },
+              orderBy: { id: 'asc' },
+              ...a,
+            }),
+          )(),
+        ),
+      // What the person reported (their own note); who handled it stays out.
+      'reports.json': () =>
+        rows(
+          fetchById((a) =>
+            p.report.findMany({
+              where: { reporter_id: userId },
+              select: {
+                id: true,
+                target_type: true,
+                target_id: true,
+                reason: true,
+                note: true,
+                status: true,
+                created_at: true,
+              },
+              orderBy: { id: 'asc' },
+              ...a,
+            }),
+          )(),
+        ),
       'journal.json': () =>
         rows(
           fetchById((a) =>

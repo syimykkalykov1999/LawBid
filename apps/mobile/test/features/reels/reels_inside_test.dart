@@ -1,7 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
+import 'package:flutter/gestures.dart'
+    show PointerScrollEvent, kDoubleTapTimeout;
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +19,7 @@ import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/data/reels_repository.dart';
 import 'package:lawbid/features/reels/domain/reel_cut.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
+import 'package:lawbid/features/reels/presentation/reel_web_stepper.dart';
 import 'package:lawbid/features/reels/presentation/reels_screen.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
@@ -427,6 +430,37 @@ void main() {
     // ignore: avoid_print
     print('reels: one swipe -> page builds=$page screen builds=$screen');
     expect(screen, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  // Row 193: on the website the wheel and the arrow keys page the reels.
+  testWidgets('website: a wheel notch and ↓ / ↑ step one reel each',
+      (tester) async {
+    ReelWebStepper.debugAssumeWeb = true;
+    addTearDown(() => ReelWebStepper.debugAssumeWeb = false);
+    await pump(
+      tester,
+      ReelsScreen(
+        initial: [for (var i = 0; i < 4; i++) _reel(id: 'r$i')],
+      ),
+      extra: [reelsRepositoryProvider.overrideWithValue(_Reels(const []))],
+    );
+    double page() =>
+        tester.widget<PageView>(find.byType(PageView)).controller!.page!;
+    tester.binding.handlePointerEvent(
+      PointerScrollEvent(
+        position: tester.getCenter(find.byType(PageView)),
+        scrollDelta: const Offset(0, 100),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(page(), 1.0, reason: 'one notch, one reel, at rest on it');
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(page(), 2.0);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pumpAndSettle();
+    expect(page(), 1.0);
     expect(tester.takeException(), isNull);
   });
 

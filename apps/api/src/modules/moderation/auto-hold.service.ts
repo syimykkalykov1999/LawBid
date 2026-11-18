@@ -8,6 +8,16 @@ import { NotificationsService } from '../notifications/notifications.service';
 /** The `note` prefix of a system report (never a person's complaint). */
 export const AUTO_HOLD_NOTE = 'auto_hold';
 
+/** Verify 18.11 (MO4): a person's complaints only — never the system
+ * «auto_hold» queue ticket (its reporter is the author). A NULL note is a
+ * complaint: SQL `NOT (NULL LIKE …)` is NULL, hence the explicit OR. */
+export const PERSON_REPORTS_ONLY: Prisma.ReportWhereInput = {
+  OR: [{ note: null }, { NOT: { note: { startsWith: AUTO_HOLD_NOTE } } }],
+};
+
+/** The same filter for raw SQL over `reports` (optionally aliased). */
+export const PERSON_REPORTS_SQL = `(note IS NULL OR note NOT LIKE '${AUTO_HOLD_NOTE}%')`;
+
 /** CONTENT H-2: the reason the author reads (the app shows it after
  * «Сообщение от модерации:», like a moderator's own reason). */
 export const HELD_REASON =

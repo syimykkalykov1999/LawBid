@@ -310,9 +310,16 @@ describe('Staff appeals + retaliation guard (e2e)', () => {
     const second = await prisma.staffRetaliationFlag.findFirstOrThrow({
       where: { subject_admin_id: worker.userId, state: 'open' },
     });
+    // Time passes for the hold itself too: the flag and the person's state
+    // carry the same end (verify batch 11, D8: only an ended hold is lifted).
+    const past = new Date(Date.now() - 60_000);
     await prisma.staffRetaliationFlag.update({
       where: { id: second.id },
-      data: { hold_until: new Date(Date.now() - 60_000) },
+      data: { hold_until: past },
+    });
+    await prisma.staffMemberState.update({
+      where: { admin_id: worker.userId },
+      data: { state_until: past },
     });
     const ran = await job.run();
     expect(ran).toMatchObject({ holdsEnded: 1 });

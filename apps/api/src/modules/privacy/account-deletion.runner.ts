@@ -77,7 +77,14 @@ export class AccountDeletionRunner
     this.worker = new Worker<DeletionJobData>(
       ACCOUNT_DELETION_QUEUE,
       (job: Job<DeletionJobData>) =>
-        this.anonymization.anonymize(job.data.userId),
+        // Verify 18.11 (PV1): a queued job re-checks that the request is
+        // still due (a cancel between the cron tick and the job wins).
+        this.anonymization.anonymize(
+          job.data.userId,
+          new Date(),
+          'deletion_request',
+          { due: true },
+        ),
       // Each job talks to Stripe, S3 and Bunny: a small concurrency keeps
       // their rate limits and the database calm.
       {

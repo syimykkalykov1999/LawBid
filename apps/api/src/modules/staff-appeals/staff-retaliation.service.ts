@@ -339,7 +339,14 @@ export class StaffRetaliationService implements RetaliationPort {
         const kind = f.action_id ? kindOf.get(f.action_id) : undefined;
         const removal = kind === undefined || REMOVAL_KINDS.includes(kind);
         const moved = await this.prisma.staffMemberState.updateMany({
-          where: { admin_id: f.subject_admin_id, state: 'hold_owner' },
+          // Verify batch 11 (D8): only a hold that has itself ended. A flag
+          // stays open for its whole window, so an older flag came back on
+          // every run and ended a newer hold (a later head action) at once.
+          where: {
+            admin_id: f.subject_admin_id,
+            state: 'hold_owner',
+            OR: [{ state_until: null }, { state_until: { lte: now } }],
+          },
           data: {
             state: removal ? 'offboarded' : 'active',
             state_reason: 'retaliation_hold_expired',

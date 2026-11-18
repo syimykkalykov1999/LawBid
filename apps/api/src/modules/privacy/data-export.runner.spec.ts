@@ -28,11 +28,18 @@ function row(over: Record<string, unknown> = {}) {
 function setup(inFlight: unknown) {
   const prisma = {
     dataExportJob: {
-      findFirst: jest.fn(() => Promise.resolve(inFlight)),
+      findFirst: jest.fn<Promise<unknown>, [unknown?]>(() =>
+        Promise.resolve(inFlight),
+      ),
       create: jest.fn(() => Promise.resolve(row({ id: 'new1' }))),
       updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
     },
+    $executeRaw: jest.fn(() => Promise.resolve(1)),
+    $transaction: jest.fn(),
   };
+  prisma.$transaction.mockImplementation((fn: (t: typeof prisma) => unknown) =>
+    fn(prisma),
+  );
   const queue = {
     add: jest.fn(() => Promise.resolve({})),
     getJob: jest.fn(() => Promise.resolve(undefined)),
@@ -83,6 +90,10 @@ describe('DataExportRunner.request (S10-3 / S10-4)', () => {
       updated_at: new Date(Date.now() - DATA_EXPORT_STALE_PROCESSING_MS - 1000),
     });
     const { runner, prisma, queue } = setup(stale);
+    // The second look (under the lock) skips the dead row.
+    prisma.dataExportJob.findFirst
+      .mockResolvedValueOnce(stale)
+      .mockResolvedValueOnce(null);
     const out = await runner.request(user);
     expect(prisma.dataExportJob.updateMany).toHaveBeenCalledWith({
       where: { id: 'e1', status: 'processing' },
@@ -107,5 +118,48 @@ describe('DataExportRunner.request (S10-3 / S10-4)', () => {
     expect(prisma.dataExportJob.create).not.toHaveBeenCalled();
     expect(queue.add).not.toHaveBeenCalled();
     expect(out.status).toBe('processing');
+  });
+});
+
+describe('DataExportRunner.request double tap (verify 18.11, PV3)', () => {
+  it('two requests at once make ONE export: the find and the insert run under a per-user lock', async () => {
+    const rows: ReturnType<typeof row>[] = [];
+    const { runner, prisma, queue } = setup(null);
+    // The advisory lock serializes the two transactions, as Postgres does.
+    let chain: Promise<unknown> = Promise.resolve();
+    prisma.$transaction.mockImplementation(
+      (fn: (t: typeof prisma) => unknown) => {
+        const run = chain.then(() => fn(prisma));
+        chain = run.catch(() => undefined);
+        return run;
+      },
+    );
+    prisma.dataExportJob.findFirst.mockImplementation((arg?: unknown) => {
+      const id = (arg as { where: { id?: string } }).where.id;
+      return Promise.resolve(
+        (id ? rows.find((r) => r.id === id) : rows[rows.length - 1]) ?? null,
+      );
+    });
+    prisma.dataExportJob.create.mockImplementation(() => {
+      // A yield between the read and the write, as a real round trip.
+      return new Promise((resolve) =>
+        setImmediate(() => {
+          const r = row({ id: `new${rows.length + 1}` });
+          rows.push(r);
+          resolve(r);
+        }),
+      );
+    });
+    queue.getJob.mockResolvedValue({} as never);
+    const [a, b] = await Promise.all([
+      runner.request(user),
+      runner.request(user),
+    ]);
+    expect(prisma.dataExportJob.create).toHaveBeenCalledTimes(1);
+    expect(a.exportId).toBe(b.exportId);
+    const lock = (prisma.$executeRaw.mock.calls[0] as unknown[])[0] as {
+      join?: (s: string) => string;
+    } & string[];
+    expect(Array.from(lock).join('?')).toContain('pg_advisory_xact_lock');
   });
 });

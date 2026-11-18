@@ -156,8 +156,13 @@ export class BidTeamService {
   }): Promise<TeamBid | null> {
     if (!conv.case_id) return null;
     if (conv.bid_id) {
+      // Verify 17.11: a rejected or withdrawn bid has no live team.
       return this.prisma.bid.findFirst({
-        where: { id: conv.bid_id, attorney_id: conv.attorney_id },
+        where: {
+          id: conv.bid_id,
+          attorney_id: conv.attorney_id,
+          status: { in: ['active', 'accepted'] },
+        },
         select: { id: true, case_id: true, attorney_id: true },
       });
     }

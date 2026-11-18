@@ -13,6 +13,12 @@ import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { NotificationsService } from '../notifications/notifications.service';
 
 const DAY_MS = 24 * 3600 * 1000;
+const LEVEL_RANK: Record<StrikeLevel, number> = {
+  none: 0,
+  cooldown: 1,
+  limited: 2,
+  suspended: 3,
+};
 const HOUR_MS = 3600 * 1000;
 
 export interface StrikeDto {
@@ -234,6 +240,7 @@ export class StrikesService {
       },
     });
     if (done.count === 0) return;
+    await this.relevel(userId, id);
     await this.gate.invalidate(userId);
     // The audit log needs an admin; the automatic path has none (its
     // decision row is the record).
@@ -252,6 +259,86 @@ export class StrikesService {
       recipientId: userId,
       payload: { action: 'strike_revoked', reason: note },
     });
+  }
+
+  /**
+   * Verify 18.11 (MO2): the ladder step is stored on the strike that crossed
+   * the threshold, so revoking an earlier strike left a step the remaining
+   * points no longer reach, and revoking the carrier lifted a step the
+   * remaining points still reach. After a revoke the ladder strikes (points
+   * > 0; the automatic decisions' 0-point limits are their own) are set to
+   * the step their live total reaches, never longer than already decided.
+   */
+  private async relevel(userId: string, revokedId: string): Promise<void> {
+    const s = this.settings;
+    const [cooldownAt, limitedAt, suspendAt] = await Promise.all([
+      s.number('moderation.strikes.cooldown_at'),
+      s.number('moderation.strikes.limited_at'),
+      s.number('moderation.strikes.suspend_at'),
+    ]);
+    const now = new Date();
+    const [revoked, live] = await Promise.all([
+      this.prisma.userStrike.findUnique({
+        where: { id: revokedId },
+        select: { restriction: true, restriction_until: true },
+      }),
+      this.prisma.userStrike.findMany({
+        where: {
+          user_id: userId,
+          revoked_at: null,
+          expires_at: { gt: now },
+          points: { gt: 0 },
+        },
+        orderBy: { created_at: 'asc' },
+        select: {
+          id: true,
+          points: true,
+          restriction: true,
+          restriction_until: true,
+        },
+      }),
+    ]);
+    const total = live.reduce((n, r) => n + r.points, 0);
+    const level = levelFor(total, { cooldownAt, limitedAt, suspendAt });
+    const rank = (l: string | null) =>
+      l ? (LEVEL_RANK[l as StrikeLevel] ?? 0) : 0;
+    let held = 0;
+    for (const r of live) {
+      if (!r.restriction || !r.restriction_until) continue;
+      if (r.restriction_until <= now) continue;
+      if (rank(r.restriction) > LEVEL_RANK[level]) {
+        await this.prisma.userStrike.update({
+          where: { id: r.id },
+          data:
+            level === 'none'
+              ? { restriction: null, restriction_until: null }
+              : { restriction: level },
+        });
+        held = Math.max(held, LEVEL_RANK[level]);
+      } else {
+        held = Math.max(held, rank(r.restriction));
+      }
+    }
+    // The revoked strike carried a step the others still reach: it moves to
+    // the newest remaining strike with the same end time.
+    const carried = revoked?.restriction_until;
+    const newest = live[live.length - 1];
+    if (
+      newest &&
+      carried &&
+      carried > now &&
+      rank(revoked.restriction) > 0 &&
+      held < Math.min(rank(revoked.restriction), LEVEL_RANK[level])
+    ) {
+      const step =
+        rank(revoked.restriction) <= LEVEL_RANK[level]
+          ? (revoked.restriction as StrikeLevel)
+          : level;
+      await this.prisma.userStrike.update({
+        where: { id: newest.id },
+        data: { restriction: step, restriction_until: carried },
+      });
+    }
   }
 
   async list(q: { userId?: string; limit?: number }): Promise<StrikeDto[]> {

@@ -182,6 +182,9 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   // Owner 2026-10-05: every admin's own workspace (it lists only what the
   // admin's areas allow).
   workspace: 'workspace',
+  // Verify batch 11 (B3): the sidebar badges are every admin's; the
+  // controller zeroes a badge of a section the admin cannot open.
+  counts: 'workspace',
   // Staff package T3: the desk (`admin/desk/*`: «Следующий», leases, status)
   // is every staff member's own page like `workspace`; the right to each
   // queue is checked per kind in work-lease (canWorkQueue).

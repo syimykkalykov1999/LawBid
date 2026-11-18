@@ -121,27 +121,24 @@ export class ReportsService {
     }
     await this.reporters?.assertCanReport(userId);
     await this.limits.consume('report', userId);
+    // Verify 18.11 (RP1): a report on something that does not exist (a
+    // made-up id, an object already gone) would sit in the queue for ever —
+    // nobody can open or decide it. Accepted quietly like a duplicate: the
+    // answer never tells whether an id exists.
+    if (!(await this.moderation.resolve(dto.targetType, dto.targetId))) return;
     const claim = `report:${userId}:${dto.targetType}:${dto.targetId}`;
     if ((await this.redis.set(claim, '1', 'EX', 30 * 24 * 3600, 'NX')) !== 'OK')
       return;
-    const existing = await this.prisma.report.findFirst({
-      where: {
-        reporter_id: userId,
-        target_type: dto.targetType,
-        target_id: dto.targetId,
-      },
-      select: { id: true },
-    });
-    if (existing) return;
-    await this.prisma.report.create({
-      data: {
-        reporter_id: userId,
-        target_type: dto.targetType,
-        target_id: dto.targetId,
-        reason: dto.reason,
-        note: dto.note ?? null,
-      },
-    });
+    let stored: boolean;
+    try {
+      stored = await this.store(userId, dto);
+    } catch (e) {
+      // Verify 18.11 (RP2): nothing was stored — the next try must not be
+      // dropped for 30 days as a «duplicate».
+      await this.redis.del(claim).catch(() => undefined);
+      throw e;
+    }
+    if (!stored) return;
     void this.rankingEvents?.logUserAction('report', {
       userId,
       surface: String(dto.targetType),
@@ -155,6 +152,29 @@ export class ReportsService {
       await this.trust.onComplaint(userId, dto.targetId, dto.reason);
     }
     await this.fraud?.onReport(dto.targetType, dto.targetId);
+  }
+
+  /** false = this person already reported it (nothing new happened). */
+  private async store(userId: string, dto: CreateReportDto): Promise<boolean> {
+    const existing = await this.prisma.report.findFirst({
+      where: {
+        reporter_id: userId,
+        target_type: dto.targetType,
+        target_id: dto.targetId,
+      },
+      select: { id: true },
+    });
+    if (existing) return false;
+    await this.prisma.report.create({
+      data: {
+        reporter_id: userId,
+        target_type: dto.targetType,
+        target_id: dto.targetId,
+        reason: dto.reason,
+        note: dto.note ?? null,
+      },
+    });
+    return true;
   }
 }
 

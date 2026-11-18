@@ -21,6 +21,7 @@ import {
   encodeCursor,
 } from '../../common/pagination/cursor.util';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PERSON_REPORTS_ONLY } from './auto-hold.service';
 import { forEachDatabase } from '../../sharding/for-each-database';
 import { shardContext } from '../../sharding/shard-context';
 import { readsAreSplit } from '../../sharding/split-reads';
@@ -112,26 +113,75 @@ export class ModerationAppealsService {
       orderBy: { created_at: 'desc' },
       include: { appeal: true },
     });
+    // Verify 18.11 (MO8): up to 50 decisions used to cost ~3 queries each,
+    // one after another. Now: the objects are read once each, in parallel;
+    // the newest decision per object and the DMCA removals are one query
+    // each.
+    const key = (t: string, id: string) => `${t}:${id}`;
+    const objects = [
+      ...new Map(
+        full
+          .filter((a) => a.target_type !== 'user')
+          .map((a) => [key(a.target_type, a.target_id), a]),
+      ).values(),
+    ];
+    const resolved = await Promise.all(
+      objects.map((a) => this.moderation.resolve(a.target_type, a.target_id)),
+    );
+    const targets = new Map(
+      objects.map((a, i) => [key(a.target_type, a.target_id), resolved[i]]),
+    );
+    const appealableRows = full.filter(
+      (a) =>
+        (APPEALABLE_ACTIONS as readonly string[]).includes(a.action) &&
+        APPEALABLE_TARGETS.includes(a.target_type),
+    );
+    const pairs = appealableRows.map((a) => ({
+      target_type: a.target_type,
+      target_id: a.target_id,
+    }));
+    const [latestRows, dmcaRows] = pairs.length
+      ? await Promise.all([
+          this.prisma.moderationAction.findMany({
+            where: {
+              OR: pairs,
+              action: { in: ['hide', 'remove', 'restore'] },
+            },
+            orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+            distinct: ['target_type', 'target_id'],
+            select: { id: true, target_type: true, target_id: true },
+          }),
+          this.prisma.dmcaNotice.findMany({
+            where: {
+              OR: pairs,
+              status: { in: ['removed', 'counter_received'] },
+            },
+            select: { target_type: true, target_id: true },
+          }),
+        ])
+      : [[], []];
+    const latest = new Map(
+      latestRows.map((r) => [key(r.target_type, r.target_id), r.id]),
+    );
+    const dmca = new Set(
+      dmcaRows.map((r) => key(String(r.target_type), String(r.target_id))),
+    );
     const out: ModerationNoticeDto[] = [];
     for (const a of full) {
-      const target =
-        a.target_type === 'user'
-          ? null
-          : await this.moderation.resolve(a.target_type, a.target_id);
+      const k = key(a.target_type, a.target_id);
+      const target = a.target_type === 'user' ? null : (targets.get(k) ?? null);
       const appealable =
         (APPEALABLE_ACTIONS as readonly string[]).includes(a.action) &&
         APPEALABLE_TARGETS.includes(a.target_type);
-      const latest = appealable
-        ? await this.isLatestAction(a.id, a.target_type, a.target_id)
-        : false;
+      const isLatest = appealable && latest.get(k) === a.id;
       const open =
         appealable &&
-        latest &&
+        isLatest &&
         !a.appeal &&
         target !== null &&
         target.status !== 'published' &&
         Date.now() - a.created_at.getTime() <= APPEAL_WINDOW_DAYS * DAY_MS &&
-        !(await this.removedByDmca(a.target_type, a.target_id));
+        !dmca.has(k);
       out.push({
         actionId: a.id,
         action: a.action,
@@ -228,7 +278,9 @@ export class ModerationAppealsService {
   /** `GET /reports/mine`: what I reported and where it stands. */
   async myReports(userId: string): Promise<MyReportDto[]> {
     const rows = await this.prisma.report.findMany({
-      where: { reporter_id: userId },
+      // Verify 18.11 (MO4): the system «auto_hold» ticket is not a report
+      // the person filed.
+      where: { reporter_id: userId, ...PERSON_REPORTS_ONLY },
       orderBy: { created_at: 'desc' },
       take: 50,
       select: {
@@ -292,8 +344,12 @@ export class ModerationAppealsService {
     });
     const page = rows.slice(0, limit);
     const items: AppealItemDto[] = [];
-    for (const r of page) {
-      const target = await this.moderation.resolve(r.target_type, r.target_id);
+    // Verify 18.11 (MO8): the page's objects are read in parallel.
+    const resolved = await Promise.all(
+      page.map((r) => this.moderation.resolve(r.target_type, r.target_id)),
+    );
+    for (const [i, r] of page.entries()) {
+      const target = resolved[i];
       items.push({
         id: r.id,
         status: r.status,
@@ -392,10 +448,20 @@ export class ModerationAppealsService {
       }
     }
     // Owner 2026-10-27: winning the appeal also lifts the strike (and its limit).
+    // Verify 18.11 (MO1): the strike is tied to the object, not to the
+    // appealed action — a hide then a remove keeps ONE strike on the hide,
+    // and only the remove can be appealed.
     if (accept) {
       await this.strikes.revokeByAction(
         admin,
         appeal.action_id,
+        `Appeal accepted: ${note}`,
+      );
+      await this.strikes.revokeForTarget(
+        admin,
+        appeal.appellant_id,
+        appeal.target_type,
+        appeal.target_id,
         `Appeal accepted: ${note}`,
       );
     }

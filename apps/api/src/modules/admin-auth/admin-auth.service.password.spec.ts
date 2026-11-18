@@ -217,3 +217,79 @@ describe('AdminAuthService own credentials', () => {
     expect(prisma.adminCredential.update).not.toHaveBeenCalled();
   });
 });
+
+describe('verify batch 11: sessions end even when the audit write fails (A7)', () => {
+  it('a new password set by the owner ends the target sessions first', async () => {
+    const { svc, prisma, sessions, audit } = await build();
+    Object.assign(prisma.user, {
+      findFirst: jest.fn().mockResolvedValue({
+        id: 't1',
+        admin_profile: { admin_role: 'support' },
+        admin_credential: { login: 'ann' },
+      }),
+    });
+    audit.record.mockRejectedValueOnce(new Error('db hiccup'));
+    await expect(
+      svc.setCredentialsFor(
+        { id: 'u1', adminRole: 'super_admin', ip: null } as never,
+        't1',
+        { password: 'Another-pass-2026' },
+      ),
+    ).rejects.toThrow('db hiccup');
+    expect(sessions.revokeAllForUser).toHaveBeenCalledWith('t1');
+  });
+});
+
+describe('verify batch 11: the on-call switch is audited (A9)', () => {
+  it('writes an audit row with the new value', async () => {
+    const { svc, prisma, audit } = await build();
+    Object.assign(prisma, {
+      adminProfile: { update: jest.fn().mockResolvedValue({}) },
+    });
+    await svc.setOnCall(
+      { id: 'u1', adminRole: 'support', ip: '1.2.3.4' } as never,
+      false,
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'admin.on_call_set',
+        targetId: 'u1',
+        after: { enabled: false },
+      }),
+    );
+  });
+});
+
+describe('verify batch 11: the recovery path of the owner', () => {
+  it('A5: a new security question needs a fresh 2FA code (a stolen token cannot plant one)', async () => {
+    const { svc, prisma } = await build();
+    const refused = new Error('ADMIN_STEP_UP_REQUIRED');
+    jest.spyOn(svc, 'assertStepUp').mockRejectedValue(refused);
+    await expect(
+      svc.setSecurityQuestion(
+        {
+          id: 'u1',
+          adminRole: 'super_admin',
+          sessionId: 's1',
+          ip: null,
+        } as never,
+        'Кого ты любил?',
+        'новый ответ',
+      ),
+    ).rejects.toBe(refused);
+    expect(prisma.adminCredential.update).not.toHaveBeenCalled();
+  });
+
+  it('A6: with the IP allowlist on, recovery from outside it is refused', async () => {
+    const { svc, prisma } = await build();
+    const denied = new Error('ADMIN_IP_NOT_ALLOWED');
+    Object.assign(svc, {
+      security: { assertIpAllowed: jest.fn().mockRejectedValue(denied) },
+    });
+    await expect(
+      svc.recoverPassword('boss', 'мой ответ', 'Another-pass-2026', '9.9.9.9'),
+    ).rejects.toBe(denied);
+    await expect(svc.recoverQuestion('boss', '9.9.9.9')).rejects.toBe(denied);
+    expect(prisma.adminCredential.update).not.toHaveBeenCalled();
+  });
+});

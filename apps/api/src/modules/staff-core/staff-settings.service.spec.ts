@@ -15,6 +15,7 @@ import {
   StaffSettingsService,
   resolveStaffSettings,
 } from './staff-settings.service';
+import { clearAppConfigMemo } from '../feature-flags/services/app-config.service';
 
 const service = (stored: Record<string, unknown> = {}) => {
   const all = jest.fn(() => Promise.resolve(stored));
@@ -137,5 +138,22 @@ describe('staff settings (staff package T1, plan part D)', () => {
     const out = await new StaffSettingsController(svc).getStaffSettings();
     expect(Object.values(out.switches).every((v) => v === false)).toBe(true);
     expect(out.numbers['staff.rating.window_days']).toBe(30);
+  });
+});
+
+describe('verify batch 11 (C4): a saved staff switch applies at once', () => {
+  const env = process.env.NODE_ENV;
+  afterEach(() => {
+    process.env.NODE_ENV = env;
+  });
+
+  it('an admin write (memo cleared) drops the staff copy too', async () => {
+    process.env.NODE_ENV = 'production'; // the copy is off under jest
+    const stored: Record<string, unknown> = {};
+    const { svc } = service(stored);
+    expect(await svc.isOn('staff.export_block_enabled')).toBe(false);
+    stored['staff.export_block_enabled'] = true;
+    clearAppConfigMemo(); // what dropAppConfigCache does on every save
+    expect(await svc.isOn('staff.export_block_enabled')).toBe(true);
   });
 });

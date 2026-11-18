@@ -152,4 +152,26 @@ void main() {
       expect(AppEvents.consent, isFalse);
     });
   });
+
+  test(
+      'verify 18.11 (AN2): the batch carries the session token, so the '
+      "server applies the account's «Do not sell» answer", () async {
+    AppEvents.bearer = () => 'tok-1';
+    addTearDown(() => AppEvents.bearer = null);
+    AppEvents.track('case_created');
+    await AppEvents.instance!.flush();
+    expect(
+      adapter.requests.single.headers['Authorization'],
+      'Bearer tok-1',
+    );
+  });
+
+  test('verify 18.11 (AN2): signed out, the batch goes without a token',
+      () async {
+    AppEvents.bearer = () => null;
+    addTearDown(() => AppEvents.bearer = null);
+    AppEvents.track('case_created');
+    await AppEvents.instance!.flush();
+    expect(adapter.requests.single.headers['Authorization'], isNull);
+  });
 }

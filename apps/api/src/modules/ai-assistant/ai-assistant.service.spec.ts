@@ -4,6 +4,7 @@ import {
   AiAssistantService,
   AiPullError,
 } from './ai-assistant.service';
+import { monthKey } from './ai-assistant.logic';
 
 const SHA = 'a'.repeat(40);
 const PR_URL = 'https://github.com/o/r/pull/9';
@@ -34,8 +35,11 @@ function make(
   } = {},
 ) {
   const store = new Map<string, string>();
-  if (o.spent !== undefined && o.spent !== null)
+  if (o.spent !== undefined && o.spent !== null) {
     store.set('ai:usd:2026-11', o.spent);
+    // trigger() reads the month of the real clock (time-bomb check, +45 days).
+    store.set(monthKey(new Date()), o.spent);
+  }
   const list: string[] = [];
   const redis = {
     get: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),

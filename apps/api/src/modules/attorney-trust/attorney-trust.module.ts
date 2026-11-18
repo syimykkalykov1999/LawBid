@@ -12,6 +12,7 @@ import { AttorneyTrustService } from './attorney-trust.service';
 import { BarNumberBlocksService } from './bar-number-blocks.service';
 import { FirmEmailService } from './firm-email.service';
 import { TrustController } from './trust.controller';
+import { OneOffJobsQueue } from '../../jobs/one-off-jobs.queue';
 
 /**
  * Owner 2026-10-05: attorney trust levels (docs/ATTORNEY_TRUST.md) — the
@@ -41,6 +42,7 @@ export class AttorneyTrustCoreModule {}
     FeatureFlagsModule,
   ],
   controllers: [TrustController, AdminTrustController],
-  providers: [AdminTrustService, FirmEmailService],
+  // Verify 17.11: «Пересчитать всех» is queued for the worker.
+  providers: [AdminTrustService, FirmEmailService, OneOffJobsQueue],
 })
 export class AttorneyTrustModule {}

@@ -24,6 +24,7 @@ function build(
     waiting?: number;
     maxDownloads?: number;
     requestType?: string;
+    subjectUserId?: string | null;
   } = {},
 ) {
   const tx = {
@@ -43,6 +44,7 @@ function build(
         id: REQ,
         status: opts.requestStatus ?? 'received',
         request_type: opts.requestType ?? 'subpoena',
+        subject_user_id: opts.subjectUserId ?? null,
       }),
       update: jest.fn(),
     },
@@ -147,6 +149,19 @@ describe('LegalExportService', () => {
     await expect(
       svc.queue(admin, REQ, { userId: USER, sections: ['chats'] }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('verify 18.11 (LD1): refuses a person who is not the subject of the request', async () => {
+    const OTHER = 'u0000000-0000-4000-8000-000000000002';
+    const { svc, tx } = build({ subjectUserId: OTHER });
+    await expect(
+      svc.queue(admin, REQ, { userId: USER, sections: ['chats'] }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.legalExport.create).not.toHaveBeenCalled();
+    const ok = build({ subjectUserId: USER });
+    await expect(
+      ok.svc.queue(admin, REQ, { userId: USER, sections: ['chats'] }),
+    ).resolves.toBeDefined();
   });
 
   it('has a safety valve on the waiting queue but no daily counter', async () => {

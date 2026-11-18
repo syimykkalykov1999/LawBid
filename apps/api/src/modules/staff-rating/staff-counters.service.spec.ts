@@ -59,7 +59,8 @@ describe('StaffCountersService', () => {
       handleMsSum: 460_000,
     });
     expect(c.outcomes).toEqual({ hide: 3, dismiss: 1 });
-    expect(c.hours[14]).toBe(4);
+    // 14:30 UTC = 07:30 in Nevada (verify batch 11, D6: local hours).
+    expect(c.hours[7]).toBe(4);
     expect(toCounterRow(c)).toMatchObject({ decided: 4, avgHandleSec: 115 });
   });
 
@@ -100,9 +101,12 @@ describe('StaffCountersService', () => {
     expect(JSON.stringify(calls[0].slice(1))).toBe(
       JSON.stringify(calls[1].slice(1)),
     );
-    // SET, never add: the conflict branch assigns EXCLUDED values.
+    // Never add: the conflict branch keeps the larger absolute value
+    // (verify batch 11, D7), so a second flush changes nothing.
     const text = calls[0][0].join('?');
-    expect(text).toContain('decided = EXCLUDED.decided');
+    expect(text).toContain(
+      'decided = GREATEST(EXCLUDED.decided, staff_daily_stats.decided)',
+    );
     expect(text).not.toMatch(/decided\s*=\s*staff_daily_stats\.decided\s*\+/);
   });
 
@@ -192,5 +196,45 @@ describe('owner 14.11 (row 180, B9): staff days follow the report time zone', ()
         },
       }),
     ]);
+  });
+});
+
+describe('verify batch 11 (D6): the hour of a decision is a local hour', () => {
+  it('02:30 in Nevada counts in hour 2 (night), not in UTC hour 9', async () => {
+    const redis = new FakeStaffRedis();
+    const prisma = { $executeRaw: jest.fn() } as unknown as PrismaService;
+    const svc = new StaffCountersService(prisma, redis.asRedis());
+    // 2026-10-26 02:30 PDT (UTC−7) = 09:30 UTC.
+    await svc.bump(
+      { adminId: A, itemKind: 'report', itemId: id(1), outcome: 'hide' },
+      new Date('2026-10-26T09:30:00Z'),
+    );
+    const [c] = await svc.readDay('2026-10-26');
+    expect(c.hours[2]).toBe(1);
+    expect(c.hours[9]).toBe(0);
+  });
+});
+
+describe('verify batch 11 (D7): the hourly flush never lowers a stored day', () => {
+  it('keeps the larger count, like the nightly upsert (a Redis restart mid-day)', async () => {
+    const redis = new FakeStaffRedis();
+    const sqls: string[] = [];
+    const prisma = {
+      $executeRaw: jest.fn((strings: TemplateStringsArray) => {
+        sqls.push(strings.join('?'));
+        return Promise.resolve(1);
+      }),
+    } as unknown as PrismaService;
+    const svc = new StaffCountersService(prisma, redis.asRedis());
+    await svc.bump(
+      { adminId: A, itemKind: 'report', itemId: id(1), outcome: 'hide' },
+      new Date('2026-10-26T18:00:00Z'),
+    );
+    await svc.flushDay('2026-10-26');
+    const sql = sqls.join('\n').replace(/\s+/g, ' ');
+    expect(sql).toContain(
+      'decided = GREATEST(EXCLUDED.decided, staff_daily_stats.decided)',
+    );
+    expect(sql).not.toMatch(/decided = EXCLUDED\.decided/);
   });
 });
