@@ -293,7 +293,13 @@ export class SupportService {
     const next = withResolvedAt('closed', ticket.resolved_at, new Date());
     const updated = await this.prisma.supportTicket.update({
       where: { id },
-      data: { status: next.status, resolved_at: next.resolvedAt },
+      // Verify 18.11 (SU4): nothing is due on a closed ticket — the same as
+      // the admin close, so it leaves «Просрочено» and the SLA counter.
+      data: {
+        status: next.status,
+        resolved_at: next.resolvedAt,
+        sla_due_at: null,
+      },
     });
     return presentTicket(updated);
   }

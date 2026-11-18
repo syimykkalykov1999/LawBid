@@ -13,6 +13,7 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { S3StorageService } from '../files/storage/s3-storage.service';
@@ -120,23 +121,19 @@ export class DataExportRunner
   }
 
   async request(user: RequestUser): Promise<DataExportJobDto> {
-    const inFlight = await this.prisma.dataExportJob.findFirst({
-      where: {
-        user_id: user.sub,
-        type: 'user_data',
-        // Security audit 2026-10-01: a ready export also counts — one
-        // ZIP a day (it costs S3 + an email); the same job comes back.
-        status: { in: ['queued', 'processing', 'ready'] },
-        created_at: { gt: new Date(Date.now() - 24 * 3600 * 1000) },
-      },
-      orderBy: { created_at: 'desc' },
-    });
-    if (inFlight && (await this.stillAlive(inFlight))) {
-      return this.status(user, inFlight.id);
+    const first = await this.findOrCreate(user.sub);
+    let row: DataExportJob;
+    if (first.created) {
+      row = first.row;
+    } else if (await this.stillAlive(first.row)) {
+      return this.status(user, first.row.id);
+    } else {
+      // The in-flight row was dead (now `failed`): look again under the
+      // lock — a parallel tap may already have made the new one.
+      const second = await this.findOrCreate(user.sub, first.row.id);
+      if (!second.created) return this.status(user, second.row.id);
+      row = second.row;
     }
-    const row = await this.prisma.dataExportJob.create({
-      data: { user_id: user.sub, type: 'user_data', status: 'queued' },
-    });
     try {
       await this.addJob(row.id);
     } catch (error) {
@@ -151,6 +148,39 @@ export class DataExportRunner
       throw error;
     }
     return this.present(row, null);
+  }
+
+  /** Verify 18.11 (PV3): the in-flight look-up and the insert run under a
+   * per-user advisory lock (READ COMMITTED, so the second tap sees the
+   * first one's row): a double tap makes one export, not two. */
+  private findOrCreate(
+    userId: string,
+    skipId?: string,
+  ): Promise<{ row: DataExportJob; created: boolean }> {
+    return withTxRetry(
+      this.prisma,
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`data-export:${userId}`}, 0))`;
+        const inFlight = await tx.dataExportJob.findFirst({
+          where: {
+            user_id: userId,
+            type: 'user_data',
+            // Security audit 2026-10-01: a ready export also counts — one
+            // ZIP a day (it costs S3 + an email); the same job comes back.
+            status: { in: ['queued', 'processing', 'ready'] },
+            created_at: { gt: new Date(Date.now() - 24 * 3600 * 1000) },
+            ...(skipId ? { NOT: { id: skipId } } : {}),
+          },
+          orderBy: { created_at: 'desc' },
+        });
+        if (inFlight) return { row: inFlight, created: false };
+        const row = await tx.dataExportJob.create({
+          data: { user_id: userId, type: 'user_data', status: 'queued' },
+        });
+        return { row, created: true };
+      },
+      { isolation: 'readCommitted', op: 'data-export.request' },
+    );
   }
 
   private async addJob(exportId: string): Promise<void> {

@@ -443,3 +443,50 @@ describe('PublicDirectoryService.seoPosts / seoQuestions (static pages of posts 
     });
   });
 });
+
+describe('PublicDirectoryService bio (privacy «about»)', () => {
+  const withBio = (aboutFrom?: string) => {
+    const r = row(null);
+    return {
+      ...r,
+      bio: 'Twenty years of family law.',
+      user: {
+        ...r.user,
+        privacy_settings: {
+          photo_from: 'everyone',
+          ...(aboutFrom ? { about_from: aboutFrom } : {}),
+        },
+      },
+    };
+  };
+
+  it('shows the bio only when «about» is open to everyone, like the in-app profile', async () => {
+    const { svc, prisma } = make({
+      rows: [withBio('everyone'), withBio('contacts'), withBio('nobody')],
+    });
+    const page = await svc.attorneys({});
+    expect(page.items.map((i) => i.bio)).toEqual([
+      'Twenty years of family law.',
+      null,
+      null,
+    ]);
+    const arg = prisma.attorneyProfile.findMany.mock.calls[0][0] as {
+      select: {
+        user: { select: { privacy_settings: { select: object } } };
+      };
+    };
+    expect(arg.select.user.select.privacy_settings.select).toEqual({
+      photo_from: true,
+      about_from: true,
+    });
+  });
+
+  it('shows the bio when the person never changed the setting (default everyone)', async () => {
+    const r = withBio();
+    const { svc } = make({
+      rows: [{ ...r, user: { ...r.user, privacy_settings: null } }],
+    });
+    const page = await svc.attorneys({});
+    expect(page.items[0].bio).toBe('Twenty years of family law.');
+  });
+});

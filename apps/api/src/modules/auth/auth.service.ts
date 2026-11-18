@@ -20,7 +20,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { User } from '../../generated/prisma/client';
+import type { Prisma, User } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { randomBytes } from 'node:crypto';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -595,14 +595,11 @@ export class AuthService {
           ageSource,
         );
         if (found.user.status === 'deletion_pending' && cancelsOnLogin) {
-          const updated = await tx.user.update({
-            where: { id: found.user.id },
-            data: { status: 'active', deletion_requested_at: null },
-          });
+          const back = await cancelDeletionOnLogin(tx, found.user);
           return {
-            user: updated,
+            user: back.user,
             isNewUser: found.isNewUser,
-            deletionCancelled: true,
+            deletionCancelled: back.cancelled,
           };
         }
         return {
@@ -1674,4 +1671,22 @@ export async function assertAccountOpen(
       message: 'This account has been deleted.',
     });
   }
+}
+
+/**
+ * Verify 18.11 (PV1): a sign-in cancels a pending deletion only while it is
+ * still pending — one conditional write. Once the erasure job has claimed
+ * the account (status `deleted`) the sign-in gets the deleted account, which
+ * finishLogin refuses, instead of flipping it back to `active` mid-erasure.
+ */
+export async function cancelDeletionOnLogin(
+  db: Pick<Prisma.TransactionClient, 'user'>,
+  user: User,
+): Promise<{ user: User; cancelled: boolean }> {
+  const done = await db.user.updateMany({
+    where: { id: user.id, status: 'deletion_pending' },
+    data: { status: 'active', deletion_requested_at: null },
+  });
+  const fresh = await db.user.findUnique({ where: { id: user.id } });
+  return { user: fresh ?? user, cancelled: done.count === 1 };
 }

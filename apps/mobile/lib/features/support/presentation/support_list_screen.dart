@@ -116,8 +116,10 @@ class SupportListScreen extends ConsumerWidget {
                       )
                     : AppRefreshIndicator(
                         color: colors.gold,
-                        onRefresh: () async =>
-                            ref.refresh(supportTicketsProvider.future),
+                        onRefresh: () async {
+                          ref.read(supportRepositoryProvider).askAgain();
+                          return ref.refresh(supportTicketsProvider.future);
+                        },
                         child: ListView(
                           padding: const EdgeInsets.all(AppSpacing.screenSide),
                           children: [for (final s in list) card(s)],

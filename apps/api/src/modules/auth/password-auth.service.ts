@@ -14,7 +14,11 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AccountBansService } from '../account-bans/account-bans.service';
-import { AuthService, assertAccountOpen } from './auth.service';
+import {
+  AuthService,
+  assertAccountOpen,
+  cancelDeletionOnLogin,
+} from './auth.service';
 import type { RequestUser } from './decorators/current-user.decorator';
 import type { DeviceInfo } from './services/session.service';
 import type { RequestMeta } from './services/session.service';
@@ -503,11 +507,9 @@ export class PasswordAuthService {
       user.status === 'deletion_pending' &&
       (await this.auth.loginCancelsDeletion())
     ) {
-      account = await this.prisma.user.update({
-        where: { id: user.id },
-        data: { status: 'active', deletion_requested_at: null },
-      });
-      deletionCancelled = true;
+      const back = await cancelDeletionOnLogin(this.prisma, user);
+      account = back.user;
+      deletionCancelled = back.cancelled;
     }
     return this.auth.finishLogin(
       account,
