@@ -247,6 +247,10 @@ export interface NotificationEmit {
    * read is not repeated. Ignored when the row goes to another database
    * (two databases). Never stored. */
   actorBlockChecked?: boolean;
+  /** Verify 17.11: who did it, for the once-a-day rule only, when the
+   * payload must not name them (a client follower stays anonymous, §5.2).
+   * Never stored. */
+  dedupeActorId?: string;
 }
 
 /**
@@ -454,14 +458,18 @@ export class NotificationsService {
     ) {
       return null;
     }
+    // Verify 17.11: a client's follow → unfollow → follow re-pushed every
+    // time (no actorId in an anonymous payload, so the rule was skipped).
+    const onceActor =
+      typeof actorId === 'string' ? actorId : input.dedupeActorId;
     if (
-      typeof actorId === 'string' &&
+      typeof onceActor === 'string' &&
       ['post_like', 'post_repost', 'comment_like', 'new_follower'].includes(
         input.type,
       ) &&
       !(await this.firstToday(
         input.type,
-        actorId,
+        onceActor,
         input.recipientId,
         input.payload,
       ))

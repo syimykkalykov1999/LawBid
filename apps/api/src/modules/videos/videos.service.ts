@@ -520,17 +520,24 @@ export class VideosService {
     return this.toAssetDto(a);
   }
 
-  /** DELETE /videos/:id — only while no post uses it. */
+  /** DELETE /videos/:id — only while no post, story or channel post uses
+   * it. Verify 17.11: only posts were checked; the app cancels after a
+   * timed-out «publish story» that the server had committed, and the story
+   * was left with an empty video. */
   async cancel(userId: string, id: string): Promise<void> {
     const a = await this.own(userId, id);
-    const used = await this.prisma.post.findFirst({
-      where: { video_asset_id: id },
-      select: { id: true },
+    const used = await this.prisma.videoAsset.findUnique({
+      where: { id },
+      select: {
+        post: { select: { id: true } },
+        story: { select: { id: true } },
+        channel_post: { select: { id: true } },
+      },
     });
-    if (used) {
+    if (used && (used.post || used.story || used.channel_post)) {
       throw new ConflictException({
         code: ErrorCode.FILE_NOT_ATTACHABLE,
-        message: 'This video belongs to a post; delete the post instead.',
+        message: 'This video is in use; delete the post or story instead.',
       });
     }
     await this.markDeleted([a.id]);

@@ -152,6 +152,7 @@ export class FollowsService {
         user.role === 'attorney'
           ? { actorId: user.sub }
           : { actorKind: 'client' },
+      dedupeActorId: user.sub,
     });
     // Counted only when the follower was shown a boost of this author.
     this.boostActions?.report(user.sub, { ownerId: attorneyId }, 'follow');

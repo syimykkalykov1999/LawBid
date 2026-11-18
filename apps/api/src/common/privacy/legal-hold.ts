@@ -159,3 +159,20 @@ export async function heldTargets(
   });
   return [...new Set(rows.map((r) => r.target_id))];
 }
+
+/**
+ * Every id held as [type] right now (holds are few; read on the primary,
+ * where legal_holds lives). DB scale batch B: a whole-month partition drop
+ * gets this list and keeps a month that has a row of any of them.
+ */
+export async function allHeldIds(
+  db: { legalHold: Pick<Prisma.LegalHoldDelegate, 'findMany'> },
+  type: HoldTargetType,
+  now: Date = new Date(),
+): Promise<string[]> {
+  const rows = await db.legalHold.findMany({
+    where: { AND: [inForce(now), { target_type: type }] },
+    select: { target_id: true },
+  });
+  return [...new Set(rows.map((r) => r.target_id))];
+}

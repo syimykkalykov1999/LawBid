@@ -191,6 +191,15 @@ class FollowOverrides extends Notifier<Map<String, bool>> {
   // ignore: avoid_positional_boolean_parameters
   void put(String attorneyId, bool following) =>
       state = {...state, attorneyId: following};
+
+  /// Verify 17.11: the server's answer is the truth again (a freshly read
+  /// profile, a block / unblock) — the tap's copy used to win for the whole
+  /// session (a block removed the follow on the server, the app still said
+  /// «Вы подписаны» and the first tap did nothing).
+  void forget(String id) {
+    if (!state.containsKey(id)) return;
+    state = {...state}..remove(id);
+  }
 }
 
 final followOverridesProvider =
@@ -208,6 +217,22 @@ class FollowerCounts extends Notifier<Map<String, int>> {
 
   void put(String attorneyId, int count) =>
       state = {...state, attorneyId: count};
+
+  /// Verify 17.11: see [FollowOverrides.forget].
+  void forget(String id) {
+    if (!state.containsKey(id)) return;
+    state = {...state}..remove(id);
+  }
+}
+
+/// Verify 17.11: a fresh profile of [id] from the server replaces what the
+/// follow tap left (state and follower count), unless a tap is in flight.
+void settleFollow(Ref ref, String id) {
+  if (!ref.mounted || ref.read(socialActionsProvider).followPending(id)) {
+    return;
+  }
+  ref.read(followOverridesProvider.notifier).forget(id);
+  ref.read(followerCountsProvider.notifier).forget(id);
 }
 
 final followerCountsProvider =
@@ -1389,6 +1414,9 @@ class SocialActions {
               ),
             );
       });
+
+  /// A follow / unfollow of [attorneyId] is on its way.
+  bool followPending(String attorneyId) => _busy.contains('follow:$attorneyId');
 
   // ignore: avoid_positional_boolean_parameters
   Future<Object?> setFollowing(String attorneyId, bool following) =>
