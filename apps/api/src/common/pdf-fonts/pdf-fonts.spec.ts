@@ -172,7 +172,7 @@ describe('PDF fonts: script fallback', () => {
       if (!fonts.has(family)) {
         const file = `${family.replace(/^Noto-/, '')}-Regular`;
         // The CJK files are not in git: they live in the download cache
-        // (KNOWN_ERRORS 220 — a Mac with the cache warm failed here).
+        // (KNOWN_ERRORS 221 — a Mac with the cache warm failed here).
         const p = ['.ttf', '.otf']
           .flatMap((e) => [
             join(FONTS_DIR as string, 'noto', file + e),
