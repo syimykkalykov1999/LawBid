@@ -69,6 +69,7 @@ function setup(found: SupportTicket | null = ticket()) {
     },
     user: {
       findUnique: jest.fn().mockResolvedValue({ ui_language: 'ru' }),
+      findFirst: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([
         { id: ADMIN, first_name: 'Anna', last_name: 'K', role: null },
         { id: USER, first_name: 'Jo', last_name: 'Doe', role: 'client' },
@@ -306,5 +307,116 @@ describe('AdminSupportController roles', () => {
       'super_admin',
       'support',
     ]);
+  });
+});
+
+describe('verify 18.11 (batch 10): country scope and assignees', () => {
+  it('SU1: a reply to a ticket outside the agent countries is 404 and writes nothing', async () => {
+    const { service, prisma, notifications } = setup(
+      ticket({ country_code: 'US' }),
+    );
+    await expect(
+      service.reply(ADMIN, TICKET, { body: 'hello' }, ['CA']),
+    ).rejects.toMatchObject({ response: { code: ErrorCode.NOT_FOUND } });
+    expect(prisma.supportMessage.create).not.toHaveBeenCalled();
+    expect(notifications.emit).not.toHaveBeenCalled();
+  });
+
+  it('SU1: an update of a ticket outside the agent countries is 404 and writes nothing', async () => {
+    const { service, prisma } = setup(ticket({ country_code: 'US' }));
+    await expect(
+      service.update(TICKET, { status: 'closed' }, ADMIN, ['CA']),
+    ).rejects.toMatchObject({ response: { code: ErrorCode.NOT_FOUND } });
+    expect(prisma.supportTicket.update).not.toHaveBeenCalled();
+  });
+
+  it('SU1: inside the scope the reply still goes out', async () => {
+    const { service, prisma } = setup(ticket({ country_code: 'US' }));
+    await service.reply(ADMIN, TICKET, { body: 'hello' }, ['US']);
+    expect(prisma.supportMessage.create).toHaveBeenCalled();
+  });
+
+  it('SU6: a ticket cannot be assigned to an admin without the support right', async () => {
+    const { service, prisma } = setup();
+    (prisma.user as Record<string, unknown>).findFirst = jest
+      .fn()
+      .mockResolvedValue({
+        admin_profile: { admin_role: 'moderator', permissions: {} },
+      });
+    await expect(
+      service.update(TICKET, { assigneeId: ADMIN }, ADMIN),
+    ).rejects.toMatchObject({
+      response: { code: ErrorCode.VALIDATION_ERROR },
+    });
+    expect(prisma.supportTicket.update).not.toHaveBeenCalled();
+  });
+
+  it('SU6: a suspended or deleted admin is not a valid assignee', async () => {
+    const { service, prisma } = setup();
+    const findFirst = jest.fn().mockResolvedValue(null);
+    (prisma.user as Record<string, unknown>).findFirst = findFirst;
+    await expect(
+      service.update(TICKET, { assigneeId: ADMIN }, ADMIN),
+    ).rejects.toMatchObject({
+      response: { code: ErrorCode.VALIDATION_ERROR },
+    });
+    expect(findFirst.mock.calls[0][0].where).toMatchObject({
+      id: ADMIN,
+      role: 'admin',
+      status: 'active',
+      deleted_at: null,
+    });
+  });
+
+  it('SU6: an agent with support at manage can be assigned', async () => {
+    const { service, prisma } = setup();
+    (prisma.user as Record<string, unknown>).findFirst = jest
+      .fn()
+      .mockResolvedValue({
+        admin_profile: {
+          admin_role: 'support',
+          permissions: { support: 'manage' },
+        },
+      });
+    await service.update(TICKET, { assigneeId: ADMIN }, ADMIN);
+    expect(prisma.supportTicket.update.mock.calls[0][0].data).toMatchObject({
+      assignee_id: ADMIN,
+    });
+  });
+
+  it('SU5+SU6: stats of a country-scoped agent count only their countries and only answering agents', async () => {
+    const count = jest.fn().mockResolvedValue(0);
+    const groupBy = jest.fn().mockResolvedValue([]);
+    const prisma = {
+      supportTicket: {
+        groupBy,
+        count,
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      supportMessage: { groupBy: jest.fn().mockResolvedValue([]) },
+      supportAgent: { count: jest.fn().mockResolvedValue(9) },
+    };
+    const desk = {
+      info: jest.fn().mockResolvedValue({ open: true }),
+      answeringAgentsOnShift: jest.fn().mockResolvedValue(['a']),
+    };
+    const service = new AdminSupportService(
+      prisma as unknown as PrismaService,
+      {} as NotificationsService,
+      {} as SubscriptionAccessService,
+      desk as unknown as SupportDeskService,
+      {} as SupportFilesService,
+    );
+    const out = await service.stats(['CA']);
+    expect(out.onShift).toBe(1);
+    expect(groupBy.mock.calls[0][0].where).toEqual({
+      country_code: { in: ['CA'] },
+    });
+    for (const call of count.mock.calls) {
+      expect(call[0].where).toMatchObject({ country_code: { in: ['CA'] } });
+    }
+    expect(prisma.supportTicket.findMany.mock.calls[0][0].where).toMatchObject({
+      country_code: { in: ['CA'] },
+    });
   });
 });

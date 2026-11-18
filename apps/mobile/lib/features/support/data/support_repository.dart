@@ -12,9 +12,11 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 /// Owner 2026-10-02 — `/support/tickets` (docs: admin "Support" desk).
 class SupportRepository {
   SupportRepository(Dio dio, {Dio? storageDio})
-      : _api = api.SupportClient(dio),
+      : _dio = dio,
+        _api = api.SupportClient(dio),
         _uploader = StorageUploader.dio(dio, storageDio ?? dio);
 
+  final Dio _dio;
   final api.SupportClient _api;
   final StorageUploader _uploader;
 
@@ -84,7 +86,7 @@ class SupportRepository {
     SupportClientContext? context,
   }) async =>
       _detail(
-        (await guardApiCall(
+        (await _changing(
           () => _api.createSupportTicket(
             body: api.CreateSupportTicketDto(
               subject: subject,
@@ -107,7 +109,7 @@ class SupportRepository {
     List<SupportAttachment> attachments = const [],
   }) async =>
       _message(
-        (await guardApiCall(
+        (await _changing(
           () => _api.replyToSupportTicket(
             id: id,
             body: api.SupportMessageBodyDto(
@@ -121,7 +123,25 @@ class SupportRepository {
       );
 
   Future<void> close(String id) =>
-      guardApiCall(() => _api.closeMySupportTicket(id: id));
+      _changing(() => _api.closeMySupportTicket(id: id));
+
+  /// Verify 18.11 (SU3): a new ticket, a reply or a close changes what
+  /// `GET /support/tickets` answers, so its hour-long phone copy no longer
+  /// holds (the new ticket was missing from the list for up to an hour).
+  Future<T> _changing<T>(Future<T> Function() call) async {
+    final out = await guardApiCall(call);
+    askAgain();
+    return out;
+  }
+
+  /// Verify 18.11 (SU3): the next list read asks the server (`If-None-Match`,
+  /// a 304 when nothing changed) instead of the hour-long phone copy — after
+  /// my own change and on pull to refresh.
+  void askAgain() {
+    for (final c in _dio.interceptors.whereType<HttpCacheInterceptor>()) {
+      c.mustAskAgain('/support/tickets');
+    }
+  }
 
   static SupportTicket _ticket(api.SupportTicketDto d) => SupportTicket(
         id: d.id,

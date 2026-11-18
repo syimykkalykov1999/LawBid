@@ -115,4 +115,37 @@ void main() {
     expect(adapter.requests, isEmpty);
     CrashReporter.enabled = true;
   });
+
+  test('verify 18.11 (CR1): no e-mail, phone or URL query reaches the queue',
+      () async {
+    CrashReporter.instance!.report(
+      FormatException(
+        'bad reply for jo@mail.test +1 (415) 555-0100 '
+        'https://api.test/x?token=abc',
+      ),
+      StackTrace.fromString('#0 main (file.dart:10:3)'),
+    );
+    final raw = prefs.getString('crash.queue.v1')!;
+    expect(raw, isNot(contains('jo@mail.test')));
+    expect(raw, isNot(contains('555-0100')));
+    expect(raw, isNot(contains('token=abc')));
+    expect(raw, contains('FormatException'));
+    expect(raw, contains('[email]'));
+  });
+
+  test('verify 18.11 (CR1): a network error is only kind, status and path',
+      () async {
+    final o = RequestOptions(path: '/users/me', method: 'GET');
+    CrashReporter.instance!.report(
+      DioException(
+        requestOptions: o,
+        response: Response(requestOptions: o, statusCode: 500, data: 'x@y.zz'),
+        message: 'failed for x@y.zz',
+      ),
+      StackTrace.fromString('#0 main (file.dart:10:3)'),
+    );
+    final raw = prefs.getString('crash.queue.v1')!;
+    expect(raw, isNot(contains('x@y.zz')));
+    expect(raw, contains('GET /users/me'));
+  });
 }

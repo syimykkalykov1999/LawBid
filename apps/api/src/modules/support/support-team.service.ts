@@ -348,21 +348,23 @@ export class SupportTeamService {
         countries,
       });
       const id = r.itemId ?? r.heldItemIds?.[0];
-      return id ? this.tickets.get(id) : null;
+      return id ? this.tickets.get(id, countries ?? null) : null;
     }
     const order = [
       { sla_due_at: { sort: 'asc' as const, nulls: 'last' as const } },
       { last_message_at: 'asc' as const },
     ];
+    // Verify 18.11 (SU2): only tickets of the agent's countries.
+    const inScope = countries ? { country_code: { in: countries } } : {};
     const mine = await this.prisma.supportTicket.findFirst({
-      where: { status: 'open', assignee_id: adminId },
+      where: { ...inScope, status: 'open', assignee_id: adminId },
       orderBy: order,
       select: { id: true },
     });
-    if (mine) return this.tickets.get(mine.id);
+    if (mine) return this.tickets.get(mine.id, countries ?? null);
     for (let attempt = 0; attempt < 3; attempt++) {
       const free = await this.prisma.supportTicket.findFirst({
-        where: { status: 'open', assignee_id: null },
+        where: { ...inScope, status: 'open', assignee_id: null },
         orderBy: order,
         select: { id: true },
       });
@@ -376,7 +378,7 @@ export class SupportTeamService {
           data: { assignee_id: adminId, assigned_at: new Date() },
         }),
       );
-      if (took.count === 1) return this.tickets.get(free.id);
+      if (took.count === 1) return this.tickets.get(free.id, countries ?? null);
     }
     return null;
   }

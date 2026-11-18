@@ -119,7 +119,7 @@ class SentryReporter {
 
   /// A message with no personal data: e-mails, phone-like numbers and URL
   /// queries removed; a network error is reduced to its kind, status, path.
-  @visibleForTesting
+  /// Also used by [CrashReporter] for its own copy (verify 18.11, CR1).
   static String scrubMessage(Object error) {
     final text = error is DioException
         ? 'DioException(${error.type.name}) '
