@@ -59,9 +59,12 @@ services:
       retries: 30
 
   redis:
-    image: redis:7-alpine
+    # Valkey (BSD-3-Clause), the same pinned image as prod, CI and the root
+    # docker-compose.yml. Licence audit 17.11: redis:7-alpine resolves to
+    # Redis 7.4+, which is RSALv2/SSPLv1, not BSD.
+    image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
     command: >-
-      redis-server --port 0 --tls-port 6379 --tls-cert-file /certs/redis.crt
+      valkey-server --port 0 --tls-port 6379 --tls-cert-file /certs/redis.crt
       --tls-key-file /certs/redis.key --tls-ca-cert-file /certs/ca.crt
       --tls-auth-clients no --requirepass ${REDIS_PASS}
     volumes:

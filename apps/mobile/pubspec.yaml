@@ -254,6 +254,10 @@ flutter:
   assets:
     - assets/fonts/OFL-SourceSerif4.txt
     - assets/fonts/OFL-Inter.txt
+    # Licence audit 17.11: the Phosphor licence and the app's notices,
+    # read by core/licenses/bundled_licenses.dart for the licence list.
+    - assets/fonts/LICENSE-Phosphor.txt
+    - THIRD_PARTY_NOTICES.md
     - assets/practice_art/
     # OQ-041/044: call tones and in-app message sounds.
     - assets/sounds/

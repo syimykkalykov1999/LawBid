@@ -1112,6 +1112,18 @@ const KEY_TEXT: Record<string, string> = {
     "Сколько дней хранить обработанные служебные события между частями базы (0 — хранить всегда). Ключ: storage.retention_outbox_done_days.",
   "storage.retention_inbox_days":
     "Сколько дней хранить отметки «событие уже применено» (защита от двойной обработки; 0 — хранить всегда). Ключ: storage.retention_inbox_days.",
+  "storage.retention_max_rows_per_table":
+    "Сколько строк ночная очистка удаляет из одной таблицы за один проход (уведомления тоже); остальное — следующей ночью. 0 — без ограничения. Ключ: storage.retention_max_rows_per_table.",
+  "storage.retention_batch_rows":
+    "Сколько строк удаляется одной командой при ночной очистке (маленькие порции — короткие блокировки). Ключ: storage.retention_batch_rows.",
+  "storage.retention_pause_ms":
+    "Пауза между порциями ночной очистки, мс (0 — без паузы). Ключ: storage.retention_pause_ms.",
+  "storage.retention_partition_drop_enabled":
+    "Помесячные таблицы (просмотры постов, события входа): месяц, который целиком старше срока хранения, удаляется целиком, а не по строке. Месяц со строкой человека под юридическим удержанием и таблица в незавершённом делении не трогаются. Выкл — по строке, как раньше. Ключ: storage.retention_partition_drop_enabled.",
+  "storage.retention_partition_lock_timeout_ms":
+    "Сколько миллисекунд ждать блокировку таблицы при удалении старого месяца; если таблица занята — попытка следующей ночью. Ключ: storage.retention_partition_lock_timeout_ms.",
+  "storage.retention_counter_flush_days":
+    "Сколько дней хранить отметки применённых порций счётчиков (защита от двойного счёта после аварийной остановки сервера; 0 — хранить всегда). Ключ: storage.retention_counter_flush_days.",
   "ai.retention_records_days":
     "«ИИ-сотрудник»: через сколько дней удалять законченные запуски и решённые предложения (ваши примеры для обучения и нерешённое остаются; 0 — хранить всегда). Ключ: ai.retention_records_days.",
   "ai.retention_images_days":

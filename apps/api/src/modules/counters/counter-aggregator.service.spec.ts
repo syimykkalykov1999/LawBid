@@ -54,11 +54,14 @@ function fakeRedis() {
         return 1;
       }
       if (script.includes('HMGET')) {
+        // DB scale batch C: ARGV = token, now, field, then the ids (the
+        // batch hash itself is not modelled: no test here kills a flush).
         const m = h(keys[0]);
-        const vals = args.map((a) =>
+        const ids = args.slice(3);
+        const vals = ids.map((a) =>
           m.has(String(a)) ? String(m.get(String(a))) : null,
         );
-        args.forEach((a) => m.delete(String(a)));
+        ids.forEach((a) => m.delete(String(a)));
         return vals;
       }
       throw new Error('unknown script');
@@ -90,7 +93,8 @@ function fakeRedis() {
       m.forEach((x) => s.add(x));
       return m.length;
     },
-    multi: () => ({ hincrby: () => undefined, exec: async () => [] }),
+    zrange: async () => [] as string[],
+    hgetall: async () => ({}) as Record<string, string>,
   };
   return { redis: redis as unknown as Redis, hashes, sets, evalCalls, strings };
 }

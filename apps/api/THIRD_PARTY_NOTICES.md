@@ -142,3 +142,41 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## SecLists 10k most common passwords — MIT (data copied in part)
+
+`src/modules/auth/data/common-passwords.ts` holds the 8+ character entries
+of `Passwords/Common-Credentials/10k-most-common.txt` from
+https://github.com/danielmiessler/SecLists (MIT License, Copyright (c) 2018
+Daniel Miessler). The list refuses well-known passwords at sign-up.
+
+## Noto Sans fonts — SIL Open Font License 1.1
+
+`assets/fonts/noto/*.ttf` (and Noto Sans CJK fetched at run time) are
+embedded as subsets in the PDFs the server makes (`src/common/pdf-fonts`).
+Copyright 2022 The Noto Project Authors; Noto Sans CJK Copyright 2014-2021
+Adobe. Full licence: `assets/fonts/noto/OFL.txt`. The OFL allows embedding
+in documents with no further condition.
+
+## Server-only packages with a non-permissive licence (licence audit 2026-11-17)
+
+These run only inside our API / admin server containers. Nothing of them
+is sent to a phone or a browser, so no licence obligation is triggered
+(LGPL, EPL and FSL bind only redistribution). Listed with their source so
+anyone receiving a container image still has the notice and the source.
+
+- `@img/sharp-libvips-*` 1.3.4 (libvips and its libraries) — LGPL-3.0-or-later,
+  prebuilt, loaded dynamically by `sharp` 0.35.5 (Apache-2.0). Source:
+  https://github.com/lovell/sharp-libvips (tag v1.3.4), https://github.com/libvips/libvips.
+- `libheif-js` 1.23.5 (libheif compiled to JavaScript, used by `heic-decode`
+  to read iPhone HEIC photos on the server) — LGPL-3.0. Source:
+  https://github.com/catdad-experiments/libheif-js, https://github.com/strukturag/libheif.
+- `elkjs` 0.11.1 — EPL-2.0, part of Prisma Studio inside the `prisma` CLI
+  (migrations only; Studio is never started in production). Source:
+  https://github.com/kieler/elkjs.
+- `sentry` 0.45.0 (Sentry CLI, pulled by `@sentry/node` through
+  `@sentry/bundler-plugins`, never executed by us) — FSL-1.1-Apache-2.0:
+  any use except a competing product to Sentry is allowed, and each release
+  becomes Apache-2.0 two years after it is published. Source:
+  https://github.com/getsentry/cli.
+- `jszip` 3.10.2 (inside `exceljs`) — dual "MIT or GPL-3.0"; we use it under MIT.

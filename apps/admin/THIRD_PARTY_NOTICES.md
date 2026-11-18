@@ -156,3 +156,23 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Inter and Source Serif 4 (@fontsource-variable) — SIL Open Font License 1.1
+
+`@fontsource-variable/inter` 5.3.0 and `@fontsource-variable/source-serif-4`
+5.3.1 ship the two fonts to the admin pages. Inter: Copyright 2016 The Inter
+Project Authors (https://github.com/rsms/inter). Source Serif 4: Copyright
+2014 The Source Serif 4 Project Authors (https://github.com/adobe-fonts/source-serif).
+Full licence text: `node_modules/@fontsource-variable/*/LICENSE`, and
+https://openfontlicense.org. The OFL allows bundling the fonts with software.
+
+## Build-time data and server-only parts (licence audit 2026-11-17)
+
+- `caniuse-lite` (via `browserslist` / Next.js) — CC-BY-4.0, browser support
+  data used while building; © Alexis Deveria, https://caniuse.com.
+- `sharp` / `@img/sharp-libvips-*` (via Next.js image optimisation) — run
+  only inside the admin server container, never sent to a browser; see
+  `apps/api/THIRD_PARTY_NOTICES.md` («Server-only packages»).
+- `lightningcss` (MPL-2.0, Tailwind CSS build) and `axe-core` (MPL-2.0,
+  eslint-plugin-jsx-a11y) — build and lint tools only, unmodified; their
+  output is our own CSS, the tools are not shipped.
