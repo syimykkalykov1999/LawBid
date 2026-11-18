@@ -4764,6 +4764,7 @@
 "dmca.target.case_comment": "Complaint about a case question",
 "dmca.target.message": "Complaint about a message",
 "about.dmca": "Copyright (DMCA)",
+"about.licenses": "Licenses",
 "cases.accept.unverifiedLine": "The attorney's license is not checked by LawBid — verify it with the state bar.",
 "error.api.ACCOUNT_RESTRICTED": "Your account is limited while we check it. If this is a mistake, please write to support.",
 "account.restricted.title": "Account limited",
