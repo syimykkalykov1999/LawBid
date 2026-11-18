@@ -35,8 +35,11 @@ import {
 import { FilesService } from '../files/files.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BlocksService } from '../blocks/blocks.service';
-import { assertNoBlockBetween, lockBlockPair } from '../blocks/block-check';
-import { withTxRetry } from '../../prisma/tx-retry.util';
+import {
+  assertNoBlockBetween,
+  assertNoBlockRouted,
+  withBlockPairLock,
+} from '../blocks/block-check';
 import { ClientProfilesService } from '../profiles/services/client-profiles.service';
 import { RecommendationsService } from '../recommendations/recommendations.service';
 import type {
@@ -126,17 +129,30 @@ export class FollowsService {
     // of the same two people holds (BlocksService.block) and checks the
     // block again under it, so a follow never survives a block that won the
     // race. Read committed: the re-check sees the block that just committed.
-    const { count } = await withTxRetry(
+    // Several databases (KNOWN_ERRORS 215): the lock is on the primary, the
+    // re-check reads each blocker's database and the follow is written in
+    // the follower's (withBlockPairLock).
+    const { count } = await withBlockPairLock(
       this.prisma,
-      async (tx) => {
-        await lockBlockPair(tx, user.sub, attorneyId);
-        await assertNoBlockBetween(tx, user.sub, attorneyId);
-        return tx.follow.createMany({
+      user.sub,
+      attorneyId,
+      'follows.follow',
+      async (db, split) => {
+        if (split) {
+          await assertNoBlockRouted(db, user.sub, attorneyId);
+          return shardContext.runForUser(user.sub, () =>
+            db.follow.createMany({
+              data: [{ follower_id: user.sub, followee_id: attorneyId }],
+              skipDuplicates: true,
+            }),
+          );
+        }
+        await assertNoBlockBetween(db, user.sub, attorneyId);
+        return db.follow.createMany({
           data: [{ follower_id: user.sub, followee_id: attorneyId }],
           skipDuplicates: true,
         });
       },
-      { isolation: 'readCommitted', op: 'follows.follow' },
     );
     if (count === 0) return this.state(attorneyId, target.role, true);
     // B-c7: a follow again cancels the unfollow tombstone (sync deltas).

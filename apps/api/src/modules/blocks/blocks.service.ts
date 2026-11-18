@@ -12,14 +12,14 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT, REDIS_CLIENT } from '../../redis/redis.constants';
 import { bumpFeedVersion } from '../../common/cache/feed-version';
-import { withTxRetry } from '../../prisma/tx-retry.util';
 import {
   CounterAggregator,
   profileEntity,
 } from '../counters/counter-aggregator.service';
 import { FilesService } from '../files/files.service';
 import { cachedBlockSet, dropBlockSets } from './block-set.cache';
-import { lockBlockPair } from './block-check';
+import { withBlockPairLock } from './block-check';
+import { shardContext } from '../../sharding/shard-context';
 import { dropPresencePerms } from '../presence/presence-perm';
 import type { BlockedUserDto } from './blocks.dto';
 import { userDirectory } from '../../sharding/user-directory';
@@ -74,24 +74,51 @@ export class BlocksService {
     // takes, so no follow is inserted between this block and its clean-up.
     // Read committed: every statement after the lock sees a follow that a
     // racing transaction committed while this one waited (a serializable
-    // snapshot, taken before the wait, would miss it).
-    const removed = await withTxRetry(
+    // snapshot, taken before the wait, would miss it). Several databases
+    // (KNOWN_ERRORS 215): the lock is on the primary, the block is written
+    // in the blocker's database and each follow is removed in its
+    // follower's database (withBlockPairLock).
+    const removed = await withBlockPairLock(
       this.prisma,
-      async (tx) => {
-        await lockBlockPair(tx, userId, targetId);
-        await tx.userBlock.createMany({
+      userId,
+      targetId,
+      'blocks.block',
+      async (db, split) => {
+        if (split) {
+          await shardContext.runForUser(userId, () =>
+            db.userBlock.createMany({
+              data: [{ blocker_id: userId, blocked_id: targetId }],
+              skipDuplicates: true,
+            }),
+          );
+          const gone: { follower_id: string; followee_id: string }[] = [];
+          for (const [follower, followee] of [
+            [userId, targetId],
+            [targetId, userId],
+          ]) {
+            const { count } = await shardContext.runForUser(follower, () =>
+              db.follow.deleteMany({
+                where: { follower_id: follower, followee_id: followee },
+              }),
+            );
+            if (count > 0) {
+              gone.push({ follower_id: follower, followee_id: followee });
+            }
+          }
+          return gone;
+        }
+        await db.userBlock.createMany({
           data: [{ blocker_id: userId, blocked_id: targetId }],
           skipDuplicates: true,
         });
         // No follows either way while blocked.
-        const rows = await tx.follow.findMany({
+        const rows = await db.follow.findMany({
           where: between,
           select: { follower_id: true, followee_id: true },
         });
-        await tx.follow.deleteMany({ where: between });
+        await db.follow.deleteMany({ where: between });
         return rows;
       },
-      { isolation: 'readCommitted', op: 'blocks.block' },
     );
     // Shard-ready step 6: roles come from the user directory, not a join.
     const roles = await userDirectory(this.prisma).select(
