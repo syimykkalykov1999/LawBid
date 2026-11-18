@@ -383,6 +383,89 @@ export class ClientFraudService {
     }
   }
 
+  /**
+   * Verify batch 11 (B8): the way back of onBanned. When a blocked account
+   * is restored (Люди → Восстановить, a lifted block), the accounts its
+   * block took down («linked_to_blocked_account», linked to THIS account)
+   * come back too — unless another blocked account still links them — and
+   * every linked account is re-scored without the link (a review or a
+   * limit that came only from it ends). As platforms reinstate the accounts
+   * an enforcement took down with a wrongly blocked one. An account
+   * suspended for its own reasons is not touched. Best effort.
+   */
+  async onRestored(userId: string): Promise<number> {
+    try {
+      const cfg = await this.config();
+      if (!cfg.enabled) return 0;
+      const me = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { status: true },
+      });
+      if (me?.status !== 'active') return 0;
+      const own = await this.prisma.identityFingerprint.findMany({
+        where: {
+          user_id: userId,
+          kind: { in: [...STRONG_KINDS, ...DEVICE_KINDS] },
+        },
+        select: { kind: true, hash: true, user_id: true, banned_at: true },
+      });
+      if (own.length === 0) return 0;
+      if ((await this.blockedOwners([userId], own)).has(userId)) return 0;
+      const others = await this.prisma.identityFingerprint.findMany({
+        where: {
+          user_id: { not: userId },
+          OR: own.map((p) => ({ kind: p.kind, hash: p.hash })),
+        },
+        select: { user_id: true },
+        distinct: ['user_id'],
+        take: PROPAGATE_LIMIT,
+      });
+      let restored = 0;
+      for (const o of others) {
+        const [u, profile] = await Promise.all([
+          this.prisma.user.findUnique({
+            where: { id: o.user_id },
+            select: { role: true, status: true, suspended_reason: true },
+          }),
+          this.prisma.clientFraudProfile.findUnique({
+            where: { user_id: o.user_id },
+            select: { linked_user_id: true },
+          }),
+        ]);
+        if (!u) continue;
+        const takenDownByMe =
+          u.status === 'suspended' &&
+          u.suspended_reason === FRAUD_SUSPENDED_REASON.linked &&
+          profile?.linked_user_id === userId;
+        if (takenDownByMe) {
+          const { linkStatus } = await this.signalsOf(
+            o.user_id,
+            u.role === 'client',
+            cfg,
+          );
+          if (linkStatus === FRAUD_STATUS.banned) continue;
+          await this.prisma.user.update({
+            where: { id: o.user_id },
+            data: { status: 'active', suspended_reason: null },
+          });
+          await this.event(
+            this.prisma,
+            o.user_id,
+            FRAUD_EVENT.staffUnbanned,
+            { type: 'system' },
+            { reason: 'linked_account_restored', linkedFrom: userId },
+          );
+          restored++;
+        }
+        await this.recompute(o.user_id);
+      }
+      return restored;
+    } catch (e) {
+      this.logger.warn({ err: e, userId }, 'fraud restore propagation failed');
+      return 0;
+    }
+  }
+
   /** The account is deleted while blocked: its hashes keep blocking. */
   async freezeBanned(
     userId: string,

@@ -147,4 +147,44 @@ describe('settings and switches refuse a stale save', () => {
       }),
     ).resolves.toMatchObject({ rolloutPercent: 50 });
   });
+
+  it('verify batch 11 (C8): the audit «before» of a switch is the row the save replaced', async () => {
+    const row = (enabled: boolean) => ({
+      key: 'video_posts',
+      enabled,
+      rollout_percent: 100,
+      hash_version: 1,
+      description: null,
+      updated_by: null,
+      updated_at: SEEN,
+    });
+    // Read before the transaction: off. Another admin turned it on just
+    // before this save took the row.
+    const tx = {
+      featureFlag: {
+        findUnique: jest.fn(() => Promise.resolve(row(true))),
+        update: jest.fn(() => Promise.resolve(row(false))),
+      },
+    };
+    const prisma = {
+      featureFlag: { findUnique: jest.fn(() => Promise.resolve(row(false))) },
+      $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
+    };
+    const audit = { record: jest.fn() };
+    const svc = new AdminConfigService(
+      prisma as never,
+      { del: jest.fn(), incr: jest.fn(), set: jest.fn() } as never,
+      { get: () => undefined } as never,
+      { invalidate: jest.fn() } as never,
+      { invalidate: jest.fn() } as never,
+      audit as never,
+    );
+    await svc.updateFlag(admin, 'video_posts', { enabled: false });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        before: expect.objectContaining({ enabled: true }),
+      }),
+      expect.anything(),
+    );
+  });
 });

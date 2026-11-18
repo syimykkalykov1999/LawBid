@@ -944,6 +944,9 @@ export class AdminUsersService {
         tx,
       );
     });
+    // Verify batch 11 (B8): the way back of `fraud.onBanned` in suspend —
+    // the accounts this block took down come back (best effort).
+    void this.fraud?.onRestored(id);
     return {
       userId: id,
       status: 'active',

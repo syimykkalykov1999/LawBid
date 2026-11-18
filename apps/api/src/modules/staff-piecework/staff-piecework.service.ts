@@ -297,11 +297,16 @@ export class StaffPieceworkService {
           noRating: quality.noRating,
           onPayroll: name !== undefined || settle.ref !== null,
         });
-        await this.replaceRows(adminId, dayKey, lines, {
-          qualityPct: quality.pct,
-          status,
-          ref: settle.ref,
-        });
+        // Verify batch 11 (D13): a day whose money already left keeps the
+        // rows that were paid; rewriting them with the new total hid the
+        // difference from every later run (prevTotal == total).
+        if (settle.paidDeltaCents === null) {
+          await this.replaceRows(adminId, dayKey, lines, {
+            qualityPct: quality.pct,
+            status,
+            ref: settle.ref,
+          });
+        }
         if (quality.noRating && lines.length > 0) result.noRating += 1;
         if (name === undefined && settle.ref === null && total !== 0) {
           result.skippedNoPayroll += 1;

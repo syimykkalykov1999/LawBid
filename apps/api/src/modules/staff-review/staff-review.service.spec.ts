@@ -417,6 +417,40 @@ describe('StaffReviewService: calibration copies (reviewer against reviewer)', (
     });
   });
 
+  it('verify batch 11 (D14): the copy remembers whose decision it was', async () => {
+    dice(0.001);
+    const { svc, db } = make({ ...ON, 'staff.peer_check_enabled': true });
+    await svc.verdict(actor(REV_A), SAMPLE, {
+      verdict: 'overturned',
+      reasons: ['too_hasty'],
+    });
+    expect(db.created[0]).toMatchObject({
+      golden_answer: { origWorker: WORKER },
+    });
+  });
+
+  it('verify batch 11 (D14): the worker whose decision was overturned cannot judge the copy', async () => {
+    const peer = sample({
+      id: uid(30),
+      decision_kind: 'cal_verification',
+      decided_by: REV_A,
+      stage: 'peer',
+      golden_answer: {
+        outcome: 'approve',
+        origReviewer: REV_A,
+        origWorker: WORKER,
+        origVerdict: 'different',
+      },
+    });
+    const { svc, db } = make({ ...ON, 'staff.peer_check_enabled': true }, [
+      peer,
+    ]);
+    await expect(
+      svc.verdict(actor(WORKER), uid(30), { verdict: 'confirmed' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(db.rows[0].status).toBe('pending');
+  });
+
   it('outside the percent no copy is queued', async () => {
     dice(0.9);
     const { svc, db } = make({ ...ON, 'staff.peer_check_enabled': true });

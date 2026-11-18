@@ -22,7 +22,10 @@ function build(
 ) {
   const tx = {
     staffSuggestion: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
-    staffMemberState: { upsert: jest.fn().mockResolvedValue({}) },
+    staffMemberState: {
+      upsert: jest.fn().mockResolvedValue({}),
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
     staffAction: { create: jest.fn().mockResolvedValue({}) },
   };
   const prisma = {
@@ -125,6 +128,19 @@ describe('StaffDecisionService (the buttons under a suggestion)', () => {
         ends_at: new Date('2026-11-03T10:00:00Z'),
       }),
     });
+  });
+
+  it("verify batch 11 (D15d): a pause never overwrites «replaced» or the owner's hold", async () => {
+    for (const state of ['offboarded', 'hold_owner']) {
+      for (const kind of ['pull', 'pause']) {
+        const { svc, tx } = build(kind);
+        tx.staffMemberState.findUnique.mockResolvedValue({ state });
+        await expect(
+          svc.decide(owner, 's1', { action: 'apply' }, NOW),
+        ).rejects.toBeInstanceOf(HttpException);
+        expect(tx.staffMemberState.upsert).not.toHaveBeenCalled();
+      }
+    }
   });
 
   it('more_review sets the per-person rate; reward is a journal row', async () => {

@@ -257,6 +257,9 @@ export class AdminSanctionsService {
     });
     if (row.kind === 'user' && row.user_id)
       await this.restoreAccount(row.user_id);
+    // Verify batch 11 (B8): a lifted block of a person undoes what it
+    // spread to the linked accounts (no-op while they are still blocked).
+    if (before.kind === 'user') void this.fraud?.onRestored(before.value);
     return present(row, null, new Date());
   }
 

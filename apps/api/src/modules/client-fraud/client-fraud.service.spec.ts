@@ -83,7 +83,7 @@ function world(overrides: Record<string, unknown> = {}) {
           data: { status: string };
         }) => {
           const u = users.get(where.id)!;
-          u.status = data.status;
+          Object.assign(u, data);
           return u;
         },
       ),
@@ -244,6 +244,65 @@ describe('ClientFraudService — repeat accounts', () => {
     expect(w.users.get('alt')!.status).toBe('suspended');
     expect(w.revoke).toHaveBeenCalledWith('alt', 'admin_block');
     expect(w.events.some((e) => e.kind === 'linked_banned')).toBe(true);
+  });
+
+  it('verify batch 11 (B8): restoring the account brings back the ones its ban took down', async () => {
+    const w = world();
+    w.addUser('fraud');
+    w.addUser('alt');
+    await w.svc.recordSignIn('fraud', {
+      social: { provider: 'apple', uid: 'apple-sub-1' },
+    });
+    await w.svc.recordSignIn('alt', {
+      social: { provider: 'apple', uid: 'apple-sub-1' },
+    });
+    w.users.get('fraud')!.status = 'suspended';
+    await w.svc.onBanned('fraud');
+    expect(w.users.get('alt')!.status).toBe('suspended');
+
+    // The block was a mistake: Люди → Восстановить.
+    w.users.get('fraud')!.status = 'active';
+    expect(await w.svc.onRestored('fraud')).toBe(1);
+    expect(w.users.get('alt')!.status).toBe('active');
+    expect(w.profiles.get('alt')?.status).toBe('ok');
+    expect(
+      w.events.some(
+        (e) =>
+          e.kind === 'staff_unbanned' &&
+          e.user_id === 'alt' &&
+          e.actor_type === 'system',
+      ),
+    ).toBe(true);
+  });
+
+  it('verify batch 11 (B8): an account suspended for its own reasons stays suspended', async () => {
+    const w = world();
+    w.addUser('fraud');
+    w.addUser('alt', 'client', 'suspended');
+    await w.svc.recordSignIn('fraud', {
+      social: { provider: 'apple', uid: 'apple-sub-1' },
+    });
+    await w.svc.recordSignIn('alt', {
+      social: { provider: 'apple', uid: 'apple-sub-1' },
+    });
+    expect(await w.svc.onRestored('fraud')).toBe(0);
+    expect(w.users.get('alt')!.status).toBe('suspended');
+  });
+
+  it('verify batch 11 (B8): nothing is undone while the account is still blocked', async () => {
+    const w = world();
+    w.addUser('fraud');
+    w.addUser('alt');
+    await w.svc.recordSignIn('fraud', {
+      social: { provider: 'apple', uid: 'apple-sub-1' },
+    });
+    await w.svc.recordSignIn('alt', {
+      social: { provider: 'apple', uid: 'apple-sub-1' },
+    });
+    w.users.get('fraud')!.status = 'suspended';
+    await w.svc.onBanned('fraud');
+    expect(await w.svc.onRestored('fraud')).toBe(0);
+    expect(w.users.get('alt')!.status).toBe('suspended');
   });
 
   it('switched off, nothing is checked', async () => {

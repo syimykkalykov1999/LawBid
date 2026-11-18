@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
@@ -54,9 +55,9 @@ export class AdminRoleTemplatesService {
       where: { name: clean },
     });
     if (taken) throw nameTaken();
-    const row = await this.prisma.adminRoleTemplate.create({
-      data: { name: clean, permissions, created_by: actor.id },
-    });
+    const row = await this.prisma.adminRoleTemplate
+      .create({ data: { name: clean, permissions, created_by: actor.id } })
+      .catch(asNameTaken);
     await this.audit.record({
       adminId: actor.id,
       action: AUDIT.create,
@@ -85,10 +86,9 @@ export class AdminRoleTemplatesService {
       });
       if (taken) throw nameTaken();
     }
-    const row = await this.prisma.adminRoleTemplate.update({
-      where: { id },
-      data: { name: clean, permissions },
-    });
+    const row = await this.prisma.adminRoleTemplate
+      .update({ where: { id }, data: { name: clean, permissions } })
+      .catch(asNameTaken);
     await this.audit.record({
       adminId: actor.id,
       action: AUDIT.update,
@@ -157,6 +157,15 @@ function cleanName(name: string): string {
     });
   }
   return n;
+}
+
+/** Verify batch 11 (B9d): a save racing another with the same name hits
+ * the unique index after the "name free?" read — the same 409. */
+function asNameTaken(e: unknown): never {
+  if (e instanceof PrismaClientKnownRequestError && e.code === 'P2002') {
+    throw nameTaken();
+  }
+  throw e;
 }
 
 function nameTaken(): ConflictException {

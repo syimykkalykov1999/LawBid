@@ -209,9 +209,13 @@ export class AdminConfigService {
       });
     }
     const after = await withTxRetry(this.prisma, async (tx) => {
+      // Verify batch 11 (C8): the audit «before» is the row this save
+      // replaces, read in the transaction (two saves at once each logged
+      // the value read before either of them).
+      const cur = await tx.featureFlag.findUnique({ where: { key } });
+      const prior = cur ?? before;
       // Owner 14.11 (row 179): refuse a save from a tab that saw an older row.
       if (dto.expectedUpdatedAt !== undefined) {
-        const cur = await tx.featureFlag.findUnique({ where: { key } });
         assertNotStale(
           cur?.updated_at ?? null,
           dto.expectedUpdatedAt,
@@ -246,9 +250,9 @@ export class AdminConfigService {
           targetId: null,
           before: {
             key,
-            enabled: before.enabled,
-            rolloutPercent: before.rollout_percent,
-            hashVersion: before.hash_version,
+            enabled: prior.enabled,
+            rolloutPercent: prior.rollout_percent,
+            hashVersion: prior.hash_version,
           },
           after: {
             key,
@@ -266,8 +270,8 @@ export class AdminConfigService {
       const partial = (r: { enabled: boolean; rollout_percent: number }) =>
         r.enabled && r.rollout_percent > 0 && r.rollout_percent < 100;
       if (
-        updated.hash_version !== before.hash_version &&
-        (partial(before) || partial(updated))
+        updated.hash_version !== prior.hash_version &&
+        (partial(prior) || partial(updated))
       ) {
         await this.audit.record(
           {
@@ -277,8 +281,8 @@ export class AdminConfigService {
             targetId: null,
             before: {
               key,
-              hashVersion: before.hash_version,
-              rolloutPercent: before.rollout_percent,
+              hashVersion: prior.hash_version,
+              rolloutPercent: prior.rollout_percent,
             },
             after: {
               key,
