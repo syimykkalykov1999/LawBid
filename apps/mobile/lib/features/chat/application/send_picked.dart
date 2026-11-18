@@ -6,7 +6,8 @@ import 'package:lawbid/features/chat/application/chat_providers.dart';
 /// the persistent upload queue (`core/uploads`) as one album: the files
 /// upload together and are sent in the shown order, the one caption rides
 /// on the last (the chat groups consecutive attachments into one bubble).
-/// Completes when every file is queued.
+/// Completes when every file is queued. Row 188: [replyToId] rides on the
+/// first file (as in groups), so the album answers the quoted message.
 Future<void> sendPickedFiles(
   ChatThread thread,
   List<
@@ -18,8 +19,9 @@ Future<void> sendPickedFiles(
             int? diskBytes,
           })>
       files,
-  String caption,
-) async {
+  String caption, {
+  String? replyToId,
+}) async {
   Future<void>? previous;
   for (var i = 0; i < files.length; i++) {
     final f = files[i];
@@ -32,6 +34,7 @@ Future<void> sendPickedFiles(
       mime: f.mime,
       caption: last && caption.isNotEmpty ? caption : null,
       after: previous,
+      replyToId: i == 0 ? replyToId : null,
     );
     // A failed file is shown on its own bubble; here it is only logged.
     unawaited(previous.catchError((Object e) => debugPrint('send file: $e')));

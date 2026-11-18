@@ -74,6 +74,7 @@ class _Chat implements ChatRepository {
     required String fileId,
     required String fileName,
     String? caption,
+    String? replyToId,
   }) async {
     sent.add(fileName);
     captions.add(caption);
