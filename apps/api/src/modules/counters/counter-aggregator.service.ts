@@ -415,6 +415,35 @@ export class CounterAggregator
         })(),
       );
     }
+    // A drained batch (any process, any pod) is in neither the pending hash
+    // nor the row until its UPDATE commits: count it from its batch hash, so
+    // a read on another instance never sees the count drop while a flush is
+    // in flight (e2e two-db: a reel's views read 1 → 0 → 2). Between the
+    // commit and BATCH_DONE it is counted twice for a moment, the side the
+    // in-process buffer already took (never below the truth).
+    reads.push(
+      (async () => {
+        const tokens = await this.redis.zrange(
+          batchesKey(entity),
+          0,
+          RECOVER_BATCH - 1,
+        );
+        await Promise.all(
+          tokens.map(async (t) => {
+            const vals = await this.redis.hmget(
+              batchKey(entity, t),
+              BATCH_FIELD,
+              ...ids,
+            );
+            if (vals[0] !== field) return;
+            ids.forEach((id, i) => {
+              const v = vals[i + 1];
+              if (v) add(id, Number(v));
+            });
+          }),
+        );
+      })(),
+    );
     await Promise.all(reads);
     for (const id of ids) {
       const l = this.local.get(`${entity}|${field}|${id}`);
@@ -577,29 +606,20 @@ export class CounterAggregator
         }
       });
       if (keep.length === 0) continue;
-      // Between the drain and the commit the deltas are in neither Redis nor
-      // the row: keep them visible to this process' reads.
-      keep.forEach((id, i) =>
-        this.moveInflight(`${entity}|${field}|${id}`, deltas[i]),
-      );
+      // Between the drain and the commit the deltas sit in the batch hash,
+      // which pending() reads for every process (not only this one).
       // On an error the batch stays listed in Redis and the error ends this
       // flush: the next one applies the batch under the same key (once, even
       // if this UPDATE did commit after all).
-      try {
-        await this.applyBatch(token, table, key, field, keep, deltas);
-        applied += keep.length;
-        await this.redis.eval(
-          BATCH_DONE,
-          2,
-          batchKey(entity, token),
-          batchesKey(entity),
-          token,
-        );
-      } finally {
-        keep.forEach((id, i) =>
-          this.moveInflight(`${entity}|${field}|${id}`, -deltas[i]),
-        );
-      }
+      await this.applyBatch(token, table, key, field, keep, deltas);
+      applied += keep.length;
+      await this.redis.eval(
+        BATCH_DONE,
+        2,
+        batchKey(entity, token),
+        batchesKey(entity),
+        token,
+      );
     } while (cursor !== '0');
     return applied;
   }
