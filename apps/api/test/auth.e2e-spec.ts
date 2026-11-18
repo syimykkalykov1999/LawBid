@@ -389,7 +389,7 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
       expect(verify.body.error.code).toBe('ACCOUNT_DELETED');
     });
 
-    it('a successful login does not cancel a pending deletion by default (privacy round 13)', async () => {
+    it('verify 18.11 (CL1): a phone+password sign-in during the 14 days cancels the pending deletion (Instagram / Facebook)', async () => {
       const identifier = '+12025554003';
       await otpLogin(identifier);
       const userId = await findUserIdByPhone(identifier);
@@ -403,11 +403,11 @@ describe('Auth (e2e) — stage 1.4 acceptance criteria', () => {
         app.getHttpServer(),
         identifier,
       );
-      expect(relogin.status).toBe(201); // not rejected, but the request stays
-
+      expect(relogin.status).toBe(201);
+      // An SMS-only person has no e-mail link: signing in is the way back.
       const reloaded = await prisma.user.findUnique({ where: { id: userId } });
-      expect(reloaded?.status).toBe('deletion_pending');
-      expect(reloaded?.deletion_requested_at).not.toBeNull();
+      expect(reloaded?.status).toBe('active');
+      expect(reloaded?.deletion_requested_at).toBeNull();
     });
 
     it('POST /users/me/deletion/cancel cancels a pending deletion explicitly', async () => {

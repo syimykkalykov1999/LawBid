@@ -1444,7 +1444,7 @@ const KEY_TEXT: Record<string, string> = {
   "privacy.retention_contact_disclosure_ip_days":
     "Через сколько дней у раскрытия контактов стираются IP и устройство (сама запись остаётся; 730; 0 — не стирать). Ключ: privacy.retention_contact_disclosure_ip_days.",
   "privacy.login_cancels_deletion":
-    "Вкл. — любой вход в аккаунт отменяет запрос на удаление (старое поведение). Выкл. — вход НЕ отменяет: отмена только кнопкой или ссылкой из письма (человеку пишем в день запроса и за день до удаления). Ключ: privacy.login_cancels_deletion.",
+    "Вкл. — любой вход в аккаунт отменяет запрос на удаление (по умолчанию, как в Instagram и Facebook). Выкл. — вход НЕ отменяет: отмена только кнопкой или ссылкой из письма (человеку пишем в день запроса и за день до удаления). Ключ: privacy.login_cancels_deletion.",
   "privacy.deletion_notices_per_day":
     "Потолок: сколько писем/пушей «аккаунт удалится завтра» уходит за один ночной запуск (2000; остальные — на следующий день). Ключ: privacy.deletion_notices_per_day.",
   "privacy.twilio_purge_enabled":

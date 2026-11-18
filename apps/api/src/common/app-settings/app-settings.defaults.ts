@@ -2280,9 +2280,13 @@ export const OWNER_CASE_FANOUT_SETTINGS = {
  *   a session not used for this long are blanked.
  * - `privacy.retention_contact_disclosure_ip_days`: IP and device of a
  *   contact disclosure are blanked after this long (the record stays).
- * - `privacy.login_cancels_deletion`: false = signing in does NOT cancel a
- *   pending account deletion (cancel = explicit button / e-mail link);
- *   true = the old behaviour, any sign-in cancels.
+ * - `privacy.login_cancels_deletion`: true (default, verify 18.11 CL1, as
+ *   Instagram / Facebook and docs/01 §10.7 «можно отменить входом») = a
+ *   sign-in during the 14 days cancels the pending deletion — the only way
+ *   back for a person without a verified e-mail (the app has no cancel
+ *   button). The cancel is one conditional write, so a sign-in never revives
+ *   an account the erasure already claimed. false = only the e-mail link /
+ *   `POST /users/me/deletion/cancel` cancel.
  */
 export const OWNER_PRIVACY_SETTINGS = {
   /** R2B-14 (14.11): days an old cold-email unsubscribe token is kept raw
@@ -2302,7 +2306,7 @@ export const OWNER_PRIVACY_SETTINGS = {
   // Perf review 2026-10-26 (R-39): rows per statement / per table per run.
   'privacy.retention_batch': 5000,
   'privacy.retention_max_rows': 1_000_000,
-  'privacy.login_cancels_deletion': false,
+  'privacy.login_cancels_deletion': true,
   // Cost gate: ceilings on what deletion can bill (e-mail / push of the
   // day-13 notice per run, Twilio delete calls per account).
   'privacy.deletion_notices_per_day': 2000,
