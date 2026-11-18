@@ -440,6 +440,22 @@ export class AdminPromotionsService {
       'pending_payment',
       'pending_review',
     ];
+    // Batch 8 PM1 (audit 2026-11-17): an unpaid promotion's open payment
+    // (card page PaymentIntent or Stripe session) is voided at Stripe
+    // first, exactly like the owner's «Отменить» (PromotionsService.stop),
+    // so a page left open can not take the money later. Paid meanwhile →
+    // it was applied; the cancel then goes on and, as a cancel by the
+    // platform (Airbnb / Uber), returns the whole payment.
+    const current = await this.prisma.casePromotion.findUnique({
+      where: { id },
+    });
+    if (
+      current?.status === 'pending_payment' &&
+      allowed.includes('pending_payment') &&
+      (await this.promotions.voidPayment(current.stripe_checkout_id))
+    ) {
+      refund = 'full';
+    }
     const row = await withTxRetry(this.prisma, async (tx) => {
       const before = await this.mustFind(tx, id);
       if (!allowed.includes(before.status)) {

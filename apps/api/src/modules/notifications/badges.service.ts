@@ -10,7 +10,12 @@ import {
   DEFAULT_PUSH,
   LOCKED_CATEGORIES,
 } from './notification-rules';
-import { TYPE_TOPIC, readTopics, topicOn } from './notification-topics';
+import {
+  TYPE_TOPIC,
+  readTopics,
+  topicOf,
+  topicOn,
+} from './notification-topics';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -20,6 +25,9 @@ import {
   GROUPS_FLAG,
 } from '../feature-flags/feature-flags.public';
 import { pipeline } from '../../redis/redis-cluster-safe';
+
+/** The payload that gives `assistant_request` its own topic (topicOf). */
+const CASE_COMMENT = { kind: 'case_comment' } as const;
 
 export interface Badges {
   chatsUnread: number;
@@ -305,12 +313,22 @@ export class BadgesService {
     };
   }
 
-  /** Types switched off (never counted on a badge, never pushed). */
-  private async mutedTypes(userId: string): Promise<string[]> {
+  /** Types switched off (never counted on a badge, never pushed), and
+   * whether an assistant's case comment is — Verify batch 8 (17.11, NO5):
+   * the same topicOf(type, payload) rule as the push, so the badge never
+   * counts what the switch silenced (and the other way round). */
+  private async mutedTypes(
+    userId: string,
+  ): Promise<{ types: string[]; caseComment: boolean }> {
     const { on } = await this.topicSwitches(userId);
-    return (Object.keys(TYPE_TOPIC) as NotificationType[]).filter(
-      (t) => !ALWAYS_PUSH.has(t) && !on(TYPE_TOPIC[t]),
-    );
+    const off = (t: NotificationType, payload?: Record<string, unknown>) =>
+      !ALWAYS_PUSH.has(t) && !on(topicOf(t, payload));
+    return {
+      types: (Object.keys(TYPE_TOPIC) as NotificationType[]).filter((t) =>
+        off(t),
+      ),
+      caseComment: off('assistant_request', CASE_COMMENT),
+    };
   }
 
   /** Settings → Notifications changed: recount both badges. */
@@ -387,7 +405,11 @@ export class BadgesService {
       SELECT count(*) AS n FROM (
         SELECT 1 FROM notifications
         WHERE user_id = ${userId}::UUID AND read_at IS NULL
-          AND NOT (type::TEXT = ANY(${muted}::TEXT[]))
+          AND NOT (CASE
+            WHEN type::TEXT = 'assistant_request'
+                 AND payload->>'kind' = ${CASE_COMMENT.kind}
+            THEN ${muted.caseComment}
+            ELSE type::TEXT = ANY(${muted.types}::TEXT[]) END)
         LIMIT ${NOTIFS_CAP}) x`,
     );
     return Number(row?.n ?? 0);

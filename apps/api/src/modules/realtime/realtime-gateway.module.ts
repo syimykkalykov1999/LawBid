@@ -8,6 +8,7 @@ import { AdminRealtimeGateway } from './admin-realtime.gateway';
 import { QrLoginGateway } from './qr-login.gateway';
 import { RealtimeController } from './realtime.controller';
 import { RealtimeGateway } from './realtime.gateway';
+import { OneOffJobsQueue } from '../../jobs/one-off-jobs.queue';
 
 /** docs/05 §8.5: the Socket.IO server (API process only). Owner
  * 2026-10-22: plus the unauthenticated `/qr` namespace for the website's
@@ -18,6 +19,11 @@ import { RealtimeGateway } from './realtime.gateway';
 @Module({
   imports: [AuthModule, PresenceModule, AdminAuthModule, AdminModule],
   controllers: [RealtimeController, AdminRealtimeController],
-  providers: [RealtimeGateway, QrLoginGateway, AdminRealtimeGateway],
+  providers: [
+    RealtimeGateway,
+    QrLoginGateway,
+    AdminRealtimeGateway,
+    OneOffJobsQueue,
+  ],
 })
 export class RealtimeGatewayModule {}

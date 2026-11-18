@@ -284,6 +284,14 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 600,
   };
+  out['calls.caller_gone_seconds'] = {
+    type: 'integer',
+    defaultValue: 15,
+    description:
+      "The caller's app was closed while a 1:1 call rang: the call is canceled after this many seconds unless the caller is back. 0 = off (the call rings until the ring timeout).",
+    min: 0,
+    max: 60,
+  };
   out['calls.ring_status_rate_limit_per_minute'] = {
     type: 'integer',
     defaultValue: 60,

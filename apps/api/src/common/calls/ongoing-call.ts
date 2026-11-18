@@ -6,6 +6,11 @@ import type { PrismaService } from '../../prisma/prisma.service';
  * channel lists, which show a running call without importing it. */
 export const CALL_SILENT_MS = 180 * 1000;
 
+/** `calls.end_reason` of an active call the sweep closed after
+ * [CALL_SILENT_MS] of silence: its seconds run past the last sign of life
+ * (the hotline bills such a call only to its last beat). */
+export const CALL_END_SILENT = 'silent';
+
 /** How many faces the «Call in progress» bar shows (Telegram: three). */
 export const ONGOING_CALL_FACES = 3;
 

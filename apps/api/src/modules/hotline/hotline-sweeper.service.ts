@@ -161,7 +161,8 @@ export class HotlineSweeper implements OnApplicationBootstrap, OnModuleDestroy {
         0,
         batch,
       );
-      await h.syncCalls(page);
+      // heartbeats were refused while off: the calls' own seconds count
+      await h.syncCalls(page, true);
       // syncCalls re-schedules the live ones into the future
       const left = await redis.zcount(k.callsync, '-inf', now);
       if (page.length < batch || left === 0) break;
@@ -190,6 +191,24 @@ export class HotlineSweeper implements OnApplicationBootstrap, OnModuleDestroy {
     return !this.running || this.token !== null;
   }
 
+  /** Verify 17.11 H1: one broken item (an expired request hash, a lost
+   * row) is logged and skipped — it never stops the rest of the tick, or
+   * every later tick (it stays due, so it would fail first forever). */
+  private async guard(
+    step: string,
+    item: string,
+    fn: () => Promise<unknown>,
+  ): Promise<void> {
+    try {
+      await fn();
+    } catch (err) {
+      this.logger.warn(
+        { err: err instanceof Error ? err.message : err, step, item },
+        'hotline sweep item failed',
+      );
+    }
+  }
+
   /** The work of one tick (public for the tests, which pass their clock). */
   async sweep(redis: Redis, now: number): Promise<void> {
     const h = this.hotline;
@@ -200,35 +219,50 @@ export class HotlineSweeper implements OnApplicationBootstrap, OnModuleDestroy {
       redis.zrangebyscore(key, '-inf', now, 'LIMIT', 0, batch);
 
     for (const m of await due(k.dl)) {
-      const req = m.slice(2);
-      const st = await h.store.requestState(req);
-      if (st?.startsWith('o|')) await h.offerTimedOut(req, st.slice(2));
-      else await redis.zrem(k.dl, m);
+      await this.guard('offer_timeout', m, async () => {
+        const req = m.slice(2);
+        const st = await h.store.requestState(req);
+        if (st?.startsWith('o|')) await h.offerTimedOut(req, st.slice(2));
+        else await redis.zrem(k.dl, m);
+      });
     }
-    for (const lw of await due(k.alive)) await h.goOffline(lw, 'lost');
+    for (const lw of await due(k.alive)) {
+      await this.guard('lawyer_lost', lw, () => h.goOffline(lw, 'lost'));
+    }
     for (const req of await due(k.calive)) {
-      const offline = await h.store.isOffline(req);
-      await h.closeRequest(req, offline ? 'notify_expired' : 'lost');
-      await redis.zrem(k.calive, req);
+      await this.guard('client_lost', req, async () => {
+        const offline = await h.store.isOffline(req);
+        await h.closeRequest(req, offline ? 'notify_expired' : 'lost');
+        await redis.zrem(k.calive, req);
+      });
     }
     if (!this.holds()) return;
     const lostCalls = await due(k.conn);
     // the real 1:1 call may still be up (its screens beat) or already over
     // with its own seconds: ask it before calling the hotline call lost
-    if (lostCalls.length) await h.syncCalls(lostCalls);
+    if (lostCalls.length) {
+      await this.guard('sync_lost', lostCalls.join(','), () =>
+        h.syncCalls(lostCalls),
+      );
+    }
     for (const req of lostCalls) {
-      const until = await redis.zscore(k.conn, req);
-      if (until !== null && Number(until) > now) continue;
-      await h.endCall(req, 'lost');
-      await redis.zrem(k.conn, req);
+      await this.guard('call_lost', req, async () => {
+        const until = await redis.zscore(k.conn, req);
+        if (until !== null && Number(until) > now) return;
+        await h.endCall(req, 'lost');
+        await redis.zrem(k.conn, req);
+      });
     }
     for (const req of await due(`${k.p}:connmax`)) {
-      await h.endCall(req, 'time_limit');
-      await redis.zrem(`${k.p}:connmax`, req);
+      await this.guard('call_time_limit', req, async () => {
+        await h.endCall(req, 'time_limit');
+        await redis.zrem(`${k.p}:connmax`, req);
+      });
     }
     // the real 1:1 calls behind connected requests (hung up on the call
     // screen, closed by the calls sweep, voice never came up)
-    await h.syncCalls(await due(k.callsync));
+    const toSync = await due(k.callsync);
+    await this.guard('sync_calls', toSync.join(','), () => h.syncCalls(toSync));
     // Audit 17.11 #8: `hotline.queue_max_wait_sec` — an online waiter (not
     // «Сообщите мне») waits no longer than this, then «queue_timeout».
     const maxWait = s['hotline.queue_max_wait_sec'];
@@ -241,23 +275,29 @@ export class HotlineSweeper implements OnApplicationBootstrap, OnModuleDestroy {
         0,
         batch,
       )) {
-        const st = await h.store.requestState(req);
-        if (st?.startsWith('o|')) continue; // being offered: after it
-        if ((st === 's' || st === 'q') && !(await h.store.isOffline(req))) {
-          await h.closeRequest(req, 'queue_timeout');
-        }
-        await redis.zrem(k.qwait, req);
+        await this.guard('queue_timeout', req, async () => {
+          const st = await h.store.requestState(req);
+          if (st?.startsWith('o|')) return; // being offered: after it
+          if ((st === 's' || st === 'q') && !(await h.store.isOffline(req))) {
+            await h.closeRequest(req, 'queue_timeout');
+          }
+          await redis.zrem(k.qwait, req);
+        });
       }
     }
     if (!this.holds()) return;
-    for (const lw of await due(k.pause)) await h.unpause(lw);
+    for (const lw of await due(k.pause)) {
+      await this.guard('unpause', lw, () => h.unpause(lw));
+    }
     for (const req of await due(k.ntf)) {
-      await redis.zrem(k.ntf, req);
-      const sent = Number((await redis.hget(k.natt, req)) ?? 0);
-      if (sent >= s['hotline.notify_max_attempts']) {
-        // «Мы не дозвонились, оставьте заявку снова»
-        await h.closeRequest(req, 'notify_exhausted');
-      }
+      await this.guard('notify_due', req, async () => {
+        await redis.zrem(k.ntf, req);
+        const sent = Number((await redis.hget(k.natt, req)) ?? 0);
+        if (sent >= s['hotline.notify_max_attempts']) {
+          // «Мы не дозвонились, оставьте заявку снова»
+          await h.closeRequest(req, 'notify_exhausted');
+        }
+      });
     }
     let budget = Math.max(
       1,
@@ -272,7 +312,9 @@ export class HotlineSweeper implements OnApplicationBootstrap, OnModuleDestroy {
         now + s['hotline.offer_timeout_sec'] * 1000,
         100,
       )) {
-        await h.afterReserve(req, lw, 0);
+        await this.guard('after_reserve', req, () =>
+          h.afterReserve(req, lw, 0),
+        );
       }
       if (budget <= 0) {
         await redis.zadd(k.dirty, now + 1000, b);
@@ -287,7 +329,9 @@ export class HotlineSweeper implements OnApplicationBootstrap, OnModuleDestroy {
       );
       budget -= pick.picked.length;
       for (const req of pick.picked) {
-        await h.notify(req, s['hotline.notify_claim_sec']);
+        await this.guard('notify', req, () =>
+          h.notify(req, s['hotline.notify_claim_sec']),
+        );
       }
       if (pick.free > 0 && (pick.outstanding > 0 || pick.picked.length > 0)) {
         // look again when these notices run out

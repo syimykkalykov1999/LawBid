@@ -648,25 +648,19 @@ export class SubscriptionsService implements OnModuleDestroy {
       .split(',')
       .filter((p) => /^\+[1-9][0-9]{7,14}$/.test(p))
       .slice(0, totalSeats);
-    for (const phone of phones) {
-      // Audit 2026-10-01: the webhook and the app's call run at once —
-      // check + create in one serializable transaction (no duplicates).
-      await withTxRetry(this.prisma, async (tx) => {
-        const live = await tx.assistantMembership.findFirst({
-          where: { phone_e164: phone, status: { not: 'removed' } },
-          select: { id: true },
-        });
-        if (live) return;
-        await tx.assistantMembership.create({
-          data: {
-            attorney_id: owner,
-            phone_e164: phone,
-            approval: 'purchase',
-            status: 'invited',
-            duties: [...DEFAULT_DUTIES],
-          },
-        });
-      });
+    if (phones.length > 0) {
+      // Verify 17.11 (batch 6): the new seat number first, so an «Add
+      // assistant» right after reads it (not the cached old one).
+      await this.access.invalidate(owner);
+      // The bought seats, or more when a contract grant / the admin gives
+      // the attorney more (the number «Add assistant» checks against).
+      const seatLimit = Math.max(
+        totalSeats,
+        (await this.entitlements.seats(owner)).total,
+      );
+      for (const phone of phones) {
+        await this.addPurchaseAssistant(owner, phone, seatLimit);
+      }
     }
     // Owner 2026-10-02: the promo code is used once the checkout is paid
     // (an abandoned page does not burn it). Idempotent per user.
@@ -679,6 +673,59 @@ export class SubscriptionsService implements OnModuleDestroy {
       });
     }
     await this.access.invalidate(owner);
+  }
+
+  /**
+   * OQ-048: an assistant named at purchase joins without the attorney's
+   * OTP. Verify 17.11 (batch 6): the same per-attorney lock as
+   * `AssistantsService.add` (A2), in the transaction that counts the seats
+   * and creates this one, so the checkout webhook / the app's confirm and
+   * an «Add assistant» can no longer both take the last paid seat. The
+   * lock serializes them, so the transaction runs read committed (the
+   * tx-retry rule for lock-guarded work): the count after the lock sees a
+   * seat the other side committed while this one waited. The partial
+   * unique index on a live phone keeps one seat per phone; a phone that
+   * another team took in the meantime is skipped like a live one.
+   */
+  private async addPurchaseAssistant(
+    owner: string,
+    phone: string,
+    seatLimit: number,
+  ): Promise<void> {
+    try {
+      await withTxRetry(
+        this.prisma,
+        async (tx) => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`assistant-seats:${owner}`}))`;
+          const live = await tx.assistantMembership.findFirst({
+            where: { phone_e164: phone, status: { not: 'removed' } },
+            select: { id: true },
+          });
+          if (live) return;
+          const used = await tx.assistantMembership.count({
+            where: { attorney_id: owner, status: { not: 'removed' } },
+          });
+          if (used >= seatLimit) {
+            this.logger.warn(
+              `purchase assistant skipped for ${owner}: all ${seatLimit} seats taken`,
+            );
+            return;
+          }
+          await tx.assistantMembership.create({
+            data: {
+              attorney_id: owner,
+              phone_e164: phone,
+              approval: 'purchase',
+              status: 'invited',
+              duties: [...DEFAULT_DUTIES],
+            },
+          });
+        },
+        { isolation: 'readCommitted', op: 'purchase-assistant' },
+      );
+    } catch (e) {
+      if ((e as { code?: string }).code !== 'P2002') throw e;
+    }
   }
 
   /**

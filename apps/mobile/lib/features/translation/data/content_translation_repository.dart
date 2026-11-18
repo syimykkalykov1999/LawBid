@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_database.dart';
@@ -39,19 +41,25 @@ class ContentTranslationRepository {
   /// itself (and checks the person may see it). Owner 2026-10-22 (client
   /// economy plan, package K): a translation already on the phone is not
   /// asked for again (2 MB, least recently used out first).
+  ///
+  /// Verify 17.11 T3: [source] (the original the screen shows) is part of
+  /// the phone's cache key, so an edited post / comment / bio is translated
+  /// again instead of showing the old translation.
   Future<String> translate(
     TranslatableKind kind,
     String id,
-    String target,
-  ) async {
+    String target, {
+    String? source,
+  }) async {
     final cache = _cache;
     final owner = _owner;
+    final cacheId = translationCacheId(id, source);
     if (cache != null && owner != null) {
       try {
         final kept = await cache.translation(
           owner,
           kind.name,
-          id,
+          cacheId,
           target,
           DateTime.now(),
         );
@@ -77,7 +85,7 @@ class ContentTranslationRepository {
             .putTranslation(
               owner: owner,
               kind: kind.name,
-              id: id,
+              id: cacheId,
               target: target,
               body: text,
               now: DateTime.now(),
@@ -87,6 +95,14 @@ class ContentTranslationRepository {
     }
     return text;
   }
+}
+
+/// The phone cache id of a translation: the content id plus a short hash
+/// of the original text (verify 17.11 T3), so a changed text misses.
+String translationCacheId(String id, String? source) {
+  if (source == null) return id;
+  final h = sha256.convert(utf8.encode(source.trim())).toString();
+  return '$id#${h.substring(0, 16)}';
 }
 
 final contentTranslationRepositoryProvider =
