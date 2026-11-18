@@ -20,7 +20,10 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
-import { AssistantCodeService } from '../auth/assistant/assistant-code.service';
+import {
+  alreadyInTeam,
+  AssistantCodeService,
+} from '../auth/assistant/assistant-code.service';
 import { CaseCommentsService } from '../case-comments/case-comments.service';
 import { CommentsService } from '../comments/comments.service';
 import { FilesService } from '../files/files.service';
@@ -210,12 +213,7 @@ export class AssistantsService {
   async acceptInvite(user: RequestUser): Promise<AssistantMeDto> {
     await this.assertCanJoin(user.sub);
     const invite = await this.inviteFor(user.sub);
-    if (!invite) {
-      throw new NotFoundException({
-        code: ErrorCode.ASSISTANT_INVITE_NOT_FOUND,
-        message: 'No attorney has added this phone.',
-      });
-    }
+    if (!invite) throw inviteNotFound();
     await this.activate(user.sub, invite.id, invite.attorney_id);
     return this.me(user);
   }
@@ -253,20 +251,18 @@ export class AssistantsService {
       where: { assistant_user_id: userId, status: 'active' },
       select: { id: true },
     });
-    if (live) {
-      throw new ConflictException({
-        code: ErrorCode.ASSISTANT_PHONE_TAKEN,
-        message: 'You already work in an attorney team.',
-      });
-    }
+    if (live) throw alreadyInTeam();
   }
 
-  private async seatsOf(attorneyId: string) {
-    const sub = await this.prisma.subscription.findUnique({
+  private async seatsOf(
+    attorneyId: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    const sub = await db.subscription.findUnique({
       where: { user_id: attorneyId },
       select: { plan: true },
     });
-    const used = await this.prisma.assistantMembership.count({
+    const used = await db.assistantMembership.count({
       where: { attorney_id: attorneyId, status: { not: 'removed' } },
     });
     // Owner 2026-10-05 (plan builder): the plan's included seats + the
@@ -276,8 +272,11 @@ export class AssistantsService {
     return { seats, used, plan: sub?.plan ?? null };
   }
 
-  private async assertFreeSeat(attorneyId: string): Promise<void> {
-    const { seats, used } = await this.seatsOf(attorneyId);
+  private async assertFreeSeat(
+    attorneyId: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<void> {
+    const { seats, used } = await this.seatsOf(attorneyId, db);
     if (used + 1 > seats) {
       throw new ConflictException({
         code: ErrorCode.ASSISTANT_NO_FREE_SEAT,
@@ -292,20 +291,30 @@ export class AssistantsService {
     membershipId: string,
     attorneyId: string,
   ): Promise<void> {
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: assistantId },
-        data: { role: 'assistant' },
-      }),
-      this.prisma.assistantMembership.update({
-        where: { id: membershipId },
-        data: {
-          assistant_user_id: assistantId,
-          status: 'active',
-          joined_at: new Date(),
-        },
-      }),
-    ]);
+    // Verify 17.11 (A4): only a seat that is still an invite becomes
+    // active (P2025 otherwise), and the unique index on an active
+    // assistant (P2002) stops a second team won in a race.
+    try {
+      await this.prisma.$transaction([
+        this.prisma.user.update({
+          where: { id: assistantId },
+          data: { role: 'assistant' },
+        }),
+        this.prisma.assistantMembership.update({
+          where: { id: membershipId, status: 'invited' },
+          data: {
+            assistant_user_id: assistantId,
+            status: 'active',
+            joined_at: new Date(),
+          },
+        }),
+      ]);
+    } catch (e) {
+      const code = (e as { code?: string }).code;
+      if (code === 'P2002') throw alreadyInTeam();
+      if (code === 'P2025') throw inviteNotFound();
+      throw e;
+    }
     await this.context.invalidate(assistantId);
     await this.notifications.emit({
       type: 'assistant_joined',
@@ -372,15 +381,22 @@ export class AssistantsService {
     await this.assertDutyCount([], duties);
     const granted = liabilityDiff([], duties).granted;
     assertLiability(granted, dto.acceptLiability);
-    const m = await this.prisma.assistantMembership.create({
-      data: {
-        attorney_id: user.sub,
-        phone_e164: dto.phone ?? null,
-        display_name: dto.name ?? null,
-        approval: 'attorney_added',
-        status: 'invited',
-        duties,
-      },
+    // Verify 17.11 (A2): the seat count and the new seat under one
+    // per-attorney lock (the quick-replies pattern) — two taps or two
+    // devices can no longer both take the last seat.
+    const m = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`assistant-seats:${user.sub}`}))`;
+      await this.assertFreeSeat(user.sub, tx);
+      return tx.assistantMembership.create({
+        data: {
+          attorney_id: user.sub,
+          phone_e164: dto.phone ?? null,
+          display_name: dto.name ?? null,
+          approval: 'attorney_added',
+          status: 'invited',
+          duties,
+        },
+      });
     });
     await this.issueCode(m.id);
     await this.recordLiability(user, m.id, granted, [], meta);
@@ -1002,6 +1018,13 @@ function liabilityDiff(
     granted: after.filter((d) => L.includes(d) && !before.includes(d)),
     revoked: before.filter((d) => L.includes(d) && !after.includes(d)),
   };
+}
+
+function inviteNotFound(): NotFoundException {
+  return new NotFoundException({
+    code: ErrorCode.ASSISTANT_INVITE_NOT_FOUND,
+    message: 'No attorney has added this phone.',
+  });
 }
 
 /** OQ-049: "bids" / "publish" only with the attorney's explicit consent. */

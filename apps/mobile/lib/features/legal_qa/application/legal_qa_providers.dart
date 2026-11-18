@@ -60,8 +60,15 @@ class QuestionsNotifier extends SyncedListNotifier<Question> {
   @override
   SyncStateStore? get syncStore => ref.read(cacheDatabaseProvider);
 
+  /// Audit 17.11 (Q2): the server sends a «Mine» delta to a client only
+  /// (their own questions). An attorney's «Mine» is the questions they
+  /// answered: it catches up by its first page, so a question leaves once
+  /// the answer is deleted.
   @override
-  bool get catchesUp => query.filter == QaFilter.mine && query.q.trim().isEmpty;
+  bool get catchesUp =>
+      query.filter == QaFilter.mine &&
+      query.q.trim().isEmpty &&
+      !ref.read(actsAsAttorneyProvider);
 
   @override
   Future<PaginatedList<Question>> build() {

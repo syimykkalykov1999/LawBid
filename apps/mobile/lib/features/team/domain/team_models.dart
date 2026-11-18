@@ -611,7 +611,13 @@ class TaskItem {
     this.casePracticeCode,
     this.boardTask,
     this.consultationId,
+    this.version,
   });
+
+  /// Audit 17.11: the server's row version, sent back as `If-Match` on a
+  /// status change or an edit (409 STALE_VERSION when someone saved first).
+  /// Null for a case-workspace card (another API) and old local copies.
+  final int? version;
 
   /// The case's leaf practice code (the card's colour).
   final String? casePracticeCode;
@@ -725,6 +731,7 @@ class TaskItem {
         consultationId: consultationId,
         casePracticeCode: casePracticeCode,
         boardTask: boardTask,
+        version: version,
       );
 
   int get checkedSteps => steps.where((s) => s.checked).length;
