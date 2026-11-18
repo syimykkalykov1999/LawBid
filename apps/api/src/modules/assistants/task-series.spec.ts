@@ -130,4 +130,52 @@ describe('createNextOccurrence', () => {
       repeated_at: null,
     });
   });
+
+  // Verify 17.11, batch 6: the next task went to an assistant the
+  // attorney had removed — a task nobody could see or tick off.
+  describe('the assignee', () => {
+    function withMembership(active: boolean) {
+      const d = db();
+      const findFirst = jest
+        .fn()
+        .mockResolvedValue(active ? { id: 'mem-1' } : null);
+      (d.prisma as unknown as Record<string, unknown>).assistantMembership = {
+        findFirst,
+      };
+      return { ...d, findFirst };
+    }
+    const assigned = (create: jest.Mock) =>
+      (
+        create.mock.calls[0] as [
+          { data: { assignee_membership_id: string | null } },
+        ]
+      )[0].data.assignee_membership_id;
+
+    it('a still active assistant keeps the series', async () => {
+      const { prisma, create, findFirst } = withMembership(true);
+      await createNextOccurrence(
+        prisma,
+        series({ assignee_membership_id: 'mem-1' }),
+        'UTC',
+        NOW,
+      );
+      expect(findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'mem-1', attorney_id: 'u1', status: 'active' },
+        }),
+      );
+      expect(assigned(create)).toBe('mem-1');
+    });
+
+    it('a removed assistant: the next task is unassigned', async () => {
+      const { prisma, create } = withMembership(false);
+      await createNextOccurrence(
+        prisma,
+        series({ assignee_membership_id: 'mem-1' }),
+        'UTC',
+        NOW,
+      );
+      expect(assigned(create)).toBeNull();
+    });
+  });
 });

@@ -112,6 +112,7 @@ const ASYNC_METHODS = new Set([
   'deleteCoupon',
   'refund',
   'creditCustomerBalance',
+  'debitCustomerBalance',
   'createOneTimeCheckout',
   // Owner 2026-10-22: our own card page (PaymentIntents), cancel / restart.
   'createPaymentIntent',

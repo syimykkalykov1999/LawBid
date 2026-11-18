@@ -74,7 +74,14 @@ function setup(
       findUnique: jest.fn(),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
-    payment: { count: jest.fn().mockResolvedValue(0) },
+    payment: {
+      count: jest.fn().mockResolvedValue(0),
+      findUnique: jest.fn().mockResolvedValue(null),
+      // The attorney's qualifying invoice (batch 8 PA1), paid by default.
+      findFirst: jest
+        .fn()
+        .mockResolvedValue({ id: 'pay1', status: 'succeeded' }),
+    },
     user: {
       findUnique: jest.fn().mockResolvedValue({
         id: 'blogger',
@@ -309,10 +316,70 @@ describe('PartnersService.release / reverse / markPaid', () => {
 
     prisma.partnerCommission.findMany.mockResolvedValueOnce([held()]);
     prisma.payment.count.mockResolvedValueOnce(1);
+    prisma.payment.findFirst.mockResolvedValueOnce({
+      id: 'pay1',
+      status: 'refunded',
+    });
     prisma.partnerCommission.findUnique.mockResolvedValueOnce(held());
     expect(await svc.release(new Date('2026-10-20T00:00:00Z'))).toEqual({
       approved: 0,
       reversed: 1,
+    });
+  });
+
+  it('PA1 (batch 8): the hold is released when only another payment (a boost, stars) was refunded', async () => {
+    const { svc, prisma } = setup();
+    prisma.partnerCommission.findMany.mockResolvedValueOnce([held()]);
+    // A refunded promotion payment of the attorney; the invoice stands.
+    prisma.payment.count.mockResolvedValue(1);
+    expect(await svc.release(new Date('2026-10-20T00:00:00Z'))).toEqual({
+      approved: 1,
+      reversed: 0,
+    });
+  });
+
+  it('PA1 (batch 8): a refund reverses only the commission of the refunded subscription invoice', async () => {
+    const { svc, prisma } = setup();
+    // A promotion / stars payment (no invoice): nothing is reversed.
+    prisma.payment.findUnique.mockResolvedValueOnce({
+      id: 'pay9',
+      user_id: 'att',
+      stripe_invoice_id: null,
+    });
+    expect(
+      await svc.reverseForRefundedPayment('pay9', 'payment_refunded'),
+    ).toBe(0);
+    expect(prisma.partnerCommission.updateMany).not.toHaveBeenCalled();
+
+    // A later invoice (not the one that earned the commission): nothing.
+    prisma.payment.findUnique.mockResolvedValueOnce({
+      id: 'pay2',
+      user_id: 'att',
+      stripe_invoice_id: 'in_2',
+    });
+    prisma.partnerCommission.findMany.mockResolvedValueOnce([held()]);
+    expect(
+      await svc.reverseForRefundedPayment('pay2', 'payment_refunded'),
+    ).toBe(0);
+    expect(prisma.partnerCommission.updateMany).not.toHaveBeenCalled();
+
+    // The qualifying invoice: the attorney commission only.
+    prisma.payment.findUnique.mockResolvedValueOnce({
+      id: 'pay1',
+      user_id: 'att',
+      stripe_invoice_id: 'in_1',
+    });
+    prisma.partnerCommission.findMany.mockResolvedValueOnce([held()]);
+    prisma.partnerCommission.findUnique.mockResolvedValueOnce(held());
+    expect(
+      await svc.reverseForRefundedPayment('pay1', 'payment_refunded'),
+    ).toBe(1);
+    expect(prisma.partnerCommission.findMany).toHaveBeenLastCalledWith({
+      where: {
+        referred_user_id: 'att',
+        kind: 'attorney_subscription',
+        status: { in: ['held', 'approved', 'paid'] },
+      },
     });
   });
 

@@ -175,7 +175,9 @@ export class PushTokensService {
     const dead = rows.filter((r) => !isAlive(r)).map((r) => r.fcm_token);
     if (dead.length > 0) {
       await this.prisma.pushToken.deleteMany({
-        where: { fcm_token: { in: dead } },
+        // Verify batch 8 (17.11, PU1): only rows still of this user — a
+        // token that moved to another account meanwhile stays theirs.
+        where: { user_id: userId, fcm_token: { in: dead } },
       });
     }
     return rows

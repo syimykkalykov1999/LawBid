@@ -718,6 +718,7 @@ export class TasksService {
     await this.applyStatus(user, t, dto.status, {
       note: dto.outcomeNote,
       rescheduleTo: dto.rescheduleTo ? new Date(dto.rescheduleTo) : null,
+      expectedVersion,
     });
     return this.get(user, id);
   }
@@ -728,7 +729,11 @@ export class TasksService {
     user: RequestUser,
     t: TaskRow,
     status: AttorneyTaskStatus,
-    opts: { note?: string; rescheduleTo?: Date | null } = {},
+    opts: {
+      note?: string;
+      rescheduleTo?: Date | null;
+      expectedVersion?: number;
+    } = {},
   ): Promise<void> {
     if (t.consultation_id && opts.rescheduleTo) {
       throw new ConflictException({
@@ -742,28 +747,44 @@ export class TasksService {
     const next: AttorneyTaskStatus = reschedule ? 'open' : status;
     const finished = FINISHED.includes(next);
     const now = new Date();
-    await this.prisma.attorneyTask.update({
-      where: { id: t.id },
-      data: {
-        ...BUMP_VERSION,
-        status: next,
-        outcome_note: opts.note ?? t.outcome_note,
-        ...(reschedule
-          ? {
-              rescheduled_to: reschedule,
-              due_at: reschedule,
-              remind_at: remindAt(reschedule, t.remind_before_min),
-              reminded_at: remindedAtFor(
-                remindAt(reschedule, t.remind_before_min),
-              ),
-            }
-          : {}),
-        done_at: status === 'done' || status === 'not_done' ? now : null,
-        // Owner 2026-10-05: finished → the archive; back to work → out.
-        archived_at: finished ? (t.archived_at ?? now) : null,
-        ...(finished ? {} : { purge_notice_days: null }),
-      },
-    });
+    const expected = opts.expectedVersion;
+    try {
+      await this.prisma.attorneyTask.update({
+        // Verify 17.11 (A3): compare-and-set like update() — a save made
+        // since the read matches nothing (P2025) and answers 409.
+        where: {
+          id: t.id,
+          ...(expected !== undefined ? { version: expected } : {}),
+        },
+        data: {
+          ...BUMP_VERSION,
+          status: next,
+          outcome_note: opts.note ?? t.outcome_note,
+          ...(reschedule
+            ? {
+                rescheduled_to: reschedule,
+                due_at: reschedule,
+                remind_at: remindAt(reschedule, t.remind_before_min),
+                reminded_at: remindedAtFor(
+                  remindAt(reschedule, t.remind_before_min),
+                ),
+              }
+            : {}),
+          done_at: status === 'done' || status === 'not_done' ? now : null,
+          // Owner 2026-10-05: finished → the archive; back to work → out.
+          archived_at: finished ? (t.archived_at ?? now) : null,
+          ...(finished ? {} : { purge_notice_days: null }),
+        },
+      });
+    } catch (error) {
+      if (
+        expected !== undefined &&
+        (error as { code?: string }).code === 'P2025'
+      ) {
+        throw staleVersion(expected + 1);
+      }
+      throw error;
+    }
     if (finished && next !== 'cancelled') await this.repeatNext(t);
     const a = user.assistant;
     if (a) {

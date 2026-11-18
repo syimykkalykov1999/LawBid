@@ -29,7 +29,9 @@ import 'package:lawbid/features/team/application/team_providers.dart'
         isAssistantProvider,
         syncAllTasks,
         taskPeopleProvider,
-        teamRepositoryProvider;
+        tasksHubProvider,
+        teamRepositoryProvider,
+        whenStaleRefetch;
 import 'package:lawbid/features/team/domain/team_models.dart'
     show
         TaskDraft,
@@ -1244,26 +1246,34 @@ Future<void> updatePlannerTaskFrom(
     ),
   ];
   final timed = r.dueAt != null;
-  await repo.updateTask(
+  // Audit 17.11: the edit carries the task's version (If-Match); a 409
+  // STALE_VERSION re-reads the task so the lists show the other save.
+  await whenStaleRefetch(
+    repo,
+    ref.read(tasksHubProvider),
     task.id,
-    TaskDraft(
-      kind: task.kind,
-      title: r.title,
-      notes: r.text.isEmpty ? null : r.text,
-      caseId: r.caseId,
-      priority: r.priority ?? TaskPriority.normal,
-      assigneeMembershipId: r.assigneeMembershipId,
-      dueAt: r.dueAt,
-      remindBeforeMin: timed ? r.remindBeforeMin : null,
-      fileIds: ids,
-      places: task.places,
-      people: task.people,
-      // A repeat needs a time.
-      repeat: timed ? task.repeat : TaskRepeat.none,
-      repeatUntil:
-          timed && task.repeat != TaskRepeat.none ? task.repeatUntil : null,
-      conversationId: task.conversationId,
-      keepForever: task.keepForever,
+    () => repo.updateTask(
+      task.id,
+      TaskDraft(
+        kind: task.kind,
+        title: r.title,
+        notes: r.text.isEmpty ? null : r.text,
+        caseId: r.caseId,
+        priority: r.priority ?? TaskPriority.normal,
+        assigneeMembershipId: r.assigneeMembershipId,
+        dueAt: r.dueAt,
+        remindBeforeMin: timed ? r.remindBeforeMin : null,
+        fileIds: ids,
+        places: task.places,
+        people: task.people,
+        // A repeat needs a time.
+        repeat: timed ? task.repeat : TaskRepeat.none,
+        repeatUntil:
+            timed && task.repeat != TaskRepeat.none ? task.repeatUntil : null,
+        conversationId: task.conversationId,
+        keepForever: task.keepForever,
+      ),
+      version: task.version,
     ),
   );
   final byId = {for (final s in task.steps) s.id: s};

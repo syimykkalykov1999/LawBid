@@ -87,4 +87,65 @@ describe('ContactsPepper', () => {
     );
     expect(logger.warn).not.toHaveBeenCalled();
   });
+
+  /** Batch 8 CS1 (audit 2026-11-17). */
+  describe('rotation and a task started without the secret (CS1)', () => {
+    const PREV = 'previous_contacts_pepper_at_least_32_chars';
+    const hmacPrev = (h: string) =>
+      createHmac('sha256', PREV).update(h).digest('hex');
+    const cfg = (env: Record<string, string | undefined>) =>
+      ({ get: (k: string) => env[k] }) as never;
+
+    it('reads rows sealed with CONTACTS_PEPPER_PREVIOUS while a rotation runs; writes only the new one', () => {
+      const p = new ContactsPepper(
+        cfg({ CONTACTS_PEPPER: PEPPER, CONTACTS_PEPPER_PREVIOUS: PREV }),
+      );
+      expect(p.row(sha('+1'))).toEqual({
+        phone_hash: hmac(sha('+1')),
+        peppered: true,
+      });
+      expect(p.forms(sha('+1'))).toEqual([
+        hmac(sha('+1')),
+        hmacPrev(sha('+1')),
+        sha('+1'),
+      ]);
+      expect(p.where([sha('+1')])).toEqual({
+        OR: [
+          { phone_hash: { in: [hmac(sha('+1'))] }, peppered: true },
+          { phone_hash: { in: [hmacPrev(sha('+1'))] }, peppered: true },
+          { phone_hash: { in: [sha('+1')] }, peppered: false },
+        ],
+      });
+      expect(p.unsealMap([sha('+1')]).get(hmacPrev(sha('+1')))).toBe(sha('+1'));
+    });
+
+    function withRows(peppered: boolean, env: string) {
+      const prisma = {
+        contactBookHash: {
+          findFirst: jest.fn(() =>
+            Promise.resolve(peppered ? { owner_id: 'u1' } : null),
+          ),
+        },
+      };
+      return new ContactsPepper(
+        cfg({ NODE_ENV: env }),
+        { setContext: jest.fn(), warn: jest.fn() } as never,
+        prisma as never,
+      );
+    }
+
+    it('production refuses to start without the pepper once peppered rows exist (never a silent plain fallback)', async () => {
+      await expect(withRows(true, 'production').onModuleInit()).rejects.toThrow(
+        /CONTACTS_PEPPER/,
+      );
+      // Before the pepper was ever used: a warning only, as before.
+      await expect(
+        withRows(false, 'production').onModuleInit(),
+      ).resolves.toBeUndefined();
+      // Elsewhere: never blocks a dev machine.
+      await expect(
+        withRows(true, 'development').onModuleInit(),
+      ).resolves.toBeUndefined();
+    });
+  });
 });

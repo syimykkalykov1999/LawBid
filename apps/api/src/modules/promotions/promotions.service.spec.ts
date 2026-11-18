@@ -95,6 +95,7 @@ function setup(opts: { enabled?: boolean; credits?: number } = {}) {
         Promise.resolve(days),
     ),
     restorePromotionCredits: jest.fn().mockResolvedValue(0),
+    reconsumePromotionCredits: jest.fn().mockResolvedValue(true),
   };
   const provider = {
     createOneTimeCheckout: jest
@@ -538,6 +539,88 @@ describe('PromotionsService.applyCheckout', () => {
     await s.service.applyCheckout(session);
     const data = s.prisma.casePromotion.update.mock.calls[0][0].data;
     expect(data.starts_at).toEqual(runningEnd);
+  });
+
+  /** Batch 8 (audit 2026-11-17): the unspent-refund helper is the money path. */
+  function withRefunds(s: ReturnType<typeof setup>) {
+    const unspent = { refundUnapplied: jest.fn().mockResolvedValue(3000) };
+    const service = new PromotionsService(
+      s.prisma as unknown as PrismaService,
+      { get: jest.fn() } as unknown as ConfigService,
+      s.referrals as unknown as ReferralsService,
+      s.provider as unknown as PaymentProvider,
+      ...(Array(9).fill(undefined) as []),
+      unspent as never,
+    );
+    return { service, unspent };
+  }
+
+  it('PM1: a payment for a promotion an admin canceled is booked and refunded in full, never kept', async () => {
+    const s = setup();
+    const { service, unspent } = withRefunds(s);
+    s.prisma.casePromotion.findUnique.mockResolvedValue({
+      ...pending,
+      status: 'canceled',
+      canceled_by: 'admin1',
+      cancel_reason: 'spam',
+    });
+    expect(await service.applyCheckout(session)).toBe(false);
+    expect(s.prisma.payment.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        user_id: 'owner',
+        stripe_payment_intent_id: 'pi_1',
+        amount_cents: 3000,
+        status: 'succeeded',
+      }),
+    });
+    const data = s.prisma.casePromotion.update.mock.calls[0][0].data;
+    expect(data).toEqual({ payment_id: 'pay1' });
+    expect(unspent.refundUnapplied).toHaveBeenCalledWith('p1', 'pay1', 3000);
+
+    // Replayed webhook: the payment is already booked → nothing twice.
+    s.prisma.casePromotion.findUnique.mockResolvedValue({
+      ...pending,
+      status: 'canceled',
+      canceled_by: 'admin1',
+      payment_id: 'pay1',
+    });
+    s.prisma.payment.create.mockClear();
+    unspent.refundUnapplied.mockClear();
+    expect(await service.applyCheckout(session)).toBe(false);
+    expect(s.prisma.payment.create).not.toHaveBeenCalled();
+    expect(unspent.refundUnapplied).not.toHaveBeenCalled();
+  });
+
+  it('PM2: a revived expired checkout spends its credit days again', async () => {
+    const s = setup();
+    s.prisma.casePromotion.findUnique.mockResolvedValue({
+      ...pending,
+      status: 'canceled',
+      cancel_reason: 'checkout_expired',
+    });
+    expect(await s.service.applyCheckout(session)).toBe(true);
+    expect(s.referrals.reconsumePromotionCredits).toHaveBeenCalledWith(
+      s.prisma,
+      'owner',
+      'p1',
+    );
+    const data = s.prisma.casePromotion.update.mock.calls[0][0].data;
+    expect(data.status).toBe('active');
+  });
+
+  it('PM2: credit days gone meanwhile → not revived, the payment refunded in full', async () => {
+    const s = setup();
+    const { service, unspent } = withRefunds(s);
+    s.referrals.reconsumePromotionCredits.mockResolvedValue(false);
+    s.prisma.casePromotion.findUnique.mockResolvedValue({
+      ...pending,
+      status: 'canceled',
+      cancel_reason: 'superseded',
+    });
+    expect(await service.applyCheckout(session)).toBe(false);
+    const data = s.prisma.casePromotion.update.mock.calls[0][0].data;
+    expect(data).toEqual({ payment_id: 'pay1' });
+    expect(unspent.refundUnapplied).toHaveBeenCalledWith('p1', 'pay1', 3000);
   });
 });
 

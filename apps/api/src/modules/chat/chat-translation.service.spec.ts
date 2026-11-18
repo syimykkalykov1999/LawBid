@@ -32,6 +32,11 @@ function setup(opts: {
       store.set(k, String(n));
       return Promise.resolve(n);
     }),
+    decr: jest.fn((k: string) => {
+      const n = Number(store.get(k) ?? 0) - 1;
+      store.set(k, String(n));
+      return Promise.resolve(n);
+    }),
     expire: jest.fn(() => Promise.resolve(1)),
   });
   const prisma = {
@@ -175,7 +180,9 @@ describe('ChatTranslationService', () => {
     ).rejects.toMatchObject({
       response: { code: ErrorCode.TRANSLATION_UNAVAILABLE },
     });
-    // A failed call does not use up the person's daily quota.
-    expect(s.redis.incr).not.toHaveBeenCalled();
+    // A failed call does not use up the person's daily quota: the slot
+    // reserved before the call (verify 17.11 T5) is given back.
+    const day = new Date().toISOString().slice(0, 10);
+    expect(Number(s.store.get(`tr:quota:u1:${day}`) ?? 0)).toBe(0);
   });
 });
