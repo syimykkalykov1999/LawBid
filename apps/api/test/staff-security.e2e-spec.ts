@@ -10,6 +10,7 @@ import { StaffCardWatch } from '../src/modules/staff-security/staff-card-watch';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { adminSession, type AdminSession } from './support/admin-login';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Staff package T11 (data security) in the real API: the mass-work workspace
@@ -77,7 +78,7 @@ describe('Staff data security (e2e)', () => {
         key: { in: ['admin.country_allowlist', 'staff.reveal_per_day'] },
       },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     await app.close();
   });
 
@@ -91,7 +92,7 @@ describe('Staff data security (e2e)', () => {
     for (const [k, v] of Object.entries(on)) {
       if (typeof v === 'number') await put(k, v);
     }
-    await redis.del('config:app_config'); // bypass the cache
+    await dropAppConfigCache(redis); // bypass the cache
   }
   async function put(key: string, value: unknown) {
     await prisma.appConfig.upsert({
@@ -271,7 +272,7 @@ describe('Staff data security (e2e)', () => {
     const c = await worker();
     await getUser(c, { 'CF-IPCountry': 'RU' }).expect(200);
     await put('admin.country_allowlist', ['US', 'KG']);
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     await getUser(c, { 'CF-IPCountry': 'KG' }).expect(200);
     const ru = await getUser(c, { 'CF-IPCountry': 'RU' }).expect(403);
     expect(ru.body.error.code).toBe('ADMIN_COUNTRY_NOT_ALLOWED');

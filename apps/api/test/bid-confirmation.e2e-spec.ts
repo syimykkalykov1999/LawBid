@@ -10,6 +10,7 @@ import { BidsService } from '../src/modules/bids/bids.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /** Owner 2026-11-05: a change of an open case makes active bids wait for the
  * attorney (`bids.confirmation_required`). */
@@ -76,7 +77,7 @@ describe('Bid confirmation after a case change (e2e)', () => {
         create: { key, value },
         update: { value },
       });
-    await redis.del('config:app_config'); // bypass the 30 s cache
+    await dropAppConfigCache(redis); // bypass the 30 s cache
   }
 
   async function user(

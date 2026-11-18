@@ -12,6 +12,7 @@ import { FirmsService } from '../src/modules/firms/firms.service';
 import { AccountAnonymizationService } from '../src/modules/privacy/account-anonymization.service';
 import { shardContext } from '../src/sharding/shard-context';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Owner 2026-10-14: a firm is its lawyers. Members keep their own licences;
@@ -627,7 +628,7 @@ describe('Firm profile (e2e)', () => {
       });
     }
     // AppConfigService caches the whole table in Redis for 30 s.
-    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+    await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
   }
 
   it('an invitation tells the lawyer and is valid for the set number of days', async () => {

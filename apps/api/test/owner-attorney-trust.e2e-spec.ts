@@ -11,6 +11,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { AttorneyTrustService } from '../src/modules/attorney-trust/attorney-trust.service';
 import { adminSession } from './support/admin-login';
 import { AttorneyAdvertisingService } from '../src/modules/countries/attorney-advertising.service';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Owner 2026-10-05: attorney trust levels. Registration stays one step
@@ -92,7 +93,7 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
     await prisma.appConfig.create({
       data: { key: 'trust.bids_require_cleared', value: false },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
   }
 
   async function setSetting(key: string, value: number | boolean) {
@@ -101,7 +102,7 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
       create: { key, value },
       update: { value },
     });
-    await redis.del('config:app_config'); // bypass the 30 s cache
+    await dropAppConfigCache(redis); // bypass the 30 s cache
   }
 
   function auth(id: string, role: 'client' | 'attorney') {

@@ -16,6 +16,7 @@ import { FilesService } from '../src/modules/files/files.service';
 import { S3StorageService } from '../src/modules/files/storage/s3-storage.service';
 import { EICAR_SIGNATURE } from '../src/modules/files/scanning/virus-scanner';
 import { variantKey } from '../src/modules/files/files.policy';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * docs/03_VERIFICATION_PROFILES.md §11 stage 3.2 acceptance, against the
@@ -793,7 +794,7 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
         create: { key: 'verification.signed_url_ttl_sec', value: 2 },
         update: { value: 2 },
       });
-      await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+      await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
       try {
         const { url, expiresAt } = await app
           .get(FilesService)
@@ -810,7 +811,7 @@ describe('Files (e2e) — presign, confirm, scan, signed links', () => {
           where: { key: 'verification.signed_url_ttl_sec' },
           data: { value: 300 },
         });
-        await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+        await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
       }
     });
   });

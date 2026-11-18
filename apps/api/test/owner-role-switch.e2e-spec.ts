@@ -12,6 +12,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { attachCleanAvatar } from './support/clean-avatar';
 import { attachPractice } from './support/attach-practice';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Owner 2026-11-05: Settings → Account «Сменить профиль». The same account
@@ -94,7 +95,7 @@ describe('Role switch (e2e)', () => {
       create: { key, value },
       update: { value },
     });
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
   }
 
   function nextPhone(): string {
