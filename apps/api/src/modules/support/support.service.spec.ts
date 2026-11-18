@@ -225,3 +225,14 @@ describe('SupportService (app side)', () => {
     expect(prisma.supportTicket.update).not.toHaveBeenCalled();
   });
 });
+
+describe('verify 18.11 (batch 10)', () => {
+  it('SU4: the user close clears the SLA due time like the admin close', async () => {
+    const { service, prisma } = setup({ found: ticket({ status: 'open' }) });
+    await service.close(USER, TICKET);
+    expect(prisma.supportTicket.update.mock.calls[0][0].data).toMatchObject({
+      status: 'closed',
+      sla_due_at: null,
+    });
+  });
+});

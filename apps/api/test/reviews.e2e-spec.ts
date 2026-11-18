@@ -11,6 +11,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { ReviewModerationService } from '../src/modules/reviews/review-moderation.service';
 import { ReviewReminderJob } from '../src/jobs/handlers/review-reminder.job';
 import { RatingReconcileJob } from '../src/jobs/handlers/rating-reconcile.job';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * docs/03_VERIFICATION_PROFILES.md stage 3.7 acceptance, against real
@@ -88,7 +89,7 @@ describe('Reviews (e2e, docs/03 §7)', () => {
         update: { value },
       });
     }
-    await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+    await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
   });
 
   afterAll(async () => {

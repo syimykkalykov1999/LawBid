@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, PrismaClient } from '../../generated/prisma/client';
 import { heldSqlFor } from '../../common/privacy/legal-hold';
@@ -20,7 +20,7 @@ const MAX_PER_RUN = 2_000_000;
  * row of a case or a person under a legal hold stays (round 13, S13-6).
  */
 @Injectable()
-export class JournalRetentionService implements OnModuleDestroy {
+export class JournalRetentionService implements OnApplicationShutdown {
   private retention?: PrismaClient;
 
   constructor(
@@ -83,7 +83,13 @@ export class JournalRetentionService implements OnModuleDestroy {
     return deleted;
   }
 
-  async onModuleDestroy(): Promise<void> {
+  // Row 213 (KNOWN_ERRORS 193): closed in onApplicationShutdown, not
+  // onModuleDestroy. Nest runs onModuleDestroy for every module first and
+  // JobsRunner drains its workers only in onApplicationShutdown, so a
+  // retention job still running at shutdown re-opened a pool closed in
+  // onModuleDestroy (Prisma connects lazily) and nothing closed it again.
+  // PrivacyModule is @Global (its hooks run last in every phase), so this hook runs after JobsRunner's.
+  async onApplicationShutdown(): Promise<void> {
     await this.retention?.$disconnect();
   }
 }

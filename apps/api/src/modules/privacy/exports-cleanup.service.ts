@@ -6,6 +6,9 @@ import { S3StorageService } from '../files/storage/s3-storage.service';
 
 /** A queued/processing export older than this is considered lost. */
 const STALE_AFTER_MS = 24 * 3600 * 1000;
+/** Expired exports per read, and reads per run (the next run continues). */
+const PAGE = 1000;
+const MAX_PAGES = 50;
 
 /**
  * docs/06 §5.3 "очистка … просроченные экспорт-файлы": ready exports past
@@ -47,52 +50,70 @@ export class ExportsCleanupService {
   ): Promise<{ expired: number; failed: number; webhookEvents: number }> {
     const webhookEvents = await this.pruneWebhookEvents(now);
     const held = await heldTargets(this.prisma, 'user', now);
-    const due = await this.prisma.dataExportJob.findMany({
-      where: {
-        status: 'ready',
-        expires_at: { lt: now },
-        user_id: held.length ? { notIn: held } : undefined,
-      },
-      include: {
-        file: { select: { id: true, s3_bucket: true, s3_key: true } },
-      },
-      take: 1000,
-    });
-    // Round 13 (S13-6): an export of a person under a legal hold is evidence.
-    const heldFiles = await heldIds(
-      this.prisma,
-      'file',
-      due.flatMap((j) => (j.file ? [j.file.id] : [])),
-      now,
-    );
-    const heldUsers = await heldIds(
-      this.prisma,
-      'user',
-      [...new Set(due.map((j) => j.user_id))],
-      now,
-    );
     let expired = 0;
-    for (const job of due) {
-      if (
-        (job.file && heldFiles.has(job.file.id)) ||
-        heldUsers.has(job.user_id)
-      ) {
-        continue;
-      }
-      if (job.file) {
-        if (this.storage.configured) {
-          await this.storage.remove(job.file.s3_bucket, [job.file.s3_key]);
-        }
-        await this.prisma.file.update({
-          where: { id: job.file.id },
-          data: { deleted_at: now },
-        });
-      }
-      await this.prisma.dataExportJob.update({
-        where: { id: job.id },
-        data: { status: 'expired' },
+    // Verify 18.11 (PV6): oldest first, page after page (keyset on id), so
+    // held exports that stay `ready` never block the ones behind them; one
+    // failed storage delete is logged and retried next run, not fatal.
+    let cursor: string | undefined;
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const due = await this.prisma.dataExportJob.findMany({
+        where: {
+          status: 'ready',
+          expires_at: { lt: now },
+          user_id: held.length ? { notIn: held } : undefined,
+        },
+        include: {
+          file: { select: { id: true, s3_bucket: true, s3_key: true } },
+        },
+        orderBy: [{ expires_at: 'asc' }, { id: 'asc' }],
+        take: PAGE,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       });
-      expired += 1;
+      if (due.length === 0) break;
+      // Round 13 (S13-6): an export of a person under a legal hold is evidence.
+      const heldFiles = await heldIds(
+        this.prisma,
+        'file',
+        due.flatMap((j) => (j.file ? [j.file.id] : [])),
+        now,
+      );
+      const heldUsers = await heldIds(
+        this.prisma,
+        'user',
+        [...new Set(due.map((j) => j.user_id))],
+        now,
+      );
+      for (const job of due) {
+        if (
+          (job.file && heldFiles.has(job.file.id)) ||
+          heldUsers.has(job.user_id)
+        ) {
+          continue;
+        }
+        try {
+          if (job.file) {
+            if (this.storage.configured) {
+              await this.storage.remove(job.file.s3_bucket, [job.file.s3_key]);
+            }
+            await this.prisma.file.update({
+              where: { id: job.file.id },
+              data: { deleted_at: now },
+            });
+          }
+          await this.prisma.dataExportJob.update({
+            where: { id: job.id },
+            data: { status: 'expired' },
+          });
+          expired += 1;
+        } catch (err) {
+          this.logger.warn(
+            { err, exportId: job.id },
+            'expired export not removed; retried next run',
+          );
+        }
+      }
+      if (due.length < PAGE) break;
+      cursor = due[due.length - 1].id;
     }
     const { count: failed } = await this.prisma.dataExportJob.updateMany({
       where: {

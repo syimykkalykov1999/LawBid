@@ -11,6 +11,7 @@ import {
   type BarLookupProvider,
   type IdVerificationProvider,
 } from '../src/modules/verification/providers/verification-providers';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * docs/03_VERIFICATION_PROFILES.md stage 3.1 acceptance: the modules boot,
@@ -60,7 +61,7 @@ describe('Stage 3.1 — modules, migration, cached settings', () => {
     });
     // Drop the cache AFTER the write: background readers of this app (the
     // push limiter, the cron lanes) may re-cache the table at any moment.
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     const settings = app.get(AppSettingsService);
     expect(await settings.number('review.edit_window_days')).toBe(21);
     expect(await redis.get('config:app_config')).toContain(

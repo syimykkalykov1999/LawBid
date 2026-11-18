@@ -11,6 +11,7 @@ import { EntitlementsService } from '../src/modules/plans/entitlements.service';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { adminSession, type AdminSession } from './support/admin-login';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Owner 2026-10-05: the document templates library — the admin uploads a
@@ -350,7 +351,7 @@ describe('Document templates (e2e, owner 2026-10-05)', () => {
         create: { key: 'files.document_template_max_size_mb', value },
         update: { value },
       });
-      await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+      await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
     };
     afterAll(async () => {
       await setFlag(false);

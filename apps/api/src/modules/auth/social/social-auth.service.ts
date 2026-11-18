@@ -23,7 +23,7 @@ import { RateLimitService } from '../services/rate-limit.service';
 import { LoginMethodPolicy } from '../services/login-method-policy.service';
 import { ClientFraudService } from '../../client-fraud/client-fraud.service';
 import { AccountBansService } from '../../account-bans/account-bans.service';
-import { AuthService } from '../auth.service';
+import { AuthService, cancelDeletionOnLogin } from '../auth.service';
 import { SocialNonceService } from './social-nonce.service';
 
 /**
@@ -182,11 +182,9 @@ export class SocialAuthService {
       // successful authentication during the grace period cancels the
       // pending deletion, social login included. (A suspended or deleted
       // account is refused by finishLogin below, before this matters.)
-      user = await this.prisma.user.update({
-        where: { id: user.id },
-        data: { status: 'active', deletion_requested_at: null },
-      });
-      deletionCancelled = true;
+      const back = await cancelDeletionOnLogin(this.prisma, user);
+      user = back.user;
+      deletionCancelled = back.cancelled;
     }
 
     // S14-5: from here on the sign-in is the SAME one OTP and password use

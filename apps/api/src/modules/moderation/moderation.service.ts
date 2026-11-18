@@ -68,6 +68,30 @@ export class ModerationService {
     @Optional() private readonly outbox?: CrossFamilyOutbox,
   ) {}
 
+  /**
+   * Verify 18.11 (MO5): a moderator's own decision stands — true when the
+   * latest human hide / remove / restore on the object (after [since], when
+   * given) is a hide or a remove. An automatic or picture-check restore
+   * must not undo it.
+   */
+  async humanHiddenSince(
+    type: ReportTargetType,
+    id: string,
+    since?: Date,
+  ): Promise<boolean> {
+    const last = await this.prisma.moderationAction.findFirst({
+      where: {
+        target_type: type,
+        target_id: id,
+        action: { in: ['hide', 'remove', 'restore'] },
+        ...(since ? { created_at: { gte: since } } : {}),
+      },
+      orderBy: { created_at: 'desc' },
+      select: { action: true },
+    });
+    return last?.action === 'hide' || last?.action === 'remove';
+  }
+
   async resolve(
     type: ReportTargetType,
     id: string,

@@ -8,6 +8,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { totpCode } from '../src/modules/admin-auth/totp.util';
 import { adminSession, type AdminSession } from './support/admin-login';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Staff package T2: workspaces in the real API. The owner puts admins into
@@ -72,7 +73,7 @@ describe('Workspaces and the workspace head (e2e)', () => {
   async function setSwitches(workspaces: boolean, head: boolean) {
     await setKey('staff.workspaces_enabled', workspaces);
     await setKey('staff.head_enabled', head);
-    await redis.del('config:app_config'); // bypass the cache
+    await dropAppConfigCache(redis); // bypass the cache
   }
 
   async function stepUp(a: AdminSession) {

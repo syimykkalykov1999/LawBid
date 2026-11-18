@@ -8,6 +8,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Owner 2026-10-17 (OQ-053): a percent (contingency) budget on a case and a
@@ -262,7 +263,7 @@ describe('Percent budgets and bids (e2e, OQ-053)', () => {
       update: { value: 40 },
     });
     const redis = app.get<Redis>(REDIS_CLIENT);
-    await redis.del('config:app_config');
+    await dropAppConfigCache(redis);
     try {
       const capped = await newCase(cli, {
         budgetMode: 'percent',
@@ -273,7 +274,7 @@ describe('Percent budgets and bids (e2e, OQ-053)', () => {
       await prisma.appConfig.delete({
         where: { key: 'fees.contingency_max_percent' },
       });
-      await redis.del('config:app_config');
+      await dropAppConfigCache(redis);
     }
   });
 });

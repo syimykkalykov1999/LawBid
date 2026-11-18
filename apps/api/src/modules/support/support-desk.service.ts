@@ -209,6 +209,31 @@ export class SupportDeskService {
     });
   }
 
+  /** Admins on shift who may still answer: an active admin account with
+   * the support right (super admin or support at `manage`). */
+  async answeringAgentsOnShift(
+    tx: Tx | PrismaService = this.prisma,
+  ): Promise<string[]> {
+    const agents = await tx.supportAgent.findMany({
+      where: { on_shift: true },
+      select: { admin_id: true },
+    });
+    if (agents.length === 0) return [];
+    const admins = await tx.user.findMany({
+      where: {
+        id: { in: agents.map((a) => a.admin_id) },
+        role: 'admin',
+        status: 'active',
+        deleted_at: null,
+      },
+      select: {
+        id: true,
+        admin_profile: { select: { admin_role: true, permissions: true } },
+      },
+    });
+    return admins.filter((a) => canAnswer(a.admin_profile)).map((a) => a.id);
+  }
+
   /** The agent on shift with the fewest open tickets (under their cap)
    * who still holds the support right. */
   async pickAgent(tx: Tx): Promise<string | null> {
@@ -323,11 +348,9 @@ export class SupportDeskService {
     for (const t of tickets) if (t.assignee_id) add(t.assignee_id, [t]);
     const unassigned = tickets.filter((t) => !t.assignee_id);
     if (unassigned.length > 0) {
-      const onShift = await this.prisma.supportAgent.findMany({
-        where: { on_shift: true },
-        select: { admin_id: true },
-      });
-      let to = onShift.map((a) => a.admin_id);
+      // Verify 18.11 (SU5): only agents who still hold the support right
+      // (the same rule as the auto-assignment) get the ticket subjects.
+      let to = await this.answeringAgentsOnShift();
       if (to.length === 0) {
         const owners = await this.prisma.adminProfile.findMany({
           where: { admin_role: 'super_admin' },

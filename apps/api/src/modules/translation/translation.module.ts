@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { BlocksModule } from '../blocks/blocks.module';
 import { CasesModule } from '../cases/cases.module';
+import { PrivacySettingsModule } from '../privacy-settings/privacy-settings.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { ContentTranslationService } from './content-translation.service';
 import { TranslationController } from './translation.controller';
@@ -14,7 +16,12 @@ import { TranslationService } from './translation.service';
 export class TranslationCoreModule {}
 
 @Module({
-  imports: [TranslationCoreModule, CasesModule],
+  imports: [
+    TranslationCoreModule,
+    CasesModule,
+    BlocksModule,
+    PrivacySettingsModule,
+  ],
   controllers: [TranslationController],
   providers: [ContentTranslationService],
 })

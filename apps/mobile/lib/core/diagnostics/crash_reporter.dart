@@ -97,7 +97,10 @@ class CrashReporter {
       if (!enabled) return;
       // Owner 2026-10-20: the same error also goes to Sentry (own filter).
       SentryReporter.capture(error, stack, fatal: fatal, route: _route);
-      final message = '${error.runtimeType}: $error';
+      // Verify 18.11 (CR1): the same filter as the Sentry copy — no e-mails,
+      // phone numbers or URL queries; a network error is kind, status, path.
+      final message =
+          '${error.runtimeType}: ${SentryReporter.scrubMessage(error)}';
       final trace = (stack ?? StackTrace.current).toString();
       final head = message.length > 160 ? message.substring(0, 160) : message;
       final key = '$head|${trace.split('\n').take(3).join('|')}';

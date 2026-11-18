@@ -3,6 +3,10 @@ import { Injectable, Module, OnApplicationShutdown } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { JournalRetentionService } from '../src/modules/privacy/journal-retention.service';
+import { PrivacyRetentionService } from '../src/modules/privacy/privacy-retention.service';
+import { DataRetentionService } from '../src/modules/storage/data-retention.service';
+import { StorageCoreModule } from '../src/modules/storage/storage.module';
 
 /**
  * Row 213 / KNOWN_ERRORS 179: «API e2e» went red at random with «Test
@@ -38,6 +42,43 @@ class InFlightJob implements OnApplicationShutdown {
 }
 @Module({ providers: [InFlightJob] })
 class JobsLikeModule {}
+
+type RetentionClient = { $queryRaw: PrismaService['$queryRaw'] };
+/** The cron job's view of the retention services: their own client. */
+@Injectable()
+class InFlightRetentionJob implements OnApplicationShutdown {
+  result: unknown;
+  constructor(
+    private readonly journal: JournalRetentionService,
+    private readonly privacy: PrivacyRetentionService,
+    private readonly data: DataRetentionService,
+  ) {}
+  async query(): Promise<number[]> {
+    const clients = [
+      (this.journal as unknown as { client(): RetentionClient }).client(),
+      (this.privacy as unknown as { retention(): RetentionClient }).retention(),
+      (this.data as unknown as { retention(): RetentionClient }).retention(),
+    ];
+    const out: number[] = [];
+    for (const c of clients) {
+      const rows = await c.$queryRaw<{ one: number }[]>`SELECT 1 AS one`;
+      out.push(rows[0].one);
+    }
+    return out;
+  }
+  // Same place as JobsRunner.onApplicationShutdown (cron.processor runs
+  // storage.retention / privacy.retention / journal retention).
+  async onApplicationShutdown(): Promise<void> {
+    this.result = await this.query();
+  }
+}
+// Like JobsModule: imports StorageCoreModule, gets the privacy services
+// from the @Global PrivacyModule.
+@Module({
+  imports: [StorageCoreModule],
+  providers: [InFlightRetentionJob],
+})
+class RetentionJobsLikeModule {}
 
 /** Every socket node-pg opens to the test database (pg/lib/stream.js
  * `new net.Socket()` then `connect(port, host)`); the spy calls through. */
@@ -84,5 +125,37 @@ describe('shutdown order: workers before the database (row 213)', () => {
     // Before the fix: the pool the job re-opened after Prisma's
     // $disconnect is still connected here, after app.close() resolved.
     expect(openDbSockets()).toBe(0);
+  });
+
+  // The three retention services own a second client (RETENTION_DATABASE_URL,
+  // the `lawbid_retention` role). They closed it in onModuleDestroy, before
+  // JobsRunner drains the cron job that uses it, so the same re-open leak
+  // stayed for them. Now they close it in onApplicationShutdown, after the
+  // workers (PrivacyModule is @Global; JobsModule imports StorageCoreModule).
+  it('a retention job finishing during app.close() leaves no open socket on the retention client', async () => {
+    const saved = process.env.RETENTION_DATABASE_URL;
+    process.env.RETENTION_DATABASE_URL = process.env.DATABASE_URL;
+    try {
+      const mod = await Test.createTestingModule({
+        imports: [AppModule, RetentionJobsLikeModule],
+      }).compile();
+      const app = mod.createNestApplication();
+      await app.init();
+      const job = app.get(InFlightRetentionJob);
+      // Each client is open (a cron run used it earlier).
+      expect(await job.query()).toEqual([1, 1, 1]);
+      const before = openDbSockets();
+      expect(before).toBeGreaterThan(0);
+      await app.close();
+      await new Promise((r) => setTimeout(r, 500));
+
+      expect(job.result).toEqual([1, 1, 1]);
+      // Before the fix: the three pools the job re-opened after their
+      // onModuleDestroy $disconnect are still connected here.
+      expect(openDbSockets()).toBe(0);
+    } finally {
+      if (saved === undefined) delete process.env.RETENTION_DATABASE_URL;
+      else process.env.RETENTION_DATABASE_URL = saved;
+    }
   });
 });

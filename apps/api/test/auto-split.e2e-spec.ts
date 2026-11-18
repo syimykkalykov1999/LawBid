@@ -12,6 +12,7 @@ import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { ShardMoveService } from '../src/sharding/move/shard-move.service';
 import { shardContext } from '../src/sharding/shard-context';
 import { pgAdapter } from '../src/prisma/pg-adapter';
+import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
 /**
  * Owner 2026-11-11 (db.shards_mode = Авто, «создавай условия и проверяй
@@ -95,7 +96,7 @@ const run = (process.env.E2E_TWO_DB ?? '').trim().toLowerCase() === 'empty';
         create: { key: 'growth.shard_db_gb', value: 0.001 },
         update: { value: 0.001 },
       });
-      await app.get<Redis>(REDIS_CLIENT).del('config:app_config');
+      await dropAppConfigCache(app.get<Redis>(REDIS_CLIENT));
       const settings = app.get(AppSettingsService);
       const growth = await app.get(PartitionService).shardSignal();
       expect(growth.status).toBe('red');

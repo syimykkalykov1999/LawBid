@@ -40,7 +40,13 @@ export class ConsentsService {
         ip: meta.ip,
       })),
     });
-    if (dto.consents.some((c) => c.type === 'analytics')) {
+    // Verify 18.11 (AN3): «Do not sell or share» is part of the analytics
+    // gate too — its cached answer is dropped at once like the analytics one.
+    if (
+      dto.consents.some(
+        (c) => c.type === 'analytics' || c.type === 'do_not_sell',
+      )
+    ) {
       await this.analytics?.invalidate(userId);
     }
   }

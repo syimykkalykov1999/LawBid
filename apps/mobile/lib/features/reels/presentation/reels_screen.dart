@@ -19,6 +19,7 @@ import 'package:lawbid/features/promotions/presentation/promotion_cta_button.dar
 import 'package:lawbid/features/reels/application/reel_publish_job.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
+import 'package:lawbid/features/reels/presentation/reel_web_stepper.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
@@ -99,6 +100,10 @@ class ReelsScreen extends ConsumerStatefulWidget {
 class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   late final PageController _pages =
       PageController(initialPage: widget.initialIndex);
+
+  /// Row 193: on the website the wheel, the trackpad and the arrow keys
+  /// page the reels one at a time.
+  late final ReelWebStepper _web = ReelWebStepper(_pages);
   late final List<Post> _items = [...widget.initial];
   // Ids of _items, kept beside it: dedupe is O(1) per page, not a rebuilt set.
   late final Set<String> _seenIds = {for (final p in widget.initial) p.id};
@@ -328,36 +333,44 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                         ),
                 )
               : _refreshable(
-                  PageView.builder(
-                    controller: _pages,
-                    scrollDirection: Axis.vertical,
-                    itemCount: items.length,
-                    // Owner 2026-10-15: the neighbours are built (and warmed).
-                    allowImplicitScrolling: true,
-                    onPageChanged: (i) {
-                      _index.value = i;
-                      if (i >= items.length - 3) _load();
-                      _warmAhead(items, i);
-                    },
-                    itemBuilder: (_, i) => WebReelFrame(
-                      child: _ReelSlot(
-                        index: _index,
-                        presence: widget.presence,
-                        page: i,
-                        builder: ({
-                          required active,
-                          required warm,
-                          required hold,
-                        }) =>
-                            _ReelPage(
-                          key: ValueKey(items[i].id),
-                          post: items[i],
-                          active: active,
-                          warm: warm,
-                          hold: hold,
-                          muted: muted,
-                          embedded: true,
-                          soundButton: true,
+                  ReelWebPager(
+                    stepper: _web,
+                    child: PageView.builder(
+                      controller: _pages,
+                      physics: _web.physics,
+                      scrollDirection: Axis.vertical,
+                      itemCount: items.length,
+                      // Owner 2026-10-15: the neighbours are built (and
+                      // warmed).
+                      allowImplicitScrolling: true,
+                      onPageChanged: (i) {
+                        _index.value = i;
+                        if (i >= items.length - 3) _load();
+                        _warmAhead(items, i);
+                      },
+                      itemBuilder: (_, i) => ReelWheelTarget(
+                        stepper: _web,
+                        child: WebReelFrame(
+                          child: _ReelSlot(
+                            index: _index,
+                            presence: widget.presence,
+                            page: i,
+                            builder: ({
+                              required active,
+                              required warm,
+                              required hold,
+                            }) =>
+                                _ReelPage(
+                              key: ValueKey(items[i].id),
+                              post: items[i],
+                              active: active,
+                              warm: warm,
+                              hold: hold,
+                              muted: muted,
+                              embedded: true,
+                              soundButton: true,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -407,35 +420,43 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
                 )
               else
                 _refreshable(
-                  PageView.builder(
-                    controller: _pages,
-                    scrollDirection: Axis.vertical,
-                    itemCount: items.length,
-                    // Owner 2026-10-15: the neighbours are built (and warmed).
-                    allowImplicitScrolling: true,
-                    onPageChanged: (i) {
-                      _index.value = i;
-                      if (i >= items.length - 3) _load();
-                      _warmAhead(items, i);
-                    },
-                    itemBuilder: (_, i) => WebReelFrame(
-                      child: _ReelSlot(
-                        index: _index,
-                        presence: widget.presence,
-                        page: i,
-                        builder: ({
-                          required active,
-                          required warm,
-                          required hold,
-                        }) =>
-                            _ReelPage(
-                          key: ValueKey(items[i].id),
-                          post: items[i],
-                          active: active,
-                          warm: warm,
-                          hold: hold,
-                          muted: muted,
-                          embedded: _underNavBar,
+                  ReelWebPager(
+                    stepper: _web,
+                    child: PageView.builder(
+                      controller: _pages,
+                      physics: _web.physics,
+                      scrollDirection: Axis.vertical,
+                      itemCount: items.length,
+                      // Owner 2026-10-15: the neighbours are built (and
+                      // warmed).
+                      allowImplicitScrolling: true,
+                      onPageChanged: (i) {
+                        _index.value = i;
+                        if (i >= items.length - 3) _load();
+                        _warmAhead(items, i);
+                      },
+                      itemBuilder: (_, i) => ReelWheelTarget(
+                        stepper: _web,
+                        child: WebReelFrame(
+                          child: _ReelSlot(
+                            index: _index,
+                            presence: widget.presence,
+                            page: i,
+                            builder: ({
+                              required active,
+                              required warm,
+                              required hold,
+                            }) =>
+                                _ReelPage(
+                              key: ValueKey(items[i].id),
+                              post: items[i],
+                              active: active,
+                              warm: warm,
+                              hold: hold,
+                              muted: muted,
+                              embedded: _underNavBar,
+                            ),
+                          ),
                         ),
                       ),
                     ),

@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, PrismaClient } from '../../generated/prisma/client';
 import { allHeldIds, heldSqlFor } from '../../common/privacy/legal-hold';
@@ -86,7 +86,7 @@ export interface RetentionResult {
  * audit_log, data_access_log, case_journal before retain_until, chats.
  */
 @Injectable()
-export class DataRetentionService implements OnModuleDestroy {
+export class DataRetentionService implements OnApplicationShutdown {
   private retentionDb?: PrismaClient;
   /** Pace of the run in progress (settings read once per run). */
   private pace!: RetentionPace;
@@ -388,7 +388,13 @@ export class DataRetentionService implements OnModuleDestroy {
     return this.retentionDb;
   }
 
-  async onModuleDestroy(): Promise<void> {
+  // Row 213 (KNOWN_ERRORS 193): closed in onApplicationShutdown, not
+  // onModuleDestroy. Nest runs onModuleDestroy for every module first and
+  // JobsRunner drains its workers only in onApplicationShutdown, so a
+  // retention job still running at shutdown re-opened a pool closed in
+  // onModuleDestroy (Prisma connects lazily) and nothing closed it again.
+  // JobsModule imports StorageCoreModule (the deeper module runs later), so this hook runs after JobsRunner's.
+  async onApplicationShutdown(): Promise<void> {
     await this.retentionDb?.$disconnect();
   }
 }
