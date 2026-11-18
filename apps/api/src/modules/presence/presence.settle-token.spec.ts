@@ -32,6 +32,7 @@ describe('PresenceService offline hold token (C3)', () => {
       { user: { updateMany } } as never,
       redis as never,
       {} as never,
+      {} as never,
     );
     return { svc, kv, updateMany };
   }

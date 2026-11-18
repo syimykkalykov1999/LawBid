@@ -40,6 +40,7 @@ describe('PresenceSettleJob (C4)', () => {
       prisma as never,
       redis as never,
       {} as never,
+      {} as never,
     );
     const job = new PresenceSettleJob(prisma as never, redis as never);
     return {
