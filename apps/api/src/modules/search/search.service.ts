@@ -509,8 +509,9 @@ export class SearchService {
 
   /**
    * Verify 17.11: covers are picked once for everyone (shared cache); a
-   * cover from the post of someone blocked either way is dropped per viewer
-   * (one primary-key read of the shown cover posts).
+   * cover from the post of someone blocked either way, or one the viewer's
+   * «only legal» setting excludes, is dropped per viewer (one primary-key
+   * read of the shown cover posts).
    */
   private async hideBlockedCovers(
     user: RequestUser | undefined,
@@ -520,14 +521,23 @@ export class SearchService {
       ...new Set(list.flatMap((t) => (t.coverPostId ? [t.coverPostId] : []))),
     ];
     if (!user?.sub || ids.length === 0) return list;
-    const hidden = await this.blocks.hiddenIds(user.sub);
-    if (hidden.size === 0) return list;
+    const [hidden, only] = await Promise.all([
+      this.blocks.hiddenIds(user.sub),
+      this.viewerOnly(user.sub),
+    ]);
+    if (hidden.size === 0 && !only) return list;
     const posts = await this.prisma.post.findMany({
       where: { id: { in: ids } },
-      select: { id: true, author_id: true },
+      select: { id: true, author_id: true, content_class: true },
     });
+    // Verify 17.11: also a cover the viewer's «only legal» setting excludes
+    // (a general post's picture), as every post list does.
     const blocked = new Set(
-      posts.filter((p) => hidden.has(p.author_id)).map((p) => p.id),
+      posts
+        .filter(
+          (p) => hidden.has(p.author_id) || (only && p.content_class !== only),
+        )
+        .map((p) => p.id),
     );
     if (blocked.size === 0) return list;
     return list.map((t) =>
