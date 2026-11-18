@@ -27,7 +27,7 @@ import { ReferralsService } from '../referrals/referrals.service';
 import { PartnersService } from '../partners/partners.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { PAYMENT_PROVIDER } from './billing.constants';
-import { PricingService } from './pricing.service';
+import { hotlinePriceKind, PricingService } from './pricing.service';
 import { hotlineAddonSync } from './hotline-addon.logic';
 import {
   PI_TAX_CALCULATION_KEY,
@@ -323,6 +323,7 @@ export class SubscriptionSyncService {
         typeof seats.price_cents === 'number'
           ? seats.price_cents
           : local.price_cents,
+        await this.removedAddonCents(tx, local, remote, hotlinePriceIds),
       );
       // Verify 17.11 (batch 9): seats or the hotline add-on changed by
       // Stripe (a 3-D Secure seat purchase landing, a Dashboard edit) left
@@ -711,6 +712,27 @@ export class SubscriptionSyncService {
    * Yearly rows and subscriptions without a known seat item are left as
    * they are.
    */
+  /** The plan's «Горячая линия» price, only when Stripe no longer has the
+   * add-on the row still shows (a removal outside the app) — the same
+   * amount the app's turn-off takes off the monthly total. */
+  private async removedAddonCents(
+    tx: Prisma.TransactionClient,
+    local: Subscription,
+    remote: ProviderSubscription,
+    ids: ReadonlySet<string> | null,
+  ): Promise<number | null> {
+    if (!local.hotline_addon || !local.plan_id || !this.pricing) return null;
+    if (!remote.items || !ids || ids.size === 0) return null;
+    if (remote.items.some((i) => ids.has(i.priceId) && i.quantity > 0)) {
+      return null;
+    }
+    const plan = await tx.plan.findUnique({
+      where: { id: local.plan_id },
+      select: { code: true },
+    });
+    return plan ? this.pricing.amountOf(hotlinePriceKind(plan.code)) : null;
+  }
+
   private async seatSync(
     tx: Prisma.TransactionClient,
     local: Subscription,

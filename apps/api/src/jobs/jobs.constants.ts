@@ -309,7 +309,14 @@ export type CronJobName = (typeof CRON_JOBS)[keyof typeof CRON_JOBS];
 export const ONE_OFF_JOBS = {
   callerGone: 'calls.caller-gone',
   presenceSettle: 'presence.settle',
+  // Verify 17.11 (batch 9): «Пересчитать всех» from the admin — one
+  // serializable recompute per attorney is too long for an HTTP request.
+  trustRecomputeAll: 'trust.recompute-all',
 } as const;
+
+/** One waiting run of «Пересчитать всех» at a time (a double click adds
+ * nothing while the first is queued or running). */
+export const TRUST_RECOMPUTE_ALL_JOB_ID = 'trust-recompute-all';
 export type OneOffJobName = (typeof ONE_OFF_JOBS)[keyof typeof ONE_OFF_JOBS];
 
 export function isOneOffJob(name: string): name is OneOffJobName {

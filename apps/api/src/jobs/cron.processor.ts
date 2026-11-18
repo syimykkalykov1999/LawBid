@@ -539,6 +539,12 @@ export class CronProcessor {
         return this.presenceSettle
           ? this.presenceSettle.run(data)
           : { skipped: 'no presence settle' };
+      case ONE_OFF_JOBS.trustRecomputeAll:
+        return this.trust.recomputeAll(200, {
+          notifyNewlyRequired:
+            (data as { notifyNewlyRequired?: unknown } | null)
+              ?.notifyNewlyRequired === true,
+        });
       default:
         return { skipped: 'unknown one-off job' };
     }

@@ -8,13 +8,21 @@ part 'recompute_all_result_dto.g.dart';
 
 @JsonSerializable()
 class RecomputeAllResultDto {
-  const RecomputeAllResultDto({required this.attorneys, required this.changed});
+  const RecomputeAllResultDto({
+    required this.attorneys,
+    required this.changed,
+    required this.queued,
+  });
 
   factory RecomputeAllResultDto.fromJson(Map<String, Object?> json) =>
       _$RecomputeAllResultDtoFromJson(json);
 
   final int attorneys;
   final int changed;
+
+  /// Verify 17.11: true = the run was handed to the background worker.
+  /// (the counts come in the audit log when it ends); false = it ran here.
+  final bool queued;
 
   Map<String, Object?> toJson() => _$RecomputeAllResultDtoToJson(this);
 }

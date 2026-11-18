@@ -195,6 +195,28 @@ export class ClientReviewsService {
       });
     }
     const existing = revived ? null : found;
+    // Verify 17.11 (batch 9): one counted review per attorney and client
+    // (as on attorney reviews, owner 2026-10-06; Airbnb/Uber: one per
+    // pair). A new case review next to the attorney's live review of this
+    // client (open, or of another case) made two in the client's rating;
+    // that one is edited instead (PUT …/reviews/mine finds it).
+    if (!existing) {
+      const other = await this.prisma.clientReview.findFirst({
+        where: {
+          client_id: kase.client_id,
+          attorney_id: user.sub,
+          status: { not: 'removed' },
+          ...(found ? { id: { not: found.id } } : {}),
+        },
+        select: { id: true },
+      });
+      if (other) {
+        throw new ConflictException({
+          code: ErrorCode.REVIEW_ALREADY_EXISTS,
+          message: 'You have already reviewed this client.',
+        });
+      }
+    }
     // An edit is screened like a new review: otherwise a clean review
     // could be edited into held text that stays public (coordinator review
     // 09.11). A held edit is hidden and queued for the moderators.
@@ -494,28 +516,40 @@ export class ClientReviewsService {
       });
     }
     await this.moderation?.assertCanReport(user.sub);
-    const open = await this.prisma.report.findFirst({
-      where: {
-        reporter_id: user.sub,
-        target_type: 'client_review',
-        target_id: reviewId,
-        status: 'open',
+    // Verify 17.11 (batch 9): a double tap made two open reports from one
+    // person (the check and the insert were apart), which also counted
+    // twice towards the three reporters that hide a review. One lock per
+    // reporter and review (reports are global: primary database).
+    const { report, created } = await primaryClient(this.prisma).$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`report:${user.sub}:client_review:${reviewId}`}, 0))`;
+        const open = await tx.report.findFirst({
+          where: {
+            reporter_id: user.sub,
+            target_type: 'client_review',
+            target_id: reviewId,
+            status: 'open',
+          },
+          select: { id: true, status: true },
+        });
+        if (open) return { report: open, created: false };
+        const made = await tx.report.create({
+          data: {
+            reporter_id: user.sub,
+            target_type: 'client_review',
+            target_id: reviewId,
+            reason,
+            note: note ?? null,
+          },
+          select: { id: true, status: true },
+        });
+        return { report: made, created: true };
       },
-      select: { id: true, status: true },
-    });
-    if (open) return open;
-    const created = await this.prisma.report.create({
-      data: {
-        reporter_id: user.sub,
-        target_type: 'client_review',
-        target_id: reviewId,
-        reason,
-        note: note ?? null,
-      },
-      select: { id: true, status: true },
-    });
-    await this.moderation?.autoHideIfThreshold('client_review', reviewId);
-    return created;
+    );
+    if (created) {
+      await this.moderation?.autoHideIfThreshold('client_review', reviewId);
+    }
+    return report;
   }
 
   /** POST /client-reviews/:id/appeal — the reviewed client, once. */
