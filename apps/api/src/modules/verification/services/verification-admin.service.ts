@@ -364,9 +364,26 @@ export class VerificationAdminService {
     }
     const doc = await this.prisma.verificationDocument.findUnique({
       where: { id: documentId },
-      select: { id: true, request_id: true, file_id: true, doc_type: true },
+      select: {
+        id: true,
+        request_id: true,
+        file_id: true,
+        doc_type: true,
+        request: { select: { attorney_id: true } },
+      },
     });
-    if (!doc) throw notFound('Document not found.');
+    // VE1 (17.11): out of the verifier's countries = not found (no link, no
+    // audited view), as in the queue and the card.
+    if (
+      !doc ||
+      !(await this.attorneyInScope(
+        this.prisma,
+        doc.request?.attorney_id,
+        admin.countries,
+      ))
+    ) {
+      throw notFound('Document not found.');
+    }
     const link = await this.files.verificationFileUrl(doc.file_id);
     await this.audit.record({
       adminId: admin.id,
@@ -394,7 +411,7 @@ export class VerificationAdminService {
     now = new Date(),
   ): Promise<AdminVerificationRequestDto> {
     await withTxRetry(this.prisma, async (tx) => {
-      const req = await this.requestOr404(tx, requestId);
+      const req = await this.requestOr404(tx, requestId, admin.countries);
       if (req.status === 'in_review') {
         if (req.reviewed_by === admin.id) return;
         throw locked(req.reviewed_by);
@@ -1327,17 +1344,39 @@ export class VerificationAdminService {
     );
   }
 
-  private async requestOr404(tx: Tx, requestId: string) {
+  /** VE1 (17.11): [countries] is the admin's scope — an attorney outside
+   * it is «not found», like a missing request (queue and card do the same). */
+  private async requestOr404(
+    tx: Tx,
+    requestId: string,
+    countries: CountryScope = null,
+  ) {
     const req = await tx.verificationRequest.findUnique({
       where: { id: requestId },
     });
-    if (!req) throw notFound('Verification request not found.');
+    if (!req || !(await this.attorneyInScope(tx, req.attorney_id, countries)))
+      throw notFound('Verification request not found.');
     return req;
   }
 
-  /** The request must be in review by THIS verifier. */
+  /** True when the attorney's account is in the admin's country scope (no
+   * scope = everyone). */
+  private async attorneyInScope(
+    db: Pick<Tx, 'user'>,
+    attorneyId: string | undefined,
+    countries: CountryScope,
+  ): Promise<boolean> {
+    if (!countries) return true;
+    if (!attorneyId) return false;
+    const n = await db.user.count({
+      where: { id: attorneyId, ...userInScope(countries) },
+    });
+    return n > 0;
+  }
+
+  /** The request must be in review by THIS verifier (and in their scope). */
   private async myReview(tx: Tx, admin: AdminActor, requestId: string) {
-    const req = await this.requestOr404(tx, requestId);
+    const req = await this.requestOr404(tx, requestId, admin.countries);
     if (req.status !== 'in_review') throw invalidStatus(req.status);
     if (req.reviewed_by !== admin.id) throw locked(req.reviewed_by);
     return req;

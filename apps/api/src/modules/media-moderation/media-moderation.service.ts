@@ -53,6 +53,7 @@ import {
   CHECK_MAX_PX,
   QUEUE_STATUSES,
   REHIDE_DELAY_MS,
+  REHIDE_WINDOW_MS,
   isModeratedPurpose,
   type ModerationLabel,
 } from './media-moderation.constants';
@@ -286,7 +287,7 @@ export class MediaModerationService {
         status: { in: [...BLOCKING_STATUSES] },
         decision: null,
         checked_at: {
-          gte: new Date(now.getTime() - 24 * 3_600_000),
+          gte: new Date(now.getTime() - REHIDE_WINDOW_MS),
           lte: new Date(now.getTime() - REHIDE_DELAY_MS),
         },
       },
@@ -663,7 +664,13 @@ export class MediaModerationService {
       where: { id: check.id },
       data: { hidden_targets: merged as unknown as Prisma.InputJsonValue },
     });
-    if (targets.length === 0) await this.queue.enqueueRehide(check.id);
+    // Tried again while the sweep would still look at it (24 h, see
+    // rehideSweep), so a picture that is never posted does not keep a job
+    // every 10 minutes for ever (verify batch 13, Q1).
+    const since = (check.checked_at ?? check.created_at).getTime();
+    if (targets.length === 0 && Date.now() - since < REHIDE_WINDOW_MS) {
+      await this.queue.enqueueRehide(check.id);
+    }
     // CONTENT H-2: the author hears it once (the first time anything of
     // theirs went down); never for a CSAM match (no tip-off).
     if (

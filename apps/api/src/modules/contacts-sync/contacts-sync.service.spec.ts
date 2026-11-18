@@ -14,6 +14,7 @@ import {
 import { ContactsPepper } from './contacts-pepper';
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { USAGE_LIMITS } from '../../common/usage-limits/usage-limits.service';
+import { fakeMulti } from '../../../test/support/fake-redis-multi';
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
@@ -108,6 +109,8 @@ function make(
       Promise.resolve(sets.get(key)?.size ?? 0),
     ),
   };
+  Object.assign(redis, { multi: fakeMulti(redis) });
+
   const files = { avatarUrlsMany: jest.fn().mockResolvedValue(new Map()) };
   // No CONTACTS_PEPPER here: the stored form is the client hash itself
   // (the pepper's own behaviour is in contacts-pepper.spec.ts).

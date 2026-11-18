@@ -108,6 +108,9 @@ export function pgAdapterConfig(raw: string): PgAdapterConfig {
   const idleTimeoutMillis =
     seconds(q.get('max_idle_connection_lifetime'), 300) * 1000;
   const maxLifetimeSeconds = seconds(q.get('max_connection_lifetime'), 0);
+  // Verify batch 13 (P1): Prisma 6's `socket_timeout` (seconds) was dropped
+  // in silence; node-pg's client-side `query_timeout` is the same guard.
+  const socketTimeout = seconds(q.get('socket_timeout'), 0);
 
   const mode = q.get('sslmode')?.trim().toLowerCase();
   let ssl: PoolConfig['ssl'] = false;
@@ -142,6 +145,15 @@ export function pgAdapterConfig(raw: string): PgAdapterConfig {
       connectionTimeoutMillis,
       idleTimeoutMillis,
       ...(maxLifetimeSeconds > 0 ? { maxLifetimeSeconds } : {}),
+      ...(socketTimeout > 0 ? { query_timeout: socketTimeout * 1000 } : {}),
+      // Verify batch 13 (P1): TCP keepalive on every pooled connection
+      // (node-pg's default is off). Without it a connection to a database
+      // host that vanished without a reset (failover, a dropped NAT / NLB
+      // entry) hangs until the kernel gives up, ~15 min, and an idle pooled
+      // socket the network forgot is only found on the next query. The
+      // node-postgres option, as recommended for cloud databases.
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10_000,
       ssl,
     },
     ...(schema ? { schema } : {}),

@@ -19,6 +19,7 @@ async function make(
     limited?: boolean;
     otpResult?: 'ok' | 'invalid' | 'expired' | 'locked';
     noPassword?: boolean;
+    status?: 'active' | 'suspended' | 'deleted';
     throttle?: Record<string, jest.Mock>;
     settings?: { number: jest.Mock };
   } = {},
@@ -27,7 +28,7 @@ async function make(
   const hash = await passwords.hash('Demo1234!');
   const user = {
     id: 'u1',
-    status: 'active',
+    status: opts.status ?? 'active',
     phone_e164: '+14155552680',
     phone_verified_at: new Date(),
     email: opts.verifiedEmail ? 'sofia@example.com' : null,
@@ -65,7 +66,17 @@ async function make(
   };
   const authEvents = { record: jest.fn().mockResolvedValue(undefined) };
   const loginMethods = {
-    assertEnabled: jest.fn().mockResolvedValue(undefined),
+    // The e-mail channel follows the admin switch like the real policy.
+    assertEnabled: jest.fn((method: string) =>
+      method === 'email' && opts.emailFlowsOn === false
+        ? Promise.reject(
+            new ForbiddenException({
+              code: ErrorCode.AUTH_PROVIDER_DISABLED,
+              details: { method },
+            }),
+          )
+        : Promise.resolve(undefined),
+    ),
     assertPlatformAllowed: jest.fn().mockResolvedValue(undefined),
     isEnabled: jest.fn().mockResolvedValue(opts.emailFlowsOn ?? true),
   };
@@ -151,6 +162,29 @@ describe('PasswordAuthService', () => {
       META,
     );
     expect(a).toEqual({ registered: false, hasPassword: false });
+  });
+
+  it('AU1 (17.11): a registered number without a password says so, and the app sends it to «Забыл пароль»', async () => {
+    const { service } = await make({ noPassword: true });
+    const a = await service.phoneStatus({ identifier: '+14155552680' }, META);
+    expect(a).toEqual({ registered: true, hasPassword: false });
+  });
+
+  it('AU4 (17.11): password sign-in by e-mail is refused while the e-mail channel is off (phone + password only)', async () => {
+    const { service, auth, prisma } = await make({
+      verifiedEmail: true,
+      emailFlowsOn: false,
+    });
+    const err = await service
+      .login({ identifier: 'sofia@example.com', password: 'Demo1234!' }, META)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ForbiddenException);
+    expect((err as ForbiddenException).getResponse()).toMatchObject({
+      code: ErrorCode.AUTH_PROVIDER_DISABLED,
+      details: { method: 'email' },
+    });
+    expect(prisma.userIdentifier.findUnique).not.toHaveBeenCalled();
+    expect(auth.finishLogin).not.toHaveBeenCalled();
   });
 
   it('owner 2026-10-14: guesses are counted per account AND source, so a stranger cannot lock the owner out', async () => {
@@ -410,6 +444,33 @@ describe('PasswordAuthService', () => {
       );
       expect(auth.finishLogin).toHaveBeenCalled();
     });
+
+    it.each(['suspended', 'deleted'] as const)(
+      'AU2 (17.11): a %s account is refused BEFORE the password is stored or any session ends',
+      async (status) => {
+        const { service, prisma, revocation, auth } = await make({ status });
+        const err = await service
+          .confirmReset(
+            {
+              identifier: '+14155552680',
+              code: '000000',
+              newPassword: 'Brand-new-1',
+            },
+            META,
+          )
+          .catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(ForbiddenException);
+        expect((err as ForbiddenException).getResponse()).toMatchObject({
+          code:
+            status === 'suspended'
+              ? ErrorCode.ACCOUNT_SUSPENDED
+              : ErrorCode.ACCOUNT_DELETED,
+        });
+        expect(prisma.user.update).not.toHaveBeenCalled();
+        expect(revocation.revokeAllChainsForUser).not.toHaveBeenCalled();
+        expect(auth.finishLogin).not.toHaveBeenCalled();
+      },
+    );
 
     it('does not change the password on a wrong code', async () => {
       const { service, prisma } = await make({ otpResult: 'invalid' });

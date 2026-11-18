@@ -3,6 +3,7 @@ import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { heldTargets } from '../../common/privacy/legal-hold';
+import { AttorneyTaskRepeat } from '../../generated/prisma/enums';
 
 import { FileReleaseService } from '../../modules/files/storage/file-release.service';
 import { NotificationsService } from '../../modules/notifications/notifications.service';
@@ -24,6 +25,15 @@ const MISSED_WINDOW_MS = 2 * DAY_MS;
 /** Outlives the window a reminder can be sent in. */
 const CLAIM_TTL_SEC = 4 * 24 * 3600;
 const BATCH = 500;
+/**
+ * Every repeat kind but `none`, as a list: `repeat IN (...)` reads
+ * attorney_tasks_series_due_idx (repeat, due_at), while `repeat <> 'none'`
+ * can only filter a full scan of the table, every minute (verify batch 13,
+ * DB5; the enum stays an index column, KNOWN_ERRORS 118).
+ */
+const REPEATING = Object.values(AttorneyTaskRepeat).filter(
+  (r) => r !== AttorneyTaskRepeat.none,
+);
 /** Days before removal when the owner hears about it. */
 export const PURGE_NOTICE_DAYS = [30, 7] as const;
 
@@ -140,7 +150,7 @@ export class TaskRemindersJob {
     try {
       const rows = await this.prisma.attorneyTask.findMany({
         where: {
-          repeat: { not: 'none' },
+          repeat: { in: REPEATING },
           repeated_at: null,
           due_at: { lte: now },
           status: { in: ['open', 'taken'] },

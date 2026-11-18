@@ -26,12 +26,19 @@ function setup() {
       return Promise.resolve(1);
     }),
     exists: jest.fn((k: string) => Promise.resolve(hash.has(k) ? 1 : 0)),
-    eval: jest.fn((_s: string, _n: number, k: string) => {
-      const h = hash.get(k);
-      if (!h || h.chats === undefined) return Promise.resolve(0);
-      h.chats = String(Number(h.chats) + 1);
-      return Promise.resolve(Number(h.chats));
-    }),
+    eval: jest.fn(
+      (s: string, _n: number, k: string, f?: string, v?: string) => {
+        const h = hash.get(k);
+        if (s.includes("'HSET'")) {
+          if (!h || f === undefined) return Promise.resolve(0);
+          h[f] = String(v);
+          return Promise.resolve(1);
+        }
+        if (!h || h.chats === undefined) return Promise.resolve(0);
+        h.chats = String(Number(h.chats) + 1);
+        return Promise.resolve(Number(h.chats));
+      },
+    ),
     get: jest.fn().mockResolvedValue(null),
     set: jest.fn().mockResolvedValue('OK'),
     multi: jest.fn(() => {

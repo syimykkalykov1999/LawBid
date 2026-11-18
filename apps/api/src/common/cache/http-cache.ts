@@ -42,6 +42,7 @@ export function hasCredentials(req: Pick<Request, 'headers'>): boolean {
 }
 
 const PUBLIC = /(^|[\s,])public(?=[\s,=]|$)/i;
+const PRIVATE = /(^|[\s,])private(?=[\s,=]|$)/i;
 
 /** Adds [names] to the Vary header without duplicates. */
 function addVary(res: Response, names: string[]): void {
@@ -70,8 +71,19 @@ export function enforceCacheSafety(
     res.setHeader('Cache-Control', 'private, no-store');
     return;
   }
+  // Verify batch 13 (E2): a private answer is one account's view. Without
+  // `Vary: Authorization` a browser (the web app, a shared computer) kept
+  // account A's copy under the URL and revalidated it while signed in as B;
+  // the cheap ETags carry the viewer's flags, not who the viewer is, so a
+  // matching 304 showed B what A saw. The admin middleware already does
+  // this for /admin.
   if (!cc) {
     res.setHeader('Cache-Control', 'private, no-cache');
+    addVary(res, ['Authorization']);
+    return;
+  }
+  if (PRIVATE.test(cc)) {
+    addVary(res, ['Authorization']);
     return;
   }
   if (PUBLIC.test(cc)) {

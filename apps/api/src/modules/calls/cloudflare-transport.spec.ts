@@ -6,6 +6,7 @@ import {
   clientReportMin,
   parseTransport,
 } from './cloudflare-transport';
+import { fakeMulti } from '../../../test/support/fake-redis-multi';
 
 /** The few Redis commands the breaker uses, with real expiry by a clock. */
 class FakeRedis {
@@ -23,11 +24,12 @@ class FakeRedis {
     this.kv.set(k, { v: String(n), until: e?.until ?? null });
     return Promise.resolve(n);
   }
-  pexpire(k: string, ms: number) {
+  pexpire(k: string, ms: number, mode?: 'NX') {
     const e = this.live(k);
-    if (e) e.until = this.now() + ms;
+    if (e && !(mode === 'NX' && e.until !== null)) e.until = this.now() + ms;
     return Promise.resolve(1);
   }
+  multi = fakeMulti(this);
   set(k: string, v: string, unit: 'EX' | 'PX', n: number, nx: 'NX') {
     void nx;
     if (this.live(k)) return Promise.resolve(null);

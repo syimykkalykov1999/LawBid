@@ -118,7 +118,19 @@ class AuthInterceptor extends Interceptor {
     // out here, saying why.
     if (apiError.code == ApiErrorCodes.authSignedInElsewhere ||
         apiError.code == ApiErrorCodes.authSessionRevoked) {
-      if (_ref.read(sessionControllerProvider) != null && !_signingOut) {
+      // CL1 (17.11): a late answer for a request sent with an OLDER token
+      // (a demo session, the account before a new sign-in) is about that
+      // ended session — it must not sign out the one now in place. Same
+      // check as the TOKEN_EXPIRED branch below.
+      final current = _ref.read(sessionControllerProvider)?.accessToken;
+      final sentWith = err.requestOptions.headers['Authorization'];
+      final staleToken = current != null &&
+          sentWith is String &&
+          sentWith.startsWith('Bearer ') &&
+          sentWith != 'Bearer $current';
+      if (_ref.read(sessionControllerProvider) != null &&
+          !_signingOut &&
+          !staleToken) {
         _signingOut = true;
         try {
           await _ref.read(sessionControllerProvider.notifier).clear();

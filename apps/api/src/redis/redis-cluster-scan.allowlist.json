@@ -70,6 +70,11 @@
     "reason": "VERIFY_LUA keys (code, attempts, lock, strikes) are built by one helper family that wraps them in ck(idHash)."
   },
   {
+    "file": "modules/calls/cloudflare-transport.ts",
+    "kind": "multi",
+    "reason": "incrWindow (verify batch 13, N1): INCR and PEXPIRE NX of ONE breaker counter key (calls:cf:*:<part>) in one MULTI: one key, one slot."
+  },
+  {
     "file": "modules/calls/sfu-state.store.ts",
     "kind": "multi",
     "reason": "MULTI of HSET+EXPIRE on the same single key."
@@ -83,6 +88,11 @@
     "file": "modules/cases/services/case-view-tracking.service.ts",
     "kind": "multi",
     "reason": "Restores HINCRBY on the single cv:pending key."
+  },
+  {
+    "file": "modules/contacts-sync/contacts-sync.service.ts",
+    "kind": "multi",
+    "reason": "charge (verify batch 13, R3): PFADD and EXPIRE of ONE daily distinct-set key per MULTI: one key, one slot."
   },
   {
     "file": "modules/counters/counter-aggregator.service.ts",
@@ -105,9 +115,24 @@
     "reason": "MULTI over the single seen:<user> key."
   },
   {
+    "file": "modules/files/files.service.ts",
+    "kind": "multi",
+    "reason": "reserveDailyUpload (verify batch 13, R2): INCRBY and EXPIRE NX of ONE upload:bytes:<user>:<day> key in one MULTI: one key, one slot."
+  },
+  {
     "file": "modules/hotline/hotline-match.lua.ts",
     "kind": "lua-multi-key",
     "reason": "Every hotline key passed in KEYS[] starts with the hl:{hl} prefix (HotlineKeys), so all of a script's keys share one hash slot."
+  },
+  {
+    "file": "modules/hotline/hotline-sweeper.service.ts",
+    "kind": "multi",
+    "reason": "Hour stats (verify batch 13, R1): HSET peakOnline and EXPIRE NX of ONE k.agg(hour) key: one key, one slot."
+  },
+  {
+    "file": "modules/hotline/hotline.service.ts",
+    "kind": "multi",
+    "reason": "bumpAgg (verify batch 13, R1): HINCRBY and EXPIRE of ONE k.agg(hour) key: one key, one slot."
   },
   {
     "file": "modules/hotline/hotline.store.ts",
@@ -158,6 +183,11 @@
     "file": "modules/staff-security/staff-card-watch.ts",
     "kind": "multi",
     "reason": "Every key of the MULTI is built with ck('adm', ...): the per-minute counter and the day hash share the {adm} hash tag, one slot in cluster mode."
+  },
+  {
+    "file": "modules/verification/services/bar-attempts.service.ts",
+    "kind": "multi",
+    "reason": "recordFailure (verify batch 13, R4): INCR and EXPIRE of ONE bar:fails:* key per MULTI (the user and the IP key each get their own MULTI): one key, one slot."
   },
   {
     "file": "modules/verification/services/verification-handoff.service.ts",

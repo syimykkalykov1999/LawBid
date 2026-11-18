@@ -66,10 +66,10 @@ export class AccountDeletionService {
   }
 
   /**
-   * Privacy round 13 (S13-14): the explicit way back. A sign-in no longer
-   * cancels a deletion request by itself (setting
-   * `privacy.login_cancels_deletion`); this call (or the link in the
-   * deletion e-mails) does. True when a pending request was cancelled.
+   * Privacy round 13 (S13-14): the explicit way back, next to the link in
+   * the deletion e-mails and a sign-in (setting
+   * `privacy.login_cancels_deletion`, on by default since verify 18.11).
+   * True when a pending request was cancelled.
    */
   async cancelDeletion(userId: string, meta: RequestMeta): Promise<boolean> {
     const { count } = await this.prisma.user.updateMany({
