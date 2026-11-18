@@ -5,7 +5,12 @@ import {
   CDN_INVALIDATOR,
   type CdnInvalidator,
 } from '../../common/cdn/cdn-invalidator';
-import { heldIds, isHeld } from '../../common/privacy/legal-hold';
+import {
+  heldIds,
+  heldSqlFor,
+  heldTargets,
+  isHeld,
+} from '../../common/privacy/legal-hold';
 import type {
   AccountEraser,
   EraseOutcome,
@@ -63,6 +68,24 @@ const BATCH = 100;
 /** Bunny deletions done inline per account; the rest goes to the
  * `videos.sweep` (it purges every `deleted` asset). */
 const BUNNY_PURGE_INLINE = 50;
+
+/** Verify 18.11 (PV4): the holder of an erased person's released @handles.
+ * The hold keeps protecting the handle for its window (no impersonation),
+ * but no longer names the person. */
+export const ERASED_USERNAME_HOLDER = '00000000-0000-0000-0000-000000000000';
+
+/** Options of {@link AccountAnonymizationService.anonymize}. */
+export interface AnonymizeOptions {
+  /** Verify 18.11 (PV1): the run comes from the deletion-request schedule
+   * (daily job / queued job). The account must still be `deletion_pending`
+   * past the grace period (or already claimed by an earlier run); it is
+   * claimed (`deleted`) before the first side effect, so a cancel can no
+   * longer win half-way, and a cancelled request is never erased. */
+  due?: boolean;
+}
+
+/** The final transaction found the account no longer claimed. */
+class ErasureNoLongerDue extends Error {}
 
 /** Prefix of a bar number replaced by its hash on anonymization. */
 export const HASHED_BAR_PREFIX = 'h:';
@@ -128,7 +151,9 @@ export class AccountAnonymizationService implements AccountEraser {
     const before = new Date(now.getTime() - DELETION_GRACE_DAYS * 86_400_000);
     const due = await this.prisma.user.findMany({
       where: {
-        status: 'deletion_pending',
+        // Verify 18.11 (PV1): `deleted` + not anonymized = claimed by a run
+        // that died half-way; it is resumed (never left half-erased).
+        status: { in: ['deletion_pending', 'deleted'] },
         deletion_requested_at: { lt: before },
         anonymized_at: null,
         ...(skip.length > 0 ? { id: { notIn: skip } } : {}),
@@ -160,14 +185,20 @@ export class AccountAnonymizationService implements AccountEraser {
     now: Date = new Date(),
   ): Promise<boolean> {
     if (await isHeld(this.prisma, 'user', userId, now)) return true;
-    const rows = await this.prisma.$queryRaw<{ one: number }[]>`
-      SELECT 1 AS one FROM legal_holds h
-      JOIN cases c ON c.id = h.target_id
-      WHERE h.target_type = 'case' AND c.client_id = ${userId}::UUID
-        AND h.released_at IS NULL
-        AND (h.expires_at IS NULL OR h.expires_at > ${now})
-      LIMIT 1`;
-    return rows.length > 0;
+    // Verify 18.11 (PV2): the cases where the person is the attorney (the
+    // accepted bid) are evidence as much as the client's own cases.
+    const heldCases = await heldTargets(this.prisma, 'case', now);
+    if (heldCases.length === 0) return false;
+    const n = await this.prisma.case.count({
+      where: {
+        id: { in: heldCases },
+        OR: [
+          { client_id: userId },
+          { accepted_bid: { is: { attorney_id: userId } } },
+        ],
+      },
+    });
+    return n > 0;
   }
 
   /** S13-7: the admin confirmed the person is a minor — no grace period.
@@ -202,7 +233,8 @@ export class AccountAnonymizationService implements AccountEraser {
       if (due.length === 0) break;
       for (const id of due) {
         try {
-          if (await this.anonymize(id, now)) result.anonymized.push(id);
+          if (await this.anonymize(id, now, 'deletion_request', { due: true }))
+            result.anonymized.push(id);
           else skipped.push(id);
         } catch (error) {
           const message =
@@ -394,7 +426,17 @@ export class AccountAnonymizationService implements AccountEraser {
    * largest table is never locked for long; idempotent (already scrubbed
    * rows are skipped). Round 13 (S13-3): the edit history, the file name,
    * the assistant's name and the forwarded-from name go with them. */
-  private async scrubMessages(userId: string): Promise<void> {
+  private async scrubMessages(userId: string, now: Date): Promise<void> {
+    // Verify 18.11 (PV2): nothing under a legal hold is scrubbed
+    // (common/privacy/legal-hold.ts) — a held chat, the chat of a held
+    // case, a held file: the same rule as LegalRetentionService.
+    const held = await heldSqlFor(this.prisma, now);
+    const notHeld = Prisma.sql`NOT ${held('conversation', Prisma.sql`m.conversation_id`)}
+      AND (m.file_id IS NULL OR NOT ${held('file', Prisma.sql`m.file_id`)})
+      AND NOT EXISTS (
+        SELECT 1 FROM conversations hc
+        WHERE hc.id = m.conversation_id AND hc.case_id IS NOT NULL
+          AND ${held('case', Prisma.sql`hc.case_id`)})`;
     // BUG-1 (package N-12b): the person's words leave the search index
     // first (by message id, 5 000 rows per statement).
     for (;;) {
@@ -404,6 +446,7 @@ export class AccountAnonymizationService implements AccountEraser {
           SELECT st.ctid FROM message_search_tokens st
           JOIN messages m ON m.id = st.message_id
           WHERE m.sender_id = ${userId}::UUID
+            AND ${notHeld}
           LIMIT 5000)`;
       if (n < 5000) break;
     }
@@ -415,6 +458,7 @@ export class AccountAnonymizationService implements AccountEraser {
           SELECT e.ctid FROM message_edits e
           JOIN messages m ON m.id = e.message_id
           WHERE m.sender_id = ${userId}::UUID AND e.body_original <> ''
+            AND ${notHeld}
           LIMIT 5000)`;
       if (n < 5000) break;
     }
@@ -428,12 +472,13 @@ export class AccountAnonymizationService implements AccountEraser {
             sent_by_name = NULL,
             forwarded_from_name = NULL
         WHERE (id, conversation_id) IN (
-          SELECT id, conversation_id FROM messages
-          WHERE sender_id = ${userId}::UUID
-            AND (body_display <> ${DELETED_MESSAGE_BODY}
-              OR file_name IS NOT NULL
-              OR sent_by_name IS NOT NULL
-              OR forwarded_from_name IS NOT NULL)
+          SELECT m.id, m.conversation_id FROM messages m
+          WHERE m.sender_id = ${userId}::UUID
+            AND (m.body_display <> ${DELETED_MESSAGE_BODY}
+              OR m.file_name IS NOT NULL
+              OR m.sent_by_name IS NOT NULL
+              OR m.forwarded_from_name IS NOT NULL)
+            AND ${notHeld}
           LIMIT 5000)`;
       if (n < 5000) break;
     }
@@ -473,19 +518,22 @@ export class AccountAnonymizationService implements AccountEraser {
 
   /** Owner 2026-10-20: the same for group chats — own group messages
    * become `[deleted]`, the person leaves every group. */
-  private async scrubGroupMessages(userId: string): Promise<void> {
+  private async scrubGroupMessages(userId: string, now: Date): Promise<void> {
+    // Verify 18.11 (PV2): a held group keeps its messages.
+    const held = await heldSqlFor(this.prisma, now);
     for (;;) {
       const n = await this.prisma.$executeRaw`
         UPDATE chat_group_messages
         SET body = ${DELETED_MESSAGE_BODY}, mention_ids = '{}',
             file_name = NULL, forwarded_from_name = NULL
         WHERE (id, group_id) IN (
-          SELECT id, group_id FROM chat_group_messages
-          WHERE sender_id = ${userId}::UUID
-            AND type::TEXT IN ('text', 'attachment')
-            AND (body <> ${DELETED_MESSAGE_BODY}
-              OR file_name IS NOT NULL
-              OR forwarded_from_name IS NOT NULL)
+          SELECT g.id, g.group_id FROM chat_group_messages g
+          WHERE g.sender_id = ${userId}::UUID
+            AND g.type::TEXT IN ('text', 'attachment')
+            AND (g.body <> ${DELETED_MESSAGE_BODY}
+              OR g.file_name IS NOT NULL
+              OR g.forwarded_from_name IS NOT NULL)
+            AND NOT ${held('group', Prisma.sql`g.group_id`)}
           LIMIT 5000)`;
       if (n < 5000) break;
     }
@@ -502,16 +550,29 @@ export class AccountAnonymizationService implements AccountEraser {
     userId: string,
     now: Date = new Date(),
     reason: ErasureReason = 'deletion_request',
+    opts: AnonymizeOptions = {},
   ): Promise<boolean> {
-    return shardContext.runForUser(userId, () =>
-      this.anonymizeInShard(userId, now, reason),
-    );
+    return shardContext.runForUser(userId, async () => {
+      try {
+        return await this.anonymizeInShard(userId, now, reason, opts);
+      } catch (error) {
+        if (error instanceof ErasureNoLongerDue) {
+          this.logger.info(
+            { userId },
+            'anonymization skipped: not due any more',
+          );
+          return false;
+        }
+        throw error;
+      }
+    });
   }
 
   private async anonymizeInShard(
     userId: string,
     now: Date,
     reason: ErasureReason,
+    opts: AnonymizeOptions,
   ): Promise<boolean> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -520,6 +581,7 @@ export class AccountAnonymizationService implements AccountEraser {
         role: true,
         status: true,
         anonymized_at: true,
+        deletion_requested_at: true,
         avatar_file_id: true,
         phone_e164: true,
         subscription: {
@@ -535,10 +597,42 @@ export class AccountAnonymizationService implements AccountEraser {
       }
       return false;
     }
+    // Verify 18.11 (PV1): a scheduled run erases only a request that is
+    // still pending past the grace period (a cancelled one is left alone).
+    const graceEnd = new Date(now.getTime() - DELETION_GRACE_DAYS * 86_400_000);
+    if (
+      opts.due &&
+      !(
+        (user.status === 'deletion_pending' || user.status === 'deleted') &&
+        user.deletion_requested_at &&
+        user.deletion_requested_at < graceEnd
+      )
+    ) {
+      this.logger.info({ userId }, 'anonymization skipped: not due');
+      return false;
+    }
     if (await this.isOnLegalHold(userId, now)) {
       this.logger.info({ userId }, 'anonymization deferred: legal hold');
       await this.erasure?.markBlocked(userId, now);
       return false;
+    }
+    // Claim before the first side effect (Stripe, files, messages): from
+    // here on the account is `deleted` (sign-in refused, cancel refused —
+    // both require `deletion_pending`), and a resumed run finds it claimed.
+    if (opts.due && user.status === 'deletion_pending') {
+      const { count } = await this.prisma.user.updateMany({
+        where: {
+          id: userId,
+          status: 'deletion_pending',
+          anonymized_at: null,
+          deletion_requested_at: { lt: graceEnd },
+        },
+        data: { status: 'deleted' },
+      });
+      if (count === 0) {
+        this.logger.info({ userId }, 'anonymization skipped: cancelled');
+        return false;
+      }
     }
 
     // 1. Stripe: cancel immediately (§5.1); payments stay as finance rows.
@@ -577,9 +671,14 @@ export class AccountAnonymizationService implements AccountEraser {
     // Twilio: the one-time-code SMS log of the number, while it is still known.
     const { vendors, steps } = this;
     if (vendors && steps) {
-      await steps.run(userId, 'twilio', () =>
+      const twilio = await steps.run(userId, 'twilio', () =>
         vendors.purgeTwilio(user.phone_e164),
       );
+      // Verify 18.11 (PV5): like Stripe — a failed purge stops here so the
+      // retry still knows the number (it is erased in the transaction
+      // below); `failed` is never left behind as a later `skipped`.
+      if (twilio === 'failed')
+        throw new Error('twilio message log purge failed');
     }
 
     // 2. Files: every purpose with the person's content out of S3
@@ -642,8 +741,8 @@ export class AccountAnonymizationService implements AccountEraser {
     // transaction that sets `anonymized_at`, so a crash in between is
     // retried by the next run instead of being skipped for ever.
     await this.deleteContactBook(userId);
-    await this.scrubMessages(userId);
-    await this.scrubGroupMessages(userId);
+    await this.scrubMessages(userId, now);
+    await this.scrubGroupMessages(userId, now);
 
     // 3. Cases still in work are closed with a journal event and the
     // counterpart is notified (one transaction per case, before the
@@ -674,14 +773,22 @@ export class AccountAnonymizationService implements AccountEraser {
       postsRemoved = 0;
       const fresh = await tx.user.findUnique({
         where: { id: userId },
-        select: { anonymized_at: true },
+        select: { anonymized_at: true, status: true },
       });
       if (!fresh || fresh.anonymized_at) return [] as string[];
+      // Verify 18.11 (PV1): the claim must still stand at commit time.
+      if (opts.due && fresh.status !== 'deleted') {
+        throw new ErasureNoLongerDue();
+      }
       if (user.status === 'suspended')
         await this.fraud?.freezeBanned(userId, tx);
 
-      await tx.user.update({
-        where: { id: userId },
+      const { count: scrubbed } = await tx.user.updateMany({
+        where: {
+          id: userId,
+          anonymized_at: null,
+          ...(opts.due ? { status: 'deleted' as const } : {}),
+        },
         data: {
           first_name: DELETED_FIRST_NAME,
           last_name: DELETED_LAST_NAME,
@@ -694,6 +801,7 @@ export class AccountAnonymizationService implements AccountEraser {
           anonymized_at: now,
         },
       });
+      if (scrubbed === 0) throw new ErasureNoLongerDue();
       // Owner 2026-10-20: bookings, hours, public questions and answers.
       await tx.consultationSettings.deleteMany({
         where: { attorney_id: userId },
@@ -895,6 +1003,7 @@ export class AccountAnonymizationService implements AccountEraser {
         where: { request: { attorney_id: userId } },
         data: { details: {} },
       });
+      await this.scrubRegistryRows(tx, userId, user.role);
       return active.map((s) => s.session_chain_id);
     });
     // Programmatic SEO: the attorney's public page goes (no-op unless the
@@ -950,6 +1059,50 @@ export class AccountAnonymizationService implements AccountEraser {
     await this.completeErasure(userId, now);
     this.logger.info({ userId, role: user.role }, 'account anonymized');
     return true;
+  }
+
+  /**
+   * Verify 18.11 (PV4): the rows personal-data-registry.ts lists as `scrub`
+   * that nothing else blanked: the person's support texts (their words and
+   * the device details the app attached), a client's @handle (an attorney's
+   * is replaced above), the holds on the released handles (they keep
+   * protecting the handle, no longer naming the person), the links of the
+   * person in other attorneys' tasks, and an attorney's own planner.
+   */
+  private async scrubRegistryRows(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    role: string | null,
+  ): Promise<void> {
+    await tx.supportMessage.updateMany({
+      where: { author_user_id: userId },
+      data: { body: DELETED_MESSAGE_BODY },
+    });
+    await tx.supportTicket.updateMany({
+      where: { user_id: userId },
+      data: { subject: DELETED_MESSAGE_BODY, client_context: Prisma.DbNull },
+    });
+    if (role === 'client') {
+      const handle = `deleted_${userId.replace(/-/g, '').slice(0, 8)}`;
+      await tx.clientProfile.updateMany({
+        where: { user_id: userId },
+        data: { username: handle, username_lower: handle },
+      });
+    }
+    // After the handle changes: the namespace trigger has just written the
+    // hold of the old handle with this person as its holder.
+    await tx.usernameHold.updateMany({
+      where: { holder_user_id: userId },
+      data: { holder_user_id: ERASED_USERNAME_HOLDER },
+    });
+    await tx.attorneyTaskPerson.updateMany({
+      where: { user_id: userId },
+      data: { user_id: null, phone: null, email: null },
+    });
+    if (role === 'attorney') {
+      // Steps, places and people go with their task (ON DELETE CASCADE).
+      await tx.attorneyTask.deleteMany({ where: { attorney_id: userId } });
+    }
   }
 
   /** Round 13: what follows a committed erasure — the object copy of the

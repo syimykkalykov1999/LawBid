@@ -152,6 +152,9 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'VideoAsset',
       'File',
       'ConnectedCustomer',
+      // Verify 18.11 (PV4): an erased attorney's own planner (steps, places
+      // and people go with each task).
+      'AttorneyTask',
       // Firms audit 16.11 (PR-2): the lawyer leaves the firm
       // (FirmsService.onAccountErased).
       'FirmMember',
@@ -176,7 +179,6 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'LegalAnswer',
       'Session',
       'Consultation',
-      'AttorneyTask',
       'AttorneyTaskPerson',
       'SupportMessage',
       'SupportTicket',
