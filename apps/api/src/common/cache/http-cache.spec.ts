@@ -49,6 +49,19 @@ describe('enforceCacheSafety', () => {
     expect(res.h.get('cache-control')).toBe('private, no-cache');
   });
 
+  it("verify batch 13 (E2): a private answer varies on Authorization, so a browser never revalidates one account's copy for another", () => {
+    const unlabelled = fakeRes();
+    enforceCacheSafety(get({ authorization: 'Bearer x' }), unlabelled, 200);
+    expect(unlabelled.h.get('vary')).toBe('Authorization');
+    const labelled = fakeRes({
+      'Cache-Control': 'private, max-age=30',
+      Vary: 'Origin',
+    });
+    enforceCacheSafety(get({ authorization: 'Bearer x' }), labelled, 200);
+    expect(labelled.h.get('cache-control')).toBe('private, max-age=30');
+    expect(labelled.h.get('vary')).toBe('Origin, Authorization');
+  });
+
   it('never shares writes, errors or cookie-setting answers', () => {
     const post = fakeRes({ 'Cache-Control': 'public, max-age=60' });
     enforceCacheSafety({ method: 'POST', headers: {} } as never, post, 200);

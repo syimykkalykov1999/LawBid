@@ -2,12 +2,13 @@ import type Redis from 'ioredis';
 import type { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { FILE_03_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
 import { BarAttemptsService } from './bar-attempts.service';
+import { fakeMulti } from '../../../../test/support/fake-redis-multi';
 
 /** Just the Redis calls the service makes, in memory (TTL in seconds). */
 function fakeRedis() {
   const values = new Map<string, number>();
   const ttls = new Map<string, number>();
-  return {
+  const fake = {
     incr: (k: string) => {
       const v = (values.get(k) ?? 0) + 1;
       values.set(k, v);
@@ -29,6 +30,7 @@ function fakeRedis() {
     },
     endLock: (k: string) => ttls.delete(k),
   };
+  return Object.assign(fake, { multi: fakeMulti(fake) });
 }
 
 const settings = {

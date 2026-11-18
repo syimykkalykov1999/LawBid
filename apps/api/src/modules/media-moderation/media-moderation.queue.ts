@@ -76,12 +76,22 @@ export class MediaModerationQueue
     );
   }
 
-  /** Applies a hidden verdict once more after [REHIDE_DELAY_MS]. */
+  /**
+   * Applies a hidden verdict once more after [REHIDE_DELAY_MS].
+   * Verify batch 13 (Q1): the id carries the 10-minute slot. With one id
+   * per check, the rehide job asking for the next try (content still not
+   * posted) reused the id of the job that was running — and then of the
+   * kept completed one — and BullMQ silently drops an add with an id it
+   * already holds: the chain stopped after the first try and only the
+   * hourly sweep caught the picture. Calls within one slot (the sweep and
+   * the chain together) still collapse into one job.
+   */
   async enqueueRehide(checkId: string): Promise<void> {
+    const slot = Math.floor(Date.now() / REHIDE_DELAY_MS);
     await this.add(
       MEDIA_REHIDE_JOB,
       { kind: 'rehide', checkId },
-      `rehide-${checkId}`,
+      `rehide-${checkId}-${slot}`,
       REHIDE_DELAY_MS,
     );
   }

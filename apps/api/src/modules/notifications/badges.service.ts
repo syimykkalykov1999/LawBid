@@ -93,7 +93,13 @@ export class BadgesService {
         ? await this.countNotifications(userId)
         : Number(h.notifs);
     if (h.chats === undefined || h.notifs === undefined) {
-      await this.redis.hset(key(userId), { chats, notifs });
+      // Verify batch 13 (R6): with its TTL, so a key that expired in
+      // between is not re-created without one (and never rebuilt again).
+      await this.redis
+        .multi()
+        .hset(key(userId), { chats, notifs })
+        .expire(key(userId), TTL_SEC, 'NX')
+        .exec();
     }
     return shape(chats, notifs);
   }
@@ -357,19 +363,35 @@ export class BadgesService {
   /** Something changed the unread notifications (new, aggregated, read). */
   async notificationsChanged(userId: string): Promise<void> {
     const notifs = await this.countNotifications(userId);
-    if (await this.redis.exists(key(userId))) {
-      await this.redis.hset(key(userId), 'notifs', notifs);
-    }
+    await this.setIfCached(userId, 'notifs', notifs);
     await this.publish(userId);
   }
 
   /** The user read messages in a chat. */
   async chatsChanged(userId: string): Promise<void> {
     const chats = await this.countChats(userId);
-    if (await this.redis.exists(key(userId))) {
-      await this.redis.hset(key(userId), 'chats', chats);
-    }
+    await this.setIfCached(userId, 'chats', chats);
     await this.publish(userId);
+  }
+
+  /**
+   * Verify batch 13 (R6): EXISTS then HSET as two calls re-created the hash
+   * WITHOUT a TTL when it expired in between, so the daily rebuild that
+   * heals drift never ran for that person again. One script, like the
+   * HEXISTS/HINCRBY ones above.
+   */
+  private async setIfCached(
+    userId: string,
+    field: 'chats' | 'notifs',
+    value: number,
+  ): Promise<void> {
+    await this.redis.eval(
+      "if redis.call('EXISTS', KEYS[1]) == 1 then return redis.call('HSET', KEYS[1], ARGV[1], ARGV[2]) end return 0",
+      1,
+      key(userId),
+      field,
+      String(value),
+    );
   }
 
   private async publish(userId: string): Promise<void> {

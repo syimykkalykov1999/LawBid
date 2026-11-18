@@ -1,4 +1,4 @@
-import { trialReminderJob } from './trial-reminder';
+import { TRIAL_REMINDER_JOB_OPTS, trialReminderJob } from './trial-reminder';
 import {
   BadRequestException,
   ConflictException,
@@ -1185,10 +1185,9 @@ export class SubscriptionsService implements OnModuleDestroy {
       TRIAL_REMINDER_JOB,
       { subscriptionId: row.id },
       {
+        ...TRIAL_REMINDER_JOB_OPTS,
         jobId: job.jobId,
         delay: job.delay,
-        removeOnComplete: true,
-        removeOnFail: 100,
       },
     );
   }

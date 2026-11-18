@@ -44,6 +44,23 @@ const OPEN_TTL_SEC = 7 * 24 * 60 * 60;
 const CF_RELAY_PROBE_MS_FORGET = 3 * CF_BREAKER_PROBE_MS;
 
 const failKey = (p: CfPart) => `calls:cf:fail:${p}`;
+
+/**
+ * INCR with the window's PEXPIRE in one MULTI (verify batch 13, N1). As two
+ * calls, a crash in between left the breaker counter without a TTL: it then
+ * counted rare failures across weeks and opened the breaker for good.
+ * `NX` keeps the window fixed from the first failure, as before.
+ */
+async function incrWindow(
+  r: Redis,
+  key: string,
+  windowMs: number,
+): Promise<number> {
+  const res = await r.multi().incr(key).pexpire(key, windowMs, 'NX').exec();
+  const failed = res?.find(([e]) => e)?.[0];
+  if (!res || failed) throw failed ?? new Error('MULTI aborted');
+  return Number(res[0][1]);
+}
 const openKey = (p: CfPart) => `calls:cf:open:${p}`;
 const probeKey = (p: CfPart) => `calls:cf:probe:${p}`;
 const lastProbeKey = (p: CfPart) => `calls:cf:lastprobe:${p}`;
@@ -267,8 +284,7 @@ export class CloudflareTransport {
     const r = this.live;
     if (r) {
       try {
-        count = await r.incr(failKey(part));
-        if (count === 1) await r.pexpire(failKey(part), windowMs);
+        count = await incrWindow(r, failKey(part), windowMs);
       } catch {
         return false;
       }
@@ -359,9 +375,7 @@ export class CloudflareTransport {
     const r = this.live;
     if (r) {
       try {
-        const n = await r.incr(key);
-        if (n === 1) await r.pexpire(key, windowMs);
-        return n;
+        return await incrWindow(r, key, windowMs);
       } catch {
         return 0;
       }
