@@ -1277,6 +1277,9 @@ class ChatThread extends Notifier<ChatThreadState> {
     required String path,
     required int durationMs,
     required List<int> waveform,
+
+    /// Row 188: the message this note answers.
+    String? replyToId,
   }) async {
     final queue = ref.read(chatMediaOutboxProvider);
     if (queue.ownerId == null) return;
@@ -1290,7 +1293,11 @@ class ChatThread extends Notifier<ChatThreadState> {
       id: cmid,
       kind: ChatMediaKind.voice,
       target: id,
-      payload: {'durationMs': durationMs, 'waveform': waveform},
+      payload: {
+        'durationMs': durationMs,
+        'waveform': waveform,
+        if (replyToId != null) 'replyToId': replyToId,
+      },
       fileName: name,
     );
   }
@@ -1326,6 +1333,9 @@ class ChatThread extends Notifier<ChatThreadState> {
     /// order — this one is queued after `after` (the previous file's
     /// call); the queue uploads them at once and sends them in order.
     Future<void>? after,
+
+    /// Row 188: the message this file answers.
+    String? replyToId,
   }) async {
     // Read before the first await: the screen may be left meanwhile (this
     // provider is auto-disposed) and the photo must still be queued.
@@ -1364,6 +1374,7 @@ class ChatThread extends Notifier<ChatThreadState> {
         'size': diskBytes ?? bytes.length,
         if (px != null) 'width': px.width.round(),
         if (px != null) 'height': px.height.round(),
+        if (replyToId != null) 'replyToId': replyToId,
       },
       fileName: file,
       mime: mime,
@@ -1422,6 +1433,7 @@ class ChatThread extends Notifier<ChatThreadState> {
               localPath: _localPaths[j.id],
               previewBytes: _previewBytes[j.id],
               progress: _progress[j.id] ?? 0,
+              replyTo: _previewOf(j.payload['replyToId'] as String?),
             ),
       ],
     );
@@ -1435,7 +1447,12 @@ class ChatThread extends Notifier<ChatThreadState> {
 
   /// Owner 2026-10-05: a document template — a local bubble, then the
   /// server's own copy is sent (no upload from the phone); Retry repeats.
-  Future<void> sendTemplate(DocTemplate tpl, {String? caption}) async {
+  /// Row 188: [replyToId] = the message it answers.
+  Future<void> sendTemplate(
+    DocTemplate tpl, {
+    String? caption,
+    String? replyToId,
+  }) async {
     final owner = ref.read(currentUserIdProvider);
     if (owner == null) return;
     final cmid = newClientMessageId();
@@ -1448,6 +1465,7 @@ class ChatThread extends Notifier<ChatThreadState> {
       clientMessageId: cmid,
       createdAt: DateTime.now(),
       delivery: DeliveryState.sending,
+      replyTo: _previewOf(replyToId),
       attachment: ChatAttachment(
         fileId: '',
         name: tpl.fileName,
@@ -1457,12 +1475,17 @@ class ChatThread extends Notifier<ChatThreadState> {
       ),
     );
     _templateOf[cmid] = tpl.id;
+    if (replyToId != null) _templateReplyTo[cmid] = replyToId;
     state = state.copyWith(voiceOutbox: [...state.voiceOutbox, local]);
     await _sendTemplateCopy(local);
   }
 
   /// Local template bubbles → the template they send (for Retry).
   final _templateOf = <String, String>{};
+
+  /// Row 188: the message a template bubble answers (also when the quoted
+  /// message is not loaded, so the bubble cannot show it).
+  final _templateReplyTo = <String, String>{};
 
   Future<void> _sendTemplateCopy(ChatMessage local) async {
     final cmid = local.clientMessageId!;
@@ -1476,9 +1499,11 @@ class ChatThread extends Notifier<ChatThreadState> {
         fileId: fileId,
         fileName: local.attachment!.name,
         caption: local.body.isEmpty ? null : local.body,
+        replyToId: _templateReplyTo[cmid],
       );
       if (!ref.mounted) return;
       _templateOf.remove(cmid);
+      _templateReplyTo.remove(cmid);
       state = state.copyWith(
         voiceOutbox:
             state.voiceOutbox.where((m) => m.clientMessageId != cmid).toList(),
@@ -1497,7 +1522,12 @@ class ChatThread extends Notifier<ChatThreadState> {
 
   /// Owner 2026-10-20: an attorney's card ([contactUserId]) or a place
   /// ([place], an address). Sent at once; a refusal goes to the caller.
-  Future<void> sendCard({String? contactUserId, String? place}) async {
+  /// Row 188: [replyToId] = the message it answers.
+  Future<void> sendCard({
+    String? contactUserId,
+    String? place,
+    String? replyToId,
+  }) async {
     assert(
       (contactUserId == null) != (place == null),
       'a card is either a contact or a place',
@@ -1506,8 +1536,13 @@ class ChatThread extends Notifier<ChatThreadState> {
     final cmid = newClientMessageId();
     try {
       final sent = contactUserId != null
-          ? await repo.sendContact(id, cmid, contactUserId)
-          : await repo.sendPlace(id, cmid, place!);
+          ? await repo.sendContact(
+              id,
+              cmid,
+              contactUserId,
+              replyToId: replyToId,
+            )
+          : await repo.sendPlace(id, cmid, place!, replyToId: replyToId);
       if (!ref.mounted) return;
       unawaited(ref.read(appSoundsProvider).messageOut());
       _merge([sent]);
@@ -1522,7 +1557,8 @@ class ChatThread extends Notifier<ChatThreadState> {
   /// Owner 2026-10-01: a sticker — shown at once, sent in the background,
   /// Retry on failure like a voice note. Owner 2026-10-22: a persistent
   /// queue job too (nothing to upload, the send waits for the network).
-  Future<void> sendSticker(ChatSticker sticker) async {
+  /// Row 188: [replyToId] = the message it answers.
+  Future<void> sendSticker(ChatSticker sticker, {String? replyToId}) async {
     final queue = ref.read(chatMediaOutboxProvider);
     if (queue.ownerId == null) return;
     // ignore: unawaited_futures
@@ -1536,6 +1572,7 @@ class ChatThread extends Notifier<ChatThreadState> {
         'packId': sticker.packId,
         'emoji': sticker.emoji,
         if (sticker.url != null) 'url': sticker.url,
+        if (replyToId != null) 'replyToId': replyToId,
       },
     );
   }

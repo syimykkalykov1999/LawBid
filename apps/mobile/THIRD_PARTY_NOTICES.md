@@ -1042,6 +1042,37 @@ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
+## flutter_slidable 5.2.0 — MIT
+
+The auto-close behaviour of the swiped case row (`SwipeActions` in
+`lib/features/cases/presentation/widgets/compact_case_row.dart`, owner row
+190) follows `SlidableAutoCloseBehavior` (one open row per list, a tap on
+another row only closes it) and the scroll listener of
+`SlidableScrollingBehavior` (`ScrollPosition.isScrollingNotifier` closes the
+open row), version 5.2.0, https://github.com/letsar/flutter_slidable
+
+MIT License
+
+Copyright (c) 2018 Romain Rastel
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
 ## Native iOS / Android SDKs linked by the Flutter plugins (licence audit 2026-11-17)
 
 Flutter puts the LICENSE of every Dart package into the app by itself. The
