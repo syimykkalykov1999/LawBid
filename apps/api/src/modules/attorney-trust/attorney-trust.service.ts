@@ -208,7 +208,11 @@ const PROFILE_SELECT = {
   trust: true,
   verification_requests: {
     where: { status: { in: ['submitted', 'in_review'] } },
-    select: { id: true, documents: { select: { doc_type: true } } },
+    select: {
+      id: true,
+      created_at: true,
+      documents: { select: { doc_type: true } },
+    },
     take: 1,
   },
 } satisfies Prisma.AttorneyProfileSelect;
@@ -1340,34 +1344,56 @@ export class AttorneyTrustService {
     // indexed lookup (0.1 ms); the first QUEUE_SCAN ids of every branch
     // hold the first QUEUE_SCAN of their union, so the rows are the same.
     // One branch after another: prod runs DB_POOL_SIZE=3.
+    // Verify 17.11 (batch 9): each branch took its first QUEUE_SCAN ids and
+    // the union was cut to QUEUE_SCAN by id — past 2000 candidates an
+    // attorney with a high id never reached the queue, however long they
+    // had waited. Every branch is now read to the end by an id keyset (each
+    // page an indexed lookup, as before), and the queue is ordered by how
+    // long each attorney has waited, oldest first, as documented.
     const ids = new Set<string>();
     for (const branch of QUEUE_PREFILTER_BRANCHES) {
-      const hits = await this.prisma.attorneyProfile.findMany({
-        where: {
-          verification_status: { in: ['verified', 'pending'] },
-          AND: [...scope, branch],
-        },
-        select: { user_id: true },
-        orderBy: { user_id: 'asc' },
-        take: QUEUE_SCAN,
-      });
-      for (const h of hits) ids.add(h.user_id);
+      let after: string | null = null;
+      for (;;) {
+        const hits: { user_id: string }[] =
+          await this.prisma.attorneyProfile.findMany({
+            where: {
+              verification_status: { in: ['verified', 'pending'] },
+              AND: [
+                ...scope,
+                branch,
+                ...(after ? [{ user_id: { gt: after } }] : []),
+              ],
+            },
+            select: { user_id: true },
+            orderBy: { user_id: 'asc' },
+            take: QUEUE_SCAN,
+          });
+        for (const h of hits) ids.add(h.user_id);
+        if (hits.length < QUEUE_SCAN) break;
+        after = hits[hits.length - 1].user_id;
+      }
     }
     if (ids.size === 0) return [];
-    const rows = await this.prisma.attorneyProfile.findMany({
-      where: { user_id: { in: [...ids].sort().slice(0, QUEUE_SCAN) } },
-      select: PROFILE_SELECT,
-      orderBy: { user_id: 'asc' },
-    });
-    const out: TrustSnapshot[] = [];
-    for (const row of rows) {
-      const snap = await this.snapshotOf(row);
-      if (snap.staffStatus !== 'needs_staff') continue;
-      if (opts.reason && !snap.queueReasons.includes(opts.reason)) continue;
-      out.push(snap);
-      if (out.length >= limit) break;
+    const sorted = [...ids].sort();
+    const waiting: { snap: TrustSnapshot; since: number }[] = [];
+    for (let i = 0; i < sorted.length; i += QUEUE_SCAN) {
+      const rows = await this.prisma.attorneyProfile.findMany({
+        where: { user_id: { in: sorted.slice(i, i + QUEUE_SCAN) } },
+        select: PROFILE_SELECT,
+        orderBy: { user_id: 'asc' },
+      });
+      for (const row of rows) {
+        const snap = await this.snapshotOf(row);
+        if (snap.staffStatus !== 'needs_staff') continue;
+        if (opts.reason && !snap.queueReasons.includes(opts.reason)) continue;
+        waiting.push({ snap, since: waitingSince(snap, row) });
+      }
     }
-    return out;
+    waiting.sort(
+      (a, b) =>
+        a.since - b.since || a.snap.attorneyId.localeCompare(b.snap.attorneyId),
+    );
+    return waiting.slice(0, limit).map((w) => w.snap);
   }
 
   /**
@@ -2248,4 +2274,22 @@ function emptyTrust(attorneyId: string) {
     created_at: now,
     updated_at: now,
   };
+}
+
+/** When the attorney started waiting for a person (the earliest of the
+ * facts the staff queue shows), ms; never-dated ones go last. */
+function waitingSince(
+  snap: TrustSnapshot,
+  row: { verification_requests?: { created_at?: Date }[] },
+): number {
+  const dates = [
+    snap.holds.paymentsAt,
+    snap.holds.bidsAt,
+    snap.firmLink.at,
+    snap.documentsRequestedAt,
+    row.verification_requests?.[0]?.created_at ?? null,
+  ].filter((d): d is Date => d instanceof Date);
+  return dates.length
+    ? Math.min(...dates.map((d) => d.getTime()))
+    : Number.MAX_SAFE_INTEGER;
 }

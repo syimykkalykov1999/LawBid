@@ -207270,11 +207270,16 @@
           },
           "changed": {
             "type": "integer"
+          },
+          "queued": {
+            "type": "boolean",
+            "description": "Verify 17.11: true = the run was handed to the background worker\n(the counts come in the audit log when it ends); false = it ran here."
           }
         },
         "required": [
           "attorneys",
-          "changed"
+          "changed",
+          "queued"
         ]
       },
       "RecomputeAllResultEnvelope": {

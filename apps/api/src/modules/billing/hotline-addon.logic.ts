@@ -70,6 +70,9 @@ export function hotlineAddonSync(
   },
   ids: ReadonlySet<string> | null,
   basePriceCents: number,
+  /** The add-on's monthly price (removal: taken off the total, as the
+   * app's own turn-off does). Unknown: the total is left as it is. */
+  addonCents: number | null = null,
 ): HotlineAddonRowPatch {
   if (!remote.items || !ids || ids.size === 0) return {};
   const item = remote.items.find((i) => ids.has(i.priceId) && i.quantity > 0);
@@ -90,10 +93,16 @@ export function hotlineAddonSync(
     const end = remote.currentPeriodEnd
       ? new Date(remote.currentPeriodEnd * 1000)
       : (local.current_period_end ?? new Date());
+    // Verify 17.11 (batch 9): removed in the Stripe Dashboard, the row's
+    // monthly total kept the add-on price for good (the app's «next
+    // charge» stayed too high); the app's turn-off takes it off.
     return {
       hotline_addon: false,
       hotline_addon_ends_at: end,
       hotline_addon_invoice_id: null,
+      ...(addonCents !== null && addonCents > 0
+        ? { price_cents: Math.max(0, basePriceCents - addonCents) }
+        : {}),
     };
   }
   if (local.hotline_addon_invoice_id && !remote.pendingUpdateExpiresAt) {

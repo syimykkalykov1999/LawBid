@@ -89,6 +89,19 @@ describe('hotline add-on logic', () => {
       });
     });
 
+    it('verify 17.11: removed in the Stripe Dashboard — the monthly total drops by the add-on, as the app turn-off does', () => {
+      const end = Date.parse('2026-12-05T00:00:00Z') / 1000;
+      expect(
+        hotlineAddonSync(
+          { ...local, hotline_addon: true },
+          { items: [plan], currentPeriodEnd: end },
+          ids,
+          44_800,
+          4_900,
+        ),
+      ).toMatchObject({ hotline_addon: false, price_cents: 39_900 });
+    });
+
     it('a waiting purchase that expired is forgotten; a live one is kept', () => {
       const waiting = { ...local, hotline_addon_invoice_id: 'in_1' };
       expect(hotlineAddonSync(waiting, { items: [plan] }, ids, 39_900)).toEqual(

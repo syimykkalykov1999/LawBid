@@ -63,6 +63,7 @@ import { closeSubscriber } from '../../redis/subscribe-in-background';
 import { isRedisInfraError } from '../../redis/redis-errors';
 import { RealtimeEventLog } from './realtime-event-log';
 import { OneOffJobsQueue } from '../../jobs/one-off-jobs.queue';
+import { BidTeamService } from '../firms/bid-team.service';
 import {
   ONE_OFF_JOBS,
   callerGoneJobId,
@@ -258,6 +259,7 @@ export class RealtimeGateway
     @Optional() private readonly runtime?: RuntimeStatsService,
     // Verify 5b (17.11): `calls.caller-gone` delayed jobs.
     @Optional() private readonly oneOff?: OneOffJobsQueue,
+    @Optional() private readonly bidTeam?: BidTeamService,
   ) {
     this.logger.setContext(RealtimeGateway.name);
   }
@@ -1185,6 +1187,41 @@ export class RealtimeGateway
       .exec();
   }
 
+  /** True for the chat's own client and attorney, and for a firm
+   * colleague still on the live team of its bid; a stale colleague row is
+   * removed. */
+  private async teamPlaceIsLive(
+    conversationId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const conv = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: {
+        client_id: true,
+        attorney_id: true,
+        case_id: true,
+        bid_id: true,
+      },
+    });
+    if (!conv || !conv.case_id || !this.bidTeam) return true;
+    if (userId === conv.client_id || userId === conv.attorney_id) return true;
+    if (await this.bidTeam.inChat(userId, conv)) return true;
+    // Not a team member any more: is this place one a bid gave? (an
+    // assistant or other participant of a case chat keeps theirs).
+    const joined = await this.prisma.bidParticipant.findFirst({
+      where: {
+        attorney_id: userId,
+        bid: { case_id: conv.case_id, attorney_id: conv.attorney_id },
+      },
+      select: { bid_id: true },
+    });
+    if (!joined) return true;
+    await this.prisma.conversationParticipant.deleteMany({
+      where: { conversation_id: conversationId, user_id: userId },
+    });
+    return false;
+  }
+
   @SubscribeMessage('conversation:join')
   async join(
     @ConnectedSocket() socket: Socket,
@@ -1214,6 +1251,12 @@ export class RealtimeGateway
           select: { user_id: true },
         });
     if (!member && !groupMember) return { ok: false };
+    // Verify 17.11 (batch 9): a firm colleague's place in a case chat is a
+    // participant row left from the bid they joined. After the bid was
+    // rejected or withdrawn (or they left the firm) the row stayed and
+    // still let them into the room. Anyone other than the chat's own two
+    // sides is checked against the live team; a stale row goes.
+    if (member && !(await this.teamPlaceIsLive(id, uid))) return { ok: false };
     await socket.join(conversationRoom(id));
     state(socket).viewing.add(id);
     const others = member

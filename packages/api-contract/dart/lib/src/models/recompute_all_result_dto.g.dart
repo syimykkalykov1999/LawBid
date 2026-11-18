@@ -11,6 +11,7 @@ RecomputeAllResultDto _$RecomputeAllResultDtoFromJson(
 ) => RecomputeAllResultDto(
   attorneys: (json['attorneys'] as num).toInt(),
   changed: (json['changed'] as num).toInt(),
+  queued: json['queued'] as bool,
 );
 
 Map<String, dynamic> _$RecomputeAllResultDtoToJson(
@@ -18,4 +19,5 @@ Map<String, dynamic> _$RecomputeAllResultDtoToJson(
 ) => <String, dynamic>{
   'attorneys': instance.attorneys,
   'changed': instance.changed,
+  'queued': instance.queued,
 };

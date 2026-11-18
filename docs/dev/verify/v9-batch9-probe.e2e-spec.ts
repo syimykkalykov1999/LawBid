@@ -386,6 +386,48 @@ describe('verify batch 9 probe 17.11', () => {
     expect(row.helpful_count).toBe(1);
   });
 
+  it('R16 an attorney has one counted review of a client: a case review next to the open one is refused', async () => {
+    const att = await lawyer();
+    const cl = await client();
+    const caseId = await closedCase(cl.id, att.id);
+    const open = await api()
+      .put(`/api/v1/clients/${cl.id}/reviews/mine`)
+      .set(att.auth)
+      .send({ rating: 2, body: 'Late answers.' });
+    const onCase = await api()
+      .put(`/api/v1/cases/${caseId}/client-review`)
+      .set(att.auth)
+      .send({ rating: 5, body: 'Great to work with.' });
+    const live = await prisma.clientReview.count({
+      where: { client_id: cl.id, attorney_id: att.id, status: { not: 'removed' } },
+    });
+    log('R16', { open: open.status, onCase: onCase.status, code: onCase.body.error?.code, live });
+    expect(onCase.status).toBe(409);
+    expect(live).toBe(1);
+  });
+
+  it('R17 a double-tapped report of a client review is one open report', async () => {
+    const att = await lawyer();
+    const cl = await client();
+    const reporter = await client();
+    const rv = await api()
+      .put(`/api/v1/clients/${cl.id}/reviews/mine`)
+      .set(att.auth)
+      .send({ rating: 5, body: 'Fine client.' });
+    const id = rv.body.data.id as string;
+    const tap = () =>
+      api()
+        .post(`/api/v1/client-reviews/${id}/report`)
+        .set(reporter.auth)
+        .send({ reason: 'spam' });
+    const codes = (await Promise.all([tap(), tap(), tap()])).map((r) => r.status);
+    const open = await prisma.report.count({
+      where: { reporter_id: reporter.id, target_id: id, status: 'open' },
+    });
+    log('R17', { codes, open });
+    expect(open).toBe(1);
+  });
+
   // ------------------------------------------------------------------ firms
 
   async function firmOf(owner: { auth: Auth }, ...members: { username: string; auth: Auth }[]) {

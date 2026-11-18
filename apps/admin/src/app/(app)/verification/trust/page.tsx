@@ -105,7 +105,7 @@ function AntiFraud() {
     },
     onSuccess: (r) => {
       if (!r) return;
-      toast.success(`Пересчитано: ${r.attorneys}, изменилось у ${r.changed}`);
+      toast.success(r.queued ? 'Пересчёт запущен в фоне: итог — в журнале действий' : `Пересчитано: ${r.attorneys}, изменилось у ${r.changed}`);
       invalidateTrust(qc);
     },
     onError: (e) => toast.error(e),

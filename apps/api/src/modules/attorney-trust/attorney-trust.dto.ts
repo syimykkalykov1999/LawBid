@@ -1221,4 +1221,9 @@ export class RecomputeAllResultDto {
 
   @ApiProperty({ type: 'integer' })
   changed!: number;
+
+  /** Verify 17.11: true = the run was handed to the background worker
+   * (the counts come in the audit log when it ends); false = it ran here. */
+  @ApiProperty()
+  queued!: boolean;
 }
