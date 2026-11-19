@@ -173,6 +173,66 @@ jobs:
         working-directory: apps/mobile
         run: flutter test $(grep -rlE 'golden_toolkit|matchesGoldenFile|screenMatchesGolden' test --include='*_test.dart' | sort)
 
+  # The same golden test files against the Linux platform goldens
+  # (goldens/linux/<name>.png, the per-OS layout of alchemist, Betterment, MIT;
+  # test/helpers/golden_platform.dart). Exact comparison: the PNGs were rendered
+  # on the self-hosted runner's machine with the Flutter of .fvmrc, so any
+  # differing pixel is a real change. Goal: move the golden gate off the scarce
+  # macOS pool; the macOS job above is unchanged until the owner decides.
+  # A fork PR or CI_RUNNER != self falls back to a GitHub ubuntu runner, whose
+  # CPU may rasterise anti-aliased edges a little differently from the machine
+  # the PNGs came from, so there the result is advisory (continue-on-error).
+  golden-tests-linux:
+    name: Golden tests (Linux)
+    needs: [changes]
+    if: ${{ needs.changes.outputs.mac == 'true' }}
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
+    continue-on-error: ${{ !(vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The self-hosted runner image (scripts/ci/self-hosted-runner.sh) has no
+      # xz, and the Linux Flutter SDK is a .tar.xz (measured for #1106).
+      - name: xz for the Flutter SDK (self-hosted only)
+        if: runner.environment == 'self-hosted'
+        run: |
+          command -v xz >/dev/null 2>&1 && exit 0
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends xz-utils zip
+
+      - name: Flutter version (apps/mobile/.fvmrc is the single pin)
+        id: fv
+        run: echo "v=$(jq -r .flutter apps/mobile/.fvmrc)" >> "$GITHUB_OUTPUT"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ steps.fv.outputs.v }}
+          channel: "stable"
+          # Self-hosted: never save a GitHub cache from the laptop (KNOWN_ERRORS
+          # 34); the SDK and pub cache stay in the slot's tool cache volume.
+          cache: ${{ runner.environment == 'github-hosted' }}
+          pub-cache-path: ${{ runner.environment == 'self-hosted' && format('{0}/pub-cache', runner.tool_cache) || 'default' }}
+
+      - name: flutter pub get
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Generate code (freezed/riverpod/json_serializable/drift)
+        working-directory: apps/mobile
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: flutter test (golden files, Linux platform goldens, exact)
+        working-directory: apps/mobile
+        run: tool/ci/golden_linux.sh
+
+      - name: Failure images (diff, masked, isolated)
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: golden-failures-linux
+          path: apps/mobile/test/**/failures/
+          if-no-files-found: ignore
+
   # Mobile dependency audit (2026-10-22), docs/06 §4.4. Separate Ubuntu job:
   # the OSV-Scanner action is a Docker action (not available on macOS
   # runners). BLOCKING: a known vulnerability in apps/mobile/pubspec.lock
@@ -401,7 +461,7 @@ jobs:
   # S11-6: a failure on main / on a schedule reaches the owner (notify-failure.yml).
   notify:
     name: Notify the owner
-    needs: [analyze-and-test, golden-tests, dependency-audit, build-android, build-web, build-ios]
+    needs: [analyze-and-test, golden-tests, golden-tests-linux, dependency-audit, build-android, build-web, build-ios]
     if: ${{ always() && contains(needs.*.result, 'failure') && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     permissions:
       contents: read
