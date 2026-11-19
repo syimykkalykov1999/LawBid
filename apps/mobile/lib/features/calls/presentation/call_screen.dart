@@ -133,7 +133,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
       // Owner 18.11: the admin's `video_calls` switch is read again when a
       // call opens, so the camera button follows it without a restart
       // (the app is already running: its start controller exists).
-      if (ref.exists(appStartupProvider)) {
+      if (ref.read(appStartupProvider.exists)) {
         unawaited(
           ref
               .read(appStartupProvider.notifier)

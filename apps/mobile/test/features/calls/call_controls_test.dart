@@ -25,8 +25,8 @@ class _Fixed extends CallController {
   CallSession build() => session;
 }
 
-/// The admin's switches as the phone last read them; [set] is a fresh
-/// read with `video_calls` [on] (owner 18.11).
+/// The admin's switches as the phone last read them; `set` is a fresh
+/// read with `video_calls` on or off (owner 18.11).
 class _Flags extends FeatureFlagsController {
   @override
   FeatureFlagsState build() => _state(on: false);
