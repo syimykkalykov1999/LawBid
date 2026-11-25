@@ -116,6 +116,8 @@ module "stack" {
   backup_vault_lock_cooling_off_days = var.backup_vault_lock_cooling_off_days
   ecs_readonly_root_filesystem       = var.ecs_readonly_root_filesystem
   dmarc_policy                       = var.dmarc_policy
+  # X1: staging tries the ECS built-in canary first.
+  api_native_deploy = var.api_native_deploy
 
   # Load audit 6: growth switches (growth.tf).
   growth = var.growth

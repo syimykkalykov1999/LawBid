@@ -305,6 +305,17 @@ data "aws_iam_policy_document" "deploy" {
     actions   = ["ecs:DescribeServices", "ecs:UpdateService"]
     resources = ["arn:aws:ecs:*:${local.account}:service/${local.name}/*"]
   }
+  # X1 (25.11): scripts/deploy/roll-services.sh waits for the result of an ECS
+  # built-in canary / linear deployment (ListServiceDeployments ->
+  # DescribeServiceRevisions -> DescribeServiceDeployments). Read only.
+  statement {
+    actions = ["ecs:ListServiceDeployments", "ecs:DescribeServiceDeployments", "ecs:DescribeServiceRevisions"]
+    resources = [
+      "arn:aws:ecs:*:${local.account}:service/${local.name}/*",
+      "arn:aws:ecs:*:${local.account}:service-deployment/${local.name}/*",
+      "arn:aws:ecs:*:${local.account}:service-revision/${local.name}/*",
+    ]
+  }
   # Canary (scripts/deploy/canary.sh, off unless CANARY_ENABLED): one temporary
   # service api-canary, nothing else can be created or deleted.
   statement {

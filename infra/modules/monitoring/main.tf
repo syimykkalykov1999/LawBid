@@ -96,6 +96,32 @@ variable "cloudfront_gb_per_day_alarm" {
   description = "Alarm when one distribution serves more than this many GB in 24 h. The free tier is 1 TB/month (about 33 GB/day); after it CloudFront bills about $0.085/GB. 0 = off. Hard cap option: modules/cdn-waf rate rule or signed URLs (docs/runbooks/COST_LADDER.md)."
 }
 variable "api_target_group_arn_suffix" { type = string }
+variable "api_green_target_group_arn_suffix" {
+  type        = string
+  default     = ""
+  description = "X1 (25.11): the second api target group of the ECS built-in canary / linear deployment (modules/alb api_green). Used while api_two_target_groups is true."
+}
+variable "api_two_target_groups" {
+  type        = bool
+  default     = false
+  description = "X1: true = the api alarms (5xx ratio, p95, unhealthy, no running tasks, availability burn) read BOTH api target groups, because ECS moves the live traffic to the other group on every built-in canary / linear deployment. A literal (known at plan; the green group's ARN is not while it is created). false = one group, exactly as before."
+}
+locals {
+  # X1: "" = today's single api target group; else blue + green.
+  api_green_on = var.api_two_target_groups
+  api_tg       = { b = var.api_target_group_arn_suffix, g = var.api_green_target_group_arn_suffix }
+  # 5xx-ratio inputs: err / req as raw series (one group) or as sums (two groups).
+  api_5xx_series = local.api_green_on ? {
+    eb = { m = "HTTPCode_Target_5XX_Count", tg = local.api_tg.b }
+    eg = { m = "HTTPCode_Target_5XX_Count", tg = local.api_tg.g }
+    rb = { m = "RequestCount", tg = local.api_tg.b }
+    rg = { m = "RequestCount", tg = local.api_tg.g }
+    } : {
+    err = { m = "HTTPCode_Target_5XX_Count", tg = local.api_tg.b }
+    req = { m = "RequestCount", tg = local.api_tg.b }
+  }
+  api_5xx_sums = local.api_green_on ? { err = "FILL(eb, 0) + FILL(eg, 0)", req = "FILL(rb, 0) + FILL(rg, 0)" } : {}
+}
 variable "media_cdn_distribution_id" {
   type        = string
   default     = ""
@@ -485,24 +511,25 @@ resource "aws_cloudwatch_metric_alarm" "alb_5xx_ratio" {
     label       = "5xx %"
     return_data = true
   }
-  metric_query {
-    id = "err"
-    metric {
-      metric_name = "HTTPCode_Target_5XX_Count"
-      namespace   = "AWS/ApplicationELB"
-      period      = 300
-      stat        = "Sum"
-      dimensions  = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_target_group_arn_suffix }
+  # X1: one group = err / req as before; two groups = their sums.
+  dynamic "metric_query" {
+    for_each = local.api_5xx_series
+    content {
+      id = metric_query.key
+      metric {
+        metric_name = metric_query.value.m
+        namespace   = "AWS/ApplicationELB"
+        period      = 300
+        stat        = "Sum"
+        dimensions  = { LoadBalancer = var.alb_arn_suffix, TargetGroup = metric_query.value.tg }
+      }
     }
   }
-  metric_query {
-    id = "req"
-    metric {
-      metric_name = "RequestCount"
-      namespace   = "AWS/ApplicationELB"
-      period      = 300
-      stat        = "Sum"
-      dimensions  = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_target_group_arn_suffix }
+  dynamic "metric_query" {
+    for_each = local.api_5xx_sums
+    content {
+      id         = metric_query.key
+      expression = metric_query.value
     }
   }
   alarm_actions = local.page
@@ -515,16 +542,39 @@ resource "aws_cloudwatch_metric_alarm" "api_p95" {
   alarm_description   = "LawBid: Приложение отвечает медленно. Что делать: Сервер добавляет мощность сам. Не прошло за 20 минут — откройте админку → Система → Здоровье системы. Инструкция: ${var.runbook_base_url}/api-latency.md (EN: p95 above target for 10 minutes.)"
   comparison_operator = "GreaterThanThreshold"
   evaluation_periods  = 2
-  period              = 300
   threshold           = var.p95_target_ms / 1000
-  extended_statistic  = "p95"
-  metric_name         = "TargetResponseTime"
-  namespace           = "AWS/ApplicationELB"
-  dimensions          = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_target_group_arn_suffix }
-  treat_missing_data  = "notBreaching"
-  alarm_actions       = local.ops
-  ok_actions          = local.ops
-  tags                = var.tags
+  # X1: two api groups = the slower of their p95s (metric math).
+  period             = local.api_green_on ? null : 300
+  extended_statistic = local.api_green_on ? null : "p95"
+  metric_name        = local.api_green_on ? null : "TargetResponseTime"
+  namespace          = local.api_green_on ? null : "AWS/ApplicationELB"
+  dimensions         = local.api_green_on ? null : { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_target_group_arn_suffix }
+  dynamic "metric_query" {
+    for_each = local.api_green_on ? local.api_tg : {}
+    content {
+      id = "p${metric_query.key}"
+      metric {
+        metric_name = "TargetResponseTime"
+        namespace   = "AWS/ApplicationELB"
+        period      = 300
+        stat        = "p95"
+        dimensions  = { LoadBalancer = var.alb_arn_suffix, TargetGroup = metric_query.value }
+      }
+    }
+  }
+  dynamic "metric_query" {
+    for_each = local.api_green_on ? [1] : []
+    content {
+      id          = "p95"
+      expression  = "MAX([FILL(pb, 0), FILL(pg, 0)])"
+      label       = "api p95 (both target groups)"
+      return_data = true
+    }
+  }
+  treat_missing_data = "notBreaching"
+  alarm_actions      = local.ops
+  ok_actions         = local.ops
+  tags               = var.tags
 }
 
 resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
@@ -532,15 +582,38 @@ resource "aws_cloudwatch_metric_alarm" "unhealthy_hosts" {
   alarm_description   = "LawBid: Один из серверов приложения не отвечает. Что делать: AWS заменяет его сам за пару минут. Ничего делать не нужно, если письмо «OK» придёт следом. Инструкция: ${var.runbook_base_url}/api-unhealthy.md (EN: API tasks failing the ALB health check (/health/live).)"
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 2
-  period              = 60
   threshold           = 1
-  statistic           = "Maximum"
-  metric_name         = "UnHealthyHostCount"
-  namespace           = "AWS/ApplicationELB"
-  dimensions          = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_target_group_arn_suffix }
-  alarm_actions       = local.page
-  ok_actions          = local.page
-  tags                = var.tags
+  # X1: two api groups = the worse of the two.
+  period      = local.api_green_on ? null : 60
+  statistic   = local.api_green_on ? null : "Maximum"
+  metric_name = local.api_green_on ? null : "UnHealthyHostCount"
+  namespace   = local.api_green_on ? null : "AWS/ApplicationELB"
+  dimensions  = local.api_green_on ? null : { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_target_group_arn_suffix }
+  dynamic "metric_query" {
+    for_each = local.api_green_on ? local.api_tg : {}
+    content {
+      id = "u${metric_query.key}"
+      metric {
+        metric_name = "UnHealthyHostCount"
+        namespace   = "AWS/ApplicationELB"
+        period      = 60
+        stat        = "Maximum"
+        dimensions  = { LoadBalancer = var.alb_arn_suffix, TargetGroup = metric_query.value }
+      }
+    }
+  }
+  dynamic "metric_query" {
+    for_each = local.api_green_on ? [1] : []
+    content {
+      id          = "unhealthy"
+      expression  = "MAX([FILL(ub, 0), FILL(ug, 0)])"
+      label       = "api unhealthy hosts (both target groups)"
+      return_data = true
+    }
+  }
+  alarm_actions = local.page
+  ok_actions    = local.page
+  tags          = var.tags
 }
 
 # Missing data breaches: no queue_depth lines means the worker's ops.metrics
@@ -937,16 +1010,40 @@ resource "aws_cloudwatch_metric_alarm" "service_running_tasks" {
   alarm_description   = "LawBid: Сервер ${each.key} не запущен ни разу. Что делать: AWS пытается запустить его сам. Не прошло за 10 минут — GitHub → Actions → «Rollback production» на прошлую версию. Инструкция: ${var.runbook_base_url}/ecs-capacity.md (EN: ${each.key} has no running ECS tasks.)"
   comparison_operator = "LessThanThreshold"
   evaluation_periods  = 2
-  period              = each.key == "api" ? 60 : 180
   threshold           = 1
-  statistic           = each.key == "api" ? "Minimum" : "SampleCount"
-  metric_name         = each.key == "api" ? "HealthyHostCount" : "HeapUsedMb"
-  namespace           = each.key == "api" ? "AWS/ApplicationELB" : "LawBid/Runtime"
-  dimensions = each.key == "api" ? {
+  # X1: with two api groups the healthy tasks are their sum (the idle group
+  # has none after every deployment, which alone must not page).
+  period      = each.key == "api" && local.api_green_on ? null : (each.key == "api" ? 60 : 180)
+  statistic   = each.key == "api" && local.api_green_on ? null : (each.key == "api" ? "Minimum" : "SampleCount")
+  metric_name = each.key == "api" && local.api_green_on ? null : (each.key == "api" ? "HealthyHostCount" : "HeapUsedMb")
+  namespace   = each.key == "api" && local.api_green_on ? null : (each.key == "api" ? "AWS/ApplicationELB" : "LawBid/Runtime")
+  dimensions = each.key == "api" && local.api_green_on ? null : (each.key == "api" ? {
     LoadBalancer = var.alb_arn_suffix
     TargetGroup  = var.api_target_group_arn_suffix
     } : {
     Service = "worker"
+  })
+  dynamic "metric_query" {
+    for_each = each.key == "api" && local.api_green_on ? local.api_tg : {}
+    content {
+      id = "h${metric_query.key}"
+      metric {
+        metric_name = "HealthyHostCount"
+        namespace   = "AWS/ApplicationELB"
+        period      = 60
+        stat        = "Minimum"
+        dimensions  = { LoadBalancer = var.alb_arn_suffix, TargetGroup = metric_query.value }
+      }
+    }
+  }
+  dynamic "metric_query" {
+    for_each = each.key == "api" && local.api_green_on ? [1] : []
+    content {
+      id          = "healthy"
+      expression  = "FILL(hb, 0) + FILL(hg, 0)"
+      label       = "api healthy tasks (both target groups)"
+      return_data = true
+    }
   }
   treat_missing_data = "breaching"
   alarm_actions      = local.page

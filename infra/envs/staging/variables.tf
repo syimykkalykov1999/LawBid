@@ -332,6 +332,11 @@ variable "anomaly_to_alerts_topic" {
   default     = true
   description = "Cost Anomaly findings also to the alerts topic (free)."
 }
+variable "api_native_deploy" {
+  type        = string
+  default     = "canary"
+  description = "X1: staging runs the ECS built-in canary for the api first (off | prepare | canary | linear). On a staging that already serves traffic apply `prepare` once before `canary` (docs/runbooks/DEPLOY_SAFETY.md «Встроенный canary ECS»)."
+}
 
 # Item 20 (X3 + D7, 25.11): chaos drills and the monthly restore test on
 # staging. docs/runbooks/chaos-and-restore-drills.md.

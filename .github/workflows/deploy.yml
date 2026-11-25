@@ -6,6 +6,9 @@
 # watches during the rollout (infra/modules/ecs, docs/runbooks/DEPLOY_SAFETY.md).
 # scripts/deploy/roll-services.sh fails this job when ECS rolled the release
 # back (rolloutState FAILED) or when it did not finish in ROLL_TIMEOUT_SECONDS.
+# X1 (25.11): when Terraform switched the api to the ECS built-in canary / linear
+# deployment (var.api_native_deploy), our canary step is skipped and the same
+# script waits for ECS's service deployment (SUCCESSFUL or rolled back) instead.
 # P1 supply chain: images are signed with cosign (keyless, GitHub OIDC) and get
 # an SPDX SBOM attestation; the prod job verifies the signature before it
 # touches anything. Repository variable SIGN_REQUIRED=true makes signing and
@@ -442,14 +445,30 @@ jobs:
       # (not just "stable") and goes red on FAILED. S11-14: api first, smoked
       # against the tag, then worker and admin, so one bad shared change does not
       # hit all three services at once.
+      # X1 (25.11): which canary runs. The ECS service itself says it: strategy
+      # CANARY / LINEAR (Terraform var.api_native_deploy) = ECS's built-in
+      # canary (green target group, api_canary_percent, bake, alarms + circuit
+      # breaker, shift back by itself), and "Rolling deploy api" below waits for
+      # that ECS deployment's result. Anything else (today, or the describe
+      # failed) = our canary script exactly as before.
+      - name: Api deployment strategy (ECS built-in canary or our canary script)
+        id: strategy
+        run: |
+          S=$(aws ecs describe-services --cluster lawbid-prod --services api --query 'services[0].deploymentConfiguration.strategy' --output text 2>/dev/null || echo None)
+          case "$S" in CANARY|LINEAR|BLUE_GREEN) N=true ;; *) N=false ;; esac
+          echo "native=$N" >> "$GITHUB_OUTPUT"
+          echo "api deployment strategy: ${S} (ECS built-in canary: ${N})" | tee -a "$GITHUB_STEP_SUMMARY"
       # Canary (D1-36: ON unless repository variable CANARY_ENABLED=false): one extra task
       # with the new image takes a little live traffic for CANARY_BAKE_MINUTES while
       # the api alarms are watched; a bad release stops here, before the real api.
       - name: Canary (1 task, watch alarms)
+        if: ${{ steps.strategy.outputs.native != 'true' }}
         env:
           CANARY_ENABLED: ${{ vars.CANARY_ENABLED || 'true' }}
           CANARY_BAKE_MINUTES: ${{ vars.CANARY_BAKE_MINUTES || '5' }}
         run: scripts/deploy/canary.sh lawbid-prod "$IMAGE_TAG"
+      # With the ECS built-in canary this step waits for ECS's own result
+      # (SUCCESSFUL, or ROLLBACK_* = red); roll-services.sh reads the strategy.
       - name: Rolling deploy api
         id: roll_api
         env:

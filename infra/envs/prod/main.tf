@@ -270,6 +270,7 @@ module "stack" {
   ecs_readonly_root_filesystem       = var.ecs_readonly_root_filesystem
   deploy_alarm_rollback              = var.deploy_alarm_rollback
   deploy_rollback_on_slo             = var.deploy_rollback_on_slo
+  api_native_deploy                  = var.api_native_deploy
   tracing_enabled                    = var.tracing_enabled
   tracing_sample_ratio               = var.tracing_sample_ratio
   tracing_tail_sampling              = var.tracing_tail_sampling

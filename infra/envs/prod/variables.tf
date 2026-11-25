@@ -700,6 +700,11 @@ variable "deploy_alarm_rollback" {
   default     = true
   description = "Rolling deploy + CloudWatch alarm rollback (docs/runbooks/DEPLOY_SAFETY.md). false = circuit breaker only."
 }
+variable "api_native_deploy" {
+  type        = string
+  default     = "off"
+  description = "X1: ECS built-in canary for the api: off (today: rolling + our canary script) | prepare | canary | linear. Prod stays off until the owner switches it after staging (docs/runbooks/DEPLOY_SAFETY.md «Встроенный canary ECS»)."
+}
 variable "deploy_rollback_on_slo" {
   type        = bool
   default     = false
