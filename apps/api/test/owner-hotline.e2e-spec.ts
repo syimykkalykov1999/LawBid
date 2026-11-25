@@ -1093,7 +1093,7 @@ describe('Hotline: «Взять» → a real 1:1 voice call (e2e, plan PR 4)', (
       .expect(403);
   });
 
-  it('plan PR 6: the attorney may wait only in the languages of his profile; config says how he has access', async () => {
+  it('owner 25.11: the attorney waits in a language outside his profile (en) → accepted, a client of that language is offered to him; config says how he has access', async () => {
     const lawyer = await attorney();
     const cfg = await api()
       .get('/api/v1/hotline/config')
@@ -1104,18 +1104,71 @@ describe('Hotline: «Взять» → a real 1:1 voice call (e2e, plan PR 4)', (
       allowed: true,
       via: 'free',
     });
+    expect(cfg.body.data.attorneyMaxLanguages).toBe(50);
+    const lSock = await connect(lawyer.token);
     const res = await api()
       .put('/api/v1/hotline/line')
       .set(lawyer.auth)
       .send({
         states: ['CA'],
         practiceAreas: ['hotline_e2e'],
-        languages: ['en', 'ru'],
+        languages: ['ru'],
       })
-      .expect(400);
-    expect(res.body.error.details).toMatchObject({
-      reason: 'language_not_in_profile',
-      languages: ['ru'],
+      .expect(200);
+    expect(res.body.data).toMatchObject({ online: true, languages: ['ru'] });
+    expect(await lSock.emitWithAck('hotline:heartbeat', {})).toMatchObject({
+      ok: true,
+      line: true,
     });
+    const offer = once<{ requestId: string; language: string }>(
+      lSock,
+      'hotline:offer',
+    );
+    const caller = await client();
+    const created = await api()
+      .post('/api/v1/hotline/requests')
+      .set(caller.auth)
+      .send({
+        state: 'CA',
+        practiceArea: 'hotline_e2e',
+        languages: ['ru'],
+        topic: 'Custody papers',
+      })
+      .expect(201);
+    expect(await offer).toMatchObject({
+      requestId: created.body.data.id,
+      language: 'ru',
+    });
+    await api()
+      .delete(`/api/v1/hotline/requests/${created.body.data.id}`)
+      .set(caller.auth);
+    await api().delete('/api/v1/hotline/line').set(lawyer.auth).expect(200);
+  });
+
+  it('owner 25.11: «hotline.attorney_max_languages» caps the attorney line from the admin', async () => {
+    const lawyer = await attorney();
+    await setConfig('hotline.attorney_max_languages', 1);
+    try {
+      const cfg = await api()
+        .get('/api/v1/hotline/config')
+        .set(lawyer.auth)
+        .expect(200);
+      expect(cfg.body.data.attorneyMaxLanguages).toBe(1);
+      const res = await api()
+        .put('/api/v1/hotline/line')
+        .set(lawyer.auth)
+        .send({
+          states: ['CA'],
+          practiceAreas: ['hotline_e2e'],
+          languages: ['en', 'ru'],
+        })
+        .expect(400);
+      expect(res.body.error.details).toMatchObject({
+        reason: 'languages_too_many',
+        max: 1,
+      });
+    } finally {
+      await setConfig('hotline.attorney_max_languages', null);
+    }
   });
 });

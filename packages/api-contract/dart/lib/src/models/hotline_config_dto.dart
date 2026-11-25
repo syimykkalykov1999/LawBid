@@ -23,6 +23,7 @@ class HotlineConfigDto {
     required this.reviewEnabled,
     required this.clientStepsEnabled,
     required this.disclosure,
+    this.attorneyMaxLanguages,
     this.mode,
     this.access,
   });
@@ -35,6 +36,9 @@ class HotlineConfigDto {
   final num heartbeatSec;
   final num offerTimeoutSec;
   final num maxLanguages;
+
+  /// hotline.attorney_max_languages: languages on the attorney line (0 = no limit). Optional for apps that met an older server.
+  final num? attorneyMaxLanguages;
   final num topicMaxChars;
   final num countersIntervalSec;
   final num notifyClaimSec;
