@@ -9,6 +9,10 @@ import {
 } from '../../common/app-settings/app-settings.defaults';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
+import {
+  type HomeFeedRanker,
+  RANKED_PIN_TTL_SEC,
+} from '../../common/feed-ranking/home-feed-ranker';
 import { cached } from '../../common/cache/cached';
 import { feedVersion } from '../../common/cache/feed-version';
 import {
@@ -88,7 +92,7 @@ export const POST_POOL = 300;
 export const CASE_POOL = 300;
 const PEOPLE_SCAN = 600;
 /** CONTENT M-6: a For-You grid list a viewer started paging stays this long. */
-export const POST_PIN_TTL_SEC = 15 * 60;
+export const POST_PIN_TTL_SEC = RANKED_PIN_TTL_SEC;
 
 /**
  * Interest signals, one row per (viewer, practice category): where the
@@ -209,7 +213,7 @@ const featuresKey = (kind: RecoKind, viewerId: string) =>
  * secondary tie-break inside text search; text relevance stays first.
  */
 @Injectable()
-export class RecommendationsService {
+export class RecommendationsService implements HomeFeedRanker {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS_CACHE_CLIENT) private readonly redis: Redis,
@@ -338,13 +342,9 @@ export class RecommendationsService {
       if (rows.length === 0 || !this.rankingEvents) return;
       if (!(await this.rankingEvents.keepsImpressionsOf(viewerId))) return;
       const key = featuresKey(kind, viewerId);
-      const flat = rows.flatMap(([id, f]) => [
+      const flat = [...roundedFeatures(new Map(rows))].flatMap(([id, f]) => [
         id,
-        JSON.stringify(
-          Object.fromEntries(
-            Object.entries(f).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4]),
-          ),
-        ),
+        JSON.stringify(f),
       ]);
       await this.redis
         .multi()
@@ -784,22 +784,11 @@ export class RecommendationsService {
           orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
           take: POST_CANDIDATES,
           select: {
-            id: true,
-            author_id: true,
-            created_at: true,
-            like_count: true,
-            comment_count: true,
-            save_count: true,
-            share_count: true,
-            view_count: true,
-            language: true,
-            video_asset_id: true,
+            ...POST_CANDIDATE_SELECT,
             // Owner 25.11: the reels model reads the reel's length.
             ...(feed === 'reel'
               ? { video_asset: { select: { duration_sec: true } } }
               : {}),
-            practice_area: { select: { id: true, parent_id: true } },
-            _count: { select: { media: true } },
           },
         });
         if (rows.length === 0) return [];
@@ -810,40 +799,11 @@ export class RecommendationsService {
               .video_asset?.duration_sec ?? null,
           ]),
         );
-        const candidates: PostCandidate[] = rows.map((r) => ({
-          id: r.id,
-          authorId: r.author_id,
-          createdAt: r.created_at,
-          likes: r.like_count,
-          comments: r.comment_count,
-          saves: r.save_count,
-          shares: r.share_count,
-          views: r.view_count,
-          category: r.practice_area
-            ? (r.practice_area.parent_id ?? r.practice_area.id)
-            : null,
-          language: r.language,
-          kind: postKind(r.video_asset_id, r._count.media),
-        }));
-        const authorIds = [...new Set(candidates.map((c) => c.authorId))];
-        const [base, interests, following, seen, authors] = await Promise.all([
-          this.viewerBase(viewerId),
-          this.interests(viewerId),
-          this.followingSet(viewerId),
-          this.seenPosts(
-            viewerId,
-            candidates.map((c) => c.id),
-          ),
-          this.postAuthors(viewerId, authorIds),
-        ]);
-        const viewer: PostViewer = {
-          id: viewerId,
-          language: base.language,
-          states: base.states,
-          interests,
-          following,
-          seen,
-        };
+        const candidates = rows.map(toPostCandidate);
+        const { viewer, authors, seen } = await this.postContext(
+          viewerId,
+          candidates,
+        );
         const now = Date.now();
         const w = await this.weights('post', POST_WEIGHTS, variant);
         const hotMax = Math.max(0, ...candidates.map((c) => hotRaw(c, now)));
@@ -957,6 +917,197 @@ export class RecommendationsService {
     const model = await ranker.score(top.map((s) => rows.get(s.item.id) ?? {}));
     if (!model) return scored;
     return [...withModelOrder(top, model), ...ordered.slice(n)];
+  }
+
+  /** What the posts formula and the posts model know about the viewer and
+   * the authors of [candidates] (Search «Для вас», reels, the home feed). */
+  private async postContext(
+    viewerId: string,
+    candidates: readonly PostCandidate[],
+  ): Promise<{
+    viewer: PostViewer;
+    authors: Map<string, PostAuthor>;
+    seen: Set<string>;
+  }> {
+    const authorIds = [...new Set(candidates.map((c) => c.authorId))];
+    const [base, interests, following, seen, authors] = await Promise.all([
+      this.viewerBase(viewerId),
+      this.interests(viewerId),
+      this.followingSet(viewerId),
+      this.seenPosts(
+        viewerId,
+        candidates.map((c) => c.id),
+      ),
+      this.postAuthors(viewerId, authorIds),
+    ]);
+    return {
+      viewer: {
+        id: viewerId,
+        language: base.language,
+        states: base.states,
+        interests,
+        following,
+        seen,
+      },
+      authors,
+      seen,
+    };
+  }
+
+  // -----------------------------------------------------------------------
+  // Owner 25.11 («умную ленту для всех лент»): Feed → «Посты» (GET /feed).
+
+  /**
+   * The viewer's arm of the posts ranker test on the home feed — the same
+   * test (and so the same arm) as Search «Для вас»: one person, one arm,
+   * whichever posts list they open. Null = not in the test (the feed as
+   * today: followed + own posts newest first, recommendations mixed in).
+   */
+  async homeFeedArm(viewerId: string): Promise<Assignment | null> {
+    if (!this.ranker) return null;
+    return this.ranker.assign(viewerId);
+  }
+
+  /** True for the arm of the posts test that the model ranks. */
+  isHomeModelArm(a: Assignment | null | undefined): boolean {
+    return isModelArmOf(RANKER_EXPERIMENT_KEY, a);
+  }
+
+  /**
+   * The posts model's input row of each of [ids] for the viewer, plus the
+   * formula's score of each (in the order of [ids]; ids no longer readable
+   * are left out). The same rows Search «Для вас» logs and scores.
+   */
+  async homeFeedRows(
+    viewerId: string,
+    ids: readonly string[],
+    variant: Assignment | null = null,
+  ): Promise<{
+    rows: Map<string, Record<string, number>>;
+    scored: Scored<PostCandidate>[];
+  }> {
+    const rows = new Map<string, Record<string, number>>();
+    if (ids.length === 0) return { rows, scored: [] };
+    const read = await this.prisma.post.findMany({
+      where: { id: { in: [...new Set(ids)] } },
+      select: POST_CANDIDATE_SELECT,
+    });
+    const byId = new Map(read.map((r) => [r.id, toPostCandidate(r)]));
+    const candidates = ids.flatMap((id) => {
+      const c = byId.get(id);
+      return c ? [c] : [];
+    });
+    if (candidates.length === 0) return { rows, scored: [] };
+    const { viewer, authors, seen } = await this.postContext(
+      viewerId,
+      candidates,
+    );
+    const now = Date.now();
+    const w = await this.weights('post', POST_WEIGHTS, variant);
+    const hotMax = Math.max(0, ...candidates.map((c) => hotRaw(c, now)));
+    const scored = candidates.map((c) => {
+      const author = authors.get(c.authorId);
+      rows.set(
+        c.id,
+        rankerRow(
+          postFeatures(c, author, viewer, hotMax, now),
+          seen.has(c.id),
+          c.kind,
+        ),
+      );
+      return { item: c, score: postScore(c, author, viewer, hotMax, now, w) };
+    });
+    return { rows, scored };
+  }
+
+  /**
+   * Owner 25.11 (Instagram home feed: candidates first, then the ranking
+   * model orders them): the home feed's candidate window — the posts the
+   * feed would show anyway (followed + own posts, the recommendation
+   * slots, reposts, the "everything else" tail), in the feed's own order —
+   * ordered by the posts model for the model arm. [lead]: ids kept on top
+   * in their order (the viewer's own newest posts: a post just published
+   * is seen at once, like Instagram). Null = no model / scoring failed:
+   * the caller keeps the feed exactly as it is.
+   */
+  async rankHomeWindow(
+    viewerId: string,
+    ids: readonly string[],
+    lead: ReadonlySet<string>,
+    variant: Assignment | null,
+  ): Promise<{
+    ids: string[];
+    rows: Map<string, Record<string, number>>;
+  } | null> {
+    const ranker = this.ranker;
+    if (!ranker || ids.length === 0) return null;
+    try {
+      const { rows, scored } = await this.homeFeedRows(viewerId, ids, variant);
+      const leaders = ids.filter((id) => lead.has(id) && rows.has(id));
+      const rest = scored.filter((s) => !lead.has(s.item.id));
+      if (rest.length === 0) return { ids: leaders, rows };
+      // The whole window is ranked by the model (it is no bigger than the
+      // admin's `reco.ranker.feed_window`); the formula only lends its
+      // score scale to the slots, so diversify below works as in Search.
+      const ordered = byFormula(rest);
+      const model = await ranker.score(
+        ordered.map((s) => rows.get(s.item.id) ?? {}),
+      );
+      if (!model) return null;
+      const spread = diversify(withModelOrder(ordered, model), {
+        key: (c) => c.authorId,
+        kind: (c) => c.kind,
+        window: 6,
+      });
+      return { ids: [...leaders, ...spread.map((c) => c.id)], rows };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * A home feed page was served: one impression per post at its place,
+   * with the posts model's input row (surface `home_feed`, which train.py
+   * --feed posts reads next to Search's `posts`). [rows]: the rows the
+   * page was ranked with; missing ones are read now. Never throws; the
+   * caller does not wait for it.
+   */
+  async logHomeServed(
+    viewerId: string,
+    ids: readonly string[],
+    offset: number,
+    assignment: Assignment | null,
+    rows?: ReadonlyMap<string, Record<string, number>>,
+  ): Promise<void> {
+    try {
+      const ev = this.rankingEvents;
+      if (!ev || ids.length === 0) return;
+      if (!(await ev.keepsImpressionsOf(viewerId))) return;
+      const features = new Map<string, Record<string, number>>();
+      const missing: string[] = [];
+      for (const id of ids) {
+        const r = rows?.get(id);
+        if (r) features.set(id, r);
+        else missing.push(id);
+      }
+      if (missing.length > 0) {
+        const read = await this.homeFeedRows(viewerId, missing, assignment);
+        for (const [id, r] of read.rows) features.set(id, r);
+      }
+      const model = this.isHomeModelArm(assignment);
+      await ev.logList({
+        userId: viewerId,
+        surface: HOME_FEED_SURFACE,
+        itemIds: ids,
+        offset,
+        assignment,
+        formulaVersion:
+          (model ? this.ranker?.formulaVersion() : null) ?? HOME_FEED_FORMULA,
+        features: roundedFeatures(features),
+      });
+    } catch {
+      // the log never hurts the feed
+    }
   }
 
   private async followingSet(viewerId: string): Promise<Set<string>> {
@@ -1336,6 +1487,63 @@ export function postKind(videoAssetId: string | null, media: number): PostKind {
   if (videoAssetId) return 'reel';
   return media > 0 ? 'photo' : 'brief';
 }
+
+/** What a post candidate of the posts formula is read with. */
+const POST_CANDIDATE_SELECT = {
+  id: true,
+  author_id: true,
+  created_at: true,
+  like_count: true,
+  comment_count: true,
+  save_count: true,
+  share_count: true,
+  view_count: true,
+  language: true,
+  video_asset_id: true,
+  practice_area: { select: { id: true, parent_id: true } },
+  _count: { select: { media: true } },
+} satisfies Prisma.PostSelect;
+
+type PostCandidateRow = Prisma.PostGetPayload<{
+  select: typeof POST_CANDIDATE_SELECT;
+}>;
+
+function toPostCandidate(r: PostCandidateRow): PostCandidate {
+  return {
+    id: r.id,
+    authorId: r.author_id,
+    createdAt: r.created_at,
+    likes: r.like_count,
+    comments: r.comment_count,
+    saves: r.save_count,
+    shares: r.share_count,
+    views: r.view_count,
+    category: r.practice_area
+      ? (r.practice_area.parent_id ?? r.practice_area.id)
+      : null,
+    language: r.language,
+    kind: postKind(r.video_asset_id, r._count.media),
+  };
+}
+
+/** The events log's rounding (1e-4), as keepFeatures applies it. */
+function roundedFeatures(
+  rows: ReadonlyMap<string, Record<string, number>>,
+): Map<string, Record<string, number>> {
+  return new Map(
+    [...rows].map(([id, f]) => [
+      id,
+      Object.fromEntries(
+        Object.entries(f).map(([k, v]) => [k, Math.round(v * 1e4) / 1e4]),
+      ),
+    ]),
+  );
+}
+
+/** Owner 25.11: the home feed (Feed → «Посты») in the ranking events log. */
+export const HOME_FEED_SURFACE = 'home_feed';
+/** Its list as today (followed + own newest first, recommendations mixed in). */
+export const HOME_FEED_FORMULA = 'home-2026-11';
 
 /** Short stable key of a filter object (cache keys never hold raw text). */
 export function hashOf(value: unknown): string {

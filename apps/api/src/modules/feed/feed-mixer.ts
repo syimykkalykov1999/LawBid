@@ -53,6 +53,14 @@ export interface FeedCursor {
    * a recommendation seen before it (an earlier visit: shown lower again,
    * never lost) but not one this scroll already served. */
   s?: number;
+  /** Owner 25.11: how many posts this scroll served before this page (the
+   * impressions' places in the ranking events log). */
+  n?: number;
+  /** Owner 25.11 (Instagram home feed): the scroll pages a pinned ranked
+   * window — `p` its name, `o` the next index in it, `e` the feed ended
+   * inside the window. The other fields are the chronological read after
+   * the window (where the feed goes on once the window is served). */
+  k?: { p: string; o: number; e?: boolean };
 }
 
 export function encodeFeedCursor(c: FeedCursor): string {
@@ -84,6 +92,18 @@ export function decodeFeedCursor(raw: string): FeedCursor | null {
     ) {
       return null;
     }
+    const k = c.k as FeedCursor['k'] | null | undefined;
+    if (
+      k != null &&
+      (typeof k !== 'object' ||
+        typeof k.p !== 'string' ||
+        !/^[A-Za-z0-9_-]{1,32}$/.test(k.p) ||
+        typeof k.o !== 'number' ||
+        !Number.isFinite(k.o) ||
+        k.o < 0)
+    ) {
+      return null;
+    }
     return {
       f: c.f,
       r: Math.floor(c.r),
@@ -91,6 +111,18 @@ export function decodeFeedCursor(raw: string): FeedCursor | null {
       l: c.l ?? null,
       ...(typeof c.s === 'number' && Number.isFinite(c.s) && c.s > 0
         ? { s: Math.floor(c.s) }
+        : {}),
+      ...(typeof c.n === 'number' && Number.isFinite(c.n) && c.n > 0
+        ? { n: Math.floor(c.n) }
+        : {}),
+      ...(k
+        ? {
+            k: {
+              p: k.p,
+              o: Math.floor(k.o),
+              ...(k.e === true ? { e: true } : {}),
+            },
+          }
         : {}),
     };
   } catch {

@@ -1929,7 +1929,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['reco.ranker.mode'] = {
     ...out['reco.ranker.mode'],
     description:
-      'Learned posts ranker (Search «For you»): off (formula for everyone), on (A/B test whenever a model is loaded), auto (default; only while the model beat the formula offline and scores inside the latency budget).',
+      'Learned posts ranker (Search «For you» and Feed «Posts»): off (formula for everyone), on (A/B test whenever a model is loaded), auto (default; only while the model beat the formula offline and scores inside the latency budget).',
     pattern: /^(off|on|auto)$/,
   };
   out['reco.ranker.traffic_percent'] = {
@@ -1957,6 +1957,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['reco.ranker.latency_budget_ms'],
     min: 1,
     max: 1000,
+  };
+  out['reco.ranker.feed_window'] = {
+    ...out['reco.ranker.feed_window'],
+    description:
+      'Feed «Posts» (GET /feed), model arm: how many posts of the feed as it is the posts model orders at the start of a scroll (the scroll pages that order, then goes on newest first).',
+    min: 20,
+    max: 400,
   };
   // Owner 25.11: the reels' and the case feed's own learned rankers.
   for (const feed of ['reels', 'cases'] as const) {

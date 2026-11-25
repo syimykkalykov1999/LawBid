@@ -873,6 +873,11 @@ export const OWNER_RANKER_SETTINGS = {
   /** «Авто»: the model sits out 5 minutes when its scoring p95 (ms) goes
    * over this. */
   'reco.ranker.latency_budget_ms': 15,
+  /** Owner 25.11: Feed → «Посты» (GET /feed), model arm: how many posts of
+   * the feed as it is (followed + own, recommendations, reposts, the
+   * tail) the posts model orders at the start of a scroll; the scroll
+   * pages that order, then goes on newest first. */
+  'reco.ranker.feed_window': 100,
   // Owner 25.11: the reels feed's own model (train.py --feed reels; labels:
   // share, save, like, a real watch). Same meaning as the posts keys above;
   // test key `reel_ranker`; model under ml/feed-ranker/reels/<version>/.
