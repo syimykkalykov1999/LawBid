@@ -20,7 +20,7 @@ part 'delete_account_controller.g.dart';
 ///
 /// A plain (sync) `Notifier`, not `AsyncNotifier` — unlike
 /// `ActiveDevicesController`, `build()` here does no network call, only
-/// [acknowledgeWarning]/[submitPhone]/[submitCode]/[submitDeletion]
+/// [acknowledgeWarning]/[sendCode]/[submitCode]/[submitDeletion]
 /// do, and each already tracks its own [DeleteAccountFlowState.isSubmitting]
 /// / [DeleteAccountFlowState.errorMessage] rather than the whole state tree
 /// going through `AsyncValue`'s loading/error/data — same shape as
@@ -80,7 +80,7 @@ class DeleteAccountController extends _$DeleteAccountController {
     );
   }
 
-  /// «Забыли пароль? Получить код по SMS» / no password on the account.
+  /// «Забыли пароль? Получить код» / no password on the account.
   void useCode() {
     state = state.copyWith(
       errorMessage: null,
@@ -110,31 +110,40 @@ class DeleteAccountController extends _$DeleteAccountController {
   /// here does NOT set [DeleteAccountFlowState.reauthToken] — it cannot,
   /// the server only mints that from a correct OTP code — it only affects
   /// this controller's own UX (the screen can pre-fill trust/skip an extra
-  /// tap), so callers still always go through [submitPhone]/[submitCode]
+  /// tap), so callers still always go through [sendCode]/[submitCode]
   /// afterward.
   Future<bool> tryBiometric({required String reason}) {
     return ref.read(biometricAuthServiceProvider).authenticate(reason: reason);
   }
 
-  /// Reauth-phone step: requests an OTP for [phoneNumber] (E.164) via the
-  /// existing public `POST /auth/otp/request` (reused, not a new
-  /// endpoint — see `AuthRepository.reauthWithOtp`'s doc comment) and
-  /// advances to the code step. Errors here are network-only (the
-  /// endpoint doesn't reveal whether the number belongs to an account,
-  /// same anti-enumeration behavior as login) — a bad/foreign number just
-  /// surfaces once [submitCode] gets back `REAUTH_INVALID`.
-  Future<void> submitPhone(String phoneNumber) async {
+  /// Reauth-code request step. Pack E (25.11, ROUND1 #12): the code goes to
+  /// the account's verified e-mail (`CurrentUser.reauthIdentifier`) through
+  /// `POST /auth/otp/request`, never by SMS — the server sends an SMS only
+  /// at registration and «Забыл пароль» (owner rule sms-two-cases), so a
+  /// code asked for the account's own phone never arrived. No verified
+  /// e-mail: nothing to send to (the screen offers only the password).
+  Future<void> sendCode() async {
+    final target = _codeTarget;
+    if (target == null) return;
     state = state.copyWith(isSubmitting: true, errorMessage: null);
     try {
-      await _repo.requestOtp(phoneNumber);
+      await _repo.requestOtp(target.identifier, channel: target.channel);
       state = state.copyWith(
-        phoneNumber: phoneNumber,
+        codeTarget: target.identifier,
         codeRequested: true,
         isSubmitting: false,
         step: DeleteAccountStep.reauthCode,
       );
     } catch (_) {
       state = state.copyWith(isSubmitting: false, errorMessage: 'network');
+    }
+  }
+
+  ({String channel, String identifier})? get _codeTarget {
+    try {
+      return ref.read(currentUserControllerProvider).user?.reauthIdentifier;
+    } on Object {
+      return null;
     }
   }
 
@@ -145,10 +154,10 @@ class DeleteAccountController extends _$DeleteAccountController {
   /// comment in apps/api) for the [submitDeletion] call at the end of that
   /// step.
   Future<void> submitCode(String code) async {
-    final phone = state.phoneNumber;
-    if (phone == null) return;
+    final target = state.codeTarget;
+    if (target == null) return;
     state = state.copyWith(isSubmitting: true, errorMessage: null);
-    final result = await _repo.reauthWithOtp(identifier: phone, code: code);
+    final result = await _repo.reauthWithOtp(identifier: target, code: code);
     result.when(
       success: (reauthToken) {
         state = state.copyWith(

@@ -74,7 +74,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           scripts/ci/require-green.sh "$GITHUB_SHA" '^(Analyze, lint|Build check|gitleaks|CodeQL|API |Admin CI)' \
-            '^(Wait for green CI|Release notes|Android|iOS|GitHub release|Promote|Notify)'
+            '^(Wait for green CI|Release notes|Android|iOS|GitHub release|Promote|Notify|Deploy: Bunny Stream settings)'
 
   notes:
     name: Release notes (Conventional Commits)

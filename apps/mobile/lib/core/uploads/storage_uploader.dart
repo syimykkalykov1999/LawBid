@@ -622,12 +622,57 @@ class StorageUploader {
       await Future<void>.delayed(scanPoll);
       s = await scanStatus(fileId);
     }
+    // Owner 24.11 (WhatsApp / Telegram never fail a photo for a slow
+    // server): a scan that is only still running is not a refusal. The
+    // same code with `scanStatus: pending` (the server's own 409 detail)
+    // lets the queue wait and ask again ([UploadQueue.temporary]);
+    // infected / failed stay a refusal for good.
+    if (s == api.ScanStatus.pending) throw scanPending;
     if (s != api.ScanStatus.clean) {
       throw const ApiException(
         code: ApiErrorCodes.fileNotAttachable,
         message: 'scan',
       );
     }
+  }
+
+  /// The scan of a stored file has not finished within the wait.
+  static const scanPending = ApiException(
+    code: ApiErrorCodes.fileNotAttachable,
+    message: 'scan',
+    details: {'scanStatus': 'pending'},
+  );
+
+  /// True for a file the server still checks ([scanPending], or the
+  /// server's 409 for a file sent before its scan ended).
+  static bool isScanPending(Object e) =>
+      e is ApiException &&
+      e.code == ApiErrorCodes.fileNotAttachable &&
+      e.details?['scanStatus'] == 'pending';
+
+  /// Owner 24.11: the wait of a file already in storage (its bytes went up
+  /// and were confirmed before): only its scan is asked for, nothing is sent
+  /// again. Returns the clean file's id.
+  Future<String> waitStored(String fileId, {int? maxPolls}) async {
+    await waitClean(
+      fileId,
+      status: await scanStatus(fileId),
+      maxPolls: maxPolls,
+    );
+    return fileId;
+  }
+
+  /// Step 3 + 4: [onStored] hears the id once storage has the bytes, before
+  /// the scan is waited for (a queue job keeps it, so a slow scan never
+  /// sends the file again).
+  Future<void> _confirmAndWait(
+    String fileId, {
+    int? maxPolls,
+    Future<void> Function(String fileId)? onStored,
+  }) async {
+    final status = await confirm(fileId);
+    await onStored?.call(fileId);
+    await waitClean(fileId, status: status, maxPolls: maxPolls);
   }
 
   /// All four steps; returns the clean file's id.
@@ -645,6 +690,7 @@ class StorageUploader {
     Future<void> Function(StorageTarget target)? onTarget,
     String? resumeFileId,
     void Function(String fileId)? onPartsFileId,
+    Future<void> Function(String fileId)? onStored,
   }) async {
     // R-254: first, ask whether this same user already stored these bytes
     // (the server answers only for own files, and only with the flag on). A
@@ -683,6 +729,7 @@ class StorageUploader {
         onProgress: onProgress,
         cancel: cancel,
         scanMaxPolls: scanMaxPolls,
+        onStored: onStored,
       );
       if (done != null) return done;
     }
@@ -715,6 +762,7 @@ class StorageUploader {
           scanMaxPolls: scanMaxPolls,
           transport: transport,
           taskId: taskId,
+          onStored: onStored,
         );
       } on ApiException catch (e) {
         final forget = _forgetTransfer;
@@ -740,6 +788,7 @@ class StorageUploader {
     int? scanMaxPolls,
     StorageTransport? transport,
     String? taskId,
+    Future<void> Function(String fileId)? onStored,
   }) async {
     // A big file goes in resumable parts when the server offers it (and the
     // caller did not pick its own transport, e.g. the background queue).
@@ -776,10 +825,10 @@ class StorageUploader {
     } else {
       await send();
     }
-    await waitClean(
+    await _confirmAndWait(
       target.fileId,
-      status: await confirm(target.fileId),
       maxPolls: scanMaxPolls,
+      onStored: onStored,
     );
     return target.fileId;
   }
@@ -804,6 +853,7 @@ class StorageUploader {
     void Function(double progress)? onProgress,
     CancelToken? cancel,
     int? scanMaxPolls,
+    Future<void> Function(String fileId)? onStored,
   }) async {
     if (await body.length() < resumableThresholdBytes) return null;
     if (!await gate.allows(taskId)) return null;
@@ -876,14 +926,10 @@ class StorageUploader {
           )) {
         return null;
       }
-      await waitClean(id, status: await confirm(id), maxPolls: scanMaxPolls);
+      await _confirmAndWait(id, maxPolls: scanMaxPolls, onStored: onStored);
       return id;
     }
-    await waitClean(
-      fileId,
-      status: await confirm(fileId),
-      maxPolls: scanMaxPolls,
-    );
+    await _confirmAndWait(fileId, maxPolls: scanMaxPolls, onStored: onStored);
     return fileId;
   }
 

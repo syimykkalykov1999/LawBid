@@ -534,9 +534,35 @@ jobs:
           scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}" "$LAST_GOOD_TAG"
           echo "✅ production is back on $LAST_GOOD_TAG" >> "$GITHUB_STEP_SUMMARY"
 
+  # Item 18 / M5 (25.11): the Bunny Stream encoding ladder lives in
+  # scripts/deploy/bunny-stream-settings.json. Read-only check of the live library
+  # (GET api.bunny.net/videolibrary/{id}); drift turns this job red and `notify`
+  # tells the owner, the release itself is not held. Until the repository secrets
+  # BUNNY_LIBRARY_ID / BUNNY_ACCOUNT_API_KEY exist it only writes a notice.
+  # Fixing drift is the owner's explicit command (`... apply --yes`), never CI.
+  bunny-settings:
+    # «Deploy: …»: the CI gates of deploy.yml and web-deploy.yml skip «^Deploy»
+    # checks, mobile-release.yml names it, so drift never closes a release gate.
+    name: "Deploy: Bunny Stream settings match the code"
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26.13.1"
+      - name: Compare the live library with bunny-stream-settings.json (read-only)
+        env:
+          BUNNY_LIBRARY_ID: ${{ secrets.BUNNY_LIBRARY_ID }}
+          BUNNY_ACCOUNT_API_KEY: ${{ secrets.BUNNY_ACCOUNT_API_KEY }}
+        run: node scripts/deploy/bunny-stream-settings.mjs check --soft
+
   notify:
     name: Tell the owner
-    needs: [gate, build-arch, build, deploy-staging, deploy-prod]
+    needs: [gate, build-arch, build, deploy-staging, deploy-prod, bunny-settings]
     if: ${{ always() && contains(needs.*.result, 'failure') }}
     permissions:
       contents: read
@@ -544,6 +570,6 @@ jobs:
       id-token: write
     uses: ./.github/workflows/notify-failure.yml
     with:
-      title: "Production deploy failed (red CI gate, build, migration, roll or smoke)"
+      title: "Production deploy failed (red CI gate, build, migration, roll or smoke) or Bunny Stream settings differ from the code"
       kind: deploy
     secrets: inherit
