@@ -1904,6 +1904,39 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100,
   };
+  // F2: the learned posts ranker (Выкл / Вкл / Авто), off until a model exists.
+  out['reco.ranker.mode'] = {
+    ...out['reco.ranker.mode'],
+    description:
+      'Learned posts ranker: off (formula for everyone), on (A/B test whenever a model is loaded), auto (only while the model beat the formula offline and scores inside the latency budget).',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['reco.ranker.traffic_percent'] = {
+    ...out['reco.ranker.traffic_percent'],
+    min: 0,
+    max: 100,
+  };
+  out['reco.ranker.model_share_percent'] = {
+    ...out['reco.ranker.model_share_percent'],
+    min: 0,
+    max: 100,
+  };
+  out['reco.ranker.model_key'] = {
+    ...out['reco.ranker.model_key'],
+    description:
+      'S3 key of the ranker model in the documents bucket: ml/feed-ranker/<version>/model.onnx (manifest.json beside it); empty = no model.',
+    pattern: /^(|ml\/feed-ranker\/[A-Za-z0-9._-]{1,64}\/model\.onnx)$/,
+  };
+  out['reco.ranker.top_n'] = {
+    ...out['reco.ranker.top_n'],
+    min: 1,
+    max: 400,
+  };
+  out['reco.ranker.latency_budget_ms'] = {
+    ...out['reco.ranker.latency_budget_ms'],
+    min: 1,
+    max: 1000,
+  };
   // Owner rule (Выкл / Вкл / Авто): new-case alerts in waves.
   out['case_fanout.enabled'] = {
     ...out['case_fanout.enabled'],

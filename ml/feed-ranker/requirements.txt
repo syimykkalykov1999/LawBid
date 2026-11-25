@@ -1,0 +1,12 @@
+# Offline training of the posts ranker (F2). Python 3.13. Pinned: the
+# newest stable releases, each out at least 7 days on 2026-11-25.
+# lightgbm MIT; onnxmltools, onnx Apache-2.0; onnxruntime MIT; numpy BSD-3;
+# scikit-learn BSD-3 (needed by lightgbm's LGBMRanker); pg8000 BSD-3.
+# macOS also needs `brew install libomp` for lightgbm.
+lightgbm==4.7.0
+onnxmltools==1.16.0
+onnx==1.23.2
+onnxruntime==1.32.0
+numpy==2.5.5
+scikit-learn==1.9.1
+pg8000==1.31.6

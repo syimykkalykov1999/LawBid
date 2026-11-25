@@ -56,6 +56,9 @@ import {
 } from './qa-ranking';
 import { QaSnapshotService } from './qa-snapshot.service';
 import { shardContext } from '../../sharding/shard-context';
+import { PostRankerService } from './ranker/post-ranker.service';
+import { rankerRow } from './ranker/ranker-features';
+import { byFormula, withModelOrder } from './ranker/rerank';
 
 /** Ranked lists are rebuilt at most this often per viewer. */
 export const PEOPLE_TTL_SEC = 10 * 60;
@@ -191,6 +194,8 @@ export class RecommendationsService {
     // Owner 2026-11-08: A/B tests change the formula's weights per variant.
     @Optional() private readonly experiments?: ExperimentsService,
     @Optional() private readonly rankingEvents?: RankingEventsService,
+    // F2: the learned second stage of the posts ranking (off by default).
+    @Optional() private readonly ranker?: PostRankerService,
   ) {}
 
   /**
@@ -201,6 +206,13 @@ export class RecommendationsService {
     viewerId: string,
     kind: RecoKind,
   ): Promise<Assignment | null> {
+    // F2: on the posts surface the ranker test comes first; its two arms
+    // both run the admin's weights as they are (no variant overrides), so
+    // the model is compared with the formula alone.
+    if (kind === 'post' && this.ranker) {
+      const r = await this.ranker.assign(viewerId);
+      if (r) return r;
+    }
     if (!this.experiments) return null;
     return this.experiments.assignSurface(viewerId, RECO_SURFACE[kind]);
   }
@@ -231,7 +243,10 @@ export class RecommendationsService {
         itemIds: ids,
         offset,
         assignment,
-        formulaVersion: RECO_FORMULA[kind],
+        formulaVersion:
+          (PostRankerService.isModelArm(assignment)
+            ? this.ranker?.formulaVersion()
+            : null) ?? RECO_FORMULA[kind],
         features,
       });
     } catch {
@@ -760,13 +775,23 @@ export class RecommendationsService {
         const now = Date.now();
         const w = await this.weights('post', POST_WEIGHTS, variant);
         const hotMax = Math.max(0, ...candidates.map((c) => hotRaw(c, now)));
+        // F2: what the impression log keeps per post is exactly the learned
+        // ranker's input (ranker-features.ts): the formula's 0..1 features,
+        // seen and the content type.
+        const rankerRows = new Map(
+          candidates.map((c) => [
+            c.id,
+            rankerRow(
+              postFeatures(c, authors.get(c.authorId), viewer, hotMax, now),
+              seen.has(c.id),
+              c.kind,
+            ),
+          ]),
+        );
         await this.keepFeatures(
           viewerId,
           'post',
-          candidates.map((c) => [
-            c.id,
-            postFeatures(c, authors.get(c.authorId), viewer, hotMax, now),
-          ]),
+          [...rankerRows.entries()],
           LISTING_TTL_SEC,
         );
         // Own posts are not "discovery" (Search). 18.11: the reels keep
@@ -778,7 +803,7 @@ export class RecommendationsService {
               .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
           : [];
         const led = new Set(leaders.map((c) => c.id));
-        const scored: Scored<PostCandidate>[] = candidates
+        const formulaScored: Scored<PostCandidate>[] = candidates
           .filter((c) =>
             includeOwn ? !led.has(c.id) : c.authorId !== viewerId,
           )
@@ -793,6 +818,11 @@ export class RecommendationsService {
               w,
             ),
           }));
+        // F2 stage 2: for the model arm the learned ranker re-orders the
+        // formula's best candidates (keyed in the cache by the variant).
+        const scored = PostRankerService.isModelArm(variant)
+          ? await this.rerankPosts(formulaScored, rankerRows)
+          : formulaScored;
         const spread = (list: Scored<PostCandidate>[]) =>
           diversify(list, {
             key: (c) => c.authorId,
@@ -814,6 +844,25 @@ export class RecommendationsService {
         return [...leaders, ...ranked].slice(0, POST_POOL).map((c) => c.id);
       },
     );
+  }
+
+  /**
+   * F2 stage 2: the model re-orders the formula's best `reco.ranker.top_n`
+   * candidates; the rest stay below in the formula's order. No model or a
+   * scoring failure = the formula's list unchanged.
+   */
+  private async rerankPosts(
+    scored: Scored<PostCandidate>[],
+    rows: ReadonlyMap<string, Record<string, number>>,
+  ): Promise<Scored<PostCandidate>[]> {
+    const ranker = this.ranker;
+    if (!ranker || scored.length < 2) return scored;
+    const ordered = byFormula(scored);
+    const n = Math.min(ordered.length, await ranker.topN());
+    const top = ordered.slice(0, n);
+    const model = await ranker.score(top.map((s) => rows.get(s.item.id) ?? {}));
+    if (!model) return scored;
+    return [...withModelOrder(top, model), ...ordered.slice(n)];
   }
 
   private async followingSet(viewerId: string): Promise<Set<string>> {
