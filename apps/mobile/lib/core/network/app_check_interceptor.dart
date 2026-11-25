@@ -17,11 +17,15 @@ import 'package:lawbid/core/network/api_error.dart';
 /// app» (core/l10n/api_error_text.dart). After that answer the next
 /// attempt asks the SDK for a fresh token instead of the cached one.
 class AppCheckInterceptor extends Interceptor {
-  AppCheckInterceptor({required this.token, this.status});
+  AppCheckInterceptor({required this.token, this.status, this.limitedToken});
 
   /// The current token, or null when there is none
   /// (core/security/app_check.dart).
   final Future<String?> Function({bool forceRefresh}) token;
+
+  /// Item 13: a fresh limited-use token for [limitedRoutes], or null (no
+  /// Firebase, attestation failed, timeout). Phones only.
+  final Future<String?> Function()? limitedToken;
 
   /// Why [token] gave nothing (core/security/app_check.dart, `status`).
   final String? Function()? status;
@@ -47,11 +51,52 @@ class AppCheckInterceptor extends Interceptor {
     '/auth/otp/verify',
   ];
 
-  /// True for a POST to one of [routes].
+  /// Item 13 (2026-11-25): starting a payment (signed-in) carries the token
+  /// too (server switch `security.app_check.payments.mode`, log only by
+  /// default). `*` stands for one path segment (the pack id).
+  static const paymentRoutes = [
+    '/client-plans/checkout',
+    '/verification/client/checkout',
+    '/stars/packs/*/buy',
+    '/bid-packs/*/buy',
+  ];
+
+  /// Item 13: the routes where the server may CONSUME the token (Firebase
+  /// replay protection, `security.app_check.replay.mode`). There the app
+  /// sends a limited-use token (`getLimitedUseToken`), made to be used
+  /// once, and says so in [limitedHeader].
+  static const limitedRoutes = [
+    '/auth/otp/request',
+    '/auth/password/reset/request',
+    '/auth/phone/status',
+    ...paymentRoutes,
+  ];
+
+  /// `1` = the token on this request is limited-use. Phones only (on the
+  /// web an extra header is a CORS preflight against an older server).
+  static const limitedHeader = 'X-Firebase-AppCheck-Limited';
+
+  static bool _matches(String path, String route) {
+    if (!route.contains('*')) return path == route || path.endsWith(route);
+    final pattern = RegExp(
+      '${route.split('*').map(RegExp.escape).join('[^/]+')}\$',
+    );
+    return pattern.hasMatch(path);
+  }
+
+  /// True for a POST to one of [routes] or [paymentRoutes].
   static bool needsToken(RequestOptions options) {
     if (options.method.toUpperCase() != 'POST') return false;
     final path = options.uri.path;
-    return routes.any((r) => path == r || path.endsWith(r));
+    return routes.any((r) => _matches(path, r)) ||
+        paymentRoutes.any((r) => _matches(path, r));
+  }
+
+  /// True for a POST to one of [limitedRoutes].
+  static bool needsLimitedToken(RequestOptions options) {
+    if (options.method.toUpperCase() != 'POST') return false;
+    final path = options.uri.path;
+    return limitedRoutes.any((r) => _matches(path, r));
   }
 
   /// Set once the server refused a request for a missing / stale token:
@@ -67,9 +112,15 @@ class AppCheckInterceptor extends Interceptor {
     try {
       final forceRefresh = _refreshNext;
       _refreshNext = false;
-      final t = await token(forceRefresh: forceRefresh);
+      final limited = limitedToken != null && needsLimitedToken(options);
+      // A limited-use token is always fresh; if the device cannot make one,
+      // the normal cached token still goes (never worse than before).
+      var t = limited ? await limitedToken!() : null;
+      final isLimited = t != null && t.isNotEmpty;
+      if (!isLimited) t = await token(forceRefresh: forceRefresh);
       if (t != null && t.isNotEmpty) {
         options.headers[header] = t;
+        if (isLimited) options.headers[limitedHeader] = '1';
       } else {
         _putStatus(options, () => status?.call() ?? 'none');
       }

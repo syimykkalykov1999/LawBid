@@ -62,7 +62,7 @@ Future<void> _load() {
   );
 }
 
-Future<String?> runTurnstile(String siteKey) async {
+Future<String?> runTurnstile(String siteKey, {String? action}) async {
   try {
     if (!await _ensureScript()) return null;
   } on Object catch (e) {
@@ -98,6 +98,9 @@ Future<String?> runTurnstile(String siteKey) async {
       ..['timeout-callback'] = (() => finish(null)).toJS
       ..['before-interactive-callback'] =
           (() => arm(_interactiveTimeout)).toJS;
+    // Item 13: which form this token is for (Cloudflare `action`, up to 32
+    // letters, digits, `_`, `-`); the server checks it against the route.
+    if (action != null && action.isNotEmpty) params['action'] = action.toJS;
     widgetId = _turnstile!.render(host, params);
     return await result.future;
   } on Object catch (e) {

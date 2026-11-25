@@ -8,7 +8,10 @@ import 'package:lawbid/core/security/turnstile_stub.dart'
 /// implementation is core/security/turnstile_web.dart; on the phones the
 /// stub answers null (they are protected by App Check). Overridable in
 /// tests with a fake provider.
-typedef TurnstileTokenProvider = Future<String?> Function(String siteKey);
+typedef TurnstileTokenProvider = Future<String?> Function(
+  String siteKey, {
+  String? action,
+});
 
 final turnstileTokenProvider = Provider<TurnstileTokenProvider>(
   (ref) => impl.runTurnstile,

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
-import 'package:lawbid/core/network/app_check_interceptor.dart';
 
 /// 2026-10-24 (abuse batch D, item 4): the WEBSITE's proof that a person,
 /// not a script, asks for a code. Puts a Cloudflare Turnstile token on the
@@ -22,23 +21,46 @@ class TurnstileInterceptor extends Interceptor {
   /// null / empty while Turnstile is off.
   final String? Function() siteKey;
 
-  /// Asks the browser for a fresh single-use token for the site key.
-  final Future<String?> Function(String siteKey) token;
+  /// Asks the browser for a fresh single-use token for the site key; the
+  /// widget names the `action` (item 13: the server refuses a token solved for
+  /// another form).
+  final Future<String?> Function(String siteKey, {String? action}) token;
 
   static const header = 'X-Turnstile-Token';
+
+  /// Item 13 (2026-11-25): the route group each sign-in route belongs to on
+  /// the server (`security.app_check.<group>.mode`), sent as the Turnstile
+  /// action. Only these routes get a token (never payments: signed-in).
+  static const actions = {
+    '/auth/otp/request': 'sms',
+    '/auth/phone/status': 'sms',
+    '/auth/otp/verify': 'login',
+    '/auth/password/login': 'login',
+    '/auth/social': 'login',
+    '/auth/password/reset/request': 'password_reset',
+  };
+
+  /// The action of a POST to one of [actions], or null.
+  static String? actionFor(RequestOptions options) {
+    if (options.method.toUpperCase() != 'POST') return null;
+    final path = options.uri.path;
+    for (final e in actions.entries) {
+      if (path == e.key || path.endsWith(e.key)) return e.value;
+    }
+    return null;
+  }
 
   @override
   Future<void> onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    if (!AppCheckInterceptor.needsToken(options)) {
-      return handler.next(options);
-    }
+    final action = actionFor(options);
+    if (action == null) return handler.next(options);
     try {
       final key = siteKey();
       if (key != null && key.isNotEmpty) {
-        final t = await token(key);
+        final t = await token(key, action: action);
         if (t != null && t.isNotEmpty) options.headers[header] = t;
       }
     } on Object catch (e) {

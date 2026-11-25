@@ -208,7 +208,7 @@ describe('AppCheckGuard', () => {
           'passwordLogin',
         )!.value as object,
       ),
-    ).toEqual({ challenge: 'password', always: true });
+    ).toEqual({ challenge: 'password', always: true, group: 'login' });
   });
 
   it('parses the admin setting and treats anything else as monitor', () => {

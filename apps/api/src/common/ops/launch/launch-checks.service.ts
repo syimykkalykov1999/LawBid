@@ -1,9 +1,14 @@
 import { promises as dns } from 'node:dns';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AppSettingsService } from '../../app-settings/app-settings.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { SecretsService } from '../../secrets/secrets.service';
+import {
+  BOT_CHECK_GROUPS,
+  BotCheckStatsService,
+  type BotCheckGroup,
+} from '../../security/bot-check-stats';
 import {
   AwsBudgetsAdminService,
   AwsCostService,
@@ -70,6 +75,7 @@ export class LaunchChecksService {
     private readonly paging: PagerDutySnsService,
     private readonly budgets: AwsBudgetsAdminService,
     private readonly cost: AwsCostService,
+    @Optional() private readonly botStats?: BotCheckStatsService,
   ) {}
 
   invalidate(): void {
@@ -752,26 +758,56 @@ export class LaunchChecksService {
       runbook: 'docs/runbooks/APP_CHECK.md',
     };
     const mode = await this.settings.string('security.app_check.mode');
+    // Item 13 (2026-11-25): the proven-real pass rate per group, the number
+    // the owner decides by (and «Авто» enforces by).
+    const rates = await this.botCheckRates();
     if (mode === 'enforce')
       return {
         ...base,
         status: 'green',
-        detail: 'Режим enforce: приложения без проверки отклоняются.',
+        detail: `Режим enforce: приложения без проверки отклоняются.${rates}`,
         hint: null,
       };
     if (mode === 'monitor')
       return {
         ...base,
         status: 'yellow',
-        detail: 'Режим monitor: только наблюдает, ничего не блокирует.',
-        hint: 'Когда все приложения обновились — Настройки → security.app_check.mode = enforce.',
+        detail: `Режим monitor: только наблюдает, ничего не блокирует.${rates}`,
+        hint: 'Когда проходят почти все настоящие люди — Настройки → security.app_check.<группа>.mode = auto (включится само по числам) или on.',
       };
     return {
       ...base,
       status: 'red',
-      detail: 'Выключен.',
+      detail: `Выключен.${rates}`,
       hint: 'Настройки → security.app_check.mode = monitor, потом enforce.',
     };
+  }
+
+  /** « Настоящие люди за 7 дн. (прошли / всего): SMS 99,3 % (412/415) …» or
+   * '' when nothing is counted yet. Never throws. */
+  private async botCheckRates(): Promise<string> {
+    if (!this.botStats) return '';
+    try {
+      const days = await this.settings.number('security.app_check.auto_days');
+      const names: Record<BotCheckGroup, string> = {
+        sms: 'SMS',
+        login: 'вход',
+        password_reset: 'сброс пароля',
+        payments: 'оплата',
+      };
+      const parts: string[] = [];
+      for (const g of BOT_CHECK_GROUPS) {
+        const c = await this.botStats.counts(g, days);
+        if (c.total === 0) continue;
+        const pct = ((c.pass * 100) / c.total).toFixed(1).replace('.', ',');
+        parts.push(`${names[g]} ${pct} % (${c.pass}/${c.total})`);
+      }
+      return parts.length === 0
+        ? ''
+        : ` Настоящие люди за ${days} дн. (прошли проверку / всего): ${parts.join('; ')}.`;
+    } catch {
+      return '';
+    }
   }
 
   private armSpot(): Promise<Draft> {

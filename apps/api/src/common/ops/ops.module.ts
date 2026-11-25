@@ -21,6 +21,7 @@ import { PublicStatusService } from './status/public-status.service';
 import { StatusProbesService } from './status/status-probes.service';
 import { SsmParamGateway } from './ssm-param.gateway';
 import { UsageHardStopService } from './usage/usage-hard-stop.service';
+import { BotCheckStatsService } from '../security/bot-check-stats';
 
 /** Owner 2026-10-05: zero-maintenance operations, shared by the API and
  * the worker (RedisModule and ConfigModule are global). */
@@ -47,6 +48,9 @@ import { UsageHardStopService } from './usage/usage-hard-stop.service';
     PublicStatusService,
     UsageHardStopService,
     SsmParamGateway,
+    // Item 13 (2026-11-25): proven-real bot-check pass rate (auth guard +
+    // the launch page).
+    BotCheckStatsService,
   ],
   exports: [
     AwsOpsService,
@@ -67,6 +71,9 @@ import { UsageHardStopService } from './usage/usage-hard-stop.service';
     PublicStatusService,
     UsageHardStopService,
     SsmParamGateway,
+    // Item 13 (2026-11-25): proven-real bot-check pass rate (auth guard +
+    // the launch page).
+    BotCheckStatsService,
   ],
 })
 export class OpsModule {}

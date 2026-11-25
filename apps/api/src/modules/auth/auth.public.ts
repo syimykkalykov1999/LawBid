@@ -16,6 +16,9 @@ export {
 export type { RequestMeta } from './services/session.service';
 export { SignInChangeNotifier } from './notifications/sign-in-change-notifier.service';
 export { TokenService } from './services/token.service';
+// Item 13 (2026-11-25): payment starts carry the bot check too (the guard
+// is global; this only marks the route).
+export { RequireAppCheck } from './app-check/app-check.guard';
 // Owner 2026-10-22: passkeys for the admin panel (second factor / step-up)
 // and the QR sign-in socket namespace (realtime).
 export { PasskeyService } from './passkeys/passkey.service';

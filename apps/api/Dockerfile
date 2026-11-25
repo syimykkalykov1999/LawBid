@@ -20,7 +20,11 @@ RUN npx --workspace apps/api prisma generate \
  && npm run build --workspace apps/api \
  && cp -r apps/api/prisma/seed apps/api/dist/prisma/seed \
  && npm prune --omit=dev --workspace apps/api \
+ && find node_modules/onnxruntime-web/dist -type f ! -name 'ort.node.min.js' ! -name 'ort.node.min.mjs' ! -name 'ort-wasm-simd-threaded.wasm' ! -name 'ort-wasm-simd-threaded.mjs' -delete \
  && chmod -R a+rX apps/api/prisma apps/api/assets apps/api/dist
+# ↑ F2 ranker: onnxruntime-web ships browser bundles and WebGPU/JSEP
+# builds (145 MB); Node loads only ort.node.min.{js,mjs} and the SIMD
+# WebAssembly build (18 MB left; checked 25.11 on node:alpine).
 # ↑ The runtime runs as `app` and reads prisma/migrations (demo world) and
 # assets/; a checkout with owner-only file modes gave EACCES in prod.
 
