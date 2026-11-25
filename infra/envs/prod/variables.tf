@@ -716,6 +716,31 @@ variable "api_native_deploy" {
   default     = "off"
   description = "X1: ECS built-in canary for the api: off (today: rolling + our canary script) | prepare | canary | linear. Prod stays off until the owner switches it after staging (docs/runbooks/DEPLOY_SAFETY.md «Встроенный canary ECS»)."
 }
+variable "predictive_scaling_enabled" {
+  type        = bool
+  default     = true
+  description = "Item 27: the api predictive scaling policy (created ForecastOnly, $0; the admin infra.predictive_scaling_mode switches it)."
+}
+variable "redis_serverless_mode" {
+  type        = string
+  default     = "off"
+  description = "Item 29: off (today) | standby | on — ElastiCache Serverless Valkey (docs/runbooks/valkey-serverless.md). Only by the runbook."
+}
+variable "redis_serverless_max_data_gb" {
+  type        = number
+  default     = 10
+  description = "Item 29: ceiling of stored GB of the serverless Valkey (cache_usage_limits)."
+}
+variable "redis_serverless_max_ecpu_per_second" {
+  type        = number
+  default     = 100000
+  description = "Item 29: ceiling of ECPU per second of the serverless Valkey (cache_usage_limits)."
+}
+variable "redis_serverless_snapshot_arn" {
+  type        = string
+  default     = ""
+  description = "Item 29: backup ARN that seeds the serverless cache at creation (runbook write-pause step)."
+}
 variable "deploy_rollback_on_slo" {
   type        = bool
   default     = false

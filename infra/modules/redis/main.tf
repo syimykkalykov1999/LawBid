@@ -304,3 +304,115 @@ resource "aws_secretsmanager_secret_version" "redis_cluster_url" {
 
 output "cluster_url_secret_arn" { value = one(aws_secretsmanager_secret.redis_cluster_url[*].arn) }
 output "cluster_replication_group_id" { value = one(aws_elasticache_replication_group.cluster[*].replication_group_id) }
+
+# --- item 29 (AU5, owner 25.11): ElastiCache Serverless for Valkey, BESIDE the node group ---
+# docs/runbooks/valkey-serverless.md. false = nothing below exists (today).
+# true = a serverless cache "<name>-valkey-sl" (Valkey 9: AWS What's New
+# 05.05.2026 «available for ElastiCache node-based clusters and serverless
+# caches»; 9.1 is node-based only, 23.06.2026), its own default user with the
+# same AUTH password, and the secret REDIS_SERVERLESS_URL. The app keeps the
+# node group until the owner switches it (stack redis_serverless_mode = "on").
+# Serverless is always cluster mode, TLS only, Multi-AZ and scales by itself;
+# cache_usage_limits are the owner's ceilings, so a runaway never bills more.
+variable "serverless" {
+  type        = bool
+  default     = false
+  description = "Create the ElastiCache Serverless Valkey cache beside the node group (docs/runbooks/valkey-serverless.md)."
+}
+variable "serverless_major_engine_version" {
+  type        = string
+  default     = "9"
+  description = "Major Valkey version of the serverless cache (9 = the newest AWS offers for Serverless, 05.2026)."
+}
+variable "serverless_max_data_gb" {
+  type        = number
+  default     = 10
+  description = "Ceiling: most GB the serverless cache may store (cache_usage_limits.data_storage.maximum). Writes past it are refused, the bill never passes it."
+  validation {
+    condition     = var.serverless_max_data_gb >= 1 && var.serverless_max_data_gb <= 5000
+    error_message = "serverless_max_data_gb: 1..5000 (AWS limit 5000 GB)."
+  }
+}
+variable "serverless_max_ecpu_per_second" {
+  type        = number
+  default     = 100000
+  description = "Ceiling: most ECPU per second (cache_usage_limits.ecpu_per_second.maximum). AWS range 1000..15000000."
+  validation {
+    condition     = var.serverless_max_ecpu_per_second >= 1000 && var.serverless_max_ecpu_per_second <= 15000000
+    error_message = "serverless_max_ecpu_per_second: 1000..15000000."
+  }
+}
+variable "serverless_snapshot_arn" {
+  type        = string
+  default     = ""
+  description = "ARN of an ElastiCache backup of the node group that seeds the serverless cache (AWS «Restoring from a backup into a new cache»). Read only when the cache is created; empty = an empty cache."
+}
+
+resource "aws_elasticache_user" "serverless_default" {
+  count         = var.serverless ? 1 : 0
+  user_id       = "${var.name}-svl-default"
+  user_name     = "default" # a user group must hold a user named "default"
+  engine        = "valkey"
+  access_string = "on ~* &* +@all"
+  authentication_mode {
+    type      = "password"
+    passwords = [random_password.auth.result]
+  }
+  tags = var.tags
+  # A rotated password is written by the rotation, not by Terraform.
+  lifecycle { ignore_changes = [authentication_mode] }
+}
+
+resource "aws_elasticache_user_group" "serverless" {
+  count         = var.serverless ? 1 : 0
+  user_group_id = "${var.name}-svl"
+  engine        = "valkey"
+  user_ids      = [aws_elasticache_user.serverless_default[0].user_id]
+  tags          = var.tags
+}
+
+resource "aws_elasticache_serverless_cache" "this" {
+  count                    = var.serverless ? 1 : 0
+  name                     = "${var.name}-valkey-sl"
+  description              = "${var.name} ${var.description} (serverless)"
+  engine                   = "valkey"
+  major_engine_version     = var.serverless_major_engine_version
+  kms_key_id               = var.kms_key_arn
+  security_group_ids       = [aws_security_group.redis.id]
+  subnet_ids               = slice(var.subnet_ids, 0, min(3, length(var.subnet_ids)))
+  user_group_id            = aws_elasticache_user_group.serverless[0].user_group_id
+  daily_snapshot_time      = "05:00"
+  snapshot_retention_limit = 1
+  snapshot_arns_to_restore = var.serverless_snapshot_arn == "" ? null : [var.serverless_snapshot_arn]
+  cache_usage_limits {
+    data_storage {
+      maximum = var.serverless_max_data_gb
+      unit    = "GB"
+    }
+    ecpu_per_second {
+      maximum = var.serverless_max_ecpu_per_second
+    }
+  }
+  tags = var.tags
+  # The seed backup matters only at creation; changing it later must not
+  # replace the cache (and its data).
+  lifecycle { ignore_changes = [snapshot_arns_to_restore] }
+}
+
+resource "aws_secretsmanager_secret" "redis_serverless_url" {
+  count                   = var.serverless ? 1 : 0
+  name                    = "${var.name}/REDIS_SERVERLESS_URL"
+  kms_key_id              = var.kms_key_arn
+  recovery_window_in_days = var.recovery_window_in_days
+  tags                    = var.tags
+}
+
+resource "aws_secretsmanager_secret_version" "redis_serverless_url" {
+  count         = var.serverless ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.redis_serverless_url[0].id
+  secret_string = "rediss://default:${random_password.auth.result}@${aws_elasticache_serverless_cache.this[0].endpoint[0].address}:${aws_elasticache_serverless_cache.this[0].endpoint[0].port}"
+  lifecycle { ignore_changes = [secret_string, version_stages] }
+}
+
+output "serverless_url_secret_arn" { value = one(aws_secretsmanager_secret.redis_serverless_url[*].arn) }
+output "serverless_cache_name" { value = one(aws_elasticache_serverless_cache.this[*].name) }
