@@ -63,7 +63,7 @@ void main() {
 
   // Owner 25.11 («умную ленту для всех лент»): the Feed's «Кейсы» asks for
   // the order ranked for the attorney, not newest first.
-  test('the Feed\'s Cases tab asks for the ranked («for you») order',
+  test("the Feed's Cases tab asks for the ranked («for you») order",
       () async {
     repo.feedGate = null;
     const filter = (practiceCategory: null, state: null, mineOnly: true);
