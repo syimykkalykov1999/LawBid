@@ -182,7 +182,7 @@ describe('AppConfigService.getConfig: expired memo (row 69, KE 123)', () => {
     expect(await service.getConfig()).toEqual({ k: 'new' });
   });
 
-  it('KNOWN_ERRORS 239: a cold read started before an admin write never keeps the old map as the memo', async () => {
+  it('KNOWN_ERRORS 241: a cold read started before an admin write never keeps the old map as the memo', async () => {
     process.env.NODE_ENV = 'production';
     clearAppConfigMemo();
     let release!: () => void;
