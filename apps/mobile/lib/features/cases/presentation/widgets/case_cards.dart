@@ -315,9 +315,9 @@ class FeedCaseCard extends StatelessWidget {
   }
 }
 
-/// One thin line under the title: a dot and «В сети» / «Был 2 дня назад»,
-/// then «· Отвечает за день». Always one line — when space runs out the
-/// end is cut with "…", so it never pushes into other parts of the card.
+/// One thin line under the title: a dot and «В сети» / «Был 2 дня назад».
+/// Always one line — when space runs out the end is cut with "…", so it
+/// never pushes into other parts of the card.
 class ClientActivityLine extends StatelessWidget {
   const ClientActivityLine({
     required this.activity,
@@ -367,8 +367,6 @@ class ClientActivityLine extends StatelessWidget {
                       fontWeight: a.online ? FontWeight.w600 : null,
                     ),
                   ),
-                  if (a.respondsWithinDay)
-                    TextSpan(text: ' · ${t.t('cases.activity.responds')}'),
                 ],
               ),
               maxLines: 1,
