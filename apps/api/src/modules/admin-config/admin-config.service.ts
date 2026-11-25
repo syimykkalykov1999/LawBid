@@ -17,6 +17,7 @@ import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { ConfigRolloutService } from '../../common/app-settings/config-rollout.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
@@ -161,6 +162,8 @@ export class AdminConfigService {
     @Optional() private readonly secrets?: SecretsService,
     // Owner 2026-11-12 (row 60): the fresh 2FA code of owner-only keys.
     @Optional() private readonly adminAuth?: AdminAuthService,
+    // Б3 (25.11): a save goes to the canary tasks first (config-rollout.ts).
+    @Optional() private readonly rollout?: ConfigRolloutService,
   ) {}
 
   /** Owner 2026-11-12 (row 60): OWNER_ONLY_CONFIG_KEYS change only by the
@@ -604,6 +607,12 @@ export class AdminConfigService {
         where: { key },
         create: { key, value: json },
         update: { value: json },
+      });
+      await this.rollout?.stage(tx, {
+        adminId: admin.id,
+        action: CONFIG_AUDIT.config,
+        before: { [key]: before ? before.value : null },
+        after: { [key]: json as Prisma.JsonValue },
       });
       await this.audit.record(
         {

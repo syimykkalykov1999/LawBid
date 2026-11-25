@@ -1,4 +1,5 @@
 import { RuntimeStatsModule } from './common/ops/runtime-stats.service';
+import { ConfigCanaryCohortService } from './common/app-settings/config-canary';
 import { SloMetricsModule } from './common/ops/slo-metrics.service';
 import { ServerTextsModule } from './common/i18n/server-texts.service';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
@@ -502,6 +503,9 @@ const isDev =
     StaffModule,
   ],
   providers: [
+    // Б3 (25.11): API tasks only (never the worker): the canary share of a
+    // setting change (common/app-settings/config-rollout.ts).
+    ConfigCanaryCohortService,
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ViewerContextInterceptor },

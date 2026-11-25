@@ -76,6 +76,7 @@ import { HotlineStatsCoreModule } from '../modules/hotline/hotline.module';
 import { BillingOverviewCoreModule } from '../modules/admin-billing/admin-billing.module';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
+import { SettingsRolloutWatchJob } from './handlers/settings-rollout-watch.job';
 import { PnlCoreModule } from '../modules/admin-pnl/admin-pnl.module';
 import { LegalRemindersJob } from './handlers/legal-reminders.job';
 import { UsagePollJob } from './handlers/usage-poll.job';
@@ -256,6 +257,7 @@ export class JobsModule {
         DbHealthJob,
         OpsGuardJob,
         StatusWatchdogJob,
+        SettingsRolloutWatchJob,
         LegalRemindersJob,
         UsagePollJob,
         // Owner 2026-10-05: the planner's reminders and archive cleanup.

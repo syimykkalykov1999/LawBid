@@ -70,6 +70,7 @@ import { StripeOpsJob } from './handlers/stripe-ops.job';
 import { DbHealthJob } from './handlers/db-health.job';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
+import { SettingsRolloutWatchJob } from './handlers/settings-rollout-watch.job';
 import { LegalRemindersJob } from './handlers/legal-reminders.job';
 import { UsagePollJob } from './handlers/usage-poll.job';
 import { HEAVY_CRON_JOBS } from '../common/ops/ops.constants';
@@ -213,6 +214,7 @@ export class CronProcessor {
     @Optional() private readonly storageStats?: StorageStatsService,
     @Optional() private readonly opsGuard?: OpsGuardJob,
     @Optional() private readonly statusWatchdog?: StatusWatchdogJob,
+    @Optional() private readonly settingsRolloutWatch?: SettingsRolloutWatchJob,
     @Optional() private readonly legalReminders?: LegalRemindersJob,
     @Optional() private readonly usagePoll?: UsagePollJob,
     @Optional() private readonly opsState?: OpsStateService,
@@ -795,6 +797,8 @@ export class CronProcessor {
         return this.legalReminders?.run() ?? null;
       case CRON_JOBS.statusWatchdog:
         return this.statusWatchdog?.run();
+      case CRON_JOBS.settingsRolloutWatch:
+        return this.settingsRolloutWatch?.run();
       case CRON_JOBS.usagePoll:
         return this.usagePoll?.run();
       case CRON_JOBS.usagePollNear:

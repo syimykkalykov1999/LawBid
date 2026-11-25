@@ -4,12 +4,14 @@ import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { AdminConfigController } from './admin-config.controller';
 import { AdminBudgetsService } from './admin-budgets.service';
 import { AdminConfigService } from './admin-config.service';
+import { SettingsRolloutController } from './settings-rollout.controller';
 
 /** docs/06 §2.3 items 7–10 (stage 6.6): flags, app_config, languages,
  * legal documents. */
 @Module({
   imports: [AdminAccessModule, FeatureFlagsModule],
-  controllers: [AdminConfigController],
+  // Б3 (25.11): setting changes under watch, «Вернуть», emergency release.
+  controllers: [AdminConfigController, SettingsRolloutController],
   // AdminBudgetsService: «Лимиты расходов» (CostAutoscaleService comes
   // from the global CostGuardModule).
   providers: [AdminConfigService, AdminBudgetsService],

@@ -8,6 +8,11 @@ import { throttledWarn } from '../../../common/logging/throttled-warn';
 import { CircuitBreaker } from '../../../common/resilience/resilience';
 import { bumpConfigVersion, CONFIG_VERSION_KEY } from './config-version';
 import { bumpConfigMemoGeneration } from '../../../common/app-settings/config-memo-generation';
+import { isCanaryProcess } from '../../../common/app-settings/canary-state';
+import {
+  canaryView,
+  controlView,
+} from '../../../common/app-settings/config-rollout';
 
 /** Same TTL reasoning as FeatureFlagsService — see that file's doc
  * comment. app_config changes even less often than feature_flags in
@@ -110,7 +115,22 @@ export class AppConfigService {
    * Redis copy before they bump the config version, so this read is never
    * older than the version the caller keys its copy by. */
   async getConfig(fresh = false): Promise<Record<string, unknown>> {
-    if (fresh) return this.loadFresh();
+    // Б3 (config-rollout.ts): a setting change under watch is read with its
+    // new value only on the canary API tasks; every other reader gets the
+    // old value. The app start answer ([fresh], one shared copy per config
+    // version for all tasks) always gets the old value, so phones see the
+    // change after the window, all at once.
+    if (fresh) return controlView(await this.loadFresh(), Date.now());
+    return this.view(await this.memoOrLoad());
+  }
+
+  private view(config: Record<string, unknown>): Record<string, unknown> {
+    return isCanaryProcess()
+      ? canaryView(config)
+      : controlView(config, Date.now());
+  }
+
+  private async memoOrLoad(): Promise<Record<string, unknown>> {
     const memoOn = process.env.NODE_ENV !== 'test';
     if (memoOn && appConfigMemo) {
       const age = Date.now() - appConfigMemo.at;

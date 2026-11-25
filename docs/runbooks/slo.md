@@ -76,6 +76,17 @@ Sign up yourself on a phone; check the stores' listings.
 
 `alarm_incident_hook_enabled = true` adds a Lambda (`<env>-alarm-hook`) subscribed to the alerts topic. Each alarm state change is posted to `POST /api/v1/internal/alarm-events` with a shared token (`ALARM_HOOK_TOKEN`, from Secrets Manager); the API opens or closes a row in `system_incidents` (`alarm:<name>`), so the admin «Здоровье системы» timeline shows alarms next to probe incidents. No extra push or mail. Cost: a few invocations a day, inside the free tier.
 
+## Setting changes released like code (Б3, 25.11)
+
+A save of a setting (Настройки, or a section's own settings card) is written to `app_config` and put under watch (`settings.rollouts` row, `apps/api/src/common/app-settings/config-rollout.ts`):
+
+- only `settings.canary_percent` % of the API tasks (default 10, at least one task) read the new value; the other API tasks, the workers and the app start answer (`/config/bootstrap`) read the old one;
+- for `settings.watch_minutes` (default 5) the worker job `settings.rollout-watch` (every minute) looks at the alarm rows above: an `alarm:slo-*-fast` or `alarm:availability-fast` that opened AFTER the save = the old value goes back for everyone (audit `settings.auto_revert`, push + e-mail to the on-call admins); one already open before the save does not count;
+- no alarm until the window ends = everyone reads the new value (audit `settings.rollout_promoted`);
+- money, «Авто», calls, realtime and the `settings.*` keys themselves apply at once (`settings.canary_skip_prefixes`); `settings.watch_minutes = 0` = every change at once, as before.
+
+Admin: Настройки and Журнал аудита show «Изменения на проверке» with «Вернуть» (old value now) and «Применить всем сейчас» (emergency, skips the window); every settings row of the journal has «Вернуть» (refused with 409 when the key was changed again since). All three: super admin, a fresh 2FA code, an audit row (`settings.revert`, `settings.rollout_emergency`). Idea: Meta «Holistic Configuration Management at Facebook» (Configerator, SOSP 2015) and Google SRE Workbook ch. 16 «Canarying Releases»; the code is ours (no library does this for a table-backed config).
+
 ## Dashboard and the old Grafana files
 
 `<env>-slo` (CloudWatch → Dashboards) shows the success rate of every flow, API availability, p95, event-loop delay and heap. The first three dashboards of an account are free, then $3 a month each. The JSON files in `infra/observability/grafana/` are NOT deployed anywhere and miss the SLO metrics; they are left in place as a reference and are not maintained.

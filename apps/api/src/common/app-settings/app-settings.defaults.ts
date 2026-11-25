@@ -2567,6 +2567,42 @@ export const OWNER_ADDRESS_SETTINGS = {
   'addresses.per_user_per_day': 300,
 };
 
+/**
+ * Б3 (25.11): a setting change is released like code (config-rollout.ts):
+ * first to `settings.canary_percent` % of the API tasks (at least one) for
+ * `settings.watch_minutes` minutes while the SLO fast-burn alarms are
+ * watched; an alarm = automatic revert, no alarm = everyone. 0 minutes =
+ * every change applies at once as before. Keys starting with one of
+ * `settings.canary_skip_prefixes` always apply at once: money and «Авто»
+ * (owner: «Авто» hands off), calls and realtime (both ends of a call must
+ * agree), and the `settings.` keys themselves.
+ */
+export const OWNER_SETTINGS_ROLLOUT_SETTINGS = {
+  'settings.canary_percent': 10,
+  'settings.watch_minutes': 5,
+  'settings.canary_skip_prefixes': [
+    'billing.',
+    'payments.',
+    'treasury.',
+    'economy.',
+    'stripe_ops.',
+    'ledger.',
+    'fees.',
+    'rewards.',
+    'subscription.',
+    'infra.',
+    'scale.',
+    'ha.',
+    'db.',
+    'partition.',
+    'ops.auto_scale',
+    'queues.scale_signal',
+    'search.engine',
+    'calls.',
+    'realtime.',
+  ] as string[],
+};
+
 export const APP_SETTINGS = {
   ...OWNER_COMPLIANCE_SETTINGS,
   ...FILE_03_SETTINGS,
@@ -2632,6 +2668,7 @@ export const APP_SETTINGS = {
   // Staff package T1 (2026-10-27): «Админка и сотрудники», all switches off.
   ...OWNER_STAFF_SETTINGS,
   ...OWNER_ADDRESS_SETTINGS,
+  ...OWNER_SETTINGS_ROLLOUT_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;
