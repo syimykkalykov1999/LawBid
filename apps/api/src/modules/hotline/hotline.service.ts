@@ -67,6 +67,7 @@ import {
   HOTLINE_CALL_BRIDGE,
   type HotlineCallBridge,
   type HotlineCallState,
+  type HotlineCaseOffer,
 } from './hotline-call-bridge';
 
 const CODE = /^[a-z0-9][a-z0-9_.-]{0,63}$/i;
@@ -81,6 +82,8 @@ const RESUMABLE = new Set(['disconnected', 'lost']);
 /** How long a second «Взять» waits for the first one's call, ms. */
 const CALL_LOCK_MS = 10_000;
 const CALL_WAIT_STEP_MS = 25;
+/** How long a second «Предложить дело» waits for the first one's case. */
+const CASE_LOCK_MS = 15_000;
 /** The widest US night (audit 17.11 #7): an unknown zone is read on the
  * Eastern clock with the window stretched to Hawaii's morning (+6 h), so
  * a notice never lands at night anywhere in the 50 states. */
@@ -131,6 +134,8 @@ export interface RequestView {
   lawyer: {
     id: string;
     name: string;
+    username: string | null;
+    avatarUrl: string | null;
     state: string;
     barNumber: string | null;
   } | null;
@@ -140,6 +145,36 @@ export interface RequestView {
   callId: string | null;
   /** The direct chat of the two, once the call is over (WhatsApp-style). */
   conversationId: string | null;
+}
+
+/** GET /hotline/config `access` (plan PR 6, mockup a2). */
+export interface HotlineAccessView {
+  mode: 'on_for_all' | 'by_subscription' | 'off_for_all';
+  allowed: boolean;
+  via: 'free' | 'plan' | 'addon' | 'trial' | null;
+  reason: string | null;
+}
+
+/** «Клиент ждёт» in the heartbeat answer (plan step 6, mockup a7). */
+export interface HotlineWaiting {
+  requestId: string;
+  topic: string;
+  state: string;
+  practiceArea: string;
+  language: string;
+  /** ms — «ждёт 1:40» counts from here. */
+  waitingSince: number;
+}
+
+/** The call's language (owner 18.11: the language matters most): the
+ * first of the client's languages the attorney put on his line. */
+export function matchedLanguage(
+  clientLangs: string | undefined,
+  lawyerLangs: string | undefined,
+): string {
+  const mine = new Set((lawyerLangs ?? '').split(',').filter(Boolean));
+  const theirs = (clientLangs ?? '').split(',').filter(Boolean);
+  return theirs.find((l) => mine.has(l)) ?? theirs[0] ?? '';
 }
 
 /** The client's rough place: bands, never exact (`hotline.position_bands`). */
@@ -285,7 +320,40 @@ export class HotlineService {
       reviewEnabled: raw['hotline.review_enabled'] !== false,
       clientStepsEnabled: raw['hotline.client_steps_enabled'] !== false,
       disclosure: await this.disclosure(user.sub, role),
+      // every role: the client's call button hides on «Выкл для всех» too
+      mode: hotlineModeFrom(raw),
+      access:
+        role === 'attorney' && !user.assistant
+          ? await this.accessView(user.sub, s, raw)
+          : null,
     };
+  }
+
+  /** Plan PR 6 (mockup a2): what «Горячая линия — в вашей подписке» says
+   * before the attorney presses «Ожидать звонки» — the same decision the
+   * line itself takes (`hotline.mode`, plan, add-on, trial). */
+  private async accessView(
+    lw: string,
+    s: HotlineSettings,
+    raw: Readonly<Record<string, unknown>>,
+  ): Promise<HotlineAccessView> {
+    const decision = await this.accessDecision(lw, s, raw);
+    return {
+      mode: hotlineModeFrom(raw),
+      allowed: decision.allowed,
+      via: decision.allowed ? decision.via : null,
+      reason: decision.allowed ? null : decision.reason,
+    };
+  }
+
+  /** The languages of the attorney's own profile (owner 18.11: only these
+   * put him on the line — the client's language is the call's language). */
+  private async profileLanguages(lw: string): Promise<Set<string>> {
+    const p = await this.prisma.attorneyProfile.findUnique({
+      where: { user_id: lw },
+      select: { languages: true },
+    });
+    return new Set((p?.languages ?? []).map((l) => l.trim().toLowerCase()));
   }
 
   /** The one-time disclosure for this person and role. It counts as seen
@@ -428,6 +496,11 @@ export class HotlineService {
     const { s, raw } = await this.cfg();
     const lw = user.sub;
     const langs = this.validLanguages(input.languages, 50);
+    const spoken = await this.profileLanguages(lw);
+    const foreign = langs.filter((l) => !spoken.has(l));
+    if (foreign.length) {
+      this.bad('language_not_in_profile', { languages: foreign });
+    }
     const practices = await this.validPractices(input.practiceAreas, 500);
     const states = this.cleanList(input.states, 100, 'states').map((x) =>
       x.toUpperCase(),
@@ -463,9 +536,15 @@ export class HotlineService {
     const prev = await this.lawyerDetail(lw);
     const me = await this.prisma.user.findUnique({
       where: { id: lw },
-      select: { first_name: true, last_name: true },
+      select: {
+        first_name: true,
+        last_name: true,
+        avatar_file_id: true,
+        attorney_profile: { select: { username: true } },
+      },
     });
     const name = `${me?.first_name ?? ''} ${me?.last_name ?? ''}`.trim();
+    const avatar = (await this.bridge?.avatarUrl?.(me?.avatar_file_id)) ?? '';
     const dk = this.k.lawyer(lw);
     await this.redis.hset(dk, {
       buckets: JSON.stringify(buckets),
@@ -473,6 +552,8 @@ export class HotlineService {
       practices: practices.join(','),
       langs: langs.join(','),
       name,
+      username: me?.attorney_profile?.username ?? '',
+      avatar,
       bars: JSON.stringify(Object.fromEntries(licensed)),
       accepting: accepting ? '1' : '0',
       leaving: '0',
@@ -582,6 +663,12 @@ export class HotlineService {
       });
       const ok = new Set(licences.map((l) => l.state_code));
       if (states.some((st) => !ok.has(st))) reason = 'licence';
+    }
+    if (!reason) {
+      // owner 18.11: a language he removed from his profile leaves the line
+      const spoken = await this.profileLanguages(lw);
+      const langs = d.langs ? d.langs.split(',') : [];
+      if (langs.some((l) => !spoken.has(l))) reason = 'language';
     }
     if (!reason) return true;
     await this.goOffline(lw, 'access', reason);
@@ -705,11 +792,13 @@ export class HotlineService {
     line: boolean | null;
     requestId: string | null;
     resumable?: boolean;
+    waiting?: HotlineWaiting | null;
   }> {
     const { s } = await this.cfg();
     const now = this.now();
     let line: boolean | null = null;
     let resumable: boolean | undefined;
+    let waiting: HotlineWaiting | null | undefined;
     if (await this.lawyerDetail(userId)) {
       line = await this.store.touchLawyer(
         userId,
@@ -728,7 +817,10 @@ export class HotlineService {
         }
       }
       const st = await this.store.lawyerState(userId);
-      if (st?.startsWith('b|')) await this.touchCall(st.slice(2), s, now);
+      if (st?.startsWith('b|')) {
+        await this.touchCall(st.slice(2), s, now);
+        waiting = await this.waitingHead(userId, st.slice(2));
+      }
       const every = s['hotline.access_check_beats'];
       if (line && every > 0) {
         const beats = await this.redis.hincrby(
@@ -762,6 +854,46 @@ export class HotlineService {
       line,
       requestId: req,
       ...(resumable ? { resumable } : {}),
+      ...(waiting !== undefined ? { waiting } : {}),
+    };
+  }
+
+  /** «Клиент ждёт · язык» (plan step 6, mockup a7, WhatsApp call waiting):
+   * while the attorney talks on a hotline call with «Принимать звонки» on,
+   * the client who has waited longest in his queues — the one the line
+   * gives him first when this call ends (no reservation: «Ответить» ends
+   * this call, and the line offers that client as usual). Bounded: the
+   * first entry of at most 200 of his queues, one pipeline. */
+  async waitingHead(
+    lw: string,
+    current: string,
+  ): Promise<HotlineWaiting | null> {
+    const d = await this.lawyerDetail(lw);
+    if (!d || d.accepting === '0' || d.leaving === '1') return null;
+    const buckets = this.parseList(d.buckets).slice(0, 200);
+    if (buckets.length === 0) return null;
+    const p = pipeline(this.redis);
+    for (const b of buckets) p.zrange(this.k.queue(b), '0', '0', 'WITHSCORES');
+    const res = (await p.exec()) ?? [];
+    let best: { req: string; at: number } | null = null;
+    for (const x of res) {
+      const page = (x?.[1] as string[] | undefined) ?? [];
+      if (page.length < 2 || page[0] === current) continue;
+      const at = Number(page[1]);
+      if (!best || at < best.at) best = { req: page[0], at };
+    }
+    if (!best) return null;
+    if ((await this.store.requestState(best.req)) !== 'q') return null;
+    if (await this.store.isOffline(best.req)) return null;
+    const r = await this.requestDetail(best.req);
+    if (!r) return null;
+    return {
+      requestId: best.req,
+      topic: r.topic,
+      state: r.state,
+      practiceArea: r.practice,
+      language: matchedLanguage(r.langs, d.langs),
+      waitingSince: Number(r.created ?? best.at),
     };
   }
 
@@ -930,6 +1062,24 @@ export class HotlineService {
     await this.store.dropLawyerFromBuckets(lw, this.parseList(d.buckets));
     await this.store.dropRequestFromQueues(req, this.parseList(r.buckets));
     await this.store.setClientLangs(req, r.langs.split(','), false);
+    // Scenarios 24.11 (Uber / Lyft dispatch: a driver on a trip is never
+    // offered a ride; WhatsApp «busy»): an attorney who is in a 1:1 or group
+    // call right now (another device too) is not offered the client — the
+    // client goes on to the next attorney at once, and he rests one
+    // heartbeat (`hotline.heartbeat_sec`) before the line asks again.
+    if (await this.bridge?.inOtherCall?.(lw)) {
+      if ((await this.store.release(req, lw, 'declined', 0)) === 'ok') {
+        if (await this.store.cas(lw, 'i', 'p')) {
+          await this.redis.zadd(
+            this.k.pause,
+            this.now() + s['hotline.heartbeat_sec'] * 1000,
+            lw,
+          );
+        }
+        await this.matchRequest(req, depth + 1);
+      }
+      return;
+    }
     if (
       await this.conflict.blocks(
         this.k,
@@ -955,7 +1105,10 @@ export class HotlineService {
       state: r.state,
       practiceArea: r.practice,
       languages: r.langs.split(','),
+      language: matchedLanguage(r.langs, d.langs),
       clientName: r.clientName,
+      clientUsername: r.clientUsername || null,
+      clientAvatarUrl: r.clientAvatar || null,
       waitingMore: bandOf(
         waiting,
         hotlineBandsFrom(raw, 'hotline.waiting_more_bands'),
@@ -1023,12 +1176,30 @@ export class HotlineService {
       callId = await this.ensureCall(req, s);
       const r = await this.requestDetail(req);
       if (r) {
+        const d = await this.lawyerDetail(lw);
         this.realtime.toUsers([r.client, lw], 'hotline:connected', {
           requestId: req,
           clientId: r.client,
           lawyerId: lw,
           callId,
           video: false,
+          // plan PR 5–6 (mockup a5 / c10b): what both call screens show
+          topic: r.topic,
+          state: r.state,
+          practiceArea: r.practice,
+          language: matchedLanguage(r.langs, d?.langs),
+          client: {
+            id: r.client,
+            name: r.clientName,
+            username: r.clientUsername || null,
+            avatarUrl: r.clientAvatar || null,
+          },
+          lawyer: {
+            id: lw,
+            name: d?.name ?? '',
+            username: d?.username || null,
+            avatarUrl: d?.avatar || null,
+          },
         });
       }
     } else {
@@ -1092,6 +1263,7 @@ export class HotlineService {
       state: r.state,
       practiceArea: r.practice,
       answeredAt: Number(r.answeredAt ?? this.now()),
+      topic: r.topic,
     });
     await this.redis.hset(this.k.request(req), 'callId', callId);
     await this.redis.zadd(
@@ -1369,6 +1541,152 @@ export class HotlineService {
     };
   }
 
+  // ── after the call: «Предложить дело», review (plan PR 7) ─────────
+
+  /** The hotline_calls row of the client's own request (404 otherwise). */
+  private async ownCall(user: RequestUser, req: string) {
+    this.assertClient(user);
+    const row = await this.prisma.hotlineCall.findUnique({
+      where: { request_id: req },
+      select: {
+        client_id: true,
+        attorney_id: true,
+        state_code: true,
+        practice_area: true,
+        topic: true,
+        case_id: true,
+        case_invite_id: true,
+        reviewed_at: true,
+      },
+    });
+    if (!row || row.client_id !== user.sub) {
+      throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
+    }
+    return row;
+  }
+
+  /** POST /hotline/requests/:id/offer-case — «Предложить дело» during or
+   * after the call (mockup c10b → c11b, a8): our ordinary case built from
+   * the call, offered to its attorney with our ordinary invite; his app
+   * opens our bid form with the «Дело из звонка» card. One case per call:
+   * a second tap (or a double tap racing the first) gets the same case. */
+  async offerCase(
+    user: RequestUser,
+    req: string,
+    input: {
+      budgetAmountDollars?: number;
+      message?: string;
+      clientContactSharingConsent?: boolean;
+    },
+    meta: HotlineCaseOffer['meta'],
+  ): Promise<{ caseId: string; inviteId: string | null }> {
+    await assertHotlineOn(this.flags);
+    const row = await this.ownCall(user, req);
+    if (row.case_id) {
+      return { caseId: row.case_id, inviteId: row.case_invite_id };
+    }
+    if (!this.bridge?.offerCase) {
+      throw new NotFoundException({ code: ErrorCode.NOT_FOUND });
+    }
+    const token = randomUUID();
+    const lockKey = this.k.caseLock(req);
+    if (
+      (await this.redis.set(lockKey, token, 'PX', CASE_LOCK_MS, 'NX')) !== 'OK'
+    ) {
+      const until = Date.now() + CASE_LOCK_MS;
+      while (Date.now() < until) {
+        await new Promise((ok) => setTimeout(ok, CALL_WAIT_STEP_MS * 4));
+        const again = await this.ownCall(user, req);
+        if (again.case_id) {
+          return { caseId: again.case_id, inviteId: again.case_invite_id };
+        }
+        if ((await this.redis.exists(lockKey)) === 0) break;
+      }
+      throw new HttpException(
+        {
+          code: ErrorCode.RATE_LIMITED,
+          message: 'The case of this call is being made, try again.',
+          details: { reason: 'offer_case_in_flight' },
+        },
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+    try {
+      const again = await this.ownCall(user, req);
+      if (again.case_id) {
+        return { caseId: again.case_id, inviteId: again.case_invite_id };
+      }
+      const r = await this.requestDetail(req);
+      const topic = (row.topic ?? r?.topic ?? '').trim();
+      const made = await this.bridge.offerCase({
+        client: user,
+        attorneyId: row.attorney_id,
+        practiceArea: row.practice_area,
+        state: row.state_code,
+        topic,
+        ...(input.budgetAmountDollars !== undefined
+          ? { budgetAmountDollars: input.budgetAmountDollars }
+          : {}),
+        ...(input.message ? { message: input.message } : {}),
+        ...(input.clientContactSharingConsent
+          ? { clientContactSharingConsent: true }
+          : {}),
+        meta,
+      });
+      await this.prisma.hotlineCall.updateMany({
+        where: { request_id: req, case_id: null },
+        data: { case_id: made.caseId, case_invite_id: made.inviteId },
+      });
+      this.realtime.toUsers([row.attorney_id], 'hotline:case_offered', {
+        requestId: req,
+        caseId: made.caseId,
+        inviteId: made.inviteId,
+        topic,
+        state: row.state_code,
+        practiceArea: row.practice_area,
+        budgetCents:
+          input.budgetAmountDollars !== undefined
+            ? input.budgetAmountDollars * 100
+            : null,
+      });
+      return made;
+    } finally {
+      await this.redis.eval(UNLOCK_LUA, 1, lockKey, token);
+    }
+  }
+
+  /** POST /hotline/requests/:id/review — «Как прошёл разговор?» (mockup
+   * c12, owner 16.11 «отзыв в звонке», switch `hotline.review_enabled`).
+   * Only the client of a connected call; the first answer wins. */
+  async review(
+    user: RequestUser,
+    req: string,
+    input: { stars: number; comment?: string },
+  ): Promise<{ ok: boolean }> {
+    await assertHotlineOn(this.flags);
+    const raw = await this.settings.all();
+    if (raw['hotline.review_enabled'] === false) {
+      throw new ForbiddenException({
+        code: ErrorCode.FEATURE_DISABLED,
+        message: 'Hotline reviews are switched off.',
+      });
+    }
+    const row = await this.ownCall(user, req);
+    if (row.reviewed_at) return { ok: true };
+    const comment = String(input.comment ?? '')
+      .trim()
+      .slice(0, 300);
+    await this.prisma.hotlineCall.updateMany({
+      where: { request_id: req, reviewed_at: null },
+      data: {
+        review_stars: input.stars,
+        review_comment: comment || null,
+        reviewed_at: new Date(this.now()),
+      },
+    });
+    return { ok: true };
+  }
+
   // ── client ─────────────────────────────────────────────────────────
 
   /** POST /hotline/requests — «Связаться с адвокатом». One active request
@@ -1496,7 +1814,13 @@ export class HotlineService {
     }
     const me = await this.prisma.user.findUnique({
       where: { id: user.sub },
-      select: { first_name: true, last_name: true, phone_verified_at: true },
+      select: {
+        first_name: true,
+        last_name: true,
+        phone_verified_at: true,
+        avatar_file_id: true,
+        client_profile: { select: { username: true } },
+      },
     });
     if (!me?.phone_verified_at) {
       throw new ForbiddenException({
@@ -1510,6 +1834,11 @@ export class HotlineService {
       .filter(Boolean)
       .join(' ')
       .trim();
+    // plan PR 6 (mockup a4 / a9): the attorney sees the photo and opens the
+    // profile — read once here, never per offer
+    const clientUsername = me.client_profile?.username ?? '';
+    const clientAvatar =
+      (await this.bridge?.avatarUrl?.(me.avatar_file_id)) ?? '';
     const ttl = hotlineKeyTtlSec(s);
     if (!(await this.redis.set(this.k.client(user.sub), id, 'EX', ttl, 'NX'))) {
       // a double tap raced us: the other request wins
@@ -1519,6 +1848,8 @@ export class HotlineService {
     await this.redis.hset(this.k.request(id), {
       client: user.sub,
       clientName,
+      clientUsername,
+      clientAvatar,
       state,
       practice,
       langs: langs.join(','),
@@ -1800,6 +2131,8 @@ export class HotlineService {
       lawyer = {
         id: lw,
         name: d?.name ?? '',
+        username: d?.username || null,
+        avatarUrl: d?.avatar || null,
         state: r.state,
         barNumber: bars[r.state] ?? null,
       };

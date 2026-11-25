@@ -259,12 +259,46 @@ resource "aws_cloudfront_origin_access_control" "web" {
 # writes inline scripts into every page, so its paths get the same policy
 # plus 'unsafe-inline' (see `site_paths` and the ordered behaviors below).
 locals {
+  # Pack F (25.11, ROUND5 F2): `for-attorneys` is gone from the site (404);
+  # its pages are /attorneys/ and /practice-areas/ now. Those two folders
+  # also hold the SEO pages (/attorneys/<name>/, /practice-areas/<topic>/,
+  # scripts/seo: no inline script), so only the site's own index page of
+  # each gets the site policy, by exact path (`site_exact_paths`): a
+  # behavior is picked by the address in the browser, so /attorneys/anna/
+  # keeps the app's strict policy.
   site_paths = [
-    "about", "clients", "for-attorneys", "features", "pricing", "faq", "contact",
+    "about", "clients", "features", "pricing", "faq", "contact",
     "download", "terms", "privacy", "delete-account", "client-agreement",
     "attorney-agreement", "eula", "refunds", "third-party-services", "cookies",
     "sms-consent", "dmca", "accessibility",
   ]
+  site_exact_paths = ["/attorneys/", "/practice-areas/"]
+  # Pack F (25.11, ROUND5 F1): firebase_core_web starts every Firebase JS
+  # bundle with a small inline loader script (`window.ff_trigger_<service>`,
+  # firebase_core_web/lib/src/firebase_core_web.dart injectSrcScript). The
+  # app's policy has no 'unsafe-inline', so the browser refused it and
+  # Firebase.initializeApp failed: no web push token, no App Check. The CSP
+  # standard way for a known inline script is its sha256 in script-src
+  # (CSP Level 3 "hash-source"); nothing else inline is allowed. Two forms
+  # per service (the Trusted Types text in Chrome/Edge, the plain text in
+  # Firefox/Safari), for core, app_check and messaging, at Firebase JS
+  # 13.3.0 (firebase_core_web 4.2.0). They change with a FlutterFire bump:
+  # scripts/ci/check-web-assets-lock.sh recomputes them from the pub cache
+  # and fails Mobile CI until this list matches (then terraform apply).
+  flutterfire_script_hashes = [
+    "'sha256-k9B74s4HHrP7qsWLxbghlSaym+z4iZhIgo+kxF4g9d4='", # core, Trusted Types
+    "'sha256-NxTQLoaIzltrNckVRJsmfpxE/TUIO8RMnsZx2d+BIwM='", # app_check, Trusted Types
+    "'sha256-HxW0iiY91amVEZ+cwq4uVyxCGyvefKeEurad8XJWxcA='", # messaging, Trusted Types
+    "'sha256-b9cYi649gu7hyz5JsxLwe4DAi5xoxETEPFyy+lQi2hU='", # core, plain
+    "'sha256-T6OtB2ggo+mKjz+M4zqK8SLXl4zEISdkdjg2rQn+GTQ='", # app_check, plain
+    "'sha256-OEazNVv8OiO22/de/9kyeqz26uGao9GhFfZyUD5g/5U='", # messaging, plain
+  ]
+  # App Check on the web is reCAPTCHA Enterprise (app_check.dart): Google's
+  # documented CSP for reCAPTCHA (script + challenge frame) and the App Check
+  # token exchange host.
+  recaptcha_script_src = ["https://www.google.com/recaptcha/"]
+  recaptcha_frame_src  = ["https://www.google.com/recaptcha/", "https://recaptcha.google.com/recaptcha/"]
+  app_check_connect    = ["https://content-firebaseappcheck.googleapis.com"]
   csp_rest = [
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' data: https://fonts.gstatic.com https://www.gstatic.com",
@@ -274,8 +308,8 @@ locals {
     # blob: is how the web app reads a picked file (image_picker returns a
     # blob: URL and cross_file loads it with XHR). Without it every photo pick
     # fails with «Не удалось открыть фото» (2026-11-04, KNOWN_ERRORS №58).
-    "connect-src ${join(" ", concat(["'self'", "blob:", var.api_origin, "wss://${replace(var.api_origin, "https://", "")}", "https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io"], var.extra_connect_src, var.app_connect_src, var.media_origins))}",
-    "frame-src ${join(" ", concat(["'self'", local.turnstile_origin], var.stripe_frame_src))}",
+    "connect-src ${join(" ", concat(["'self'", "blob:", var.api_origin, "wss://${replace(var.api_origin, "https://", "")}", "https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io"], var.extra_connect_src, local.app_check_connect, var.app_connect_src, var.media_origins))}",
+    "frame-src ${join(" ", concat(["'self'", local.turnstile_origin], var.stripe_frame_src, local.recaptcha_frame_src))}",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "object-src 'none'",
@@ -283,9 +317,11 @@ locals {
   # 2026-10-24 (batch D, item 4): Cloudflare Turnstile on the web sign-up
   # (script + challenge frame; its token goes to our own API only).
   turnstile_origin = "https://challenges.cloudflare.com"
-  script_src       = concat(["'self'", "'wasm-unsafe-eval'", "https://www.gstatic.com", local.turnstile_origin], var.stripe_script_src)
+  script_src       = concat(["'self'", "'wasm-unsafe-eval'", "https://www.gstatic.com", local.turnstile_origin], var.stripe_script_src, local.recaptcha_script_src)
+  # The hashes go into the app's policy only: with a hash present a browser
+  # ignores 'unsafe-inline' (CSP Level 2+), which the site's pages need.
   csp = {
-    app  = join("; ", concat(["default-src 'self'", "script-src ${join(" ", local.script_src)}"], local.csp_rest))
+    app  = join("; ", concat(["default-src 'self'", "script-src ${join(" ", concat(local.script_src, local.flutterfire_script_hashes))}"], local.csp_rest))
     site = join("; ", concat(["default-src 'self'", "script-src ${join(" ", concat(local.script_src, ["'unsafe-inline'"]))}"], local.csp_rest))
   }
   # S17-5: the card page (/pay.html + pay.js) embeds Stripe frames that do not
@@ -346,6 +382,15 @@ resource "aws_cloudfront_response_headers_policy" "web" {
       override                = true
     }
   }
+
+  # CloudFront takes at most 1783 characters for this header (quota
+  # "Content-Security-Policy header value"); fail the plan, not the apply.
+  lifecycle {
+    precondition {
+      condition     = length(each.value) <= 1783
+      error_message = "The ${each.key} CSP is ${length(each.value)} characters; CloudFront allows 1783."
+    }
+  }
 }
 
 # Audit #10 (2026-10-22): which web release is live. The deploy uploads
@@ -388,7 +433,9 @@ resource "aws_cloudfront_function" "seo_index" {
     import cf from 'cloudfront';
     var kvs = cf.kvs('${element(split("/", aws_cloudfront_key_value_store.web.arn), 1)}'); // the store ID (ARN tail); .id is the NAME and fails with KVSNamespaceNotFound
     var PUBLIC = /^\/(lawyers|attorneys|practice-areas|legal-questions|about|clients|for-attorneys|features|pricing|faq|contact|download|terms|privacy|delete-account|client-agreement|attorney-agreement|eula|refunds|third-party-services|cookies|sms-consent|dmca|accessibility)(\/|$)/;
-    var ROOT_FILES = ['/sitemap.xml', '/robots.txt', '/public-paths.txt'];
+    // Pack F (ROUND5 F3): the site's link-preview images (Next.js metadata
+    // files, no extension) are files at the root, not app screens.
+    var ROOT_FILES = ['/sitemap.xml', '/robots.txt', '/public-paths.txt', '/opengraph-image', '/twitter-image'];
     // Owner 2026-10-23 (web speed pass): the app and the engine have a
     // brotli twin (<file>.br, uploaded by scripts/deploy/web-gzip-big.sh)
     // about 27% smaller than the gzip the bucket object carries.
@@ -668,10 +715,11 @@ resource "aws_cloudfront_distribution" "web" {
 
   # Owner 2026-10-22: the company site's pages keep inline scripts
   # (Next.js), so they get the "site" policy; everything else is the app's.
+  # Pack F: plus the exact index pages of /attorneys/ and /practice-areas/.
   dynamic "ordered_cache_behavior" {
-    for_each = local.site_paths
+    for_each = concat([for p in local.site_paths : "/${p}*"], local.site_exact_paths)
     content {
-      path_pattern               = "/${ordered_cache_behavior.value}*"
+      path_pattern               = ordered_cache_behavior.value
       target_origin_id           = "web"
       viewer_protocol_policy     = "redirect-to-https"
       allowed_methods            = ["GET", "HEAD", "OPTIONS"]
@@ -722,6 +770,14 @@ resource "aws_cloudfront_distribution" "web" {
   }
 
   tags = var.tags
+
+  # CloudFront's default quota is 25 cache behaviors per distribution.
+  lifecycle {
+    precondition {
+      condition     = (var.api_proxy_host == "" ? 0 : 1) + (var.font_fallback_proxy ? 1 : 0) + length(local.pay_paths) + length(local.site_paths) + length(local.site_exact_paths) <= 25
+      error_message = "More than 25 cache behaviors (CloudFront's default quota per distribution)."
+    }
+  }
 }
 
 data "aws_iam_policy_document" "web_cf" {

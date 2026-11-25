@@ -287,6 +287,33 @@ describe('Hotline: «Взять» → a real 1:1 voice call (e2e, plan PR 4)', (
       })
       .expect(201);
 
+  /** A client who may publish a case (POST /cases rules): phone and e-mail
+   * verified, profile, onboarding done. */
+  async function readyClient(): Promise<Person> {
+    const c = await client();
+    const handle = `hl_c_${c.id.slice(0, 8)}`;
+    await prisma.user.update({
+      where: { id: c.id },
+      data: {
+        email: `${handle}@lawbid-e2e.test`,
+        email_verified_at: new Date(),
+      },
+    });
+    await prisma.clientProfile.create({
+      data: {
+        user_id: c.id,
+        state_code: 'CA',
+        preferred_languages: ['en'],
+        username: handle,
+        username_lower: handle,
+      },
+    });
+    await prisma.onboardingState.create({
+      data: { user_id: c.id, completed_at: new Date() },
+    });
+    return c;
+  }
+
   type Ice = { urls: string[]; username: string | null };
   async function ice(p: Person) {
     const res = await api()
@@ -930,6 +957,165 @@ describe('Hotline: «Взять» → a real 1:1 voice call (e2e, plan PR 4)', (
         .set(caller.auth)
         .expect(200);
       expect(after.body.data.disclosure.key).toBeNull();
+    });
+  });
+
+  it('plan PR 7: «Предложить дело» → our case + invite to THIS attorney, his socket opens the bid form; one case per call; the review once', async () => {
+    const lawyer = await attorney();
+    const caller = await readyClient();
+    const leaf = await prisma.practiceArea.upsert({
+      where: { code: 'hotline_e2e.general' },
+      create: {
+        code: 'hotline_e2e.general',
+        name_en: 'Hotline e2e general',
+        i18n_key: 'practice.hotline_e2e.general',
+        sort: 0,
+        parent: { connect: { code: 'hotline_e2e' } },
+      },
+      update: { is_active: true },
+    });
+    const lSock = await connect(lawyer.token);
+    await goLine(lawyer);
+    await lSock.emitWithAck('hotline:heartbeat', {});
+    const offer = once<{
+      requestId: string;
+      language: string;
+      clientUsername: string | null;
+    }>(lSock, 'hotline:offer');
+    const requestId = (await ask(caller)).body.data.id as string;
+    expect(await offer).toMatchObject({
+      requestId,
+      language: 'en',
+      clientUsername: `hl_c_${caller.id.slice(0, 8)}`,
+    });
+    await api()
+      .post(`/api/v1/hotline/offers/${requestId}/accept`)
+      .set(lawyer.auth)
+      .expect(200);
+    // only the client of the call, and never before the consent of POST /cases
+    await api()
+      .post(`/api/v1/hotline/requests/${requestId}/offer-case`)
+      .set(lawyer.auth)
+      .send({})
+      .expect(403);
+    const noConsent = await api()
+      .post(`/api/v1/hotline/requests/${requestId}/offer-case`)
+      .set(caller.auth)
+      .send({});
+    expect(noConsent.status).toBe(403);
+    expect(noConsent.body.error.code).toBe(
+      'CLIENT_CONTACT_SHARING_CONSENT_REQUIRED',
+    );
+    const offered = once<{ caseId: string; topic: string; state: string }>(
+      lSock,
+      'hotline:case_offered',
+    );
+    const made = await api()
+      .post(`/api/v1/hotline/requests/${requestId}/offer-case`)
+      .set(caller.auth)
+      .send({ budgetAmountDollars: 1500, clientContactSharingConsent: true })
+      .expect(201);
+    const { caseId, inviteId } = made.body.data as {
+      caseId: string;
+      inviteId: string;
+    };
+    expect(await offered).toMatchObject({
+      caseId,
+      topic: 'Custody papers',
+      state: 'CA',
+    });
+    const kase = await prisma.case.findUniqueOrThrow({ where: { id: caseId } });
+    expect(kase).toMatchObject({
+      client_id: caller.id,
+      practice_area_id: leaf.id,
+      primary_state_code: 'CA',
+      status: 'open',
+      budget_mode: 'amount',
+    });
+    expect(kase.title).toContain('Custody papers');
+    const inv = await prisma.caseInvite.findUniqueOrThrow({
+      where: { id: inviteId },
+    });
+    expect(inv).toMatchObject({ case_id: caseId, attorney_id: lawyer.id });
+    // the attorney sees it among his invites (our bid form answers it)
+    const mine = await api()
+      .get('/api/v1/invites')
+      .set(lawyer.auth)
+      .expect(200);
+    expect(
+      (mine.body.data as { caseId: string }[]).some((i) => i.caseId === caseId),
+    ).toBe(true);
+    // a second tap: the same case
+    const again = await api()
+      .post(`/api/v1/hotline/requests/${requestId}/offer-case`)
+      .set(caller.auth)
+      .send({})
+      .expect(201);
+    expect(again.body.data.caseId).toBe(caseId);
+    expect(await prisma.case.count({ where: { client_id: caller.id } })).toBe(
+      1,
+    );
+
+    // «Конец», then «Как прошёл разговор?»: first answer wins
+    await api()
+      .post(`/api/v1/hotline/calls/${requestId}/end`)
+      .set(caller.auth)
+      .expect(200);
+    await api()
+      .post(`/api/v1/hotline/requests/${requestId}/review`)
+      .set(caller.auth)
+      .send({ stars: 6 })
+      .expect(400);
+    await api()
+      .post(`/api/v1/hotline/requests/${requestId}/review`)
+      .set(caller.auth)
+      .send({ stars: 5, comment: 'Clear answers' })
+      .expect(200);
+    await api()
+      .post(`/api/v1/hotline/requests/${requestId}/review`)
+      .set(caller.auth)
+      .send({ stars: 1 })
+      .expect(200);
+    const row = await prisma.hotlineCall.findUniqueOrThrow({
+      where: { request_id: requestId },
+    });
+    expect(row).toMatchObject({
+      topic: 'Custody papers',
+      case_id: caseId,
+      case_invite_id: inviteId,
+      review_stars: 5,
+      review_comment: 'Clear answers',
+    });
+    await api()
+      .post(`/api/v1/hotline/requests/${requestId}/review`)
+      .set(lawyer.auth)
+      .send({ stars: 3 })
+      .expect(403);
+  });
+
+  it('plan PR 6: the attorney may wait only in the languages of his profile; config says how he has access', async () => {
+    const lawyer = await attorney();
+    const cfg = await api()
+      .get('/api/v1/hotline/config')
+      .set(lawyer.auth)
+      .expect(200);
+    expect(cfg.body.data.access).toMatchObject({
+      mode: 'on_for_all',
+      allowed: true,
+      via: 'free',
+    });
+    const res = await api()
+      .put('/api/v1/hotline/line')
+      .set(lawyer.auth)
+      .send({
+        states: ['CA'],
+        practiceAreas: ['hotline_e2e'],
+        languages: ['en', 'ru'],
+      })
+      .expect(400);
+    expect(res.body.error.details).toMatchObject({
+      reason: 'language_not_in_profile',
+      languages: ['ru'],
     });
   });
 });

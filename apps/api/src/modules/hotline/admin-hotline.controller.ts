@@ -3,7 +3,8 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiEnvelopeResponse } from '../../common/dto/api-docs.decorators';
 import { pipeline } from '../../redis/redis-cluster-safe';
 import { AdminEndpoint } from '../admin-auth/admin-auth.decorators';
-import { HotlineLiveDto } from './hotline.dto';
+import { HotlineLiveDto, HotlineStatsDto } from './hotline.dto';
+import { HotlineStatsService } from './hotline-stats.service';
 import { HotlineService } from './hotline.service';
 
 const HOURS = 24;
@@ -20,7 +21,19 @@ const TOP = 50;
 @AdminEndpoint('super_admin', 'support')
 @Controller('admin/hotline')
 export class AdminHotlineController {
-  constructor(private readonly hotline: HotlineService) {}
+  constructor(
+    private readonly hotline: HotlineService,
+    private readonly statsSvc: HotlineStatsService,
+  ) {}
+
+  /** Owner rule (admin numbers from the nightly snapshot): the last 30 days
+   * of hotline calls, counted once a day (HotlineStatsService). */
+  @Get('stats')
+  @ApiOperation({ summary: 'Hotline, last 30 days (nightly snapshot)' })
+  @ApiEnvelopeResponse(HotlineStatsDto)
+  adminHotlineStats(): Promise<HotlineStatsDto> {
+    return this.statsSvc.stats();
+  }
 
   @Get('live')
   @ApiOperation({ summary: 'Hotline now: line, queues, calls (Valkey only)' })

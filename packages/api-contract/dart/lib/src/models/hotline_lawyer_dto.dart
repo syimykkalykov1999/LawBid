@@ -12,6 +12,8 @@ class HotlineLawyerDto {
     required this.id,
     required this.name,
     required this.state,
+    this.username,
+    this.avatarUrl,
     this.barNumber,
   });
 
@@ -20,6 +22,8 @@ class HotlineLawyerDto {
 
   final String id;
   final String name;
+  final String? username;
+  final String? avatarUrl;
 
   /// The client’s state
   final String state;

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
-import { deleteBatches, hashDir, isSafeInvalidationPath, pickInvalidations, planFiles, urlsForFile } from '../lib/manifest.mjs';
+import { deleteBatches, hashDir, isSafeInvalidationPath, liveDrift, md5, parseLiveEtags, pickInvalidations, planFiles, urlsForFile } from '../lib/manifest.mjs';
 import { makePlan } from '../publish-plan.mjs';
 
 const put = (root, rel, body) => {
@@ -104,4 +104,35 @@ test('a plan that removes most of the published files is flagged (an empty API a
   assert.equal(r.massDelete, true);
   const small = await makePlan({ dir, prev: { files: { 'attorneys/a/index.html': 'h' } }, today: '2026-10-27' });
   assert.equal(small.massDelete, false);
+});
+
+// Pack F (25.11, ROUND5 F4): 392 pages sat in the bucket as an old
+// `index,follow` copy while the manifest said `noindex` was published; the
+// manifest-only plan called them unchanged. The bucket's ETags now decide too.
+test('a page whose live copy is not the built one is uploaded again (and reset) though the manifest says unchanged', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'seo-live-'));
+  put(dir, 'lawyers/california/family-law/index.html', '<meta name="robots" content="noindex,follow">');
+  put(dir, 'lawyers/index.html', 'hub');
+  put(dir, '_next/static/a.js', 'js');
+  const first = await makePlan({ dir, prev: null, today: '2026-11-25' });
+  // The bucket: the hub as built, the state page an old index,follow copy, _next not listed.
+  const listing = [
+    `lawyers/index.html\t"${md5('hub')}"`,
+    `lawyers/california/family-law/index.html\t"${md5('<meta name="robots" content="index,follow">')}"`,
+    'None',
+  ].join('\n');
+  const live = parseLiveEtags(listing);
+  const manifestOnly = await makePlan({ dir, prev: first.manifest, today: '2026-11-25' });
+  assert.deepEqual(manifestOnly.upload, [], 'the old behaviour: nothing to do');
+  const checked = await makePlan({ dir, prev: first.manifest, today: '2026-11-25', live });
+  assert.deepEqual(checked.upload, ['lawyers/california/family-law/index.html']);
+  assert.equal(checked.drift, 1);
+  assert.deepEqual(checked.invalidate, ['/lawyers/california/family-law/', '/lawyers/california/family-law/index.html']);
+});
+
+test('liveDrift: a missing object is drift, a multipart ETag is trusted, no listing changes nothing', () => {
+  const md5s = { a: md5('a'), b: md5('b'), c: md5('c') };
+  assert.deepEqual(liveDrift({ md5s, live: { a: md5('a'), c: '0123456789abcdef0123456789abcdef-3' } }), ['b']);
+  assert.deepEqual(liveDrift({ md5s, live: null }), []);
+  assert.deepEqual(parseLiveEtags('k\t"ABC"\nNone\n\n'), { k: 'abc' });
 });

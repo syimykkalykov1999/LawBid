@@ -82,6 +82,8 @@ jobs:
           # Row 170: the engine folder, the compressed small files, the prune guard.
           python3 -m unittest discover -s scripts/deploy -p 'test_*.py'
           node scripts/deploy/web-boot-head.test.mjs
+          # Pack F: the «Open in LawBid» offer (no Safari error, no Play link before Play).
+          node scripts/deploy/web-open-app-bar.test.mjs
           bash scripts/deploy/web-gzip-big.test.sh
           bash scripts/deploy/web-prune-releases.test.sh
           node --test scripts/ci/migration-role-check.test.mjs

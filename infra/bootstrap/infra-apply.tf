@@ -274,6 +274,17 @@ data "aws_iam_policy_document" "deploy_infra_apply_extra" {
     ]
     resources = ["arn:aws:cloudfront::${local.account}:function/lawbid-${var.env}-*"]
   }
+  # 25.11 (pack F, KNOWN_ERRORS 159 rule): the web module's response headers
+  # policies (the app's CSP gets the FlutterFire loader hashes). Their ARNs
+  # end in a random id, so they can not be narrowed by name.
+  statement {
+    sid = "WebResponseHeadersPolicies"
+    actions = [
+      "cloudfront:GetResponseHeadersPolicy", "cloudfront:GetResponseHeadersPolicyConfig",
+      "cloudfront:UpdateResponseHeadersPolicy", "cloudfront:CreateResponseHeadersPolicy",
+    ]
+    resources = ["arn:aws:cloudfront::${local.account}:response-headers-policy/*"]
+  }
 }
 
 resource "aws_iam_policy" "deploy_infra_apply_extra" {
