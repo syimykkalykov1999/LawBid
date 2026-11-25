@@ -733,7 +733,17 @@ export class SearchService {
       popular && !forYou && cursor && !/^\d+$/.test(cursor)
         ? decodePopularCursor(cursor)
         : undefined;
-    const offset = (popular && !popKey) || forYou ? Number(cursor) || 0 : 0;
+    // 18.11: a for_you cursor is "<offset>.<pin>" (the pinned copy it
+    // pages, see RecommendationsService.postsForPage); a bare number from
+    // an older app still means an offset.
+    const forYouCursor = forYou
+      ? /^(\d+)(?:\.([A-Za-z0-9_-]{1,32}))?$/.exec(cursor ?? '')
+      : null;
+    const offset = forYou
+      ? Number(forYouCursor?.[1]) || 0
+      : popular && !popKey
+        ? Number(cursor) || 0
+        : 0;
     const c = !popular && !forYou && cursor ? decodeCursor(cursor) : undefined;
     const span = PERIOD_MS[filter.period ?? 'all'];
     const practice = filter.practice?.trim().toLowerCase();
@@ -778,17 +788,23 @@ export class SearchService {
     ];
     if (forYou && this.recommendations) {
       // Algo audit 2026-10-27 (CONTENT M-6): pages through a pinned copy.
-      const ids = await this.recommendations.postsForPage(
+      const { ids, pin } = await this.recommendations.postsForPage(
         user.sub,
         { AND: base },
         { state, filter: { ...filter, contentClass } },
         offset,
+        { pin: forYouCursor?.[2] ?? null },
       );
       const slice = ids.slice(offset, offset + PAGE);
       void this.recommendations.logServed(user.sub, 'post', slice, offset);
       return {
         items: await this.presentPosts(slice, user.sub, contentClass),
-        nextCursor: offset + PAGE < ids.length ? String(offset + PAGE) : null,
+        nextCursor:
+          offset + PAGE < ids.length
+            ? pin
+              ? `${offset + PAGE}.${pin}`
+              : String(offset + PAGE)
+            : null,
       };
     }
     const rows = await this.prisma.post.findMany({
