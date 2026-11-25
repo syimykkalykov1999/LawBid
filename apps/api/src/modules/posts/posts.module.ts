@@ -1,5 +1,6 @@
 import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { Module } from '@nestjs/common';
+import { FeedTimelineModule } from '../feed/feed-timeline.module';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
@@ -32,6 +33,8 @@ import { SharedPostCardsService } from './shared-post-cards.service';
     FeatureFlagsModule,
     PromotionsCoreModule,
     RecommendationsModule,
+    // Item 23 (F1): a new post goes into the followers' timelines.
+    FeedTimelineModule,
   ],
   controllers: [PostsController, PostVideosController, BunnyWebhookController],
   providers: [

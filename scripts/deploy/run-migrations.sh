@@ -101,7 +101,8 @@ run_once() {
       aws logs tail "$LOG_STREAM_PREFIX" --since 2h 2>/dev/null | tail -n 200 || true
       exit 1
     fi
-    sleep 10
+    # Deploy speed 25.11: 5 s (was 10 s); MIGRATE_POLL_SECONDS overrides.
+    sleep "${MIGRATE_POLL_SECONDS:-5}"
   done
   trap - INT TERM
   EXIT=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" --query 'tasks[0].containers[0].exitCode' --output text)

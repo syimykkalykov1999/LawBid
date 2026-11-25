@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fichye",
   "chat.attach.photo": "Foto",
   "chat.attach.photos": "Galeri foto",
+  "chat.attach.removed": "Fichye a retire: li pa pase verifikasyon sekirite a",
   "chat.attach.skipped": "{count} pa ajoute: fòma ki pa sipòte oswa plis pase {max} MB",
   "chat.attach.template": "Modèl dokiman",
   "chat.attach.video": "Videyo",

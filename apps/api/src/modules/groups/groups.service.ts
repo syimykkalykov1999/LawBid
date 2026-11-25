@@ -53,7 +53,12 @@ import {
   GROUP_CHAT_CALLS_FLAG,
   GROUPS_FLAG,
 } from '../feature-flags/feature-flags.public';
-import { FileReleaseService } from '../files/files.public';
+import {
+  FileReleaseService,
+  type FileScanListener,
+  SCAN_WAIT_TTL_SEC,
+  scanWaitKey,
+} from '../files/files.public';
 import { FilesService } from '../files/files.service';
 import { decodeOffset, encodeOffset } from '../recommendations/offset-cursor';
 import { RecommendationsService } from '../recommendations/recommendations.service';
@@ -179,7 +184,7 @@ export interface Membership {
  * who may ring the group.
  */
 @Injectable()
-export class GroupsService {
+export class GroupsService implements FileScanListener {
   private readonly slowLog = new Logger('GroupSlowMode');
   private readonly log = new Logger('GroupsService');
 
@@ -1899,12 +1904,18 @@ export class GroupsService {
     // After the duplicate check, so a resent message costs nothing.
     await this.limits?.consume('message', user.sub);
     const topic = await this.writableTopic(m, dto.topicId);
+    let scanPending = false;
     if (attachment || voice) {
-      await this.files.assertAttachable(
+      // M3 (owner 25.11, as in 1:1): the message goes while the scan still
+      // runs; the members get the file once it is clean.
+      const file = await this.files.assertAttachable(
         user.sub,
         dto.fileId!,
         voice ? ['chat_voice'] : ['chat_attachment'],
+        undefined,
+        { pending: true },
       );
+      scanPending = file?.scan_status === 'pending';
       // One file, one message (1:1 or group): a file is never re-sent.
       const used =
         (await this.prisma.chatGroupMessage.findFirst({
@@ -1999,8 +2010,55 @@ export class GroupsService {
       }
       throw error;
     }
+    // M3: the end of the scan finds this message (before the fan-out reads
+    // the file's state, so no end of the check falls between the two).
+    if (scanPending && row.file_id) {
+      await this.markScanWait(row.file_id, id, row.id);
+    }
     await this.fanOut(id, row, { push: opts.push });
     return this.one(row, user.sub);
+  }
+
+  private async markScanWait(
+    fileId: string,
+    groupId: string,
+    messageId: string,
+  ): Promise<void> {
+    if (!this.redis || this.redis.status !== 'ready') return;
+    try {
+      await this.redis.set(
+        scanWaitKey('group', fileId),
+        JSON.stringify({ g: groupId, m: messageId }),
+        'EX',
+        SCAN_WAIT_TTL_SEC,
+      );
+    } catch {
+      // the lookup by file in [fileScanEnded] covers it
+    }
+  }
+
+  /**
+   * M3 (owner 25.11, Slack / Telegram): the check of a file already in a
+   * group message ended — the members get the message again (the file, or
+   * «removed»), through the group's ordered fan-out like any change.
+   */
+  async fileScanEnded(file: { id: string }): Promise<void> {
+    let where: { g: string; m: string } | null = null;
+    if (this.redis && this.redis.status === 'ready') {
+      try {
+        const raw = await this.redis.getdel(scanWaitKey('group', file.id));
+        if (raw) where = JSON.parse(raw) as { g: string; m: string };
+      } catch {
+        where = null;
+      }
+    }
+    const row = await this.prisma.chatGroupMessage.findFirst({
+      where: where
+        ? { id: where.m, group_id: where.g, deleted_at: null }
+        : { file_id: file.id, deleted_at: null },
+    });
+    if (!row || row.file_id !== file.id) return;
+    await this.broadcast(row.group_id, row);
   }
 
   /**
@@ -2840,6 +2898,14 @@ export class GroupsService {
           ).map((r) => [r.user_id, r.emoji]),
         )
       : undefined;
+    // M3 (owner 25.11): while its file is still checked, only the sender's
+    // copy carries a link (their own upload); the rest get the placeholder.
+    const sendersOwn =
+      row.sender_id &&
+      (dto.attachment?.state === 'processing' ||
+        dto.voice?.state === 'processing')
+        ? (await this.presenter.messages([row], row.sender_id))[0]
+        : undefined;
     for (const a of broadcastAudiences(
       ids,
       row.sender_id,
@@ -2847,6 +2913,7 @@ export class GroupsService {
       !!dto.deleted,
       reactedBy,
     )) {
+      const base = a.mine && sendersOwn ? sendersOwn : dto;
       // Owner 2026-10-22 (package B): groupId / lastMessageAt beside the
       // message, so the list row (last message, order, +1 unread when not
       // mine) is fixed without a GET.
@@ -2854,7 +2921,7 @@ export class GroupsService {
         groupId,
         lastMessageAt: row.created_at,
         message: {
-          ...dto,
+          ...base,
           mine: a.mine,
           mentionsMe: a.mentionsMe,
           ...(dto.reactions && {

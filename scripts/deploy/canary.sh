@@ -21,6 +21,15 @@
 set -eu
 CLUSTER="$1"; TAG="$2"
 if [ "${CANARY_ENABLED:-false}" != "true" ]; then echo "canary: off (CANARY_ENABLED is not true)"; exit 0; fi
+# X1 (25.11): with the ECS built-in canary / linear (infra var.api_native_deploy)
+# ECS itself sends a share of the traffic to the new release and shifts back on
+# an alarm; an extra api-canary task in the same target group would only get in
+# its way. deploy.yml skips this step then; this guard covers a manual run.
+STRATEGY=$(aws ecs describe-services --cluster "$CLUSTER" --services api \
+  --query 'services[0].deploymentConfiguration.strategy' --output text 2>/dev/null || echo None)
+case "$STRATEGY" in CANARY|LINEAR|BLUE_GREEN)
+  echo "canary: api uses the ECS built-in $STRATEGY deployment, this script is not needed"; exit 0 ;;
+esac
 BAKE_MIN="${CANARY_BAKE_MINUTES:-5}"
 START_TIMEOUT="${CANARY_START_TIMEOUT_SECONDS:-600}"
 POLL="${CANARY_POLL_SECONDS:-20}"

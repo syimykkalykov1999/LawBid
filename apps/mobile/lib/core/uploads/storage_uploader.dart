@@ -653,13 +653,28 @@ class StorageUploader {
   /// Owner 24.11: the wait of a file already in storage (its bytes went up
   /// and were confirmed before): only its scan is asked for, nothing is sent
   /// again. Returns the clean file's id.
-  Future<String> waitStored(String fileId, {int? maxPolls}) async {
-    await waitClean(
-      fileId,
-      status: await scanStatus(fileId),
-      maxPolls: maxPolls,
-    );
+  Future<String> waitStored(
+    String fileId, {
+    int? maxPolls,
+    bool waitScan = true,
+  }) async {
+    final status = await scanStatus(fileId);
+    if (!waitScan) return _scanStarted(fileId, status);
+    await waitClean(fileId, status: status, maxPolls: maxPolls);
     return fileId;
+  }
+
+  /// M3 (owner 25.11, Slack / Telegram / WhatsApp): a chat message goes as
+  /// soon as storage has the file; the server shows it to the others once
+  /// the scan is clean. Only a file already refused stops here.
+  String _scanStarted(String fileId, api.ScanStatus status) {
+    if (status == api.ScanStatus.pending || status == api.ScanStatus.clean) {
+      return fileId;
+    }
+    throw const ApiException(
+      code: ApiErrorCodes.fileNotAttachable,
+      message: 'scan',
+    );
   }
 
   /// Step 3 + 4: [onStored] hears the id once storage has the bytes, before
@@ -669,9 +684,14 @@ class StorageUploader {
     String fileId, {
     int? maxPolls,
     Future<void> Function(String fileId)? onStored,
+    bool waitScan = true,
   }) async {
     final status = await confirm(fileId);
     await onStored?.call(fileId);
+    if (!waitScan) {
+      _scanStarted(fileId, status);
+      return;
+    }
     await waitClean(fileId, status: status, maxPolls: maxPolls);
   }
 
@@ -691,6 +711,9 @@ class StorageUploader {
     String? resumeFileId,
     void Function(String fileId)? onPartsFileId,
     Future<void> Function(String fileId)? onStored,
+    // M3: false = return once storage has the file, the scan still running
+    // (a chat message; the server holds the file back from the others).
+    bool waitScan = true,
   }) async {
     // R-254: first, ask whether this same user already stored these bytes
     // (the server answers only for own files, and only with the flag on). A
@@ -730,6 +753,7 @@ class StorageUploader {
         cancel: cancel,
         scanMaxPolls: scanMaxPolls,
         onStored: onStored,
+        waitScan: waitScan,
       );
       if (done != null) return done;
     }
@@ -763,6 +787,7 @@ class StorageUploader {
           transport: transport,
           taskId: taskId,
           onStored: onStored,
+          waitScan: waitScan,
         );
       } on ApiException catch (e) {
         final forget = _forgetTransfer;
@@ -789,6 +814,7 @@ class StorageUploader {
     StorageTransport? transport,
     String? taskId,
     Future<void> Function(String fileId)? onStored,
+    bool waitScan = true,
   }) async {
     // A big file goes in resumable parts when the server offers it (and the
     // caller did not pick its own transport, e.g. the background queue).
@@ -829,6 +855,7 @@ class StorageUploader {
       target.fileId,
       maxPolls: scanMaxPolls,
       onStored: onStored,
+      waitScan: waitScan,
     );
     return target.fileId;
   }
@@ -854,6 +881,7 @@ class StorageUploader {
     CancelToken? cancel,
     int? scanMaxPolls,
     Future<void> Function(String fileId)? onStored,
+    bool waitScan = true,
   }) async {
     if (await body.length() < resumableThresholdBytes) return null;
     if (!await gate.allows(taskId)) return null;
@@ -926,10 +954,20 @@ class StorageUploader {
           )) {
         return null;
       }
-      await _confirmAndWait(id, maxPolls: scanMaxPolls, onStored: onStored);
+      await _confirmAndWait(
+        id,
+        maxPolls: scanMaxPolls,
+        onStored: onStored,
+        waitScan: waitScan,
+      );
       return id;
     }
-    await _confirmAndWait(fileId, maxPolls: scanMaxPolls, onStored: onStored);
+    await _confirmAndWait(
+      fileId,
+      maxPolls: scanMaxPolls,
+      onStored: onStored,
+      waitScan: waitScan,
+    );
     return fileId;
   }
 

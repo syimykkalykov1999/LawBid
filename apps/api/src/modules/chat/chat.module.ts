@@ -7,6 +7,7 @@ import { PresenceModule } from '../presence/presence.module';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { BlocksModule } from '../blocks/blocks.module';
 import { FilesModule } from '../files/files.module';
+import { CHAT_FILE_SCAN_LISTENER } from '../files/files.public';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PostsModule } from '../posts/posts.module';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
@@ -35,7 +36,13 @@ import { TranslationCoreModule } from '../translation/translation.module';
     PostsModule,
   ],
   controllers: [ChatController, ChatActionsController],
-  providers: [ChatService, ChatTranslationService, ChatActionsService],
+  providers: [
+    ChatService,
+    ChatTranslationService,
+    ChatActionsService,
+    // M3 (owner 25.11): the end of a file's check reaches its chat message.
+    { provide: CHAT_FILE_SCAN_LISTENER, useExisting: ChatService },
+  ],
   exports: [ChatService],
 })
 export class ChatModule {}

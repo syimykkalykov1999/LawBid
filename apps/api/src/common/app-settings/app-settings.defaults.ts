@@ -1780,6 +1780,15 @@ export const OWNER_OPS_SETTINGS = {
   // and the biggest table the heap estimate may read (indexes are never read).
   'db.bloat_mode': 'auto',
   'db.bloat_scan_max_mb': 256,
+  /** C2 (25.11, modules/cache-cdc): cache invalidation from the database
+   * change log (logical replication) as the second line behind the
+   * in-request deletes. Выкл / Вкл / Авто; Выкл by default until the
+   * owner turns on rds.logical_replication (Авто then starts by itself).
+   * The slot guard drops a slot that keeps more WAL than the MB below
+   * (0 = only a lost slot); the lag alarm is in seconds. */
+  'db.cdc_mode': 'off',
+  'db.cdc_max_slot_wal_mb': 2048,
+  'db.cdc_lag_alarm_sec': 120,
   /** 14.11 (DB scale review, finding 1): the nightly `sessions.cleanup` walk
    * — rows scanned per statement (one short transaction each) and how long
    * a signed-out / blocked session row is kept before it is removed. */
@@ -2000,6 +2009,22 @@ export const OWNER_FEED_SETTINGS = {
    * window between two pages' followed posts). Was a fixed 10; extra ones
    * in a busy window were lost. */
   'feed.reposts_per_page': 30,
+  /** Item 23 (F1, 25.11; Twitter "Timelines at Scale"): the followed
+   * posts of the feed come from a timeline precomputed on write (Valkey)
+   * instead of a database read per open. off | on | auto (default: on while
+   * the job queue exists). Any doubt (cold timeline, new follow, an older
+   * page, a cache error) = the database read, the same posts. */
+  'feed.fanout_mode': 'auto',
+  /** Authors with at least this many followers are not written into the
+   * followers' timelines; their posts are read at open time and merged
+   * (Twitter's high-follower accounts). 0 = nobody is written (all read). */
+  'feed.fanout_max_followers': 10000,
+  /** Entries kept in one reader's timeline (Twitter: 800). Older pages
+   * come from the database read. */
+  'feed.fanout_timeline_len': 800,
+  /** A timeline nobody opened for this many days is dropped (only active
+   * readers get writes). */
+  'feed.fanout_timeline_days': 7,
   /** CONTENT H-4: newest verified attorneys added to the «people»
    * candidates next to the 600 best rated, so a new attorney can be
    * suggested at all. 0 = off (only the best rated). */

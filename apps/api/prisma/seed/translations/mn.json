@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Файл",
   "chat.attach.photo": "Зураг",
   "chat.attach.photos": "Зургийн сан",
+  "chat.attach.removed": "Файлыг устгасан: аюулгүй байдлын шалгалтад тэнцээгүй",
   "chat.attach.skipped": "{count} нэмэгдсэнгүй: дэмжигдээгүй формат эсвэл {max} МБ-аас их",
   "chat.attach.template": "Баримтын загвар",
   "chat.attach.video": "Видео",

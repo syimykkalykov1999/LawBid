@@ -182,6 +182,35 @@ describe('AppConfigService.getConfig: expired memo (row 69, KE 123)', () => {
     expect(await service.getConfig()).toEqual({ k: 'new' });
   });
 
+  it('KNOWN_ERRORS 241: a cold read started before an admin write never keeps the old map as the memo', async () => {
+    process.env.NODE_ENV = 'production';
+    clearAppConfigMemo();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let rows = [{ key: 'moderation.auto_hide_mode', value: 'weighted' }];
+    const findMany = jest.fn(async () => {
+      const seen = rows; // the table as this read saw it
+      await gate;
+      return seen;
+    });
+    const service = new AppConfigService(
+      { appConfig: { findMany } } as never,
+      { get: jest.fn(() => Promise.resolve(null)), set: jest.fn() } as never,
+    );
+    // Boot: a cold read starts (no memo yet) and is slow.
+    const cold = service.getConfig();
+    await flush();
+    // The admin saves meanwhile (stage-6-4 beforeAll: 'count').
+    rows = [{ key: 'moderation.auto_hide_mode', value: 'count' }];
+    clearAppConfigMemo();
+    release();
+    await cold; // the old map, answered to the read that asked for it
+    // Every later read sees the save, not the boot read's map.
+    expect(await service.getConfig()).toEqual({
+      'moderation.auto_hide_mode': 'count',
+    });
+  });
+
   it('verify batch 11 (C2): a memo older than 2 minutes is not served; the read waits for the table', async () => {
     process.env.NODE_ENV = 'production';
     clearAppConfigMemo();

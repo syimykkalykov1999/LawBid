@@ -320,6 +320,81 @@ variable "deployment_alarm_rollback" {
     behaviour). Changing it is an in-place UpdateService (no replacement).
   EOT
 }
+# X1 (25.11, ARCHITECTURE_VS_BIG_PLATFORMS item 19): the ECS built-in deployment
+# strategies instead of our own canary script (scripts/deploy/canary.sh).
+# AWS ECS developer guide "Amazon ECS canary deployments" / "linear deployments"
+# (strategies since 30.10.2025; AWS provider 6.21.0 `deployment_configuration`
+# `strategy`, `canary_configuration`, `linear_configuration`). ECS starts the new
+# revision in the alternate target group, shifts canary_percent of the traffic
+# (or step_percent per step), waits the bake times while it watches the same
+# alarms and the circuit breaker, then 100 %; any alarm = ECS shifts back.
+#   ""       today's rolling deployment, the block is not sent (default);
+#   ROLLING  sent explicitly (the way back from CANARY / LINEAR);
+#   CANARY / LINEAR  need api_alternate_target_group_arn + api_production_listener_rule_arn.
+variable "api_deployment_strategy" {
+  type        = string
+  default     = ""
+  description = "X1: \"\" (today, not sent) | ROLLING | CANARY | LINEAR for the api service. Set by modules/stack var.api_native_deploy."
+  validation {
+    condition     = contains(["", "ROLLING", "CANARY", "LINEAR"], var.api_deployment_strategy)
+    error_message = "api_deployment_strategy: \"\", ROLLING, CANARY or LINEAR."
+  }
+}
+variable "api_alternate_target_group_arn" {
+  type        = string
+  default     = ""
+  description = "X1: the second (green) api target group (modules/alb api_green)."
+}
+variable "api_production_listener_rule_arn" {
+  type        = string
+  default     = ""
+  description = "X1: the weighted listener rule ECS shifts (modules/alb api_weighted)."
+}
+variable "api_canary_percent" {
+  type        = number
+  default     = 10
+  description = "X1 CANARY: share of the live api traffic the new release takes first (AWS: start with 5-10 %)."
+  validation {
+    condition     = var.api_canary_percent >= 0.1 && var.api_canary_percent <= 100
+    error_message = "api_canary_percent: 0.1..100."
+  }
+}
+variable "api_canary_bake_minutes" {
+  type        = number
+  default     = 5
+  description = "X1 CANARY: minutes ECS watches the alarms at api_canary_percent before it shifts the rest (the old script's CANARY_BAKE_MINUTES = 5)."
+  validation {
+    condition     = var.api_canary_bake_minutes >= 0 && var.api_canary_bake_minutes <= 1440
+    error_message = "api_canary_bake_minutes: 0..1440."
+  }
+}
+variable "api_linear_step_percent" {
+  type        = number
+  default     = 25
+  description = "X1 LINEAR: traffic share added per step (AWS: 3..100)."
+  validation {
+    condition     = var.api_linear_step_percent >= 3 && var.api_linear_step_percent <= 100
+    error_message = "api_linear_step_percent: 3..100."
+  }
+}
+variable "api_linear_step_bake_minutes" {
+  type        = number
+  default     = 3
+  description = "X1 LINEAR: minutes between two steps."
+  validation {
+    condition     = var.api_linear_step_bake_minutes >= 0 && var.api_linear_step_bake_minutes <= 1440
+    error_message = "api_linear_step_bake_minutes: 0..1440."
+  }
+}
+variable "api_deploy_bake_minutes" {
+  type        = number
+  default     = 10
+  description = "X1: minutes the old release keeps running after 100 % moved (instant shift back on an alarm), then ECS removes it."
+  validation {
+    condition     = var.api_deploy_bake_minutes >= 0 && var.api_deploy_bake_minutes <= 1440
+    error_message = "api_deploy_bake_minutes: 0..1440."
+  }
+}
 variable "api_deployment_alarm_names" {
   type        = list(string)
   default     = []
@@ -483,6 +558,34 @@ resource "aws_iam_role" "execution" {
 resource "aws_iam_role_policy_attachment" "execution" {
   role       = aws_iam_role.execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+# X1: the "Amazon ECS infrastructure IAM role for load balancers" (AWS managed
+# policy AmazonECSInfrastructureRolePolicyForLoadBalancers, trust ecs.amazonaws.com):
+# ECS registers the new revision in the alternate target group and changes the
+# weights of the production listener rule. Only while a native strategy is on.
+locals {
+  api_native = contains(["CANARY", "LINEAR"], var.api_deployment_strategy)
+}
+data "aws_iam_policy_document" "ecs_infra_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["ecs.amazonaws.com"]
+    }
+  }
+}
+resource "aws_iam_role" "ecs_lb_infra" {
+  count              = local.api_native ? 1 : 0
+  name               = "${var.name}-ecs-lb-infra"
+  assume_role_policy = data.aws_iam_policy_document.ecs_infra_assume.json
+  tags               = var.tags
+}
+resource "aws_iam_role_policy_attachment" "ecs_lb_infra" {
+  count      = local.api_native ? 1 : 0
+  role       = aws_iam_role.ecs_lb_infra[0].name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonECSInfrastructureRolePolicyForLoadBalancers"
 }
 
 data "aws_iam_policy_document" "execution_secrets" {
@@ -1140,6 +1243,16 @@ resource "aws_ecs_service" "api" {
     target_group_arn = var.api_target_group_arn
     container_name   = "api"
     container_port   = 3000
+    # X1: the alternate group + production rule + infrastructure role of the
+    # ECS built-in canary / linear deployment (only while it is on).
+    dynamic "advanced_configuration" {
+      for_each = local.api_native ? [1] : []
+      content {
+        alternate_target_group_arn = var.api_alternate_target_group_arn
+        production_listener_rule   = var.api_production_listener_rule_arn
+        role_arn                   = aws_iam_role.ecs_lb_infra[0].arn
+      }
+    }
   }
   dynamic "load_balancer" {
     for_each = var.api_ws_target_group_arn == "" ? [] : [var.api_ws_target_group_arn]
@@ -1147,6 +1260,31 @@ resource "aws_ecs_service" "api" {
       target_group_arn = load_balancer.value
       container_name   = "api"
       container_port   = 3000
+    }
+  }
+  # X1: sent only when set (""= today's service, no change in the plan). The
+  # top-level minimum/maximum percent, the circuit breaker and the alarms below
+  # stay and work with every strategy (AWS "Amazon ECS deployment failure
+  # detection": circuit breaker and alarms for rolling and blue/green).
+  dynamic "deployment_configuration" {
+    for_each = var.api_deployment_strategy == "" ? [] : [var.api_deployment_strategy]
+    content {
+      strategy             = deployment_configuration.value
+      bake_time_in_minutes = deployment_configuration.value == "ROLLING" ? null : var.api_deploy_bake_minutes
+      dynamic "canary_configuration" {
+        for_each = deployment_configuration.value == "CANARY" ? [1] : []
+        content {
+          canary_percent              = var.api_canary_percent
+          canary_bake_time_in_minutes = var.api_canary_bake_minutes
+        }
+      }
+      dynamic "linear_configuration" {
+        for_each = deployment_configuration.value == "LINEAR" ? [1] : []
+        content {
+          step_percent              = var.api_linear_step_percent
+          step_bake_time_in_minutes = var.api_linear_step_bake_minutes
+        }
+      }
     }
   }
   # Rolling, zero-downtime; automatic rollback on a failed deployment
@@ -1174,8 +1312,18 @@ resource "aws_ecs_service" "api" {
   }
   # The spot-fallback Lambda changes the strategy at run time (no Spot
   # capacity -> regular Fargate, and back); an apply must not undo that.
-  lifecycle { ignore_changes = [desired_count, capacity_provider_strategy] }
-  tags = merge(var.tags, { Component = "api" })
+  lifecycle {
+    ignore_changes = [desired_count, capacity_provider_strategy]
+    # X1: AWS: "advancedConfiguration field is required for all loadBalancers
+    # when using a non-ROLLING deployment strategy" (the websocket group has none).
+    precondition {
+      condition     = !local.api_native || (var.api_alternate_target_group_arn != "" && var.api_production_listener_rule_arn != "" && var.api_ws_target_group_arn == "")
+      error_message = "CANARY / LINEAR need the green target group and the weighted rule (modules/alb stage on) and no websocket target group."
+    }
+  }
+  # The role must outlive the service on destroy (provider note: else DRAINING).
+  depends_on = [aws_iam_role_policy_attachment.ecs_lb_infra]
+  tags       = merge(var.tags, { Component = "api" })
 }
 
 # Owner 2026-11-11 («А»): the API for the admin panel only (bulkhead). Same

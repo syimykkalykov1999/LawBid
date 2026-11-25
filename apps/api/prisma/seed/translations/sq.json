@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Skedar",
   "chat.attach.photo": "Foto",
   "chat.attach.photos": "Galeria e fotove",
+  "chat.attach.removed": "Skedari u hoq: nuk kaloi kontrollin e sigurisë",
   "chat.attach.skipped": "{count} nuk u shtuan: format i pambështetur ose mbi {max} MB",
   "chat.attach.template": "Model dokumenti",
   "chat.attach.video": "Video",

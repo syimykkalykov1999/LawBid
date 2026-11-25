@@ -186,13 +186,16 @@ echo "  task: ${ARN##*/}"
 # Own wait (the CLI waiter gives up after 10 min). If the AWS login runs
 # out, the task still finishes in AWS: check it later with the line below.
 CHECK="aws ecs describe-tasks --cluster $CLUSTER --tasks $ARN --query 'tasks[0].[lastStatus,containers[0].exitCode]' --output text"
-for _ in $(seq 1 240); do
+# Deploy speed 25.11: polled every ONEOFF_POLL_SECONDS (default 5; was 15 s,
+# ~7 s lost per task on average, three tasks per release); the limit stays 60 min.
+POLL_S="${ONEOFF_POLL_SECONDS:-5}"; T_END=$(( $(date +%s) + 3600 ))
+while [ "$(date +%s)" -lt "$T_END" ]; do
   if ! ST="$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$ARN" --query 'tasks[0].lastStatus' --output text 2>/dev/null)"; then
     echo "  AWS login ran out; the task keeps running. Later: aws login && $CHECK"
     exit 3
   fi
   [ "$ST" = "STOPPED" ] && break
-  printf '.'; sleep 15
+  printf '.'; sleep "$POLL_S"
 done
 echo
 EXIT="$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$ARN" --query 'tasks[0].containers[0].exitCode' --output text)"

@@ -67,7 +67,12 @@ import { PrivacySettingsService } from '../privacy-settings/privacy-settings.ser
 import { PresenceService } from '../presence/presence.service';
 import { maskContactInfo } from '../cases/domain/contact-detector';
 import { isImageMime } from '../files/files.policy';
-import { FilesService } from '../files/files.service';
+import { FilesService, type UnscannedChatFile } from '../files/files.service';
+import {
+  type FileScanListener,
+  SCAN_WAIT_TTL_SEC,
+  scanWaitKey,
+} from '../files/files.public';
 import { BadgesService, UNREAD_CAP } from '../notifications/badges.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
@@ -83,6 +88,7 @@ import {
   type ReactionDto,
   type ReplyPreviewDto,
   type SendMessageDto,
+  type VoiceNoteDto,
   ChatFolderCountsDto,
   type ChatStorageDto,
   type ConversationFolderName,
@@ -181,7 +187,7 @@ const EFFECTS_GRACE_MS = 120_000;
 const EFFECTS_SWEEP_BATCH = 100;
 
 @Injectable()
-export class ChatService {
+export class ChatService implements FileScanListener {
   constructor(
     private readonly prisma: PrismaService,
     private readonly limits: UsageLimitsService,
@@ -1434,10 +1440,19 @@ export class ChatService {
         message: 'Files can be sent once the bid is accepted.',
       });
     }
+    let scanPending = false;
     if (attachment) {
-      await this.files.assertAttachable(user.sub, dto.fileId!, [
-        'chat_attachment',
-      ]);
+      // M3 (owner 25.11): the message goes while the scan still runs.
+      scanPending =
+        (
+          await this.files.assertAttachable(
+            user.sub,
+            dto.fileId!,
+            ['chat_attachment'],
+            undefined,
+            { pending: true },
+          )
+        )?.scan_status === 'pending';
       const used = await this.prisma.message.findFirst({
         where: { file_id: dto.fileId },
         select: { id: true },
@@ -1454,7 +1469,16 @@ export class ChatService {
     if (sticker) await this.stickers.useForMessage(user.sub, dto.stickerId!);
     if (gift) await this.stars.assertMayGift(user.sub);
     if (voice) {
-      await this.files.assertAttachable(user.sub, dto.fileId!, ['chat_voice']);
+      scanPending =
+        (
+          await this.files.assertAttachable(
+            user.sub,
+            dto.fileId!,
+            ['chat_voice'],
+            undefined,
+            { pending: true },
+          )
+        )?.scan_status === 'pending';
       // One note, one message: a file is never re-sent elsewhere.
       const used = await this.prisma.message.findFirst({
         where: { file_id: dto.fileId },
@@ -1599,8 +1623,23 @@ export class ChatService {
           // The same send retried (same clientMessageId) goes on to the
           // insert and its unique key, which answers with the first one.
           if ((attachment || voice) && dto.fileId) {
-            await tx.$queryRaw`SELECT id FROM files
+            const [held] = await tx.$queryRaw<{ scan_status: string }[]>`
+              SELECT scan_status FROM files
               WHERE id = ${dto.fileId}::UUID FOR NO KEY UPDATE`;
+            // M3: the check may have ended since the read above (this lock
+            // holds its end until the message is stored).
+            scanPending = held?.scan_status === 'pending';
+            if (
+              held &&
+              held.scan_status !== 'clean' &&
+              held.scan_status !== 'pending'
+            ) {
+              throw new ConflictException({
+                code: ErrorCode.FILE_NOT_ATTACHABLE,
+                message: 'This file cannot be attached.',
+                details: { scanStatus: held.scan_status },
+              });
+            }
             const taken = await tx.message.findFirst({
               where: { file_id: dto.fileId },
               select: {
@@ -1723,6 +1762,11 @@ export class ChatService {
       await touchClientActive(this.prisma, conv.case_id, user.sub);
     }
     this.heavy?.message(user.sub, conv.case_id);
+    // M3: the scan's end finds this message (before the effects read the
+    // file's state, so no end of the check falls between the two).
+    if (scanPending && message.file_id) {
+      await this.markScanWait(message.file_id, id, message.id);
+    }
     const urls = await this.deliverEffects(conv, message, user.sub, {
       silent: opts.silent === true,
       requestFirst,
@@ -2497,6 +2541,67 @@ export class ChatService {
     }
   }
 
+  /** M3: remembers which message holds a file still being checked, so the
+   * end of the check (in the worker) finds its chat on any database. */
+  private async markScanWait(
+    fileId: string,
+    conversationId: string,
+    messageId: string,
+  ): Promise<void> {
+    if (!this.redis || this.redis.status !== 'ready') return;
+    try {
+      await this.redis.set(
+        scanWaitKey('chat', fileId),
+        JSON.stringify({ c: conversationId, m: messageId }),
+        'EX',
+        SCAN_WAIT_TTL_SEC,
+      );
+    } catch {
+      // the lookup by file below covers it (one database)
+    }
+  }
+
+  /**
+   * M3 (owner 25.11, Slack / Telegram / WhatsApp): the check of a file that
+   * is already in a message ended. Everybody in the chat gets the message
+   * again (`message:updated`): clean, the file appears for the recipient;
+   * infected or failed, it shows as removed for everyone. Nobody ever got a
+   * link to it before (FilesService.unscannedChatFiles).
+   */
+  async fileScanEnded(file: { id: string; purpose: string }): Promise<void> {
+    let where: { c: string; m: string } | null = null;
+    if (this.redis && this.redis.status === 'ready') {
+      try {
+        const raw = await this.redis.getdel(scanWaitKey('chat', file.id));
+        if (raw) where = JSON.parse(raw) as { c: string; m: string };
+      } catch {
+        where = null;
+      }
+    }
+    const publish = async (): Promise<void> => {
+      const row = where
+        ? await this.prisma.message.findUnique({
+            where: {
+              id_conversation_id: { id: where.m, conversation_id: where.c },
+            },
+          })
+        : await this.prisma.message.findFirst({ where: { file_id: file.id } });
+      if (!row || row.file_id !== file.id) return;
+      const conv = await this.prisma.conversation.findUnique({
+        where: { id: row.conversation_id },
+      });
+      if (!conv) return;
+      const urls = await this.mediaLinks([row]);
+      const team = (await this.team?.teamOfChat(conv)) ?? [];
+      for (const uid of new Set([conv.client_id, conv.attorney_id, ...team])) {
+        this.realtime.toUsers([uid], 'message:updated', {
+          message: this.toMessage(row, uid, conv, urls),
+        });
+      }
+    };
+    await (where ? shardContext.runForCase(where.c, publish) : publish());
+  }
+
   private async clearEffectsPending(member: string | null): Promise<void> {
     if (!member || !this.redis || this.redis.status !== 'ready') return;
     try {
@@ -2666,8 +2771,30 @@ export class ChatService {
           }),
         ) ?? Promise.resolve(new Map<string, SharedPostCardDto>()),
       ]);
+    // M3: files still checked or removed (no query when all are clean).
+    const [unscannedAttachments, unscannedVoice] = await Promise.all([
+      this.files.unscannedChatFiles(
+        'chat_attachment',
+        ids('attachment'),
+        new Set(attachments.keys()),
+      ),
+      this.files.unscannedChatFiles(
+        'chat_voice',
+        ids('voice'),
+        new Set(voice.keys()),
+      ),
+    ]);
     const extras = await loadMessageExtras(this.prisma, rows, opts);
-    return { voice, attachments, stickers, gifts, contacts, posts, extras };
+    return {
+      voice,
+      attachments,
+      stickers,
+      gifts,
+      contacts,
+      posts,
+      extras,
+      unscanned: { attachments: unscannedAttachments, voice: unscannedVoice },
+    };
   }
 
   private findOwn(id: string, senderId: string, clientMessageId: string) {
@@ -2863,22 +2990,11 @@ export class ChatService {
       pinned: !revoked && (extras?.pinned.has(m.id) ?? false),
       voice:
         m.type === 'voice' && !revoked
-          ? {
-              url: m.file_id
-                ? (media?.voice.get(m.file_id)?.url ?? null)
-                : null,
-              // Owner row 146: the AAC/M4A copy of a browser note (iPhone).
-              m4aUrl: m.file_id
-                ? (media?.voice.get(m.file_id)?.m4aUrl ?? null)
-                : null,
-              durationMs: m.duration_ms ?? 0,
-              waveform: m.waveform,
-              listened: m.listened_at !== null,
-            }
+          ? this.voiceOf(m, viewerId, media)
           : null,
       attachment:
         m.type === 'attachment' && !revoked
-          ? this.attachmentOf(m, media)
+          ? this.attachmentOf(m, viewerId, media)
           : null,
       sticker:
         m.type === 'sticker' && m.sticker_id && !revoked
@@ -2915,20 +3031,50 @@ export class ChatService {
   }
 
   /** OQ-047: the attached file as the bubble shows it (links once the
-   * scan passed; until then null — the app shows it as processing). */
-  private attachmentOf(m: Message, media?: MediaLinks): ChatAttachmentDto {
+   * scan passed). M3 (owner 25.11): while it still runs only the sender
+   * gets a link (their own upload); the others see it as processing, and
+   * an infected or failed file as removed. */
+  private attachmentOf(
+    m: Message,
+    viewerId: string,
+    media?: MediaLinks,
+  ): ChatAttachmentDto {
     const f = m.file_id ? media?.attachments.get(m.file_id) : undefined;
+    const u = m.file_id
+      ? media?.unscanned?.attachments.get(m.file_id)
+      : undefined;
+    const mime = f?.mime ?? u?.mime ?? null;
     return {
       fileId: m.file_id ?? '',
       name: this.openFileName(m.file_name, m.id) ?? 'file',
-      mime: f?.mime ?? null,
-      sizeBytes: f?.sizeBytes ?? null,
-      isImage: f ? isImageMime(f.mime) : false,
-      url: f?.url ?? null,
+      mime,
+      sizeBytes: f?.sizeBytes ?? u?.sizeBytes ?? null,
+      isImage: mime ? isImageMime(mime) : false,
+      url: f?.url ?? (u && u.ownerId === viewerId ? u.ownerUrl : null),
       previewUrl: f?.previewUrl ?? null,
       width: f?.width ?? null,
       height: f?.height ?? null,
       blurhash: f?.blurhash ?? null,
+      state: u?.state ?? 'ready',
+    };
+  }
+
+  /** OQ-040 voice note; M3 states as for [attachmentOf]. */
+  private voiceOf(
+    m: Message,
+    viewerId: string,
+    media?: MediaLinks,
+  ): VoiceNoteDto {
+    const v = m.file_id ? media?.voice.get(m.file_id) : undefined;
+    const u = m.file_id ? media?.unscanned?.voice.get(m.file_id) : undefined;
+    return {
+      url: v?.url ?? (u && u.ownerId === viewerId ? u.ownerUrl : null),
+      // Owner row 146: the AAC/M4A copy of a browser note (iPhone).
+      m4aUrl: v?.m4aUrl ?? null,
+      durationMs: m.duration_ms ?? 0,
+      waveform: m.waveform,
+      listened: m.listened_at !== null,
+      state: u?.state ?? 'ready',
     };
   }
 
@@ -3126,6 +3272,11 @@ export class ChatService {
 /** OQ-047: links of a page's voice notes and attachments. */
 interface MediaLinks {
   extras?: MessageExtras;
+  /** M3: chat files still being checked, or removed, by file id. */
+  unscanned?: {
+    attachments: Map<string, UnscannedChatFile>;
+    voice: Map<string, UnscannedChatFile>;
+  };
   voice: Map<string, { url: string; m4aUrl: string | null }>;
   stickers: Map<string, StickerDto>;
   gifts: Map<string, GiftSendDto>;

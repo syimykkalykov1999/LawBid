@@ -81,6 +81,9 @@ describe('GroupsService.send — voice notes', () => {
       'u1',
       '00000000-0000-4000-8000-000000000001',
       ['chat_voice'],
+      undefined,
+      // M3: the message goes while the scan still runs.
+      { pending: true },
     );
     expect(tx.chatGroupMessage.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -137,6 +140,9 @@ describe('GroupsService.send — voice notes', () => {
       'u1',
       '00000000-0000-4000-8000-000000000002',
       ['chat_attachment'],
+      undefined,
+      // M3: the message goes while the scan still runs.
+      { pending: true },
     );
     const data = (
       tx.chatGroupMessage.create.mock.calls[0] as [{ data: object }]
@@ -151,6 +157,7 @@ describe('GroupPresenter — voice notes', () => {
     const files = {
       avatarUrlsMany: jest.fn().mockResolvedValue(new Map()),
       attachmentUrls: jest.fn().mockResolvedValue(new Map()),
+      unscannedChatFiles: jest.fn().mockResolvedValue(new Map()),
       voiceLinks: jest.fn().mockResolvedValue(
         new Map([
           [
@@ -210,6 +217,8 @@ describe('GroupPresenter — voice notes', () => {
       durationMs: 4200,
       waveform: [1, 50, 99],
       listened: false,
+      // M3: a clean note is ready for everyone.
+      state: 'ready',
     });
   });
 

@@ -1261,6 +1261,7 @@
   "chat.attach.label": "ፋይል",
   "chat.attach.photo": "ፎቶ",
   "chat.attach.photos": "የፎቶ ቤተ-መጽሐፍት",
+  "chat.attach.removed": "ፋይሉ ተወግዷል፦ የደህንነት ፍተሻውን አላለፈም",
   "chat.attach.skipped": "{count} አልተጨመሩም: ያልተደገፈ ቅርጸት ወይም ከ{max} MB በላይ",
   "chat.attach.template": "የሰነድ አብነት",
   "chat.attach.video": "ቪዲዮ",

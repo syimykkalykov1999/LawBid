@@ -112,6 +112,11 @@ variable "database_logical_replication" {
   default     = false
   description = "rds.logical_replication = 1 (static: needs a reboot). Needed for shard moves and Blue/Green upgrades."
 }
+variable "database_max_slot_wal_keep_size_mb" {
+  type        = number
+  default     = 0
+  description = "C2: max_slot_wal_keep_size (MB) on the database; 0 = engine default (no limit). docs/runbooks/cache-cdc.md."
+}
 variable "database_monitoring_interval" {
   type        = number
   default     = 0
@@ -383,6 +388,67 @@ variable "deploy_alarm_rollback" {
   type        = bool
   default     = true
   description = "P1 deploy safety: ECS rolling deployment also rolls back when a CloudWatch alarm (ALB 5xx ratio, p95, unhealthy hosts; worker no-tasks; admin 5xx) fires during the rollout. false = circuit breaker only. docs/runbooks/DEPLOY_SAFETY.md."
+}
+# X1 (25.11, ARCHITECTURE_VS_BIG_PLATFORMS item 19): the ECS built-in canary /
+# linear deployment of the api instead of scripts/deploy/canary.sh. Owner steps
+# in docs/runbooks/DEPLOY_SAFETY.md («Встроенный canary ECS»):
+#   off      today: rolling deploy + our canary script (default, prod);
+#   prepare  green target group + weighted rule (no traffic moves), ECS still
+#            rolling: always apply this first, and also the way back;
+#   canary   ECS: api_canary_percent of the traffic, bake, then 100 %; any api
+#            alarm or the circuit breaker = ECS shifts back by itself;
+#   linear   ECS: api_linear_step_percent per step.
+# deploy.yml reads the strategy from the service itself: CANARY / LINEAR = no
+# canary script, it waits for the ECS deployment result instead.
+variable "api_native_deploy" {
+  type        = string
+  default     = "off"
+  description = "X1: off (today) | prepare | canary | linear — the ECS built-in deployment strategy of the api (docs/runbooks/DEPLOY_SAFETY.md)."
+  validation {
+    condition     = contains(["off", "prepare", "canary", "linear"], var.api_native_deploy)
+    error_message = "api_native_deploy: off, prepare, canary or linear."
+  }
+}
+locals {
+  api_native_alb_stage    = { off = "off", prepare = "prepare", canary = "on", linear = "on" }[var.api_native_deploy]
+  api_native_ecs_strategy = { off = "", prepare = "ROLLING", canary = "CANARY", linear = "LINEAR" }[var.api_native_deploy]
+}
+# X1, an open point for the owner (a warning in every plan, never a failure):
+# the request-based api scaling of «Авто» (modules/ecs aws_appautoscaling_policy
+# api_requests, ALBRequestCountPerTarget) has ONE resource label = the first api
+# target group. With canary / linear the live traffic alternates between the two
+# groups, so after every second release that policy sees no requests (CPU
+# scaling still works). «Авто» is not changed here (owner rule 17.11).
+check "api_native_deploy_request_scaling" {
+  assert {
+    condition     = !contains(["canary", "linear"], var.api_native_deploy)
+    error_message = "X1: api_native_deploy = ${var.api_native_deploy}: the «Авто» request scaling (ALBRequestCountPerTarget) follows only the first api target group; after every second deployment it does not see the live traffic (CPU scaling still works). Owner decision before prod (docs/runbooks/DEPLOY_SAFETY.md)."
+  }
+}
+variable "api_canary_percent" {
+  type        = number
+  default     = 10
+  description = "X1 canary: share of the api traffic the new release takes first."
+}
+variable "api_canary_bake_minutes" {
+  type        = number
+  default     = 5
+  description = "X1 canary: minutes at that share while ECS watches the alarms."
+}
+variable "api_linear_step_percent" {
+  type        = number
+  default     = 25
+  description = "X1 linear: share added per step."
+}
+variable "api_linear_step_bake_minutes" {
+  type        = number
+  default     = 3
+  description = "X1 linear: minutes between steps."
+}
+variable "api_deploy_bake_minutes" {
+  type        = number
+  default     = 10
+  description = "X1: minutes the old api release stays up after 100 % moved (instant shift back)."
 }
 variable "deploy_rollback_on_slo" {
   type        = bool
@@ -1204,6 +1270,7 @@ module "alb" {
   deletion_protection       = var.alb_deletion_protection && !var.ephemeral
   load_balancing_algorithm  = var.alb_least_outstanding_requests ? "least_outstanding_requests" : "round_robin"
   ws_target_group_enabled   = var.alb_websocket_target_group
+  api_native_deploy_stage   = local.api_native_alb_stage
   slow_start_seconds        = var.alb_slow_start_seconds
   waf_bot_control_enabled   = var.waf_bot_control_enabled
   waf_bot_control_block     = var.waf_bot_control_block
@@ -1300,6 +1367,7 @@ module "postgres" {
   upgrade_to_major           = var.database_major_version
   auto_minor_version_upgrade = var.database_auto_minor_upgrade
   rds_logical_replication    = var.database_logical_replication
+  max_slot_wal_keep_size_mb  = var.database_max_slot_wal_keep_size_mb
   monitoring_interval        = var.database_monitoring_interval
   database_insights_advanced = var.database_insights_advanced
   log_group_class            = var.database_log_group_class
@@ -2366,6 +2434,16 @@ module "ecs" {
   # D1-35: api-admin watches its own target group's alarms.
   api_admin_deployment_alarm_names = module.monitoring.api_admin_deployment_alarm_names
 
+  # X1: ECS built-in canary / linear for the api (var.api_native_deploy).
+  api_deployment_strategy          = local.api_native_ecs_strategy
+  api_alternate_target_group_arn   = module.alb.api_green_target_group_arn
+  api_production_listener_rule_arn = module.alb.api_production_listener_rule_arn
+  api_canary_percent               = var.api_canary_percent
+  api_canary_bake_minutes          = var.api_canary_bake_minutes
+  api_linear_step_percent          = var.api_linear_step_percent
+  api_linear_step_bake_minutes     = var.api_linear_step_bake_minutes
+  api_deploy_bake_minutes          = var.api_deploy_bake_minutes
+
   # Same namespace as modules/monitoring (QueueWaitingTotal).
   metrics_namespace    = "LawBid/${local.name}"
   worker_jobs_per_task = var.worker_jobs_per_task
@@ -2981,9 +3059,12 @@ module "monitoring" {
     { web = module.web.web_distribution_id, media = module.s3.media_distribution_id },
     var.documents_cdn_public_key_pem != "" ? { documents = module.s3.documents_distribution_id } : {},
   )
-  api_target_group_arn_suffix   = module.alb.api_target_group_arn_suffix
-  media_cdn_distribution_id     = var.cdn_additional_metrics && !var.ephemeral && data.aws_region.current.region == "us-east-1" ? module.s3.media_distribution_id : ""
-  admin_target_group_arn_suffix = module.alb.admin_target_group_arn_suffix
+  api_target_group_arn_suffix = module.alb.api_target_group_arn_suffix
+  # X1: from `prepare` on the api alarms read both api target groups.
+  api_two_target_groups             = var.api_native_deploy != "off"
+  api_green_target_group_arn_suffix = module.alb.api_green_target_group_arn_suffix
+  media_cdn_distribution_id         = var.cdn_additional_metrics && !var.ephemeral && data.aws_region.current.region == "us-east-1" ? module.s3.media_distribution_id : ""
+  admin_target_group_arn_suffix     = module.alb.admin_target_group_arn_suffix
   # D1-35: same switch as module.ecs api_admin_enabled (a literal, known at plan).
   api_admin_deploy_alarms           = true
   api_admin_target_group_arn_suffix = module.alb.api_admin_target_group_arn_suffix

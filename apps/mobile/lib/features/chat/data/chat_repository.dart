@@ -947,6 +947,7 @@ abstract final class ChatMappers {
                 width: d.attachment!.width,
                 height: d.attachment!.height,
                 blurhash: d.attachment!.blurhash,
+                removed: d.attachment!.state == api.ChatMediaState.removed,
               ),
         voice: d.voice == null
             ? null

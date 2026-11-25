@@ -42,6 +42,7 @@ const file06Ru = <String, String>{
   'chat.attach.files': 'Документы (PDF, Word, Excel и др.)',
   'chat.attach.photo': 'Фото',
   'chat.attach.label': 'Файл',
+  'chat.attach.removed': 'Файл удалён: не прошёл проверку безопасности',
   'chat.attach.skipped':
       'Не добавлено файлов: {count} — неподдерживаемый формат или больше {max} МБ',
   'chat.files.title': 'Файлы и фото',
@@ -586,6 +587,7 @@ const file06En = <String, String>{
   'chat.attach.files': 'Documents (PDF, Word, Excel…)',
   'chat.attach.photo': 'Photo',
   'chat.attach.label': 'File',
+  'chat.attach.removed': 'File removed: it failed the security check',
   'chat.attach.skipped':
       '{count} not added — unsupported format or over {max} MB',
   'chat.files.title': 'Files and photos',

@@ -135,6 +135,7 @@ const COMPONENT_TITLE: Record<string, string> = {
   bunny_usage: 'Трафик и хранилище Bunny',
   table_growth: 'Рост таблиц',
   shard_growth: 'Рост базы данных',
+  cache_cdc: 'Сброс кэша по журналу базы',
 };
 
 export const componentTitle = (key: string): string =>

@@ -7,7 +7,7 @@
 #   static   lint, typecheck, unit tests + coverage floor, migrations, contract, audit
 #   e2e      3-way matrix (jest --shard i/3 through scripts/run-e2e-sharded.mjs
 #            --only=i: one retry per failed suite, flaky.json artifact)
-#   two-db   the two-database e2e subset (shard-ready step 5)
+#   two-db   the two-database e2e subset (shard-ready step 5), 3 parts
 #   n1       S11-3: the PREVIOUS release's e2e smoke suites against the NEW
 #            schema (the claim of rollback.yml, now tested); only when the PR
 #            changes migrations
@@ -517,9 +517,17 @@ jobs:
           if-no-files-found: ignore
 
   two-db:
-    name: API e2e (two databases)
+    # Deploy speed 25.11: the longest job of API CI (25m39 of 28 min on the
+    # release 0e8f25846: 9 batches of 20 suites one after the other). Three
+    # parts like the e2e shards; every batch keeps its files and order, the
+    # parts together run every suite once (run-e2e-two-db.mjs --part).
+    name: API e2e (two databases ${{ matrix.part }}/3)
     runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-24.04-arm' }}
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3]
     services:
       # 17.11 (CONTENT_MEDIA_VERIFY №1): the same engines as prod — RDS
       # PostgreSQL 18.6 and ElastiCache Valkey 9.1 (infra/envs/prod). Images are
@@ -621,7 +629,7 @@ jobs:
           # of 20 suites outgrew 4096 (heap out of memory, exit 134).
           NODE_OPTIONS: --max-old-space-size=6144
           E2E_TWO_DB: all
-        run: npm run test:e2e:two-db --workspace apps/api
+        run: npm run test:e2e:two-db --workspace apps/api -- --part=${{ matrix.part }}/3
 
   n1:
     name: API N-1 (previous release's suites on the new schema)

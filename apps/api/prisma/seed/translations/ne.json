@@ -1261,6 +1261,7 @@
   "chat.attach.label": "फाइल",
   "chat.attach.photo": "फोटो",
   "chat.attach.photos": "फोटो लाइब्रेरी",
+  "chat.attach.removed": "फाइल हटाइयो: यो सुरक्षा जाँचमा असफल भयो",
   "chat.attach.skipped": "{count} थपिएन: असमर्थित ढाँचा वा {max} MB भन्दा ठूलो",
   "chat.attach.template": "कागजात टेम्प्लेट",
   "chat.attach.video": "भिडियो",

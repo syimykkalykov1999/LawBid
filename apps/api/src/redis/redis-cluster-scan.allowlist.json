@@ -110,6 +110,11 @@
     "reason": "Snapshot key, its author hash and the current-pointer key are all ck('reco', ...): one slot."
   },
   {
+    "file": "modules/feed/feed-timeline.service.ts",
+    "kind": "lua-multi-key",
+    "reason": "Item 23 (F1): WRITE_LUA / RESET_LUA get one reader's timeline and meta, both built with ck('tl:<uid>') (one slot); EPOCH_LUA gets the epoch hash and the skip set, both ck('feedfo') (one slot)."
+  },
+  {
     "file": "modules/feed/feed.service.ts",
     "kind": "multi",
     "reason": "MULTI over the single seen:<user> key."

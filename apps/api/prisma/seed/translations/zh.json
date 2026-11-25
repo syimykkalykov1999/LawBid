@@ -1261,6 +1261,7 @@
   "chat.attach.label": "文件",
   "chat.attach.photo": "照片",
   "chat.attach.photos": "相册",
+  "chat.attach.removed": "文件已删除：未通过安全检查",
   "chat.attach.skipped": "{count} 个未添加：格式不支持或超过 {max} MB",
   "chat.attach.template": "文件模板",
   "chat.attach.video": "视频",

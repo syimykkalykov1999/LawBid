@@ -1759,12 +1759,13 @@ class _Bubble extends ConsumerWidget {
     );
     final a = m.kind == MessageKind.attachment ? m.attachment : null;
     // A photo / video without a caption: a thin frame, the time on it.
-    final media =
-        a != null && (a.isImage || a.isVideo) && m.body.trim().isEmpty;
+    // M3: a file the antivirus removed is a text line, not a photo.
+    final visual = a != null && !a.removed && (a.isImage || a.isVideo);
+    final media = visual && m.body.trim().isEmpty;
     // Owner 2026-10-22 (Instagram / WhatsApp): with a caption the photo
     // still fills the bubble edge to edge (a 3 px frame); the caption,
     // headers and time keep the text inset.
-    final framed = a != null && (a.isImage || a.isVideo) && !media;
+    final framed = visual && !media;
     const inset = EdgeInsets.symmetric(horizontal: AppSpacing.md - 3);
     Widget pad(Widget w) => framed ? Padding(padding: inset, child: w) : w;
     final giftName = m.gift == null ? '' : giftTitle(t, m.gift!.gift);
