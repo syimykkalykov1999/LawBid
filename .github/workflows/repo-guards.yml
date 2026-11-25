@@ -64,7 +64,7 @@ jobs:
 
       - name: Self-tests of the CI helper scripts
         run: |
-          node --test scripts/ci/flag-first-check.test.mjs scripts/ci/npm-audit-gate.test.mjs scripts/ci/rollout-guard.test.mjs scripts/ci/pgbouncer-switch-on.test.mjs scripts/infra/pooler-switch.test.mjs scripts/infra/plan-summary.test.mjs scripts/deploy/autoscale-code-hash.test.mjs apps/api/prisma/verify-schema-runtime.test.mjs
+          node --test scripts/ci/flag-first-check.test.mjs scripts/ci/npm-audit-gate.test.mjs scripts/ci/rollout-guard.test.mjs scripts/ci/pgbouncer-switch-on.test.mjs scripts/infra/pooler-switch.test.mjs scripts/infra/plan-summary.test.mjs scripts/deploy/autoscale-code-hash.test.mjs scripts/deploy/bunny-stream-settings.test.mjs apps/api/prisma/verify-schema-runtime.test.mjs
           bash scripts/ci/require-green.test.sh
           bash scripts/ci/require-secrets.test.sh
           bash scripts/ci/wait-earlier-prod-change.test.sh

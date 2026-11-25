@@ -12,6 +12,8 @@ import 'package:lawbid/features/auth/domain/reauth_result.dart';
 import 'package:lawbid/features/cases/application/case_history_controller.dart';
 import 'package:lawbid/features/cases/presentation/widgets/reauth_gate_view.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/profile/application/delete_account_controller.dart';
 import 'package:lawbid/features/profile/domain/delete_account_flow_state.dart';
 import 'package:lawbid/features/profile/domain/delete_account_step.dart';
@@ -19,8 +21,11 @@ import 'package:lawbid/features/profile/presentation/screens/delete_account_scre
 import 'package:lawbid/features/settings/data_export/application/data_export_providers.dart';
 import 'package:lawbid/features/settings/data_export/data/data_export_repository.dart';
 import 'package:lawbid/features/settings/data_export/presentation/data_export_screen.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../helpers/fixtures.dart';
+import '../../helpers/onboarding_harness.dart';
 import '../../helpers/stub_auth_repository.dart';
 import '../../helpers/ux_harness.dart';
 
@@ -47,9 +52,23 @@ class _Repo extends StubAuthRepository {
     return demoResult;
   }
 
+  /// Pack E: the channel of every code asked for (never 'phone').
+  final List<String> otpChannels = [];
+  final List<String> reauthIdentifiers = [];
+
   @override
   Future<void> requestOtp(String identifier, {String channel = 'phone'}) async {
     otpRequests.add(identifier);
+    otpChannels.add(channel);
+  }
+
+  @override
+  Future<ReauthResult> reauthWithOtp({
+    required String identifier,
+    required String code,
+  }) async {
+    reauthIdentifiers.add(identifier);
+    return const ReauthResult.success(reauthToken: 'code-t');
   }
 
   /// R2-A #5: holds `DELETE /users/me` until the test completes it.
@@ -101,6 +120,22 @@ class _ExportRepo implements DataExportRepository {
 }
 
 const _en = StaticTranslatorEn();
+
+final _withEmail = meFixture(
+  role: UserRole.client,
+  consents: true,
+  phone: '+15551234567',
+  phoneVerified: true,
+  email: 'ann@example.com',
+  emailVerified: true,
+);
+
+final _phoneOnly = meFixture(
+  role: UserRole.client,
+  consents: true,
+  phone: '+15551234567',
+  phoneVerified: true,
+);
 
 void main() {
   setUpAll(initializeDateFormatting);
@@ -185,15 +220,106 @@ void main() {
       expect(access.token, 'demo-t');
       expect(access.isOpen, isTrue);
     });
+
+    test(
+        'pack E (ROUND1 #12): the history code goes to the verified e-mail, '
+        'never an SMS to the phone', () async {
+      final container = ProviderContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(auth),
+          currentUserControllerProvider.overrideWith(
+            () => FixedUserController(CurrentUserState.ready(_withEmail)),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final c = container.read(historyAccessProvider.notifier)..useCode();
+      await c.sendCode();
+      expect(auth.otpRequests, ['ann@example.com']);
+      expect(auth.otpChannels, ['email']);
+      expect(container.read(historyAccessProvider).codeSent, isTrue);
+      await c.submitCode('123456');
+      expect(auth.reauthIdentifiers, ['ann@example.com']);
+      expect(container.read(historyAccessProvider).token, 'code-t');
+    });
+
+    test('pack E: a phone-only account gets no code request', () async {
+      final container = ProviderContainer(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(auth),
+          currentUserControllerProvider.overrideWith(
+            () => FixedUserController(CurrentUserState.ready(_phoneOnly)),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(historyAccessProvider.notifier).sendCode();
+      expect(auth.otpRequests, isEmpty);
+    });
+
+    testWidgets('pack E: the gate names the e-mail the code goes to',
+        (tester) async {
+      await tester.pumpWidget(
+        uxApp(
+          const DataExportScreen(),
+          theme: AppTheme.light(),
+          disableAnimations: true,
+          overrides: uxOverrides(
+            extra: [
+              isDemoSessionProvider.overrideWithValue(false),
+              authRepositoryProvider.overrideWithValue(auth),
+              dataExportRepositoryProvider.overrideWithValue(exports),
+              dataExportPollIntervalProvider
+                  .overrideWithValue(const Duration(hours: 1)),
+              currentUserControllerProvider.overrideWith(
+                () => FixedUserController(
+                  CurrentUserState.ready(
+                    meFixture(
+                      role: UserRole.client,
+                      consents: true,
+                      phone: '+15551234567',
+                      phoneVerified: true,
+                      email: 'ann@example.com',
+                      emailVerified: true,
+                      passwordRequired: true,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(
+        find.text(
+          _en.t('history.reauth.message', {'phone': 'ann@example.com'}),
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('+1555'), findsNothing);
+      await tester.tap(find.text(_en.t('history.reauth.send')));
+      await tester.pump();
+      expect(auth.otpChannels, ['email']);
+    });
   });
 
   group('DeleteAccountController', () {
-    ProviderContainer container(_Repo repo, {required bool demo}) {
+    ProviderContainer container(
+      _Repo repo, {
+      required bool demo,
+      CurrentUser? user,
+    }) {
       final c = ProviderContainer(
         overrides: [
           isDemoSessionProvider.overrideWithValue(demo),
           authRepositoryProvider.overrideWithValue(repo),
           biometricAuthServiceProvider.overrideWithValue(_NoBiometric()),
+          if (user != null)
+            currentUserControllerProvider.overrideWith(
+              () => FixedUserController(CurrentUserState.ready(user)),
+            ),
         ],
       );
       addTearDown(c.dispose);
@@ -284,12 +410,40 @@ void main() {
       expect(repo.clearedAfterDeletion, 1);
     });
 
-    test('sweep C-c13 D1: the code goes to a number of any country', () {
-      expect(deleteReauthE164('2015550123'), '+12015550123');
-      expect(deleteReauthE164('996555123456'), '+996555123456');
-      expect(deleteReauthE164('12015550123'), '+12015550123');
-      expect(deleteReauthE164('12345'), isNull);
-      expect(deleteReauthE164('1234567890123456'), isNull);
+    test(
+        'pack E (ROUND1 #12): «Забыли пароль?» sends the code to the '
+        'verified e-mail, never an SMS to the phone', () async {
+      final repo = _Repo();
+      final c = container(repo, demo: false, user: _withEmail);
+      final ctrl = c.read(deleteAccountControllerProvider.notifier);
+      await ctrl.acknowledgeWarning();
+      ctrl.useCode();
+      await ctrl.sendCode();
+      expect(repo.otpRequests, ['ann@example.com']);
+      expect(repo.otpChannels, ['email']);
+      var state = c.read(deleteAccountControllerProvider);
+      expect(state.step, DeleteAccountStep.reauthCode);
+      expect(state.codeTarget, 'ann@example.com');
+
+      await ctrl.submitCode('123456');
+      expect(repo.reauthIdentifiers, ['ann@example.com']);
+      state = c.read(deleteAccountControllerProvider);
+      expect(state.step, DeleteAccountStep.confirmPhrase);
+      expect(state.reauthToken, 'code-t');
+    });
+
+    test('pack E: no verified e-mail, no code is asked for at all', () async {
+      final repo = _Repo();
+      final c = container(repo, demo: false, user: _phoneOnly);
+      final ctrl = c.read(deleteAccountControllerProvider.notifier);
+      await ctrl.acknowledgeWarning();
+      ctrl.useCode();
+      await ctrl.sendCode();
+      expect(repo.otpRequests, isEmpty);
+      expect(
+        c.read(deleteAccountControllerProvider).step,
+        DeleteAccountStep.reauthPhone,
+      );
     });
 
     test('demo: a refused or expired token goes back to the warning', () async {
