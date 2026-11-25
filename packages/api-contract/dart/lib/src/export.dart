@@ -699,6 +699,8 @@ export 'models/pin_post_dto.dart';
 export 'models/post_media_filter.dart';
 export 'models/post_event_item_dto.dart';
 export 'models/record_post_events_dto.dart';
+export 'models/reel_watch_item_dto.dart';
+export 'models/record_reel_watch_dto.dart';
 export 'models/post_insights_counts_dto.dart';
 export 'models/post_insights_day_dto.dart';
 export 'models/post_insights_dto.dart';

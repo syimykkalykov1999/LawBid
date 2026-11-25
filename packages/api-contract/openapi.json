@@ -28981,6 +28981,87 @@
         ]
       }
     },
+    "/posts/watch": {
+      "post": {
+        "description": "Owner 25.11: one event per ended reel view — watchedMs of real playback, durationMs of the clip, completed when it played to the end. Up to 50 per request; the same viewId again adds nothing.",
+        "operationId": "recordReelWatch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordReelWatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record how long reel views played (batch, idempotent per view)",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
     "/posts/{id}/insights": {
       "get": {
         "operationId": "postInsights",
@@ -156967,6 +157048,58 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PostEventItemDto"
+            }
+          }
+        },
+        "required": [
+          "events"
+        ]
+      },
+      "ReelWatchItemDto": {
+        "type": "object",
+        "properties": {
+          "postId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "viewId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The app’s id of this view; the same id again (a retry) is counted once."
+          },
+          "watchedMs": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3600000,
+            "description": "Real playback in ms (paused, buffering and off-screen time excluded)."
+          },
+          "durationMs": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3600000,
+            "description": "The clip’s length in ms (0 or absent = unknown)."
+          },
+          "completed": {
+            "type": "boolean",
+            "description": "The clip played to its end at least once in this view."
+          }
+        },
+        "required": [
+          "postId",
+          "viewId",
+          "watchedMs",
+          "completed"
+        ]
+      },
+      "RecordReelWatchDto": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReelWatchItemDto"
             }
           }
         },

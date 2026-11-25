@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import {
@@ -7,7 +7,10 @@ import {
   type PostInsightsCountsDto,
   type PostInsightsDayDto,
   type PostInsightsDto,
+  REEL_WATCH_BATCH_MAX,
+  type ReelWatchItemDto,
 } from './dto/post-insights.dto';
+import { RankingEventsService } from '../experiments/ranking-events.service';
 import { PostEventsService } from './post-events.service';
 import { VISIBLE_POST_WHERE } from './post-presenter.service';
 import { postNotFound } from './posts.service';
@@ -47,7 +50,48 @@ export class PostInsightsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: PostEventsService,
+    // Owner 25.11: reel watch time goes to the ranking events log.
+    @Optional() private readonly rankingEvents?: RankingEventsService,
   ) {}
+
+  /**
+   * POST /posts/watch (owner 25.11): ended reel views. Only video posts that
+   * are still visible count, never the author's own, never an assistant's;
+   * one row per view id (RankingEventsService.logWatch).
+   */
+  async recordWatch(
+    user: RequestUser,
+    items: ReelWatchItemDto[],
+  ): Promise<void> {
+    const log = this.rankingEvents;
+    if (user.assistant || !log || items.length === 0) return;
+    if (!(await log.keepsImpressionsOf(user.sub))) return;
+    const unique = new Map<string, ReelWatchItemDto>();
+    for (const e of items.slice(0, REEL_WATCH_BATCH_MAX)) {
+      unique.set(e.viewId, e);
+    }
+    const ids = [...new Set([...unique.values()].map((e) => e.postId))];
+    const posts = await this.prisma.post.findMany({
+      where: {
+        id: { in: ids },
+        ...VISIBLE_POST_WHERE,
+        video_asset_id: { not: null },
+      },
+      select: { id: true, author_id: true },
+    });
+    const authorOf = new Map(posts.map((p) => [p.id, p.author_id]));
+    for (const e of unique.values()) {
+      const author = authorOf.get(e.postId);
+      if (!author || author === user.sub) continue;
+      await log.logWatch(user.sub, {
+        postId: e.postId,
+        viewId: e.viewId,
+        watchedMs: e.watchedMs,
+        durationMs: e.durationMs ?? 0,
+        completed: e.completed,
+      });
+    }
+  }
 
   /** POST /posts/events: unknown / hidden posts are skipped silently; an
    * assistant's browsing is not the public's, so it is not recorded. */

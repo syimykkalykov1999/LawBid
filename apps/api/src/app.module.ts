@@ -71,6 +71,7 @@ import {
   AdminExperimentsModule,
   ExperimentsCoreModule,
 } from './modules/experiments/experiments.module';
+import { HomeFeedRankerModule } from './modules/recommendations/home-feed-ranker.module';
 import { AdminEconomyModule } from './modules/admin-economy/admin-economy.module';
 import { AdminPnlModule } from './modules/admin-pnl/admin-pnl.module';
 import { ReferralsModule } from './modules/referrals/referrals.module';
@@ -412,6 +413,8 @@ const isDev =
     // Owner 2026-10-25: A/B experiments + ranking events log.
     ExperimentsCoreModule,
     AdminExperimentsModule,
+    // Owner 25.11: the posts model orders the home feed's window (global).
+    HomeFeedRankerModule,
     AdminEconomyModule,
     AdminPnlModule,
     // Owner 2026-10-02: referrals + paid case promotion.
