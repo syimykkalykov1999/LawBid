@@ -24,6 +24,7 @@ import {
   type PayPageResult,
   type PayPageSession,
 } from './pay-page.service';
+import { ShedPriority } from '../../common/resilience/shed-priority';
 
 class PayTokenDto {
   @IsString()
@@ -97,6 +98,7 @@ class PayConfirmDto extends PayTokenDto {
  * Owner 2026-10-22: subscription, assistant seats and Boost.
  */
 @ApiExcludeController()
+@ShedPriority('critical')
 @Controller('pay')
 export class PayPageController {
   constructor(private readonly pay: PayPageService) {}

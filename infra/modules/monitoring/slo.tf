@@ -107,6 +107,10 @@ locals {
     # S12-13: sign-in abuse signals (not an SLO ratio; anomaly alarms in observability.tf).
     authFailed   = "SloAuthFailed"
     otpRequested = "SloOtpRequested"
+    # Item 21 (A3 / AU2): requests turned away by prioritized load shedding
+    # (apps/api/src/common/resilience/load-shedding.ts). Own alarms below.
+    shedCritical = "SloShedCritical"
+    shedLow      = "SloShedLow"
   }
   slo_log_groups = {
     api    = var.api_log_group
@@ -427,6 +431,56 @@ resource "aws_cloudwatch_metric_alarm" "turn_provider_failed" {
   threshold           = 5
   statistic           = "Sum"
   metric_name         = "SloTurnProviderFailed"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+variable "load_shed_low_alarm_count" {
+  type        = number
+  default     = 100
+  description = "Item 21: background / prefetch / normal requests shed by the API in 5 minutes (two periods in a row) that warn ops. 0 = no alarm."
+}
+variable "load_shed_critical_alarm_count" {
+  type        = number
+  default     = 1
+  description = "Item 21: critical requests (sign-in, payments, calls, sending a message) shed by the API in 5 minutes that warn ops. 0 = no alarm."
+}
+
+# Item 21 (A3 / AU2): the API sheds lower-priority requests first when one
+# server is overloaded (Netflix prioritized load shedding). Steady shedding of
+# background requests means autoscaling is not keeping up; any shed critical
+# request (sign-in, payments, calls, sending) means users are hurt.
+resource "aws_cloudwatch_metric_alarm" "load_shed_low" {
+  count               = var.load_shed_low_alarm_count > 0 ? 1 : 0
+  alarm_name          = "${var.name}-load-shed-low"
+  alarm_description   = "LawBid: Сервер API перегружен и 10 минут подряд просит приложения подождать (фоновые запросы, предзагрузка, обычные экраны). Вход, оплата, звонки и сообщения пока проходят. Что делать: админка → Система → Состояние системы (процессор, задержка, сколько серверов); если серверов не добавляется — проверить автодобавление; пороги — Настройки → realtime.server.shed_*. Инструкция: ${var.runbook_base_url}/slo.md#load-shed (EN: API is shedding low-priority requests.)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 2
+  datapoints_to_alarm = 2
+  period              = 300
+  threshold           = var.load_shed_low_alarm_count
+  statistic           = "Sum"
+  metric_name         = "SloShedLow"
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "load_shed_critical" {
+  count               = var.load_shed_critical_alarm_count > 0 ? 1 : 0
+  alarm_name          = "${var.name}-load-shed-critical"
+  alarm_description   = "LawBid: Сервер API так перегружен, что просит подождать даже вход, оплату, звонки или отправку сообщения. Что делать: админка → Система → Состояние системы; добавить серверы (Система → Мощность) или временно поднять пороги realtime.server.shed_cpu_critical_pct / shed_event_loop_lag_ms; «Выкл» в realtime.server.shed_mode — только если сброс мешает сам. Инструкция: ${var.runbook_base_url}/slo.md#load-shed (EN: API is shedding critical requests.)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 300
+  threshold           = var.load_shed_critical_alarm_count
+  statistic           = "Sum"
+  metric_name         = "SloShedCritical"
   namespace           = local.ns
   treat_missing_data  = "notBreaching"
   alarm_actions       = local.ops

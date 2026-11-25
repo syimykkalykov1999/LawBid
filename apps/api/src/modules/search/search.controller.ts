@@ -53,6 +53,7 @@ import {
   AssistantAllowed,
   RequiresDuty,
 } from '../auth/assistant/assistant-context';
+import { ShedPriority } from '../../common/resilience/shed-priority';
 
 /** docs/05 §7, §15 "Поиск" (stage 5.6). */
 @ApiTags('search')
@@ -87,6 +88,7 @@ export class SearchController {
 
   @OptionalAuth()
   @AnonymousCache(30)
+  @ShedPriority('best_effort')
   @Get('search/suggest')
   @ApiOperation({ summary: 'Type-ahead: topics, handles, practices by prefix' })
   @ApiEnvelopeResponse(SuggestionDto, { isArray: true })
@@ -192,6 +194,7 @@ export class SearchController {
   }
 
   @OptionalAuth()
+  @ShedPriority('best_effort')
   @Get('search/trending-tags')
   @ApiOperation({ summary: 'Top hashtags of 7 days (docs/05 §7.2)' })
   @ApiEnvelopeResponse(TagDto, { isArray: true })
@@ -225,6 +228,7 @@ export class SearchController {
   }
 
   @AssistantAllowed()
+  @ShedPriority('bulk')
   @Post('search/clicks')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({

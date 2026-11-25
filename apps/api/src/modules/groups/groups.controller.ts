@@ -80,6 +80,7 @@ import { GroupReactionsService } from './group-reactions.service';
 import { GroupReceiptsService } from './group-receipts.service';
 import { ReactMessageDto } from '../chat/chat.dto';
 import type { SyncPage } from '../../common/sync/sync.util';
+import { ShedPriority } from '../../common/resilience/shed-priority';
 
 const GROUP_ERRORS = {
   403: [ErrorCode.GROUP_FORBIDDEN],
@@ -373,6 +374,7 @@ export class GroupsController {
     return this.groups.messages(user, p.id, q.cursor, q.limit, q.topicId, q.q);
   }
 
+  @ShedPriority('critical')
   @Post(':id/messages')
   @ApiOperation({
     summary: 'Write to the group (idempotent on clientMessageId)',

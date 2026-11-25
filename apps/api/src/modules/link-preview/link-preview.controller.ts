@@ -14,11 +14,13 @@ import {
 import { LinkPreviewDto, LinkPreviewQueryDto } from './link-preview.dto';
 import { LinkPreviewService } from './link-preview.service';
 import { AssistantAllowed } from '../auth/assistant/assistant-context';
+import { ShedPriority } from '../../common/resilience/shed-priority';
 
 /** Owner 2026-10-22: chat link cards (title, text, picture, site). */
 @ApiTags('link-preview')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+@ShedPriority('best_effort')
 @Controller('link-preview')
 export class LinkPreviewController {
   constructor(private readonly service: LinkPreviewService) {}
