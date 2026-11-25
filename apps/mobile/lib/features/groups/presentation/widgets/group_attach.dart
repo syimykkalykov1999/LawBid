@@ -16,6 +16,7 @@ import 'package:lawbid/features/chat/data/chat_repository.dart'
     show kChatAttachmentMaxBytes, kChatFileExtensions;
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show PickedChatFile, isPickedVideo;
+import 'package:lawbid/features/chat/presentation/chat_camera.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// What the «+» menu of the composer offers.
@@ -176,12 +177,14 @@ Future<List<PickedChatFile>> pickGroupFiles(
         add(await readPickedPhoto(f), f.name);
       }
     case GroupAttachChoice.camera:
-      final f = await ImagePicker().pickImage(
-        source: ImageSource.camera,
+      // ROUND1 25.11 row 17 (the 1:1 chat's camera): a refused camera
+      // explains itself and offers the phone's settings.
+      final f = await takeChatPhoto(
+        context,
+        t,
         maxWidth: ClientTuning.chatPhotoMaxPx,
         maxHeight: ClientTuning.chatPhotoMaxPx,
         imageQuality: ClientTuning.chatPhotoQuality,
-        requestFullMetadata: false,
       );
       if (f != null) add(await readPickedPhoto(f), f.name);
     case GroupAttachChoice.files:
