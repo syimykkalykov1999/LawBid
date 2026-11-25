@@ -49,6 +49,8 @@ List<RouteBase> chatRoutes(
             'notifications' => InboxTab.notifications,
             'requests' => InboxTab.requests,
             'team' => InboxTab.team,
+            // Owner 2026-11-18: the case chats' own top tab.
+            'cases' => InboxTab.cases,
             _ => InboxTab.chats,
           };
           return AppPageTransitions.push(

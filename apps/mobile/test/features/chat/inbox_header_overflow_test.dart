@@ -117,7 +117,7 @@ void main() {
         // the folder pills share the row in equal widths; the «+» floats.
         expect(find.byKey(const ValueKey('inbox-channels')), findsNothing);
         final w = [
-          for (final f in ['all', 'cases', 'waiting', 'requests'])
+          for (final f in ['all', 'waiting', 'requests'])
             tester.getSize(find.byKey(ValueKey('chat-folder-$f'))).width,
         ];
         for (final x in w) {

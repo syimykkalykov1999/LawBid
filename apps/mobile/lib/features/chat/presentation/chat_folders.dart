@@ -22,7 +22,9 @@ import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.da
 import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-01: small Instagram-like sub-tabs inside Chats —
-/// All · Unread · Groups · Cases · Waiting · Requests (with counts).
+/// All · Groups · Waiting · Requests (with counts). Owner 2026-11-18:
+/// «Непрочитанные» is gone (each row shows its unread) and «Кейсы» is a
+/// top tab of its own now.
 class ChatFolderPills extends ConsumerWidget {
   const ChatFolderPills({
     required this.value,
@@ -62,6 +64,9 @@ class ChatFolderPills extends ConsumerWidget {
         if (f != ChatListFolder.general &&
             f != ChatListFolder.primary &&
             f != ChatListFolder.archive &&
+            // Owner 2026-11-18: no «Непрочитанные», «Кейсы» is a top tab.
+            f != ChatListFolder.unread &&
+            f != ChatListFolder.cases &&
             // Owner 2026-11-16 (WhatsApp «Группы» filter): only while
             // «Группы в чатах» is on.
             (f != ChatListFolder.groups || groupsOn))
