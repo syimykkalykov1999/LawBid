@@ -431,6 +431,14 @@ jobs:
           aws s3 sync v "$DEST/v" --exclude "*.wasm" --cache-control "$IMM"
           aws s3 sync v "$DEST/v" --exclude "*" --include "*.wasm" \
             --content-type application/wasm --cache-control "$IMM"
+          # Pack F (ROUND5 F8): the database files' content-hash copies
+          # (web-immutable.py) are immutable too; cp (not sync) so the
+          # cache-control above is replaced on every upload.
+          for f in drift_worker.*.js sqlite3.*.wasm; do
+            [ -f "$f" ] || continue
+            case "$f" in *.wasm) t=application/wasm ;; *) t=text/javascript ;; esac
+            aws s3 cp "$f" "$DEST/$f" --content-type "$t" --cache-control "$IMM"
+          done
           # Big files gzip-compressed (CloudFront does not compress >10 MB)
           # and the brotli twins of the app and the engine.
           "$GITHUB_WORKSPACE/scripts/deploy/web-gzip-big.sh" "$DEST" "$CC" "$IMM"

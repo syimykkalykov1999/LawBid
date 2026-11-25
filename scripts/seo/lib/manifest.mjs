@@ -10,9 +10,10 @@ export const MANIFEST_NAME = 'seo-manifest.json';
 export const DEFAULT_MAX_INVALIDATIONS = 30; // per day; the free tier is 1 000 a month
 
 export const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
+export const md5 = (buf) => createHash('md5').update(buf).digest('hex');
 
 /** { 'relative/posix/path': sha256 } for every file under dir (except the manifest itself). */
-export async function hashDir(dir) {
+export async function hashDir(dir, hash = sha256) {
   const out = {};
   async function walk(d) {
     for (const e of await readdir(d, { withFileTypes: true })) {
@@ -20,7 +21,7 @@ export async function hashDir(dir) {
       if (e.isDirectory()) await walk(p);
       else if (e.isFile()) {
         const rel = relative(dir, p).split(sep).join('/');
-        if (rel !== MANIFEST_NAME) out[rel] = sha256(await readFile(p));
+        if (rel !== MANIFEST_NAME) out[rel] = hash(await readFile(p));
       }
     }
   }
@@ -28,13 +29,48 @@ export async function hashDir(dir) {
   return out;
 }
 
-/** What to upload and what to remove, from two { path: hash } maps. */
-export function planFiles({ files, prevFiles }) {
+/**
+ * Pack F (25.11, ROUND5 F4): the files whose copy in the bucket is not the
+ * one the previous manifest claims. 392 pages sat in S3 with an old
+ * `index,follow` while the manifest said they were published as `noindex`
+ * (someone wrote them around the manifest), and the content-hash plan kept
+ * calling them "unchanged". Like `rclone --checksum` / `s5cmd sync
+ * --size-only=false`, the plan now also compares each file's MD5 with the
+ * object's ETag (a single-part upload without KMS: the ETag IS the MD5).
+ * `live` is { key: etag } from `aws s3api list-objects-v2`; a key that is
+ * missing there is drift too (it must be uploaded). Multipart ETags
+ * ("<hex>-<parts>") can not be compared and are trusted.
+ */
+export function liveDrift({ md5s, live }) {
+  if (!live) return [];
+  const out = [];
+  for (const [p, h] of Object.entries(md5s)) {
+    const tag = live[p];
+    if (tag === undefined) out.push(p);
+    else if (/^[0-9a-f]{32}$/.test(tag) && tag !== h) out.push(p);
+  }
+  return out.sort();
+}
+
+/** { key: etag } from `list-objects-v2 --query 'Contents[].[Key,ETag]' --output text` lines. */
+export function parseLiveEtags(text) {
+  const out = {};
+  for (const line of text.split('\n')) {
+    const [key, tag] = line.split('\t');
+    if (!key || !tag || key === 'None') continue;
+    out[key] = tag.trim().replace(/^"|"$/g, '').toLowerCase();
+  }
+  return out;
+}
+
+/** What to upload and what to remove, from two { path: hash } maps (+ the bucket's drift). */
+export function planFiles({ files, prevFiles, drift = [] }) {
   const prev = prevFiles ?? {};
+  const stale = new Set(drift);
   const upload = [];
-  const changed = []; // existed before with other content
+  const changed = []; // existed before with other content (or another copy in the bucket)
   for (const [p, h] of Object.entries(files)) {
-    if (prev[p] !== h) {
+    if (prev[p] !== h || stale.has(p)) {
       upload.push(p);
       if (p in prev) changed.push(p);
     }
@@ -127,8 +163,8 @@ export const deleteBatches = (keys, size = 1000) => {
  * workflow) and the API's `seo.generate` job both call it.
  * `built` is extra manifest content to keep (page states, ramp counters).
  */
-export function planPublish({ files, prev, today, maxInvalidations = DEFAULT_MAX_INVALIDATIONS, built = {}, exactOnly = false }) {
-  const plan = planFiles({ files, prevFiles: prev?.files });
+export function planPublish({ files, prev, today, maxInvalidations = DEFAULT_MAX_INVALIDATIONS, built = {}, exactOnly = false, drift = [] }) {
+  const plan = { ...planFiles({ files, prevFiles: prev?.files, drift }), drift: drift.filter((p) => p in files).length };
   const usedToday = prev?.invalidations?.date === today ? prev.invalidations.used : 0;
   // Without a previous manifest nothing is known to be cached: no resets, a clean first upload.
   const inv = prev

@@ -26,15 +26,25 @@ What it does, in a built `build/web`:
      the fallback Noto fonts from our own host (scripts/deploy/web-font-base.sh
      prints "/s/" once the host serves them); empty = engine default
      (fonts.gstatic.com)
+  5. (pack F, 25.11, ROUND5 F8) copies the database's files (sqlite3.wasm,
+     drift_worker.js) to content-hash names (drift_worker.<hash>.js,
+     sqlite3.<hash>.wasm) next to them and writes the names into boot_head.js
+     (__LB_D__), which hands them to the app: web-deploy.yml stores the
+     hashed copies immutable for a year, so a page load no longer revalidates
+     the worker on every database open (4-6 times), and the name changes
+     only when drift / sqlite3 change (one shared worker across our
+     releases, not one per release on the same IndexedDB).
 
 Stays at the root (asked again each time, small): index.html, spa.html,
 flutter_bootstrap.js, flutter.js, manifest.json, version.json, boot_*.js, coi_sw.js,
-sqlite3.wasm / drift_worker.js (the database's files; Dart refers to them
-by name), icons/, pay.*, firebase-messaging-sw.js, passkeys_bundle.js.
+sqlite3.wasm / drift_worker.js (the plain names, for tabs of older releases),
+icons/, pay.*, firebase-messaging-sw.js, passkeys_bundle.js.
 
 Usage: scripts/deploy/web-immutable.py apps/mobile/build/web <version> [font base]
-Prints `engine=<folder>` as its last line (v/<engineRevision> or v/<version>).
+Prints `db=<worker> <sqlite>` and then `engine=<folder>` as its last line
+(v/<engineRevision> or v/<version>).
 """
+import hashlib
 import os
 import re
 import shutil
@@ -119,16 +129,28 @@ def main() -> None:
     # still reads the page, not after flutter.js ran).
     path = os.path.join(root, "boot_head.js")
     js = open(path, encoding="utf-8").read()
-    for ph in ("__LB_V__", "__LB_E__"):
+    for ph in ("__LB_V__", "__LB_E__", "__LB_D__"):
         if ph not in js:
             sys.exit(f"boot_head.js: no {ph} placeholder")
-    js = js.replace("__LB_V__", prefix).replace("__LB_E__", engine)
+    # 5. the database's files under content-hash names (copies).
+    db = []
+    for name in ("drift_worker.js", "sqlite3.wasm"):
+        src = os.path.join(root, name)
+        if not os.path.isfile(src):
+            sys.exit(f"the build has no {name}")
+        digest = hashlib.sha256(open(src, "rb").read()).hexdigest()[:16]
+        stem, ext = os.path.splitext(name)
+        hashed = f"{stem}.{digest}{ext}"
+        shutil.copyfile(src, os.path.join(root, hashed))
+        db.append(hashed)
+    js = js.replace("__LB_V__", prefix).replace("__LB_E__", engine).replace("__LB_D__", "|".join(db))
     open(path, "w", encoding="utf-8").write(js)
 
     shown = ", ".join(n for n in moved if ".part." not in n and n != "canvaskit")
     print(f"moved to {prefix}/: {shown} ({len(moved) - 1} entries with the lazy parts)")
     print(f"engine (canvaskit/) in {engine}/" + ("" if rev else " (no engineRevision in the build: kept with the release)"))
     print(f"skwasm threads: {threads}")
+    print(f"db={' '.join(db)}")
     print(f"engine={engine}")
 
 
