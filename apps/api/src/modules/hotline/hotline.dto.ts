@@ -67,6 +67,11 @@ export class HotlineConfigDto {
   @ApiProperty() heartbeatSec!: number;
   @ApiProperty() offerTimeoutSec!: number;
   @ApiProperty() maxLanguages!: number;
+  @ApiPropertyOptional({
+    description:
+      'hotline.attorney_max_languages: languages on the attorney line (0 = no limit). Optional for apps that met an older server.',
+  })
+  attorneyMaxLanguages?: number;
   @ApiProperty() topicMaxChars!: number;
   @ApiProperty() countersIntervalSec!: number;
   @ApiProperty() notifyClaimSec!: number;
@@ -116,10 +121,15 @@ export class HotlineLineDto {
   @MaxLength(64, { each: true })
   practiceAreas!: string[];
 
-  @ApiProperty({ type: [String], description: 'Language codes (en, es, ru…).' })
+  @ApiProperty({
+    type: [String],
+    description:
+      'Language codes (en, es, ru…) from the full language list, up to hotline.attorney_max_languages (owner 25.11).',
+  })
   @IsArray()
   @ArrayMinSize(1)
-  @ArrayMaxSize(50)
+  // payload bound only (more than the whole list); the admin number decides
+  @ArrayMaxSize(500)
   @IsString({ each: true })
   @MaxLength(16, { each: true })
   languages!: string[];

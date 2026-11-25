@@ -137,6 +137,15 @@ export const HOTLINE_SETTING_DEFS: readonly HotlineSettingDef[] = [
     labelRu: 'Горячая линия: сколько языков клиент выбирает в одной заявке',
   },
   {
+    // Owner 25.11: the attorney picks the languages of his line from the same
+    // full list as the client (no longer only his profile's languages).
+    key: 'hotline.attorney_max_languages',
+    default: 50,
+    min: 0,
+    labelRu:
+      'Горячая линия: сколько языков адвокат выбирает для своей линии «Ожидать звонки» (0 — без предела)',
+  },
+  {
     key: 'hotline.topic_max_chars',
     default: 80,
     min: 1,
@@ -297,6 +306,7 @@ export const OWNER_HOTLINE_SETTINGS = {
   'hotline.no_answer_pause_sec': 0,
   'hotline.counters_interval_sec': 5,
   'hotline.max_languages': 3,
+  'hotline.attorney_max_languages': 50,
   'hotline.topic_max_chars': 80,
   'hotline.client_requests_per_hour': 20,
   'hotline.max_buckets_per_attorney': 2000,

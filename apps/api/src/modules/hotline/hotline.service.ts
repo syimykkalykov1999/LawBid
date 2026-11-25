@@ -314,6 +314,7 @@ export class HotlineService {
       heartbeatSec: s['hotline.heartbeat_sec'],
       offerTimeoutSec: s['hotline.offer_timeout_sec'],
       maxLanguages: s['hotline.max_languages'],
+      attorneyMaxLanguages: s['hotline.attorney_max_languages'],
       topicMaxChars: s['hotline.topic_max_chars'],
       countersIntervalSec: s['hotline.counters_interval_sec'],
       notifyClaimSec: s['hotline.notify_claim_sec'],
@@ -344,16 +345,6 @@ export class HotlineService {
       via: decision.allowed ? decision.via : null,
       reason: decision.allowed ? null : decision.reason,
     };
-  }
-
-  /** The languages of the attorney's own profile (owner 18.11: only these
-   * put him on the line — the client's language is the call's language). */
-  private async profileLanguages(lw: string): Promise<Set<string>> {
-    const p = await this.prisma.attorneyProfile.findUnique({
-      where: { user_id: lw },
-      select: { languages: true },
-    });
-    return new Set((p?.languages ?? []).map((l) => l.trim().toLowerCase()));
   }
 
   /** The one-time disclosure for this person and role. It counts as seen
@@ -495,12 +486,12 @@ export class HotlineService {
     this.assertAttorney(user);
     const { s, raw } = await this.cfg();
     const lw = user.sub;
-    const langs = this.validLanguages(input.languages, 50);
-    const spoken = await this.profileLanguages(lw);
-    const foreign = langs.filter((l) => !spoken.has(l));
-    if (foreign.length) {
-      this.bad('language_not_in_profile', { languages: foreign });
-    }
+    // Owner 25.11: any language of the client's full list (the call's
+    // language, not a legal qualification), up to the admin number.
+    const langs = this.validLanguages(
+      input.languages,
+      s['hotline.attorney_max_languages'] || Number.MAX_SAFE_INTEGER,
+    );
     const practices = await this.validPractices(input.practiceAreas, 500);
     const states = this.cleanList(input.states, 100, 'states').map((x) =>
       x.toUpperCase(),
@@ -663,12 +654,6 @@ export class HotlineService {
       });
       const ok = new Set(licences.map((l) => l.state_code));
       if (states.some((st) => !ok.has(st))) reason = 'licence';
-    }
-    if (!reason) {
-      // owner 18.11: a language he removed from his profile leaves the line
-      const spoken = await this.profileLanguages(lw);
-      const langs = d.langs ? d.langs.split(',') : [];
-      if (langs.some((l) => !spoken.has(l))) reason = 'language';
     }
     if (!reason) return true;
     await this.goOffline(lw, 'access', reason);

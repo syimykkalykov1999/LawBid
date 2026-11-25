@@ -20,6 +20,7 @@ HotlineConfigDto _$HotlineConfigDtoFromJson(Map<String, dynamic> json) =>
       disclosure: HotlineDisclosureDto.fromJson(
         json['disclosure'] as Map<String, dynamic>,
       ),
+      attorneyMaxLanguages: json['attorneyMaxLanguages'] as num?,
       mode: json['mode'] == null
           ? null
           : HotlineMode.fromJson(json['mode'] as String),
@@ -34,6 +35,7 @@ Map<String, dynamic> _$HotlineConfigDtoToJson(HotlineConfigDto instance) =>
       'heartbeatSec': instance.heartbeatSec,
       'offerTimeoutSec': instance.offerTimeoutSec,
       'maxLanguages': instance.maxLanguages,
+      'attorneyMaxLanguages': ?instance.attorneyMaxLanguages,
       'topicMaxChars': instance.topicMaxChars,
       'countersIntervalSec': instance.countersIntervalSec,
       'notifyClaimSec': instance.notifyClaimSec,
