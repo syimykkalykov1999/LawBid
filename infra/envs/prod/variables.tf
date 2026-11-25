@@ -736,6 +736,11 @@ variable "redis_serverless_max_ecpu_per_second" {
   default     = 100000
   description = "Item 29: ceiling of ECPU per second of the serverless Valkey (cache_usage_limits)."
 }
+variable "redis_node_group_enabled" {
+  type        = bool
+  default     = true
+  description = "Item 29: keep the node-based Valkey group; false only after 7 days on Serverless (docs/runbooks/valkey-serverless.md «Убрать старые узлы»)."
+}
 variable "redis_serverless_snapshot_arn" {
   type        = string
   default     = ""

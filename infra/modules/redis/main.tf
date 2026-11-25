@@ -175,6 +175,7 @@ resource "aws_elasticache_parameter_group" "cluster" {
 }
 
 resource "aws_elasticache_replication_group" "this" {
+  count                      = var.node_group ? 1 : 0
   replication_group_id       = "${var.name}-redis"
   description                = "${var.name} ${var.description}"
   engine                     = var.engine
@@ -230,6 +231,7 @@ resource "aws_elasticache_replication_group" "this" {
 }
 
 resource "aws_secretsmanager_secret" "redis_url" {
+  count                   = var.node_group ? 1 : 0
   name                    = "${var.name}/REDIS_URL"
   kms_key_id              = var.kms_key_arn
   recovery_window_in_days = var.recovery_window_in_days
@@ -237,8 +239,9 @@ resource "aws_secretsmanager_secret" "redis_url" {
 }
 
 resource "aws_secretsmanager_secret_version" "redis_url" {
-  secret_id     = aws_secretsmanager_secret.redis_url.id
-  secret_string = "rediss://:${random_password.auth.result}@${aws_elasticache_replication_group.this.primary_endpoint_address}:6379"
+  count         = var.node_group ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.redis_url[0].id
+  secret_string = "rediss://:${random_password.auth.result}@${aws_elasticache_replication_group.this[0].primary_endpoint_address}:6379"
 
   # Automatic rotation (modules/secret-rotation) writes newer versions of this
   # secret; terraform must neither undo them nor fight over the version stage.
@@ -247,9 +250,9 @@ resource "aws_secretsmanager_secret_version" "redis_url" {
 }
 
 output "security_group_id" { value = aws_security_group.redis.id }
-output "primary_endpoint" { value = aws_elasticache_replication_group.this.primary_endpoint_address }
-output "redis_url_secret_arn" { value = aws_secretsmanager_secret.redis_url.arn }
-output "reader_endpoint" { value = aws_elasticache_replication_group.this.reader_endpoint_address }
+output "primary_endpoint" { value = one(aws_elasticache_replication_group.this[*].primary_endpoint_address) }
+output "redis_url_secret_arn" { value = one(aws_secretsmanager_secret.redis_url[*].arn) }
+output "reader_endpoint" { value = one(aws_elasticache_replication_group.this[*].reader_endpoint_address) }
 
 resource "aws_elasticache_replication_group" "cluster" {
   count                      = var.cluster_mode ? 1 : 0
@@ -348,6 +351,36 @@ variable "serverless_snapshot_arn" {
   description = "ARN of an ElastiCache backup of the node group that seeds the serverless cache (AWS «Restoring from a backup into a new cache»). Read only when the cache is created; empty = an empty cache."
 }
 
+# Item 29, last runbook step: the node group goes after the app has run on
+# Serverless (docs/runbooks/valkey-serverless.md «Убрать старые узлы»).
+# true = today. false = the replication group "<name>-redis" and its
+# REDIS_URL secret are removed (the runbook takes a manual backup first);
+# allowed only while the serverless cache exists, so the app keeps a Valkey.
+variable "node_group" {
+  type        = bool
+  default     = true
+  description = "Keep the node-based replication group (false only after the move to Serverless, see the runbook)."
+  validation {
+    condition     = var.node_group || var.serverless
+    error_message = "node_group = false needs serverless = true: the app must keep one Valkey."
+  }
+}
+
+# The node group and its secret gained a count (node_group); state moves, no
+# resource is replaced.
+moved {
+  from = aws_elasticache_replication_group.this
+  to   = aws_elasticache_replication_group.this[0]
+}
+moved {
+  from = aws_secretsmanager_secret.redis_url
+  to   = aws_secretsmanager_secret.redis_url[0]
+}
+moved {
+  from = aws_secretsmanager_secret_version.redis_url
+  to   = aws_secretsmanager_secret_version.redis_url[0]
+}
+
 resource "aws_elasticache_user" "serverless_default" {
   count         = var.serverless ? 1 : 0
   user_id       = "${var.name}-svl-default"
@@ -416,3 +449,5 @@ resource "aws_secretsmanager_secret_version" "redis_serverless_url" {
 
 output "serverless_url_secret_arn" { value = one(aws_secretsmanager_secret.redis_serverless_url[*].arn) }
 output "serverless_cache_name" { value = one(aws_elasticache_serverless_cache.this[*].name) }
+# The ElastiCache user whose password modules/secret-rotation rotates.
+output "serverless_user_id" { value = one(aws_elasticache_user.serverless_default[*].user_id) }

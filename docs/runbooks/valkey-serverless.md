@@ -55,7 +55,24 @@ owner: да (Terraform apply — шаги владельца)
 - Админка → Очереди: задачи идут, нет растущей очереди.
 - «Расходы → Реестр»: строка Valkey Serverless показывает цену.
 
-## Что ещё не сделано (честно)
+## Смена пароля Serverless (сама)
 
-- Автоматическая смена пароля (`secret_rotation.redis_enabled`) меняет пароль узлов, не Serverless: пока приложение на Serverless, пароль Serverless не меняется сам.
-- Удаление узлов после перехода — отдельный шаг (модуль `redis` всегда создаёт группу узлов); пока узлы стоят, платим за оба.
+Если включена смена секретов (`secret_rotation.redis_enabled = true`), пароль Serverless меняется так же, как токен узлов, без простоя (AWS ElastiCache, пользователи и группы пользователей: у пользователя может быть два пароля сразу):
+
+1. Lambda `lawbid-prod-secret-rotation-rotator` добавляет пользователю `lawbid-prod-svl-default` новый пароль рядом со старым (работают оба) и кладёт новый адрес в секрет `REDIS_SERVERLESS_URL`.
+2. Lambda `…-ops` перезапускает сервисы (они читают секрет при старте).
+3. Через `strict_hours` (24 ч) и только когда все сервисы перезапущены, старый пароль убирается.
+
+Секрет узлов `REDIS_URL` меняется, пока узлы существуют; после шага «Убрать старые узлы» его смена выключается сама.
+
+## Убрать старые узлы (через 7 дней на Serverless)
+
+Пока узлы стоят, платим за оба. Когда приложение 7 дней работает на Serverless без проблем:
+
+1. Резервная копия узлов на всякий случай: AWS Console → ElastiCache → Valkey caches → `lawbid-prod-redis` → Actions → Backup → имя `lawbid-prod-redis-final-<дата>` → Create, дождаться available.
+2. В `infra/envs/prod/terraform.tfvars`: `redis_node_group_enabled = false` (Terraform откажет, если `redis_serverless_mode` не `on`, включён `redis_cluster_mode` или `livekit_use_redis`).
+3. `terraform plan`: ожидается удаление `module.stack.module.redis.aws_elasticache_replication_group.this[0]`, секрета `REDIS_URL` (`aws_secretsmanager_secret.redis_url[0]`, восстановимый 30 дней) и тревог узлов (`redis-cpu`, `redis-memory` и др.); у задач API пустой `OPS_REDIS_GROUP`. Serverless и его секрет не трогаются. `terraform apply` — вы сами, локально: автоматическое применение из админки (plan-guard) такое удаление намеренно не пропустит.
+4. Записать переменные в секрет `lawbid-prod/terraform-tfvars`.
+5. Проверка: «Как проверить» выше; в ElastiCache остался только `lawbid-prod-valkey-sl`.
+
+Назад после этого шага: `redis_node_group_enabled = true` → apply создаст новые пустые узлы; данные перенести той же паузой и копией, что при переходе.

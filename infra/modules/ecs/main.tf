@@ -1866,9 +1866,14 @@ resource "aws_appautoscaling_policy" "api_predictive" {
     }
   }
   # The admin's Выкл / Прогноз / Вкл / Авто (PutScalingPolicy, the rest of the
-  # configuration kept); an apply must not put ForecastOnly back.
+  # configuration kept) and the admin's `api_requests.target`, which this
+  # policy follows (AwsOpsService.syncPredictiveTarget); an apply must not put
+  # ForecastOnly or the Terraform target back.
   lifecycle {
-    ignore_changes = [predictive_scaling_policy_configuration[0].mode]
+    ignore_changes = [
+      predictive_scaling_policy_configuration[0].mode,
+      predictive_scaling_policy_configuration[0].metric_specification[0].target_value,
+    ]
   }
 }
 

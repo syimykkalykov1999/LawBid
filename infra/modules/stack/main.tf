@@ -555,6 +555,19 @@ variable "redis_serverless_max_ecpu_per_second" {
   default     = 100000
   description = "Item 29: ceiling of ECPU per second of the serverless cache (cache_usage_limits)."
 }
+# Item 29, last runbook step: remove the old node group once the app has run
+# on Serverless (`on`) for the runbook's 7 days. false is refused unless
+# redis_serverless_mode = "on", the cluster-mode group is off and LiveKit does
+# not use Redis (it reads the node endpoint).
+variable "redis_node_group_enabled" {
+  type        = bool
+  default     = true
+  description = "Item 29: keep the node-based Valkey group. false only after the move to Serverless (docs/runbooks/valkey-serverless.md «Убрать старые узлы»)."
+  validation {
+    condition     = var.redis_node_group_enabled || (var.redis_serverless_mode == "on" && var.redis_cluster_mode == "off" && !var.livekit_use_redis)
+    error_message = "redis_node_group_enabled = false needs redis_serverless_mode = \"on\", redis_cluster_mode = \"off\" and livekit_use_redis = false."
+  }
+}
 check "redis_serverless_not_with_cluster_mode" {
   assert {
     condition     = !(var.redis_serverless_mode == "on" && var.redis_cluster_mode == "on")
@@ -1163,8 +1176,8 @@ module "livekit" {
   hosted_zone_id          = var.hosted_zone_id
   instance_type           = var.livekit_instance_type
   use_redis               = var.livekit_use_redis
-  redis_endpoint          = module.redis.primary_endpoint
-  redis_url_secret_arn    = module.redis.redis_url_secret_arn
+  redis_endpoint          = module.redis.primary_endpoint == null ? "" : module.redis.primary_endpoint
+  redis_url_secret_arn    = module.redis.redis_url_secret_arn == null ? "" : module.redis.redis_url_secret_arn
   redis_security_group_id = module.redis.security_group_id
   kms_key_arn             = module.kms.key_arn
   alerts_topic_arn        = module.monitoring.alerts_topic_arn
@@ -1366,6 +1379,7 @@ module "redis" {
 
   # Item 29 (AU5): the serverless Valkey beside the node group.
   serverless                     = var.redis_serverless_mode != "off"
+  node_group                     = var.redis_node_group_enabled
   serverless_snapshot_arn        = var.redis_serverless_snapshot_arn
   serverless_max_data_gb         = var.redis_serverless_max_data_gb
   serverless_max_ecpu_per_second = var.redis_serverless_max_ecpu_per_second
@@ -2080,7 +2094,7 @@ locals {
     OPS_API_TASK_USD    = tostring(local.api_task_usd) # x86 on-demand list price; the API applies ARM / Spot (S9-7)
     OPS_WORKER_TASK_USD = tostring(local.worker_task_usd)
     OPS_DB_INSTANCE     = local.db_identifier # the admin «Экономика» shows the current class (also after the autoscaler moved it)
-    OPS_REDIS_GROUP     = local.redis_cluster_on ? module.redis.cluster_replication_group_id : "${local.name}-redis"
+    OPS_REDIS_GROUP     = !var.redis_node_group_enabled ? "" : local.redis_cluster_on ? module.redis.cluster_replication_group_id : "${local.name}-redis"
     # Batch D (2026-10-24): the admin «Масштаб» page says whether the size
     # changes by itself (the Lambda's own on / dry-run / off switch is in SSM).
     # Cost registry: SSM parameter NAMES (built from the stack name, not from
@@ -2311,8 +2325,10 @@ module "secret_rotation" {
   } : null
 
   redis = var.secret_rotation.redis_enabled ? merge(
-    { REDIS_URL = { secret_arn = module.redis.redis_url_secret_arn, group_id = "${local.name}-redis", every_days = var.secret_rotation.redis_every_days } },
+    var.redis_node_group_enabled ? { REDIS_URL = { secret_arn = module.redis.redis_url_secret_arn, group_id = "${local.name}-redis", every_days = var.secret_rotation.redis_every_days } } : {},
     var.redis_cache_node ? { REDIS_CACHE_URL = { secret_arn = module.redis_cache[0].redis_url_secret_arn, group_id = "${local.name}-cache-redis", every_days = var.secret_rotation.redis_every_days } } : {},
+    # Item 29: the Serverless Valkey password is an ElastiCache user's.
+    var.redis_serverless_mode != "off" ? { REDIS_SERVERLESS_URL = { secret_arn = module.redis.serverless_url_secret_arn, group_id = "", user_id = "${local.name}-svl-default", every_days = var.secret_rotation.redis_every_days } } : {},
   ) : {}
 
   keys = var.secret_rotation.keys_enabled ? {
@@ -3144,6 +3160,7 @@ module "monitoring" {
   api_service_name                  = module.ecs.api_service_name
   worker_service_name               = module.ecs.worker_service_name
   redis_replication_group_id        = "${local.name}-redis"
+  redis_node_group                  = var.redis_node_group_enabled
   redis_replicas                    = var.redis_replicas
   redis_node_type                   = var.redis_node_type
   redis_cache_replication_group_id  = var.redis_cache_node ? "${local.name}-cache-redis" : ""

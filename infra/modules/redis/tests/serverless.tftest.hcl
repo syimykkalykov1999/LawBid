@@ -30,7 +30,7 @@ run "default_creates_nothing_new" {
     error_message = "serverless = false: today's node group only."
   }
   assert {
-    condition     = aws_elasticache_replication_group.this.engine == "valkey"
+    condition     = aws_elasticache_replication_group.this[0].engine == "valkey"
     error_message = "the node group is untouched"
   }
 }
@@ -65,9 +65,33 @@ run "serverless_beside_the_node_group" {
     error_message = "no seed backup = empty cache"
   }
   assert {
-    condition     = aws_elasticache_replication_group.this.replication_group_id == "t-redis"
+    condition     = aws_elasticache_replication_group.this[0].replication_group_id == "t-redis"
     error_message = "the node group stays (the way back)"
   }
+}
+
+run "node_group_removed_after_the_move" {
+  command = plan
+  variables {
+    serverless = true
+    node_group = false
+  }
+  assert {
+    condition     = length(aws_elasticache_replication_group.this) == 0 && length(aws_secretsmanager_secret.redis_url) == 0
+    error_message = "the old node group and its REDIS_URL secret go"
+  }
+  assert {
+    condition     = length(aws_elasticache_serverless_cache.this) == 1 && output.primary_endpoint == null
+    error_message = "the serverless cache stays; no node endpoint"
+  }
+}
+
+run "node_group_cannot_go_without_serverless" {
+  command = plan
+  variables {
+    node_group = false
+  }
+  expect_failures = [var.node_group]
 }
 
 run "seeded_from_a_backup" {

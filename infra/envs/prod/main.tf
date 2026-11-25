@@ -278,6 +278,7 @@ module "stack" {
   predictive_scaling_enabled           = var.predictive_scaling_enabled
   redis_serverless_mode                = var.redis_serverless_mode
   redis_serverless_snapshot_arn        = var.redis_serverless_snapshot_arn
+  redis_node_group_enabled             = var.redis_node_group_enabled
   redis_serverless_max_data_gb         = var.redis_serverless_max_data_gb
   redis_serverless_max_ecpu_per_second = var.redis_serverless_max_ecpu_per_second
   tracing_enabled                      = var.tracing_enabled
