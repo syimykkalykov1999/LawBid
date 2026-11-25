@@ -67,6 +67,8 @@ describe('switch contract: defaults (a)', () => {
     ['bids.rich_terms_enabled', true],
     ['bids.confirmation_required', true],
     ['auth.additional_identifiers_enabled', false],
+    // Owner 25.11: confirmation codes by SMS until SES is connected.
+    ['auth.code_channel', 'sms'],
     ['today.sentry_enabled', false],
     ['scale.db_split_enabled', false],
     // C2 (25.11): off until the owner turns on logical replication.

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:lawbid/features/legal/domain/legal_documents.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
+import 'package:phone_numbers_parser/phone_numbers_parser.dart';
 
 /// What still blocks `POST /users/me/onboarding/complete` — the `missing`
 /// array of `GET /users/me` (apps/api `MissingRequirement`). The router
@@ -263,16 +264,40 @@ class CurrentUser {
   bool get isClient => role == UserRole.client;
   bool get isAttorney => role == UserRole.attorney;
 
-  /// The verified contact a `POST /auth/reauth` code can be sent to: the
-  /// e-mail only. Owner rule (sms-two-cases): an SMS code goes out only at
-  /// registration and «Забыл пароль» — a step-up is the password / passkey,
-  /// or this e-mail code (the server refuses a phone step-up code).
-  ({String channel, String identifier})? get reauthIdentifier {
-    if (emailVerified && email != null) {
-      return (channel: 'email', identifier: email!);
-    }
-    return null;
+  /// The verified contact a `POST /auth/reauth` code goes to. Owner 25.11
+  /// (`auth.code_channel`, SMS by default): the channel the server names in
+  /// the bootstrap ([preferEmail] = it said `email`) if that contact is
+  /// verified, else the other verified one, else null — the same rule the
+  /// server sends by (AuthService.stepUpTarget).
+  ({String channel, String identifier})? codeTarget({
+    required bool preferEmail,
+  }) {
+    final byPhone = phoneVerified && phone != null
+        ? (channel: 'phone', identifier: phone!)
+        : null;
+    final byEmail = emailVerified && email != null
+        ? (channel: 'email', identifier: email!)
+        : null;
+    return preferEmail ? (byEmail ?? byPhone) : (byPhone ?? byEmail);
   }
+}
+
+/// How the step shows where the code goes: a phone as «+1 ••• 23» (country
+/// code and the last two digits, like the big messengers), an e-mail as is.
+String codeTargetLabel(({String channel, String identifier}) target) {
+  if (target.channel != 'phone') return target.identifier;
+  final digits = target.identifier.replaceAll(RegExp(r'\D'), '');
+  if (digits.length < 4) return target.identifier;
+  String country;
+  try {
+    country = PhoneNumber.parse(target.identifier).countryCode;
+  } on Object {
+    country = '';
+  }
+  if (country.isEmpty || country.length >= digits.length - 2) {
+    country = digits.substring(0, 1);
+  }
+  return '+$country ••• ${digits.substring(digits.length - 2)}';
 }
 
 UserRole? parseUserRole(String? raw) => switch (raw) {

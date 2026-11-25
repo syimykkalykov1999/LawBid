@@ -7,9 +7,12 @@ own features (features.py, feature_spec*.json) and labels, learned from
 ranking_events: the impressions of that feed (each with the 0..1 features
 the API saw) and what the viewer then did with the item.
 
-  --feed posts (default; Search «Для вас», surface `posts`):
+  --feed posts (default; Search «Для вас», surface `posts`, and the home
+  feed Feed → «Посты», surface `home_feed`: one model, the same features):
     3 = saved it, 2 = liked it, 1 = opened it, 0 = nothing (24 h)
-  --feed reels (the reels feed, surface `reels`):
+  --feed reels (the reels feed, surface `reels`; owner 25.11, TikTok /
+  YouTube: watch time first):
+    5 = watched it to the end (a `watch` event with completed = 1),
     4 = shared it, 3 = saved it, 2 = liked it,
     1 = watched it (3 s of real playback, or opened), 0 = scrolled past (24 h)
   --feed cases (the attorneys' case feed, surface `case_feed`):
@@ -75,14 +78,14 @@ WITH imp AS (
   SELECT list_id, item_id, user_id, position, features, created_at,
          COALESCE(formula_version, '') AS formula_version
     FROM ranking_events
-   WHERE kind = 'impression' AND surface = %s
+   WHERE kind = 'impression' AND surface = ANY(%s)
      AND features IS NOT NULL AND list_id IS NOT NULL AND user_id IS NOT NULL
      AND item_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
      AND created_at >= now() - make_interval(days => %s)
 ), clk AS (
   SELECT DISTINCT list_id, item_id
     FROM ranking_events
-   WHERE kind = 'click' AND surface = %s
+   WHERE kind = 'click' AND surface = ANY(%s)
      AND created_at >= now() - make_interval(days => %s)
 )
 SELECT imp.list_id, imp.item_id, imp.position, imp.features::text,
@@ -114,6 +117,11 @@ LABELS = {
          {_LIKED} THEN 2
          WHEN clk.list_id IS NOT NULL THEN 1""",
     "reels": f"""
+         WHEN EXISTS (SELECT 1 FROM ranking_events w
+                       WHERE w.kind = 'watch' AND w.user_id = imp.user_id
+                         AND w.item_id = imp.item_id
+                         AND (w.features->>'completed') = '1'
+                         AND w.created_at BETWEEN {_DAY}) THEN 5
          WHEN EXISTS (SELECT 1 FROM post_shares sh
                        WHERE sh.user_id = imp.user_id AND sh.post_id = imp.item_id::uuid
                          AND sh.created_at BETWEEN {_DAY}) THEN 4
@@ -143,6 +151,19 @@ FEED_RUNTIME = {
 }
 
 
+# Surfaces a feed's model learns from besides its own (same feature list).
+# Owner 25.11: the home feed (Feed → «Посты») is ranked by the posts model.
+EXTRA_SURFACES = {"posts": ("home_feed",)}
+
+
+def surfaces_for(feed: str, surface: str | None = None) -> list[str]:
+    """The ranking_events surfaces of [feed]: --surface alone, or the feed's
+    own plus the ones ranked by the same model."""
+    if surface:
+        return [surface]
+    return [feats.spec_for(feed).surface, *EXTRA_SURFACES.get(feed, ())]
+
+
 def label_sql(feed: str) -> str:
     return SQL_HEAD + LABELS[feed] + SQL_TAIL
 
@@ -151,12 +172,13 @@ def label_sql(feed: str) -> str:
 SQL = label_sql("posts")
 
 
-def load_db(dsn: str, days: int, surface: str, feed: str = "posts") -> list[Record]:
+def load_db(dsn: str, days: int, surface: str | list[str], feed: str = "posts") -> list[Record]:
     conn = connect(dsn)
     try:
         cur = conn.cursor()
         cur.execute("SET TRANSACTION READ ONLY")
-        cur.execute(label_sql(feed), (surface, days, surface, days))
+        where = [surface] if isinstance(surface, str) else list(surface)
+        cur.execute(label_sql(feed), (where, days, where, days))
         return [
             Record(r[0], r[1], int(r[2] or 0), json.loads(r[3]), float(r[4]), r[5], int(r[6]))
             for r in cur.fetchall()
@@ -172,7 +194,7 @@ SELECT variant,
        COUNT(*) FILTER (WHERE kind = 'impression' AND position <= %s) AS top_impressions,
        COUNT(*) FILTER (WHERE kind = 'click' AND position <= %s) AS top_clicks
   FROM ranking_events
- WHERE experiment_key = %s AND surface = %s
+ WHERE experiment_key = %s AND surface = ANY(%s)
    AND created_at >= now() - make_interval(days => %s)
  GROUP BY variant
  ORDER BY variant
@@ -206,7 +228,7 @@ def connect(dsn: str):
     )
 
 
-def report(dsn: str, days: int, surface: str, feed: str = "posts") -> int:
+def report(dsn: str, days: int, surface: str | list[str], feed: str = "posts") -> int:
     """The live A/B test of [feed] (post_ranker / reel_ranker /
     case_ranker): CTR of the model arm vs the control arm (the formula),
     with 95% intervals. Read-only."""
@@ -215,7 +237,8 @@ def report(dsn: str, days: int, surface: str, feed: str = "posts") -> int:
     try:
         cur = conn.cursor()
         cur.execute("SET TRANSACTION READ ONLY")
-        cur.execute(REPORT_SQL, (K, K, key, surface, days))
+        where = [surface] if isinstance(surface, str) else list(surface)
+        cur.execute(REPORT_SQL, (K, K, key, where, days))
         rows = cur.fetchall()
     finally:
         conn.close()
@@ -477,7 +500,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
                    help="print the live A/B result (model vs formula) instead of training")
     p.add_argument("--days", type=int, default=30)
     p.add_argument("--surface", default=None,
-                   help="ranking_events surface (default: the feed's own)")
+                   help="ranking_events surface (default: the feed's own, plus home_feed for posts)")
     p.add_argument("--out", default="out")
     p.add_argument("--version", default="r" + time.strftime("%Y%m%d%H%M", time.gmtime()))
     p.add_argument("--valid-share", type=float, default=0.2)
@@ -492,7 +515,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     if len("ranker:" + a.version) > 32:
         p.error("--version: at most 25 characters (ranking_events.formula_version is 32)")
     a.spec = feats.spec_for(a.feed)
-    a.surface = a.surface or a.spec.surface
+    a.surface = surfaces_for(a.feed, a.surface)
     return a
 
 

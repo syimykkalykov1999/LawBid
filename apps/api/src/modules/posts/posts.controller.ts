@@ -60,6 +60,7 @@ import {
   PostInsightsDto,
   PostInsightsQueryDto,
   RecordPostEventsDto,
+  RecordReelWatchDto,
 } from './dto/post-insights.dto';
 import { PostAttachmentsPolicy } from './post-attachments.policy';
 import { PostsService } from './posts.service';
@@ -358,6 +359,26 @@ export class PostsController {
     @Body() dto: RecordPostEventsDto,
   ): Promise<void> {
     return this.insightsService.record(user, dto.events);
+  }
+
+  // Owner 25.11 (TikTok / YouTube watch-time logging): each reel view, when
+  // it ends, reports how long it really played and whether it played to the
+  // end — the reels model's best labels. Batched; a retried view id counts
+  // once; never the author's own; an assistant's views are not counted.
+  @AssistantAllowed()
+  @Post('posts/watch')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Record how long reel views played (batch, idempotent per view)',
+    description:
+      'Owner 25.11: one event per ended reel view — watchedMs of real playback, durationMs of the clip, completed when it played to the end. Up to 50 per request; the same viewId again adds nothing.',
+  })
+  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
+  recordReelWatch(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: RecordReelWatchDto,
+  ): Promise<void> {
+    return this.insightsService.recordWatch(user, dto.events);
   }
 
   // Owner 2026-10-18 (Instagram Insights): the author only — an assistant
