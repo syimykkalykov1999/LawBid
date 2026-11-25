@@ -45,7 +45,7 @@ describe('BroadcastFanoutRunner (inline, no Redis)', () => {
   it('emits to every user in keyset batches', async () => {
     const ids = Array.from(
       { length: BROADCAST_BATCH + 3 },
-      (_, i) => `u${String(i).padStart(4, '0')}`,
+      (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
     );
     const findMany = jest.fn(
       (args: { where: { id?: { gt: string } }; take: number }) => {
@@ -56,28 +56,90 @@ describe('BroadcastFanoutRunner (inline, no Redis)', () => {
         );
       },
     );
-    const emit = jest.fn().mockResolvedValue({ id: 'n' });
+    // The real emitMany skips a (user, dedupe key) row it already has.
+    const stored = new Set<string>();
+    const emitMany = jest.fn(
+      (input: { recipientIds: string[]; dedupeKey: string }) => {
+        let n = 0;
+        for (const id of input.recipientIds) {
+          const k = `${id}|${input.dedupeKey}`;
+          if (!stored.has(k)) {
+            stored.add(k);
+            n += 1;
+          }
+        }
+        return Promise.resolve(n);
+      },
+    );
     const runner = new BroadcastFanoutRunner(
       { mode: 'api' },
       { get: () => undefined } as unknown as ConfigService,
       { user: { findMany } } as unknown as PrismaService,
-      { emit } as unknown as NotificationsService,
+      { emitMany } as unknown as NotificationsService,
       { setContext: jest.fn(), error: jest.fn() } as unknown as PinoLogger,
     );
     runner.onApplicationBootstrap(); // no REDIS_URL → inline
-    await runner.start({
+    const job = {
       broadcastId: 'b1',
       title: 'Hi',
       body: 'News',
-      audience: 'all',
+      audience: 'all' as const,
       stateCode: null,
-    });
+    };
+    await runner.start(job);
     expect(findMany).toHaveBeenCalledTimes(2);
-    expect(emit).toHaveBeenCalledTimes(ids.length);
-    expect(emit).toHaveBeenCalledWith({
+    expect(stored.size).toBe(ids.length);
+    expect(emitMany).toHaveBeenCalledWith({
       type: 'admin_broadcast',
-      recipientId: 'u0000',
+      recipientIds: expect.arrayContaining([ids[0]]),
       payload: { title: 'Hi', body: 'News', broadcastId: 'b1' },
+      dedupeKey: 'admin_broadcast:b1',
     });
+  });
+
+  it('pack C (round 2 #9): a retried batch sends nobody a second notice', async () => {
+    const u = (n: number) => `00000000-0000-4000-8000-00000000000${n}`;
+    const ids = [u(1), u(2), u(3)];
+    const findMany = jest.fn(() => Promise.resolve(ids.map((id) => ({ id }))));
+    const stored = new Map<string, number>();
+    const emitMany = jest.fn(
+      (input: { recipientIds: string[]; dedupeKey: string }) => {
+        let n = 0;
+        for (const id of input.recipientIds) {
+          const k = `${id}|${input.dedupeKey}`;
+          if (!stored.has(k)) n += 1;
+          stored.set(k, (stored.get(k) ?? 0) + 1);
+        }
+        return Promise.resolve(n);
+      },
+    );
+    const runner = new BroadcastFanoutRunner(
+      { mode: 'api' },
+      { get: () => undefined } as unknown as ConfigService,
+      { user: { findMany } } as unknown as PrismaService,
+      { emitMany } as unknown as NotificationsService,
+      { setContext: jest.fn(), error: jest.fn() } as unknown as PinoLogger,
+    );
+    const data = {
+      broadcastId: 'b2',
+      title: 'Hi',
+      body: 'News',
+      audience: 'all' as const,
+      stateCode: null,
+      after: null,
+    };
+    // The job runs, fails after the emits (say a Redis blip), BullMQ retries.
+    await runner.emitBatch(data);
+    const firstCalls = emitMany.mock.results.length;
+    await runner.emitBatch(data);
+    const rows = [...stored.keys()];
+    expect(rows.sort()).toEqual(ids.map((id) => `${id}|admin_broadcast:b2`));
+    // The retry stored no new row, so it queued no second push.
+    const again = await Promise.all(
+      emitMany.mock.results
+        .slice(firstCalls)
+        .map((r) => r.value as Promise<number>),
+    );
+    expect(again.reduce((a, b) => a + b, 0)).toBe(0);
   });
 });

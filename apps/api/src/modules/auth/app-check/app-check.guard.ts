@@ -19,10 +19,19 @@ import {
 } from '../turnstile/turnstile.service';
 import {
   APP_CHECK_HEADER,
+  APP_CHECK_LIMITED_HEADER,
   APP_CHECK_STATUS_HEADER,
   AppCheckService,
   type AppCheckVerdict,
 } from './app-check.service';
+import {
+  autoAllows,
+  autoReplayAllows,
+  BotCheckStatsService,
+  platformOf,
+  type BotCheckGroup,
+  type BotCheckSample,
+} from '../../../common/security/bot-check-stats';
 
 export const APP_CHECK_MODES = ['off', 'monitor', 'enforce'] as const;
 export type AppCheckMode = (typeof APP_CHECK_MODES)[number];
@@ -48,6 +57,37 @@ export interface AppCheckOptions {
    * then force enforce as before. Without it a [challenge] route is not
    * looked at until the caller has failed. */
   always?: boolean;
+  /** Item 13 (L2, 2026-11-25): the admin switch of this route,
+   * `security.app_check.<group>.mode` (off = the general
+   * `security.app_check.mode`; on = a proof is required; auto = required
+   * once the proven-real pass rate allows it). Also the Turnstile action the
+   * website names for this route. */
+  group?: BotCheckGroup;
+  /** The route is for signed-in people (starting a payment): they are
+   * checked too, and each of them counts as a proven-real sample. The
+   * general mode never makes such a route enforce, only its own switch. */
+  signedIn?: boolean;
+  /** Keep this request's verdict until the code / reset is finished
+   * (@BotCheckProof on the finishing route counts it), keyed by the body's
+   * `identifier`. */
+  rememberWhen?: (body: Record<string, unknown>) => boolean;
+}
+
+/** What the guard concluded about a request, read by BotCheckProofInterceptor
+ * once the handler succeeded (a proven-real person). */
+export interface BotCheckVerdictOnRequest extends BotCheckSample {
+  group: BotCheckGroup;
+  valid: boolean;
+}
+
+/** The request property the verdict is put on. */
+export const BOT_CHECK_REQ_KEY = 'lawbidBotCheck';
+
+/** The owner's Выкл / Вкл / Авто for one route group. Anything unreadable
+ * is `off` (the general mode): a typo never starts blocking. */
+export type RouteSwitch = 'off' | 'on' | 'auto';
+export function parseRouteSwitch(raw: unknown): RouteSwitch {
+  return raw === 'on' || raw === 'auto' ? raw : 'off';
 }
 
 export const APP_CHECK_KEY = 'app-check:required';
@@ -96,6 +136,8 @@ export class AppCheckGuard implements CanActivate {
     @Optional() private readonly turnstile?: TurnstileService,
     // 2026-10-25 (S14-13): challenge after repeated failures.
     @Optional() private readonly challenge?: AuthChallengeService,
+    // Item 13 (2026-11-25): proven-real pass rate for «Авто».
+    @Optional() private readonly stats?: BotCheckStatsService,
   ) {
     this.logger.setContext(AppCheckGuard.name);
   }
@@ -106,7 +148,9 @@ export class AppCheckGuard implements CanActivate {
     >(APP_CHECK_KEY, [context.getHandler(), context.getClass()]);
     if (!options) return true;
     const req = context.switchToHttp().getRequest<Request>();
-    let mode = await this.mode();
+    const general = await this.mode();
+    const sw = options.group ? await this.routeSwitch(options.group) : 'off';
+    let mode = await this.routeMode(options, general, sw);
     let tsMode = await this.turnstileMode();
     if (options.challenge) {
       // A caller who already failed a few times is asked for proof; the
@@ -115,19 +159,34 @@ export class AppCheckGuard implements CanActivate {
         mode = 'enforce';
         if (tsMode === 'off') tsMode = 'monitor';
       } else if (!options.always) {
-        return true;
+        // Item 13: before a failure this route is blocked only when the
+        // owner switched its group on / auto; otherwise it is still watched
+        // (log + the proven-real pass rate) while App Check is not off.
+        if (sw === 'off' || mode !== 'enforce') {
+          if (!options.group) return true;
+          mode = general === 'off' ? 'off' : 'monitor';
+        }
       }
     }
     if (mode === 'off' && tsMode === 'off') return true;
-    if (this.signedIn(req)) return true;
+    if (!options.signedIn && this.signedIn(req)) return true;
+    const platform = platformOf(req.header('x-platform'));
 
     // Web only: the page sends X-Turnstile-Token (the app never does). A
     // token that checks out is as good as an App Check token; a bad one is
     // refused in `enforce`. With no token the App Check rules below apply
     // unchanged, so an app build is never affected by this switch.
     if (tsMode !== 'off' && this.turnstile) {
-      const verdict = await this.checkTurnstile(req, tsMode);
-      if (verdict === 'pass') return true;
+      const verdict = await this.checkTurnstile(req, tsMode, options.group);
+      if (verdict === 'pass') {
+        await this.note(req, options, {
+          pass: true,
+          valid: false,
+          limited: false,
+          platform,
+        });
+        return true;
+      }
     }
     if (mode === 'off') return true;
 
@@ -136,26 +195,32 @@ export class AppCheckGuard implements CanActivate {
       typeof header === 'string' && header.length > 0 && header.length <= 4096
         ? header
         : undefined;
+    // The app marks a limited-use token (getLimitedUseToken). Only used to
+    // see when replay protection can go on, never to skip anything.
+    const limited =
+      token !== undefined && req.header(APP_CHECK_LIMITED_HEADER) === '1';
     const consume =
       mode === 'enforce' &&
       this.consumes(req, options) &&
-      (await this.replayProtectionOn());
+      (await this.replayProtectionOn(options.group));
     const result = consume
       ? await this.appCheck.verify(token, { consume: true })
       : await this.appCheck.verify(token);
-    const routePath = (req.route as { path?: unknown } | undefined)?.path;
-    const route = `${req.method} ${typeof routePath === 'string' ? routePath : req.path}`;
+    const route = routeOf(req);
     const free = this.free(req, options);
     this.logger.info(
       {
         metric: 'app_check',
         verdict: result.verdict,
         mode,
+        group: options.group,
+        switch: options.group ? sw : undefined,
         route,
         appId: result.appId,
         reason: result.reason,
         free,
         consume,
+        limited,
         // 2026-11-08: which app sent it and, without a token, why the
         // device had none (every prod verdict was `missing`, cause unseen).
         platform: shortHeader(req, 'x-platform', 16),
@@ -167,7 +232,18 @@ export class AppCheckGuard implements CanActivate {
       },
       'app check',
     );
-    if (mode === 'monitor' || result.verdict === 'valid' || free) return true;
+    const valid = result.verdict === 'valid';
+    if (mode === 'monitor' || valid || free) {
+      if (result.verdict !== 'unconfigured') {
+        await this.note(req, options, {
+          pass: valid,
+          valid,
+          limited: valid && limited,
+          platform,
+        });
+      }
+      return true;
+    }
     if (result.verdict === 'unconfigured') {
       this.logger.error(
         { route },
@@ -181,21 +257,114 @@ export class AppCheckGuard implements CanActivate {
     });
   }
 
+  /** Puts the verdict on the request (BotCheckProofInterceptor counts it
+   * after success), keeps it for the finishing step (rememberWhen), and
+   * counts a signed-in caller at once (already a proven person). */
+  private async note(
+    req: Request,
+    options: AppCheckOptions,
+    sample: BotCheckSample & { valid: boolean },
+  ): Promise<void> {
+    const group = options.group;
+    if (!group) return;
+    const onReq: BotCheckVerdictOnRequest = { ...sample, group };
+    (req as unknown as Record<string, unknown>)[BOT_CHECK_REQ_KEY] = onReq;
+    if (!this.stats) return;
+    if (options.signedIn) {
+      await this.stats.record(group, sample);
+      return;
+    }
+    const body = req.body as unknown;
+    if (!options.rememberWhen || typeof body !== 'object' || body === null) {
+      return;
+    }
+    const b = body as Record<string, unknown>;
+    let remember: boolean;
+    try {
+      remember = options.rememberWhen(b) === true;
+    } catch {
+      remember = false;
+    }
+    const id = b.identifier;
+    if (
+      remember &&
+      typeof id === 'string' &&
+      id.length > 0 &&
+      id.length <= 254
+    ) {
+      await this.stats.rememberPending(group, id, sample);
+    }
+  }
+
+  /** The effective mode of a route: its own switch first, then the
+   * general one (capped at monitor for signed-in routes). */
+  private async routeMode(
+    options: AppCheckOptions,
+    general: AppCheckMode,
+    sw: RouteSwitch,
+  ): Promise<AppCheckMode> {
+    const base: AppCheckMode = options.signedIn
+      ? general === 'off'
+        ? 'off'
+        : 'monitor'
+      : general;
+    if (!options.group || sw === 'off') return base;
+    if (sw === 'on') return 'enforce';
+    return (await this.autoOn(options.group)) ? 'enforce' : base;
+  }
+
+  private async routeSwitch(group: BotCheckGroup): Promise<RouteSwitch> {
+    try {
+      return parseRouteSwitch(
+        await this.settings.string(ROUTE_SWITCH_KEYS[group]),
+      );
+    } catch {
+      return 'off';
+    }
+  }
+
+  /** «Авто»: the proven-real pass rate of this group over the last N days
+   * (admin settings) is high enough. Unreadable = not yet (log only). */
+  private async autoOn(group: BotCheckGroup): Promise<boolean> {
+    if (!this.stats) return false;
+    try {
+      const [days, pct, min] = await this.autoSettings();
+      return autoAllows(await this.stats.counts(group, days), pct, min);
+    } catch {
+      return false;
+    }
+  }
+
+  private autoSettings(): Promise<[number, number, number]> {
+    return Promise.all([
+      this.settings.number('security.app_check.auto_days'),
+      this.settings.number('security.app_check.auto_pass_rate_pct'),
+      this.settings.number('security.app_check.auto_min_requests'),
+    ]);
+  }
+
   /** 'pass' = a valid Turnstile token; 'continue' = fall back to App Check. */
   private async checkTurnstile(
     req: Request,
     tsMode: AppCheckMode,
+    group?: BotCheckGroup,
   ): Promise<'pass' | 'continue'> {
     const raw = req.header(TURNSTILE_HEADER);
     if (typeof raw !== 'string' || raw.length === 0) return 'continue';
-    const result = await this.turnstile!.verify(raw, { ip: req.ip });
-    const routePath = (req.route as { path?: unknown } | undefined)?.path;
+    // Item 13 (L3): the page names the route group as the widget's action;
+    // a token solved for another form is refused (an older page that names
+    // none still passes, see TurnstileService).
+    const result = await this.turnstile!.verify(
+      raw,
+      group ? { ip: req.ip, expectedAction: group } : { ip: req.ip },
+    );
     this.logger.info(
       {
         metric: 'turnstile',
         verdict: result.verdict,
         mode: tsMode,
-        route: `${req.method} ${typeof routePath === 'string' ? routePath : req.path}`,
+        group,
+        route: routeOf(req),
         hostname: result.hostname,
         reason: result.reason,
       },
@@ -248,11 +417,30 @@ export class AppCheckGuard implements CanActivate {
     }
   }
 
-  private async replayProtectionOn(): Promise<boolean> {
+  /** Replay protection (consume the token): the old switch
+   * `security.app_check.replay_protection` = true, or
+   * `security.app_check.replay.mode` = on, or auto once nearly every valid
+   * token of this group is limited-use. */
+  private async replayProtectionOn(group?: BotCheckGroup): Promise<boolean> {
     try {
-      return await this.settings.boolean(
-        'security.app_check.replay_protection',
+      if (await this.settings.boolean('security.app_check.replay_protection'))
+        return true;
+    } catch {
+      // fall through to the 3-state switch
+    }
+    let sw: RouteSwitch;
+    try {
+      sw = parseRouteSwitch(
+        await this.settings.string('security.app_check.replay.mode'),
       );
+    } catch {
+      return false;
+    }
+    if (sw === 'on') return true;
+    if (sw === 'off' || !group || !this.stats) return false;
+    try {
+      const [days, pct, min] = await this.autoSettings();
+      return autoReplayAllows(await this.stats.counts(group, days), pct, min);
     } catch {
       return false;
     }
@@ -305,6 +493,19 @@ export class AppCheckGuard implements CanActivate {
       return false;
     }
   }
+}
+
+/** The admin switch of each route group (Выкл / Вкл / Авто). */
+export const ROUTE_SWITCH_KEYS = {
+  sms: 'security.app_check.sms.mode',
+  login: 'security.app_check.login.mode',
+  password_reset: 'security.app_check.password_reset.mode',
+  payments: 'security.app_check.payments.mode',
+} as const satisfies Record<BotCheckGroup, string>;
+
+function routeOf(req: Request): string {
+  const routePath = (req.route as { path?: unknown } | undefined)?.path;
+  return `${req.method} ${typeof routePath === 'string' ? routePath : req.path}`;
 }
 
 /** A client header for the log: printable ASCII only, at most [max]

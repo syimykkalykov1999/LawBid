@@ -21,6 +21,8 @@ import { StorageStatsService } from './storage-stats.service';
     StorageStatsService,
   ],
   exports: [
+    // Pack C (round 2 #22): JobsModule uses this copy, not one of its own.
+    S3StorageService,
     FileReleaseService,
     StorageCleanupService,
     DataRetentionService,

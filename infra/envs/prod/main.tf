@@ -236,6 +236,8 @@ module "stack" {
   alb_websocket_target_group     = var.alb_websocket_target_group
   waf_bot_control_enabled        = var.waf_bot_control_enabled
   waf_bot_control_block          = var.waf_bot_control_block
+  waf_atp_enabled                = var.waf_atp_enabled
+  waf_atp_action                 = var.waf_atp_action
   cdn_waf_rate_limit_per_5m      = var.cdn_waf_rate_limit_per_5m
   security_hub_enabled           = var.security_hub_enabled
   guardduty_alert_severity       = var.guardduty_alert_severity

@@ -109,4 +109,50 @@ describe('TurnstileService', () => {
     fetchMock.mockRejectedValue(abort);
     expect((await service().verify('t')).reason).toBe('timeout');
   });
+
+  // Item 13 (L3, 2026-11-25): Cloudflare's safe retry.
+  it('a network failure is retried once with the SAME idempotency key', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('reset')).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ success: true, hostname: 'lawbid.dev' }),
+    });
+    expect((await service().verify('tok')).verdict).toBe('valid');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const keys = fetchMock.mock.calls.map((c) =>
+      ((c as [string, RequestInit])[1].body as URLSearchParams).get(
+        'idempotency_key',
+      ),
+    );
+    expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(keys[1]).toBe(keys[0]);
+  });
+
+  it('an HTTP answer from Cloudflare is final (no retry)', async () => {
+    answer({}, false, 400);
+    await service().verify('t');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('a token with no action (older page) passes an expected action', async () => {
+    answer({ success: true, hostname: 'lawbid.dev' });
+    expect(
+      (await service().verify('tok', { expectedAction: 'sms' })).verdict,
+    ).toBe('valid');
+  });
+
+  it('the wait for Cloudflare is the admin setting, clamped', async () => {
+    const number = jest.fn().mockResolvedValue(50);
+    const svc = new TurnstileService(
+      { field: (_p: string, n: string) => Promise.resolve(fields[n]) } as never,
+      logger as never,
+      { number } as never,
+    );
+    const spy = jest.spyOn(global, 'setTimeout');
+    answer({ success: true });
+    await svc.verify('t');
+    expect(number).toHaveBeenCalledWith('security.turnstile.timeout_ms');
+    expect(spy.mock.calls.some((c) => c[1] === 500)).toBe(true);
+    spy.mockRestore();
+  });
 });

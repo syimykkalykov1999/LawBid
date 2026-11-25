@@ -142,6 +142,27 @@ class FirebaseAppCheckClient {
   }
 }
 
+extension FirebaseAppCheckLimitedUse on FirebaseAppCheckClient {
+  /// Item 13 (2026-11-25): a limited-use token (FlutterFire
+  /// `getLimitedUseToken()`, Firebase's token for replay protection: the
+  /// server may consume it, so it is never reused from the cache), or null.
+  /// Each call is one attestation, so the app asks for it only on the few
+  /// costly routes (AppCheckInterceptor.limitedRoutes).
+  Future<String?> limitedUseToken() async {
+    try {
+      final on = await start().timeout(FirebaseAppCheckClient.tokenTimeout);
+      if (!on) return null;
+      final t = await FirebaseAppCheck.instance.getLimitedUseToken().timeout(
+        FirebaseAppCheckClient.tokenTimeout,
+      );
+      return t.isEmpty ? null : t;
+    } on Object catch (e) {
+      debugPrint('app check: no limited-use token ($e)');
+      return null;
+    }
+  }
+}
+
 /// One short ASCII line for the `X-Firebase-AppCheck-Status` header: the
 /// step ([stage]: `off` = activation, `error` = token) and the error's
 /// code / message, never more than 120 characters and nothing a header
@@ -166,6 +187,12 @@ String appCheckStatus(String stage, Object error) {
 /// Overridable in tests; the app uses the Firebase client.
 final appCheckTokenProvider = Provider<AppCheckToken>(
   (ref) => FirebaseAppCheckClient.instance.token,
+);
+
+/// Item 13: a limited-use token for the routes where the server may consume
+/// it. Overridable in tests.
+final appCheckLimitedTokenProvider = Provider<Future<String?> Function()>(
+  (ref) => FirebaseAppCheckClient.instance.limitedUseToken,
 );
 
 /// Why there is no token right now (see [FirebaseAppCheckClient.status]).

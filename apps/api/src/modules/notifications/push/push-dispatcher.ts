@@ -101,6 +101,64 @@ export function pushDataValue(v: unknown): string | undefined {
   return undefined;
 }
 
+/** The payload fields a push carries for the app's router
+ * (`notificationRoute`, apps/mobile notifications_view.dart). */
+export const PUSH_DATA_KEYS = [
+  'caseId',
+  'bidId',
+  'reportId',
+  'postId',
+  'commentId',
+  'reviewId',
+  // Owner 2026-10-02: a support reply opens the ticket.
+  'ticketId',
+  // Audit 2026-10-04: chats, assistant requests/tasks open their screen.
+  'conversationId',
+  'kind',
+  'requestId',
+  'taskId',
+  // Owner 2026-10-20: the planner reminder — when it is for.
+  'remindAt',
+  'dueAt',
+  // Owner row 87: «Позвонить сейчас» from the hotline notice.
+  'claimToken',
+  // …and until when it can be tapped (ms; FCM / APNs data are strings).
+  'expiresAt',
+  // Pack C (round 2 #1, 25.11): the ids the app's router opens. Without
+  // them a tap on «new answer» opened nothing, a deal-record notice the
+  // case workspace, a consultation the list, a review reply the wrong
+  // profile (the bell list had them, only the push lost them).
+  'questionId',
+  'dealRecordId',
+  'consultationId',
+  'channelId',
+  'inviteId',
+  'groupId',
+  'actorUsername',
+] as const;
+
+/** Yes/no payload fields the router reads (`_flag`: true or 'true'). */
+export const PUSH_DATA_FLAGS = ['reply', 'clientReview'] as const;
+
+/** The data of a push: the notification's id and type, the router's
+ * fields as strings (FCM / APNs data are strings only). */
+export function pushDeepLink(
+  notificationId: string,
+  type: string,
+  payload: Record<string, unknown>,
+): Record<string, string> {
+  const deepLink: Record<string, string> = { notificationId, type };
+  for (const k of PUSH_DATA_KEYS) {
+    const v = pushDataValue(payload[k]);
+    if (v !== undefined) deepLink[k] = v;
+  }
+  for (const k of PUSH_DATA_FLAGS) {
+    if (payload[k] === true) deepLink[k] = 'true';
+  }
+  if (payload.missed === true) deepLink.missed = '1';
+  return deepLink;
+}
+
 /** Not committed yet (or rolled back): BullMQ retries, then drops it. */
 export class NotificationNotCommittedError extends Error {}
 
@@ -743,36 +801,7 @@ export class PushDispatcher
             ),
             payload,
           );
-    const deepLink: Record<string, string> = {
-      notificationId: n.id,
-      type: n.type,
-    };
-    for (const k of [
-      'caseId',
-      'bidId',
-      'reportId',
-      'postId',
-      'commentId',
-      'reviewId',
-      // Owner 2026-10-02: a support reply opens the ticket.
-      'ticketId',
-      // Audit 2026-10-04: chats, assistant requests/tasks open their screen.
-      'conversationId',
-      'kind',
-      'requestId',
-      'taskId',
-      // Owner 2026-10-20: the planner reminder — when it is for.
-      'remindAt',
-      'dueAt',
-      // Owner row 87: «Позвонить сейчас» from the hotline notice.
-      'claimToken',
-      // …and until when it can be tapped (ms; FCM / APNs data are strings).
-      'expiresAt',
-    ]) {
-      const v = pushDataValue(payload[k]);
-      if (v !== undefined) deepLink[k] = v;
-    }
-    if (payload.missed === true) deepLink.missed = '1';
+    const deepLink = pushDeepLink(n.id, n.type, payload);
     // Owner 2026-10-20 (like WhatsApp): a missed call shows who called —
     // the caller's name on top, "Missed call" below.
     let shown = text;

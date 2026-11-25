@@ -64,6 +64,9 @@ final dioProvider = Provider<Dio>((ref) {
       // Phones only: on the web an extra header means a CORS preflight,
       // and the web's reason is known (the build's reCAPTCHA key).
       status: kIsWeb ? null : ref.read(appCheckStatusProvider),
+      // Item 13: limited-use tokens where the server may consume them.
+      // Phones only, like the status header (no new CORS header on web).
+      limitedToken: kIsWeb ? null : ref.read(appCheckLimitedTokenProvider),
     ),
   );
   // 2026-10-24 (abuse batch D, item 4): the website's Cloudflare Turnstile

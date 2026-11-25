@@ -39,5 +39,7 @@ On-call: the owner until a rotation exists (docs/06 §11.1 "дежурный
 | GitHub «Self-check (production)» failed | the run summary + [OWNER.md](OWNER.md) |
 
 Backups and restore: [backups.md](backups.md), quarterly drill log:
-[restore-drill.md](restore-drill.md). Before launch, wiping the beta test
+[restore-drill.md](restore-drill.md); monthly automatic restore test with a
+validation query and the staging chaos drills (AWS FIS):
+[chaos-and-restore-drills.md](chaos-and-restore-drills.md). Before launch, wiping the beta test
 data: [prelaunch-wipe.md](prelaunch-wipe.md).

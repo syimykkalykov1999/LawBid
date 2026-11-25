@@ -34,6 +34,7 @@ import {
 import type { Request } from 'express';
 import { apiBaseOf } from '../billing/pay-link.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { RequireAppCheck } from '../auth/auth.public';
 import {
   AdminEndpoint,
   CurrentAdmin,
@@ -106,6 +107,13 @@ export class BidPacksController {
   // script creating checkouts in a loop (each attempt costs a Stripe fee).
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @AttorneyOnly()
+  // Item 13 (L2, 2026-11-25): starting a payment carries the bot check
+  // (admin security.app_check.payments.mode; log only by default).
+  @RequireAppCheck({
+    group: 'payments',
+    signedIn: true,
+    consumeWhen: () => true,
+  })
   @Post(':packId/buy')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Start the payment for a pack' })

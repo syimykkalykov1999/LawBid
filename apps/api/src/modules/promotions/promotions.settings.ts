@@ -86,6 +86,35 @@ export const BOOST_ACTIONS: Record<PricingTarget, readonly string[]> = {
   case: ['bid', 'question', 'save'],
   profile: ['follow', 'message', 'call'],
 };
+/**
+ * Pack C (round 2 #24, 25.11): a saved action list used to replace the
+ * defaults for good, so an action added later (to BOOST_ACTIONS and the
+ * default list) never showed where the admin had saved once. The stored
+ * value now also keeps `known` — the actions that existed when it was
+ * saved ([withKnownActions]); a DEFAULT action missing from it is new and
+ * is switched on, an action the admin unticked stays off. A value saved
+ * before this has no `known`: it is read as [BOOST_ACTIONS_25_11], the list
+ * of that day.
+ */
+export const BOOST_ACTIONS_25_11: Record<PricingTarget, readonly string[]> = {
+  post: ['follow', 'message', 'save', 'profile_open', 'call'],
+  video: ['watched', 'follow', 'message', 'save', 'profile_open', 'call'],
+  case: ['bid', 'question', 'save'],
+  profile: ['follow', 'message', 'call'],
+};
+
+/** The stored form of [pricing]: each target remembers the actions that
+ * existed when it was saved (see [BOOST_ACTIONS_25_11]). */
+export function withKnownActions(
+  pricing: PricingMatrix,
+): Record<PricingTarget, TargetPricing & { known: string[] }> {
+  const out = {} as Record<PricingTarget, TargetPricing & { known: string[] }>;
+  for (const t of PRICING_TARGETS) {
+    out[t] = { ...pricing[t], known: [...BOOST_ACTIONS[t]] };
+  }
+  return out;
+}
+
 /** Only the app can see these; the server sees the rest by itself. */
 export const CLIENT_REPORTED_ACTIONS = [
   'watched',
@@ -359,13 +388,20 @@ export function parsePricing(
       };
     }
     const allowed = BOOST_ACTIONS[t];
+    const known = Array.isArray(tr?.known)
+      ? (tr.known as unknown[]).filter(
+          (a): a is string => typeof a === 'string',
+        )
+      : BOOST_ACTIONS_25_11[t];
     const actions = Array.isArray(tr?.actions)
       ? [
-          ...new Set(
-            (tr.actions as unknown[]).filter(
+          ...new Set([
+            ...(tr.actions as unknown[]).filter(
               (a): a is string => typeof a === 'string' && allowed.includes(a),
             ),
-          ),
+            // A default action added after the save: on (pack C).
+            ...d.actions.filter((a) => !known.includes(a)),
+          ]),
         ]
       : [...d.actions];
     // No action chosen = nothing could ever be billed: the model is off.

@@ -70,7 +70,7 @@ class _DemoCodeSheetState extends ConsumerState<DemoCodeSheet> {
       final session = await ref.read(demoRepositoryProvider).redeem(code);
       if (!mounted) return;
       context.popIfCurrent();
-      await enterDemoAndGo(context, ref, session);
+      await enterDemoAndGo(context, session);
     } catch (e) {
       if (!mounted) return;
       setState(() {

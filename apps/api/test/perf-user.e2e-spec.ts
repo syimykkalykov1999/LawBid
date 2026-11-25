@@ -478,6 +478,22 @@ interface Result {
         update: { enabled: true },
       });
     }
+    // KNOWN_ERRORS 236: this suite skips e2e-global-setup and its database
+    // has no flag rows. A missing row now reads as its FLAG_CATALOG value,
+    // not as each caller's fallback; the suite was written against those
+    // fallbacks (channels and e-mail flows on, multipart uploads off), so
+    // it writes that state down.
+    for (const [key, enabled] of [
+      ['channels', true],
+      ['email_login', true],
+      ['files_multipart', false],
+    ] as const) {
+      await prisma.featureFlag.upsert({
+        where: { key },
+        create: { key, enabled },
+        update: { enabled },
+      });
+    }
     await app.get(FeatureFlagsService).invalidate();
 
     const f = await fixtures(raw);
