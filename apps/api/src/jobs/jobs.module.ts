@@ -15,7 +15,7 @@ import { RecommendationsModule } from '../modules/recommendations/recommendation
 import { LegalQaSweepJob } from '../modules/legal-qa/legal-qa-sweep.job';
 import { ContactsJoinedJob } from './handlers/contacts-joined.job';
 import { ContactsPepperBackfillJob } from './handlers/contacts-pepper-backfill.job';
-import { MessageReencryptJob } from './handlers/message-reencrypt.job';
+import { MessageReencryptJobModule } from './handlers/message-reencrypt.module';
 import { ChatSearchBackfillJob } from './handlers/chat-search-backfill.job';
 import { ContactsSyncModule } from '../modules/contacts-sync/contacts-sync.module';
 import { ConsultationsCoreModule } from '../modules/consultations/consultations-core.module';
@@ -51,17 +51,17 @@ import { CaseDeadlineReminderJob } from './handlers/case-deadline-reminder.job';
 import { CaseRebroadcastJob } from './handlers/case-rebroadcast.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
-import { CrashReportsService } from '../modules/crash-reports/crash-reports.service';
+import { CrashReportsCoreModule } from '../modules/crash-reports/crash-reports.module';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { TopicCoversJob } from '../modules/search/topic-covers.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
-import { PartitionService } from '../partitioning/partition.service';
+import { PartitionCoreModule } from '../partitioning/partition.module';
 import { SearchIndexJob } from './handlers/search-index.job';
 import { DbBloatJob } from './handlers/db-bloat.job';
 import { CdnInvalidateJob } from './handlers/cdn-invalidate.job';
-import { PublicDirectoryService } from '../modules/public-directory/public-directory.service';
+import { PublicDirectoryCoreModule } from '../modules/public-directory/public-directory.module';
 import { SeoGenerateJob } from './handlers/seo-generate.job';
 import { PrivacyReconcileJob } from './handlers/privacy-reconcile.job';
 import { LedgerReconcileJob } from './handlers/ledger-reconcile.job';
@@ -70,13 +70,13 @@ import { StripeOpsCoreModule } from '../modules/stripe-ops/stripe-ops.module';
 import { DbHealthJob } from './handlers/db-health.job';
 import { LedgerModule } from '../modules/ledger/ledger.public';
 import { FeatureFlagsModule } from '../modules/feature-flags/feature-flags.module';
-import { DashboardService } from '../modules/admin/dashboard.service';
-import { AdminOverviewService } from '../modules/admin-content/admin-overview.service';
-import { HotlineStatsService } from '../modules/hotline/hotline-stats.service';
-import { BillingOverviewService } from '../modules/admin-billing/billing-overview.service';
+import { DashboardCoreModule } from '../modules/admin/admin.module';
+import { AdminOverviewCoreModule } from '../modules/admin-content/admin-content.module';
+import { HotlineStatsCoreModule } from '../modules/hotline/hotline.module';
+import { BillingOverviewCoreModule } from '../modules/admin-billing/admin-billing.module';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
-import { PnlService } from '../common/pnl/pnl.service';
+import { PnlCoreModule } from '../modules/admin-pnl/admin-pnl.module';
 import { LegalRemindersJob } from './handlers/legal-reminders.job';
 import { UsagePollJob } from './handlers/usage-poll.job';
 import {
@@ -188,6 +188,19 @@ export class JobsModule {
         AiWorkerCoreModule,
         // Owner 2026-11-12 (row 49): `ai.retention`.
         AiAttachmentsCoreModule,
+        // Holes re-check (25.11, item 17): these services are provided by
+        // their owner modules only (one instance in the API process); the
+        // core modules carry no controllers, so the worker stays HTTP-free.
+        // jobs.module.spec.ts fails on any provider listed here AND elsewhere.
+        CrashReportsCoreModule,
+        PublicDirectoryCoreModule,
+        PartitionCoreModule,
+        MessageReencryptJobModule,
+        DashboardCoreModule,
+        AdminOverviewCoreModule,
+        HotlineStatsCoreModule,
+        BillingOverviewCoreModule,
+        PnlCoreModule,
       ],
       providers: [
         { provide: JOBS_OPTIONS, useValue: options },
@@ -201,7 +214,6 @@ export class JobsModule {
         // Owner 2026-10-22: `contacts.joined`.
         ContactsJoinedJob,
         ContactsPepperBackfillJob,
-        MessageReencryptJob,
         ChatSearchBackfillJob,
         OtpCleanupJob,
         DisposableDomainsRefreshJob,
@@ -224,7 +236,6 @@ export class JobsModule {
         FeedRecoJob,
         TrendingTagsJob,
         TopicCoversJob,
-        CrashReportsService,
         NotificationsRetentionJob,
         OpsMetricsJob,
         // Owner 2026-10-23: `admin.summaries` (admin economy pass).
@@ -236,24 +247,15 @@ export class JobsModule {
         // Owner 2026-10-25: `cdn.invalidate` (queued CloudFront paths).
         CdnInvalidateJob,
         // Programmatic SEO 2026-10-27: `seo.generate` (pages from the DB read path).
-        PublicDirectoryService,
         SeoGenerateJob,
-        PartitionService,
         LedgerReconcileJob,
         // Privacy round 13: `privacy.reconcile`.
         PrivacyReconcileJob,
         StripeOpsJob,
         // DB-ops hardening: `db.health` (daily).
         DbHealthJob,
-        DashboardService,
-        // Row 78: the admin overview snapshot, recounted daily.
-        AdminOverviewService,
-        // the hotline admin page's nightly snapshot
-        HotlineStatsService,
-        BillingOverviewService,
         OpsGuardJob,
         StatusWatchdogJob,
-        PnlService,
         LegalRemindersJob,
         UsagePollJob,
         // Owner 2026-10-05: the planner's reminders and archive cleanup.

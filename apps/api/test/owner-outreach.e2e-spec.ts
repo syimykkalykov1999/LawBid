@@ -343,20 +343,24 @@ describe('Outreach (e2e)', () => {
     expect(sent[0].to).toBe(email(1));
     expect(sent[0].text).toContain(code); // the employee's partner link
     expect(sent[0].text).toContain('Olga Sales');
-    // R2B-14 expand/contract: `outreach.signed_unsubscribe_links` is off
-    // in this release, so the email carries the legacy token — non-null and
-    // in the shape the previous release's controller accepts.
+    // Holes re-check (25.11, ROUND2 #25): `outreach.signed_unsubscribe_links`
+    // is ON by default, so the email carries the signed link (RFC 8058
+    // one-click target). The lead still has its legacy token (an N-1 sender
+    // never prints null) and a link already sent with it keeps working.
     const link =
       /https:\/\/api\.lawbid\.test\/api\/v1\/outreach\/unsubscribe\/([A-Za-z0-9_.-]+)/.exec(
         sent[0].text,
       );
     expect(ivan.unsubscribe_token).toMatch(/^[A-Za-z0-9_-]{16,48}$/);
-    expect(link?.[1]).toBe(ivan.unsubscribe_token);
-    // A signed link (what the switch prints once on) is accepted already.
     const signed = UnsubscribeTokenCodec.from(
       process.env.SECRETS_MASTER_KEYS,
       process.env.SECRETS_ACTIVE_KID,
     )!.sign(ivan.id);
+    expect(link?.[1]).toBe(signed);
+    expect(link?.[1]).not.toBe(ivan.unsubscribe_token);
+    await api()
+      .get(`/api/v1/outreach/unsubscribe/${ivan.unsubscribe_token}`)
+      .expect(200);
     expect(sent[0].text).toContain('Schaumburg');
     const afterMail = await prisma.outreachLead.findUniqueOrThrow({
       where: { id: ivan.id },

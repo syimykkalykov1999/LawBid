@@ -59,6 +59,22 @@ export class TurnstileService {
     this.logger.setContext(TurnstileService.name);
   }
 
+  /** Holes re-check (25.11): both keys saved in Интеграции → Cloudflare
+   * Turnstile (the site key the page renders the widget with, the secret
+   * key siteverify needs). Without both the website has no Turnstile proof
+   * to offer, so «Авто» stays off and nothing is enforced on it by it. */
+  async configured(): Promise<boolean> {
+    try {
+      const [site, secret] = await Promise.all([
+        this.secrets.field('turnstile', 'siteKey'),
+        this.secrets.field('turnstile', 'secretKey'),
+      ]);
+      return Boolean(site) && Boolean(secret);
+    } catch {
+      return false;
+    }
+  }
+
   async verify(
     token: string | undefined,
     opts: { ip?: string; expectedAction?: string } = {},

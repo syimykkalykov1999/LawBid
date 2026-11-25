@@ -110,6 +110,19 @@ describe('Stage 6.1 — base security + migration (e2e)', () => {
     expect(get.headers['access-control-expose-headers']).toMatch(/ETag/i);
   });
 
+  // Holes re-check (25.11, item 21): the website marks prefetch /
+  // background calls for load shedding; without this the preflight fails.
+  it('CORS preflight allows X-Request-Priority', async () => {
+    const pre = await request(baseUrl)
+      .options('/api/v1/feed')
+      .set('Origin', 'https://lawbid.dev')
+      .set('Access-Control-Request-Method', 'GET')
+      .set('Access-Control-Request-Headers', 'x-request-priority');
+    expect(String(pre.headers['access-control-allow-headers'] ?? '')).toMatch(
+      /X-Request-Priority/i,
+    );
+  });
+
   it('CORS preflight allows the App Check and Turnstile headers (2026-11-08)', async () => {
     const pre = await request(baseUrl)
       .options('/api/v1/auth/otp/request')

@@ -402,6 +402,9 @@ describe('BootstrapService.build', () => {
       // always sent.
       'client.guest_browse_app_enabled': false,
       'client.guest_browse_web_enabled': true,
+      // Holes re-check (25.11, item 21): this server allows the request
+      // priority header, always sent (the website waits for it).
+      'client.request_priority_enabled': true,
       // D1-53: the days the biometric consent text names, always sent.
       'verification.face_match.retention_days': 30,
       // Row 173: the website's cross-origin isolation, always sent (off).
@@ -549,6 +552,27 @@ describe('BootstrapService.turnstileSiteKey', () => {
     expect(await make('off', '0x4AAA').turnstileSiteKey()).toEqual({});
     expect(await make('bogus', '0x4AAA').turnstileSiteKey()).toEqual({});
     expect(await make('enforce').turnstileSiteKey()).toEqual({});
+  });
+
+  it('holes re-check (25.11): «Авто» publishes the key only once the secret key is saved too', async () => {
+    const withBoth = new BootstrapService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {
+        get: jest.fn().mockResolvedValue({
+          fields: { siteKey: '0x4AAA', secretKey: 'test-secret-key' },
+        }),
+      } as never,
+      undefined,
+      { string: jest.fn().mockResolvedValue('auto') } as never,
+    );
+    expect(await withBoth.turnstileSiteKey()).toEqual({
+      'turnstile.site_key': '0x4AAA',
+    });
+    expect(await make('auto', '0x4AAA').turnstileSiteKey()).toEqual({});
+    expect(await make('auto').turnstileSiteKey()).toEqual({});
   });
 });
 

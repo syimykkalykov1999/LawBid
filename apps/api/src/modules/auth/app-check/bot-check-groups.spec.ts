@@ -39,6 +39,8 @@ describe('bot check per route group (item 13)', () => {
   let result: AppCheckResult;
   let options: AppCheckOptions | undefined;
   let counts: BotCheckCounts;
+  let turnstile: { configured: jest.Mock; verify: jest.Mock } | undefined =
+    undefined;
   const verify = jest.fn<
     Promise<AppCheckResult>,
     [string | undefined, { consume?: boolean }?]
@@ -77,7 +79,7 @@ describe('bot check per route group (item 13)', () => {
       { verify } as never,
       { verifyAccessToken } as never,
       logger as never,
-      undefined,
+      turnstile as never,
       { isChallenged: () => Promise.resolve(false) } as never,
       stats as never,
     );
@@ -127,6 +129,7 @@ describe('bot check per route group (item 13)', () => {
     result = { verdict: 'missing' };
     options = { group: 'sms' };
     counts = emptyCounts();
+    turnstile = undefined;
     verify.mockReset().mockImplementation(() => Promise.resolve(result));
     verifyAccessToken.mockReset().mockImplementation(() => {
       throw new Error('no token');
@@ -153,6 +156,17 @@ describe('bot check per route group (item 13)', () => {
       c.byPlatform.android = { total: 300, pass: 240 };
       expect((c.pass * 100) / c.total).toBeGreaterThan(98.8);
       expect(autoAllows(c, 98, 200)).toBe(false);
+    });
+    it('holes re-check: a platform with people but not one valid proof keeps Auto off', () => {
+      // The phones pass at 100 %; five real website visitors had no proof
+      // (no reCAPTCHA / Turnstile key yet). Old rule: 5 < 200, skipped → on.
+      const c = many(1000, 1000, 'ios');
+      c.total += 5;
+      c.byPlatform.web = { total: 5, pass: 0 };
+      expect(autoAllows(c, 99, 200)).toBe(false);
+      c.byPlatform.web = { total: 5, pass: 5 };
+      c.pass += 5;
+      expect(autoAllows(c, 99, 200)).toBe(true);
     });
     it('replay auto waits until nearly every valid token is limited-use', () => {
       const c = emptyCounts();
@@ -200,6 +214,77 @@ describe('bot check per route group (item 13)', () => {
     await expect(guard().canActivate(ctx().c)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+
+  describe('holes re-check (25.11): the website without a working proof', () => {
+    const web = { 'x-platform': 'web' };
+
+    it('on: a website visitor is not refused while the site has no proof at all', async () => {
+      settings['security.app_check.sms.mode'] = 'on';
+      await expect(guard().canActivate(ctx(web).c)).resolves.toBe(true);
+      // The phones are still refused without a token.
+      await expect(
+        guard().canActivate(ctx({ 'x-platform': 'ios' }).c),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('auto: the phones numbers alone never enforce on the website', async () => {
+      settings['security.app_check.sms.mode'] = 'auto';
+      counts = many(1000, 1000, 'ios');
+      await expect(guard().canActivate(ctx(web).c)).resolves.toBe(true);
+    });
+
+    it('once web visitors pass (reCAPTCHA works), on enforces there too', async () => {
+      settings['security.app_check.sms.mode'] = 'on';
+      counts = many(40, 40, 'web');
+      await expect(guard().canActivate(ctx(web).c)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+
+    it('with Turnstile on and both keys saved, on enforces on the website', async () => {
+      settings['security.app_check.sms.mode'] = 'on';
+      settings['security.turnstile.mode'] = 'monitor';
+      turnstile = {
+        configured: jest.fn().mockResolvedValue(true),
+        verify: jest.fn(),
+      };
+      await expect(guard().canActivate(ctx(web).c)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+  });
+
+  describe('holes re-check (25.11): security.turnstile.mode = auto', () => {
+    const tok = { 'x-platform': 'web', 'x-turnstile-token': 'bad' };
+    beforeEach(() => {
+      settings['security.turnstile.mode'] = 'auto';
+      turnstile = {
+        configured: jest.fn().mockResolvedValue(true),
+        verify: jest
+          .fn()
+          .mockResolvedValue({ verdict: 'invalid', reason: 'x' }),
+      };
+    });
+
+    it('no keys saved: exactly off, the token is never checked', async () => {
+      turnstile!.configured.mockResolvedValue(false);
+      await expect(guard().canActivate(ctx(tok).c)).resolves.toBe(true);
+      expect(turnstile!.verify).not.toHaveBeenCalled();
+    });
+
+    it('keys saved, too few proven-real web visitors: checked, logged, not blocked', async () => {
+      counts = many(10, 10, 'web');
+      await expect(guard().canActivate(ctx(tok).c)).resolves.toBe(true);
+      expect(turnstile!.verify).toHaveBeenCalled();
+    });
+
+    it('keys saved and the web pass rate holds: a bad token is refused', async () => {
+      counts = many(300, 300, 'web');
+      await expect(guard().canActivate(ctx(tok).c)).rejects.toMatchObject({
+        response: { code: ErrorCode.TURNSTILE_FAILED },
+      });
+    });
   });
 
   it('the general enforce still works for a group left on off', async () => {

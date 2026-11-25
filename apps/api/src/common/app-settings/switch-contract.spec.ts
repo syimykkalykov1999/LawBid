@@ -37,8 +37,17 @@ describe('switch contract: defaults (a)', () => {
     ['case_fanout.enabled', 'auto'],
     ['billing.stripe_tax_enabled', false],
     ['rewards.enabled', false],
-    ['security.turnstile.mode', 'off'],
+    // Holes re-check (25.11, STRICT rule 6): needed protection on, Авто
+    // guards itself (Turnstile auto = off until both keys are saved).
+    ['security.turnstile.mode', 'auto'],
     ['security.app_check.mode', 'monitor'],
+    ['security.app_check.sms.mode', 'auto'],
+    ['security.app_check.login.mode', 'auto'],
+    ['security.app_check.password_reset.mode', 'auto'],
+    ['security.app_check.payments.mode', 'auto'],
+    ['security.app_check.replay.mode', 'auto'],
+    // Holes re-check (25.11, ROUND2 #25): RFC 8058 one-click, signed.
+    ['outreach.signed_unsubscribe_links', true],
     ['economy.ceiling_mode', 'auto'],
     ['storage.auto_cleanup', true],
     ['storage.auto_retention', true],

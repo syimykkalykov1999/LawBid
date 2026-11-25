@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'package:lawbid/core/network/request_priority.dart';
+
 /// Scale audit 2026-10-23: the knobs of the phone's own traffic (repeats of
 /// a failed request, polling, usage
 /// events). A store release takes days; if a build misbehaves under load
@@ -302,6 +304,8 @@ abstract final class ClientTuning {
   /// Called with the `app_config` of every bootstrap answer.
   static void apply(Map<String, String> config) {
     applied = true;
+    // Holes re-check (25.11, item 21): may this app send X-Request-Priority.
+    RequestPriority.lastConfig = config;
     int pick(String key, int fallback, int min, int max) {
       final v = num.tryParse(config[key] ?? '')?.toInt();
       return (v ?? fallback).clamp(min, max);

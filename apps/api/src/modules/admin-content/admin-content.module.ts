@@ -11,9 +11,22 @@ import { AdminContentBulkService } from './admin-content-bulk.service';
 import { AdminOverviewService } from './admin-overview.service';
 import { BroadcastFanoutModule } from './broadcast-fanout.module';
 
+/**
+ * Holes re-check (25.11, item 17): provided ONCE, here. JobsModule used to
+ * list AdminOverviewService again (row 78 snapshot), so the API process ran a second instance (Nest:
+ * a provider belongs to one module, others import it). JobsModule imports
+ * this module; jobs.module.spec.ts fails on any copy.
+ */
+@Module({
+  providers: [AdminOverviewService],
+  exports: [AdminOverviewService],
+})
+export class AdminOverviewCoreModule {}
+
 /** Owner 2026-09-30: content, bids, qualifications, broadcasts, CSV. */
 @Module({
   imports: [
+    AdminOverviewCoreModule,
     AdminAccessModule,
     NotificationsModule,
     // Owner 2026-10-28: signed links for private case files.
@@ -27,7 +40,6 @@ import { BroadcastFanoutModule } from './broadcast-fanout.module';
     AdminContentExtrasService,
     AdminContentBulkService,
     AdminPrivateContentService,
-    AdminOverviewService,
   ],
   // Admin media (video takedown) reuses the post removal path.
   exports: [AdminContentService],
