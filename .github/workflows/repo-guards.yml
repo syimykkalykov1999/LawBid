@@ -72,6 +72,7 @@ jobs:
           bash scripts/deploy/run-migrations.test.sh
           bash scripts/infra/pooler-roll.test.sh
           bash scripts/deploy/roll-services.test.sh
+          bash scripts/deploy/budget-gate.test.sh
           bash scripts/deploy/i18n-needed.test.sh
           bash scripts/deploy/wait-data-stores-idle.test.sh
           bash scripts/deploy/web-font-base.test.sh
