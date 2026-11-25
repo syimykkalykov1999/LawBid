@@ -161,7 +161,7 @@ describe('Chat file goes before its scan ends (e2e, M3)', () => {
         code: 'scanlater_e2e.leaf',
         parent_id: parent.id,
         name_en: 'Leaf',
-        i18n_key: 'practice.scanlater_e2e.leaf',
+        i18n_key: 'practice.e2e_scan_leaf',
         sort: 0,
       },
       update: {},
