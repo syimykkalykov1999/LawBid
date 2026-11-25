@@ -17,6 +17,7 @@ import 'package:lawbid/core/network/headers_interceptor.dart';
 import 'package:lawbid/core/network/http_transport.dart';
 import 'package:lawbid/core/network/idempotency_interceptor.dart';
 import 'package:lawbid/core/network/legacy_shape_interceptor.dart';
+import 'package:lawbid/core/network/request_priority.dart';
 import 'package:lawbid/core/network/retry_interceptor.dart';
 import 'package:lawbid/core/network/timeout_budget_interceptor.dart';
 import 'package:lawbid/core/network/trace_interceptor.dart';
@@ -49,6 +50,9 @@ final dioProvider = Provider<Dio>((ref) {
   // S8-1/S8-2: native stack (URLSession / Cronet) with a tuned dart:io fallback.
   HttpTransport.apply(dio);
   dio.interceptors.add(HeadersInterceptor(ref));
+  // Holes re-check (25.11, item 21): user / prefetch / background, so an
+  // overloaded API sheds prefetch and background calls first (Netflix).
+  dio.interceptors.add(RequestPriorityInterceptor());
   // Owner 2026-10-28: an app newer than the server still reads its answers
   // (fields the server does not send yet get neutral values). Early, so the
   // HTTP cache below stores the readable copy.

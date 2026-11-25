@@ -28,8 +28,10 @@ import {
   autoAllows,
   autoReplayAllows,
   BotCheckStatsService,
+  platformCounts,
   platformOf,
   type BotCheckGroup,
+  type BotCheckPlatform,
   type BotCheckSample,
 } from '../../../common/security/bot-check-stats';
 
@@ -150,8 +152,9 @@ export class AppCheckGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<Request>();
     const general = await this.mode();
     const sw = options.group ? await this.routeSwitch(options.group) : 'off';
-    let mode = await this.routeMode(options, general, sw);
-    let tsMode = await this.turnstileMode();
+    const platform = platformOf(req.header('x-platform'));
+    let tsMode = await this.turnstileMode(options.group);
+    let mode = await this.routeMode(options, general, sw, platform, tsMode);
     if (options.challenge) {
       // A caller who already failed a few times is asked for proof; the
       // others pass, unless the route also follows the normal mode.
@@ -170,7 +173,6 @@ export class AppCheckGuard implements CanActivate {
     }
     if (mode === 'off' && tsMode === 'off') return true;
     if (!options.signedIn && this.signedIn(req)) return true;
-    const platform = platformOf(req.header('x-platform'));
 
     // Web only: the page sends X-Turnstile-Token (the app never does). A
     // token that checks out is as good as an App Check token; a bad one is
@@ -297,11 +299,16 @@ export class AppCheckGuard implements CanActivate {
   }
 
   /** The effective mode of a route: its own switch first, then the
-   * general one (capped at monitor for signed-in routes). */
+   * general one (capped at monitor for signed-in routes). Holes re-check
+   * (25.11): the route switch never enforces on the website while the
+   * website has no working proof (no Turnstile keys and not one valid
+   * proof from it in the window): every real visitor would be refused. */
   private async routeMode(
     options: AppCheckOptions,
     general: AppCheckMode,
     sw: RouteSwitch,
+    platform: BotCheckPlatform,
+    tsMode: AppCheckMode,
   ): Promise<AppCheckMode> {
     const base: AppCheckMode = options.signedIn
       ? general === 'off'
@@ -309,8 +316,44 @@ export class AppCheckGuard implements CanActivate {
         : 'monitor'
       : general;
     if (!options.group || sw === 'off') return base;
-    if (sw === 'on') return 'enforce';
-    return (await this.autoOn(options.group)) ? 'enforce' : base;
+    const want =
+      sw === 'on' || (await this.autoOn(options.group)) ? 'enforce' : base;
+    if (want !== 'enforce' || base === 'enforce' || platform !== 'web') {
+      return want;
+    }
+    if (await this.webProofWorks(options.group, tsMode)) return want;
+    this.logger.info(
+      { metric: 'app_check_web_unproven', group: options.group, switch: sw },
+      'bot check: the website has no working proof yet (no Turnstile keys, no valid web proof): not enforced there',
+    );
+    return base === 'off' ? 'monitor' : base;
+  }
+
+  /** The website can prove itself: Turnstile is on with both keys saved,
+   * or at least one proven-real web visitor of this group passed the check
+   * (App Check by reCAPTCHA Enterprise works) over the Auto window. */
+  private async webProofWorks(
+    group: BotCheckGroup,
+    tsMode: AppCheckMode,
+  ): Promise<boolean> {
+    if (tsMode !== 'off' && (await this.turnstileConfigured())) return true;
+    if (!this.stats) return false;
+    try {
+      const [days] = await this.autoSettings();
+      const web = (await this.stats.counts(group, days)).byPlatform.web;
+      return (web?.pass ?? 0) > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  private async turnstileConfigured(): Promise<boolean> {
+    if (!this.turnstile) return false;
+    try {
+      return await this.turnstile.configured();
+    } catch {
+      return false;
+    }
   }
 
   private async routeSwitch(group: BotCheckGroup): Promise<RouteSwitch> {
@@ -446,15 +489,30 @@ export class AppCheckGuard implements CanActivate {
     }
   }
 
-  private async turnstileMode(): Promise<AppCheckMode> {
+  /** `security.turnstile.mode`: off | monitor | enforce | auto. Holes
+   * re-check (25.11): auto = off until both Turnstile keys are saved, then
+   * monitor, and enforce once the website's proven-real visitors of this
+   * group pass at the Auto rate (the same rule as the App Check groups). */
+  private async turnstileMode(group?: BotCheckGroup): Promise<AppCheckMode> {
+    let raw: string;
     try {
-      const raw = await this.settings.string('security.turnstile.mode');
-      // Unknown value = off: a typo never starts blocking.
-      return (APP_CHECK_MODES as readonly string[]).includes(raw)
-        ? (raw as AppCheckMode)
-        : 'off';
+      raw = await this.settings.string('security.turnstile.mode');
     } catch {
       return 'off';
+    }
+    // Unknown value = off: a typo never starts blocking.
+    if ((APP_CHECK_MODES as readonly string[]).includes(raw)) {
+      return raw as AppCheckMode;
+    }
+    if (raw !== 'auto') return 'off';
+    if (!(await this.turnstileConfigured())) return 'off';
+    if (!group || !this.stats) return 'monitor';
+    try {
+      const [days, pct, min] = await this.autoSettings();
+      const web = platformCounts(await this.stats.counts(group, days), 'web');
+      return autoAllows(web, pct, min) ? 'enforce' : 'monitor';
+    } catch {
+      return 'monitor';
     }
   }
 

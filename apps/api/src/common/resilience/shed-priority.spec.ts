@@ -68,6 +68,22 @@ describe('effectivePriority (item 21)', () => {
       'degraded',
     );
   });
+
+  it('holes re-check (25.11): `user` (what the apps send) never lowers a critical route; unknown values are ignored', () => {
+    expect(effectivePriority(undefined, 'user', '/api/v1/feed')).toBe(
+      'degraded',
+    );
+    expect(effectivePriority('critical', 'user', '/api/v1/auth/login')).toBe(
+      'critical',
+    );
+    expect(effectivePriority('bulk', 'user', '/api/v1/app-events')).toBe(
+      'bulk',
+    );
+    for (const v of ['critical', 'CRITICAL_PLUS', 'urgent', '', 42]) {
+      expect(effectivePriority('bulk', v, '/api/v1/app-events')).toBe('bulk');
+      expect(effectivePriority(undefined, v, '/api/v1/feed')).toBe('degraded');
+    }
+  });
 });
 
 describe('tierThreshold (Netflix: progressively more critical traffic)', () => {

@@ -1218,8 +1218,12 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * blocked; `enforce` — a token that fails verification gets 403
    * TURNSTILE_FAILED, a valid one passes even without App Check. The app
    * (iOS / Android) never uses it: it relies on App Check above. The secret
-   * key is set in Интеграции → Cloudflare Turnstile. docs/runbooks/APP_CHECK.md */
-  'security.turnstile.mode': 'off',
+   * key is set in Интеграции → Cloudflare Turnstile. docs/runbooks/APP_CHECK.md
+   * Holes re-check (25.11, STRICT rule 6): `auto` (default) = exactly `off`
+   * until both keys (site + secret) are saved there — the page gets no site
+   * key, nothing is checked — then monitor, and enforce once the website's
+   * proven-real visitors pass at `security.app_check.auto_pass_rate_pct`. */
+  'security.turnstile.mode': 'auto',
   /** 2026-10-25 (S14-7): with `security.app_check.mode = enforce`, the three
    * costly anonymous routes (sign-in code to a phone, password-reset code,
    * "is this number registered") also CONSUME the App Check token, so one
@@ -1229,7 +1233,7 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * second request with the same cached token would be refused. */
   'security.app_check.replay_protection': false,
   /** Item 13 (L2, owner 2026-11-25): the bot check of each route group,
-   * Выкл / Вкл / Авто. `off` (default) = the general
+   * Выкл / Вкл / Авто. `off` = the general
    * `security.app_check.mode` above (monitor: log only, nobody blocked);
    * `on` = a request without a valid App Check token (or, on the website, a
    * valid Turnstile token) is refused; `auto` = `on` once the pass rate of
@@ -1242,18 +1246,24 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * registered»; login = password, code check (opens a new account),
    * Google / Apple; password_reset = «Забыл пароль»; payments = starting a
    * payment (signed-in; the general mode only logs there).
+   * Holes re-check (25.11, STRICT rule 6: needed protection on): `auto` is
+   * the default. It guards itself: log only until 99 % of at least 200
+   * proven-real people pass over 7 days on every platform, a platform with
+   * people but no valid proof (the website without its keys) keeps it off,
+   * and the website is never enforced while it has no working proof.
    * docs/runbooks/APP_CHECK.md */
-  'security.app_check.sms.mode': 'off',
-  'security.app_check.login.mode': 'off',
-  'security.app_check.password_reset.mode': 'off',
-  'security.app_check.payments.mode': 'off',
+  'security.app_check.sms.mode': 'auto',
+  'security.app_check.login.mode': 'auto',
+  'security.app_check.password_reset.mode': 'auto',
+  'security.app_check.payments.mode': 'auto',
   /** Item 13: replay protection (each token accepted once) on the costly
    * routes while they enforce — Выкл / Вкл / Авто. `auto` = on once at least
    * `auto_pass_rate_pct` of the valid tokens there are limited-use (the app
    * sends them since this release), so an older build is never refused for
    * reusing its cached token. The old `replay_protection: true` still means
-   * on. */
-  'security.app_check.replay.mode': 'off',
+   * on. Holes re-check (25.11): `auto` by default (it only ever consumes on
+   * a route that already enforces, once the tokens there are limited-use). */
+  'security.app_check.replay.mode': 'auto',
   /** Item 13: the window «Авто» looks at, days (1–90). */
   'security.app_check.auto_days': 7,
   /** Item 13: the share of proven-real people that must pass, percent. */
@@ -2389,10 +2399,13 @@ export const OWNER_PRIVACY_SETTINGS = {
    * stays. 0 = clear at once. */
   'outreach.raw_unsubscribe_token_keep_days': 14,
   /** R2B-14 expand/contract: cold emails print the signed unsubscribe link.
-   * Off by default for this release (the previous release cannot read
-   * signed links after a rollback); the owner switches it on once this
-   * release is fully live. Signed links are accepted on read either way. */
-  'outreach.signed_unsubscribe_links': false,
+   * Holes re-check (25.11, ROUND2 #25): ON by default. The expand step
+   * (14.11) has been live for many releases, so a rollback lands on a
+   * release that reads signed links; Gmail / Yahoo bulk-sender rules want a
+   * working RFC 8058 one-click link, and a signed one keeps no secret in the
+   * database. Links already sent (the old random token) keep working through
+   * the stored sha256. Off = the legacy token is printed again. */
+  'outreach.signed_unsubscribe_links': true,
   'privacy.auto_retention': true,
   'privacy.retention_audit_log_days': 1825,
   'privacy.retention_data_access_log_days': 1825,
