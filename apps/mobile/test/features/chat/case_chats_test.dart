@@ -73,11 +73,13 @@ class _Chats implements ChatRepository {
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
 }
 
-/// Owner 2026-10-21: the «Cases» chip, only case chats, «Awaiting reply».
+/// Owner 2026-10-21: the case chats, «Awaiting reply». Owner 2026-11-18:
+/// they are the «Кейсы» top tab now — the list the tab shows, no chip.
 void main() {
   setUpAll(initializeDateFormatting);
 
-  testWidgets('Cases chip after All; waiting chats are marked', (tester) async {
+  testWidgets('Cases list: no Cases chip; waiting chats are marked',
+      (tester) async {
     final repo = _Chats();
     tester.view
       ..physicalSize = const Size(360, 800)
@@ -109,18 +111,35 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    final all =
-        tester.getTopLeft(find.byKey(const ValueKey('chat-folder-all')));
-    final cases =
-        tester.getTopLeft(find.byKey(const ValueKey('chat-folder-cases')));
-    final waiting =
-        tester.getTopLeft(find.byKey(const ValueKey('chat-folder-waiting')));
-    expect(cases.dx, greaterThan(all.dx));
-    expect(waiting.dx, greaterThan(cases.dx));
-    // The count on the chip: one chat waits for an answer.
-    expect(find.text('1'), findsWidgets);
+    // Owner 2026-11-18: no «Кейсы» and no «Непрочитанные» chip any more.
+    expect(find.byKey(const ValueKey('chat-folder-all')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat-folder-waiting')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat-folder-cases')), findsNothing);
+    expect(find.byKey(const ValueKey('chat-folder-unread')), findsNothing);
 
-    await tester.tap(find.byKey(const ValueKey('chat-folder-cases')));
+    // What the «Кейсы» tab shows.
+    await tester.pumpWidget(
+      uxApp(
+        const Scaffold(
+          body: ConversationsView(
+            folder: ChatListFolder.cases,
+            showFolders: false,
+          ),
+        ),
+        size: const Size(360, 800),
+        theme: AppTheme.light(),
+        disableAnimations: true,
+        textScale: 1.1,
+        overrides: uxOverrides(
+          extra: [
+            chatRepositoryProvider.overrideWithValue(repo),
+            groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
+            currentUserIdProvider.overrideWithValue('me'),
+            realtimeClientProvider.overrideWithValue(null),
+          ],
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(repo.folders, contains(ChatListFolder.cases));
     expect(find.byKey(const ValueKey('chat-awaiting-a')), findsOneWidget);

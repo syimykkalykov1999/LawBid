@@ -13,6 +13,7 @@ class ChatsFilterRow extends StatelessWidget {
     this.leading,
     this.trailing,
     this.openSignal = 0,
+    this.showFolders = true,
     super.key,
   });
 
@@ -24,6 +25,10 @@ class ChatsFilterRow extends StatelessWidget {
   final Widget? trailing;
   final int openSignal;
 
+  /// Owner 2026-11-18: false on the «Кейсы» tab — no chips; the row takes
+  /// room only while the search is open.
+  final bool showFolders;
+
   /// The bar's height in both states.
   static const double height = ChipsSearchRow.height;
 
@@ -34,7 +39,10 @@ class ChatsFilterRow extends StatelessWidget {
         // floating button — nothing at the row's end.
         trailing: trailing ?? const SizedBox.shrink(),
         openSignal: openSignal,
-        chips: ChatFolderPills(value: folder, onChanged: onFolder),
+        hideWhenClosed: !showFolders,
+        chips: showFolders
+            ? ChatFolderPills(value: folder, onChanged: onFolder)
+            : const SizedBox.shrink(),
         hintKey: 'chat.search.hint',
         query: query,
         onQuery: onQuery,
