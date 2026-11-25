@@ -17,6 +17,8 @@ import { ChatActionsService } from './chat-actions.service';
 import { ChatService } from './chat.service';
 import { ChatTranslationService } from './chat-translation.service';
 import { TranslationCoreModule } from '../translation/translation.module';
+import { E2eeController } from './e2ee/e2ee.controller';
+import { E2eeService } from './e2ee/e2ee.service';
 
 /** docs/05 §8 chats REST (stage 5.7); realtime in RealtimeModule. */
 @Module({
@@ -35,8 +37,10 @@ import { TranslationCoreModule } from '../translation/translation.module';
     // Owner 2026-10-21: a post shared into a chat (Instagram).
     PostsModule,
   ],
-  controllers: [ChatController, ChatActionsController],
+  // Item 25: the MLS Delivery Service of end-to-end encrypted chats.
+  controllers: [ChatController, ChatActionsController, E2eeController],
   providers: [
+    E2eeService,
     ChatService,
     ChatTranslationService,
     ChatActionsService,

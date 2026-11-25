@@ -57,6 +57,10 @@ export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   NotificationQuietHours: ['user_id'],
   PushToken: ['user_id'],
   VoipToken: ['user_id'],
+  // Item 25 (E2EE): the person's MLS devices (their KeyPackages go with
+  // them, FK cascade) and their places in chat groups.
+  MlsDevice: ['user_id'],
+  MlsGroupDevice: ['user_id'],
   SavedItem: ['user_id'],
   SavedChatMessage: ['user_id'],
   QuickReply: ['user_id'],

@@ -973,6 +973,43 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'off | on | auto (default). Link cards in chat; the per-person daily cap is chat.link_preview_per_user_per_day.',
     pattern: /^(off|on|auto)$/,
   };
+  // Item 25 (owner 25.11): end-to-end encrypted chats on MLS.
+  out['chat.e2ee_mode'] = {
+    ...out['chat.e2ee_mode'],
+    description:
+      'End-to-end encryption of chats (MLS): off | on | auto (default). auto = a chat is encrypted once every member has an app with MLS keys; on = every chat that may be encrypted; off = no new encrypted messages (old ones stay readable on the phones).',
+    pattern: /^(off|on|auto)$/,
+  };
+  for (const [key, max, text] of [
+    ['chat.e2ee_max_devices', 100, 'MLS devices per account (0 = no cap).'],
+    [
+      'chat.e2ee_key_packages_target',
+      1000,
+      'One-time MLS KeyPackages each device keeps on the server.',
+    ],
+    [
+      'chat.e2ee_max_group_members',
+      100_000,
+      'People in an encrypted conversation (0 = no cap).',
+    ],
+    [
+      'chat.e2ee_report_messages',
+      100,
+      'How many of the reported person’s last messages an encrypted-chat report carries.',
+    ],
+    [
+      'chat.e2ee_welcome_keep_days',
+      365,
+      'Days an undelivered MLS Welcome is kept.',
+    ],
+  ] as const) {
+    out[key] = { ...out[key], description: text, min: 0, max };
+  }
+  out['chat.e2ee_after_unlock'] = {
+    ...out['chat.e2ee_after_unlock'],
+    description:
+      'A case chat is encrypted end to end only after its contacts are unlocked (contact masking before acceptance needs the server to see the text).',
+  };
   // Owner 2026-10-28: address suggestions while typing.
   out['addresses.autocomplete_enabled'] = {
     ...out['addresses.autocomplete_enabled'],
