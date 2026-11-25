@@ -29,6 +29,7 @@ import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show PickedChatFile, droppedChatFiles;
 import 'package:lawbid/features/chat/presentation/chat_list_controller.dart';
+import 'package:lawbid/features/chat/presentation/edit_draft_aside.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
 import 'package:lawbid/features/chat/presentation/in_chat_search.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart'
@@ -111,8 +112,9 @@ class _GroupConversationScreenState
   /// topic) survives leaving the chat and killing the app.
   String get _draftKey => groupDraftKey(widget.groupId, widget.topicId);
 
-  /// The draft that waits while an old message is being edited.
-  String _heldDraft = '';
+  /// The draft (and the quoted message) that wait while an old message is
+  /// edited - the 1:1 chat's keeper (ROUND1 25.11 rows 13, 30).
+  final _heldDraft = EditDraftAside<api.GroupMessageDto>();
 
   void _saveDraft() {
     // The field holds the edited message's text then, not a draft.
@@ -125,8 +127,11 @@ class _GroupConversationScreenState
   void _stopEditing() {
     if (_editing == null) return;
     _editing = null;
-    final held = _heldDraft;
-    _heldDraft = '';
+    final aside = _heldDraft.release();
+    // The quote that was open before «Изменить» is back (1:1), unless
+    // «Ответить» on another message is what ends the edit.
+    _replyTo ??= aside.quote;
+    final held = aside.text;
     if (held.isEmpty) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _editing == null && _text.text.isEmpty) {
@@ -652,8 +657,9 @@ class _GroupConversationScreenState
         setState(() => _selected = {m.id});
       case GroupMessageAction.edit:
         // The unsent text waits while an old message is edited, and comes
-        // back in the field afterwards (WhatsApp).
-        _heldDraft = _text.text;
+        // back in the field afterwards (WhatsApp). A second message picked
+        // for editing keeps the draft already aside (ROUND1 25.11 row 13).
+        _heldDraft.hold(_text.text, quote: _replyTo);
         setState(() {
           _editing = m;
           _replyTo = null;

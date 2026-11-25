@@ -157,6 +157,8 @@ export type RealtimeEvent =
   | 'channel:post'
   | 'channel:update'
   | 'comment:new'
+  // Pack B (25.11): a comment under that post was deleted.
+  | 'comment:deleted'
   | 'badge:update'
   // Owner row 87 (16.11): the call hotline — an offer to an attorney and its
   // end, the line on/off, the client's request status, «Адвокат на линии»,

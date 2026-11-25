@@ -18,19 +18,31 @@ import 'package:material_ui/material_ui.dart';
 
 /// Enters [session] (created, re-entered, or redeemed by code) and leaves
 /// whatever screen the user is on. Errors are shown with [context] if it
-/// is still mounted.
-Future<void> enterDemoAndGo(
-  BuildContext context,
-  WidgetRef ref,
-  DemoSession session,
-) async {
+/// is still mounted, else on the root navigator.
+///
+/// Round 1 check 25.11 №29 (as №1, `toggleBlock`): the demo sheets close
+/// themselves and then call this with their own context. Their `WidgetRef`
+/// is disposed with the sheet (Riverpod 3: «Cannot use ref after the widget
+/// was disposed»), so a sign-in longer than the 250 ms slide-out lost the
+/// move to the feed silently. The providers are read through the app's
+/// [ProviderContainer], taken from [context] while it is still mounted.
+Future<void> enterDemoAndGo(BuildContext context, DemoSession session) async {
+  final container = ProviderScope.containerOf(context, listen: false);
+  final router = container.read(appRouterProvider);
   try {
-    await ref.read(demoSessionControllerProvider.notifier).enterDemo(session);
-    await awaitCurrentUser(ref);
-    ref.read(appRouterProvider).go(AppRoutes.feed);
+    await container
+        .read(demoSessionControllerProvider.notifier)
+        .enterDemo(session);
+    await _ensureCurrentUser(
+      container.read(currentUserControllerProvider.notifier),
+    );
+    router.go(AppRoutes.feed);
   } catch (e) {
-    if (context.mounted) {
-      showAppSnackBar(context, errorText(ref.read(translatorProvider), e));
+    final shown = context.mounted
+        ? context
+        : router.routerDelegate.navigatorKey.currentContext;
+    if (shown != null && shown.mounted) {
+      showAppSnackBar(shown, errorText(container.read(translatorProvider), e));
     }
   }
 }
@@ -53,9 +65,12 @@ Future<void> exitDemoAndGo(BuildContext context, WidgetRef ref) async {
 
 /// Waits for `GET /users/me` of the session now in memory (best effort —
 /// a failure leaves the guard to show the splash with Retry).
-Future<void> awaitCurrentUser(WidgetRef ref) async {
+Future<void> awaitCurrentUser(WidgetRef ref) =>
+    _ensureCurrentUser(ref.read(currentUserControllerProvider.notifier));
+
+Future<void> _ensureCurrentUser(CurrentUserController user) async {
   try {
-    await ref.read(currentUserControllerProvider.notifier).ensureLoaded();
+    await user.ensureLoaded();
   } catch (_) {}
 }
 
