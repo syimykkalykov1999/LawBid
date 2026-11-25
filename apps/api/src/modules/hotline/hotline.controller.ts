@@ -33,6 +33,7 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
+import { RequireLegalAcceptance } from '../legal-documents/legal-acceptance.guard';
 import { assertHotlineOn } from './hotline-access';
 import {
   HotlineAcceptingDto,
@@ -42,14 +43,19 @@ import {
   HotlineDisclosureDto,
   HotlineCountersDto,
   HotlineEndDto,
+  HotlineHeartbeatDto,
   HotlineLanguagesDto,
   HotlineLineDto,
   HotlineLineViewDto,
   HotlineClaimDto,
   HotlineNotifyMeDto,
+  HotlineOfferCaseDto,
+  HotlineOfferCaseResultDto,
   HotlineOfferResultDto,
+  HotlineOkDto,
   HotlineRequestDto,
   HotlineRequestViewDto,
+  HotlineReviewDto,
 } from './hotline.dto';
 import { HotlineService } from './hotline.service';
 
@@ -151,16 +157,20 @@ export class HotlineController {
   @ApiOperation({
     summary: 'REST fallback of the socket `hotline:heartbeat` (screen open)',
   })
-  @ApiEnvelopeResponse(HotlineEndDto)
+  @ApiEnvelopeResponse(HotlineHeartbeatDto)
   @ApiErrors(OFF)
   async hotlineHeartbeat(
     @CurrentUser() user: RequestUser,
-  ): Promise<HotlineEndDto> {
+  ): Promise<HotlineHeartbeatDto> {
     await assertHotlineOn({
       isEnabled: () => this.hotline.enabled(),
     });
     const res = await this.hotline.heartbeat(user.sub);
-    return { ok: res.line !== false, seconds: 0 };
+    return {
+      ok: res.line !== false,
+      seconds: 0,
+      ...(res.waiting !== undefined ? { waiting: res.waiting } : {}),
+    };
   }
 
   @Post('offers/:id/accept')
@@ -299,6 +309,66 @@ export class HotlineController {
       dto.timeZone,
       dto.allowNight === true,
     );
+  }
+
+  @Post('requests/:id/offer-case')
+  @RequireLegalAcceptance()
+  @ApiOperation({
+    summary:
+      '«Предложить дело»: our case from the call, offered to its attorney (one per call)',
+  })
+  @ApiEnvelopeResponse(HotlineOfferCaseResultDto, {
+    status: HttpStatus.CREATED,
+  })
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR, ErrorCode.CASE_CONTAINS_CONTACT_INFO],
+    403: [
+      ErrorCode.FEATURE_DISABLED,
+      ErrorCode.FORBIDDEN,
+      ErrorCode.CLIENT_CONTACTS_INCOMPLETE,
+      ErrorCode.ONBOARDING_INCOMPLETE,
+      ErrorCode.CLIENT_CONTACT_SHARING_CONSENT_REQUIRED,
+      ErrorCode.COUNTRY_NOT_AVAILABLE,
+      ErrorCode.LEGAL_REACCEPT_REQUIRED,
+    ],
+    404: [ErrorCode.NOT_FOUND],
+    409: [
+      ErrorCode.INVITE_ATTORNEY_UNAVAILABLE,
+      ErrorCode.CASE_INVALID_STATE,
+      ErrorCode.BID_ALREADY_EXISTS,
+    ],
+    429: [ErrorCode.RATE_LIMITED],
+  })
+  hotlineOfferCase(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: HotlineOfferCaseDto,
+    @Req() req: Request,
+  ): Promise<HotlineOfferCaseResultDto> {
+    return this.hotline.offerCase(user, id, dto, {
+      ip: req.ip,
+      userAgent: req.header('user-agent'),
+      deviceId: req.header('x-device-id'),
+    });
+  }
+
+  @Post('requests/:id/review')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: '«Как прошёл разговор?» (client, first answer wins)',
+  })
+  @ApiEnvelopeResponse(HotlineOkDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    403: [ErrorCode.FEATURE_DISABLED, ErrorCode.FORBIDDEN],
+    404: [ErrorCode.NOT_FOUND],
+  })
+  hotlineReview(
+    @CurrentUser() user: RequestUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: HotlineReviewDto,
+  ): Promise<HotlineOkDto> {
+    return this.hotline.review(user, id, dto);
   }
 
   @Post('requests/:id/claim')
