@@ -508,6 +508,33 @@ class _CallScreenState extends ConsumerState<CallScreen>
           ],
         ),
       );
+    } else if (addon?.stage case final stage?) {
+      picture = Stack(
+        fit: StackFit.expand,
+        children: [
+          const CallAudioBackdrop(),
+          CallPhotoBackdrop(url: peer?.avatarUrl),
+          stage(
+            context,
+            peer: peer,
+            bottomInset: sheetHeight,
+            clock: _CallClock(
+              session: s,
+              builder: (context, status) => Text(
+                status,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: type.body.copyWith(
+                  color: AppCallColors.onStage,
+                  fontSize: CallTextSizes.bigStatus,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
     } else {
       picture = Stack(
         fit: StackFit.expand,
@@ -638,10 +665,12 @@ class _CallScreenState extends ConsumerState<CallScreen>
                   // channel's video call keeps the plain camera pause.
                   // Owner 18.11: no camera button while video calls are
                   // off (`video_calls`) — unless this call began as video or
-                  // our camera is still on (it can go off).
-                  showVideo: videoCallsOn ||
-                      (s.call?.video ?? false) ||
-                      (s.video && s.cameraOn),
+                  // our camera is still on (it can go off). Row 87: a call
+                  // with an add-on (the hotline) is voice only.
+                  showVideo: addon == null &&
+                      (videoCallsOn ||
+                          (s.call?.video ?? false) ||
+                          (s.video && s.cameraOn)),
                   onVideo: c.canSwitchVideo
                       ? () => _videoTap(c, s, c.toggleVideo)
                       : s.video && s.busy

@@ -60,3 +60,23 @@ test('planPublish refuses a mass delete (an empty answer must not wipe the pages
   const r = planPublish({ files: {}, prev: { files }, today: '2026-10-27' });
   assert.equal(r.massDelete, true);
 });
+
+// Pack F (25.11, ROUND5 F6/F9): the footer links go to the light static
+// legal pages (/terms/, /privacy/: in the sitemap, indexable), not to the
+// app's noindex screens /legal/terms and /legal/privacy; the directory
+// home's breadcrumb starts at the site's home.
+test('footer links the static /terms/ and /privacy/ pages; the /lawyers/ crumbs start at /', () => {
+  const r = renderSite(attorneys, base);
+  for (const [path, html] of r.files) {
+    assert.match(html, /<a href="\/terms\/">Terms<\/a> · <a href="\/privacy\/">Privacy<\/a>/, path);
+    assert.doesNotMatch(html, /\/legal\/(terms|privacy)/, path);
+  }
+  const hub = r.files.get('/lawyers/');
+  const ld = [...hub.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+    .flatMap((m) => [JSON.parse(m[1])].flat())
+    .find((x) => x['@type'] === 'BreadcrumbList');
+  assert.deepEqual(
+    ld.itemListElement.map((c) => [c.name, c.item]),
+    [['Home', 'https://example.test/'], ['Lawyers', 'https://example.test/lawyers/']],
+  );
+});

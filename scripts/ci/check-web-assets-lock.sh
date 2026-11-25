@@ -59,4 +59,41 @@ if [ -z "$PAGE_JS" ] || [ "$PAGE_JS" != "$SW_JS" ]; then
 else
   echo "ok  push worker Firebase JS $SW_JS == firebase_core_web $CORE_WEB"
 fi
+
+# Pack F (25.11, ROUND5 F1): the app's CSP allows firebase_core_web's inline
+# loader scripts by their sha256 (infra/modules/web/main.tf,
+# flutterfire_script_hashes). The text is the package's injectSrcScript
+# template (both forms: Trusted Types and plain) with the service and the
+# Firebase JS URL filled in, so a FlutterFire bump changes the hashes; then
+# copy the printed list into main.tf (and terraform apply).
+CORE_FILE="$(dirname "$SDK_FILE")/firebase_core_web.dart"
+if ! python3 - "$CORE_FILE" "$PAGE_JS" infra/modules/web/main.tf <<'PY'
+import base64, hashlib, re, sys
+core, js, tf = sys.argv[1], sys.argv[2], open(sys.argv[3], encoding="utf-8").read()
+src = open(core, encoding="utf-8").read()
+blocks = [b for b in re.findall(r"'''(.*?)'''", src, re.S) if "ff_trigger_$windowVar" in b]
+if len(blocks) != 2:
+    sys.exit(f"{core}: expected 2 loader templates, found {len(blocks)}")
+missing = []
+for b in blocks:
+    # Dart drops the first line of a ''' string when it is only whitespace.
+    first, _, rest = b.partition("\n")
+    if first.strip() == "":
+        b = rest
+    for var, name in (("firebase_core", "app"), ("firebase_app_check", "app-check"), ("firebase_messaging", "messaging")):
+        url = f"https://www.gstatic.com/firebasejs/{js}/firebase-{name}.js"
+        text = b.replace("$windowVar", var).replace("$stringUrl", url)
+        h = "'sha256-" + base64.b64encode(hashlib.sha256(text.encode()).digest()).decode() + "'"
+        print(f"    \"{h}\", # {var}")
+        if h not in tf:
+            missing.append(h)
+if missing:
+    sys.exit("main.tf flutterfire_script_hashes lacks: " + " ".join(missing))
+PY
+then
+  echo "::error file=infra/modules/web/main.tf::flutterfire_script_hashes do not match firebase_core_web $CORE_WEB (Firebase JS $PAGE_JS); put the hashes printed above there"
+  fail=1
+else
+  echo "ok  CSP hashes of the FlutterFire loader == firebase_core_web $CORE_WEB"
+fi
 exit "$fail"
