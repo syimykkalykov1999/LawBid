@@ -21,6 +21,7 @@
 | privacy.anonymize | сам аккаунт (не обезличивается) |
 | sessions.cleanup | сессии и устройства |
 | notifications.retention | уведомления |
+| push.tokens-stale | токены пушей устройств, не выходивших на связь `push.token_stale_days` дней |
 | journal.retention | журнал кейса (по кейсу и по сторонам) |
 | exports.cleanup | файлы выгрузки данных человека |
 | storage.retention | события входа (auth_events), активность, просмотры |

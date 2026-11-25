@@ -2240,6 +2240,12 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   /** S3-11: push notifications show the message text. Off = «Новое
    * сообщение»; Google and Apple then never see the text. */
   'push.chat_preview': true,
+  /** G10 (25.11, Firebase «Best practices for FCM registration token
+   * management»): a push token whose device has not checked in for this
+   * many days is deleted by the nightly `push.tokens-stale` job (FCM itself
+   * drops an Android token after 270 days offline). The app re-registers
+   * every 7 days while used. 0 = never delete. */
+  'push.token_stale_days': 270,
 };
 
 /** Owner 2026-10-25: case tools (invoices, signing, case comments). Every

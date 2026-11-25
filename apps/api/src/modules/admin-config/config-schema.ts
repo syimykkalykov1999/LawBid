@@ -1429,6 +1429,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 100,
     max: 50000,
   };
+  out['push.token_stale_days'] = {
+    ...out['push.token_stale_days'],
+    description:
+      'Push tokens: delete a device token not seen for this many days (nightly push.tokens-stale; Firebase: FCM drops an Android token after 270 days offline). 0 = never.',
+    min: 0,
+  };
   out['sessions.revoked_retention_days'] = {
     ...out['sessions.revoked_retention_days'],
     description:

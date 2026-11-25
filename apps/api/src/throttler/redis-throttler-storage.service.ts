@@ -14,8 +14,15 @@ import { ck } from '../redis/redis-cluster-safe';
  * per-process and wrong for a horizontally scaled deployment).
  * @nestjs/throttler v6 passes `ttl`/`blockDuration` in MILLISECONDS and
  * expects `timeToExpire`/`timeToBlockExpire` back in seconds.
- * Fixed-window counter: INCR + PEXPIRE NX in one MULTI (a key can never
- * be left without an expiry), no external package needed.
+ * G5 (docs/dev/STAGE2_ARCH_PERF_2026-11-25.md): SLIDING window, Cloudflare's
+ * formula ("How we built rate limiting capable of scaling to millions of
+ * domains", 2017; still the Rate Limiting rules' counting). Two counters,
+ * this fixed window and the previous one, and the previous one weighted by
+ * the part of it still inside the sliding window:
+ *   rate = prev * (window - elapsed) / window + current
+ * A plain fixed window lets 2 x limit through around the boundary (limit at
+ * the end of one window + limit at the start of the next); this does not.
+ * Each counter lives two windows (it is the "previous" one for the next).
  *
  * A block never outlives the blockDuration asked for now: builds before
  * 09c4f7e wrote `blockDuration * 1000` ms (60 s became ~16.7 h), and such
@@ -32,40 +39,67 @@ import { ck } from '../redis/redis-cluster-safe';
  * Load audit 6 (2026-10-23): the check used to be two round trips and six
  * Redis commands on EVERY request (PTTL block, MULTI, INCR, PEXPIRE, PTTL,
  * EXEC). One Lua call is one round trip and one command: at 300 000 requests
- * a second that is 1.8 M fewer Redis commands a second.
- * KEYS: hits, block. ARGV: ttl ms, limit, blockDuration ms.
- * Returns {hits, ttlMs, blocked(0/1), blockTtlMs}.
+ * a second that is 1.8 M fewer Redis commands a second. The sliding window
+ * stays one call (one more GET inside the script).
+ * KEYS: current window hits, previous window hits, block.
+ * ARGV: ttl ms, limit, blockDuration ms, ms elapsed in the current window.
+ * Returns {ceil(rate), msLeftInWindow, blocked(0/1), blockTtlMs}.
  */
 const THROTTLE_LUA = `
 local ttl = tonumber(ARGV[1])
 local limit = tonumber(ARGV[2])
 local block = tonumber(ARGV[3])
-local bt = redis.call('PTTL', KEYS[2])
+local elapsed = tonumber(ARGV[4])
+local left = ttl - elapsed
+local bt = redis.call('PTTL', KEYS[3])
 if bt > math.max(block, ttl) then
-  redis.call('DEL', KEYS[2])
+  redis.call('DEL', KEYS[3])
   bt = 0
 end
 if bt > 0 then
-  return {limit + 1, redis.call('PTTL', KEYS[1]), 1, bt}
+  return {limit + 1, left, 1, bt}
 end
-local hits = redis.call('INCR', KEYS[1])
+local cur = redis.call('INCR', KEYS[1])
 if redis.call('PTTL', KEYS[1]) < 0 then
-  redis.call('PEXPIRE', KEYS[1], ttl)
+  redis.call('PEXPIRE', KEYS[1], 2 * ttl)
 end
-local t = redis.call('PTTL', KEYS[1])
-if hits > limit and block > 0 then
-  redis.call('SET', KEYS[2], '1', 'PX', block)
-  return {hits, t, 1, block}
+local prev = tonumber(redis.call('GET', KEYS[2]) or '0')
+local rate = prev * left / ttl + cur
+local hits = math.ceil(rate)
+if rate > limit and block > 0 then
+  redis.call('SET', KEYS[3], '1', 'PX', block)
+  return {hits, left, 1, block}
 end
-return {hits, t, 0, 0}`;
+return {hits, left, 0, 0}`;
 
 type ThrottleCommand = (
-  hitsKey: string,
+  curKey: string,
+  prevKey: string,
   blockKey: string,
   ttl: number,
   limit: number,
   block: number,
+  elapsed: number,
 ) => Promise<[number, number, number, number]>;
+
+/** The fixed window `now` falls in, and the ms already spent in it. */
+export function slidingWindowAt(
+  now: number,
+  ttl: number,
+): { window: number; elapsed: number } {
+  const window = Math.floor(now / ttl);
+  return { window, elapsed: now - window * ttl };
+}
+
+/** Cloudflare's estimate: the previous window weighted by its overlap. */
+export function slidingRate(
+  prev: number,
+  cur: number,
+  elapsed: number,
+  ttl: number,
+): number {
+  return (prev * (ttl - elapsed)) / ttl + cur;
+}
 
 @Injectable()
 export class RedisThrottlerStorageService implements ThrottlerStorage {
@@ -119,7 +153,9 @@ export class RedisThrottlerStorageService implements ThrottlerStorage {
     };
     if (typeof r.defineCommand !== 'function') return undefined;
     if (!r.lbThrottle) {
-      r.defineCommand('lbThrottle', { numberOfKeys: 2, lua: THROTTLE_LUA });
+      // ioredis runs it by its SHA: a task of the previous release keeps
+      // its own two-key script during a rolling deploy, no clash.
+      r.defineCommand('lbThrottle', { numberOfKeys: 3, lua: THROTTLE_LUA });
     }
     return r.lbThrottle?.bind(this.redis);
   }
@@ -135,15 +171,20 @@ export class RedisThrottlerStorageService implements ThrottlerStorage {
     const tag = `thr:${throttlerName}:${key}`.replace(/[{}]/g, '');
     const hitsKey = ck(tag, `throttle:${throttlerName}:${key}`);
     const blockKey = ck(tag, `throttle-block:${throttlerName}:${key}`);
+    const { window, elapsed } = slidingWindowAt(Date.now(), ttl);
+    const curKey = `${hitsKey}:w${window}`;
+    const prevKey = `${hitsKey}:w${window - 1}`;
 
     const lua = this.luaCommand();
     if (lua) {
       const [hits, ttlMs, blocked, blockTtlMs] = await lua(
-        hitsKey,
+        curKey,
+        prevKey,
         blockKey,
         ttl,
         limit,
         blockDuration,
+        elapsed,
       );
       return {
         totalHits: Number(hits),
@@ -158,10 +199,11 @@ export class RedisThrottlerStorageService implements ThrottlerStorage {
       await this.redis.del(blockKey);
       blockTtlMs = 0;
     }
+    const leftMs = ttl - elapsed;
     if (blockTtlMs > 0) {
       return {
         totalHits: limit + 1,
-        timeToExpire: Math.ceil((await this.redis.pttl(hitsKey)) / 1000),
+        timeToExpire: Math.ceil(leftMs / 1000),
         isBlocked: true,
         timeToBlockExpire: Math.ceil(blockTtlMs / 1000),
       };
@@ -169,19 +211,21 @@ export class RedisThrottlerStorageService implements ThrottlerStorage {
 
     const res = await this.redis
       .multi()
-      .incr(hitsKey)
-      .pexpire(hitsKey, ttl, 'NX')
-      .pttl(hitsKey)
+      .incr(curKey)
+      .pexpire(curKey, 2 * ttl, 'NX')
+      .pttl(curKey)
       .exec();
     if (!res || res.some(([err]) => err)) {
       throw res?.find(([err]) => err)?.[0] ?? new Error('MULTI aborted');
     }
-    const totalHits = Number(res[0][1]);
-    const ttlMs = Number(res[2][1]);
+    const prev = Number((await this.redis.get(prevKey)) ?? 0);
+    const rate = slidingRate(prev, Number(res[0][1]), elapsed, ttl);
+    const totalHits = Math.ceil(rate);
+    const ttlMs = leftMs;
 
     let isBlocked = false;
     let timeToBlockExpire = 0;
-    if (totalHits > limit && blockDuration > 0) {
+    if (rate > limit && blockDuration > 0) {
       isBlocked = true;
       timeToBlockExpire = Math.ceil(blockDuration / 1000);
       await this.redis.set(blockKey, '1', 'PX', blockDuration);
