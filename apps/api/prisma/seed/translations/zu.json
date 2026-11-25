@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Ifayela",
   "chat.attach.photo": "Isithombe",
   "chat.attach.photos": "Umtapo wezithombe",
+  "chat.attach.removed": "Ifayela lisusiwe: alizange liphumelele ekuhlolweni kokuphepha",
   "chat.attach.skipped": "{count} akufakiwe: ifomethi engasekelwe noma ngaphezu kwe-{max} MB",
   "chat.attach.template": "Ithempulethi yedokhumenti",
   "chat.attach.video": "Ividiyo",

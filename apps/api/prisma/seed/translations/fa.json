@@ -1261,6 +1261,7 @@
   "chat.attach.label": "فایل",
   "chat.attach.photo": "عکس",
   "chat.attach.photos": "کتابخانه عکس",
+  "chat.attach.removed": "فایل حذف شد: از بررسی امنیتی عبور نکرد",
   "chat.attach.skipped": "{count} افزوده نشد: قالب پشتیبانی‌نشده یا بیشتر از {max} MB",
   "chat.attach.template": "الگوی سند",
   "chat.attach.video": "ویدیو",

@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Soubor",
   "chat.attach.photo": "Fotografie",
   "chat.attach.photos": "Knihovna fotografií",
+  "chat.attach.removed": "Soubor odstraněn: neprošel bezpečnostní kontrolou",
   "chat.attach.skipped": "Nepřidáno: {count}. Nepodporovaný formát nebo více než {max} MB",
   "chat.attach.template": "Šablona dokumentu",
   "chat.attach.video": "Video",

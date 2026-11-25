@@ -512,7 +512,9 @@ class AttachmentMessageBody extends ConsumerWidget {
 
     final Widget content;
     var captionWidth = 240.0;
-    if (a.isVideo) {
+    if (a.removed) {
+      content = ChatRemovedFileRow(fg: fg);
+    } else if (a.isVideo) {
       // Owner 2026-10-17 (WhatsApp): first frame, play button, length.
       final box = chatMediaBox(context, a);
       content = ChatVideoTile(
@@ -609,6 +611,39 @@ class AttachmentMessageBody extends ConsumerWidget {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// M3 (owner 25.11, Slack / Telegram): the antivirus refused the file (or it
+/// is gone) — the same quiet line as a deleted message, for everyone, in
+/// 1:1, case and group chats.
+class ChatRemovedFileRow extends ConsumerWidget {
+  const ChatRemovedFileRow({required this.fg, super.key});
+
+  final Color fg;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final color = fg.withValues(alpha: 0.7);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AppIcon(AppIcons.blockRounded, size: 15, color: color),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            t.t('chat.attach.removed'),
+            style: type.body.copyWith(
+              color: color,
+              fontStyle: FontStyle.italic,
+              height: 1.35,
+            ),
+          ),
+        ),
       ],
     );
   }

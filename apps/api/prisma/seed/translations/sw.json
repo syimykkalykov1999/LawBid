@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Faili",
   "chat.attach.photo": "Picha",
   "chat.attach.photos": "Maktaba ya picha",
+  "chat.attach.removed": "Faili imeondolewa: haikupita ukaguzi wa usalama",
   "chat.attach.skipped": "{count} hazikuongezwa: umbizo lisilotumika au zaidi ya {max} MB",
   "chat.attach.template": "Kiolezo cha hati",
   "chat.attach.video": "Video",

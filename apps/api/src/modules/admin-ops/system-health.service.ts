@@ -28,6 +28,7 @@ import {
 import { PartitionService } from '../../partitioning/partition.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { cdcLight, readCdcStatus } from '../cache-cdc/cdc-status';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import { S3StorageService } from '../files/storage/s3-storage.service';
 import { DRILL_STALE_DAYS, RestoreDrillService } from './restore-drill.service';
@@ -177,6 +178,7 @@ export class SystemHealthService implements OnModuleInit, OnModuleDestroy {
       this.safe('restore_drill', () => this.restoreDrill(now)),
       this.safe('table_growth', () => this.tableGrowth()),
       this.safe('shard_growth', () => this.shardGrowth()),
+      this.safe('cache_cdc', () => this.cacheCdc(now)),
     ]);
     // One Promise.all: a failing settings read rejects the build as before,
     // never as an unhandled rejection while the probes are still running.
@@ -419,6 +421,24 @@ export class SystemHealthService implements OnModuleInit, OnModuleDestroy {
     } catch {
       return { status: 'grey', detail: {} };
     }
+  }
+
+  /** C2 (25.11): cache invalidation from the database change log — the
+   * worker writes its status every 30 s (modules/cache-cdc). */
+  private async cacheCdc(now: Date): Promise<Omit<HealthItemDto, 'key'>> {
+    const status = await readCdcStatus(this.redis);
+    return {
+      status: cdcLight(status, now.getTime()),
+      detail: status
+        ? {
+            mode: status.mode,
+            at: status.at,
+            lagAlarmSec: status.lagAlarmSec,
+            maxSlotWalMb: status.maxSlotWalMb,
+            dbs: status.dbs,
+          }
+        : {},
+    };
   }
 
   private async redisItem(): Promise<Omit<HealthItemDto, 'key'>> {

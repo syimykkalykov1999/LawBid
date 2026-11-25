@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fayl",
   "chat.attach.photo": "Sawir",
   "chat.attach.photos": "Maktabadda sawirrada",
+  "chat.attach.removed": "Faylka waa la saaray: kuma gudbin hubinta amniga",
   "chat.attach.skipped": "{count} lama soo darin: qaab aan la taageerin ama ka weyn {max} MB",
   "chat.attach.template": "Qaabka dukumentiga",
   "chat.attach.video": "Muuqaal",

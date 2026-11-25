@@ -309,6 +309,12 @@
         "aws-break-glass"
       ]
     },
+    "cache-cdc.md": {
+      "owner": true,
+      "guides": [
+        "cache-cdc"
+      ]
+    },
     "cost.md": {
       "owner": false,
       "guides": [

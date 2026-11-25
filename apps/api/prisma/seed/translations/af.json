@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Lêer",
   "chat.attach.photo": "Foto",
   "chat.attach.photos": "Fotobiblioteek",
+  "chat.attach.removed": "Lêer verwyder: dit het die sekuriteitstoets gedruip",
   "chat.attach.skipped": "{count} nie bygevoeg nie: formaat word nie ondersteun nie of meer as {max} MB",
   "chat.attach.template": "Dokumentsjabloon",
   "chat.attach.video": "Video",

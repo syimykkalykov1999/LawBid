@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Faýl",
   "chat.attach.photo": "Surat",
   "chat.attach.photos": "Surat kitaphanasy",
+  "chat.attach.removed": "Faýl aýryldy: howpsuzlyk barlagyndan geçmedi",
   "chat.attach.skipped": "{count} goşulmady: goldanylmaýan format ýa-da {max} MB-dan uly",
   "chat.attach.template": "Resminama şablony",
   "chat.attach.video": "Wideo",

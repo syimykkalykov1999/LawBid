@@ -7,6 +7,8 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/platform/web_context_menu.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
+    show ChatRemovedFileRow;
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart'
@@ -136,6 +138,7 @@ class GroupMessageBubble extends ConsumerWidget {
     // A photo without a caption: a thin frame with the time on it.
     final media = !m.deleted &&
         a != null &&
+        !a.removed &&
         (a.isImage || a.isVideo) &&
         m.body.trim().isEmpty &&
         m.replyTo == null &&
@@ -515,7 +518,9 @@ class _AttachmentBody extends ConsumerWidget {
     final a = attachment;
     var captionWidth = 240.0;
     final Widget content;
-    if (a.isVideo) {
+    if (a.removed) {
+      content = ChatRemovedFileRow(fg: fg);
+    } else if (a.isVideo) {
       final box = chatMediaBox(context, a);
       content = ChatVideoTile(
         attachment: a,

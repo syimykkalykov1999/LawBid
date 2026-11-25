@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Файл",
   "chat.attach.photo": "Фото",
   "chat.attach.photos": "Фотокітапхана",
+  "chat.attach.removed": "Файл жойылды: қауіпсіздік тексеруінен өтпеді",
   "chat.attach.skipped": "{count} қосылмады: қолдау көрсетілмейтін пішім немесе {max} МБ-тан асады",
   "chat.attach.template": "Құжат үлгісі",
   "chat.attach.video": "Видео",

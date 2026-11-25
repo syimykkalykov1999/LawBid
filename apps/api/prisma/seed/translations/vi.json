@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Tệp",
   "chat.attach.photo": "Ảnh",
   "chat.attach.photos": "Thư viện ảnh",
+  "chat.attach.removed": "Đã xóa tệp: tệp không vượt qua kiểm tra bảo mật",
   "chat.attach.skipped": "{count} tệp chưa được thêm: định dạng không được hỗ trợ hoặc vượt quá {max} MB",
   "chat.attach.template": "Mẫu tài liệu",
   "chat.attach.video": "Video",

@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Датотека",
   "chat.attach.photo": "Фотографија",
   "chat.attach.photos": "Библиотека фотографија",
+  "chat.attach.removed": "Датотека уклоњена: није прошла безбедносну проверу",
   "chat.attach.skipped": "Није додато: {count}. Неподржан формат или више од {max} MB",
   "chat.attach.template": "Шаблон документа",
   "chat.attach.video": "Видео",

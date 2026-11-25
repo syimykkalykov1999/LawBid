@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fails",
   "chat.attach.photo": "Fotoattēls",
   "chat.attach.photos": "Fotoattēlu bibliotēka",
+  "chat.attach.removed": "Fails noņemts: tas neizturēja drošības pārbaudi",
   "chat.attach.skipped": "Nepievienots: {count}. Neatbalstīts formāts vai lielāks par {max} MB",
   "chat.attach.template": "Dokumenta veidne",
   "chat.attach.video": "Video",

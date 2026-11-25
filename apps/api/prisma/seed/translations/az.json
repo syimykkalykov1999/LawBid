@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fayl",
   "chat.attach.photo": "Şəkil",
   "chat.attach.photos": "Foto kitabxanası",
+  "chat.attach.removed": "Fayl silindi: təhlükəsizlik yoxlamasından keçmədi",
   "chat.attach.skipped": "{count} əlavə edilmədi: dəstəklənməyən format və ya {max} MB-dan böyük",
   "chat.attach.template": "Sənəd şablonu",
   "chat.attach.video": "Video",

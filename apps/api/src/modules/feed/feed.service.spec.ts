@@ -71,6 +71,7 @@ const postOf = (id: string, author = `author-${id}`) => ({
 function build(opts: {
   redis: ReturnType<typeof fakeRedis>;
   stored?: Record<string, number>;
+  timeline?: { followed: jest.Mock };
 }) {
   const findMany = jest.fn(
     (args: { where: { id?: { in: string[] }; AND?: unknown } }) =>
@@ -124,6 +125,7 @@ function build(opts: {
     undefined,
     undefined,
     settings as never,
+    opts.timeline as never,
   );
   return { svc, prisma, presenter };
 }
@@ -589,5 +591,62 @@ describe('FeedService refresh order (18.11)', () => {
     // p1 was seen on an earlier visit: may show again lower down.
     expect(ex).toContain('p0');
     expect(ex).not.toContain('p1');
+  });
+});
+
+describe('FeedService precomputed timeline (item 23, F1)', () => {
+  const at = (m: number) =>
+    new Date(Date.parse('2026-11-25T12:00:00Z') - m * 60_000);
+  const row = (id: string, m: number) => ({
+    id,
+    author_id: 'att-1',
+    created_at: at(m),
+  });
+
+  it('takes the followed stream from the timeline when it answers (no stream read)', async () => {
+    const followed = jest
+      .fn()
+      .mockResolvedValue([row('t1', 1), row('t2', 2), row('t3', 3)]);
+    const { svc, prisma } = build({
+      redis: fakeRedis({}),
+      timeline: { followed },
+    });
+    const since = new Date('2026-11-20T00:00:00Z');
+    prisma.follow.findMany.mockResolvedValue([
+      { followee_id: 'att-1', created_at: since },
+    ]);
+    const page = await svc.page(viewer, undefined, 10);
+    expect(page.items.slice(0, 3).map((p) => p.id)).toEqual(['t1', 't2', 't3']);
+    expect(streamWhere(prisma)).toBeUndefined();
+    const q = followed.mock.calls[0][0] as {
+      tokens: Map<string, string>;
+      shown: string[];
+      take: number;
+      after: unknown;
+      where: Record<string, unknown>;
+    };
+    // The follow token is the follow's time: a re-follow is a new token.
+    expect(q.tokens.get('att-1')).toBe(String(since.getTime()));
+    expect(q.tokens.get('viewer')).toBe('self');
+    expect(q.shown).toEqual(['att-1', 'viewer']);
+    expect(q.take).toBe(11);
+    expect(q.after).toBeNull();
+    // The post half of the visibility rule, never the author join.
+    expect(q.where).toMatchObject({ status: 'published', deleted_at: null });
+    expect(q.where.author).toBeUndefined();
+  });
+
+  it('a timeline that cannot answer (null) leaves the database read exactly as before', async () => {
+    const followed = jest.fn().mockResolvedValue(null);
+    const { svc, prisma } = build({
+      redis: fakeRedis({}),
+      timeline: { followed },
+    });
+    prisma.follow.findMany.mockResolvedValue([
+      { followee_id: 'att-1', created_at: new Date() },
+    ]);
+    await svc.page(viewer, undefined, 10);
+    expect(followed).toHaveBeenCalledTimes(1);
+    expect(streamWhere(prisma)?.author_id).toEqual({ in: ['att-1', 'viewer'] });
   });
 });

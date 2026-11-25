@@ -31,4 +31,24 @@ check "$(run deploy-past-wait)" 1 "a deploy rolling prod holds the rollback"
 echo '{"workflow_runs":[{"id":7,"status":"completed"}]}' > "$T/runs.json"
 check "$(run infra-active)" 0 "finished runs hold nothing"
 
+# Deploy speed 25.11: «Deploy production» jobs reach the job-level queue in run order.
+older() { GITHUB_RUN_ID=9 run older-deploys-queued; }
+echo '{"workflow_runs":[{"id":7,"status":"in_progress"}]}' > "$T/runs.json"
+echo '{"jobs":[{"name":"Wait for green CI","status":"in_progress"},{"name":"Deploy order (older releases queue first)","status":"queued"}]}' > "$T/7.json"
+check "$(older)" 1 "an older run still in its CI gate holds the newer prod job"
+echo '{"jobs":[{"name":"Wait for green CI","status":"in_progress"}]}' > "$T/7.json"
+check "$(older)" 1 "an older run whose order job is not listed yet (or an old-style run) holds"
+echo '{"jobs":[{"name":"Deploy order (older releases queue first)","status":"completed","completed_at":"2099-01-01T00:00:00Z"}]}' > "$T/7.json"
+check "$(older)" 1 "an older order job that just ended holds until its prod job is created"
+echo '{"jobs":[{"name":"Deploy order (older releases queue first)","status":"completed","completed_at":"2099-01-01T00:00:00Z"},{"name":"Deploy production (manual approval)","status":"waiting"}]}' > "$T/7.json"
+check "$(older)" 0 "an older prod job already in the queue (waiting) frees the newer"
+echo '{"jobs":[{"name":"Deploy order (older releases queue first)","status":"completed","completed_at":"2020-01-01T00:00:00.000Z"}]}' > "$T/7.json"
+check "$(older)" 0 "an older order job that ended long ago (prod job skipped) frees the newer"
+echo '{"jobs":[{"name":"Wait for green CI","status":"in_progress"}]}' > "$T/7.json"
+echo '{"workflow_runs":[{"id":11,"status":"in_progress"}]}' > "$T/runs.json"
+cp "$T/7.json" "$T/11.json"
+check "$(older)" 0 "a NEWER run never holds an older one (no deadlock)"
+echo '{"workflow_runs":[{"id":7,"status":"completed"}]}' > "$T/runs.json"
+check "$(older)" 0 "a finished older run holds nothing"
+
 echo "pass=$pass fail=$fail"; [ "$fail" = 0 ]

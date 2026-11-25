@@ -58,6 +58,8 @@ enum HealthItemDtoKey {
   tableGrowth('table_growth'),
   @JsonValue('shard_growth')
   shardGrowth('shard_growth'),
+  @JsonValue('cache_cdc')
+  cacheCdc('cache_cdc'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

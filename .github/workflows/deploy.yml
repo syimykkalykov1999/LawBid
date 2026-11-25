@@ -6,6 +6,9 @@
 # watches during the rollout (infra/modules/ecs, docs/runbooks/DEPLOY_SAFETY.md).
 # scripts/deploy/roll-services.sh fails this job when ECS rolled the release
 # back (rolloutState FAILED) or when it did not finish in ROLL_TIMEOUT_SECONDS.
+# X1 (25.11): when Terraform switched the api to the ECS built-in canary / linear
+# deployment (var.api_native_deploy), our canary step is skipped and the same
+# script waits for ECS's service deployment (SUCCESSFUL or rolled back) instead.
 # P1 supply chain: images are signed with cosign (keyless, GitHub OIDC) and get
 # an SPDX SBOM attestation; the prod job verifies the signature before it
 # touches anything. Repository variable SIGN_REQUIRED=true makes signing and
@@ -26,6 +29,7 @@
 #    contract migration, then roll api -> smoke (asserts the answering tasks run
 #    THIS tag) -> worker -> admin -> synthetic user flow; only then the tag is
 #    written to SSM as last_good_tag (Rollback's default target).
+#    (25.11: worker + admin roll while ECS still bakes the api, see below.)
 #  * any failure -> notify-failure.yml (issue + SNS alerts topic + chat webhook).
 #
 # Required repository/environment secrets (never in the repo):
@@ -59,9 +63,14 @@ permissions:
   id-token: write
   contents: read
 
-concurrency:
-  group: deploy
-  cancel-in-progress: false
+# Deploy speed (25.11, owner: «2,5 ч от слияния до прода»): one release at a
+# time is enforced on the PROD JOB (job-level `concurrency: deploy` below), not
+# on the whole run. The CI gate, the images, Trivy, signing and SBOM of a newer
+# commit now run WHILE an older release still rolls (before, the whole run
+# waited up to ~40 min in the queue and only then began its ~20 min of gate +
+# build). GitHub keeps one pending job per group and cancels the older pending
+# one (the same batching as before); the «Deploy order» job makes the prod jobs
+# join that queue in run order, so an older commit never replaces a newer one.
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -89,7 +98,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REQUIRE_GREEN_TIMEOUT: "10800"
-          REQUIRE_GREEN_POLL: "60"
+          # Deploy speed 25.11: 30 s (was 60 s, ~15 s less lost per release on
+          # average). Not lower: two gates may now run at once and GITHUB_TOKEN
+          # has 1,000 API requests per hour per repository (2 pages per poll).
+          REQUIRE_GREEN_POLL: "30"
         run: |
           scripts/ci/require-green.sh "$GITHUB_SHA" \
             '^(API |Admin CI|Build image \+ Trivy|gitleaks|CodeQL)' \
@@ -101,8 +113,11 @@ jobs:
   # repos, `ubuntu-24.04-arm`, GA 2025-08-07), pushed by digest only (no tag,
   # so the immutable ECR tags are untouched), and the `build` job below joins
   # the two digests into one multi-arch manifest list under the same tag.
+  # Deploy speed 25.11: one job per image AND architecture (api and admin used
+  # to build one after the other in the same job: 4m12 + 2m34 on amd64). Same
+  # Dockerfiles, build args, cache scopes and by-digest pushes as before.
   build-arch:
-    name: Build & push ${{ matrix.arch }}
+    name: Build & push ${{ matrix.app }} ${{ matrix.arch }}
     needs: [gate]
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
@@ -110,6 +125,8 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
+        app: [api, admin]
+        arch: [amd64, arm64]
         include:
           - arch: amd64
             runner: ubuntu-latest
@@ -136,9 +153,15 @@ jobs:
           fi
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
         if: steps.have.outputs.exists != 'true'
+        with:
+          # Deploy speed 25.11: the post step removed the builder for 38-54 s on a
+          # runner that is thrown away anyway.
+          cleanup: false
+      # cache-to ignore-error: builds of two commits may now overlap (job-level
+      # deploy queue); a cache export that loses the race must not fail the build.
       - name: Build & push api (linux/${{ matrix.arch }}, by digest)
         id: build_api
-        if: steps.have.outputs.exists != 'true'
+        if: steps.have.outputs.exists != 'true' && matrix.app == 'api'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -149,10 +172,10 @@ jobs:
             WITH_FFMPEG=${{ vars.WITH_FFMPEG == '1' && '1' || '0' }}
           outputs: type=image,name=${{ env.ECR_REGISTRY }}/lawbid-api,push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=api-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=api-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=api-${{ matrix.arch }},ignore-error=true
       - name: Build & push admin (linux/${{ matrix.arch }}, by digest)
         id: build_admin
-        if: steps.have.outputs.exists != 'true'
+        if: steps.have.outputs.exists != 'true' && matrix.app == 'admin'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
@@ -160,21 +183,20 @@ jobs:
           platforms: linux/${{ matrix.arch }}
           outputs: type=image,name=${{ env.ECR_REGISTRY }}/lawbid-admin,push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=admin-${{ matrix.arch }}
-          cache-to: type=gha,mode=max,scope=admin-${{ matrix.arch }}
-      - name: Save the per-arch digests
+          cache-to: type=gha,mode=max,scope=admin-${{ matrix.arch }},ignore-error=true
+      - name: Save the digest
         if: steps.have.outputs.exists != 'true'
         env:
-          API_DIGEST: ${{ steps.build_api.outputs.digest }}
-          ADMIN_DIGEST: ${{ steps.build_admin.outputs.digest }}
+          DIGEST: ${{ matrix.app == 'api' && steps.build_api.outputs.digest || steps.build_admin.outputs.digest }}
         run: |
           set -eu
+          [ -n "$DIGEST" ] || { echo "::error::no digest from the ${{ matrix.app }} build"; exit 1; }
           mkdir -p "$RUNNER_TEMP/digests"
-          printf '%s\n' "$API_DIGEST" > "$RUNNER_TEMP/digests/api-${{ matrix.arch }}"
-          printf '%s\n' "$ADMIN_DIGEST" > "$RUNNER_TEMP/digests/admin-${{ matrix.arch }}"
+          printf '%s\n' "$DIGEST" > "$RUNNER_TEMP/digests/${{ matrix.app }}-${{ matrix.arch }}"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: steps.have.outputs.exists != 'true'
         with:
-          name: digests-${{ matrix.arch }}
+          name: digests-${{ matrix.app }}-${{ matrix.arch }}
           path: ${{ runner.temp }}/digests/*
           if-no-files-found: error
           retention-days: 1
@@ -225,6 +247,8 @@ jobs:
           path: ${{ runner.temp }}/digests
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
         if: steps.have.outputs.exists != 'true'
+        with:
+          cleanup: false
       # Owner 2026-10-22 (cost): the images are multi-arch (amd64 + arm64) so
       # the ECS tasks can run on Graviton (cpu_architecture = "ARM64", about
       # 20 % cheaper) without another build (docs/runbooks/ARM64_SPOT.md).
@@ -250,8 +274,16 @@ jobs:
           set -eu
           export TRIVY_USERNAME=AWS
           TRIVY_PASSWORD=$(aws ecr get-login-password --region "$AWS_REGION"); export TRIVY_PASSWORD
-          scripts/ci/trivy-image.sh "$ECR_REGISTRY/lawbid-api@$API_DIGEST" CRITICAL
-          scripts/ci/trivy-image.sh "$ECR_REGISTRY/lawbid-admin@$ADMIN_DIGEST" CRITICAL
+          # Deploy speed 25.11: the two images are scanned at the same time (2m14
+          # one after the other); both must pass, each log is printed whole.
+          scripts/ci/trivy-image.sh "$ECR_REGISTRY/lawbid-api@$API_DIGEST" CRITICAL > trivy-api.log 2>&1 & P1=$!
+          RUNNER_TEMP="$RUNNER_TEMP/admin" scripts/ci/trivy-image.sh "$ECR_REGISTRY/lawbid-admin@$ADMIN_DIGEST" CRITICAL > trivy-admin.log 2>&1 & P2=$!
+          rc=0
+          wait "$P1" || rc=1
+          wait "$P2" || rc=1
+          echo "::group::Trivy api"; cat trivy-api.log; echo "::endgroup::"
+          echo "::group::Trivy admin"; cat trivy-admin.log; echo "::endgroup::"
+          exit $rc
 
       # --- P1 supply chain (2026-10-24): sign + SBOM, by digest ----------------
       # Keyless: the signature is bound to this workflow's GitHub OIDC identity
@@ -305,6 +337,10 @@ jobs:
     if: ${{ vars.DEPLOY_ENABLED == 'true' && vars.STAGING_ENABLED == 'true' && always() && (needs.gate.result == 'success' || needs.gate.result == 'skipped') && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # Deploy speed 25.11: one staging release at a time (was the run-level group).
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
     environment:
       name: staging
     steps:
@@ -341,13 +377,44 @@ jobs:
       - name: Smoke
         run: scripts/deploy/smoke.sh "${{ secrets.STAGING_API_URL }}" "${{ secrets.STAGING_ADMIN_URL }}" "$IMAGE_TAG"
 
+  # Deploy speed 25.11: the prod job below holds the `deploy` group; GitHub
+  # cancels an older PENDING job when a newer one joins, so the prod jobs must
+  # join in run order (else an older commit could replace a newer one and the
+  # newer one would never deploy). This job waits while an OLDER deploy run has
+  # not put its prod job into the queue yet (scripts/ci/wait-earlier-prod-change.sh
+  # older-deploys-queued). It never waits for a newer run: no deadlock.
+  deploy-order:
+    name: Deploy order (older releases queue first)
+    needs: [gate, build, deploy-staging]
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && always() && (needs.gate.result == 'success' || needs.gate.result == 'skipped') && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.deploy-staging.result == 'success' || needs.deploy-staging.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    # The older run may still wait for its CI (gate: up to 3 h).
+    timeout-minutes: 200
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/ci
+      - name: Older deploy runs have queued their prod job
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WAIT_PROD_TIMEOUT: "11400"
+          WAIT_PROD_POLL: "20"
+        run: scripts/ci/wait-earlier-prod-change.sh older-deploys-queued
+
   deploy-prod:
     name: Deploy production (manual approval)
     # `gate` is skipped only for a manual redeploy of an existing image_tag; a
     # failed gate (red CI) is neither success nor skipped and stops everything.
-    needs: [gate, build, deploy-staging]
-    if: ${{ vars.DEPLOY_ENABLED == 'true' && always() && (needs.gate.result == 'success' || needs.gate.result == 'skipped') && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.deploy-staging.result == 'success' || needs.deploy-staging.result == 'skipped') }}
+    needs: [gate, build, deploy-staging, deploy-order]
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && always() && (needs.gate.result == 'success' || needs.gate.result == 'skipped') && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.deploy-staging.result == 'success' || needs.deploy-staging.result == 'skipped') && needs.deploy-order.result == 'success' }}
     runs-on: ubuntu-latest
+    # One release in prod at a time (was the whole run's group, see the top).
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
     # The GitHub environment `production` carries the required reviewers:
     # docs/06 §7.3 "ручное подтверждение".
     # Rollout + alarm bake time (ROLL_TIMEOUT_SECONDS) + migrations + smoke
@@ -362,9 +429,13 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # snapshot-if-contract.sh diffs the migrations of the running release
-          # against this one.
+          # snapshot-if-contract.sh and i18n-needed.sh diff the running release
+          # against this one: the whole history of commits and trees is needed.
           fetch-depth: 0
+          # Deploy speed 25.11: without file contents (blobs) of old commits
+          # (checkout took 55 s; the history carries ~3 GB of old binary seeds).
+          # Git fetches a blob on demand when a script reads one (`git show`).
+          filter: blob:none
       # KNOWN_ERRORS 90: one change to prod at a time (an admin cloud change
       # that started earlier finishes first).
       - name: Wait for an earlier cloud change from the admin
@@ -432,7 +503,18 @@ jobs:
           # fail (default) | warn | off — prisma/verify-schema.mjs
           SCHEMA_DRIFT_CHECK: ${{ vars.SCHEMA_DRIFT_CHECK }}
         run: scripts/deploy/run-migrations.sh lawbid-prod "$IMAGE_TAG"
+      # Deploy speed 25.11: the translations task (2m13) runs when anything it
+      # reads differs from the running release (git object ids = content hash of
+      # the seed, the importer, the schema, the migrations); byte-identical =
+      # nothing new to add (it only adds missing texts). Repository variable
+      # I18N_SEED_ALWAYS=true runs it every time as before.
+      - name: Translations changed since the running release?
+        id: i18n
+        env:
+          I18N_SEED_ALWAYS: ${{ vars.I18N_SEED_ALWAYS }}
+        run: scripts/deploy/i18n-needed.sh "$LAST_GOOD_TAG" "$IMAGE_TAG" | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Translations (all 85 languages from prisma/seed/translations)
+        if: ${{ steps.i18n.outputs.needed != 'false' }}
         env:
           CLUSTER: lawbid-prod
           SECRET_PREFIX: lawbid-prod
@@ -442,19 +524,46 @@ jobs:
       # (not just "stable") and goes red on FAILED. S11-14: api first, smoked
       # against the tag, then worker and admin, so one bad shared change does not
       # hit all three services at once.
+      # X1 (25.11): which canary runs. The ECS service itself says it: strategy
+      # CANARY / LINEAR (Terraform var.api_native_deploy) = ECS's built-in
+      # canary (green target group, api_canary_percent, bake, alarms + circuit
+      # breaker, shift back by itself), and "Rolling deploy api" below waits for
+      # that ECS deployment's result. Anything else (today, or the describe
+      # failed) = our canary script exactly as before.
+      - name: Api deployment strategy (ECS built-in canary or our canary script)
+        id: strategy
+        run: |
+          S=$(aws ecs describe-services --cluster lawbid-prod --services api --query 'services[0].deploymentConfiguration.strategy' --output text 2>/dev/null || echo None)
+          case "$S" in CANARY|LINEAR|BLUE_GREEN) N=true ;; *) N=false ;; esac
+          echo "native=$N" >> "$GITHUB_OUTPUT"
+          echo "api deployment strategy: ${S} (ECS built-in canary: ${N})" | tee -a "$GITHUB_STEP_SUMMARY"
       # Canary (D1-36: ON unless repository variable CANARY_ENABLED=false): one extra task
       # with the new image takes a little live traffic for CANARY_BAKE_MINUTES while
       # the api alarms are watched; a bad release stops here, before the real api.
       - name: Canary (1 task, watch alarms)
+        if: ${{ steps.strategy.outputs.native != 'true' }}
         env:
           CANARY_ENABLED: ${{ vars.CANARY_ENABLED || 'true' }}
           CANARY_BAKE_MINUTES: ${{ vars.CANARY_BAKE_MINUTES || '5' }}
         run: scripts/deploy/canary.sh lawbid-prod "$IMAGE_TAG"
-      - name: Rolling deploy api
+      # With the ECS built-in canary this step waits for ECS's own result
+      # (SUCCESSFUL, or ROLLBACK_* = red); roll-services.sh reads the strategy.
+      # Deploy speed 25.11 (run 45622584281: api 13m22, then worker + admin
+      # 8m12 AFTER it). The order and every check stay: api first; worker and
+      # admin are touched only after EVERY api task runs the new release and the
+      # api smoke passed. What changed: ECS's alarm bake of the api (it watches
+      # the 5xx / p95 / unhealthy alarms before it marks the rollout COMPLETED;
+      # AWS: "the deployment might appear to take several minutes longer") now
+      # runs while worker and admin roll, instead of before. An api alarm in its
+      # bake still fails the job (and rolls all three back, see the end).
+      - name: Rolling deploy api (until every api task runs this release)
         id: roll_api
         env:
           ROLL_TIMEOUT_SECONDS: "2400"
-        run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG" api
+          ROLL_STATE: roll-state-api.env
+        run: |
+          ROLL_PHASE=start scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG" api
+          ROLL_UNTIL=steady ROLL_PHASE="wait" scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG" api
       - name: Smoke api (the answering tasks run this tag)
         id: smoke_api
         run: scripts/deploy/smoke.sh "${{ secrets.PROD_API_URL }}" "${{ secrets.PROD_ADMIN_URL }}" "$IMAGE_TAG"
@@ -466,10 +575,25 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
           role-duration-seconds: ${{ vars.AWS_DEPLOY_SESSION_SECONDS || 3600 }}
+      - name: Start worker and admin (api bakes meanwhile)
+        id: start_rest
+        env:
+          ROLL_STATE: roll-state-rest.env
+          ROLL_PHASE: start
+        run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG" "worker admin"
+      - name: Api bake (ECS watches the alarms until COMPLETED)
+        id: bake_api
+        env:
+          ROLL_TIMEOUT_SECONDS: "2400"
+          ROLL_STATE: roll-state-api.env
+          ROLL_PHASE: wait
+        run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG" api
       - name: Rolling deploy worker and admin
         id: roll_rest
         env:
           ROLL_TIMEOUT_SECONDS: "2400"
+          ROLL_STATE: roll-state-rest.env
+          ROLL_PHASE: wait
         run: scripts/deploy/roll-services.sh lawbid-prod "$IMAGE_TAG" "worker admin"
       - name: Smoke (all services)
         id: smoke_all
@@ -513,18 +637,20 @@ jobs:
       # D1-36 (13.11): ECS judged the api good, but a check after the roll
       # failed (api smoke, the worker / admin roll, the full smoke or the
       # synthetic user flow): put api, worker and admin (api-admin follows
-      # api) back on the release that ran before, then smoke it. Migrations
+      # api) back on the release that ran before, then smoke it.
+      # Deploy speed 25.11: also when ECS rejected the api in its bake (it put
+      # the api back itself, but worker / admin may already run the new release). Migrations
       # stay (expand/contract keeps the old code working). The job stays red
       # and the owner is told. Off with repository variable AUTO_ROLLBACK=false.
       - name: Fresh AWS session for the rollback
-        if: ${{ failure() && vars.AUTO_ROLLBACK != 'false' && steps.roll_api.outcome == 'success' && env.LAST_GOOD_TAG != '' && env.LAST_GOOD_TAG != env.IMAGE_TAG && (steps.smoke_api.outcome == 'failure' || steps.roll_rest.outcome == 'failure' || steps.smoke_all.outcome == 'failure' || steps.synthetic.outcome == 'failure') }}
+        if: ${{ failure() && vars.AUTO_ROLLBACK != 'false' && steps.roll_api.outcome == 'success' && env.LAST_GOOD_TAG != '' && env.LAST_GOOD_TAG != env.IMAGE_TAG && (steps.smoke_api.outcome == 'failure' || steps.start_rest.outcome == 'failure' || steps.bake_api.outcome == 'failure' || steps.roll_rest.outcome == 'failure' || steps.smoke_all.outcome == 'failure' || steps.synthetic.outcome == 'failure') }}
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
           role-duration-seconds: ${{ vars.AWS_DEPLOY_SESSION_SECONDS || 3600 }}
       - name: Automatic rollback to the release that ran before
-        if: ${{ failure() && vars.AUTO_ROLLBACK != 'false' && steps.roll_api.outcome == 'success' && env.LAST_GOOD_TAG != '' && env.LAST_GOOD_TAG != env.IMAGE_TAG && (steps.smoke_api.outcome == 'failure' || steps.roll_rest.outcome == 'failure' || steps.smoke_all.outcome == 'failure' || steps.synthetic.outcome == 'failure') }}
+        if: ${{ failure() && vars.AUTO_ROLLBACK != 'false' && steps.roll_api.outcome == 'success' && env.LAST_GOOD_TAG != '' && env.LAST_GOOD_TAG != env.IMAGE_TAG && (steps.smoke_api.outcome == 'failure' || steps.start_rest.outcome == 'failure' || steps.bake_api.outcome == 'failure' || steps.roll_rest.outcome == 'failure' || steps.smoke_all.outcome == 'failure' || steps.synthetic.outcome == 'failure') }}
         env:
           ROLL_TIMEOUT_SECONDS: "2400"
         run: |
@@ -562,7 +688,7 @@ jobs:
 
   notify:
     name: Tell the owner
-    needs: [gate, build-arch, build, deploy-staging, deploy-prod, bunny-settings]
+    needs: [gate, build-arch, build, deploy-staging, deploy-order, deploy-prod, bunny-settings]
     if: ${{ always() && contains(needs.*.result, 'failure') }}
     permissions:
       contents: read

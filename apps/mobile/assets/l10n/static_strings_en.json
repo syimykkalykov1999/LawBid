@@ -1374,6 +1374,7 @@
 "chat.attach.files": "Documents (PDF, Word, Excel…)",
 "chat.attach.photo": "Photo",
 "chat.attach.label": "File",
+"chat.attach.removed": "File removed: it failed the security check",
 "chat.attach.skipped": "{count} not added — unsupported format or over {max} MB",
 "chat.files.title": "Files and photos",
 "chat.files.photos": "Photos",

@@ -1261,6 +1261,7 @@
   "chat.attach.label": "ファイル",
   "chat.attach.photo": "写真",
   "chat.attach.photos": "フォトライブラリ",
+  "chat.attach.removed": "ファイルを削除しました：セキュリティチェックに合格しませんでした",
   "chat.attach.skipped": "{count} 件は追加されませんでした（非対応の形式、または {max} MB を超えています）",
   "chat.attach.template": "書類テンプレート",
   "chat.attach.video": "動画",

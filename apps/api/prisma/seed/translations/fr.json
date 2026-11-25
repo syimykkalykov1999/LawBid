@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fichier",
   "chat.attach.photo": "Photo",
   "chat.attach.photos": "Photothèque",
+  "chat.attach.removed": "Fichier supprimé : il n’a pas passé le contrôle de sécurité",
   "chat.attach.skipped": "{count} non ajouté(s) : format non pris en charge ou plus de {max} Mo",
   "chat.attach.template": "Modèle de document",
   "chat.attach.video": "Vidéo",

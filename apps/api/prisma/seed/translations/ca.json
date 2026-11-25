@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fitxer",
   "chat.attach.photo": "Foto",
   "chat.attach.photos": "Fototeca",
+  "chat.attach.removed": "Fitxer eliminat: no ha superat la comprovació de seguretat",
   "chat.attach.skipped": "{count} no afegits: format no compatible o més de {max} MB",
   "chat.attach.template": "Plantilla de document",
   "chat.attach.video": "Vídeo",

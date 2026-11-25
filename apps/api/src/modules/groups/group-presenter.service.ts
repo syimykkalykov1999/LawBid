@@ -14,7 +14,7 @@ import { ongoingCalls } from '../../common/calls/ongoing-call';
 import { UNREAD_CAP } from '../notifications/badges.service';
 import { unreadMessagesSql } from './group-unread.sql';
 import { isImageMime } from '../files/files.policy';
-import { FilesService } from '../files/files.service';
+import { FilesService, type UnscannedChatFile } from '../files/files.service';
 import type {
   ChatAttachmentDto,
   ReactionDto,
@@ -338,6 +338,7 @@ export class GroupPresenter {
           })
         : Promise.resolve([]),
     ]);
+    const unscanned = await this.unscanned(fileIds, voiceIds, urls, voiceLinks);
     const replyOf = new Map(replies.map((r) => [r.id, r]));
     const reactionsOf = groupReactions(reactionRows, viewerId);
 
@@ -367,23 +368,33 @@ export class GroupPresenter {
       let attachment: ChatAttachmentDto | null = null;
       if (m.type === 'attachment' && m.file_id && !deleted) {
         const f = urls.get(m.file_id);
+        // M3 (owner 25.11): a file still checked has a link only for its
+        // sender; the others see it processing, an infected one removed.
+        const u = unscanned.attachments.get(m.file_id);
+        const mime = f?.mime ?? u?.mime ?? null;
         attachment = {
           fileId: m.file_id,
           name: m.file_name ?? 'file',
-          mime: f?.mime ?? null,
-          sizeBytes: f?.sizeBytes ?? null,
-          isImage: f ? isImageMime(f.mime) : false,
-          url: f?.url ?? null,
+          mime,
+          sizeBytes: f?.sizeBytes ?? u?.sizeBytes ?? null,
+          isImage: mime ? isImageMime(mime) : false,
+          url: f?.url ?? (u && u.ownerId === viewerId ? u.ownerUrl : null),
           previewUrl: f?.previewUrl ?? null,
           width: f?.width ?? null,
           height: f?.height ?? null,
           blurhash: f?.blurhash ?? null,
+          state: u?.state ?? 'ready',
         };
       }
+      const uv = m.file_id ? unscanned.voice.get(m.file_id) : undefined;
       const voice: VoiceNoteDto | null =
         m.type === 'voice' && !deleted
           ? {
-              url: m.file_id ? (voiceLinks.get(m.file_id)?.url ?? null) : null,
+              url: m.file_id
+                ? (voiceLinks.get(m.file_id)?.url ??
+                  (uv && uv.ownerId === viewerId ? uv.ownerUrl : null))
+                : null,
+              state: uv?.state ?? 'ready',
               m4aUrl: m.file_id
                 ? (voiceLinks.get(m.file_id)?.m4aUrl ?? null)
                 : null,
@@ -432,6 +443,32 @@ export class GroupPresenter {
         reactions: deleted ? [] : (reactionsOf.get(m.id) ?? []),
       };
     });
+  }
+
+  /** M3: the page's chat files still checked or removed (no query when
+   * every file is clean). */
+  private async unscanned(
+    fileIds: string[],
+    voiceIds: string[],
+    linked: ReadonlyMap<string, unknown>,
+    voiceLinked: ReadonlyMap<string, unknown>,
+  ): Promise<{
+    attachments: Map<string, UnscannedChatFile>;
+    voice: Map<string, UnscannedChatFile>;
+  }> {
+    const [attachments, voice] = await Promise.all([
+      this.files.unscannedChatFiles(
+        'chat_attachment',
+        fileIds,
+        new Set(linked.keys()),
+      ),
+      this.files.unscannedChatFiles(
+        'chat_voice',
+        voiceIds,
+        new Set(voiceLinked.keys()),
+      ),
+    ]);
+    return { attachments, voice };
   }
 
   /** Groups → DTOs for one viewer (membership rows already loaded). */

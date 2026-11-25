@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fáìlì",
   "chat.attach.photo": "Fọ́tò",
   "chat.attach.photos": "Ibi fọ́tò",
+  "chat.attach.removed": "A ti yọ fáìlì kúrò: kò yege àyẹ̀wò ààbò",
   "chat.attach.skipped": "A ko fi {count} kun: ọ̀nà kíkà tí kò ní àtìlẹyìn tàbí ju {max} MB lọ",
   "chat.attach.template": "Àpẹẹrẹ ìwé",
   "chat.attach.video": "Fídíò",

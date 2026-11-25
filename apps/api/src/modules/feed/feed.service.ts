@@ -43,6 +43,11 @@ import { feedVersion } from '../../common/cache/feed-version';
 import { ck } from '../../redis/redis-cluster-safe';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
+import {
+  FeedTimelineService,
+  followToken,
+  selfToken,
+} from './feed-timeline.service';
 
 export const recoCurrentKey = () => ck('reco', 'feed:reco:current');
 export const recoKey = (version: string) => ck('reco', `feed:reco:${version}`);
@@ -115,6 +120,9 @@ export class FeedService implements FeedProvider {
     // Algo audit 2026-10-27: scan depth / repost cap (built-in defaults
     // when absent).
     @Optional() private readonly settings?: AppSettingsService,
+    // Item 23 (F1): the precomputed timeline (fan-out on write); absent =
+    // the read below, as before.
+    @Optional() private readonly timeline?: FeedTimelineService,
   ) {
     this.cache = cache ?? redis;
   }
@@ -277,7 +285,7 @@ export class FeedService implements FeedProvider {
     // IN list).
     const followees = await this.prisma.follow.findMany({
       where: { follower_id: viewer.sub },
-      select: { followee_id: true },
+      select: { followee_id: true, created_at: true },
       orderBy: { created_at: 'desc' },
       take: FOLLOWEES_MAX,
     });
@@ -331,25 +339,46 @@ export class FeedService implements FeedProvider {
     // author, so it is checked once per followed author and the posts are
     // read with the post half only (630 buffers, 1.1 ms): the same rows.
     const shownAuthors = streamOpen ? await this.shownAuthors(authorIds) : [];
-    const following = shownAuthors.length
-      ? await this.prisma.post.findMany({
-          // R2 review: postsBefore() is an `AND`; as its own array item it
-          // can never overwrite an `AND` of the visibility rule or the
-          // content mode (a spread would), like the other call site.
-          where: {
-            AND: [
-              {
-                ...POST_VISIBLE_WHERE,
-                ...only,
-                author_id: { in: shownAuthors },
-              },
-              ...(after ? [postsBefore(after)] : []),
-            ],
-          },
-          orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
-          take: limit + 1,
-        })
-      : [];
+    // Item 23 (F1, Twitter "Timelines at Scale"): the same rows from the
+    // viewer's precomputed timeline when it provably has them; null = the
+    // read below (cold timeline, new follow, older page, cache error).
+    const fromTimeline =
+      shownAuthors.length && this.timeline
+        ? await this.timeline.followed({
+            viewerId: viewer.sub,
+            tokens: new Map([
+              ...followees.map(
+                (f) => [f.followee_id, followToken(f.created_at)] as const,
+              ),
+              [viewer.sub, selfToken()] as const,
+            ]),
+            shown: shownAuthors,
+            where: { ...POST_VISIBLE_WHERE, ...only },
+            after,
+            take: limit + 1,
+          })
+        : null;
+    const following = fromTimeline
+      ? fromTimeline
+      : shownAuthors.length
+        ? await this.prisma.post.findMany({
+            // R2 review: postsBefore() is an `AND`; as its own array item it
+            // can never overwrite an `AND` of the visibility rule or the
+            // content mode (a spread would), like the other call site.
+            where: {
+              AND: [
+                {
+                  ...POST_VISIBLE_WHERE,
+                  ...only,
+                  author_id: { in: shownAuthors },
+                },
+                ...(after ? [postsBefore(after)] : []),
+              ],
+            },
+            orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+            take: limit + 1,
+          })
+        : [];
 
     // Enough candidates for the reco slots, or for the whole page once
     // the followed stream can't fill it.

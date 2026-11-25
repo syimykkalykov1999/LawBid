@@ -33,6 +33,9 @@ class FakeStorageUploader extends StorageUploader {
   /// Stored files whose scan was asked for again ([waitStored]).
   final waited = <String>[];
 
+  /// M3: uploads that returned without waiting for the scan (chat media).
+  int notWaited = 0;
+
   @override
   Future<String> upload({
     required api.FilePurpose purpose,
@@ -49,6 +52,7 @@ class FakeStorageUploader extends StorageUploader {
     String? resumeFileId,
     void Function(String fileId)? onPartsFileId,
     Future<void> Function(String fileId)? onStored,
+    bool waitScan = true,
   }) async {
     final f = fail;
     if (f != null) throw f;
@@ -56,6 +60,10 @@ class FakeStorageUploader extends StorageUploader {
     onProgress?.call(1);
     final id = 'file-${uploads.length}';
     await onStored?.call(id);
+    if (!waitScan) {
+      notWaited++;
+      return id;
+    }
     if (pendingScans > 0) {
       pendingScans--;
       throw StorageUploader.scanPending;
@@ -64,8 +72,13 @@ class FakeStorageUploader extends StorageUploader {
   }
 
   @override
-  Future<String> waitStored(String fileId, {int? maxPolls}) async {
+  Future<String> waitStored(
+    String fileId, {
+    int? maxPolls,
+    bool waitScan = true,
+  }) async {
     waited.add(fileId);
+    if (!waitScan) return fileId;
     if (pendingScans > 0) {
       pendingScans--;
       throw StorageUploader.scanPending;

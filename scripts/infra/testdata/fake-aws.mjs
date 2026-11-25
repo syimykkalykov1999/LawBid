@@ -50,19 +50,49 @@ if (cmd === 'describe-task-definition') {
 } else if (cmd === 'update-service') {
   const s = st.svcs[opt('--service')];
   if (!s) fail(`no service ${opt('--service')}`);
+  const prev = s.td;
   s.td = opt('--task-definition');
+  // X1: a service on an ECS built-in strategy gets a service deployment whose
+  // describe calls walk through s.nativeSeq ("STATUS\tSTAGE\treason" lines).
+  if (['CANARY', 'LINEAR', 'BLUE_GREEN'].includes(s.strategy)) {
+    st.sd = st.sd ?? [];
+    const n = st.sd.length + 1;
+    const seq = s.nativeSeq ?? ['IN_PROGRESS\tPRODUCTION_TRAFFIC_SHIFT\tNone', 'SUCCESSFUL\tCLEAN_UP\tNone'];
+    st.sd.unshift({ svc: opt('--service'), arn: `sd/${n}`, rev: `sr/${n}`, td: s.td, seq: [...seq] });
+    if (seq.at(-1).startsWith('ROLLBACK')) s.td = prev;
+  }
   save();
-  log(`update ${opt('--service')} ${s.td.split('/')[1]}`);
+  log(`update ${opt('--service')} ${opt('--task-definition').split('/')[1]}`);
+} else if (cmd === 'list-service-deployments') {
+  for (const d of (st.sd ?? []).filter((d) => d.svc === opt('--service'))) console.log(`${d.arn}\t${d.rev}`);
+} else if (cmd === 'describe-service-revisions') {
+  const d = (st.sd ?? []).find((d) => d.rev === opt('--service-revision-arns'));
+  console.log(d ? d.td : 'None');
+} else if (cmd === 'describe-service-deployments') {
+  const d = (st.sd ?? []).find((d) => d.arn === opt('--service-deployment-arns'));
+  if (!d) fail(`no service deployment ${opt('--service-deployment-arns')}`);
+  console.log(d.seq.length > 1 ? d.seq.shift() : d.seq[0]);
+  save();
 } else if (cmd === 'describe-services') {
   const name = opt('--services');
   const s = st.svcs[name];
   if (q === 'services[0].taskDefinition') console.log(s ? s.td : 'None');
+  else if (q === 'services[0].deploymentConfiguration.strategy') console.log(s?.strategy ?? 'None');
+  else if (q === 'services[0].events[0:8].message') console.log('event');
   else if (q === "services[?status=='ACTIVE'].taskDefinition | [0]") console.log(s && s.status === 'ACTIVE' ? s.td : 'None');
   else if (q.startsWith('services[?status==`ACTIVE`] | length')) console.log(s && s.status === 'ACTIVE' ? 1 : 0);
   else if (q.startsWith('services[?status==`ACTIVE`].runningCount')) console.log(s && s.status === 'ACTIVE' ? s.running : 'None');
   else if (q.startsWith('services[0].deployments[?taskDefinition==')) {
     const rev = q.match(/taskDefinition=='([^']+)'/)[1];
-    console.log(s && s.td === rev ? 'COMPLETED\tdone' : 'None');
+    // Deploy speed (25.11): s.rolloutSeq walks like nativeSeq (default COMPLETED).
+    const seq = s?.rolloutSeq;
+    const now = seq ? (seq.length > 1 ? seq.shift() : seq[0]) : 'COMPLETED';
+    if (seq) save();
+    console.log(s && s.td === rev ? `${now}\tdone` : 'None');
+  } else if (q === 'services[0].deployments[].[taskDefinition,desiredCount,runningCount]') {
+    // s.oldRunning: tasks an older deployment still runs (default 0).
+    console.log(`${s.td}\t1\t${s.newRunning ?? 1}`);
+    if (s.oldRunning) console.log(`old-td\t0\t${s.oldRunning}`);
   } else if (q === 'length(services[0].deployments)') console.log(1);
   else fail(`query ${q}`);
 } else fail(`unexpected ${argv.join(' ')}`);

@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fil",
   "chat.attach.photo": "Foto",
   "chat.attach.photos": "Fotobibliotek",
+  "chat.attach.removed": "Fil fjernet: den bestod ikke sikkerhedstjekket",
   "chat.attach.skipped": "{count} ikke tilføjet: ikke-understøttet format eller over {max} MB",
   "chat.attach.template": "Dokumentskabelon",
   "chat.attach.video": "Video",

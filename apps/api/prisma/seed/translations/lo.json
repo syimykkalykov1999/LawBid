@@ -1261,6 +1261,7 @@
   "chat.attach.label": "ໄຟລ໌",
   "chat.attach.photo": "ຮູບ",
   "chat.attach.photos": "ຄັງຮູບພາບ",
+  "chat.attach.removed": "ລຶບໄຟລ໌ແລ້ວ: ບໍ່ຜ່ານການກວດສອບຄວາມປອດໄພ",
   "chat.attach.skipped": "ບໍ່ໄດ້ເພີ່ມ {count}: ຮູບແບບທີ່ບໍ່ຮອງຮັບ ຫຼື ເກີນ {max} MB",
   "chat.attach.template": "ແມ່ແບບເອກະສານ",
   "chat.attach.video": "ວິດີໂອ",

@@ -109,6 +109,21 @@ variable "rds_logical_replication" {
   default     = false
   description = "rds.logical_replication = 1. Needed for shard moves and Blue/Green major upgrades. STATIC parameter: takes effect only after a REBOOT - do it in the planned Sunday Multi-AZ reboot (docs/runbooks/db-ops.md)."
 }
+# C2 (25.11, cache CDC): PostgreSQL's own guard against a logical slot that
+# nobody reads (PG 13+, dynamic). Past this many MB of kept WAL the slot is
+# marked lost instead of filling the disk; the worker then drops and
+# re-creates its slot. 0 = not set (engine default -1, no limit). Mind
+# Blue/Green and shard moves: they use slots too, keep it well above their
+# backlog (docs/runbooks/cache-cdc.md).
+variable "max_slot_wal_keep_size_mb" {
+  type        = number
+  default     = 0
+  description = "max_slot_wal_keep_size in MB (dynamic). 0 = engine default (no limit)."
+  validation {
+    condition     = var.max_slot_wal_keep_size_mb >= 0
+    error_message = "max_slot_wal_keep_size_mb must be 0 (not set) or a positive number of MB."
+  }
+}
 # B-c17 (2026-11-09): see modules/stack `database_insights_advanced`.
 variable "database_insights_advanced" {
   type        = bool
@@ -159,7 +174,7 @@ resource "aws_security_group" "db" {
 locals {
   # "16", "16.13", "18", "18.6" -> "16" / "18".
   engine_major = split(".", var.engine_version)[0]
-  db_parameters = [
+  db_parameters = concat([
     # Slow queries land in the log (the admin's «здоровье системы» reads them).
     { name = "log_min_duration_statement", value = tostring(var.slow_query_log_ms), apply_method = "immediate" },
     # S20-3: never write the bind values ($1 = 'phone / e-mail / message id')
@@ -180,7 +195,9 @@ locals {
     { name = "autovacuum_vacuum_scale_factor", value = tostring(var.autovacuum_vacuum_scale_factor), apply_method = "immediate" },
     { name = "autovacuum_vacuum_insert_scale_factor", value = tostring(var.autovacuum_vacuum_scale_factor), apply_method = "immediate" },
     { name = "autovacuum_analyze_scale_factor", value = tostring(var.autovacuum_analyze_scale_factor), apply_method = "immediate" },
-  ]
+    ], var.max_slot_wal_keep_size_mb > 0 ? [
+    { name = "max_slot_wal_keep_size", value = tostring(var.max_slot_wal_keep_size_mb), apply_method = "immediate" },
+  ] : [])
 }
 
 resource "aws_db_parameter_group" "this" {

@@ -92,6 +92,17 @@ variable "database_major_version" {
   type    = string
   default = "16"
 }
+# C2 (25.11, cache invalidation from the change log): owner step - true, apply,
+# then the planned Sunday reboot (rds.logical_replication is STATIC). Until
+# then the admin switch db.cdc_mode stays Выкл / Авто waits. docs/runbooks/cache-cdc.md.
+variable "database_logical_replication" {
+  type    = bool
+  default = false
+}
+variable "database_max_slot_wal_keep_size_mb" {
+  type    = number
+  default = 0
+}
 # docs/06 §6.3: production sizes (5k RPS peak); raise api_max_tasks with load-test results.
 # 15.11 «делай обновы сейчас»: default valkey after the proof (full API e2e
 # on valkey/valkey:9.1.3 green, modules/redis applies the engine change at
@@ -699,6 +710,11 @@ variable "deploy_alarm_rollback" {
   type        = bool
   default     = true
   description = "Rolling deploy + CloudWatch alarm rollback (docs/runbooks/DEPLOY_SAFETY.md). false = circuit breaker only."
+}
+variable "api_native_deploy" {
+  type        = string
+  default     = "off"
+  description = "X1: ECS built-in canary for the api: off (today: rolling + our canary script) | prepare | canary | linear. Prod stays off until the owner switches it after staging (docs/runbooks/DEPLOY_SAFETY.md «Встроенный canary ECS»)."
 }
 variable "deploy_rollback_on_slo" {
   type        = bool
