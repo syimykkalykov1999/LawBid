@@ -85,9 +85,7 @@ variable "media_origins" {
 variable "app_connect_src" {
   type = list(string)
   default = [
-    "https://*.amazonaws.com",            # uploads (presigned POST) and signed links
     "https://*.r2.cloudflarestorage.com", # R2: presigned PUT of public media
-    "https://*.cloudfront.net",           # media CDN
     "https://video.bunnycdn.com",         # video uploads (TUS)
     "https://*.b-cdn.net",                # video playback
     "https://fonts.gstatic.com",          # engine fallback fonts
@@ -97,6 +95,47 @@ variable "app_connect_src" {
     "https://maps.googleapis.com",
   ]
   description = "Hosts the app itself calls besides the API (storage, media, video, fonts, Stripe)."
+}
+
+# ASVS 5.0 V3.4.3 (STAGE2_SECURITY #3): the exact S3 bucket hosts the
+# presigned uploads POST to and the signed links read from (both spellings
+# the AWS SDK may produce), instead of `https://*.amazonaws.com`, which let a
+# script injected into the page send data to ANY bucket. The media CDN host
+# is in media_origins; `*.cloudfront.net` goes the same way.
+variable "storage_connect_src" {
+  type        = list(string)
+  default     = []
+  description = "Exact storage origins the web app calls (S3 bucket hosts, the documents CDN)."
+}
+
+# Until the exact list has run a week without reports, the old wide hosts
+# stay in the ENFORCED policy and the exact one is sent as
+# Content-Security-Policy-Report-Only (the usual CSP roll-out). true = the
+# exact list is enforced and the wide hosts are gone.
+variable "csp_exact_connect_enforced" {
+  type        = bool
+  default     = false
+  description = "true: enforce the exact connect-src list (no *.amazonaws.com / *.cloudfront.net). false (first week): enforce the old list, report the exact one (Report-Only)."
+}
+
+variable "csp_wide_connect_src" {
+  type        = list(string)
+  default     = ["https://*.amazonaws.com", "https://*.cloudfront.net"]
+  description = "The old wildcard storage hosts, kept in the enforced policy only while csp_exact_connect_enforced is false."
+}
+
+# ASVS 5.0 V3.4.7 (STAGE2_SECURITY #4): where browsers send CSP violation
+# reports. Sentry's security endpoint (Project → Settings → Security Headers →
+# «Report URI»): https://o<org>.ingest.sentry.io/api/<project>/security/?sentry_key=<public key>.
+# Empty = no reporting (as before).
+variable "csp_report_uri" {
+  type        = string
+  default     = ""
+  description = "CSP report endpoint (Sentry security endpoint URL); empty = no report-uri / report-to."
+  validation {
+    condition     = var.csp_report_uri == "" || can(regex("^https://[a-z0-9.-]+/[^\\s;,\"']*$", var.csp_report_uri))
+    error_message = "csp_report_uri must be an https URL without spaces, quotes, commas or semicolons."
+  }
 }
 
 # Owner list B-c13 (I18N_GLYPHS 2026-11-02 §15): Flutter's web engine downloads
@@ -308,21 +347,44 @@ locals {
     # blob: is how the web app reads a picked file (image_picker returns a
     # blob: URL and cross_file loads it with XHR). Without it every photo pick
     # fails with «Не удалось открыть фото» (2026-11-04, KNOWN_ERRORS №58).
-    "connect-src ${join(" ", concat(["'self'", "blob:", var.api_origin, "wss://${replace(var.api_origin, "https://", "")}", "https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io"], var.extra_connect_src, local.app_check_connect, var.app_connect_src, var.media_origins))}",
     "frame-src ${join(" ", concat(["'self'", local.turnstile_origin], var.stripe_frame_src, local.recaptcha_frame_src))}",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "object-src 'none'",
   ]
+  # The exact list (#3) and, while it is still being proven, the old wide one.
+  connect_exact = concat(["'self'", "blob:", var.api_origin, "wss://${replace(var.api_origin, "https://", "")}", "https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io"], var.extra_connect_src, local.app_check_connect, var.app_connect_src, var.storage_connect_src, var.media_origins)
+  connect_wide  = concat(local.connect_exact, var.csp_wide_connect_src)
+  # #4: report-uri (every browser) + report-to (the Reporting API name below).
+  csp_report        = var.csp_report_uri == "" ? [] : ["report-uri ${var.csp_report_uri}", "report-to csp-endpoint"]
+  csp_enforced_rest = concat(local.csp_rest, ["connect-src ${join(" ", var.csp_exact_connect_enforced ? local.connect_exact : local.connect_wide)}"], local.csp_report)
+  csp_exact_rest    = concat(local.csp_rest, ["connect-src ${join(" ", local.connect_exact)}"], local.csp_report)
   # 2026-10-24 (batch D, item 4): Cloudflare Turnstile on the web sign-up
   # (script + challenge frame; its token goes to our own API only).
   turnstile_origin = "https://challenges.cloudflare.com"
   script_src       = concat(["'self'", "'wasm-unsafe-eval'", "https://www.gstatic.com", local.turnstile_origin], var.stripe_script_src, local.recaptcha_script_src)
   # The hashes go into the app's policy only: with a hash present a browser
   # ignores 'unsafe-inline' (CSP Level 2+), which the site's pages need.
+  script_app  = "script-src ${join(" ", concat(local.script_src, local.flutterfire_script_hashes))}"
+  script_site = "script-src ${join(" ", concat(local.script_src, ["'unsafe-inline'"]))}"
   csp = {
-    app  = join("; ", concat(["default-src 'self'", "script-src ${join(" ", concat(local.script_src, local.flutterfire_script_hashes))}"], local.csp_rest))
-    site = join("; ", concat(["default-src 'self'", "script-src ${join(" ", concat(local.script_src, ["'unsafe-inline'"]))}"], local.csp_rest))
+    app  = join("; ", concat(["default-src 'self'", local.script_app], local.csp_enforced_rest))
+    site = join("; ", concat(["default-src 'self'", local.script_site], local.csp_enforced_rest))
+  }
+  # Report-Only twin with the exact connect-src (first week only).
+  csp_report_only = var.csp_exact_connect_enforced ? {} : {
+    app  = join("; ", concat(["default-src 'self'", local.script_app], local.csp_exact_rest))
+    site = join("; ", concat(["default-src 'self'", local.script_site], local.csp_exact_rest))
+    pay  = join("; ", concat(["default-src 'self'", local.script_app], local.csp_exact_rest))
+  }
+  # ASVS 5.0 V3.4.8 (#5): COOP on every document of the app and the site.
+  # same-origin-allow-popups keeps the Google sign-in popup and Stripe 3-D
+  # Secure working. The card page keeps none (like COEP, S17-5). With
+  # cross_origin_isolation on, the app pages get same-origin + COEP instead.
+  coop_value = {
+    app  = var.cross_origin_isolation ? "same-origin" : "same-origin-allow-popups"
+    site = "same-origin-allow-popups"
+    pay  = ""
   }
   # S17-5: the card page (/pay.html + pay.js) embeds Stripe frames that do not
   # send COEP, so it keeps the app's CSP but never gets the isolation headers.
@@ -344,17 +406,39 @@ resource "aws_cloudfront_response_headers_policy" "web" {
   # Only the app pages are cross-origin isolated (S17-5): the company site
   # (Next.js, third-party embeds) and the card page are not.
   dynamic "custom_headers_config" {
-    for_each = var.cross_origin_isolation && each.key == "app" ? [1] : []
+    for_each = local.coop_value[each.key] != "" || var.csp_report_uri != "" || lookup(local.csp_report_only, each.key, "") != "" ? [1] : []
     content {
-      items {
-        header   = "Cross-Origin-Opener-Policy"
-        value    = "same-origin"
-        override = true
+      dynamic "items" {
+        for_each = local.coop_value[each.key] != "" ? [local.coop_value[each.key]] : []
+        content {
+          header   = "Cross-Origin-Opener-Policy"
+          value    = items.value
+          override = true
+        }
       }
-      items {
-        header   = "Cross-Origin-Embedder-Policy"
-        value    = "credentialless"
-        override = true
+      dynamic "items" {
+        for_each = var.cross_origin_isolation && each.key == "app" ? [1] : []
+        content {
+          header   = "Cross-Origin-Embedder-Policy"
+          value    = "credentialless"
+          override = true
+        }
+      }
+      dynamic "items" {
+        for_each = var.csp_report_uri != "" ? [var.csp_report_uri] : []
+        content {
+          header   = "Reporting-Endpoints"
+          value    = "csp-endpoint=\"${items.value}\""
+          override = true
+        }
+      }
+      dynamic "items" {
+        for_each = lookup(local.csp_report_only, each.key, "") != "" ? [local.csp_report_only[each.key]] : []
+        content {
+          header   = "Content-Security-Policy-Report-Only"
+          value    = items.value
+          override = true
+        }
       }
     }
   }
@@ -389,6 +473,10 @@ resource "aws_cloudfront_response_headers_policy" "web" {
     precondition {
       condition     = length(each.value) <= 1783
       error_message = "The ${each.key} CSP is ${length(each.value)} characters; CloudFront allows 1783."
+    }
+    precondition {
+      condition     = length(lookup(local.csp_report_only, each.key, "")) <= 1783
+      error_message = "The ${each.key} Report-Only CSP is longer than CloudFront's 1783 characters."
     }
   }
 }
@@ -876,3 +964,16 @@ output "web_distribution_id" { value = aws_cloudfront_distribution.web.id }
 output "web_cdn_domain" { value = aws_cloudfront_distribution.web.domain_name }
 output "web_deploy_policy_arn" { value = aws_iam_policy.deploy.arn }
 output "web_release_store_arn" { value = aws_cloudfront_key_value_store.web.arn }
+
+output "csp" {
+  value       = local.csp_all
+  description = "The enforced Content-Security-Policy per page kind (app, site, pay)."
+}
+output "csp_report_only" {
+  value       = local.csp_report_only
+  description = "The Report-Only policy per page kind while the exact connect-src is proven; empty once enforced."
+}
+output "coop" {
+  value       = local.coop_value
+  description = "Cross-Origin-Opener-Policy per page kind (empty = none)."
+}

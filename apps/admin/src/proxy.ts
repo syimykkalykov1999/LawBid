@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { buildCsp, newNonce } from '@/lib/csp';
+import { buildCsp, newNonce, reportUri, reportingEndpoints } from '@/lib/csp';
 
 const SESSION_COOKIE = 'lawbid_admin';
 
@@ -16,9 +16,12 @@ export function proxy(req: NextRequest) {
     dev: process.env.NODE_ENV !== 'production',
     connectSrc: process.env.ADMIN_CONNECT_SRC,
     socketOrigin: process.env.ADMIN_SOCKET_ORIGIN || process.env.API_BASE_URL,
+    reportUri: process.env.ADMIN_CSP_REPORT_URI,
   });
+  const endpoints = reportingEndpoints(reportUri(process.env.ADMIN_CSP_REPORT_URI));
   const withCsp = (res: NextResponse) => {
     res.headers.set('Content-Security-Policy', csp);
+    if (endpoints) res.headers.set('Reporting-Endpoints', endpoints);
     return res;
   };
 
