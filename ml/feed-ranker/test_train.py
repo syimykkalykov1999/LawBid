@@ -25,6 +25,28 @@ class FeaturesTest(unittest.TestCase):
             self.assertTrue(math.isnan(feats.feature_value(bad)))
         self.assertEqual(len(feats.vectorize({})), len(feats.FEATURES))
 
+    def test_one_spec_per_feed(self):
+        surfaces = {f: feats.spec_for(f).surface for f in feats.FEEDS}
+        self.assertEqual(surfaces, {"posts": "posts", "reels": "reels", "cases": "case_feed"})
+        versions = {feats.spec_for(f).version for f in feats.FEEDS}
+        self.assertEqual(len(versions), 3)  # a model of one feed never loads in another
+        self.assertIn("shareRate", feats.spec_for("reels").features)
+        self.assertIn("bidOn", feats.spec_for("cases").features)
+        with self.assertRaises(ValueError):
+            feats.spec_for("people")
+
+
+class LabelsTest(unittest.TestCase):
+    def test_each_feed_has_its_own_labels(self):
+        reels, cases = train.label_sql("reels"), train.label_sql("cases")
+        self.assertIn("post_shares", reels)
+        self.assertIn("THEN 4", reels)
+        self.assertIn("post_view_events", reels)
+        self.assertIn("FROM bids", cases)
+        self.assertIn("'accepted'", cases)
+        self.assertNotIn("bids", train.label_sql("posts"))
+        self.assertEqual(train.SQL, train.label_sql("posts"))
+
 
 class TrainTest(unittest.TestCase):
     def _export(self, d: str, n_lists: int) -> str:
@@ -47,6 +69,28 @@ class TrainTest(unittest.TestCase):
             self.assertLess(m["onnx_max_abs_diff"], 1e-4)
             self.assertGreater(m["metrics"]["ndcg_model"], m["metrics"]["ndcg_formula"])
             self.assertTrue(os.path.getsize(os.path.join(d, "t1", "model.onnx")) > 100)
+
+    def test_reels_and_cases_train_their_own_models(self):
+        for feed in ("reels", "cases"):
+            with tempfile.TemporaryDirectory() as d:
+                path = os.path.join(d, "events.jsonl")
+                with open(path, "w", encoding="utf-8") as fh:
+                    for r in make_fixture.synthetic(n_lists=400, feed=feed):
+                        fh.write(json.dumps(r.__dict__) + "\n")
+                out = io.StringIO()
+                with redirect_stdout(out):
+                    code = train.main(["--feed", feed, "--input", path, "--out", d,
+                                       "--version", "t3", "--min-judged-lists", "20",
+                                       "--trees", "60"])
+                self.assertEqual(code, 0, feed)
+                m = json.load(open(os.path.join(d, "t3", "manifest.json")))
+                spec = feats.spec_for(feed)
+                self.assertEqual(m["feed"], feed)
+                self.assertEqual(m["feature_spec_version"], spec.version)
+                self.assertEqual(m["features"], spec.features)
+                self.assertGreater(m["metrics"]["ndcg_model"], m["metrics"]["ndcg_formula"])
+                self.assertIn(f"ml/feed-ranker/{feed}/t3/model.onnx", out.getvalue())
+                self.assertIn(f"reco.ranker.{feed}.model_key", out.getvalue())
 
     def test_refuses_with_too_little_data(self):
         with tempfile.TemporaryDirectory() as d:

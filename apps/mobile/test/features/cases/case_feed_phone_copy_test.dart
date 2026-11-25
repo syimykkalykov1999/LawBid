@@ -61,6 +61,22 @@ void main() {
     expect(repo.calls, contains('feed'));
   });
 
+  // Owner 25.11 («умную ленту для всех лент»): the Feed's «Кейсы» asks for
+  // the order ranked for the attorney, not newest first.
+  test('the Feed\'s Cases tab asks for the ranked («for you») order',
+      () async {
+    repo.feedGate = null;
+    const filter = (practiceCategory: null, state: null, mineOnly: true);
+    final sub = container.listen(caseFeedProvider(filter), (_, __) {});
+    addTearDown(sub.close);
+    await container
+        .read(caseFeedProvider(filter).future)
+        .timeout(const Duration(seconds: 2));
+    await Future<void>.delayed(Duration.zero);
+    expect(repo.feedExtras, isNotEmpty);
+    expect(repo.feedExtras.every((e) => e.forYou), isTrue);
+  });
+
   test('«Исследовать» shows the kept first page before the network answers',
       () async {
     const key = (

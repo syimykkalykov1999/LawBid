@@ -1837,11 +1837,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100,
   };
-  // F2: the learned posts ranker (Выкл / Вкл / Авто), off until a model exists.
+  // F2: the learned posts ranker (Выкл / Вкл / Авто); «Авто» changes nothing until a model exists.
   out['reco.ranker.mode'] = {
     ...out['reco.ranker.mode'],
     description:
-      'Learned posts ranker: off (formula for everyone), on (A/B test whenever a model is loaded), auto (only while the model beat the formula offline and scores inside the latency budget).',
+      'Learned posts ranker (Search «For you»): off (formula for everyone), on (A/B test whenever a model is loaded), auto (default; only while the model beat the formula offline and scores inside the latency budget).',
     pattern: /^(off|on|auto)$/,
   };
   out['reco.ranker.traffic_percent'] = {
@@ -1870,6 +1870,38 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 1000,
   };
+  // Owner 25.11: the reels' and the case feed's own learned rankers.
+  for (const feed of ['reels', 'cases'] as const) {
+    const p = `reco.ranker.${feed}`;
+    out[`${p}.mode`] = {
+      ...out[`${p}.mode`],
+      description: `Learned ${feed} ranker: off (formula for everyone), on (A/B test whenever a model is loaded), auto (only while the model beat the formula offline and scores inside the latency budget).`,
+      pattern: /^(off|on|auto)$/,
+    };
+    out[`${p}.traffic_percent`] = {
+      ...out[`${p}.traffic_percent`],
+      min: 0,
+      max: 100,
+    };
+    out[`${p}.model_share_percent`] = {
+      ...out[`${p}.model_share_percent`],
+      min: 0,
+      max: 100,
+    };
+    out[`${p}.model_key`] = {
+      ...out[`${p}.model_key`],
+      description: `S3 key of the ${feed} ranker model in the documents bucket: ml/feed-ranker/${feed}/<version>/model.onnx (manifest.json beside it); empty = no model.`,
+      pattern: new RegExp(
+        `^(|ml/feed-ranker/${feed}/[A-Za-z0-9._-]{1,64}/model\\.onnx)$`,
+      ),
+    };
+    out[`${p}.top_n`] = { ...out[`${p}.top_n`], min: 1, max: 400 };
+    out[`${p}.latency_budget_ms`] = {
+      ...out[`${p}.latency_budget_ms`],
+      min: 1,
+      max: 1000,
+    };
+  }
   // Owner rule (Выкл / Вкл / Авто): new-case alerts in waves.
   out['case_fanout.enabled'] = {
     ...out['case_fanout.enabled'],

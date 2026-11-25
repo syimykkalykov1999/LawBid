@@ -14,6 +14,7 @@ import {
   type PracticeArea,
 } from '../../../generated/prisma/client';
 import {
+  type CreatedAtCursor,
   decodeCursor,
   encodeCursor,
 } from '../../../common/pagination/cursor.util';
@@ -152,9 +153,16 @@ export class CasesFeedService {
       return { items: [], nextCursor: null };
     }
     const limit = query.limit ?? CASES_FEED_PAGE_DEFAULT;
-    const ranked = query.sort === 'for_you' && !!this.recommendations;
+    // Owner 25.11 (the Feed's «Кейсы» tab is ranked too): after the ranked
+    // pool (the newest CASES_RANK_CANDIDATES, ranked) a "for you" scroll
+    // goes on with the older cases newest first — the ranked page's last
+    // cursor is then a keyset one — so the feed never ends early.
+    const forYou = query.sort === 'for_you' && !!this.recommendations;
+    const tail = forYou ? keysetTail(query.cursor) : undefined;
+    const ranked = forYou && !tail;
     const cursor =
-      query.cursor && !ranked ? decodeCursor(query.cursor) : undefined;
+      tail ??
+      (query.cursor && !ranked ? decodeCursor(query.cursor) : undefined);
 
     // Audit 2026-10-01: the Search tab's filters on the server.
     const spanMs =
@@ -311,9 +319,13 @@ export class CasesFeedService {
     // of page one as before (and out of the ranked list on every page).
     if (ranked && this.recommendations) {
       const start = rankedOffset(query.cursor);
-      const candidates = (
-        await run(rest, undefined, CASES_RANK_CANDIDATES)
-      ).map((r) => r.id);
+      const pool = await run(rest, undefined, CASES_RANK_CANDIDATES);
+      const candidates = pool.map((r) => r.id);
+      // The pool was cut by its size: older cases follow the ranked ones.
+      const oldest =
+        pool.length >= CASES_RANK_CANDIDATES
+          ? pool[pool.length - 1]
+          : undefined;
       const ids = await this.recommendations.casesFor(
         viewer.userId,
         candidates,
@@ -336,7 +348,12 @@ export class CasesFeedService {
       this.recordPromotedImpressions(viewer.userId, live, shownPromoted);
       return {
         items,
-        nextCursor: end < ids.length ? encodeRankedOffset(end) : null,
+        nextCursor:
+          end < ids.length
+            ? encodeRankedOffset(end)
+            : oldest
+              ? encodeCursor({ createdAt: oldest.created_at, id: oldest.id })
+              : null,
       };
     }
     const rows = await run(rest, cursor, limit + 1);
@@ -796,6 +813,24 @@ export class CasesFeedService {
 /** "for you" cursor: a position in the ranked list. */
 function encodeRankedOffset(i: number): string {
   return Buffer.from(JSON.stringify({ i })).toString('base64url');
+}
+
+/**
+ * A keyset (newest-first) cursor inside a "for you" scroll: the tail after
+ * the ranked pool. A ranked cursor (`{i}`) or none = undefined.
+ */
+function keysetTail(raw: string | undefined): CreatedAtCursor | undefined {
+  if (!raw) return undefined;
+  try {
+    const o = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as {
+      t?: unknown;
+    } | null;
+    if (!o || typeof o !== 'object' || typeof o.t !== 'string')
+      return undefined;
+  } catch {
+    return undefined;
+  }
+  return decodeCursor(raw);
 }
 
 function rankedOffset(raw: string | undefined): number {

@@ -270,6 +270,84 @@ describe('CasesFeedService', () => {
         expect(second.nextCursor).toBeNull();
       });
 
+      it('owner 25.11: after a full ranked pool the scroll goes on with older cases, newest first', async () => {
+        const pool = Array.from({ length: 300 }, (_, i) =>
+          caseRow({
+            id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+            created_at: new Date(Date.UTC(2026, 10, 20) - i * 60_000),
+          }),
+        );
+        const older = ['old1', 'old2'].map((id, i) =>
+          caseRow({
+            id,
+            created_at: new Date(Date.UTC(2026, 10, 1) - i * 60_000),
+          }),
+        );
+        const deps = fakeDeps({ cases: [...pool, ...older] });
+        deps.prisma.$queryRaw.mockImplementation(
+          (q: { values?: unknown[] }) => {
+            const v = q.values ?? [];
+            if (v.includes(300))
+              return Promise.resolve(
+                pool.map((r) => ({ id: r.id, created_at: r.created_at })),
+              );
+            // The newest-first page after the keyset cursor (limit 2 + 1).
+            if (v.includes(3))
+              return Promise.resolve(
+                older.map((r) => ({ id: r.id, created_at: r.created_at })),
+              );
+            return Promise.resolve([]);
+          },
+        );
+        const ranked = [...pool].reverse().map((r) => r.id);
+        const recommendations = {
+          casesFor: jest.fn().mockResolvedValue(ranked),
+          logServed: jest.fn().mockResolvedValue(undefined),
+        };
+        const service = new CasesFeedService(
+          deps.prisma as never,
+          deps.access as never,
+          deps.viewTracking as never,
+          deps.posts as never,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          recommendations as never,
+        );
+        // The last ranked page (positions 298-299).
+        const last = await service.listFeed(attorney, {
+          sort: 'for_you',
+          limit: 2,
+          cursor: Buffer.from(JSON.stringify({ i: 298 })).toString('base64url'),
+        });
+        expect(last.items.map((i) => i.id)).toEqual([pool[1].id, pool[0].id]);
+        expect(last.nextCursor).not.toBeNull();
+        // It is a keyset cursor at the oldest case of the pool.
+        expect(
+          JSON.parse(Buffer.from(last.nextCursor!, 'base64url').toString()),
+        ).toEqual({ t: pool[299].created_at.toISOString(), id: pool[299].id });
+        recommendations.casesFor.mockClear();
+        const tail = await service.listFeed(attorney, {
+          sort: 'for_you',
+          limit: 2,
+          cursor: last.nextCursor!,
+        });
+        expect(recommendations.casesFor).not.toHaveBeenCalled();
+        expect(tail.items.map((i) => i.id)).toEqual(['old1', 'old2']);
+      });
+
+      it('a pool smaller than its size ends with the ranked list (nothing older exists)', async () => {
+        const { service } = withRanking(['c3', 'c1', 'c2']);
+        const page = await service.listFeed(attorney, {
+          sort: 'for_you',
+          limit: 5,
+        });
+        expect(page.items.map((i) => i.id)).toEqual(['c3', 'c1', 'c2']);
+        expect(page.nextCursor).toBeNull();
+      });
+
       it('without the sort the newest order is untouched', async () => {
         const { service, recommendations } = withRanking(['c3']);
         const page = await service.listFeed(attorney, {});

@@ -547,6 +547,11 @@ class FeedNotifier extends PagedNotifier<FeedCase> {
             if (c.isNotEmpty) c,
         ],
         mineOnly: filter.mineOnly,
+        // Owner 25.11 («умную ленту для всех лент»): the Feed's «Кейсы» is
+        // ranked for the attorney like Search's (the server's formula, its
+        // learned ranker once trained); after the ranked part the older
+        // cases follow newest first.
+        extras: const CaseFeedExtras(forYou: true),
       );
 
   @override

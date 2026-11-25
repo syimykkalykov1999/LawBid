@@ -60,8 +60,11 @@ function withManifest(change: (m: Record<string, unknown>) => void): string {
 }
 
 describe('PostRankerService', () => {
-  it('defaults to off: nobody is in the test, nothing is loaded', async () => {
+  it('defaults to «Авто» with no model: nobody is in the test, nothing is loaded', async () => {
+    // Owner 25.11: «Авто» by default — the formula until a trained model
+    // that beat it offline is set in reco.ranker.model_key.
     const r = new PostRankerService(settingsWith({}));
+    expect(await r.wantsTrainingData()).toBe(true);
     expect(await r.assign('u1')).toBeNull();
     expect(r.status().loaded).toBeNull();
   });

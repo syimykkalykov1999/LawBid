@@ -1205,7 +1205,8 @@ export class PostsService {
         where,
         { reels: true, practice: practice ?? null },
         offset,
-        { pin, includeOwn: true },
+        // Owner 25.11: the reels feed has its own learned ranker.
+        { pin, includeOwn: true, feed: 'reel' },
       );
       const ids = ranked.ids;
       if (offset === 0 && ids.length === 0) return null;
@@ -1217,7 +1218,7 @@ export class PostsService {
         : [];
       const byId = new Map(rows.map((r) => [r.id, r]));
       const page = slice.flatMap((id) => byId.get(id) ?? []);
-      void this.recommendations.logServed(user.sub, 'post', slice, offset);
+      void this.recommendations.logServed(user.sub, 'reel', slice, offset);
       const items = await this.presenter.present(page, user.sub);
       return {
         items: await this.withPromotedReels(user, items, hidden),
