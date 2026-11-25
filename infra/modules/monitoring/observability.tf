@@ -204,24 +204,25 @@ resource "aws_cloudwatch_metric_alarm" "availability_burn" {
   treat_missing_data  = "notBreaching"
   tags                = var.tags
 
-  metric_query {
-    id = "req"
-    metric {
-      metric_name = "RequestCount"
-      namespace   = "AWS/ApplicationELB"
-      period      = each.value.period
-      stat        = "Sum"
-      dimensions  = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_target_group_arn_suffix }
+  # X1: one api group = req / err as before; two groups (built-in canary) = their sums.
+  dynamic "metric_query" {
+    for_each = local.api_5xx_series
+    content {
+      id = metric_query.key
+      metric {
+        metric_name = metric_query.value.m
+        namespace   = "AWS/ApplicationELB"
+        period      = each.value.period
+        stat        = "Sum"
+        dimensions  = { LoadBalancer = var.alb_arn_suffix, TargetGroup = metric_query.value.tg }
+      }
     }
   }
-  metric_query {
-    id = "err"
-    metric {
-      metric_name = "HTTPCode_Target_5XX_Count"
-      namespace   = "AWS/ApplicationELB"
-      period      = each.value.period
-      stat        = "Sum"
-      dimensions  = { LoadBalancer = var.alb_arn_suffix, TargetGroup = var.api_target_group_arn_suffix }
+  dynamic "metric_query" {
+    for_each = local.api_5xx_sums
+    content {
+      id         = metric_query.key
+      expression = metric_query.value
     }
   }
   metric_query {

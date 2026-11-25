@@ -111,6 +111,28 @@ variable "ws_target_group_enabled" {
   default     = false
   description = "S4-7: a second API target group only for /socket.io/* (sticky, 1 day) while the main API group drops stickiness and uses least_outstanding_requests. Needs the ECS service to register in both groups (replaces the service in the AWS provider: plan it in a quiet window)."
 }
+variable "api_native_deploy_stage" {
+  type        = string
+  default     = "off"
+  description = <<-EOT
+    X1 (25.11): the ALB half of the ECS built-in canary / linear deployment of
+    the api (AWS ECS developer guide, "Application Load Balancer resources for
+    blue/green, linear, and canary deployments"):
+      off      today's routing, nothing new (default);
+      prepare  adds the second ("green") api target group and a weighted rule
+               (priority 11, blue 100 / green 0) behind today's rule 10, which
+               still answers: no traffic moves. Apply this first;
+      on       removes rule 10, so the weighted rule is the production rule
+               ECS shifts during a deployment (its weights are then ECS's,
+               Terraform ignores them).
+    Two steps so no request ever meets a missing rule (rule 11 exists before
+    rule 10 goes). The ECS half is var.api_native_deploy in modules/stack.
+  EOT
+  validation {
+    condition     = contains(["off", "prepare", "on"], var.api_native_deploy_stage)
+    error_message = "api_native_deploy_stage: off, prepare or on."
+  }
+}
 variable "waf_bot_control_enabled" {
   type    = bool
   default = false
@@ -374,6 +396,7 @@ resource "aws_lb_listener" "https" {
 }
 
 resource "aws_lb_listener_rule" "api" {
+  count        = var.api_native_deploy_stage == "on" ? 0 : 1
   listener_arn = aws_lb_listener.https.arn
   priority     = 10
   action {
@@ -382,6 +405,71 @@ resource "aws_lb_listener_rule" "api" {
   }
   condition {
     host_header { values = [var.api_host] }
+  }
+}
+# X1: the rule had no count before; same object, new address (no replacement).
+moved {
+  from = aws_lb_listener_rule.api
+  to   = aws_lb_listener_rule.api[0]
+}
+
+# X1 (25.11): the alternate ("green") target group of the ECS built-in canary /
+# linear deployment. Same settings as the api group: ECS registers the new
+# revision here, shifts the weighted rule below, and the next deployment goes
+# the other way (blue <-> green alternate, AWS "How canary deployments work").
+resource "aws_lb_target_group" "api_green" {
+  count                         = var.api_native_deploy_stage == "off" ? 0 : 1
+  name                          = "${var.name}-api-green"
+  port                          = 3000
+  protocol                      = "HTTP"
+  target_type                   = "ip"
+  vpc_id                        = var.vpc_id
+  deregistration_delay          = 60
+  slow_start                    = aws_lb_target_group.api.slow_start
+  load_balancing_algorithm_type = aws_lb_target_group.api.load_balancing_algorithm_type
+  health_check {
+    path                = "/health/live"
+    matcher             = "200"
+    interval            = 15
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+  }
+  stickiness {
+    type            = "lb_cookie"
+    cookie_duration = 86400
+    enabled         = !var.ws_target_group_enabled
+  }
+  tags = var.tags
+}
+
+# X1: the production listener rule ECS shifts (AWS pattern: one forward action
+# with both groups, only one of them weighted > 0 before a deployment). Priority
+# 11 sits behind rule 10 while the stage is `prepare`, so it carries no traffic
+# until rule 10 is removed (`on`). ECS rewrites the weights on every deployment:
+# Terraform must not put them back (that would send traffic to the idle group).
+resource "aws_lb_listener_rule" "api_weighted" {
+  count        = var.api_native_deploy_stage == "off" ? 0 : 1
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 11
+  action {
+    type = "forward"
+    forward {
+      target_group {
+        arn    = aws_lb_target_group.api.arn
+        weight = 100
+      }
+      target_group {
+        arn    = aws_lb_target_group.api_green[0].arn
+        weight = 0
+      }
+    }
+  }
+  condition {
+    host_header { values = [var.api_host] }
+  }
+  lifecycle {
+    ignore_changes = [action[0].forward]
   }
 }
 
@@ -972,5 +1060,8 @@ output "api_admin_target_group_arn" { value = var.admin_api_target_group_enabled
 output "api_ws_target_group_arn" { value = var.ws_target_group_enabled ? aws_lb_target_group.api_ws[0].arn : "" }
 output "api_target_group_arn_suffix" { value = aws_lb_target_group.api.arn_suffix }
 output "api_admin_target_group_arn_suffix" { value = var.admin_api_target_group_enabled ? aws_lb_target_group.api_admin[0].arn_suffix : "" }
+output "api_green_target_group_arn" { value = var.api_native_deploy_stage == "off" ? "" : aws_lb_target_group.api_green[0].arn }
+output "api_green_target_group_arn_suffix" { value = var.api_native_deploy_stage == "off" ? "" : aws_lb_target_group.api_green[0].arn_suffix }
+output "api_production_listener_rule_arn" { value = var.api_native_deploy_stage == "off" ? "" : aws_lb_listener_rule.api_weighted[0].arn }
 output "admin_target_group_arn" { value = aws_lb_target_group.admin.arn }
 output "admin_target_group_arn_suffix" { value = aws_lb_target_group.admin.arn_suffix }

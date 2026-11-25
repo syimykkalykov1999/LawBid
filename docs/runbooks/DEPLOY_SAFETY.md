@@ -244,3 +244,26 @@ sigstore/cosign-installer и anchore/sbom-action (GitHub, 2026).
 1. Включить `CANARY_ENABLED=true`, запустить выкатку: в шаге «Canary» видно «task healthy, watching 5 min» и «passed».
 2. Во время проверки в консоли ECS виден сервис `api-canary` с 1 задачей; после шага его уже нет.
 3. Для проверки отказа: выкатить заведомо битую версию — шаг «Canary» красный, настоящий `api` остался на старой версии.
+
+## Встроенный canary ECS (X1, 25.11, пункт 19 ARCHITECTURE_VS_BIG_PLATFORMS)
+
+Что это: вместо нашего скрипта `canary.sh` долю трафика на новую версию даёт сам ECS (встроенные стратегии CANARY и LINEAR, AWS 30.10.2025; провайдер Terraform 6.21+, у нас `~> 6.72`). ECS поднимает новую версию во второй («зелёной») целевой группе, отдаёт ей `api_canary_percent` (10 %) трафика на `api_canary_bake_minutes` (5 мин), потом 100 %, и ещё `api_deploy_bake_minutes` (10 мин) держит старую версию рядом. Если за это время загорится тревога (те же 5xx, p95, нездоровые хосты) или сработает выключатель (circuit breaker) — ECS сам возвращает трафик на старую версию. Выкатка в GitHub при этом красная.
+
+Переключатель — Terraform `api_native_deploy`: `off` (сегодня, прод) → `prepare` → `canary` (или `linear`). На staging по умолчанию `canary`, на проде `off`.
+
+Что делает `deploy.yml`: шаг «Api deployment strategy» читает у самого сервиса стратегию. CANARY/LINEAR — шаг «Canary (1 task…)» пропускается, «Rolling deploy api» ждёт итог деплоя ECS (`SUCCESSFUL` — дальше; `ROLLBACK_*` — красный). Иначе всё как раньше. Smoke, synthetic, `last_good_tag` и наш автооткат после выкатки остаются в обоих случаях.
+
+### Шаги владельца (Terraform, по порядку)
+
+1. `terraform apply` в `infra/bootstrap` (роль выкатки получает чтение `ListServiceDeployments`, `DescribeServiceDeployments`, `DescribeServiceRevisions`).
+2. Staging (если он работает): `api_native_deploy = "prepare"` → apply (появятся `lawbid-staging-api-green` и правило 11 за правилом 10, трафик не двигается). Потом `"canary"` → apply (правило 10 уходит, сервис api получает стратегию CANARY и роль `lawbid-staging-ecs-lb-infra`). Новый staging можно сразу ставить на `canary`.
+3. Выкатить на staging, в логе «Rolling deploy api» видно `ECS deployment … SUCCESSFUL`. Затем `terraform plan` staging должен быть пустым по `aws_ecs_service.api` и `aws_lb_listener_rule.api_weighted` (веса правила Terraform не трогает). Если plan показывает смену `load_balancer` у api — не применять, написать мне.
+4. Прод — только после решения про «Авто» (ниже) и удачного staging: в `terraform.tfvars` прода `api_native_deploy = "prepare"` → apply → `"canary"` → apply.
+
+### Важно (честно)
+
+- **«Авто» и запросы.** Масштаб api по числу запросов (`ALBRequestCountPerTarget`, политика `lawbid-<env>-api-requests`) смотрит одну целевую группу. ECS после каждой выкатки переносит живой трафик в другую группу, поэтому после каждой второй выкатки эта политика не видит запросов (по CPU масштаб работает). «Авто» в этом PR не трогали (правило 17.11). `terraform plan` с `canary`/`linear` пишет об этом предупреждение. Нужен ваш ответ: можно ли поменять эту одну политику на сумму запросов обеих групп.
+- **Тревоги.** С `prepare` тревоги api (5xx, p95, нездоровые хосты, «нет задач», бюджет доступности) считают обе группы, иначе после переключения они бы молчали или будили зря. Графики дашборда пока показывают одну группу.
+- **Назад с `canary` на `off`.** Сначала проверьте, в какой группе живой трафик: EC2 → Load Balancers → Listeners → правило 11. Если у `api-green` вес 100 — сделайте ещё одну выкатку (трафик вернётся в `api`). Потом `prepare` → apply, потом `off` → apply.
+- **WebSocket-группа** (`alb_websocket_target_group`) с canary несовместима (AWS требует вторую группу для каждой), Terraform откажет с понятной ошибкой.
+- Цена: пока идёт выкатка, задач api вдвое больше (10–25 минут). Целевая группа и правило бесплатны.

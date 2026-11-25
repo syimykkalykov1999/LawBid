@@ -268,6 +268,7 @@ module "stack" {
   ecs_readonly_root_filesystem       = var.ecs_readonly_root_filesystem
   deploy_alarm_rollback              = var.deploy_alarm_rollback
   deploy_rollback_on_slo             = var.deploy_rollback_on_slo
+  api_native_deploy                  = var.api_native_deploy
   tracing_enabled                    = var.tracing_enabled
   synthetic_journey_enabled          = var.synthetic_journey_enabled
   synthetic_journey_secret_arn       = var.synthetic_journey_secret_arn

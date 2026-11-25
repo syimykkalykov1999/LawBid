@@ -26,6 +26,14 @@
 #   DB_POOL_ENV_JSON  {"api":{"DB_POOL_SIZE":"5"},"worker":{...}}: the app
 #                     container's DB_POOL* variables become exactly these
 #                     (DB_POOLER_HOST / _PORT / _CA_PEM not listed = removed).
+#
+# X1 (25.11): a service whose deploymentConfiguration.strategy is CANARY, LINEAR
+# or BLUE_GREEN (infra var.api_native_deploy) is shifted by ECS itself: green
+# target group, canary share, bake, 100 %, shift back on an alarm or the circuit
+# breaker. For it this script waits for THAT service deployment (ECS
+# ListServiceDeployments -> DescribeServiceRevisions -> DescribeServiceDeployments):
+# SUCCESSFUL = done, ROLLBACK_* / STOPPED = ECS rejected the release (exit 1).
+# ROLLING services (today's default) keep the rolloutState wait below unchanged.
 set -eu
 CLUSTER="$1"; TAG="$2"; SERVICES="${3:-${SERVICES:-api worker admin}}"
 for S in $SERVICES; do
@@ -78,6 +86,7 @@ new_revision() {
 }
 
 ADM_PREV=""
+NATIVE=""
 for SVC in $SERVICES; do
   FAMILY="${CLUSTER}-${SVC}"
   IMAGE="${REGISTRY}/lawbid-$( [ "$SVC" = admin ] && echo admin || echo api ):${TAG}"
@@ -87,8 +96,12 @@ for SVC in $SERVICES; do
     case "$SRC" in arn:*) ;; *) echo "::error::$SVC: no running task definition ($SRC)" >&2; exit 1 ;; esac
   fi
   REV=$(new_revision "$SRC" "$IMAGE" "$SVC")
+  # X1: which deployment strategy ECS uses for this service (None = ROLLING).
+  STRATEGY=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SVC" \
+    --query 'services[0].deploymentConfiguration.strategy' --output text 2>/dev/null || echo None)
+  case "$STRATEGY" in CANARY|LINEAR|BLUE_GREEN) NATIVE="$NATIVE $SVC" ;; esac
   aws ecs update-service --cluster "$CLUSTER" --service "$SVC" --task-definition "$REV" >/dev/null
-  echo "$SVC -> $REV"
+  echo "$SVC -> $REV (strategy ${STRATEGY})"
   REVS="$REVS $SVC=$REV"
   # Owner 2026-11-11 («А»): the admin panel's API service runs api's image
   # (infra/modules/ecs aws_ecs_service.api_admin), when it exists. Row 204
@@ -142,10 +155,54 @@ align_api_admin() {
   echo "::error::api-admin: still moving back to $CUR after ${ROLL_TIMEOUT_SECONDS}s"
 }
 
+# X1: wait_native <service> <task definition>: the ECS built-in canary / linear
+# deployment of our revision until it ends. 0 = SUCCESSFUL, 1 = rolled back,
+# stopped or timed out (uses $start / ROLL_TIMEOUT_SECONDS like the loop below).
+wait_native() {
+  N_SVC="$1"; N_REV="$2"; N_DEP=""; N_LAST=""
+  while :; do
+    if [ -z "$N_DEP" ]; then
+      # The newest service deployments (up to 20); ours targets a service
+      # revision that runs N_REV.
+      for N_LINE in $(aws ecs list-service-deployments --cluster "$CLUSTER" --service "$N_SVC" \
+          --query 'serviceDeployments[].[serviceDeploymentArn,targetServiceRevisionArn]' --output text 2>/dev/null | tr '\t' '|'); do
+        N_TD=$(aws ecs describe-service-revisions --service-revision-arns "${N_LINE#*|}" \
+          --query 'serviceRevisions[0].taskDefinition' --output text 2>/dev/null || true)
+        if [ "$N_TD" = "$N_REV" ]; then N_DEP="${N_LINE%%|*}"; echo "$N_SVC: ECS deployment $N_DEP"; break; fi
+      done
+    fi
+    if [ -n "$N_DEP" ]; then
+      N_OUT=$(aws ecs describe-service-deployments --service-deployment-arns "$N_DEP" \
+        --query 'serviceDeployments[0].[status,lifecycleStage,statusReason]' --output text 2>/dev/null || true)
+      N_STATUS=$(printf '%s' "$N_OUT" | cut -f1)
+      N_NOW=$(printf '%s' "$N_OUT" | cut -f1-2)
+      [ "$N_NOW" = "$N_LAST" ] || { echo "$N_SVC: $N_NOW"; N_LAST="$N_NOW"; }
+      case "$N_STATUS" in
+        SUCCESSFUL) echo "$N_SVC: ECS deployment SUCCESSFUL"; return 0 ;;
+        ROLLBACK_*|STOPPED)
+          echo "::error::$N_SVC: ECS rejected the release and shifted back ($N_OUT)"
+          aws ecs describe-services --cluster "$CLUSTER" --services "$N_SVC" \
+            --query 'services[0].events[0:8].message' --output text || true
+          return 1 ;;
+      esac
+    fi
+    if [ $(( $(date +%s) - start )) -ge "$ROLL_TIMEOUT_SECONDS" ]; then
+      echo "::error::$N_SVC: ECS deployment ${N_DEP:-of $N_REV not found} still ${N_STATUS:-unknown} after ${ROLL_TIMEOUT_SECONDS}s"
+      return 1
+    fi
+    sleep "$ROLL_POLL_SECONDS"
+  done
+}
+
 # Wait until every service has OUR revision as COMPLETED, nothing else left.
 start=$(date +%s)
 for pair in $REVS; do
   SVC="${pair%%=*}"; REV="${pair#*=}"
+  case " $NATIVE " in *" $SVC "*)
+    if wait_native "$SVC" "$REV"; then continue; fi
+    [ "$SVC" = api ] && align_api_admin
+    exit 1 ;;
+  esac
   while :; do
     # rolloutState of the deployment that runs our task definition.
     OUT=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SVC" \
