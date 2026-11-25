@@ -386,6 +386,13 @@ class MainActivity : FlutterFragmentActivity() {
         // Security research #5 (2026-10-22), B5: FLAG_SECURE while a screen
         // with an ID document / licence is open (lib/core/platform/
         // secure_screen.dart) — screenshots and recordings show black.
+        // S12 #28 (25.11, tapjacking, developer.android.com «Tapjacking»):
+        // the same screen also hides other apps' overlay windows
+        // (Window.setHideOverlayWindows, API 31+, permission
+        // HIDE_OVERLAY_WINDOWS) and drops touches that arrive while another
+        // window covers ours (View.filterTouchesWhenObscured on the root
+        // view — ViewGroup filters before dispatching, so the Flutter view
+        // under it is covered too; this is the guard on API 26–30).
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "lawbid/secure_screen",
@@ -399,6 +406,10 @@ class MainActivity : FlutterFragmentActivity() {
                         } else {
                             window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
                         }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            window.setHideOverlayWindows(secure)
+                        }
+                        window.decorView.filterTouchesWhenObscured = secure
                     }
                     result.success(null)
                 }

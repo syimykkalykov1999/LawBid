@@ -10,6 +10,55 @@
             <certificates src="system" />
         </trust-anchors>
     </base-config>
+    <!-- S12 #25 (25.11, MASVS-NETWORK-2, MASTG-TEST-0242): the platform's own
+         pinning (developer.android.com «Network security configuration» →
+         «Certificate pinning»). The pins are the SPKI SHA-256 of the root CAs
+         that can sign these hosts: the ACM chain of the API (Amazon Root CA
+         1–4, Starfield Services Root G2) and the CAs Cloudflare issues from
+         (media.lawbid.dev today; the API if it ever moves behind Cloudflare):
+         Google Trust Services, Let's Encrypt, SSL.com. A chain passes when any
+         certificate in it matches. The expiration FAILS OPEN: after that day an
+         old build simply stops pinning, it never bricks. The same list is in
+         ios/Runner/Info.plist (NSPinnedDomains); scripts/ci/cert-pins-check.mjs
+         keeps both equal and compares them with the live chains every day. -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">api.lawbid.dev</domain>
+        <domain includeSubdomains="false">media.lawbid.dev</domain>
+        <pin-set expiration="2027-11-25">
+            <!-- Amazon Root CA 1 (ACM, api today) -->
+            <pin digest="SHA-256">++MBgDH5WGvL9Bcn5Be30cRcL0f5O+NyoXuWtQdX1aI=</pin>
+            <!-- Amazon Root CA 2 -->
+            <pin digest="SHA-256">f0KW/FtqTjs108NpYj42SrGvOB2PpxIVM8nWxjPqJGE=</pin>
+            <!-- Amazon Root CA 3 -->
+            <pin digest="SHA-256">NqvDJlas/GRcYbcWE8S/IceH9cq77kg0jVhZeAPXq8k=</pin>
+            <!-- Amazon Root CA 4 -->
+            <pin digest="SHA-256">9+ze1cZgR9KO1kZrVDxA4HQ6voHRCSVNz4RdTCx4U8U=</pin>
+            <!-- Starfield Services Root CA - G2 (ACM cross-sign) -->
+            <pin digest="SHA-256">KwccWaCgrnaw6tsrrSO61FgLacNgG2MMLq8GE6+oP5I=</pin>
+            <!-- GTS Root R1 (Cloudflare) -->
+            <pin digest="SHA-256">hxqRlPTu1bMS/0DITB1SSu0vd4u/8l8TjPgfaAp63Gc=</pin>
+            <!-- GTS Root R2 -->
+            <pin digest="SHA-256">Vfd95BwDeSQo+NUYxVEEIlvkOlWY2SalKK1lPhzOx78=</pin>
+            <!-- GTS Root R3 -->
+            <pin digest="SHA-256">QXnt2YHvdHR3tJYmQIr0Paosp6t/nggsEGD4QJZ3Q0g=</pin>
+            <!-- GTS Root R4 (media today) -->
+            <pin digest="SHA-256">mEflZT5enoR1FuXLgYYGqnVEoZvmf9c2bVBpiOjYQ0c=</pin>
+            <!-- GlobalSign Root CA (GTS cross-sign) -->
+            <pin digest="SHA-256">K87oWBWM9UZfyddvDfoxL+8lpNyoUB2ptGtn0fv6G2Q=</pin>
+            <!-- ISRG Root X1 (Let's Encrypt) -->
+            <pin digest="SHA-256">C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=</pin>
+            <!-- ISRG Root X2 -->
+            <pin digest="SHA-256">diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=</pin>
+            <!-- SSL.com TLS RSA Root CA 2022 (Cloudflare) -->
+            <pin digest="SHA-256">K89VOmb1cJAN3TK6bf4ezAbJGC1mLcG2Dh97dnwr3VQ=</pin>
+            <!-- SSL.com TLS ECC Root CA 2022 -->
+            <pin digest="SHA-256">G/ANXI8TwJTdF+AFBM8IiIUPEv0Gf6H5LA/b9guG4yE=</pin>
+            <!-- SSL.com Root Certification Authority RSA -->
+            <pin digest="SHA-256">0cRTd+vc1hjNFlHcLgLCHXUeWqn80bNDH/bs9qMTSPo=</pin>
+            <!-- SSL.com Root Certification Authority ECC -->
+            <pin digest="SHA-256">oyD01TTXvpfBro3QSZc1vIlcMjrdLTiL/M9mLCPX+Zo=</pin>
+        </pin-set>
+    </domain-config>
     <!-- N-1: the video chunk cache is a loopback server inside the app. -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">127.0.0.1</domain>

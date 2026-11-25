@@ -91,6 +91,14 @@ jobs:
           node --test scripts/ci/migration-role-check.test.mjs
           # CONTENT_MEDIA_VERIFY 17.11 №1: CI and the Mac run prod's engines (PostgreSQL 18, Valkey 9.1).
           node --test scripts/ci/ci-engines-match-prod.test.mjs
+          # S12 #25: the app's certificate pins (Android pin-set = iOS NSPinnedDomains).
+          node --test scripts/ci/cert-pins-check.test.mjs
+
+      # S12 #25 (25.11): both platforms pin the same hosts and keys, and the
+      # Android pin-set expiration is still ahead. The live-chain half runs
+      # daily in cert-pins.yml.
+      - name: App certificate pins are equal on Android and iOS
+        run: node scripts/ci/cert-pins-check.mjs
 
       # OPEN_ITEMS_SWEEP 2026-11-09 C-c9: the docs name the DB user migrations
       # really run under (infra/postgres/migration-role.txt); drift fails here.

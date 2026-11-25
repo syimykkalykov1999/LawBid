@@ -1,0 +1,54 @@
+# S12 #25 (25.11, MASVS-NETWORK-2): the app pins api.lawbid.dev and
+# media.lawbid.dev with the platforms' own pinning (Android pin-set, iOS
+# NSPinnedDomains). This job compares the pins with the live certificate
+# chains every day and on every PR that touches them, so a CA change at AWS
+# (ACM) or Cloudflare is seen before a phone build ships with stale pins.
+# Read-only: one TLS handshake per host, no credentials. The static half
+# (both platforms equal, expiration ahead) also runs in Repo guards.
+name: Certificate pins vs live chain
+
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch: {}
+  pull_request:
+    branches: [main, master]
+    paths:
+      - apps/mobile/android/app/src/main/res/xml/network_security_config.xml
+      - apps/mobile/ios/Runner/Info.plist
+      - scripts/ci/cert-pins-check.mjs
+      - .github/workflows/cert-pins.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cert-pins-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pins:
+    name: Pins match the live chains
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26.13.1"
+      - name: Compare the pins with the live chains
+        run: node scripts/ci/cert-pins-check.mjs --live
+
+  notify:
+    needs: [pins]
+    if: ${{ always() && needs.pins.result == 'failure' && github.event_name != 'pull_request' }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "App certificate pins no longer match the live chain of api/media.lawbid.dev"
+      kind: cert-pins
+      remind_after_minutes: 1440
+    secrets: inherit
