@@ -4,6 +4,12 @@ import type { HttpStatsService } from './http-stats.service';
 import { HttpStatsMiddleware } from './http-stats.service';
 import type { SloMetricsService } from './slo-metrics.service';
 
+// The middleware only calls RouteMetricsService (optional here); its real
+// module pulls in settings and Prisma, which this unit test does not need.
+jest.mock('./route-metrics.service', () => ({
+  RouteMetricsService: class RouteMetricsService {},
+}));
+
 /** Б2 (25.11): every answered request and its 5xx go into the minute
  * `{metric:"slo", release}` line, so scripts/deploy/canary.sh can compare the
  * canary release with the control (SRE Workbook ch. 16). */
