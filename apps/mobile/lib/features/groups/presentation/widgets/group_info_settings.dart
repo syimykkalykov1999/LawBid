@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/text/bidi.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_section.dart';
@@ -353,7 +354,7 @@ class _TypeSheetState extends ConsumerState<_TypeSheet> {
     );
     if (!mounted) return;
     if (error == null) {
-      Navigator.of(context).pop();
+      context.popIfCurrent();
     } else {
       setState(() {
         _busy = false;

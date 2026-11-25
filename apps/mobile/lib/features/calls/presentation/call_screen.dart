@@ -115,9 +115,18 @@ class _CallScreenState extends ConsumerState<CallScreen>
     if (route.isCurrent) {
       nav.pop();
     } else if (route.isActive) {
-      nav
-        ..popUntil((r) => r == route || r.isFirst)
-        ..removeRoute(route);
+      nav.popUntil((r) => r == route || r.isFirst);
+      // Round 1 check 25.11 №2: a router page (`/call` of go_router) leaves
+      // with `pop`, like the branch above. `removeRoute` skips the pop
+      // callback that go_router listens to, so `/call` stayed in the
+      // router's stack: the next call did not open and the incoming banner
+      // stayed hidden. Flutter: a page-based route goes by its page, never
+      // by `removeRoute`; a pageless route may still be removed at once.
+      if (route.settings is Page<Object?> && route.isCurrent) {
+        nav.pop();
+      } else if (route.isActive) {
+        nav.removeRoute(route);
+      }
     }
   }
 
@@ -499,6 +508,33 @@ class _CallScreenState extends ConsumerState<CallScreen>
           ],
         ),
       );
+    } else if (addon?.stage case final stage?) {
+      picture = Stack(
+        fit: StackFit.expand,
+        children: [
+          const CallAudioBackdrop(),
+          CallPhotoBackdrop(url: peer?.avatarUrl),
+          stage(
+            context,
+            peer: peer,
+            bottomInset: sheetHeight,
+            clock: _CallClock(
+              session: s,
+              builder: (context, status) => Text(
+                status,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: type.body.copyWith(
+                  color: AppCallColors.onStage,
+                  fontSize: CallTextSizes.bigStatus,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
     } else {
       picture = Stack(
         fit: StackFit.expand,
@@ -629,10 +665,12 @@ class _CallScreenState extends ConsumerState<CallScreen>
                   // channel's video call keeps the plain camera pause.
                   // Owner 18.11: no camera button while video calls are
                   // off (`video_calls`) — unless this call began as video or
-                  // our camera is still on (it can go off).
-                  showVideo: videoCallsOn ||
-                      (s.call?.video ?? false) ||
-                      (s.video && s.cameraOn),
+                  // our camera is still on (it can go off). Row 87: a call
+                  // with an add-on (the hotline) is voice only.
+                  showVideo: addon == null &&
+                      (videoCallsOn ||
+                          (s.call?.video ?? false) ||
+                          (s.video && s.cameraOn)),
                   onVideo: c.canSwitchVideo
                       ? () => _videoTap(c, s, c.toggleVideo)
                       : s.video && s.busy

@@ -97,7 +97,6 @@ class BlockedUsersScreen extends ConsumerWidget {
                             height: AppSizes.touchTarget - 4,
                             onPressed: () => toggleBlock(
                               context,
-                              ref,
                               userId: u.id,
                               displayName: u.displayName,
                               currentlyBlocked: true,

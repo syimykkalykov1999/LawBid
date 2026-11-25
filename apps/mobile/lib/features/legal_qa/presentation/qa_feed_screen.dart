@@ -279,10 +279,20 @@ class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
           PositionedDirectional(
             end: AppSpacing.screenSide,
             bottom: AppSpacing.screenSide,
-            child: AppFab(
-              buttonKey: const ValueKey('qa-ask'),
-              semanticLabel: t.t('qa.ask'),
-              onPressed: () => context.push(LegalQaRoutes.ask),
+            // Owner row 87 (hotline mockup v4 c1): the call button just
+            // above the «+», like the live-call button of Chats.
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (ref.watch(qaFeedFabSlotProvider) case final extra?)
+                  extra(context),
+                AppFab(
+                  buttonKey: const ValueKey('qa-ask'),
+                  semanticLabel: t.t('qa.ask'),
+                  onPressed: () => context.push(LegalQaRoutes.ask),
+                ),
+              ],
             ),
           ),
         // Owner row 87 (hotline mockup a1): the attorney's line button in

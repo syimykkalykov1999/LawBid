@@ -26,14 +26,11 @@ import { BootstrapService } from '../feature-flags/services/bootstrap.service';
 import { FeatureFlagsService } from '../feature-flags/services/feature-flags.service';
 import type {
   ConfigEntryDto,
-  CreateLegalDocumentDto,
   FeatureFlagAdminDto,
   LanguageAdminDto,
-  LegalDocumentAdminDto,
   UpdateFlagDto,
   UpdateLanguageDto,
 } from './admin-config.dto';
-import { LEGAL_DOC_TYPES } from './admin-config.dto';
 import { configSchema, validateConfigValue } from './config-schema';
 import { REPORT_TIME_ZONE_KEY } from '../../common/utils/report-day';
 import { isValidTimeZone } from '../../common/utils/zoned-time';
@@ -45,8 +42,6 @@ export const CONFIG_AUDIT = {
   flagRebucketed: 'config.flag_rebucketed',
   config: 'config.app_config',
   language: 'config.language',
-  legalCreate: 'legal.create',
-  legalPublish: 'legal.publish',
 } as const;
 
 /** docs/06 §2.3 item 7: flags that bill a third party and the env keys
@@ -80,13 +75,35 @@ export const OWNER_ONLY_CONFIG_KEYS: ReadonlySet<string> = new Set([
   'billing.dispute_refund_daily_cap_cents',
   'billing.duplicate_autorefund_daily_cap_cents',
   'stripe_ops.efw_auto_refund_max_cents',
+  // Round 4 admin check (25.11, С1): the panel's «Настройки» page is the
+  // owner's alone; the admin hardening switches are too (an employee with
+  // «Настройки: управление» could open the panel to every IP).
+  'admin.ip_allowlist_enabled',
+  'admin.ip_allowlist',
+  'admin.country_allowlist',
+  'admin.max_concurrent_sessions',
 ]);
 
 /** Verify batch 11 (C1): the staff package switches (masking, export
  * block, watermark, session binding, workspaces, rates…) are the owner's
  * (his «Сотрудники» settings are super admin only); through the generic
  * editor an employee could switch off the very guards on themselves. */
-export const OWNER_ONLY_CONFIG_PREFIXES: readonly string[] = ['staff.'];
+export const OWNER_ONLY_CONFIG_PREFIXES: readonly string[] = [
+  'staff.',
+  // Round 4 (25.11, С1): bot checks, App Check, password and sign-in
+  // guards — switched off by an employee, they open the app to attackers.
+  'security.',
+];
+
+/** Round 4 admin check (25.11, В5): switches that move real money. The
+ * panel's «Функции» page is the owner's alone; the API now says the same:
+ * only the super admin, always with a fresh 2FA code (like the refund caps
+ * above), whatever «Настройки» an employee was granted. */
+export const OWNER_ONLY_FLAGS: ReadonlySet<string> = new Set([
+  'dispute_auto_refund',
+  'payroll_stripe_payouts',
+  'economy_guard',
+]);
 
 export function isOwnerOnlyConfigKey(key: string): boolean {
   return (
@@ -151,6 +168,11 @@ export class AdminConfigService {
    * 2FA service = no change. */
   private async assertOwnerOnly(admin: AdminActor, key: string): Promise<void> {
     if (!isOwnerOnlyConfigKey(key)) return;
+    await this.assertOwnerStepUp(admin);
+  }
+
+  /** Only the super admin, with a fresh 2FA code (403 otherwise). */
+  private async assertOwnerStepUp(admin: AdminActor): Promise<void> {
     if (admin.adminRole !== 'super_admin') {
       throw new ForbiddenException({
         code: ErrorCode.FORBIDDEN,
@@ -186,6 +208,13 @@ export class AdminConfigService {
   ): Promise<FeatureFlagAdminDto> {
     const before = await this.prisma.featureFlag.findUnique({ where: { key } });
     if (!before) throw notFound('Feature flag');
+    const changes =
+      (dto.enabled !== undefined && dto.enabled !== before.enabled) ||
+      (dto.rolloutPercent !== undefined &&
+        dto.rolloutPercent !== before.rollout_percent);
+    if (OWNER_ONLY_FLAGS.has(key) && changes) {
+      await this.assertOwnerStepUp(admin);
+    }
     const enabling = dto.enabled === true && !before.enabled;
     if (
       dto.enabled === true &&
@@ -671,183 +700,6 @@ export class AdminConfigService {
     await this.bootstrap.invalidate();
     return (await this.listLanguages()).find((l) => l.code === code)!;
   }
-
-  // ---- legal documents ----------------------------------------------------
-
-  async listLegalDocuments(): Promise<LegalDocumentAdminDto[]> {
-    const rows = await this.prisma.legalDocument.findMany({
-      // The newer documents are managed under /admin/legal/documents.
-      where: { doc_type: { in: [...LEGAL_DOC_TYPES] } },
-      orderBy: [{ doc_type: 'asc' }, { locale: 'asc' }, { created_at: 'desc' }],
-      include: { _count: { select: { consents: true } } },
-    });
-    return rows.map((r) => presentLegal(r, false));
-  }
-
-  async getLegalDocument(id: string): Promise<LegalDocumentAdminDto> {
-    const row = await this.prisma.legalDocument.findUnique({
-      where: { id },
-      include: { _count: { select: { consents: true } } },
-    });
-    if (!row) throw notFound('Legal document');
-    return presentLegal(row, true);
-  }
-
-  /** A new version starts as a draft (not current, not published). */
-  async createLegalDocument(
-    admin: AdminActor,
-    dto: CreateLegalDocumentDto,
-  ): Promise<LegalDocumentAdminDto> {
-    if (!dto.contentMd && !dto.contentUrl) {
-      throw new BadRequestException({
-        code: ErrorCode.VALIDATION_ERROR,
-        message: 'Provide contentMd or contentUrl.',
-        details: { field: 'contentMd' },
-      });
-    }
-    const existing = await this.prisma.legalDocument.findUnique({
-      where: {
-        doc_type_version_locale: {
-          doc_type: dto.docType,
-          version: dto.version,
-          locale: dto.locale,
-        },
-      },
-    });
-    if (existing) {
-      throw new ConflictException({
-        code: ErrorCode.LEGAL_DOCUMENT_INVALID_STATE,
-        message:
-          'This version already exists for the document type and locale.',
-      });
-    }
-    const row = await withTxRetry(this.prisma, async (tx) => {
-      const created = await tx.legalDocument.create({
-        data: {
-          doc_type: dto.docType,
-          locale: dto.locale,
-          version: dto.version,
-          content_md: dto.contentMd ?? null,
-          content_url: dto.contentUrl ?? null,
-          is_current: false,
-          status: 'draft',
-        },
-        include: { _count: { select: { consents: true } } },
-      });
-      await this.audit.record(
-        {
-          adminId: admin.id,
-          action: CONFIG_AUDIT.legalCreate,
-          targetType: 'legal_document',
-          targetId: created.id,
-          after: {
-            docType: dto.docType,
-            locale: dto.locale,
-            version: dto.version,
-          },
-          ip: admin.ip,
-        },
-        tx,
-      );
-      return created;
-    });
-    return presentLegal(row, true);
-  }
-
-  /**
-   * §2.3 item 10 "публикация новой версии (при смене обязательной версии
-   * пользователи при следующем входе подтверждают заново)": the version
-   * becomes current for its type + locale; OnboardingService compares the
-   * user's accepted document version with the current one, so the app's
-   * guard sends them back to the consents step.
-   */
-  async publishLegalDocument(
-    admin: AdminActor,
-    id: string,
-  ): Promise<LegalDocumentAdminDto> {
-    const row = await withTxRetry(this.prisma, async (tx) => {
-      const doc = await tx.legalDocument.findUnique({ where: { id } });
-      if (!doc) throw notFound('Legal document');
-      if (doc.is_current) {
-        throw new ConflictException({
-          code: ErrorCode.LEGAL_DOCUMENT_INVALID_STATE,
-          message: 'This version is already current.',
-        });
-      }
-      const previous = await tx.legalDocument.findFirst({
-        where: { doc_type: doc.doc_type, locale: doc.locale, is_current: true },
-        select: { id: true, version: true },
-      });
-      await tx.legalDocument.updateMany({
-        where: { doc_type: doc.doc_type, locale: doc.locale, is_current: true },
-        data: { is_current: false, status: 'archived' },
-      });
-      const published = await tx.legalDocument.update({
-        where: { id },
-        data: {
-          is_current: true,
-          status: 'published',
-          published_at: doc.published_at ?? new Date(),
-        },
-        include: { _count: { select: { consents: true } } },
-      });
-      await this.audit.record(
-        {
-          adminId: admin.id,
-          action: CONFIG_AUDIT.legalPublish,
-          targetType: 'legal_document',
-          targetId: id,
-          before: {
-            currentVersion: previous?.version ?? null,
-            previousId: previous?.id ?? null,
-          },
-          after: {
-            docType: doc.doc_type,
-            locale: doc.locale,
-            currentVersion: doc.version,
-          },
-          ip: admin.ip,
-        },
-        tx,
-      );
-      return published;
-    });
-    await this.bootstrap.invalidate();
-    return presentLegal(row, true);
-  }
-}
-
-function presentLegal(
-  r: {
-    id: string;
-    doc_type: string;
-    locale: string;
-    version: string;
-    is_current: boolean;
-    published_at: Date | null;
-    content_url: string | null;
-    content_md: string | null;
-    created_at: Date;
-    _count: { consents: number };
-  },
-  full: boolean,
-): LegalDocumentAdminDto {
-  return {
-    id: r.id,
-    docType: r.doc_type,
-    locale: r.locale,
-    version: r.version,
-    isCurrent: r.is_current,
-    publishedAt: r.published_at?.toISOString() ?? null,
-    contentUrl: r.content_url,
-    contentMd: full
-      ? r.content_md
-      : r.content_md
-        ? `${r.content_md.slice(0, 160)}${r.content_md.length > 160 ? '…' : ''}`
-        : null,
-    consents: r._count.consents,
-    createdAt: r.created_at.toISOString(),
-  };
 }
 
 /**

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -33,6 +34,7 @@ void main() {
   var launchResult = true;
   setUpAll(initializeDateFormatting);
 
+  var checkoutPoll = Duration.zero;
   List<Override> overrides() => uxOverrides(
         extra: [
           subscriptionRepositoryProvider.overrideWithValue(repo),
@@ -41,7 +43,7 @@ void main() {
               .overrideWithValue(FakeSeatLimitRepository()),
           cardCollectorProvider.overrideWithValue(collector),
           subscriptionPollIntervalProvider.overrideWithValue(Duration.zero),
-          checkoutPollIntervalProvider.overrideWithValue(Duration.zero),
+          checkoutPollIntervalProvider.overrideWithValue(checkoutPoll),
           checkoutLauncherProvider.overrideWithValue((url) async {
             launched.add(url);
             return launchResult;
@@ -79,6 +81,7 @@ void main() {
     collector = FakeCardCollector();
     launched = [];
     launchResult = true;
+    checkoutPoll = Duration.zero;
   });
 
   group('SubscriptionScreen states', () {
@@ -489,6 +492,61 @@ void main() {
       await tester.pump();
       expect(repo.calls, contains('checkout:monthly:0:'));
       expect(launched.single.host, 'checkout.stripe.com');
+    });
+
+    testWidgets(
+        'round 1 №4: active while the checkout still waits — only the '
+        'paywall closes, the page under it stays', (tester) async {
+      checkoutPoll = const Duration(milliseconds: 200);
+      // The case → the bid → the paywall over it.
+      await pump(
+        tester,
+        Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) => Scaffold(
+                    body: TextButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) =>
+                              const PaywallScreen(reason: PaywallReason.bid),
+                        ),
+                      ),
+                      child: const Text('the bid'),
+                    ),
+                  ),
+                ),
+              ),
+              child: const Text('the case'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('the case'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('the bid'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('paywall-cta')));
+      await tester.pump();
+      await tester.pump();
+      expect(launched.single.host, 'checkout.stripe.com');
+      // Paid: the app reads it back (return link / app resume) while the
+      // checkout's own poll still waits — the paywall closes itself.
+      final active = makeOverview(subscription: makeInfo());
+      repo.current = active;
+      ProviderScope.containerOf(tester.element(find.byType(PaywallScreen)))
+          .read(subscriptionOverviewProvider.notifier)
+          .apply(active);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      // The checkout's poll answers «active» during the paywall's slide-out.
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PaywallScreen), findsNothing);
+      expect(find.text('the bid'), findsOneWidget);
     });
 
     testWidgets('trial used: "Subscribe" instead of the trial', (tester) async {

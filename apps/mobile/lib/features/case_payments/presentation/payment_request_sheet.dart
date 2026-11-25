@@ -5,6 +5,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/money_input.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payment_widgets.dart';
@@ -161,7 +162,7 @@ class _PaymentRequestSheetState extends ConsumerState<PaymentRequestSheet> {
       );
       if (!mounted) return;
       widget.onSent();
-      Navigator.of(context).pop();
+      context.popIfCurrent();
       showAppSnackBar(context, t.t('cpay.req.sheet.sent'));
     } on Object catch (e) {
       if (!mounted) return;
@@ -415,7 +416,7 @@ class _FeePayerSheetState extends ConsumerState<FeePayerSheet> {
           );
       if (!mounted) return;
       widget.onDone();
-      Navigator.of(context).pop();
+      context.popIfCurrent();
       showAppSnackBar(context, t.t('cpay.fee.sheet.sent'));
     } on Object catch (e) {
       if (!mounted) return;

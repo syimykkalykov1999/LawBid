@@ -169,6 +169,13 @@ describe('Economy (e2e)', () => {
       ceilingMode: 'manual',
       manualApi: 7,
     });
+    // Round 4 (25.11, В5): the guard is a money switch — no code, no change.
+    await api()
+      .patch('/api/v1/admin/economy/settings')
+      .set(admin.auth)
+      .send({ guardEnabled: false })
+      .expect(403);
+    await stepUp(admin);
     const off = data(
       await api()
         .patch('/api/v1/admin/economy/settings')

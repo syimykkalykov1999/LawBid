@@ -23,6 +23,7 @@ import { PricingModelsCard } from '@/components/promotions/pricing-models';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
+import { canAct } from '@/lib/rbac';
 import { CASE_STATUS, label, PROMOTION_STATUS, StatusPill, usd } from '@/lib/labels';
 import { Reason } from '@/lib/reasons';
 import { sortRows, useTableSort } from '@/lib/table-sort';
@@ -62,7 +63,8 @@ export default function PromotionsPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const { data: me } = useMe();
-  const canWrite = me?.role === 'super_admin' || me?.role === 'finance';
+  // Round 4 (С10): finance with «Деньги: управление» (what the API checks).
+  const canWrite = canAct(me, 'money', ['finance']);
   const { ask, dialog } = useReason();
   // Scout 13.11 (row 96): the tab lives in the address (lib/url-state.ts).
   const [tab, setTab] = useUrlState<Tab>('tab', 'all');

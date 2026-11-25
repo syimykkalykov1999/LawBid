@@ -149,13 +149,16 @@ export class AdminBillingController {
   @ApiEnvelopeResponse(ContractGrantDto, { status: HttpStatus.CREATED })
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
     404: [E.NOT_FOUND],
     409: [E.CONTRACT_GRANT_NOT_ATTORNEY, E.IDEMPOTENCY_KEY_CONFLICT],
   })
-  createContractGrant(
+  async createContractGrant(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: CreateContractGrantDto,
   ): Promise<ContractGrantDto> {
+    // Round 4 (25.11, С3): months of a paid plan for free — a fresh code.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.grants.create(admin, dto);
   }
 
@@ -166,14 +169,16 @@ export class AdminBillingController {
   @ApiEnvelopeResponse(ContractGrantDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
     404: [E.NOT_FOUND],
     409: [E.CONTRACT_GRANT_REVOKED],
   })
-  extendContractGrant(
+  async extendContractGrant(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminBillingIdParamDto,
     @Body() dto: ExtendContractGrantDto,
   ): Promise<ContractGrantDto> {
+    await this.auth.assertStepUp(admin.sessionId);
     return this.grants.extend(admin, p.id, dto.months, dto.reason);
   }
 
@@ -215,12 +220,15 @@ export class AdminBillingController {
   @ApiEnvelopeResponse(PromoCodeDto, { status: HttpStatus.CREATED })
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
     409: [E.PROMO_CODE_EXISTS, E.IDEMPOTENCY_KEY_CONFLICT],
   })
-  createPromoCode(
+  async createPromoCode(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: CreatePromoCodeDto,
   ): Promise<PromoCodeDto> {
+    // Round 4 (25.11, С3): a discount up to 100 % — a fresh code.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.promos.create(admin, dto);
   }
 
@@ -230,12 +238,18 @@ export class AdminBillingController {
     summary: 'Edit description, active, max redemptions, expiry',
   })
   @ApiEnvelopeResponse(PromoCodeDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  updatePromoCode(
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+  })
+  async updatePromoCode(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminBillingIdParamDto,
     @Body() dto: UpdatePromoCodeDto,
   ): Promise<PromoCodeDto> {
+    // More redemptions or a later end = more free money: a fresh code.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.promos.update(admin, p.id, dto);
   }
 

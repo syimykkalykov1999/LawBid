@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/chat/application/awaiting_reply.dart';
@@ -280,7 +281,7 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
       // Row 109: the «Undo» message is shown from the navigator, which
       // outlives this sheet and the chat row.
       final host = Navigator.of(context).context;
-      Navigator.of(context).pop();
+      context.popIfCurrent();
       // Row 109 (Telegram / Gmail): a delete or an archive offers «Undo».
       if (done != null && undoArchived != null && host.mounted) {
         showChatMoveUndo(
@@ -349,7 +350,7 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                             .read(awaitingReplyDismissedProvider.notifier)
                             .dismiss(c.id, widget.noReplyMessageId!);
                         if (!context.mounted) return;
-                        Navigator.of(context).pop();
+                        context.popIfCurrent();
                       },
               ),
             // Owner 2026-10-20: the long-press menu has the usual quick

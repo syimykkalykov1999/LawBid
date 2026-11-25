@@ -9,7 +9,6 @@ import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/theme/theme_picker_sheet.dart';
 import 'package:lawbid/features/auth/application/sign_out.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
-import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/consultations/application/consultations_providers.dart';

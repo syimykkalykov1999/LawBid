@@ -29,7 +29,6 @@ final blockAndReportProvider = Provider<BlockAndReport>(
   }) async {
     final blocked = await toggleBlock(
       context,
-      ref,
       userId: userId,
       displayName: displayName,
       currentlyBlocked: false,

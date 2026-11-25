@@ -138,6 +138,21 @@ void main() {
     expect(find.byType(AppBar), findsOneWidget);
   });
 
+  testWidgets('round 1 №27: «Home» on the error page opens the feed',
+      (tester) async {
+    final r = await pump(tester, initial: '/no/such/page');
+    await tester.tap(
+      find.descendant(
+        of: find.byType(RouterErrorScreen),
+        matching: find.byType(TextButton),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(RouterErrorScreen), findsNothing);
+    expect(find.text('feed'), findsOneWidget);
+    expect(r.routerDelegate.currentConfiguration.uri.path, '/feed');
+  });
+
   testWidgets('the gallery hero flies along the Material arc', (tester) async {
     expect(
       materialHeroTween(Rect.zero, const Rect.fromLTWH(0, 0, 10, 10)),

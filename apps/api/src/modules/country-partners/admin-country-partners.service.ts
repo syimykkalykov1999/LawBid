@@ -1,12 +1,15 @@
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
+import { readDailySnapshot } from '../../common/admin-summary/snapshot-gate';
 import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { CountryPartner, Prisma } from '../../generated/prisma/client';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -26,7 +29,10 @@ import {
   readCountryPartnerSettings,
   readGoals,
 } from './country-partners.rules';
-import { CountryPartnersService } from './country-partners.service';
+import {
+  CountryPartnersService,
+  type GoalView,
+} from './country-partners.service';
 import type {
   CountryPartnerContractDto,
   CountryPartnerDetailDto,
@@ -58,6 +64,11 @@ const TEAM_SELECT = {
 } as const;
 type TeamRow = Prisma.UserGetPayload<{ select: typeof TEAM_SELECT }>;
 
+/** One currency of the month so far (CountryPartnersService.currentMonth). */
+type MonthRow = Awaited<
+  ReturnType<CountryPartnersService['currentMonth']>
+>[number];
+
 /**
  * Owner 2026-10-06: Деньги → Партнёры стран (super admin only) and the
  * partner team's own page. Everything about money (share, payouts, turning
@@ -71,7 +82,42 @@ export class AdminCountryPartnersService {
     private readonly core: CountryPartnersService,
     private readonly audit: AuditLogService,
     private readonly sessions: AdminSessionService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
+
+  /**
+   * Round 4 admin check (25.11, С11): goal progress and the month so far
+   * read every payment of the country since the contract began (no `take`)
+   * and count people per goal, on every open of the page. They come from
+   * the daily snapshot now. The key carries what the numbers depend on
+   * (goals, contract start, share), so an edit gets fresh numbers at once.
+   */
+  private numbers(
+    p: CountryPartner,
+  ): Promise<{ goals: GoalView[]; currentMonth: MonthRow[] }> {
+    const dep = createHash('sha256')
+      .update(
+        JSON.stringify([
+          p.goals,
+          p.contract_starts_at?.toISOString() ?? null,
+          p.share_bps,
+          p.country_code,
+        ]),
+      )
+      .digest('hex')
+      .slice(0, 16);
+    return readDailySnapshot(
+      this.summary,
+      `country-partner:${p.id}:${dep}`,
+      async () => {
+        const [goals, currentMonth] = await Promise.all([
+          this.core.goals(p),
+          this.core.currentMonth(p),
+        ]);
+        return { goals, currentMonth };
+      },
+    );
+  }
 
   async list(): Promise<CountryPartnerRowDto[]> {
     const rows = await this.prisma.countryPartner.findMany({
@@ -83,13 +129,14 @@ export class AdminCountryPartnersService {
 
   async detail(id: string): Promise<CountryPartnerDetailDto> {
     const p = await this.load(id);
-    const [row, goals, team, settlements, currentMonth] = await Promise.all([
-      this.row(p),
-      this.core.goals(p),
-      this.team(p.id),
-      this.core.settlements(p.id),
-      this.core.currentMonth(p),
-    ]);
+    const [row, { goals, currentMonth }, team, settlements] = await Promise.all(
+      [
+        this.row(p),
+        this.numbers(p),
+        this.team(p.id),
+        this.core.settlements(p.id),
+      ],
+    );
     return {
       ...row,
       goals,
@@ -439,12 +486,13 @@ export class AdminCountryPartnersService {
           })
         )?.permissions,
       ).partner_report !== undefined;
-    const [row, goals, settlements, currentMonth] = await Promise.all([
+    const [row, numbers, settlements] = await Promise.all([
       this.row(p),
-      this.core.goals(p),
+      this.numbers(p),
       canSeeReport ? this.core.settlements(p.id) : Promise.resolve([]),
-      canSeeReport ? this.core.currentMonth(p) : Promise.resolve([]),
     ]);
+    const goals = numbers.goals;
+    const currentMonth = canSeeReport ? numbers.currentMonth : [];
     return {
       id: p.id,
       countryCode: p.country_code,

@@ -8,6 +8,7 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/photo_jpeg.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// How one photo sits in its frame: the zoom over «fills the frame» (1 =
@@ -227,7 +228,7 @@ class _PhotoCropScreenState extends ConsumerState<PhotoCropScreen> {
       out.add(same ? null : await _render(i));
     }
     if (mounted) {
-      Navigator.of(context).pop(
+      context.popIfCurrent(
         (frame: _frame, framings: List.of(_framing), photos: out),
       );
     }

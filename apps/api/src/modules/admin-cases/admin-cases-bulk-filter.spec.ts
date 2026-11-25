@@ -53,7 +53,9 @@ describe('admin cases bulk by filter', () => {
     const ctl = Object.create(
       AdminCaseManagementController.prototype,
     ) as AdminCaseManagementController;
-    Object.assign(ctl, { cases: service, audit: { record }, settings });
+    // Round 4 (С5): the bulk action asks a fresh 2FA code (given here).
+    const auth = { assertStepUp: jest.fn().mockResolvedValue(undefined) };
+    Object.assign(ctl, { cases: service, audit: { record }, settings, auth });
     return { ctl, service, findMany, act, record, settings };
   }
 

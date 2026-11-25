@@ -7,7 +7,7 @@ import { AppModule } from '../src/app.module';
 import { CounterAggregator } from '../src/modules/counters/counter-aggregator.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { withDeleted } from '../src/prisma/soft-delete.extension';
-import { adminSession } from './support/admin-login';
+import { adminSession, adminStepUp } from './support/admin-login';
 import { ensurePostPractices } from './support/post-practices';
 
 /**
@@ -478,6 +478,8 @@ describe('Bulk moderation + broadcast states (e2e)', () => {
 
   it('broadcasts reach any chosen set of states (and one state still works)', async () => {
     const admin = await adminSession(base, prisma, 'super_admin');
+    // Round 4 (С7): a fresh 2FA code first.
+    await adminStepUp(base, admin);
     const tag = randomUUID().slice(0, 8);
     for (const [code, name] of [
       ['IL', 'Illinois'],

@@ -1,3 +1,5 @@
+import { readDailySnapshot } from '../../common/admin-summary/snapshot-gate';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import {
   BadRequestException,
   ConflictException,
@@ -80,6 +82,7 @@ export class AdminPromotionsService {
     @Optional() private readonly stars?: StarsService,
     // Owner 2026-10-27: the by-model money numbers come from a nightly snapshot.
     @Optional() private readonly rollup?: PromotionsRollupService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   getSettings(): Promise<PromotionSettings> {
@@ -203,7 +206,15 @@ export class AdminPromotionsService {
     };
   }
 
-  async stats(now = new Date()): Promise<AdminPromotionStatsDto> {
+  /** Round 4 admin check (25.11, С11): these totals scan whole tables, so the
+   * page reads the daily snapshot (snapshot-gate.ts), not a live count. */
+  stats(now = new Date()): Promise<AdminPromotionStatsDto> {
+    return readDailySnapshot(this.summary, 'promotions:stats', () =>
+      this.computeStats(now),
+    );
+  }
+
+  private async computeStats(now: Date): Promise<AdminPromotionStatsDto> {
     const since = new Date(now.getTime() - 30 * DAY_MS);
     const live = {
       status: 'active',

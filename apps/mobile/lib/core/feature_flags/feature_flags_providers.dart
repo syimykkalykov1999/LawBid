@@ -180,6 +180,12 @@ final isAppUpdateRequiredProvider = Provider<bool>((ref) {
 /// enforces the same flag, so turning it back on needs no new build.
 const kEmailFlowsFlag = 'email_login';
 
+/// The `payments_in_app` flag — hides every entry point when off.
+final casePaymentsFlagProvider = Provider<bool>(
+  (ref) =>
+      ref.watch(featureFlagsControllerProvider).isEnabled('payments_in_app'),
+);
+
 final emailFlowsEnabledProvider = Provider<bool>(
   (ref) => ref.watch(featureFlagsControllerProvider).isEnabled(kEmailFlowsFlag),
 );

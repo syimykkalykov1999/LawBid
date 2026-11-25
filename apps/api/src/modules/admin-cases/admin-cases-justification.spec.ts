@@ -44,6 +44,7 @@ describe('admin case detail reads need a justification', () => {
         card,
       } as unknown as AdminCaseManagementService,
       {} as never,
+      {} as never,
     );
     const actor = (
       adminRole: AdminActor['adminRole'],

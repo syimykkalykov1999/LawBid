@@ -29,6 +29,7 @@ import {
   SkipAutoAudit,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
   AdminCaseActionDto,
   AdminCaseCardDto,
@@ -69,6 +70,7 @@ export class AdminCaseManagementController {
   constructor(
     private readonly cases: AdminCaseManagementService,
     private readonly versionEtag: VersionEtagService,
+    private readonly auth: AdminAuthService,
     // Row 179 B6: «select all by filter» audits the filter once.
     @Optional() private readonly audit?: AuditLogService,
     @Optional() private readonly settings?: AppSettingsService,
@@ -142,11 +144,17 @@ export class AdminCaseManagementController {
       'Owner 2026-10-04: hide / close / archive / restore many cases (staff up to 500, the owner any number); one reason, audited and told per case',
   })
   @ApiEnvelopeResponse(AdminBulkResultDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN, E.ADMIN_STEP_UP_REQUIRED],
+  })
   async bulkAdminCases(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminCasesBulkDto,
   ): Promise<AdminBulkResultDto> {
+    // Round 4 (25.11, С5): up to 500 cases at once — the same fresh code
+    // the bulk actions with people ask.
+    await this.auth.assertStepUp(admin.sessionId);
     // Owner 2026-11-12: staff keep 500 cases a request; the owner sends
     // any number, worked through in chunks. Each case runs in its own
     // shard (its id carries it). Row 179 B6: or the list's filter,

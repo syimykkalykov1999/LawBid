@@ -1,4 +1,6 @@
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
+import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// What the person picked when leaving an editor with unsaved work.
@@ -152,8 +154,10 @@ class UnsavedChangesGuard extends StatelessWidget {
               discardLabel: discardLabel,
               stayLabel: stayLabel,
             );
-            if (choice == LeaveChoice.discard && context.mounted) {
-              Navigator.of(context).pop();
+            if (choice == LeaveChoice.discard &&
+                context.mounted &&
+                context.isCurrentRoute) {
+              context.safeLeave<void>();
             }
           },
           child: child!,

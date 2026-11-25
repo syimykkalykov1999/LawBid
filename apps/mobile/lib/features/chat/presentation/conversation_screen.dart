@@ -17,6 +17,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/navigation/shell/desktop_input.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/perf/build_counter.dart';
@@ -2565,7 +2566,7 @@ class _RequestPanelState extends ConsumerState<_RequestPanel> {
     setState(() => _busy = true);
     try {
       await widget.thread.answerRequest(accept: accept);
-      if (!accept && mounted) Navigator.of(context).maybePop();
+      if (!accept && mounted) unawaited(context.maybePopIfCurrent<void>());
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     } finally {
@@ -2620,7 +2621,6 @@ class _RequestPanelState extends ConsumerState<_RequestPanel> {
                             : () async {
                                 final blocked = await toggleBlock(
                                   context,
-                                  ref,
                                   userId: c.counterpart.id!,
                                   displayName: name,
                                   currentlyBlocked: false,
