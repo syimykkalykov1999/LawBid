@@ -73,3 +73,7 @@ f664e10bea6316ed309c03b4d6dd573523bd63e3:apps/api/src/modules/files/files.servic
 # commit 05db9d8 (PR #1069): a made-up unsubscribe link id in a unit test,
 # not a secret; replaced by a low-entropy stand-in in the next commit.
 05db9d82619eaca7bb32c0ff625068aa2ae66c1f:apps/api/src/modules/outreach/outreach.unsubscribe-get.spec.ts:generic-api-key:23
+
+# commit 0719282 (PR #1300): an e2e practice i18n key, not a secret;
+# replaced by a low-entropy key in the next commit (3da6a1b).
+0719282d0470ee9f9b98b3e94f64a59fc71cc17f:apps/api/test/owner-chat-scan-later.e2e-spec.ts:generic-api-key:164
