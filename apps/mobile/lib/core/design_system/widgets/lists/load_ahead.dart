@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/network/request_priority.dart';
 
 /// Owner row 38 (Instagram / TikTok): one rule for every infinite list —
 /// the next page is asked for while about a screen of the list is still
@@ -39,10 +40,13 @@ class LoadAheadGate {
   int? _askedAt;
 
   /// Calls [load] unless it was already called for a list of [length] rows.
+  /// Holes re-check (25.11, item 21): the page is asked for before anyone
+  /// reaches it, so its API call goes out as `prefetch` (an overloaded
+  /// server puts it off before what a person is looking at).
   void ask(int length, VoidCallback load) {
     if (_askedAt == length) return;
     _askedAt = length;
-    load();
+    RequestPriority.run(RequestPriority.prefetch, load);
   }
 
   void reset() => _askedAt = null;

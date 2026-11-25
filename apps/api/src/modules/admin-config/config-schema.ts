@@ -654,8 +654,8 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['security.turnstile.mode'] = {
     ...out['security.turnstile.mode'],
     description:
-      'Cloudflare Turnstile на сайте (не в приложении): off (по умолчанию) | monitor (проверять и писать в лог, не блокировать) | enforce (неверный токен — 403 TURNSTILE_FAILED, верный пропускает без App Check). Нужен секретный ключ в Интеграции → Cloudflare Turnstile.',
-    pattern: /^(off|monitor|enforce)$/,
+      'Cloudflare Turnstile на сайте (не в приложении): off | monitor (проверять и писать в лог, не блокировать) | enforce (неверный токен — 403 TURNSTILE_FAILED, верный пропускает без App Check) | auto (по умолчанию: как off, пока в Интеграции → Cloudflare Turnstile не сохранены оба ключа; потом monitor, а enforce — когда настоящие люди на сайте проходят проверку на уровне security.app_check.auto_pass_rate_pct).',
+    pattern: /^(off|monitor|enforce|auto)$/,
   };
   out['security.app_check.replay_protection'] = {
     ...out['security.app_check.replay_protection'],
@@ -680,14 +680,14 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   ] as const) {
     out[key] = {
       ...out[key],
-      description: `Bot check on ${what}: off (default) = the general security.app_check.mode | on = a valid App Check token (website: or a valid Turnstile token) is required | auto = on once the pass rate of proven-real people over security.app_check.auto_days reaches security.app_check.auto_pass_rate_pct (at least security.app_check.auto_min_requests of them, every platform too).`,
+      description: `Bot check on ${what}: off = the general security.app_check.mode | on = a valid App Check token (website: or a valid Turnstile token) is required | auto = on once the pass rate of proven-real people over security.app_check.auto_days reaches security.app_check.auto_pass_rate_pct (at least security.app_check.auto_min_requests of them, every platform too; a platform with people but no valid proof keeps it off; the website is never enforced while it has no working proof). Default auto.`,
       pattern: /^(off|on|auto)$/,
     };
   }
   out['security.app_check.replay.mode'] = {
     ...out['security.app_check.replay.mode'],
     description:
-      'Replay protection on the costly routes while they enforce: off (default) | on | auto (on once enough valid tokens there are limited-use).',
+      'Replay protection on the costly routes while they enforce: off | on | auto (default: on once enough valid tokens there are limited-use).',
     pattern: /^(off|on|auto)$/,
   };
   out['security.app_check.auto_days'] = {
@@ -1413,7 +1413,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['outreach.signed_unsubscribe_links'] = {
     ...out['outreach.signed_unsubscribe_links'],
     description:
-      'Cold emails print the signed unsubscribe link (nothing secret in the database). Off: the legacy token, which a rollback can still read. Turn on once this release is fully live.',
+      'Cold emails print the signed unsubscribe link (nothing secret in the database; RFC 8058 one-click). On by default. Off: the legacy random token is printed again. Links already sent keep working either way.',
   };
   out['sessions.cleanup_batch'] = {
     ...out['sessions.cleanup_batch'],
@@ -1925,11 +1925,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100,
   };
-  // F2: the learned posts ranker (Выкл / Вкл / Авто), off until a model exists.
+  // F2: the learned posts ranker (Выкл / Вкл / Авто); «Авто» changes nothing until a model exists.
   out['reco.ranker.mode'] = {
     ...out['reco.ranker.mode'],
     description:
-      'Learned posts ranker: off (formula for everyone), on (A/B test whenever a model is loaded), auto (only while the model beat the formula offline and scores inside the latency budget).',
+      'Learned posts ranker (Search «For you»): off (formula for everyone), on (A/B test whenever a model is loaded), auto (default; only while the model beat the formula offline and scores inside the latency budget).',
     pattern: /^(off|on|auto)$/,
   };
   out['reco.ranker.traffic_percent'] = {
@@ -1958,6 +1958,38 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 1,
     max: 1000,
   };
+  // Owner 25.11: the reels' and the case feed's own learned rankers.
+  for (const feed of ['reels', 'cases'] as const) {
+    const p = `reco.ranker.${feed}`;
+    out[`${p}.mode`] = {
+      ...out[`${p}.mode`],
+      description: `Learned ${feed} ranker: off (formula for everyone), on (A/B test whenever a model is loaded), auto (only while the model beat the formula offline and scores inside the latency budget).`,
+      pattern: /^(off|on|auto)$/,
+    };
+    out[`${p}.traffic_percent`] = {
+      ...out[`${p}.traffic_percent`],
+      min: 0,
+      max: 100,
+    };
+    out[`${p}.model_share_percent`] = {
+      ...out[`${p}.model_share_percent`],
+      min: 0,
+      max: 100,
+    };
+    out[`${p}.model_key`] = {
+      ...out[`${p}.model_key`],
+      description: `S3 key of the ${feed} ranker model in the documents bucket: ml/feed-ranker/${feed}/<version>/model.onnx (manifest.json beside it); empty = no model.`,
+      pattern: new RegExp(
+        `^(|ml/feed-ranker/${feed}/[A-Za-z0-9._-]{1,64}/model\\.onnx)$`,
+      ),
+    };
+    out[`${p}.top_n`] = { ...out[`${p}.top_n`], min: 1, max: 400 };
+    out[`${p}.latency_budget_ms`] = {
+      ...out[`${p}.latency_budget_ms`],
+      min: 1,
+      max: 1000,
+    };
+  }
   // Owner rule (Выкл / Вкл / Авто): new-case alerts in waves.
   out['case_fanout.enabled'] = {
     ...out['case_fanout.enabled'],

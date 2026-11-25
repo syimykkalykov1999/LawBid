@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/network/request_priority.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_sync_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
@@ -41,13 +42,18 @@ class ContactsBackgroundSync with WidgetsBindingObserver {
     _started = true;
     WidgetsBinding.instance.addObserver(this);
     _ref.onDispose(() => WidgetsBinding.instance.removeObserver(this));
-    unawaited(run());
+    unawaited(_background());
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(run());
+    if (state == AppLifecycleState.resumed) unawaited(_background());
   }
+
+  /// Holes re-check (25.11, item 21): nobody waits for the daily pass, so
+  /// its API calls go out as `background`.
+  Future<void> _background() =>
+      RequestPriority.run(RequestPriority.background, run);
 
   /// «Notify me when contacts join LawBid»: the device's copy of the
   /// server's switch (on by default).

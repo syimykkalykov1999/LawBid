@@ -56,7 +56,19 @@ import {
 } from './qa-ranking';
 import { QaSnapshotService } from './qa-snapshot.service';
 import { shardContext } from '../../sharding/shard-context';
-import { PostRankerService } from './ranker/post-ranker.service';
+import {
+  PostRankerService,
+  RANKER_EXPERIMENT_KEY,
+} from './ranker/post-ranker.service';
+import {
+  CASES_RANKER_FEED,
+  CaseRankerService,
+  REELS_RANKER_FEED,
+  ReelRankerService,
+} from './ranker/feed-rankers.service';
+import { isModelArmOf, type LearnedRanker } from './ranker/learned-ranker';
+import { caseRankerRow } from './ranker/cases-features';
+import { reelRankerRow } from './ranker/reels-features';
 import { rankerRow } from './ranker/ranker-features';
 import { byFormula, withModelOrder } from './ranker/rerank';
 
@@ -152,13 +164,25 @@ const toPerson = (r: PersonRow): PersonCandidate => ({
   contact: Number(r.contact),
 });
 
-export type RecoKind = 'case' | 'people' | 'post';
+export type RecoKind = 'case' | 'people' | 'post' | 'reel';
 
-/** The experiment surface (admin «Эксперименты» → «где») of each formula. */
+/**
+ * Where a ranked list's impressions are logged (ranking_events.surface).
+ * Owner 25.11: the reels feed is its own surface (its own learned model,
+ * its own training data); it still runs the posts formula and the posts
+ * surface's A/B tests (EXPERIMENT_SURFACE).
+ */
 export const RECO_SURFACE: Record<RecoKind, string> = {
   case: 'case_feed',
   people: 'people',
   post: 'posts',
+  reel: 'reels',
+};
+
+/** The experiment surface (admin «Эксперименты» → «где») of each formula. */
+export const EXPERIMENT_SURFACE: Record<RecoKind, string> = {
+  ...RECO_SURFACE,
+  reel: 'posts',
 };
 
 /** Put on logged impressions: which formula ranked the list. */
@@ -166,6 +190,7 @@ export const RECO_FORMULA: Record<RecoKind, string> = {
   case: 'cases-2026-10',
   people: 'people-2026-10',
   post: 'posts-2026-10',
+  reel: 'reels-2026-11',
 };
 
 /** Cache key part of a variant: a variant's list is never served to control. */
@@ -194,9 +219,33 @@ export class RecommendationsService {
     // Owner 2026-11-08: A/B tests change the formula's weights per variant.
     @Optional() private readonly experiments?: ExperimentsService,
     @Optional() private readonly rankingEvents?: RankingEventsService,
-    // F2: the learned second stage of the posts ranking (off by default).
+    // F2: the learned second stage of the posts ranking.
     @Optional() private readonly ranker?: PostRankerService,
+    // Owner 25.11: the reels' and the case feed's own learned stage.
+    @Optional() private readonly reelRanker?: ReelRankerService,
+    @Optional() private readonly caseRanker?: CaseRankerService,
   ) {}
+
+  /** True for the model arm of [kind]'s ranker test. */
+  private modelArm(kind: RecoKind, a: Assignment | null | undefined): boolean {
+    const key =
+      kind === 'post'
+        ? RANKER_EXPERIMENT_KEY
+        : kind === 'reel'
+          ? REELS_RANKER_FEED.experimentKey
+          : kind === 'case'
+            ? CASES_RANKER_FEED.experimentKey
+            : null;
+    return key !== null && isModelArmOf(key, a);
+  }
+
+  /** The learned second stage of [kind]'s feed (none for people). */
+  private rankerOf(kind: RecoKind): LearnedRanker | undefined {
+    if (kind === 'post') return this.ranker;
+    if (kind === 'reel') return this.reelRanker;
+    if (kind === 'case') return this.caseRanker;
+    return undefined;
+  }
 
   /**
    * The viewer's variant in the running test of [kind]'s surface (null =
@@ -206,15 +255,16 @@ export class RecommendationsService {
     viewerId: string,
     kind: RecoKind,
   ): Promise<Assignment | null> {
-    // F2: on the posts surface the ranker test comes first; its two arms
-    // both run the admin's weights as they are (no variant overrides), so
-    // the model is compared with the formula alone.
-    if (kind === 'post' && this.ranker) {
-      const r = await this.ranker.assign(viewerId);
+    // F2 / owner 25.11: on each feed its own ranker test comes first; its
+    // two arms both run the admin's weights as they are (no variant
+    // overrides), so the model is compared with the formula alone.
+    const learned = this.rankerOf(kind);
+    if (learned) {
+      const r = await learned.assign(viewerId);
       if (r) return r;
     }
     if (!this.experiments) return null;
-    return this.experiments.assignSurface(viewerId, RECO_SURFACE[kind]);
+    return this.experiments.assignSurface(viewerId, EXPERIMENT_SURFACE[kind]);
   }
 
   /**
@@ -237,6 +287,7 @@ export class RecommendationsService {
         this.assignmentFor(viewerId, kind),
         this.featuresFor(viewerId, kind, ids),
       ]);
+      const learned = this.rankerOf(kind);
       await ev.logList({
         userId: viewerId,
         surface: RECO_SURFACE[kind],
@@ -244,8 +295,8 @@ export class RecommendationsService {
         offset,
         assignment,
         formulaVersion:
-          (PostRankerService.isModelArm(assignment)
-            ? this.ranker?.formulaVersion()
+          (learned && this.modelArm(kind, assignment)
+            ? learned.formulaVersion()
             : null) ?? RECO_FORMULA[kind],
         features,
       });
@@ -643,14 +694,22 @@ export class RecommendationsService {
    * jumped to another ranking mid-way. Now a scroll keeps paging the copy
    * its own first page served; a new first page starts a new copy.
    * [opts.includeOwn]: the viewer's own posts stay in the list (reels).
+   * [opts.feed] 'reel' (owner 25.11): the reels feed — its own learned
+   * ranker, features and impressions surface; the posts formula still
+   * picks the candidates.
    */
   async postsForPage(
     viewerId: string,
     where: Prisma.PostWhereInput,
     filterKey: unknown,
     offset: number,
-    opts: { pin?: string | null; includeOwn?: boolean } = {},
+    opts: {
+      pin?: string | null;
+      includeOwn?: boolean;
+      feed?: 'post' | 'reel';
+    } = {},
   ): Promise<{ ids: string[]; pin: string | null }> {
+    const feed = opts.feed ?? 'post';
     let pinOn = APP_SETTINGS['reco.pin_paging_enabled'];
     try {
       if (this.settings)
@@ -658,10 +717,11 @@ export class RecommendationsService {
     } catch {
       // unreadable: the built-in default
     }
-    const variant = await this.assignmentFor(viewerId, 'post');
+    const variant = await this.assignmentFor(viewerId, feed);
     const build = () =>
       this.postsFor(viewerId, where, filterKey, variant, {
         includeOwn: opts.includeOwn,
+        feed,
       });
     if (!pinOn) return { ids: await build(), pin: null };
     const base = `reco:posts:pin:${viewerId}:${hashOf(filterKey)}${variantSuffix(variant)}`;
@@ -707,15 +767,16 @@ export class RecommendationsService {
     where: Prisma.PostWhereInput,
     filterKey: unknown,
     variant: Assignment | null = null,
-    opts: { includeOwn?: boolean } = {},
+    opts: { includeOwn?: boolean; feed?: 'post' | 'reel' } = {},
   ): Promise<string[]> {
     const includeOwn = opts.includeOwn === true;
+    const feed = opts.feed ?? 'post';
     // 18.11: the viewer's feed version (common/cache/feed-version.ts) is
     // part of the key — an own post going public, a follow or a block
     // starts a fresh list at once instead of after LISTING_TTL_SEC.
     const ver = await feedVersion(this.redis, viewerId);
     return this.cached(
-      `reco:posts:${viewerId}:${hashOf(filterKey)}${includeOwn ? ':own' : ''}:${ver}${variantSuffix(variant)}`,
+      `reco:posts:${viewerId}:${hashOf(filterKey)}${includeOwn ? ':own' : ''}${feed === 'reel' ? ':reel' : ''}:${ver}${variantSuffix(variant)}`,
       LISTING_TTL_SEC,
       async () => {
         const rows = await this.prisma.post.findMany({
@@ -733,11 +794,22 @@ export class RecommendationsService {
             view_count: true,
             language: true,
             video_asset_id: true,
+            // Owner 25.11: the reels model reads the reel's length.
+            ...(feed === 'reel'
+              ? { video_asset: { select: { duration_sec: true } } }
+              : {}),
             practice_area: { select: { id: true, parent_id: true } },
             _count: { select: { media: true } },
           },
         });
         if (rows.length === 0) return [];
+        const durationOf = new Map(
+          rows.map((r) => [
+            r.id,
+            (r as { video_asset?: { duration_sec: number | null } | null })
+              .video_asset?.duration_sec ?? null,
+          ]),
+        );
         const candidates: PostCandidate[] = rows.map((r) => ({
           id: r.id,
           authorId: r.author_id,
@@ -777,20 +849,40 @@ export class RecommendationsService {
         const hotMax = Math.max(0, ...candidates.map((c) => hotRaw(c, now)));
         // F2: what the impression log keeps per post is exactly the learned
         // ranker's input (ranker-features.ts): the formula's 0..1 features,
-        // seen and the content type.
+        // seen and the content type. Owner 25.11: the reels feed keeps the
+        // reels model's input (reels-features.ts) instead.
         const rankerRows = new Map(
-          candidates.map((c) => [
-            c.id,
-            rankerRow(
-              postFeatures(c, authors.get(c.authorId), viewer, hotMax, now),
-              seen.has(c.id),
-              c.kind,
-            ),
-          ]),
+          candidates.map((c) => {
+            const formula = postFeatures(
+              c,
+              authors.get(c.authorId),
+              viewer,
+              hotMax,
+              now,
+            );
+            return [
+              c.id,
+              feed === 'reel'
+                ? reelRankerRow(
+                    formula,
+                    {
+                      likes: c.likes,
+                      saves: c.saves,
+                      shares: c.shares,
+                      comments: c.comments,
+                      views: c.views,
+                      durationSec: durationOf.get(c.id) ?? null,
+                    },
+                    seen.has(c.id),
+                    c.authorId === viewerId,
+                  )
+                : rankerRow(formula, seen.has(c.id), c.kind),
+            ];
+          }),
         );
         await this.keepFeatures(
           viewerId,
-          'post',
+          feed,
           [...rankerRows.entries()],
           LISTING_TTL_SEC,
         );
@@ -818,11 +910,13 @@ export class RecommendationsService {
               w,
             ),
           }));
-        // F2 stage 2: for the model arm the learned ranker re-orders the
-        // formula's best candidates (keyed in the cache by the variant).
-        const scored = PostRankerService.isModelArm(variant)
-          ? await this.rerankPosts(formulaScored, rankerRows)
-          : formulaScored;
+        // F2 stage 2: for the model arm the feed's learned ranker re-orders
+        // the formula's best candidates (keyed in the cache by the variant).
+        const learned = this.rankerOf(feed);
+        const scored =
+          learned && this.modelArm(feed, variant)
+            ? await this.rerank(learned, formulaScored, rankerRows)
+            : formulaScored;
         const spread = (list: Scored<PostCandidate>[]) =>
           diversify(list, {
             key: (c) => c.authorId,
@@ -847,16 +941,16 @@ export class RecommendationsService {
   }
 
   /**
-   * F2 stage 2: the model re-orders the formula's best `reco.ranker.top_n`
+   * F2 stage 2: [ranker]'s model re-orders the formula's best `top_n`
    * candidates; the rest stay below in the formula's order. No model or a
    * scoring failure = the formula's list unchanged.
    */
-  private async rerankPosts(
-    scored: Scored<PostCandidate>[],
+  private async rerank<T extends { id: string }>(
+    ranker: LearnedRanker,
+    scored: Scored<T>[],
     rows: ReadonlyMap<string, Record<string, number>>,
-  ): Promise<Scored<PostCandidate>[]> {
-    const ranker = this.ranker;
-    if (!ranker || scored.length < 2) return scored;
+  ): Promise<Scored<T>[]> {
+    if (scored.length < 2) return scored;
     const ordered = byFormula(scored);
     const n = Math.min(ordered.length, await ranker.topN());
     const top = ordered.slice(0, n);
@@ -998,13 +1092,32 @@ export class RecommendationsService {
             };
           },
         );
+        // Owner 25.11: what the impression log keeps per case is exactly the
+        // cases model's input (cases-features.ts: the formula's 0..1
+        // features and «offer already made»; nothing about who the client
+        // is). The candidates were already cut by the hard filters
+        // (state, licence, qualification) in SQL; the model only re-orders.
+        const rankerRows = new Map(
+          scored.map((x) => [
+            x.item.id,
+            caseRankerRow(
+              caseFeatures(x.item, viewer, now),
+              viewer.bidOn.has(x.item.id),
+            ),
+          ]),
+        );
         await this.keepFeatures(
           attorneyId,
           'case',
-          scored.map((x) => [x.item.id, caseFeatures(x.item, viewer, now)]),
+          [...rankerRows.entries()],
           LISTING_TTL_SEC,
         );
-        return diversify(scored, {
+        const learned = this.caseRanker;
+        const ranked =
+          learned && this.modelArm('case', variant)
+            ? await this.rerank(learned, scored, rankerRows)
+            : scored;
+        return diversify(ranked, {
           key: (c) => c.category,
           window: 2,
           keyPenalty: 0.04,

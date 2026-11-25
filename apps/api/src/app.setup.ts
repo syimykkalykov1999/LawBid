@@ -231,6 +231,10 @@ export function configureApp(
         // now; allowed here first so a later web build can too).
         'X-Firebase-AppCheck-Limited',
         'X-Turnstile-Token',
+        // Holes re-check (25.11, item 21): user / prefetch / background
+        // (load shedding). The website sends it only after the bootstrap
+        // of a server with this line says so (`client.request_priority_enabled`).
+        'X-Request-Priority',
       ],
       // ... and reads the tag from `ETag`, which a cross-origin page may
       // not see unless it is exposed.

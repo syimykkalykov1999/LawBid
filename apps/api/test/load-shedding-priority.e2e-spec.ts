@@ -142,6 +142,29 @@ describe('Prioritized load shedding (e2e)', () => {
     expect(shed.shed - before).toBe(4);
   });
 
+  // Holes re-check (25.11): what the apps send now. Under the same load the
+  // feed page the app prefetches is shed and the one a person asked for
+  // (`user`) is served; a client cannot buy its way up with `critical`.
+  it('the app marks: prefetch is shed before user; critical from a client is ignored', async () => {
+    await setConfig({
+      'realtime.server.shed_mode': 'on',
+      'realtime.server.shed_cpu_start_pct': 60,
+      'realtime.server.shed_cpu_critical_pct': 95,
+    });
+    shed.cpuPct = 75;
+    const pre = await request(base)
+      .get('/api/v1/feed')
+      .set('X-Request-Priority', 'prefetch');
+    expect(pre.status).toBe(503);
+    const user = await request(base)
+      .get('/api/v1/feed')
+      .set('X-Request-Priority', 'user');
+    expect(user.status).not.toBe(503);
+    const cheat = await appEvent().set('X-Request-Priority', 'critical');
+    expect(cheat.status).toBe(503);
+    expect(cheat.body.error.details.priority).toBe('bulk');
+  });
+
   it('critical requests are shed only at the critical threshold', async () => {
     await setConfig({
       'realtime.server.shed_mode': 'on',

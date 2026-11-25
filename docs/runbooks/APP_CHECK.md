@@ -198,13 +198,13 @@ Console дополнительно поставьте Messaging Geo Permissions 
 
 ## Website Turnstile widget (batch D, 2026-10-24)
 
-The Flutter web build asks Cloudflare Turnstile for a token (invisible, `interaction-only`: the box shows only if a person must click) before `/auth/otp/request`, `/auth/password/reset/request`, `/auth/social`, `/auth/phone/status` and sends it as `X-Turnstile-Token`. The public site key comes in `GET /config/bootstrap` -> `app_config["turnstile.site_key"]`, published only while `security.turnstile.mode` is `monitor` or `enforce` and a site key is saved (Интеграции -> Cloudflare Turnstile). With the mode `off` or no key the page loads nothing from Cloudflare. Phones never run this code (conditional import). The web CSP (infra/modules/web) allows `https://challenges.cloudflare.com` for scripts and frames: **apply the web module (terraform) before switching the mode on**, else the browser blocks the widget.
+The Flutter web build asks Cloudflare Turnstile for a token (invisible, `interaction-only`: the box shows only if a person must click) before `/auth/otp/request`, `/auth/password/reset/request`, `/auth/social`, `/auth/phone/status` and sends it as `X-Turnstile-Token`. The public site key comes in `GET /config/bootstrap` -> `app_config["turnstile.site_key"]`, published only while `security.turnstile.mode` is `monitor` or `enforce` and a site key is saved, or `auto` (the default since 25.11) and both the site and the secret key are saved (Интеграции -> Cloudflare Turnstile). With the mode `off` or no key the page loads nothing from Cloudflare. Phones never run this code (conditional import). The web CSP (infra/modules/web) allows `https://challenges.cloudflare.com` for scripts and frames: **apply the web module (terraform) before switching the mode on**, else the browser blocks the widget.
 
 ## Выкл / Вкл / Авто по группам, защита от повтора, WAF (пункт 13, 2026-11-25)
 
 Как у Google (порядок включения App Check: сначала смотреть долю проверенных запросов, потом включать) и Cloudflare (Turnstile в невидимом режиме, проверка на сервере с повтором по `idempotency_key`).
 
-**Группы** (Админка → Настройки, каждая `off` / `on` / `auto`, по умолчанию `off`):
+**Группы** (Админка → Настройки, каждая `off` / `on` / `auto`, по умолчанию `auto` с 25.11):
 - `security.app_check.sms.mode` — SMS-код (вход и регистрация) и «есть ли такой номер»;
 - `security.app_check.login.mode` — вход по паролю, проверка кода (там же открывается новый аккаунт), Google / Apple;
 - `security.app_check.password_reset.mode` — «Забыл пароль»;
@@ -220,4 +220,8 @@ The Flutter web build asks Cloudflare Turnstile for a token (invisible, `interac
 
 **WAF (Terraform, применяет владелец):** правила частоты на вход и SMS уже в `infra/modules/alb` и включаются в Админке → Инфраструктура → `aws.waf_extra_rules` (on = только считать, block = блокировать). Новое: `waf_atp_enabled` / `waf_atp_action` — AWS WAF Account Takeover Prevention на `POST /api/v1/auth/password/login` (украденные пароли, перебор). Платно (подписка + за каждую 1 000 проверенных входов), по умолчанию выкл; сначала `count`, через неделю чистых чисел — `block`.
 
-**Порядок для владельца:** неделю смотреть «Запуск → App Check»; когда у группы 99 %+ и людей хватает — поставить ей `auto` (или `on`). Потом `security.app_check.replay.mode = auto`.
+**Сайт без проверки не блокируется (25.11, проверка дыр).** Платформа, где настоящие люди есть, но ни у одного проверка не прошла (сайт, пока нет ключа reCAPTCHA в секрете GitHub `FIREBASE_WEB_RECAPTCHA_KEY` и ключей Turnstile), держит «Авто» выключенным при любом числе людей. И даже `on` не блокирует сайт, пока у него нет рабочей проверки: Turnstile включён с обоими ключами или хоть один настоящий посетитель сайта прошёл проверку за окно «Авто».
+
+**Turnstile `auto` (по умолчанию):** пока в Интеграции → Cloudflare Turnstile не сохранены оба ключа — ровно как `off` (страница не получает ключ, ничего не проверяется); с ключами — `monitor`, а `enforce`, когда настоящие посетители сайта проходят на уровне `auto_pass_rate_pct`.
+
+**Порядок для владельца:** все группы и `security.app_check.replay.mode` с 25.11 стоят на `auto` и включаются сами по числам; смотреть «Запуск → App Check». CSP сайта для reCAPTCHA и App Check уже в `infra/modules/web` (с #1279) — нужен `terraform apply` веб-модуля владельцем, иначе браузер не даст получить токен.
