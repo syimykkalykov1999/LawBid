@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Prisma, PrismaClient } from '../src/generated/prisma/client';
 import { pgAdapter } from '../src/prisma/pg-adapter';
 import { questionsFallbackSql } from '../src/modules/search/postgres-search.provider';
@@ -20,6 +22,23 @@ describe('Q&A search fallback reads through trigram indexes (EXPLAIN)', () => {
   });
 
   beforeAll(async () => {
+    // CI e2e databases are built by `migrate deploy` only; the online-DDL
+    // runner (prisma/run-concurrent.mjs) runs in the static job. Build the
+    // same indexes from the same file here, statement by statement, outside
+    // a transaction, exactly as the runner does (KNOWN_ERRORS 247).
+    const ddl = readFileSync(
+      join(
+        __dirname,
+        '../prisma/concurrent/20261224090100_legal_qa_body_trgm.sql',
+      ),
+      'utf8',
+    );
+    for (const stmt of ddl
+      .split(/;\s*\n/)
+      .map((x) => x.replace(/^\s*--.*$/gm, '').trim())
+      .filter(Boolean)) {
+      await root.$executeRawUnsafe(stmt);
+    }
     const client = await root.user.create({ data: { role: 'client' } });
     const attorney = await root.user.create({ data: { role: 'attorney' } });
     // 5 000 published questions with an answer each, varied words.
