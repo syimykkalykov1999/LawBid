@@ -10,6 +10,7 @@ import 'package:lawbid/core/cache/camera_shots.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/platform/app_settings_opener.dart';
 import 'package:lawbid/core/platform/secure_screen.dart';
 import 'package:lawbid/features/verification/application/selfie_capture_session.dart';
@@ -334,7 +335,7 @@ class _IdSelfieCaptureScreenState extends ConsumerState<IdSelfieCaptureScreen>
     if (bytes == null || report == null) return;
     final model = await _deviceModel();
     if (!mounted) return;
-    Navigator.of(context).pop(
+    context.popIfCurrent(
       PickedDocument(
         name: 'selfie.jpg',
         mime: 'image/jpeg',
