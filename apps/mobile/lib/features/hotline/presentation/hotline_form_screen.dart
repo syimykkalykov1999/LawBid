@@ -230,20 +230,22 @@ class _HotlineFormScreenState extends ConsumerState<HotlineFormScreen> {
 }
 
 /// The languages sheet (owner 18.11, mockup c2L): all 85 app languages with
-/// a search, up to [max], the picked ones as removable chips on top and
-/// «Готово». The same list the attorney's line uses.
+/// a search, up to [max] (0 = no limit), the picked ones as removable chips
+/// on top and «Готово». The attorney's line uses the same sheet (owner
+/// 25.11) with its own [title].
 Future<List<String>?> pickHotlineLanguages(
   BuildContext context,
   WidgetRef ref, {
   required List<String> initial,
   required int max,
+  String? title,
 }) async {
   final t = ref.read(translatorProvider);
   final ui = ref.read(languageControllerProvider).value?.code ?? 'en';
   final langs = hotlineLanguages(ref);
   final picked = await OptionPickerSheet.show(
     context,
-    title: t.t('hotline.c.form.languages', {'max': '$max'}),
+    title: title ?? t.t('hotline.c.form.languages', {'max': '$max'}),
     options: [
       for (final LanguageCatalogEntry l in langs)
         PickerOption(
@@ -255,7 +257,7 @@ Future<List<String>?> pickHotlineLanguages(
     ],
     initial: initial.toSet(),
     multi: true,
-    maxSelected: max,
+    maxSelected: max > 0 ? max : null,
     limitMessage: t.t('hotline.c.form.langLimit', {'max': '$max'}),
     chipsOnTop: true,
   );

@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/diagnostics/app_event_names.dart';
+import 'package:lawbid/core/network/request_priority.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Owner 2026-10-15: the app's own usage events — free, in our database
@@ -107,6 +108,9 @@ class AppEvents {
             ),
           ),
     );
+    // Holes re-check (25.11, item 21): nobody waits for the usage events,
+    // so an overloaded server may put them off first.
+    events._dio.interceptors.add(RequestPriorityInterceptor());
     instance = events;
     _consent = savedConsent(prefs);
     // Nothing was allowed to wait in the queue without a yes.
@@ -223,6 +227,7 @@ class AppEvents {
             if (token != null && token.isNotEmpty)
               'Authorization': 'Bearer $token',
           },
+          extra: const {RequestPriority.extraKey: RequestPriority.background},
         ),
       );
       final rest = _read()..removeRange(0, take.length.clamp(0, queue.length));

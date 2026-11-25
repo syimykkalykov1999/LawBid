@@ -69,6 +69,17 @@ void main() {
     expect(jsonDecode(prefs.getString('events.queue.v1')!), isEmpty);
   });
 
+  // Holes re-check (25.11, item 21): nobody waits for usage events, so the
+  // batch is marked background (an overloaded API sheds it first).
+  test('the batch goes out as X-Request-Priority: background', () async {
+    AppEvents.track('tap');
+    await AppEvents.instance!.flush();
+    expect(
+      adapter.requests.single.headers['X-Request-Priority'],
+      'background',
+    );
+  });
+
   test('20 events send themselves', () async {
     for (var i = 0; i < 19; i++) {
       AppEvents.track('tap');

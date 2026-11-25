@@ -1,0 +1,19 @@
+{
+  "version": "cases-ranker-features-v1",
+  "surface": "case_feed",
+  "round": 4,
+  "features": [
+    "practice",
+    "state",
+    "fresh",
+    "budget",
+    "competition",
+    "urgency",
+    "client",
+    "demand",
+    "clientActive",
+    "urgentActive",
+    "dateNear",
+    "bidOn"
+  ]
+}

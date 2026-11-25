@@ -101,6 +101,13 @@ export function addBucket(
  * requests, their pass share is at least [passRatePct], and the same holds
  * for every platform that alone reached [minRequests]. Too little data =
  * false (log only): Auto never locks people out on a guess.
+ *
+ * Holes re-check (25.11): a platform with proven-real people but NOT ONE
+ * valid proof (the website before its reCAPTCHA / Turnstile key exists) is
+ * a platform whose proof provider does not work yet. Enforcing would refuse
+ * every one of them, however few they are, so it keeps Auto off: before,
+ * such a platform under [minRequests] was skipped and Auto could lock the
+ * website out on the strength of the phones' numbers.
  */
 export function autoAllows(
   c: BotCheckCounts,
@@ -112,9 +119,25 @@ export function autoAllows(
   const ok = (pass: number, total: number) =>
     total > 0 && (pass * 100) / total >= passRatePct;
   if (!ok(c.pass, c.total)) return false;
-  return Object.values(c.byPlatform).every(
-    (p) => !p || p.total < min || ok(p.pass, p.total),
-  );
+  return Object.values(c.byPlatform).every((p) => {
+    if (!p || p.total <= 0) return true;
+    if (p.pass <= 0) return false;
+    return p.total < min || ok(p.pass, p.total);
+  });
+}
+
+/** The counts of one platform only (Turnstile «Авто» reads the website's). */
+export function platformCounts(
+  c: BotCheckCounts,
+  platform: BotCheckPlatform,
+): BotCheckCounts {
+  const p = c.byPlatform[platform];
+  const out = emptyCounts();
+  if (!p) return out;
+  out.total = p.total;
+  out.pass = p.pass;
+  out.byPlatform[platform] = { total: p.total, pass: p.pass };
+  return out;
 }
 
 /** Replay protection «Авто»: enough valid tokens, and the share of them the

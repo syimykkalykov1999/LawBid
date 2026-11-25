@@ -24,7 +24,7 @@ class HotlineLineDto {
   /// Practice area codes.
   final List<String> practiceAreas;
 
-  /// Language codes (en, es, ru…).
+  /// Language codes (en, es, ru…) from the full language list, up to hotline.attorney_max_languages (owner 25.11).
   final List<String> languages;
 
   /// «Принимать звонки»; false = on the line, no new calls.

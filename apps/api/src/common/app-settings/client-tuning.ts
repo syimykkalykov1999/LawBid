@@ -49,6 +49,17 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'Longest wait (seconds) between retries of an unsent chat message or upload (waits grow 1, 2, 4 … up to this).',
   },
+  // Holes re-check (25.11, item 21): the apps mark each request
+  // `X-Request-Priority: user | prefetch | background` (Netflix prioritized
+  // load shedding) so an overloaded server sheds prefetch and background
+  // work before what a person is waiting for. Off = the apps send no mark
+  // (every request counts as a person's). The website sends it only while
+  // the bootstrap says this server allows the header (CORS).
+  'client.request_priority_enabled': {
+    default: true,
+    description:
+      'The app and the website mark each request user / prefetch / background so an overloaded server waits prefetch and background work first (off = no mark).',
+  },
   'client.events_enabled': {
     default: true,
     description:

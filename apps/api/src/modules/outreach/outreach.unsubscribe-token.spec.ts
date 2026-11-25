@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import type { AppConfigService } from '../feature-flags/services/app-config.service';
 import { OutreachService } from './outreach.service';
 import { UnsubscribeTokenCodec } from './unsubscribe-token';
 
@@ -15,7 +17,7 @@ const OLD_RAW = 'OldRawToken_0123456789abcdef';
 
 type Row = Record<string, unknown>;
 
-function setup(lead: Row, keys = KEYS, kid = 'k1') {
+function setup(lead: Row, keys = KEYS, kid = 'k1', settings?: unknown) {
   const rows = [lead];
   const find = (where: Row) =>
     rows.find((r) => Object.entries(where).every(([k, v]) => r[k] === v)) ??
@@ -56,6 +58,7 @@ function setup(lead: Row, keys = KEYS, kid = 'k1') {
     {} as never,
     undefined,
     config as never,
+    settings as never,
   );
   jest
     .spyOn(svc as unknown as { log(): Promise<void> }, 'log')
@@ -148,6 +151,53 @@ describe('outreach unsubscribe tokens (R2B-14)', () => {
 
   // Expand/contract (review of #1086): this release keeps the previous
   // release working during a rolling deploy and after a rollback.
+  // Holes re-check (25.11, ROUND2 #25): signed links are ON by default
+  // (RFC 8058 one-click, Gmail / Yahoo bulk-sender rules). Red on the old
+  // default (false): the real settings reader returned off.
+  describe('outreach.signed_unsubscribe_links is on by default', () => {
+    const real = (stored: Record<string, unknown>) =>
+      new AppSettingsService({
+        getConfig: () => Promise.resolve(stored),
+      } as unknown as AppConfigService);
+
+    it('nothing stored: new emails print the signed link', async () => {
+      const lead = { id: LEAD, unsubscribe_token: OLD_RAW };
+      const { svc } = setup({ ...lead }, KEYS, 'k1', real({}));
+      const on = await svc.signedLinksOn();
+      expect(on).toBe(true);
+      expect(svc.unsubscribeLinkToken(lead, on)).toMatch(/^u1\.k1\./);
+    });
+
+    it('an unreadable setting also prints the signed link (both are read)', async () => {
+      const broken = {
+        boolean: () => Promise.reject(new Error('config down')),
+      };
+      const { svc } = setup({ id: LEAD }, KEYS, 'k1', broken);
+      expect(await svc.signedLinksOn()).toBe(true);
+    });
+
+    it('no key ring: nothing to sign with, the legacy token is printed', async () => {
+      const { svc } = setup({ id: LEAD }, '', 'k1', real({}));
+      expect(await svc.signedLinksOn()).toBe(false);
+    });
+
+    it('a link already sent with the old random token still unsubscribes', async () => {
+      const { svc, lead } = setup(
+        {
+          id: LEAD,
+          unsubscribe_token: null,
+          unsubscribe_token_hash: sha(OLD_RAW),
+          unsubscribed_at: null,
+        },
+        KEYS,
+        'k1',
+        real({}),
+      );
+      expect(await svc.unsubscribe(OLD_RAW)).toBe(true);
+      expect(lead.unsubscribed_at).toBeInstanceOf(Date);
+    });
+  });
+
   describe('while outreach.signed_unsubscribe_links is off', () => {
     const OLD_REGEX = /^[A-Za-z0-9_-]{16,48}$/; // the previous release's controller
 
@@ -170,12 +220,21 @@ describe('outreach unsubscribe tokens (R2B-14)', () => {
     });
 
     it('a signed link is accepted on read either way', async () => {
-      const { svc, lead } = setup({
-        id: LEAD,
-        unsubscribe_token: OLD_RAW,
-        unsubscribe_token_hash: sha(OLD_RAW),
-        unsubscribed_at: null,
-      });
+      const off = new AppSettingsService({
+        getConfig: () =>
+          Promise.resolve({ 'outreach.signed_unsubscribe_links': false }),
+      } as unknown as AppConfigService);
+      const { svc, lead } = setup(
+        {
+          id: LEAD,
+          unsubscribe_token: OLD_RAW,
+          unsubscribe_token_hash: sha(OLD_RAW),
+          unsubscribed_at: null,
+        },
+        KEYS,
+        'k1',
+        off,
+      );
       expect(await svc.signedLinksOn()).toBe(false);
       const signed = new UnsubscribeTokenCodec(KEYS, 'k1').sign(LEAD);
       expect(await svc.unsubscribe(signed)).toBe(true);

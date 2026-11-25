@@ -9,11 +9,10 @@ const hotlineAttorneyRu = <String, String>{
   'hotline.att.title': 'Горячая линия',
   'hotline.att.practices': 'Квалификации, по которым беру звонки',
   'hotline.att.states': 'Штаты — только проверенные лицензии',
-  'hotline.att.languages': 'Языки — только из вашего профиля',
+  'hotline.att.languages': 'На каких языках принимать звонки',
   'hotline.att.select': 'Выбрать',
   'hotline.att.noPractices': 'Сначала добавьте квалификации в профиль',
   'hotline.att.noStates': 'Нет проверенных лицензий',
-  'hotline.att.noLanguages': 'Сначала добавьте языки в профиль',
   'hotline.att.now': 'Сейчас по вашим темам',
   'hotline.att.col.language': 'Язык',
   'hotline.att.col.clients': 'Клиентов',
@@ -36,13 +35,11 @@ const hotlineAttorneyRu = <String, String>{
   'hotline.att.off': 'Выключить линию',
   'hotline.att.offReason.missed':
       'Несколько звонков подряд без ответа — линия выключена',
-  'hotline.att.offReason.language': 'Язык убран из профиля — линия выключена',
   'hotline.att.offReason.licence':
       'Лицензия больше не проверена — линия выключена',
   'hotline.att.offReason.access': 'Горячей линии больше нет в вашем тарифе',
   'hotline.att.offReason.switched_off': 'Горячая линия сейчас выключена',
   'hotline.att.offReason.other': 'Линия выключена',
-  'hotline.att.err.language_not_in_profile': 'Только языки из вашего профиля',
   'hotline.att.err.states': 'Только штаты проверенных лицензий',
   'hotline.att.err.too_many_combinations':
       'Слишком много сочетаний — уберите часть',
@@ -68,11 +65,10 @@ const hotlineAttorneyEn = <String, String>{
   'hotline.att.title': 'Call hotline',
   'hotline.att.practices': 'Practice areas I take calls for',
   'hotline.att.states': 'States — verified licences only',
-  'hotline.att.languages': 'Languages — from your profile only',
+  'hotline.att.languages': 'Languages you take calls in',
   'hotline.att.select': 'Choose',
   'hotline.att.noPractices': 'Add practice areas to your profile first',
   'hotline.att.noStates': 'No verified licences',
-  'hotline.att.noLanguages': 'Add languages to your profile first',
   'hotline.att.now': 'Right now in your topics',
   'hotline.att.col.language': 'Language',
   'hotline.att.col.clients': 'Clients',
@@ -95,15 +91,12 @@ const hotlineAttorneyEn = <String, String>{
   'hotline.att.off': 'Turn off the line',
   'hotline.att.offReason.missed':
       'Several calls in a row went unanswered — the line is off',
-  'hotline.att.offReason.language':
-      'A language left your profile — the line is off',
   'hotline.att.offReason.licence':
       'A licence is no longer verified — the line is off',
   'hotline.att.offReason.access': 'The call hotline is no longer in your plan',
   'hotline.att.offReason.switched_off':
       'The call hotline is switched off right now',
   'hotline.att.offReason.other': 'The line is off',
-  'hotline.att.err.language_not_in_profile': 'Only languages from your profile',
   'hotline.att.err.states': 'Only states of verified licences',
   'hotline.att.err.too_many_combinations':
       'Too many combinations — remove some',

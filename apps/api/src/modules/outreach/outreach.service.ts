@@ -253,15 +253,15 @@ export class OutreachService {
   }
 
   /** Does this release print signed links? The admin switch
-   * `outreach.signed_unsubscribe_links` (default off: the owner turns it on
-   * once this release is fully live, so a rollback keeps working links). */
+   * `outreach.signed_unsubscribe_links` (holes re-check 25.11: on by
+   * default; an unreadable setting also means on, since the reader accepts
+   * both kinds). Without a key ring there is nothing to sign with. */
   async signedLinksOn(): Promise<boolean> {
     if (!this.tokens) return false;
-    return (
-      (await this.appSettings
-        ?.boolean('outreach.signed_unsubscribe_links')
-        .catch(() => false)) ?? false
-    );
+    if (!this.appSettings) return true;
+    return this.appSettings
+      .boolean('outreach.signed_unsubscribe_links')
+      .catch(() => true);
   }
 
   /** The token printed in a lead's unsubscribe link. Switch off: the

@@ -183434,6 +183434,10 @@
           "maxLanguages": {
             "type": "number"
           },
+          "attorneyMaxLanguages": {
+            "type": "number",
+            "description": "hotline.attorney_max_languages: languages on the attorney line (0 = no limit). Optional for apps that met an older server."
+          },
           "topicMaxChars": {
             "type": "number"
           },
@@ -183597,8 +183601,8 @@
           },
           "languages": {
             "minItems": 1,
-            "maxItems": 50,
-            "description": "Language codes (en, es, ru…).",
+            "maxItems": 500,
+            "description": "Language codes (en, es, ru…) from the full language list, up to hotline.attorney_max_languages (owner 25.11).",
             "type": "array",
             "items": {
               "type": "string",

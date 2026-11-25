@@ -38,9 +38,12 @@ describe('admin api client (S18-12)', () => {
     __setLastInput(Date.now() - 10 * 60_000);
     await api.GET('/admin/counts' as never);
     expect(f.mock.calls[0]![0].headers.get('x-background')).toBe('1');
+    // Holes re-check (25.11, item 21): and as load-shedding background.
+    expect(f.mock.calls[0]![0].headers.get('x-request-priority')).toBe('background');
     __setLastInput(Date.now());
     await api.GET('/admin/counts' as never);
     expect(f.mock.calls[1]![0].headers.get('x-background')).toBeNull();
+    expect(f.mock.calls[1]![0].headers.get('x-request-priority')).toBeNull();
   });
 
   it('keeps a bodyless POST bodyless (no text/plain content type for the proxy)', async () => {

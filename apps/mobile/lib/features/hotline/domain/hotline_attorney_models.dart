@@ -63,6 +63,7 @@ class HotlineAttorneyConfig {
     required this.heartbeatSec,
     required this.offerTimeoutSec,
     required this.countersIntervalSec,
+    this.attorneyMaxLanguages = 50,
     this.access,
     this.disclosure,
   });
@@ -72,6 +73,10 @@ class HotlineAttorneyConfig {
   final int heartbeatSec;
   final int offerTimeoutSec;
   final int countersIntervalSec;
+
+  /// `hotline.attorney_max_languages` (owner 25.11): how many languages his
+  /// line may have; 0 = no limit.
+  final int attorneyMaxLanguages;
 
   /// Attorneys only.
   final HotlineAccess? access;

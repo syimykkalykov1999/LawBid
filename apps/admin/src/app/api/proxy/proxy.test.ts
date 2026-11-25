@@ -108,11 +108,15 @@ describe('admin proxy', () => {
     const f = vi.fn(async () => new Response('{}', { status: 200 }));
     vi.stubGlobal('fetch', f);
     await GET(
-      new NextRequest('http://admin.test/api/proxy/counts', { headers: { 'x-background': '1' } }),
+      new NextRequest('http://admin.test/api/proxy/counts', {
+        headers: { 'x-background': '1', 'x-request-priority': 'background' },
+      }),
       { params: Promise.resolve({ path: ['counts'] }) },
     );
     const init = (f.mock.calls[0] as unknown as [unknown, RequestInit])[1];
     expect((init.headers as Headers).get('x-background')).toBe('1');
+    // Holes re-check (25.11, item 21): the load-shedding mark reaches the API.
+    expect((init.headers as Headers).get('x-request-priority')).toBe('background');
   });
 
   it('clears the cookie when the API answers 401', async () => {

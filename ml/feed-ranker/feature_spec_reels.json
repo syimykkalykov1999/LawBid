@@ -1,0 +1,23 @@
+{
+  "version": "reels-ranker-features-v1",
+  "surface": "reels",
+  "round": 4,
+  "features": [
+    "hot",
+    "interest",
+    "social",
+    "fresh",
+    "language",
+    "authorQuality",
+    "state",
+    "affinity",
+    "seen",
+    "own",
+    "likeRate",
+    "saveRate",
+    "shareRate",
+    "commentRate",
+    "views",
+    "length"
+  ]
+}

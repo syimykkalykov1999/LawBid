@@ -18,6 +18,7 @@ import { readSwitchMode } from './switch-mode';
 import { configSchema } from '../../modules/admin-config/config-schema';
 import { parseAppCheckMode } from '../../modules/auth/app-check/app-check.guard';
 import { SeoGenerateJob } from '../../jobs/handlers/seo-generate.job';
+import { hotlineSettingsFrom } from './hotline-settings';
 
 /**
  * Switch contract (docs/dev/SWITCH_INVENTORY.md): for every admin switch
@@ -37,8 +38,17 @@ describe('switch contract: defaults (a)', () => {
     ['case_fanout.enabled', 'auto'],
     ['billing.stripe_tax_enabled', false],
     ['rewards.enabled', false],
-    ['security.turnstile.mode', 'off'],
+    // Holes re-check (25.11, STRICT rule 6): needed protection on, Авто
+    // guards itself (Turnstile auto = off until both keys are saved).
+    ['security.turnstile.mode', 'auto'],
     ['security.app_check.mode', 'monitor'],
+    ['security.app_check.sms.mode', 'auto'],
+    ['security.app_check.login.mode', 'auto'],
+    ['security.app_check.password_reset.mode', 'auto'],
+    ['security.app_check.payments.mode', 'auto'],
+    ['security.app_check.replay.mode', 'auto'],
+    // Holes re-check (25.11, ROUND2 #25): RFC 8058 one-click, signed.
+    ['outreach.signed_unsubscribe_links', true],
     ['economy.ceiling_mode', 'auto'],
     ['storage.auto_cleanup', true],
     ['storage.auto_retention', true],
@@ -340,6 +350,21 @@ describe('economy.ceiling_mode (auto | manual)', () => {
     expect(await get({})).toBe('auto');
     expect(await get({ 'economy.ceiling_mode': 'manual' })).toBe('manual');
     expect(await get({ 'economy.ceiling_mode': 'zzz' })).toBe('auto');
+  });
+});
+
+describe('hotline.attorney_max_languages (ceiling, owner 25.11)', () => {
+  const cap = async (stored: Record<string, unknown>) =>
+    hotlineSettingsFrom(await settingsWith(stored).all())[
+      'hotline.attorney_max_languages'
+    ];
+  it('50 by default, the stored number caps the attorney line, 0 = no limit, junk = the default', async () => {
+    expect(APP_SETTINGS['hotline.attorney_max_languages']).toBe(50);
+    expect(await cap({})).toBe(50);
+    expect(await cap({ 'hotline.attorney_max_languages': 2 })).toBe(2);
+    expect(await cap({ 'hotline.attorney_max_languages': 0 })).toBe(0);
+    expect(await cap({ 'hotline.attorney_max_languages': -1 })).toBe(50);
+    expect(await cap({ 'hotline.attorney_max_languages': 'x' })).toBe(50);
   });
 });
 
