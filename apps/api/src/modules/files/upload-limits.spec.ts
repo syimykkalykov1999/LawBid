@@ -6,6 +6,7 @@ import {
   UPLOAD_PLACES,
   assertUploadCount,
   sanitizeUploadLimits,
+  storedUploadLimits,
 } from './upload-limits';
 import {
   configSchema,
@@ -130,5 +131,52 @@ describe('the antivirus limit covers every upload ceiling', () => {
     expect(tf).toContain(
       '{ name = "CLAMAV_MAX_MB", value = tostring(var.clamav_max_file_mb) }',
     );
+  });
+});
+
+// M7 (owner 24.11, works check row 31): prod kept a chat value saved before
+// chat videos existed, so mp4 / mov / webm stayed off for good.
+describe('safe formats added after a value was saved', () => {
+  const legacyChat = {
+    chat: {
+      fileMb: 25,
+      formats: ['jpeg', 'png', 'heic', 'webp', 'gif', 'pdf', 'docx'],
+    },
+  };
+
+  it('an old chat value gets the chat videos; its own choices stay', () => {
+    const chat = sanitizeUploadLimits(legacyChat).chat;
+    expect(chat.formats).toEqual(
+      expect.arrayContaining(['mp4', 'mov', 'webm', 'jpeg', 'pdf']),
+    );
+    // Formats the old screen offered and the admin left off stay off.
+    expect(chat.formats).not.toContain('xlsx');
+    // The admin's number is not touched.
+    expect(chat.fileMb).toBe(25);
+  });
+
+  it('a video unticked on the current screen stays off after a save', () => {
+    const now = sanitizeUploadLimits(legacyChat);
+    const unticked = {
+      ...now,
+      chat: {
+        ...now.chat,
+        formats: now.chat.formats.filter((f) => f !== 'mov'),
+      },
+    };
+    // As the admin save does it (admin-storage.controller.ts).
+    const saved = storedUploadLimits(
+      sanitizeUploadLimits(unticked, { offered: true }),
+    );
+    const chat = sanitizeUploadLimits(
+      JSON.parse(JSON.stringify(saved)) as unknown,
+    ).chat;
+    expect(chat.formats).not.toContain('mov');
+    expect(chat.formats).toContain('mp4');
+  });
+
+  it('other places read an old value as before', () => {
+    const old = { review: { formats: ['jpeg'] } };
+    expect(sanitizeUploadLimits(old).review.formats).toEqual(['jpeg']);
   });
 });

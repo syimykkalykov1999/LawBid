@@ -150,8 +150,7 @@ String? storedFileOf(UploadJob job) => job.progress[kStoredFileKey] as String?;
 
 /// Hands the uploader the step that keeps a stored file in the job: a slow
 /// scan is then waited for again, the bytes are never sent twice.
-Future<void> Function(String) _keepStored(UploadJobScope scope) =>
-    (id) async {
+Future<void> Function(String) _keepStored(UploadJobScope scope) => (id) async {
       scope.reportProgress(1);
       await scope.saveProgress({kStoredFileKey: id});
     };
@@ -307,9 +306,8 @@ ChatMessage chatMessageOfJob(
             height: (p['height'] as num?)?.toInt(),
             // Owner 24.11: bytes in storage (also after a restart) = 1, so
             // the bubble stops its ring while only the server's scan runs.
-            progress: job.fileId != null || storedFileOf(job) != null
-                ? 1
-                : progress,
+            progress:
+                job.fileId != null || storedFileOf(job) != null ? 1 : progress,
           )
         : null,
   );

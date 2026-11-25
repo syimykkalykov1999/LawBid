@@ -8,7 +8,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 
 class _FakePlayer extends VideoPlayerController {
-  _FakePlayer(Uri uri) : super.networkUrl(uri);
+  _FakePlayer(super.uri) : super.networkUrl();
 
   @override
   Future<void> initialize() async {
