@@ -1,3 +1,5 @@
+import { readDailySnapshot } from '../../common/admin-summary/snapshot-gate';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { Prisma } from '../../generated/prisma/client';
@@ -75,8 +77,22 @@ export class StorageStatsService {
     private readonly logger: PinoLogger,
     @Optional() private readonly storage?: S3StorageService,
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {
     this.logger.setContext(StorageStatsService.name);
+  }
+
+  /** Round 4 admin check (25.11, С11): the page's usage numbers (GROUP BY and
+   * DISTINCT ON over the whole `files` table) from the daily snapshot. */
+  usageSnapshot(): Promise<StorageUsage> {
+    return readDailySnapshot(this.summary, 'storage:usage', () => this.usage());
+  }
+
+  /** …and «who stores the most» likewise. */
+  topUsersSnapshot(limit = 20): Promise<UserUsage[]> {
+    return readDailySnapshot(this.summary, `storage:top-users:${limit}`, () =>
+      this.topUsers(limit),
+    );
   }
 
   /** The last daily R2 count (null: R2 not used, or not counted yet). */

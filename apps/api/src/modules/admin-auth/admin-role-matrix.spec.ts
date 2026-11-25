@@ -44,7 +44,11 @@ const PROBES: [string, string, string][] = [
   ],
   ['localization', '/api/v1/admin/i18n/languages', '/api/v1/admin/i18n/import'],
   ['settings', '/api/v1/admin/config', '/api/v1/admin/feature-flags/x'],
-  ['legal', '/api/v1/admin/legal-documents', '/api/v1/admin/legal-documents'],
+  [
+    'legal',
+    '/api/v1/admin/legal/documents',
+    '/api/v1/admin/legal/documents/terms/en/draft',
+  ],
   [
     'data_requests',
     '/api/v1/admin/data-requests',

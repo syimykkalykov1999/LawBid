@@ -1,3 +1,4 @@
+import { AdminSummaryService } from '../src/common/admin-summary/admin-summary.service';
 import type { AddressInfo, Server } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { INestApplication } from '@nestjs/common';
@@ -899,6 +900,8 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
 
   it('admin: settings (no percent fee, editable disclaimer), list + filters, stats, payout accounts, refund, CSV', async () => {
     const root = await adminSession(baseUrl, prisma, 'super_admin');
+    // Round 4 (С2): the platform fee settings ask a fresh 2FA code.
+    await adminStepUp(baseUrl, root);
     const att = await attorney();
     const cli = await client();
     const acct = await onboard(att);
@@ -990,6 +993,9 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
       .expect(200);
     expect((none.body as Body).data).toEqual([]);
 
+    // Round 4 (С11): the page reads the daily snapshot; this suite wants
+    // the numbers of its own rows, so it drops the stored copy first.
+    await app.get(AdminSummaryService).drop('case-payments:stats');
     const stats = await api()
       .get('/api/v1/admin/case-payments/stats')
       .set(root.auth)
@@ -1065,6 +1071,8 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
   it('who covers the Stripe fee is a setting: client / attorney / split; the platform never pays', async () => {
     await prisma.appConfig.deleteMany({ where: { key: PAYMENT_SETTINGS_KEY } });
     const root = await adminSession(baseUrl, prisma, 'super_admin');
+    // Round 4 (С2): the platform fee settings ask a fresh 2FA code.
+    await adminStepUp(baseUrl, root);
     const cli = await client();
     const s0 = await api()
       .get('/api/v1/admin/case-payments/settings')
@@ -1375,11 +1383,16 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
 
     // Admin: requests list + stats.
     const root = await adminSession(baseUrl, prisma, 'super_admin');
+    // Round 4 (С2): the platform fee settings ask a fresh 2FA code.
+    await adminStepUp(baseUrl, root);
     const adminList = await api()
       .get(`/api/v1/admin/case-payments/requests?caseId=${c.id}&status=paid`)
       .set(root.auth)
       .expect(200);
     expect((adminList.body as { data: unknown[] }).data).toHaveLength(1);
+    // Round 4 (С11): the page reads the daily snapshot; this suite wants
+    // the numbers of its own rows, so it drops the stored copy first.
+    await app.get(AdminSummaryService).drop('case-payments:stats');
     const stats = await api()
       .get('/api/v1/admin/case-payments/stats')
       .set(root.auth)
@@ -1508,6 +1521,8 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
 
     // Admin: the overview shows the attorney's own choice, no edit.
     const root = await adminSession(baseUrl, prisma, 'super_admin');
+    // Round 4 (С2): the platform fee settings ask a fresh 2FA code.
+    await adminStepUp(baseUrl, root);
     const accounts = (
       (
         await api()
@@ -1662,6 +1677,8 @@ describe('owner — client → attorney payments (e2e, fake provider)', () => {
 
     // Round cap from the admin: 0 counter-offers → accept or pay only.
     const root = await adminSession(baseUrl, prisma, 'super_admin');
+    // Round 4 (С2): the platform fee settings ask a fresh 2FA code.
+    await adminStepUp(baseUrl, root);
     const s0 = (
       (
         await api()

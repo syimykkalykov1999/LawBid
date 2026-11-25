@@ -1,3 +1,5 @@
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
+import { readDailySnapshot } from '../../common/admin-summary/snapshot-gate';
 import { AttorneyAdvertisingService } from './attorney-advertising.service';
 import {
   ConflictException,
@@ -47,6 +49,9 @@ const WAITLIST_MAX_PER_RUN = 5_000;
  * needs at least one region to pick (states, provinces): without one
  * nobody there could finish a profile or post a case.
  */
+/** Daily snapshot of people per country (AdminSummaryService key). */
+export const COUNTRY_PEOPLE_SNAPSHOT_KEY = 'countries:people';
+
 @Injectable()
 export class AdminCountriesService {
   constructor(
@@ -60,7 +65,32 @@ export class AdminCountriesService {
     private readonly logger: PinoLogger,
     @Optional() private readonly advertising?: AttorneyAdvertisingService,
     @Optional() private readonly flags?: FeatureFlagsService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
+
+  /** Clients and attorneys per country: a groupBy over every person, so it
+   * comes from the daily snapshot (round 4, С11), not on every open or
+   * after every switch. */
+  private peopleByCountry(): Promise<
+    { country_code: string | null; role: string | null; n: number }[]
+  > {
+    return readDailySnapshot(
+      this.summary,
+      COUNTRY_PEOPLE_SNAPSHOT_KEY,
+      async () =>
+        (
+          await this.prisma.user.groupBy({
+            by: ['country_code', 'role'],
+            where: { deleted_at: null, role: { in: ['client', 'attorney'] } },
+            _count: { _all: true },
+          })
+        ).map((r) => ({
+          country_code: r.country_code,
+          role: r.role,
+          n: r._count._all,
+        })),
+    );
+  }
 
   async list(admin: AdminActor): Promise<CountriesAdminDto> {
     const [rows, regions, people, waiting, notifyWaitlist] = await Promise.all([
@@ -70,11 +100,7 @@ export class AdminCountriesService {
         where: { is_active: true },
         _count: { _all: true },
       }),
-      this.prisma.user.groupBy({
-        by: ['country_code', 'role'],
-        where: { deleted_at: null, role: { in: ['client', 'attorney'] } },
-        _count: { _all: true },
-      }),
+      this.peopleByCountry(),
       this.prisma.countryWaitlist.groupBy({
         by: ['country_code'],
         where: { notified_at: null },
@@ -89,8 +115,7 @@ export class AdminCountriesService {
       waiting.map((r) => [r.country_code, r._count._all]),
     );
     const count = (code: string, role: 'client' | 'attorney') =>
-      people.find((p) => p.country_code === code && p.role === role)?._count
-        ._all ?? 0;
+      people.find((p) => p.country_code === code && p.role === role)?.n ?? 0;
     // A country-limited employee sees only their countries.
     const scope = admin.countries ?? null;
     const visible = scope ? rows.filter((r) => scope.includes(r.code)) : rows;

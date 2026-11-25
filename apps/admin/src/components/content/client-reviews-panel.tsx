@@ -19,7 +19,7 @@ import { growthError } from '@/components/growth/errors';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
-import { can } from '@/lib/rbac';
+import { canAct } from '@/lib/rbac';
 import { CONTENT_STATUS, label, ROLE_TEXT, StatusPill } from '@/lib/labels';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
@@ -56,7 +56,8 @@ const APPEAL_STATUS: Record<string, string> = {
 
 function useCanModerate() {
   const { data: me } = useMe();
-  return can(me, 'content', 'manage');
+  // Round 4 (С10): the API's own role list for this action, plus the area.
+  return canAct(me, 'content', ['moderator']);
 }
 
 /** Reviews about clients / assistants (left by attorneys or clients): search, hide, restore. */

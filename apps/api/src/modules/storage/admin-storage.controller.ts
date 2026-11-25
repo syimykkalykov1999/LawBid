@@ -79,9 +79,9 @@ export class AdminStorageController {
   async getStorageOverview(): Promise<StorageOverviewDto> {
     const [usage, tables, topUsers, history, lastCleanup, settings, r2] =
       await Promise.all([
-        this.stats.usage(),
+        this.stats.usageSnapshot(),
         this.stats.tables(),
-        this.stats.topUsers(),
+        this.stats.topUsersSnapshot(),
         this.stats.history(),
         this.cleanup.lastRun(),
         this.readSettings(),

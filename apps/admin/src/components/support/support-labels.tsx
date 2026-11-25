@@ -2,7 +2,7 @@ import { Badge, type Tone } from '@/components/ui/card';
 import type { components } from '@/lib/api/schema';
 import { PRIORITY, TICKET_CATEGORY } from '@/lib/labels';
 import type { Me } from '@/lib/hooks';
-import { can } from '@/lib/rbac';
+import { canAct } from '@/lib/rbac';
 
 export type TicketRow = components['schemas']['AdminSupportTicketRowDto'];
 export type TicketMessage = components['schemas']['AdminSupportMessageDto'];
@@ -17,9 +17,10 @@ export const STATUSES: TicketStatus[] = ['open', 'waiting_user', 'resolved', 'cl
 export const PRIORITIES: TicketPriority[] = ['low', 'normal', 'high', 'urgent'];
 export const CATEGORIES: TicketCategory[] = ['account', 'billing', 'verification', 'case', 'bug', 'abuse', 'other'];
 
-/** Answer tickets with the support toggle on "manage"; "view" only reads. */
+/** Answer tickets with the support toggle on "manage"; "view" only reads.
+ * Round 4 (С10): the API lets only support (and the owner) answer. */
 export function canWriteSupport(me: Me | undefined): boolean {
-  return can(me, 'support', 'manage');
+  return canAct(me, 'support', ['support']);
 }
 
 const PRIORITY_TONE: Record<TicketPriority, Tone> = {

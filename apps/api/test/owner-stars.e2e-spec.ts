@@ -585,9 +585,22 @@ describe('Stars, gifts and paid stickers (e2e)', () => {
     const admin = await adminSession(base, prisma, 'super_admin');
     const mod = await adminSession(base, prisma, 'moderator');
     await api().get('/api/v1/admin/stars/settings').set(mod.auth).expect(404);
+    // Round 4 (С2): star prices are money — a fresh 2FA code (another owner
+    // session, so the grant below still shows its own code check).
+    const pricer = await adminSession(base, prisma, 'super_admin');
+    await api()
+      .put('/api/v1/admin/stars/settings')
+      .set(pricer.auth)
+      .send({
+        packs: [{ id: 'stars_50', stars: 50, priceCents: 99 }],
+        giftConvertPercent: 70,
+        giftsPerDayMax: 100,
+      })
+      .expect(403);
+    await adminStepUp(base, pricer);
     const s = await api()
       .put('/api/v1/admin/stars/settings')
-      .set(admin.auth)
+      .set(pricer.auth)
       .send({
         packs: [{ id: 'stars_50', stars: 50, priceCents: 99 }],
         giftConvertPercent: 70,
@@ -597,7 +610,7 @@ describe('Stars, gifts and paid stickers (e2e)', () => {
     expect(s.body.data.packs).toHaveLength(1);
     await api()
       .put('/api/v1/admin/stars/settings')
-      .set(admin.auth)
+      .set(pricer.auth)
       .send({
         packs: [
           { id: 'a_1', stars: 1, priceCents: 100 },

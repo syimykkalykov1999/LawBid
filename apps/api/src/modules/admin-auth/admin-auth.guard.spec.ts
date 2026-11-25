@@ -37,6 +37,8 @@ const CLAIMS = { sub: 'u1', jti: 's1', role: 'verifier' };
 
 interface Opts {
   allowed?: AdminRole[];
+  /** The handler's own @Roles(...) (none = only the controller's list). */
+  actionRoles?: AdminRole[];
   justification?: boolean;
   row?: Row | null;
   verify?: () => typeof CLAIMS;
@@ -50,6 +52,8 @@ interface Opts {
 
 function setup(opts: Opts) {
   const reflector = {
+    get: (key: string) =>
+      key === ADMIN_ROLES_KEY ? opts.actionRoles : undefined,
     getAllAndOverride: (key: string) =>
       key === ADMIN_ROLES_KEY
         ? opts.allowed
@@ -276,6 +280,60 @@ describe('AdminAuthGuard (docs/06 §2.1–2.2, deny by default)', () => {
     await expect(write.guard.canActivate(write.ctx)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  // Round 4 admin check (25.11, С10): a refund marked
+  // @Roles('super_admin', 'finance') went through for a support employee
+  // holding «Деньги: управление»; the panel shows the button only to finance.
+  it('an action’s own role list is enforced for staff; reading stays with the toggles', async () => {
+    const row = {
+      ...admin('support'),
+      admin_profile: {
+        admin_role: 'support' as AdminRole,
+        permissions: { money: 'manage' },
+      },
+    };
+    const refund = setup({
+      allowed: ['super_admin', 'finance'],
+      actionRoles: ['super_admin', 'finance'],
+      url: '/api/v1/admin/case-payments/p1/refund',
+      method: 'POST',
+      row,
+    });
+    await expect(refund.guard.canActivate(refund.ctx)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    const read = setup({
+      allowed: ['super_admin', 'finance'],
+      actionRoles: ['super_admin', 'finance'],
+      url: '/api/v1/admin/case-payments/stats',
+      method: 'GET',
+      row,
+    });
+    await expect(read.guard.canActivate(read.ctx)).resolves.toBe(true);
+    const finance = setup({
+      allowed: ['super_admin', 'finance'],
+      actionRoles: ['super_admin', 'finance'],
+      url: '/api/v1/admin/case-payments/p1/refund',
+      method: 'POST',
+      row: {
+        ...row,
+        admin_profile: {
+          admin_role: 'finance',
+          permissions: { money: 'manage' },
+        },
+      },
+    });
+    await expect(finance.guard.canActivate(finance.ctx)).resolves.toBe(true);
+    // …and the owner is never stopped by it.
+    const owner = setup({
+      allowed: ['super_admin', 'finance'],
+      actionRoles: ['super_admin', 'finance'],
+      url: '/api/v1/admin/case-payments/p1/refund',
+      method: 'POST',
+      row: admin('super_admin'),
+    });
+    await expect(owner.guard.canActivate(owner.ctx)).resolves.toBe(true);
   });
 
   it('keys and admin management are closed to non-super admins even with a role and toggles', async () => {

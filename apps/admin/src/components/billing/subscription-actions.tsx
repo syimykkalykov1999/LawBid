@@ -135,11 +135,13 @@ function CancelDialog({
   const [reason, setReason] = useState('');
   const needReason = useReasonRequired('money');
   const ok = !needReason || reason.trim().length >= REASON_MIN;
+  // Round 4 (В4): a cancel with a refund carries a retry key like «Возврат».
+  const [key] = useState(() => crypto.randomUUID());
 
   const cancel = useMutation({
     mutationFn: async () => {
       const r = await api.POST('/admin/subscriptions/{userId}/cancel', {
-        params: { path: { userId } },
+        params: { path: { userId }, header: { 'Idempotency-Key': key } },
         body: { when, refund: when === 'now' ? refund : 'none', reason: reason.trim() },
       });
       if (r.error) throw r.error;

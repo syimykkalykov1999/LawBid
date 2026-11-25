@@ -15,6 +15,7 @@ import { totpCode } from '../src/modules/admin-auth/totp.util';
 import {
   adminSession,
   adminSignIn,
+  adminStepUp,
   E2E_ADMIN_PASSWORD,
   e2eLogin,
 } from './support/admin-login';
@@ -239,6 +240,8 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
 
   it('an admin the super admin allowed manages other admins, only within their own access', async () => {
     const sup = await adminSession(baseUrl, prisma, 'super_admin');
+    // Round 4 (Н2): creating an employee by hand asks the code an invite asks.
+    await adminStepUp(baseUrl, sup);
     const email = `mgr-${randomUUID().slice(0, 8)}@lawbid-e2e.test`;
     const created = await api()
       .post('/api/v1/admin/admins')
@@ -262,6 +265,28 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     const plain = await adminSession(baseUrl, prisma, 'support');
     await api().get('/api/v1/admin/admins').set(plain.auth).expect(404);
     await api().get('/api/v1/admin/admins').set(mgr.auth).expect(200);
+
+    // Owner 2026-10-22: changing rights needs a fresh step-up first; Round 4
+    // (Н2): so does creating an employee by hand (it also covers the
+    // toggles and the credentials change below).
+    const noStepUp = await api()
+      .post('/api/v1/admin/admins')
+      .set(mgr.auth)
+      .send({
+        email: `nostep-${randomUUID().slice(0, 8)}@lawbid-e2e.test`,
+        role: 'support',
+        permissions: { users: 'view' },
+      })
+      .expect(403);
+    expect((noStepUp.body as Body).error?.code).toBe('ADMIN_STEP_UP_REQUIRED');
+    // The code of the NEXT 30 s step: the sign-in code is the current step
+    // (single-use), and an earlier step collides with it when the clock
+    // crosses a step boundary between the two calls.
+    await api()
+      .post('/api/v1/admin/auth/step-up')
+      .set(mgr.auth)
+      .send({ code: totpCode(mgr.totpSecret, Date.now() + 30_000) })
+      .expect(200);
 
     // Creates inside their own access…
     const staffEmail = `staff-${randomUUID().slice(0, 8)}@lawbid-e2e.test`;
@@ -306,22 +331,7 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     }
 
     // Toggles: only what they hold; the manager right and roles stay with
-    // the super admin. Owner 2026-10-22: changing rights needs a fresh
-    // step-up first (it also covers the credentials change below).
-    const noStepUp = await api()
-      .patch(`/api/v1/admin/admins/${staffId}/permissions`)
-      .set(mgr.auth)
-      .send({ permissions: { users: 'manage', support: 'view' } })
-      .expect(403);
-    expect((noStepUp.body as Body).error?.code).toBe('ADMIN_STEP_UP_REQUIRED');
-    // The code of the NEXT 30 s step: the sign-in code is the current step
-    // (single-use), and an earlier step collides with it when the clock
-    // crosses a step boundary between the two calls.
-    await api()
-      .post('/api/v1/admin/auth/step-up')
-      .set(mgr.auth)
-      .send({ code: totpCode(mgr.totpSecret, Date.now() + 30_000) })
-      .expect(200);
+    // the super admin (the step-up above covers the changes below too).
     await api()
       .patch(`/api/v1/admin/admins/${staffId}/permissions`)
       .set(mgr.auth)
@@ -456,6 +466,16 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
   it('super_admin manages administrators; each action is in audit_log with before/after; disabling ends sessions', async () => {
     const sup = await adminSession(baseUrl, prisma, 'super_admin');
     const email = `new-${randomUUID().slice(0, 8)}@lawbid-e2e.test`;
+    // Round 4 (Н2): creating an employee by hand asks a fresh 2FA code.
+    const createNoStepUp = await api()
+      .post('/api/v1/admin/admins')
+      .set(sup.auth)
+      .send({ email, role: 'verifier' })
+      .expect(403);
+    expect((createNoStepUp.body as Body).error?.code).toBe(
+      'ADMIN_STEP_UP_REQUIRED',
+    );
+    await adminStepUp(baseUrl, sup);
     const created = await api()
       .post('/api/v1/admin/admins')
       .set(sup.auth)
@@ -487,19 +507,17 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
 
     // Role change (fresh step-up, owner 2026-10-22) → sessions revoked;
     // new role applies on the next sign-in.
+    // (Another owner session that typed no code: `sup` already did above.)
+    const unconfirmed = await adminSession(baseUrl, prisma, 'super_admin');
     const roleNoStepUp = await api()
       .patch(`/api/v1/admin/admins/${id}/role`)
-      .set(sup.auth)
+      .set(unconfirmed.auth)
       .send({ role: 'support' })
       .expect(403);
     expect((roleNoStepUp.body as Body).error?.code).toBe(
       'ADMIN_STEP_UP_REQUIRED',
     );
-    await api()
-      .post('/api/v1/admin/auth/step-up')
-      .set(sup.auth)
-      .send({ code: totpCode(sup.totpSecret, Date.now() + 30_000) })
-      .expect(200);
+    // `sup` confirmed with a code above (the create): still in force.
     await api()
       .patch(`/api/v1/admin/admins/${id}/role`)
       .set(sup.auth)
