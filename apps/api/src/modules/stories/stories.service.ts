@@ -385,35 +385,43 @@ export class StoriesService {
       if (!text) throw invalid('text', 'A text story needs text.');
       background = dto.background ?? 'gold';
     }
-    const active = await this.prisma.story.count({
-      where: liveOwn(me, new Date()),
-    });
     const max = await this.settings.number('stories.max_active_per_user');
-    if (active >= max) {
-      throw new ConflictException({
+    const tooMany = () =>
+      new ConflictException({
         code: ErrorCode.STORY_LIMIT_REACHED,
         message: 'Too many stories at once.',
         details: { max },
       });
-    }
+    const active = await this.prisma.story.count({
+      where: liveOwn(me, new Date()),
+    });
+    if (active >= max) throw tooMany();
     await this.limits.consume('story_create', me);
     const audience = dto.audience ?? (await this.defaultAudience(me));
     const ttlHours = await this.settings.number('stories.ttl_hours');
     const now = new Date();
-    const row = await this.prisma.story.create({
-      data: {
-        author_id: me,
-        kind: dto.kind,
-        file_id: fileId,
-        video_asset_id: videoAssetId,
-        text: text || null,
-        background,
-        overlays: (dto.overlays ?? []).map(
-          cleanOverlay,
-        ) as unknown as Prisma.InputJsonValue,
-        audience,
-        expires_at: new Date(now.getTime() + ttlHours * 3600_000),
-      },
+    // Pack E (25.11, ROUND2 #19): counted again and written under one
+    // per-person lock (as quick-replies), so a double tap or two devices
+    // cannot both pass the admin's cap.
+    const row = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`stories:${me}`}, 0))`;
+      const live = await tx.story.count({ where: liveOwn(me, now) });
+      if (live >= max) throw tooMany();
+      return tx.story.create({
+        data: {
+          author_id: me,
+          kind: dto.kind,
+          file_id: fileId,
+          video_asset_id: videoAssetId,
+          text: text || null,
+          background,
+          overlays: (dto.overlays ?? []).map(
+            cleanOverlay,
+          ) as unknown as Prisma.InputJsonValue,
+          audience,
+          expires_at: new Date(now.getTime() + ttlHours * 3600_000),
+        },
+      });
     });
     const [out] = await this.present([row], me);
     return out;

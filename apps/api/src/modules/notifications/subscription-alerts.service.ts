@@ -8,8 +8,6 @@ import { NotificationsService } from './notifications.service';
  * fan out through a queue). Audit A-1: raised from 5000 now that the
  * audience is read by keyset and written in batches. */
 export const ALERT_FANOUT_MAX = 100_000;
-/** The split-reads path still loads the audience in one read: kept small. */
-export const SPLIT_FANOUT_MAX = 5000;
 /** Recipients per INSERT / push enqueue. */
 export const ALERT_BATCH = 500;
 
@@ -75,15 +73,13 @@ export class SubscriptionAlertsService {
         dedupeKey: `followed_post:${postId}`,
       });
     if (readsAreSplit(this.prisma)) {
-      // Sharded reads load the audience in one go (followersSplit): one
-      // pass, no cursor.
-      if (after) return { sent: 0, next: null };
-      const rows = await this.followersSplit(authorId);
-      let sent = 0;
-      for (let i = 0; i < rows.length; i += ALERT_BATCH) {
-        sent += await send(rows.slice(i, i + ALERT_BATCH).map((r) => r.id));
-      }
-      return { sent, next: null };
+      // Pack E (25.11, ROUND2 #17): sharded reads page the follows by the
+      // same keyset as below (ALERT_BATCH a read, ALERT_FANOUT_MAX in all
+      // through the callers) instead of loading every follower into memory
+      // and an IN (…) of a million ids.
+      const page = await this.followersSplit(authorId, after);
+      const sent = page.ids.length > 0 ? await send(page.ids) : 0;
+      return { sent, next: page.next };
     }
     const rows = await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT f.follower_id::TEXT AS id
@@ -134,18 +130,29 @@ export class SubscriptionAlertsService {
   }
 
   /**
-   * followersOfPost() for several databases (shard-ready step 8): the
-   * follows (user family, scattered), the people's status (global), their
-   * "following" push setting (user family) and blocks either way, in four
-   * reads instead of one statement that joins all of them.
+   * One alertBatch() page for several databases (shard-ready step 8): the
+   * follows (user family, scattered) after [after] by follower id, then the
+   * people's status (global), their "following" push setting (user family)
+   * and blocks either way for that page, in four reads instead of one
+   * statement that joins all of them. [next] follows the follows page, not
+   * the filtered ids, so a page with nobody to alert still moves on.
    */
-  private async followersSplit(authorId: string): Promise<{ id: string }[]> {
+  private async followersSplit(
+    authorId: string,
+    after: string | null,
+  ): Promise<{ ids: string[]; next: string | null }> {
     const follows = await this.prisma.follow.findMany({
-      where: { followee_id: authorId },
+      where: {
+        followee_id: authorId,
+        ...(after ? { follower_id: { gt: after } } : {}),
+      },
+      orderBy: { follower_id: 'asc' },
+      take: ALERT_BATCH,
       select: { follower_id: true },
     });
     const ids = follows.map((f) => f.follower_id);
-    if (ids.length === 0) return [];
+    if (ids.length === 0) return { ids: [], next: null };
+    const next = ids.length === ALERT_BATCH ? ids[ids.length - 1] : null;
     const [settings, users, blocks] = await Promise.all([
       this.prisma.notificationSetting.findMany({
         where: {
@@ -176,10 +183,12 @@ export class SubscriptionAlertsService {
         b.blocker_id === authorId ? b.blocked_id : b.blocker_id,
       ),
     );
-    return ids
-      .filter((id) => pushOn.has(id) && active.has(id) && !blocked.has(id))
-      .slice(0, SPLIT_FANOUT_MAX)
-      .map((id) => ({ id }));
+    return {
+      ids: ids.filter(
+        (id) => pushOn.has(id) && active.has(id) && !blocked.has(id),
+      ),
+      next,
+    };
   }
   /**
    * Runs [job] after the response without failing the request. Algo audit

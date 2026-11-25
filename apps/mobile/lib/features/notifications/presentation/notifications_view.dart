@@ -237,6 +237,14 @@ String? notificationRoute({
       return AppRoutes.dataExport;
     case 'case_history_export_ready':
       return AppRoutes.caseHistory;
+    // Pack E (25.11): «Аккаунт будет удалён» reaches a phone that is signed
+    // out (the deletion ended every session). Signing in within the grace
+    // period keeps the account (the server cancels the deletion on sign-in).
+    // The profile tab needs an account, so the router guard shows a
+    // signed-out app the sign-in screen (welcome); a signed-in one (the
+    // deletion already cancelled) lands on its profile.
+    case 'account_deletion_scheduled':
+      return AppRoutes.profile;
     // Owner 2026-10-22 (security audit #3): a changed phone / e-mail /
     // sign-in method / password opens Active devices to sign out an intruder.
     case 'security_new_device' ||
