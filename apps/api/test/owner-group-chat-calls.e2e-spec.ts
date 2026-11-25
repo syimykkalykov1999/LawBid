@@ -537,6 +537,54 @@ describe('Group chat calls (e2e)', () => {
     expect(await status()).toBe('ended');
   });
 
+  it('owner 18.11: everyone who answered leaves while a member still rings — the call ends there too (no ring into an empty call, nobody left «busy»)', async () => {
+    const owner = await person('Own3');
+    const ann = await person('Ann3');
+    const bob = await person('Bob3');
+    const g = await api()
+      .post('/api/v1/groups')
+      .set(auth(owner.id))
+      .send({ title: 'Ring', type: 'closed', memberIds: [ann.id, bob.id] })
+      .expect(201);
+    await acceptInvites(api, auth, g.body.data.id as string, [ann.id, bob.id]);
+    const started = await api()
+      .post(`/api/v1/groups/${g.body.data.id as string}/calls`)
+      .set(auth(owner.id))
+      .send({})
+      .expect(201);
+    const callId = started.body.data.id as string;
+    await api()
+      .post(`/api/v1/calls/${callId}/accept`)
+      .set(auth(ann.id))
+      .expect(200);
+    for (const u of [owner, ann]) {
+      await api()
+        .post(`/api/v1/calls/${callId}/end`)
+        .set(auth(u.id))
+        .send({})
+        .expect(200);
+    }
+    const call = await prisma.call.findUniqueOrThrow({ where: { id: callId } });
+    expect(call.status).toBe('ended');
+    // Bob (who only rang) is free: a new call of the group rings him.
+    const again = await api()
+      .post(`/api/v1/groups/${g.body.data.id as string}/calls`)
+      .set(auth(ann.id))
+      .send({ userIds: [bob.id] })
+      .expect(201);
+    const rows = (
+      again.body as {
+        data: { participants: { userId: string; status: string }[] };
+      }
+    ).data.participants;
+    expect(rows.find((p) => p.userId === bob.id)?.status).toBe('invited');
+    await api()
+      .post(`/api/v1/calls/${again.body.data.id as string}/end`)
+      .set(auth(ann.id))
+      .send({})
+      .expect(200);
+  });
+
   it('no list = the whole group rings (up to the size of the call)', async () => {
     const owner = await person('Own');
     const crowd = await Promise.all(
