@@ -47,3 +47,91 @@ describe('SubscriptionAlertsService.followersOfPost', () => {
     expect(b.emitMany).not.toHaveBeenCalled();
   });
 });
+
+/** Pack E (25.11, ROUND2 #17): with split reads the follows are paged by
+ * keyset too — never every follower in one read. */
+describe('SubscriptionAlertsService split reads', () => {
+  const uid = (n: number) =>
+    `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
+  const prev = process.env.SHARD_SPLIT_READS;
+  beforeAll(() => {
+    process.env.SHARD_SPLIT_READS = 'on';
+  });
+  afterAll(() => {
+    if (prev === undefined) delete process.env.SHARD_SPLIT_READS;
+    else process.env.SHARD_SPLIT_READS = prev;
+  });
+
+  function setup(total: number, pushOff: ReadonlySet<string> = new Set()) {
+    const all = Array.from({ length: total }, (_, i) => uid(i + 1));
+    const findMany = jest.fn(
+      (a: { where: { follower_id?: { gt: string } }; take?: number }) => {
+        const after = a.where.follower_id?.gt;
+        const rest = after ? all.filter((id) => id > after) : all;
+        return Promise.resolve(
+          rest
+            .slice(0, a.take ?? rest.length)
+            .map((follower_id) => ({ follower_id })),
+        );
+      },
+    );
+    const prisma = {
+      follow: { findMany },
+      notificationSetting: {
+        findMany: jest.fn((a: { where: { user_id: { in: string[] } } }) =>
+          Promise.resolve(
+            a.where.user_id.in
+              .filter((id) => !pushOff.has(id))
+              .map((user_id) => ({ user_id })),
+          ),
+        ),
+      },
+      user: {
+        findMany: jest.fn((a: { where: { id: { in: string[] } } }) =>
+          Promise.resolve(a.where.id.in.map((id) => ({ id }))),
+        ),
+      },
+      userBlock: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const emitMany = jest.fn((a: { recipientIds: string[] }) =>
+      Promise.resolve(a.recipientIds.length),
+    );
+    const svc = new SubscriptionAlertsService(
+      prisma as never,
+      { emitMany } as never,
+    );
+    return { svc, findMany, emitMany };
+  }
+
+  it('reads ALERT_BATCH follows a time and reaches everyone', async () => {
+    const { svc, findMany, emitMany } = setup(ALERT_BATCH * 2 + 3);
+    expect(await svc.followersOfPost('author', 'post-1')).toBe(
+      ALERT_BATCH * 2 + 3,
+    );
+    expect(findMany).toHaveBeenCalledTimes(3);
+    for (const [arg] of findMany.mock.calls) {
+      expect(arg).toMatchObject({
+        take: ALERT_BATCH,
+        orderBy: { follower_id: 'asc' },
+      });
+    }
+    expect(findMany.mock.calls[1][0].where.follower_id).toEqual({
+      gt: uid(ALERT_BATCH),
+    });
+    expect(emitMany).toHaveBeenCalledTimes(3);
+  });
+
+  it('a page where nobody has the push on still moves to the next page', async () => {
+    const firstPage = new Set(
+      Array.from({ length: ALERT_BATCH }, (_, i) => uid(i + 1)),
+    );
+    const { svc, emitMany } = setup(ALERT_BATCH + 1, firstPage);
+    const r = await svc.alertBatch('author', 'p', false, null);
+    expect(r).toEqual({ sent: 0, next: uid(ALERT_BATCH) });
+    expect(emitMany).not.toHaveBeenCalled();
+    expect(await svc.alertBatch('author', 'p', false, r.next)).toEqual({
+      sent: 1,
+      next: null,
+    });
+  });
+});

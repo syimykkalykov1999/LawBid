@@ -33,8 +33,8 @@ class HistoryAccess {
   final String? error;
 
   /// Owner 2026-10-28: the gate asks for the account password first; true
-  /// once the person chose «Забыли пароль? Получить код по SMS» (or the
-  /// account has no password) — the SMS code path below.
+  /// once the person chose «Забыли пароль? Получить код» (or the account
+  /// has no password) — the e-mail code path below.
   final bool useCode;
 
   bool get isOpen =>
@@ -43,20 +43,28 @@ class HistoryAccess {
       DateTime.now().difference(issuedAt!) < kReauthViewWindow;
 }
 
-/// Re-authentication for "История кейсов" (docs/04 §12: code to the
-/// verified phone, `POST /auth/reauth`). Kept in memory only.
+/// Re-authentication for "История кейсов" (docs/04 §12, `POST
+/// /auth/reauth`). Kept in memory only.
+///
+/// Pack E (25.11, ROUND1 #12): the code goes to the verified e-mail
+/// (`CurrentUser.reauthIdentifier`), never by SMS — the server sends an SMS
+/// only at registration and «Забыл пароль» (owner rule sms-two-cases), so a
+/// code asked for the account's own phone never arrived.
 class HistoryAccessController extends Notifier<HistoryAccess> {
   @override
   HistoryAccess build() => const HistoryAccess();
 
-  String? get phone => ref.read(currentUserControllerProvider).user?.phone;
+  ({String channel, String identifier})? get _target =>
+      ref.read(currentUserControllerProvider).user?.reauthIdentifier;
 
   Future<void> sendCode() async {
-    final p = phone;
-    if (p == null) return;
+    final target = _target;
+    if (target == null) return;
     state = const HistoryAccess(busy: true, useCode: true);
     try {
-      await ref.read(authRepositoryProvider).requestOtp(p);
+      await ref
+          .read(authRepositoryProvider)
+          .requestOtp(target.identifier, channel: target.channel);
       state = const HistoryAccess(codeSent: true, useCode: true);
     } on Object {
       state = const HistoryAccess(error: 'network', useCode: true);
@@ -64,12 +72,12 @@ class HistoryAccessController extends Notifier<HistoryAccess> {
   }
 
   Future<void> submitCode(String code) async {
-    final p = phone;
-    if (p == null) return;
+    final target = _target;
+    if (target == null) return;
     state = const HistoryAccess(codeSent: true, busy: true, useCode: true);
     final result = await ref
         .read(authRepositoryProvider)
-        .reauthWithOtp(identifier: p, code: code);
+        .reauthWithOtp(identifier: target.identifier, code: code);
     state = switch (result) {
       ReauthSuccess(:final reauthToken) =>
         HistoryAccess(token: reauthToken, issuedAt: DateTime.now()),
@@ -104,7 +112,7 @@ class HistoryAccessController extends Notifier<HistoryAccess> {
   void acceptToken(String reauthToken) =>
       state = HistoryAccess(token: reauthToken, issuedAt: DateTime.now());
 
-  /// «Забыли пароль? Получить код по SMS» / no password on the account.
+  /// «Забыли пароль? Получить код» / no password on the account.
   void useCode() => state = const HistoryAccess(useCode: true);
 
   /// A token was consumed (export / download) or refused: ask again.

@@ -1318,13 +1318,15 @@ export class AuthService {
     const account = await this.prisma.user.findUniqueOrThrow({
       where: withDeleted({ id: user.sub }),
     });
-    const channel: 'phone' | 'email' | null =
-      account.phone_verified_at && account.phone_e164 === identifier
-        ? 'phone'
-        : account.email_verified_at &&
-            account.email?.toLowerCase() === identifier.toLowerCase()
-          ? 'email'
-          : null;
+    // Pack E (25.11, owner rule sms-two-cases): a step-up code is the
+    // verified e-mail's only. An SMS goes out only at registration and
+    // «Забыл пароль», so the account's own phone never gets a code and a
+    // phone identifier here is refused like any foreign one.
+    const channel: 'email' | null =
+      account.email_verified_at &&
+      account.email?.toLowerCase() === identifier.toLowerCase()
+        ? 'email'
+        : null;
 
     if (!channel) {
       // Doesn't distinguish "not yours" from "not verified" — both are
