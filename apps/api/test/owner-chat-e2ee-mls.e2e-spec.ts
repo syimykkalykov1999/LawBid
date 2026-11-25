@@ -134,7 +134,7 @@ describe('End-to-end encrypted chats on MLS (e2e, item 25)', () => {
       create: {
         code: 'mls_e2e',
         name_en: 'MLS e2e',
-        i18n_key: 'practice.mls_e2e',
+        i18n_key: 'practice.mls',
         sort: 0,
       },
       update: {},
@@ -145,7 +145,7 @@ describe('End-to-end encrypted chats on MLS (e2e, item 25)', () => {
         code: 'mls_e2e.leaf',
         parent_id: parent.id,
         name_en: 'Leaf',
-        i18n_key: 'practice.mls_e2e_leaf',
+        i18n_key: 'practice.mlsleaf',
         sort: 0,
       },
       update: {},
