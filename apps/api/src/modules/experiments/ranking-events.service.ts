@@ -25,13 +25,35 @@ export const RANKING_EVENT_KINDS = [
   'error',
   'search',
   'case_posted',
+  // Owner 25.11: how long a reel view really played (value = ms;
+  // features: watched_ms, duration_ms, completed), the reels model's label.
+  'watch',
 ] as const;
 export type RankingEventKind = (typeof RANKING_EVENT_KINDS)[number];
 
 const SAMPLED_KINDS: ReadonlySet<RankingEventKind> = new Set([
   'impression',
   'click',
+  'watch',
 ]);
+
+/** Owner 25.11: one watch row per reel view id, for this long. */
+const WATCH_DEDUPE_SEC = 24 * 3600;
+export const watchKey = (userId: string, viewId: string): string =>
+  `rk:watch:${userId}:${viewId}`;
+
+/** One reel view as the app reports it when the view ends. */
+export interface ReelWatch {
+  postId: string;
+  /** The app's id of this view (a retry of the same report is dropped). */
+  viewId: string;
+  /** Real playback, ms (paused, buffering and off-screen time excluded). */
+  watchedMs: number;
+  /** The clip's length, ms (0 = unknown). */
+  durationMs: number;
+  /** The clip played to its end at least once in this view. */
+  completed: boolean;
+}
 
 export interface RankingEventInput {
   userId: string | null;
@@ -229,6 +251,45 @@ export class RankingEventsService implements OnModuleDestroy {
       if (hit.length > 0) await this.redis.hdel(key, ...hit);
     } catch (err) {
       this.log.warn(`ranking click skipped: ${String(err)}`);
+    }
+  }
+
+  /**
+   * Owner 25.11 (TikTok / YouTube watch-time logging): a reel view ended —
+   * one `watch` row (surface `reels`, value = watched ms) per view id:
+   * the app may retry a report, the second one adds nothing (Redis NX for
+   * a day; with Redis down a repeat is harmless, train.py reads it with
+   * EXISTS). Sampled like impressions: only people whose impressions are
+   * kept are labelled. Never throws.
+   */
+  async logWatch(
+    userId: string | null | undefined,
+    w: ReelWatch,
+  ): Promise<void> {
+    try {
+      if (!userId) return;
+      if (!(await this.keepsImpressionsOf(userId))) return;
+      if (this.redis) {
+        const fresh = await this.redis
+          .set(watchKey(userId, w.viewId), '1', 'EX', WATCH_DEDUPE_SEC, 'NX')
+          .catch(() => 'OK');
+        if (fresh !== 'OK') return;
+      }
+      const watched = Math.max(0, Math.round(w.watchedMs));
+      const duration = Math.max(0, Math.round(w.durationMs));
+      await this.add('watch', {
+        userId,
+        surface: 'reels',
+        itemId: w.postId,
+        value: watched,
+        features: {
+          watched_ms: watched,
+          duration_ms: duration,
+          completed: w.completed ? 1 : 0,
+        },
+      });
+    } catch (err) {
+      this.log.warn(`ranking watch skipped: ${String(err)}`);
     }
   }
 
