@@ -40,6 +40,7 @@ import {
   targetUnits,
   unitsFor,
   unspentShare,
+  withKnownActions,
   type PromotionSettings,
   type PromotionTarget,
 } from './promotions.settings';
@@ -143,7 +144,11 @@ export class AdminPromotionsService {
     const next = this.nextSettings(current, dto);
     const priced =
       JSON.stringify(next.pricing) !== JSON.stringify(current.pricing);
-    const value = next as unknown as Prisma.InputJsonValue;
+    // Pack C (round 2 #24): stored with the actions known at this save.
+    const value = {
+      ...next,
+      pricing: withKnownActions(next.pricing),
+    } as unknown as Prisma.InputJsonValue;
     await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.appConfig.findUnique({
         where: { key: PROMOTION_SETTINGS_KEY },

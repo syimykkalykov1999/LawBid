@@ -20,8 +20,9 @@ import { ChatSearchBackfillJob } from './handlers/chat-search-backfill.job';
 import { ContactsSyncModule } from '../modules/contacts-sync/contacts-sync.module';
 import { ConsultationsCoreModule } from '../modules/consultations/consultations-core.module';
 import { TreasuryCoreModule } from '../modules/treasury/treasury.module';
-import { FileReleaseService } from '../modules/files/storage/file-release.service';
 import { DynamicModule, Module } from '@nestjs/common';
+import { SearchCoreModule } from '../modules/search/search.module';
+import { AnalyticsCoreModule } from '../modules/analytics/analytics.module';
 import { DISPOSABLE_DOMAINS_FETCHER, JOBS_OPTIONS } from './jobs.constants';
 import { JobsRunner, type JobsModuleOptions } from './jobs.runner';
 import { CronProcessor } from './cron.processor';
@@ -51,8 +52,6 @@ import { CaseRebroadcastJob } from './handlers/case-rebroadcast.job';
 import { CountersReconcileJob } from './handlers/counters-reconcile.job';
 import { FeedRecoJob } from '../modules/feed/feed-reco.job';
 import { CrashReportsService } from '../modules/crash-reports/crash-reports.service';
-import { SearchLogService } from '../modules/search/search-log.service';
-import { SearchSynonymsService } from '../modules/search/search-synonyms.service';
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { TopicCoversJob } from '../modules/search/topic-covers.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
@@ -70,13 +69,7 @@ import { StripeOpsJob } from './handlers/stripe-ops.job';
 import { StripeOpsCoreModule } from '../modules/stripe-ops/stripe-ops.module';
 import { DbHealthJob } from './handlers/db-health.job';
 import { LedgerModule } from '../modules/ledger/ledger.public';
-import { OPENSEARCH_CLIENT_PROVIDER } from '../modules/search/engine/opensearch.client';
-import { SearchDocsLoader } from '../modules/search/engine/search-docs.loader';
-import { SearchIndexerService } from '../modules/search/search-indexer.service';
 import { FeatureFlagsModule } from '../modules/feature-flags/feature-flags.module';
-import { AnalyticsService } from '../modules/analytics/analytics.service';
-import { AppEventsService } from '../modules/analytics/app-events.service';
-import { SearchReindexService } from '../modules/search/search-reindex.service';
 import { DashboardService } from '../modules/admin/dashboard.service';
 import { AdminOverviewService } from '../modules/admin-content/admin-overview.service';
 import { BillingOverviewService } from '../modules/admin-billing/billing-overview.service';
@@ -89,7 +82,6 @@ import {
   TaskArchivePurgeJob,
   TaskRemindersJob,
 } from './handlers/tasks-planner.jobs';
-import { S3StorageService } from '../modules/files/storage/s3-storage.service';
 import { CallsModule } from '../modules/calls/calls.module';
 import { ChatModule } from '../modules/chat/chat.module';
 import { ClientReviewsCoreModule } from '../modules/client-reviews/client-reviews.module';
@@ -131,6 +123,10 @@ export class JobsModule {
         NotificationsModule,
         // AppEventsService (analytics snapshot) needs the flags.
         FeatureFlagsModule,
+        // Pack C (round 2 #22): provided once by their owners, not copied
+        // here (the API process built a second instance of each).
+        AnalyticsCoreModule,
+        SearchCoreModule,
         // Security research #5 (A7): ContactsPepper for the contacts jobs.
         ContactsSyncModule,
         CallsModule,
@@ -227,8 +223,6 @@ export class JobsModule {
         FeedRecoJob,
         TrendingTagsJob,
         TopicCoversJob,
-        SearchLogService,
-        SearchSynonymsService,
         CrashReportsService,
         NotificationsRetentionJob,
         OpsMetricsJob,
@@ -250,15 +244,9 @@ export class JobsModule {
         StripeOpsJob,
         // DB-ops hardening: `db.health` (daily).
         DbHealthJob,
-        SearchIndexerService,
-        SearchReindexService,
-        SearchDocsLoader,
-        OPENSEARCH_CLIENT_PROVIDER,
         DashboardService,
         // Row 78: the admin overview snapshot, recounted daily.
         AdminOverviewService,
-        AnalyticsService,
-        AppEventsService,
         BillingOverviewService,
         OpsGuardJob,
         StatusWatchdogJob,
@@ -268,8 +256,6 @@ export class JobsModule {
         // Owner 2026-10-05: the planner's reminders and archive cleanup.
         TaskRemindersJob,
         TaskArchivePurgeJob,
-        S3StorageService,
-        FileReleaseService,
         // Owner 2026-10-21: `chat.disappearing`.
         DisappearingSweepService,
         // Verify 5b (C4): `presence.settle`.
