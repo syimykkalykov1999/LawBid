@@ -59,6 +59,7 @@ import 'package:lawbid/features/groups/group_router.dart';
 import 'package:lawbid/features/legal/presentation/dmca_notice_screen.dart'
     deferred as d_dmca_notice_screen;
 import 'package:lawbid/features/legal/presentation/legal_accept_screen.dart';
+import 'package:lawbid/features/hotline/hotline_routes.dart';
 import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -966,6 +967,7 @@ GoRouter appRouter(Ref ref) {
       ...deadlinesRoutes(_rootNavigatorKey),
       // Owner 2026-10-20: «Вопрос юристу».
       ...legalQaRoutes(_rootNavigatorKey),
+      ...hotlineRoutes(_rootNavigatorKey),
       // Owner 2026-10-05 (plan builder): Settings → «Подписка клиента».
       ...clientPlanRoutes(_rootNavigatorKey),
       // OQ-048: Team, new task, assistant joining.

@@ -114,6 +114,12 @@ class RealtimeClient {
     // channel's call started, changed or ended (no polling).
     'call:ongoing',
     'call:ongoing_ended',
+    // Owner row 87: the client's call hotline (its request moved, the call
+    // was taken / ended, «Адвокат на линии»).
+    'hotline:request',
+    'hotline:connected',
+    'hotline:ended',
+    'hotline:notify',
     'typing',
     'notification:new',
     // Owner 2026-10-24: somebody opened a file of mine («Просмотры»).

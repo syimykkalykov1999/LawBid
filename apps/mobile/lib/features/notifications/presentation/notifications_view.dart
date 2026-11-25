@@ -12,6 +12,7 @@ import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/consultations/consultations_routes.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
+import 'package:lawbid/features/hotline/hotline_routes.dart';
 import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/task_reminders.dart';
@@ -46,6 +47,9 @@ String? notificationRoute({
   final bidId = s('bidId');
   final postId = s('postId');
   switch (type) {
+    // Owner row 87: «Адвокат на линии» opens the hotline request.
+    case 'hotline_attorney_available':
+      return HotlineRoutes.status;
     // Owner 2026-10-21: a group invitation opens its card (look, then answer).
     case 'group_invite':
       final inviteId = s('inviteId');

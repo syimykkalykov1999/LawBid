@@ -9,6 +9,7 @@ import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
+import 'package:lawbid/features/hotline/presentation/hotline_entry_fab.dart';
 import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
 import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
@@ -278,10 +279,19 @@ class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
           PositionedDirectional(
             end: AppSpacing.screenSide,
             bottom: AppSpacing.screenSide,
-            child: AppFab(
-              buttonKey: const ValueKey('qa-ask'),
-              semanticLabel: t.t('qa.ask'),
-              onPressed: () => context.push(LegalQaRoutes.ask),
+            // Owner row 87 (hotline mockup v4 c1): the call button just
+            // above the «+», like the live-call button of Chats.
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const HotlineEntryFab(),
+                AppFab(
+                  buttonKey: const ValueKey('qa-ask'),
+                  semanticLabel: t.t('qa.ask'),
+                  onPressed: () => context.push(LegalQaRoutes.ask),
+                ),
+              ],
             ),
           ),
       ],

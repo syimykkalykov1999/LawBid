@@ -20,6 +20,8 @@ import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/groups/application/group_media_outbox.dart';
+import 'package:lawbid/features/hotline/application/hotline_controller.dart';
+import 'package:lawbid/features/hotline/domain/hotline_models.dart';
 import 'package:lawbid/features/notifications/application/data_push_sync_hook.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/push_registrar.dart';
@@ -444,6 +446,21 @@ class PushService {
     // Audit 2026-10-04: opening a push reads its notification.
     final id = data['notificationId'];
     if (id is String) unawaited(_markRead(id));
+    // Owner row 87: «Адвокат на линии» — the tap opens «Позвонить сейчас?»
+    // (also from a closed app: the request comes back from the server).
+    if (data['type'] == hotlineNoticeType && data['requestId'] is String) {
+      final expires = num.tryParse('${data['expiresAt'] ?? ''}');
+      _ref.read(hotlineControllerProvider.notifier).noticeArrived(
+            HotlineNotice(
+              requestId: data['requestId'] as String,
+              token: data['claimToken'] as String?,
+              expiresAt: expires == null
+                  ? null
+                  : DateTime.fromMillisecondsSinceEpoch(expires.toInt()),
+            ),
+          );
+      return;
+    }
     final route = notificationRoute(
       type: '${data['type'] ?? ''}',
       payload: Map<String, Object?>.from(data),
