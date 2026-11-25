@@ -24,6 +24,7 @@ import {
   type AdminActor,
   ALL_ADMIN_ROLES,
 } from '../admin-auth/admin-auth.decorators';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
   CreateDataRequestDto,
   DataPackageDto,
@@ -53,7 +54,10 @@ class DataRequestsQueryDto {
 @SkipAutoAudit()
 @Controller('admin/data-requests')
 export class AdminDataRequestsController {
-  constructor(private readonly requests: AdminDataRequestsService) {}
+  constructor(
+    private readonly requests: AdminDataRequestsService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Registry of government requests, newest first' })
@@ -106,12 +110,19 @@ export class AdminDataRequestsController {
       'Prepare the data package within the scope (X-Justification; every entity → data_access_log)',
   })
   @ApiEnvelopeResponse(DataPackageDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  prepareDataPackage(
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+  })
+  async prepareDataPackage(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: DataRequestIdParamDto,
     @Body() dto: PreparePackageDto,
   ): Promise<DataPackageDto> {
+    // Round 4 (25.11, С6): a person's profile, e-mail and phone leave the
+    // platform — a fresh 2FA code, like the legal evidence export.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.requests.preparePackage(admin, params.id, dto);
   }
 }

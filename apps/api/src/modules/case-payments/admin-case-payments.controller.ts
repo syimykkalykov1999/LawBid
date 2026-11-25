@@ -93,11 +93,13 @@ export class AdminCasePaymentsController {
       'Change the platform fee (type / amount / who pays) and limits (super admin)',
   })
   @ApiEnvelopeResponse(AdminPaymentSettingsViewDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  updateCasePaymentSettings(
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async updateCasePaymentSettings(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminPaymentSettingsDto,
   ): Promise<AdminPaymentSettingsViewDto> {
+    // Round 4 (25.11, С2): the platform fee is money — a fresh 2FA code.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.payments.updateSettings(admin, dto);
   }
 

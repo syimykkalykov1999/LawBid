@@ -27,6 +27,9 @@ const MODES: Record<Mode, string> = {
   block: 'Не сохранять грубые нарушения',
 };
 
+/** Round 4 (В3): `/api/proxy/<path>` → `${API}/admin/<path>`. */
+const ATTORNEY_ADS_EXPORT_HREF = '/api/proxy/attorney-ads/archive/export';
+
 /** Row 57: click-to-sort headers (the loaded rows; default order = the server's). */
 const ARCHIVE_SORT = ['created', 'kind', 'states', 'version', 'findings', 'retain', 'content'] as const;
 
@@ -48,7 +51,7 @@ export default function AttorneyAdsPage() {
       {q.isPending ? <Skeleton className="h-72 rounded-[var(--radius-lg)]" /> : null}
       {q.data ? <Form key={JSON.stringify(q.data)} initial={q.data} canEdit={me?.role === 'super_admin'} /> : null}
       {!q.data && !q.isPending ? <ErrorNote text={errorText(q.error)} /> : null}
-      <Archive />
+      <Archive canExport={me?.role === 'super_admin'} />
     </>
   );
 }
@@ -173,7 +176,7 @@ function Form({ initial, canEdit }: { initial: Settings; canEdit: boolean }) {
   );
 }
 
-function Archive() {
+function Archive({ canExport }: { canExport: boolean }) {
   const q = useQuery({
     queryKey: ['attorney-ads-archive'],
     queryFn: async () => (await api.GET('/admin/attorney-ads/archive')).data!.data,
@@ -192,9 +195,12 @@ function Archive() {
     <Card className="p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="font-medium text-heading">Архив рекламы (последние версии)</h3>
-        {/* A file download from a route handler, not an app page. */}
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a className="text-sm underline" href="/api/proxy/admin/attorney-ads/archive/export">Скачать CSV</a>
+        {/* A file download from a route handler, not an app page. The proxy
+            adds `/admin/` itself (Round 4, В3: it was doubled → 404); the
+            API lets only the owner download it. */}
+        {canExport ? (
+          <a className="text-sm underline" href={ATTORNEY_ADS_EXPORT_HREF}>Скачать CSV</a>
+        ) : null}
       </div>
       <Table>
         <thead>

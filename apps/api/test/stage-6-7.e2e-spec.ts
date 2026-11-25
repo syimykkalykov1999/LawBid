@@ -12,7 +12,7 @@ import { PAYMENT_PROVIDER } from '../src/modules/billing/billing.constants';
 import { BillingRunner } from '../src/modules/billing/billing.runner';
 import type { FakePaymentProvider } from '../src/modules/billing/fake-payment.provider';
 import { SubscriptionAccessService } from '../src/modules/subscriptions/subscription-access.service';
-import { adminSession } from './support/admin-login';
+import { adminSession, adminStepUp } from './support/admin-login';
 
 jest.setTimeout(180_000);
 
@@ -521,6 +521,8 @@ describe('stage 6.7 — Stripe subscriptions (e2e, fake provider)', () => {
     const support = await adminSession(baseUrl, prisma, 'support');
     const finance = await adminSession(baseUrl, prisma, 'super_admin');
     const moderator = await adminSession(baseUrl, prisma, 'moderator');
+    // Round 4 (С3): free days of a paid plan ask a fresh 2FA code.
+    await adminStepUp(baseUrl, finance);
     await api()
       .get(`/api/v1/admin/subscriptions/${a.id}`)
       .set(moderator.auth)

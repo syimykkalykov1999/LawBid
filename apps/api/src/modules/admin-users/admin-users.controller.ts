@@ -289,11 +289,18 @@ export class AdminUsersController {
   @SkipAutoAudit()
   @ApiOperation({ summary: 'Restore a suspended account' })
   @ApiEnvelopeResponse(SanctionResultDto)
-  @ApiErrors({ ...TARGET_ERRORS, 409: [E.VALIDATION_ERROR] })
-  restoreUser(
+  @ApiErrors({
+    ...TARGET_ERRORS,
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    409: [E.VALIDATION_ERROR],
+  })
+  async restoreUser(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: AdminUserIdParamDto,
   ): Promise<SanctionResultDto> {
+    // Round 4 (25.11, Н1): giving rights back asks a code (like it does for
+    // an employee); switching off stays one click.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.users.restore(admin, params.id);
   }
 }

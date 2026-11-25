@@ -23,7 +23,7 @@ import type { components } from '@/lib/api/schema';
 import type { Noun } from '@/lib/bulk';
 import { useMe } from '@/lib/hooks';
 import { CASE_STATUS, StatusPill } from '@/lib/labels';
-import { can } from '@/lib/rbac';
+import { canAct } from '@/lib/rbac';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
 import { useUrlDraft, useUrlFlag, useUrlState } from '@/lib/url-state';
@@ -58,7 +58,8 @@ export function CaseList() {
 
   const qc = useQueryClient();
   const { data: me } = useMe();
-  const canWrite = can(me, 'cases', 'manage');
+  // Round 4 (С10): the API's own role list for this action, plus the area.
+  const canWrite = canAct(me, 'cases', ['support']);
   const sel = useSelection(`${tab}|${q}|${hasReports}|${stateCode}|${withDeadline}`);
   const bulk = useBulkRun();
   // The list's filter: the list pages with it, «select all by filter»

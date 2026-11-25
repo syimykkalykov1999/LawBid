@@ -62,6 +62,7 @@ export function ModerationReview() {
     kind: 'report',
     initial,
     keyOf,
+    leaseIdOf: (t) => t.id,
     candidates: async () => {
       const r = await api.GET('/admin/moderation/queue', { params: { query: { status: 'open', limit: 10 } } });
       return (r.data?.data ?? []).map((x) => ({ type: x.targetType, id: x.targetId }));

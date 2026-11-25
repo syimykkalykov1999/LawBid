@@ -52,6 +52,7 @@ import { api, errorText } from "@/lib/api/client";
 import { partnersExtApi } from "@/lib/api/demo";
 import type { components } from "@/lib/api/schema";
 import { useMe } from "@/lib/hooks";
+import { canAct } from "@/lib/rbac";
 import { REASON_MIN, useReasonRequired } from "@/lib/reason-policy";
 import { sortRows, useTableSort } from "@/lib/table-sort";
 import {
@@ -77,7 +78,8 @@ const PARTNER_SORT = ["name", "code", "rates", "referred", "money", "status"] as
 /** Partner program: who brings attorneys and clients, what they are paid. */
 export default function PartnersPage() {
   const { data: me } = useMe();
-  const canWrite = me?.role === "super_admin" || me?.role === "finance";
+  // Round 4 (С10): finance with «Деньги: управление» (what the API checks).
+  const canWrite = canAct(me, "money", ["finance"]);
   const canOpenUsers =
     me?.role === "super_admin" ||
     me?.role === "support" ||

@@ -1,8 +1,11 @@
+import { readDailySnapshot } from '../../common/admin-summary/snapshot-gate';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   Prisma,
@@ -91,6 +94,7 @@ export class AdminPartnersService {
     private readonly prisma: PrismaService,
     private readonly partners: PartnersService,
     private readonly audit: AuditLogService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   // ---- settings ---------------------------------------------------------
@@ -142,7 +146,15 @@ export class AdminPartnersService {
 
   // ---- partners -----------------------------------------------------------
 
-  async stats(): Promise<AdminPartnerStatsDto> {
+  /** Round 4 admin check (25.11, С11): these totals scan whole tables, so the
+   * page reads the daily snapshot (snapshot-gate.ts), not a live count. */
+  stats(): Promise<AdminPartnerStatsDto> {
+    return readDailySnapshot(this.summary, 'partners:stats', () =>
+      this.computeStats(),
+    );
+  }
+
+  private async computeStats(): Promise<AdminPartnerStatsDto> {
     const [partners, active, pending, totals] = await Promise.all([
       this.prisma.partner.count(),
       this.prisma.partner.count({ where: { status: 'active' } }),

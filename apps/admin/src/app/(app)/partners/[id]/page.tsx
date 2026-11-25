@@ -46,6 +46,7 @@ import { growthError } from "@/components/growth/errors";
 import { api, errorText } from "@/lib/api/client";
 import { partnersExtApi } from "@/lib/api/demo";
 import { useMe } from "@/lib/hooks";
+import { canAct } from "@/lib/rbac";
 import { optimistic } from "@/lib/optimistic";
 import { REASON_MIN, useReasonRequired } from "@/lib/reason-policy";
 import {
@@ -62,7 +63,8 @@ import { formatDateTime } from "@/lib/utils";
 export default function PartnerPage() {
   const { id } = useParams<{ id: string }>();
   const { data: me } = useMe();
-  const canWrite = me?.role === "super_admin" || me?.role === "finance";
+  // Round 4 (С10): finance with «Деньги: управление» (what the API checks).
+  const canWrite = canAct(me, "money", ["finance"]);
   const canOpenUsers =
     me?.role === "super_admin" ||
     me?.role === "support" ||

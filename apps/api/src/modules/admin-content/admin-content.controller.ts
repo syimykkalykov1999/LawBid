@@ -67,6 +67,7 @@ import {
   UpdatePracticeAreaDto,
 } from './admin-content.dto';
 import { AdminContentService } from './admin-content.service';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import { AdminOverviewService } from './admin-overview.service';
 import { AdminContentExtrasService } from './admin-content-extras.service';
 import {
@@ -93,6 +94,7 @@ export class AdminContentController {
     private readonly overview: AdminOverviewService,
     // Row 179 B6: «select all by filter» audits the filter once.
     private readonly audit: AuditLogService,
+    private readonly auth: AdminAuthService,
     @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
@@ -408,8 +410,10 @@ export class AdminContentController {
   }
 
   // --- broadcasts ----------------------------------------------------------------
+  // Round 4 admin check (25.11, С7): «Рассылки» is an area the owner hands
+  // out (panel and API agree: the `broadcasts` toggle decides, the owner
+  // always passes); a send reaches many people, so it asks a fresh code.
 
-  @Roles('super_admin')
   @Get('broadcasts')
   @ApiOperation({ summary: 'Sent broadcasts (last 100)' })
   @ApiEnvelopeResponse(BroadcastDto, { isArray: true })
@@ -417,14 +421,15 @@ export class AdminContentController {
     return this.content.broadcasts();
   }
 
-  @Roles('super_admin')
   @Post('broadcasts')
   @ApiOperation({ summary: 'Send a push + in-app message to an audience' })
   @ApiEnvelopeResponse(BroadcastDto)
-  sendAdminBroadcast(
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async sendAdminBroadcast(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: CreateBroadcastDto,
   ): Promise<BroadcastDto> {
+    await this.auth.assertStepUp(admin.sessionId);
     return this.content.broadcast(admin.id, dto);
   }
 

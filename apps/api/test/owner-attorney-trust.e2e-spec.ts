@@ -9,7 +9,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { AttorneyTrustService } from '../src/modules/attorney-trust/attorney-trust.service';
-import { adminSession } from './support/admin-login';
+import { adminSession, adminStepUp } from './support/admin-login';
 import { AttorneyAdvertisingService } from '../src/modules/countries/attorney-advertising.service';
 import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 
@@ -644,6 +644,8 @@ describe('Attorney trust levels (e2e, owner 2026-10-05)', () => {
 
   it('«Запросить ещё», «Отклонить» and the bulk bar', async () => {
     const admin = await adminSession(base, prisma, 'verifier');
+    // Round 4 (С5): a fresh 2FA code first.
+    await adminStepUp(base, admin);
     const a = await attorney();
     const asked = await api()
       .post(`/api/v1/admin/trust/attorneys/${a.id}/request-documents`)

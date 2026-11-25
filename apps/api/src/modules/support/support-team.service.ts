@@ -1,3 +1,5 @@
+import { readDailySnapshot } from '../../common/admin-summary/snapshot-gate';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { SupportMacro } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -36,6 +38,7 @@ export class SupportTeamService {
     // Staff package T3: «Следующий» through work leases while
     // `staff.lease_enabled` + `staff.lease_support_enabled` are on.
     @Optional() @Inject(LEASE_PORT) private readonly lease?: LeasePort,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   // --- ready answers ---------------------------------------------------------
@@ -219,7 +222,17 @@ export class SupportTeamService {
 
   // --- stats -----------------------------------------------------------------
 
-  async staffStats(
+  /** Round 4 admin check (25.11, С11): the team numbers group every support
+   * message of the period, so the page reads the daily snapshot of that
+   * period (the default «last 30 days» included), not a live count. */
+  staffStats(q: SupportStaffStatsQueryDto): Promise<SupportStaffStatsDto[]> {
+    const key = `support:staff-stats:${q.from ?? '30d'}:${q.to ?? 'now'}`;
+    return readDailySnapshot(this.summary, key, () =>
+      this.computeStaffStats(q),
+    );
+  }
+
+  private async computeStaffStats(
     q: SupportStaffStatsQueryDto,
   ): Promise<SupportStaffStatsDto[]> {
     const to = q.to ? new Date(q.to) : new Date();
