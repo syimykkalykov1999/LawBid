@@ -5,6 +5,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/deals/deal_record_data.dart';
 import 'package:lawbid/features/cases/domain/case_draft.dart';
@@ -435,7 +436,7 @@ class _UrgencySheetState extends ConsumerState<_UrgencySheet> {
             deadline: _value.deadline,
             deadlineKind: _value.kind,
           );
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) context.popIfCurrent(true);
     } on Object catch (e) {
       if (mounted) {
         setState(() {

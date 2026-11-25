@@ -67,6 +67,7 @@ void main() {
     CallSession? session,
     bool animations = false,
     List<String>? joined,
+    Future<String?> Function(OngoingGroupCall call)? join,
     Widget? child,
     ThemeData? theme,
   }) async {
@@ -91,7 +92,9 @@ void main() {
           videoCallsEnabledProvider.overrideWithValue(true),
           if (session != null)
             callControllerProvider.overrideWith(() => _FakeCall(session)),
-          if (joined != null)
+          if (join != null)
+            joinOngoingGroupCallProvider.overrideWithValue(join)
+          else if (joined != null)
             joinOngoingGroupCallProvider.overrideWithValue((call) async {
               joined.add(call.id);
               return null;
@@ -143,6 +146,39 @@ void main() {
     await tester.pumpAndSettle();
     expect(joined, ['k1']);
     // The sheet closes after joining.
+    expect(find.byType(LiveCallsSheet), findsNothing);
+  });
+
+  testWidgets(
+      'round 1 №3: «Join» from the sheet — the call screen that opens over '
+      'the sheet while joining stays, the sheet goes', (tester) async {
+    await pump(
+      tester,
+      [_g('k1'), _g('k2', mine: true)],
+      join: (call) async {
+        // As CallHost: the call screen opens over the sheet while the join
+        // still waits for the microphone and the server.
+        tester
+            .state<NavigatorState>(find.byType(Navigator).first)
+            .push(
+              MaterialPageRoute<void>(
+                builder: (_) => const Scaffold(body: Text('call screen')),
+              ),
+            )
+            .ignore();
+        await Future<void>.delayed(const Duration(seconds: 2));
+        return null;
+      },
+    );
+    await tester.tap(live);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('ongoing-join')));
+    await tester.pumpAndSettle();
+    expect(find.text('call screen'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+
+    expect(find.text('call screen'), findsOneWidget);
     expect(find.byType(LiveCallsSheet), findsNothing);
   });
 

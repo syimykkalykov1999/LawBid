@@ -4,6 +4,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/demo/domain/demo_models.dart';
 import 'package:lawbid/features/demo/presentation/demo_actions.dart';
@@ -259,7 +260,7 @@ class _RolePickerSheetState extends ConsumerState<_RolePickerSheet> {
       final session = await ref.read(demoRepositoryProvider).create(role);
       ref.invalidate(demoMeProvider);
       if (!mounted) return;
-      Navigator.of(context).pop();
+      context.popIfCurrent();
       await enterDemoAndGo(context, ref, session);
     } catch (e) {
       if (!mounted) return;

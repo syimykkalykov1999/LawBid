@@ -1,3 +1,4 @@
+import { AdminSummaryService } from '../src/common/admin-summary/admin-summary.service';
 import type { AddressInfo, Server } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
@@ -9,7 +10,11 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 import { SupportDeskService } from '../src/modules/support/support-desk.service';
 import { RewardsService } from '../src/modules/rewards/rewards.service';
 import { periodOf } from '../src/modules/rewards/rewards.rules';
-import { adminSession, type AdminSession } from './support/admin-login';
+import {
+  adminSession,
+  adminStepUp,
+  type AdminSession,
+} from './support/admin-login';
 
 /**
  * Owner 2026-10-05:
@@ -273,6 +278,9 @@ describe('Support 24/7, rewards, workspace (e2e)', () => {
       .set(agent.auth)
       .send({ status: 'resolved' })
       .expect(200);
+    // Round 4 (С11): the page reads the daily snapshot; this suite wants
+    // the numbers of its own rows, so it drops the stored copy first.
+    await app.get(AdminSummaryService).drop('support:staff-stats:30d:now');
     const staff = await api()
       .get('/api/v1/admin/support/staff-stats')
       .set(agent.auth)
@@ -344,6 +352,8 @@ describe('Support 24/7, rewards, workspace (e2e)', () => {
   });
 
   it('«Лучший сотрудник»: off by default, owner switch, bonus in payroll', async () => {
+    // Round 4 (С4): a prize with a bonus asks a fresh 2FA code.
+    await adminStepUp(base, owner);
     await api()
       .put('/api/v1/admin/rewards/settings')
       .set(owner.auth)

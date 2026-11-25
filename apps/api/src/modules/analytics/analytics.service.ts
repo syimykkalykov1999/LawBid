@@ -12,8 +12,10 @@ import type { AnalyticsDto } from './analytics.dto';
 import { AnalyticsConsentService } from './analytics-consent.service';
 import { AppEventsService } from './app-events.service';
 
-/** Period lengths the admin page offers; the daily job keeps all of them. */
-export const ANALYTICS_SNAPSHOT_DAYS = [7, 30, 90] as const;
+/** Period lengths the admin page offers; the daily job keeps all of them.
+ * Round 4 (25.11, С11): the page's tabs are 14 / 30 / 90 — the 14-day tab
+ * had no snapshot (7 was kept instead) and ran the heavy SQL on each open. */
+export const ANALYTICS_SNAPSHOT_DAYS = [14, 30, 90] as const;
 const analyticsKey = (days: number) => `analytics:${days}`;
 const DAY_MS = 86_400_000;
 

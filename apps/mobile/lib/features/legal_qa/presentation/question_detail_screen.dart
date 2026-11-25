@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -120,7 +121,7 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
     try {
       await ref.read(legalQaRepositoryProvider).delete(widget.id);
       ref.read(questionsTouchedProvider.notifier).bump();
-      if (mounted) unawaited(Navigator.of(context).maybePop());
+      if (mounted) unawaited(context.maybePopIfCurrent<void>());
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
     }

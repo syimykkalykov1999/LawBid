@@ -36,6 +36,13 @@ export interface ReviewFlowConfig<T> {
   /** The item the page was opened with (from the address), if any. */
   initial: T | null;
   keyOf: (t: T) => string;
+  /**
+   * The id the lease engine knows the item by (`…/lease/:kind/:itemId/…`,
+   * a UUID). Defaults to [keyOf]. Round 4 (25.11, В2): complaints key the
+   * «already seen» list by `type:id`, but the lease is the bare id — the
+   * `type:id` key made «Пропустить» a 400 and «Готово» never closed the lease.
+   */
+  leaseIdOf?: (t: T) => string;
   /** The queue list, oldest first (a light, existing list call). */
   candidates: () => Promise<T[]>;
   /**
@@ -93,6 +100,7 @@ export function useReviewFlow<T>(cfg: ReviewFlowConfig<T>): ReviewFlow<T> {
   const conf = useRef(cfg);
   conf.current = cfg;
   const currentKey = current ? cfg.keyOf(current) : null;
+  const currentLeaseId = current ? (cfg.leaseIdOf ?? cfg.keyOf)(current) : null;
 
   // Keep the address in step without a navigation (reload opens the same item).
   useEffect(() => {
@@ -103,7 +111,7 @@ export function useReviewFlow<T>(cfg: ReviewFlowConfig<T>): ReviewFlow<T> {
 
   // The lease on screen stays alive while the person works (same rule as the desk).
   const leases = useMyLeases(leaseMode);
-  const held = leases.data && leases.data.ok ? leases.data.data.leases.filter((l) => l.kind === cfg.kind && l.itemId === currentKey) : [];
+  const held = leases.data && leases.data.ok ? leases.data.data.leases.filter((l) => l.kind === cfg.kind && l.itemId === currentLeaseId) : [];
   useLeaseAutoRenew(held, (k) => settings.num(KIND_TTL_KEY[k as LeaseKind] ?? 'staff.lease.ttl_ticket_min') * 60, leaseMode && held.length > 0);
 
   const list = useQuery({
@@ -184,21 +192,21 @@ export function useReviewFlow<T>(cfg: ReviewFlowConfig<T>): ReviewFlow<T> {
   const advance = useCallback(
     async (outcome?: string) => {
       const c = conf.current;
-      if (leaseMode && c.kind && currentKey) {
+      if (leaseMode && c.kind && currentLeaseId) {
         // The decision is in force already; closing the lease is bookkeeping.
-        await deskPost(`/admin/desk/lease/${c.kind}/${currentKey}/done`, outcome ? { outcome: outcome.slice(0, 24) } : {}).catch(() => undefined);
+        await deskPost(`/admin/desk/lease/${c.kind}/${currentLeaseId}/done`, outcome ? { outcome: outcome.slice(0, 24) } : {}).catch(() => undefined);
       }
       leave();
       await findNext();
     },
-    [currentKey, findNext, leave, leaseMode],
+    [currentLeaseId, findNext, leave, leaseMode],
   );
 
   const skip = useCallback(
     async (reason = 'other') => {
       const c = conf.current;
-      if (leaseMode && c.kind && currentKey) {
-        const r = await deskPost<{ ok: boolean; limited: boolean }>(`/admin/desk/lease/${c.kind}/${currentKey}/skip`, { reason }).catch((e: unknown) => {
+      if (leaseMode && c.kind && currentLeaseId) {
+        const r = await deskPost<{ ok: boolean; limited: boolean }>(`/admin/desk/lease/${c.kind}/${currentLeaseId}/skip`, { reason }).catch((e: unknown) => {
           toast.error(e);
           return null;
         });
@@ -211,7 +219,7 @@ export function useReviewFlow<T>(cfg: ReviewFlowConfig<T>): ReviewFlow<T> {
       leave();
       await findNext();
     },
-    [currentKey, findNext, leave, leaseMode, toast],
+    [currentLeaseId, findNext, leave, leaseMode, toast],
   );
 
   return { current, finding, empty, note, doneCount, leaseMode, advance, skip, refresh: findNext };

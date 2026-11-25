@@ -19,7 +19,7 @@ import { Table, TableEmpty, Td, Th } from '@/components/ui/table';
 import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import { useMe } from '@/lib/hooks';
-import { can } from '@/lib/rbac';
+import { can, canAct } from '@/lib/rbac';
 import {
   BID_STATUS,
   CASE_STATUS,
@@ -74,7 +74,9 @@ export default function UserCardPage() {
     queryFn: async () => (await api.GET('/admin/users/{id}', { params: { path: { id } } })).data!.data,
   });
   const u = q.data;
-  const canSanction = can(me, 'users', 'manage');
+  // Round 4 (С10): the API's own role list for this action, plus the area.
+  const canSanction = canAct(me, 'users', ['moderator']);
+  const canManageUsers = can(me, 'users', 'manage');
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['user', id] });
     void qc.invalidateQueries({ queryKey: ['users'] });
@@ -236,9 +238,12 @@ export default function UserCardPage() {
         actions={
           u.role !== 'admin' ? (
             <>
-              <Button variant="outline" size="sm" disabled={act.isPending} onClick={() => act.mutate('revoke')}>
-                Отозвать сессии
-              </Button>
+              {/* Round 4 (Н3): a POST, so «Пользователи: управление» (view-only got 404). */}
+              {canManageUsers ? (
+                <Button variant="outline" size="sm" disabled={act.isPending} onClick={() => act.mutate('revoke')}>
+                  Отозвать сессии
+                </Button>
+              ) : null}
               {canSanction ? (
                 <>
                   <Button variant="outline" size="sm" disabled={act.isPending} onClick={() => act.mutate('password')}>

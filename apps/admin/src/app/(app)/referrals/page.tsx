@@ -36,6 +36,7 @@ import { growthError } from "@/components/growth/errors";
 import { api, errorText } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { useMe } from "@/lib/hooks";
+import { canAct } from "@/lib/rbac";
 import {
   label,
   REFERRAL_STATUS,
@@ -155,7 +156,8 @@ export default function ReferralsPage() {
   const qc = useQueryClient();
   const toast = useToast();
   const { data: me } = useMe();
-  const canWrite = me?.role === "super_admin" || me?.role === "finance";
+  // Round 4 (С10): finance with «Деньги: управление» (what the API checks).
+  const canWrite = canAct(me, "money", ["finance"]);
   const canOpenUsers =
     me?.role === "super_admin" ||
     me?.role === "support" ||

@@ -1,18 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
+import { Type } from 'class-transformer';
 import {
   Allow,
   IsBoolean,
   IsIn,
   IsInt,
   IsISO8601,
-  IsNotEmpty,
   IsOptional,
-  IsString,
-  IsUUID,
   Matches,
   Max,
-  MaxLength,
   Min,
 } from 'class-validator';
 import { AUTOSCALE_MAX_VALUE } from '../../common/cost-guard/cost-autoscale.rules';
@@ -21,9 +17,6 @@ import {
   type CostProvider,
   type CostWindow,
 } from '../../common/cost-guard/cost-guard.constants';
-
-const trim = ({ value }: { value: unknown }) =>
-  typeof value === 'string' ? value.trim() : value;
 
 // ---- feature flags (§2.3 item 7) ---------------------------------------
 
@@ -188,74 +181,6 @@ export class LanguageAdminDto {
     description: 'Bundle version (0 = none yet).',
   })
   bundleVersion!: number;
-}
-
-// ---- legal documents (§2.3 item 10) ----------------------------------------
-
-export const LEGAL_DOC_TYPES = [
-  'terms',
-  'privacy',
-  'disclaimer',
-  'client_contact_sharing',
-] as const;
-
-export class CreateLegalDocumentDto {
-  @ApiProperty({ enum: LEGAL_DOC_TYPES })
-  @IsIn(LEGAL_DOC_TYPES)
-  docType!: (typeof LEGAL_DOC_TYPES)[number];
-
-  @ApiProperty({ example: 'en' })
-  @Matches(/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/)
-  locale!: string;
-
-  @ApiProperty({ example: '1.1', pattern: '^\\d+(\\.\\d+){0,2}$' })
-  @Matches(/^\d+(\.\d+){0,2}$/)
-  version!: string;
-
-  @ApiPropertyOptional({
-    description: 'Markdown body (either this or contentUrl).',
-  })
-  @IsOptional()
-  @IsString()
-  @MaxLength(200_000)
-  contentMd?: string;
-
-  @ApiPropertyOptional({ format: 'uri' })
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(2000)
-  contentUrl?: string;
-}
-
-export class LegalDocumentIdParamDto {
-  @ApiProperty({ format: 'uuid' })
-  @IsUUID('all')
-  id!: string;
-}
-
-export class LegalDocumentAdminDto {
-  @ApiProperty({ format: 'uuid' }) id!: string;
-  @ApiProperty({ enum: LEGAL_DOC_TYPES }) docType!: string;
-  @ApiProperty() locale!: string;
-  @ApiProperty() version!: string;
-  @ApiProperty() isCurrent!: boolean;
-  @ApiProperty({ type: String, format: 'date-time', nullable: true })
-  publishedAt!: string | null;
-  @ApiProperty({ type: String, nullable: true }) contentUrl!: string | null;
-  @ApiProperty({
-    type: String,
-    nullable: true,
-    description: 'Markdown; full text in the detail call.',
-  })
-  contentMd!: string | null;
-  @ApiProperty({
-    type: 'integer',
-    description: 'Consents recorded against this version.',
-  })
-  consents!: number;
-  @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 
 // ---- spend limits «Лимиты расходов» (owner 2026-10-05) ---------------------

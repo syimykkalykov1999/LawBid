@@ -486,7 +486,6 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
                     onTap: () async {
                       final changed = await toggleBlock(
                         context,
-                        ref,
                         userId: p.id!,
                         displayName: blockName,
                         currentlyBlocked: blocked,

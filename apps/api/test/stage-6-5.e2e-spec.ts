@@ -8,7 +8,7 @@ import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
-import { adminSession, OPS_RIGHTS } from './support/admin-login';
+import { adminSession, adminStepUp, OPS_RIGHTS } from './support/admin-login';
 
 jest.setTimeout(120_000);
 
@@ -393,6 +393,8 @@ describe('stage 6.5 — disputes, contact issues, data requests (e2e)', () => {
 
   it('government data requests: register, package within scope (justified, every entity logged), status; super_admin only', async () => {
     const sup = await adminSession(baseUrl, prisma, 'super_admin');
+    // Round 4 (С6): a person's data leaves only with a fresh 2FA code.
+    await adminStepUp(baseUrl, sup);
     const support = await adminSession(baseUrl, prisma, 'support');
     const c = await client();
     const a = await attorney();

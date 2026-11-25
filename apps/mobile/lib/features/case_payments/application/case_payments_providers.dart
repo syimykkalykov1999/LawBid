@@ -1,20 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/keep_alive_for.dart';
-import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/case_payments/data/case_payments_repository.dart';
 import 'package:lawbid/features/case_payments/domain/case_payment_models.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 
+// The flag lives in core (round 1 check 25.11 №20: the trust sheet reads
+// it too); the same provider object, so overrides keep working.
+export 'package:lawbid/core/feature_flags/feature_flags_providers.dart'
+    show casePaymentsFlagProvider;
+
 final casePaymentsRepositoryProvider = Provider<CasePaymentsRepository>(
   (ref) => CasePaymentsRepository(ref.watch(dioProvider)),
-);
-
-/// The `payments_in_app` flag — hides every entry point when off.
-final casePaymentsFlagProvider = Provider<bool>(
-  (ref) =>
-      ref.watch(featureFlagsControllerProvider).isEnabled('payments_in_app'),
 );
 
 final paymentSettingsProvider = FutureProvider.autoDispose<PaymentSettings>(

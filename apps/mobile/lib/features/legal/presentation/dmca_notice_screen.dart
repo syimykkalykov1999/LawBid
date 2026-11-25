@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/legal/application/legal_providers.dart';
 import 'package:lawbid/features/legal/domain/legal_models.dart';
@@ -129,7 +130,9 @@ class _DmcaNoticeScreenState extends ConsumerState<DmcaNoticeScreen> {
           );
       if (!mounted) return;
       showAppSnackBar(context, t.t('dmca.sent'));
-      if (context.canPop()) {
+      if (!context.isCurrentRoute) {
+        // Covered meanwhile: stay where the person is.
+      } else if (context.canPop()) {
         context.pop();
       } else {
         await Navigator.of(context).maybePop();

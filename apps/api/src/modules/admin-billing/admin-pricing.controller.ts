@@ -29,6 +29,7 @@ import {
   AdminSetPlanPriceResultDto,
 } from './admin-pricing.dto';
 import { AdminPricingService } from './admin-pricing.service';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 
 const E = ErrorCode;
 
@@ -43,7 +44,10 @@ const E = ErrorCode;
 @SkipAutoAudit()
 @Controller('admin/billing/prices')
 export class AdminPricingController {
-  constructor(private readonly prices: AdminPricingService) {}
+  constructor(
+    private readonly prices: AdminPricingService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Plan prices, subscribers and change history' })
@@ -58,12 +62,15 @@ export class AdminPricingController {
       'Set a plan price: new purchases pay it, current subscribers keep theirs',
   })
   @ApiEnvelopeResponse(AdminSetPlanPriceResultDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  setPlanPrice(
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async setPlanPrice(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: PlanKindParamDto,
     @Body() dto: SetPlanPriceDto,
   ): Promise<AdminSetPlanPriceResultDto> {
+    // Round 4 (25.11, С2): what attorneys pay is money — a fresh 2FA code,
+    // like the price of a boost.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.prices.set(admin, p.kind, dto.amountCents, dto.note, {
       compareAtCents: dto.compareAtCents,
       showDiscount: dto.showDiscount,
@@ -79,13 +86,16 @@ export class AdminPricingController {
   @ApiEnvelopeResponse(MovePlanSubscribersResultDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
     503: [E.PAYMENTS_NOT_CONFIGURED],
   })
-  movePlanSubscribers(
+  async movePlanSubscribers(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: PlanKindParamDto,
     @Body() dto: MovePlanSubscribersDto,
   ): Promise<MovePlanSubscribersResultDto> {
+    // Round 4 (25.11, С2): moves EVERY subscriber to a new price.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.prices.moveSubscribers(admin, p.kind, dto.reason);
   }
 }
