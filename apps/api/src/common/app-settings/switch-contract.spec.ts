@@ -58,6 +58,8 @@ describe('switch contract: defaults (a)', () => {
     ['auth.additional_identifiers_enabled', false],
     ['today.sentry_enabled', false],
     ['scale.db_split_enabled', false],
+    // C2 (25.11): off until the owner turns on logical replication.
+    ['db.cdc_mode', 'off'],
     // Owner 16.11: the hotline is free for every attorney while payments are off.
     ['hotline.mode', 'on_for_all'],
     ['hotline.short_notice_enabled', false],

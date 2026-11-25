@@ -168,6 +168,7 @@ describe('SystemHealthService', () => {
       message_keys: 'grey',
       table_growth: 'grey',
       shard_growth: 'grey',
+      cache_cdc: 'grey',
       cost: 'grey',
     });
     expect(r.overall).toBe('yellow');

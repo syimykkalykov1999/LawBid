@@ -175,3 +175,96 @@ resource "aws_cloudwatch_metric_alarm" "db_table_health" {
   alarm_actions       = local.ops
   tags                = var.tags
 }
+
+# --- C2 (25.11): cache invalidation from the database change log -----------
+# The worker's CacheCdcService logs every 30 s (apps/api/src/modules/cache-cdc):
+#   {metric:"cache_cdc_lag_seconds", database, lagSec}
+#   {metric:"cache_cdc_slot_retained_mb", database, mb}
+#   {alert:"cache_cdc_slot_dropped", database, retainedMb}
+# plus RDS's own OldestReplicationSlotLag (AWS «Best practices for RDS for
+# PostgreSQL replication slots»: watch it, an unread slot fills the disk).
+# Nothing is logged while the admin switch db.cdc_mode is Выкл: no alarm.
+variable "cache_cdc_lag_alarm_seconds" {
+  type        = number
+  default     = 300
+  description = "Alarm when a committed change waits longer than this for its cache drop by the change log (seconds, 10 minutes in a row). 0 = no alarm."
+}
+variable "replication_slot_lag_alarm_mb" {
+  type        = number
+  default     = 4096
+  description = "Alarm when a replication slot keeps more than this much WAL (RDS OldestReplicationSlotLag, MB). 0 = no alarm."
+}
+
+resource "aws_cloudwatch_log_metric_filter" "cache_cdc_lag" {
+  name           = "${var.name}-cache-cdc-lag"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.metric = \"cache_cdc_lag_seconds\" }"
+  metric_transformation {
+    name      = "CacheCdcLagSeconds"
+    namespace = local.ns
+    value     = "$.lagSec"
+    unit      = "Seconds"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "cache_cdc_lag" {
+  count               = var.cache_cdc_lag_alarm_seconds > 0 ? 1 : 0
+  alarm_name          = "${var.name}-cache-cdc-lag"
+  alarm_description   = "LawBid: Сброс кэша по журналу базы отстаёт больше ${var.cache_cdc_lag_alarm_seconds / 60} минут. Приложение по-прежнему сбрасывает кэш само, пользователи видят старое не дольше срока кэша (1–5 минут). Что делать: админка → Здоровье системы → «Сброс кэша по журналу базы»; если держится — переключите db.cdc_mode на Выкл и напишите Claude «cache cdc». Инструкция: ${var.runbook_base_url}/cache-cdc.md (EN: cache CDC lag above ${var.cache_cdc_lag_alarm_seconds} s for 10 minutes.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  period              = 300
+  threshold           = var.cache_cdc_lag_alarm_seconds
+  statistic           = "Maximum"
+  metric_name         = aws_cloudwatch_log_metric_filter.cache_cdc_lag.metric_transformation[0].name
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  ok_actions          = local.ops
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_log_metric_filter" "cache_cdc_slot_dropped" {
+  name           = "${var.name}-cache-cdc-slot-dropped"
+  log_group_name = var.worker_log_group
+  pattern        = "{ $.alert = \"cache_cdc_slot_dropped\" }"
+  metric_transformation {
+    name      = "CacheCdcSlotDrops"
+    namespace = local.ns
+    value     = "1"
+    unit      = "Count"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "cache_cdc_slot_dropped" {
+  alarm_name          = "${var.name}-cache-cdc-slot-dropped"
+  alarm_description   = "LawBid: Защита диска базы удалила застрявшее место чтения журнала для сброса кэша и создала новое. Пользователи не пострадали (кэши дожили свой срок). Что делать: если письмо повторяется — напишите Claude «cache cdc slot». Инструкция: ${var.runbook_base_url}/cache-cdc.md (EN: the cache CDC slot passed db.cdc_max_slot_wal_mb or was lost and was re-created.)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  period              = 3600
+  threshold           = 1
+  statistic           = "Sum"
+  metric_name         = aws_cloudwatch_log_metric_filter.cache_cdc_slot_dropped.metric_transformation[0].name
+  namespace           = local.ns
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.ops
+  tags                = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "replication_slot_lag" {
+  count               = var.db_instance_id != "" && var.replication_slot_lag_alarm_mb > 0 ? 1 : 0
+  alarm_name          = "${var.name}-replication-slot-lag"
+  alarm_description   = "LawBid: База держит больше ${var.replication_slot_lag_alarm_mb} МБ журнала для места репликации, которое никто не читает (сброс кэша по журналу, перенос частей базы или обновление базы). Если так оставить, кончится диск. Что делать: админка → Здоровье системы; переключите db.cdc_mode на Выкл (место удалится само) и напишите Claude «replication slot». Инструкция: ${var.runbook_base_url}/cache-cdc.md (EN: RDS OldestReplicationSlotLag above ${var.replication_slot_lag_alarm_mb} MB.)"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  period              = 300
+  threshold           = var.replication_slot_lag_alarm_mb
+  statistic           = "Maximum"
+  metric_name         = "OldestReplicationSlotLag"
+  namespace           = "AWS/RDS"
+  dimensions          = { DBInstanceIdentifier = var.db_instance_id }
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.page
+  ok_actions          = local.ops
+  tags                = var.tags
+}

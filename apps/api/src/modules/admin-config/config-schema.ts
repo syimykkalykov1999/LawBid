@@ -1382,6 +1382,27 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100000,
   };
+  // C2 (25.11): cache invalidation from the database change log.
+  out['db.cdc_mode'] = {
+    ...out['db.cdc_mode'],
+    description:
+      'Cache invalidation from the database change log (logical replication, worker): off | on | auto (auto = only when the database has wal_level=logical, the publication and the replication right). Default off.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['db.cdc_max_slot_wal_mb'] = {
+    ...out['db.cdc_max_slot_wal_mb'],
+    description:
+      'Slot guard: the cache CDC replication slot is dropped and created again when it keeps more WAL than this (MB). 0 = only a lost slot is dropped.',
+    min: 0,
+    max: 1_000_000,
+  };
+  out['db.cdc_lag_alarm_sec'] = {
+    ...out['db.cdc_lag_alarm_sec'],
+    description:
+      'Cache CDC: the admin light turns yellow when a committed change waits longer than this (seconds) for its cache drop.',
+    min: 1,
+    max: 86_400,
+  };
   out['outreach.raw_unsubscribe_token_keep_days'] = {
     ...out['outreach.raw_unsubscribe_token_keep_days'],
     description:
