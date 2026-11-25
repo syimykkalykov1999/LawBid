@@ -84,7 +84,15 @@ if (cmd === 'describe-task-definition') {
   else if (q.startsWith('services[?status==`ACTIVE`].runningCount')) console.log(s && s.status === 'ACTIVE' ? s.running : 'None');
   else if (q.startsWith('services[0].deployments[?taskDefinition==')) {
     const rev = q.match(/taskDefinition=='([^']+)'/)[1];
-    console.log(s && s.td === rev ? 'COMPLETED\tdone' : 'None');
+    // Deploy speed (25.11): s.rolloutSeq walks like nativeSeq (default COMPLETED).
+    const seq = s?.rolloutSeq;
+    const now = seq ? (seq.length > 1 ? seq.shift() : seq[0]) : 'COMPLETED';
+    if (seq) save();
+    console.log(s && s.td === rev ? `${now}\tdone` : 'None');
+  } else if (q === 'services[0].deployments[].[taskDefinition,desiredCount,runningCount]') {
+    // s.oldRunning: tasks an older deployment still runs (default 0).
+    console.log(`${s.td}\t1\t${s.newRunning ?? 1}`);
+    if (s.oldRunning) console.log(`old-td\t0\t${s.oldRunning}`);
   } else if (q === 'length(services[0].deployments)') console.log(1);
   else fail(`query ${q}`);
 } else fail(`unexpected ${argv.join(' ')}`);

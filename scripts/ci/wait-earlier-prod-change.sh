@@ -15,6 +15,15 @@
 #   wait-earlier-prod-change.sh deploy-past-wait (rollback.yml, D1-38): wait
 #       while a deploy.yml «Deploy production» job is PAST its own
 #       «Wait for an earlier rollback» step (it rolls prod now).
+#   wait-earlier-prod-change.sh older-deploys-queued (deploy.yml «Deploy
+#       order» job, deploy speed 25.11): the one-at-a-time rule of prod sits on
+#       the «Deploy production» JOB now (job-level concurrency group `deploy`),
+#       so CI gate + image build of a newer commit run while an older release
+#       still rolls. GitHub keeps one pending job per group and CANCELS the
+#       older pending one when a newer one arrives, so the jobs must arrive in
+#       commit order: wait while an OLDER in-progress deploy.yml run (smaller
+#       run id) has not finished its own «Deploy order» job, and for 45 s after
+#       it did while its «Deploy production» job is not created yet.
 # deploy-rolling also counts a running rollback (D1-38: a cloud plan made
 # before a rollback would roll prod forward to the bad release again).
 # Each pair waits one way only BEFORE and the other way only for a run PAST
@@ -49,6 +58,9 @@ DEPLOY_ROLLING='[.jobs[] | select((.name|startswith("Deploy production")) and .s
 ROLLBACK_ROLLING='[.jobs[] | select((.name|startswith("Roll production back")) and .status=="in_progress")] | length'
 INFRA_PAST='[.jobs[] | select(.status=="in_progress") | .steps[]? | select(.name=="Wait for an earlier code deploy" and .status=="completed")] | length'
 DEPLOY_PAST='[.jobs[] | select((.name|startswith("Deploy production")) and .status=="in_progress") | .steps[]? | select(.name=="Wait for an earlier rollback" and .status=="completed")] | length'
+# Deploy speed 25.11: an older run whose prod job may still join the queue.
+# One line: CHECKS below is read line by line.
+ORDER_BUSY='[.jobs[] | select(.name|startswith("Deploy order"))] as $o | [.jobs[] | select((.name|startswith("Deploy production")) and (.status=="in_progress" or .status=="completed" or .status=="waiting" or .status=="pending"))] as $p | if ($o|length) == 0 then 1 elif ($o[0].status != "completed") then 1 elif ($p|length) > 0 then 0 elif ((now - (($o[0].completed_at // "1970-01-01T00:00:00Z") | sub("\\.[0-9]+";"") | fromdateiso8601)) < 45) then 1 else 0 end'
 # "<workflow file> <jq filter>" per line.
 case "$MODE" in
   deploy-rolling) CHECKS="deploy.yml	$DEPLOY_ROLLING
@@ -56,6 +68,7 @@ rollback.yml	$ROLLBACK_ROLLING" ;;
   infra-active) CHECKS="infra-apply.yml	$INFRA_PAST" ;;
   rollback-active) CHECKS="rollback.yml	$ROLLBACK_ROLLING" ;;
   deploy-past-wait) CHECKS="deploy.yml	$DEPLOY_PAST" ;;
+  older-deploys-queued) CHECKS="deploy.yml	$ORDER_BUSY" ;;
   *) echo "::error::unknown mode $MODE"; exit 2 ;;
 esac
 
@@ -63,8 +76,10 @@ while :; do
   busy=""
   while IFS=$'\t' read -r OTHER BUSY; do
     [ -n "$OTHER" ] || continue
-    for id in $(runs_of "$OTHER" | jq -r --arg me "${GITHUB_RUN_ID:-0}" \
-        '.workflow_runs[] | select(.status=="in_progress" and (.id|tostring)!=$me) | .id'); do
+    # older-deploys-queued looks only at OLDER runs (run ids grow): no two
+    # runs wait for each other.
+    for id in $(runs_of "$OTHER" | jq -r --arg me "${GITHUB_RUN_ID:-0}" --arg older "$([ "$MODE" = older-deploys-queued ] && echo 1)" \
+        '.workflow_runs[] | select(.status=="in_progress" and (.id|tostring)!=$me) | select($older != "1" or .id < ($me|tonumber)) | .id'); do
       n=$(jobs_of "$id" | jq "$BUSY")
       [ "$n" -gt 0 ] && busy="$busy $OTHER#$id"
     done

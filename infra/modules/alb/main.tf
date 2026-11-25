@@ -270,10 +270,17 @@ resource "aws_lb_target_group" "api" {
   slow_start = (var.ws_target_group_enabled || var.load_balancing_algorithm == "least_outstanding_requests") ? 0 : var.slow_start_seconds
   # Liveness, not readiness: ECS replaces tasks the ALB marks unhealthy, so a
   # DB/Redis blip on /health/ready would kill every API task at once.
+  # Deploy speed 25.11: interval 10 s (was 15; admin 30). AWS (Elastic Load
+  # Balancing User Guide, "Health checks for Application Load Balancer target
+  # groups"): a newly registered target "must pass one health check to be
+  # considered healthy", the interval range is 5-300 s. So a new task gets
+  # traffic up to 5 s sooner (admin 20 s), and a broken one is out after
+  # 3 x 10 = 30 s instead of 45 s (admin 90 s): faster AND stricter.
+  # Cost: 6 instead of 4 (admin 2) light GETs a minute per target per ALB node.
   health_check {
     path                = "/health/live"
     matcher             = "200"
-    interval            = 15
+    interval            = 10 # deploy speed 25.11, see aws_lb_target_group.api
     timeout             = 5
     healthy_threshold   = 2
     unhealthy_threshold = 3
@@ -304,7 +311,7 @@ resource "aws_lb_target_group" "api_ws" {
   health_check {
     path                = "/health/live"
     matcher             = "200"
-    interval            = 15
+    interval            = 10 # deploy speed 25.11, see aws_lb_target_group.api
     timeout             = 5
     healthy_threshold   = 2
     unhealthy_threshold = 3
@@ -345,7 +352,7 @@ resource "aws_lb_target_group" "api_admin" {
   health_check {
     path                = "/health/live"
     matcher             = "200"
-    interval            = 15
+    interval            = 10 # deploy speed 25.11, see aws_lb_target_group.api
     timeout             = 5
     healthy_threshold   = 2
     unhealthy_threshold = 3
@@ -379,7 +386,7 @@ resource "aws_lb_target_group" "admin" {
   health_check {
     path                = "/login"
     matcher             = "200-399"
-    interval            = 30
+    interval            = 10 # deploy speed 25.11, see aws_lb_target_group.api
     timeout             = 5
     healthy_threshold   = 2
     unhealthy_threshold = 3
@@ -452,7 +459,7 @@ resource "aws_lb_target_group" "api_green" {
   health_check {
     path                = "/health/live"
     matcher             = "200"
-    interval            = 15
+    interval            = 10 # deploy speed 25.11, see aws_lb_target_group.api
     timeout             = 5
     healthy_threshold   = 2
     unhealthy_threshold = 3
