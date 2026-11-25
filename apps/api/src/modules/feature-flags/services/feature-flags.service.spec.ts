@@ -57,6 +57,35 @@ describe('FeatureFlagsService.getFlags', () => {
   });
 });
 
+describe('pack C (round 2 #23): a missing row reads as the catalog value', () => {
+  function emptyTable() {
+    const prisma = {
+      featureFlag: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    return new FeatureFlagsService(prisma as never, buildFakeRedis() as never);
+  }
+
+  it.each([
+    // [flag, the caller's old fallback, the catalog]
+    ['channels', true, false],
+    ['email_login', true, false],
+    ['files_multipart', false, true],
+  ])(
+    '%s: the catalog wins over the caller fallback %s',
+    async (key, callerDefault, catalog) => {
+      const flags = emptyTable();
+      expect(await flags.isEnabled(key, callerDefault)).toBe(catalog);
+      expect(await flags.isEnabledFor(key, callerDefault, 'u1')).toBe(catalog);
+    },
+  );
+
+  it('a key the catalog does not list keeps the caller fallback', async () => {
+    const flags = emptyTable();
+    expect(await flags.isEnabled('not_in_catalog', true)).toBe(true);
+    expect(await flags.isEnabled('not_in_catalog', false)).toBe(false);
+  });
+});
+
 describe('payments_in_app is locked off (owner 2026-10-16)', () => {
   const { lockFlags } = jest.requireActual<
     typeof import('../../../common/feature-flags/locked-flags')

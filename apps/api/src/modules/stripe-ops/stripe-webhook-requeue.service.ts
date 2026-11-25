@@ -29,6 +29,14 @@ const MAX_PER_RUN = 1000;
  * stripe_webhook_events_unprocessed_idx (created_at, stripe_event_id)
  * WHERE processed_at IS NULL, walks it by keyset pages of 200 (no OFFSET,
  * no rescan) and stops after 1 000 rows per run.
+ *
+ * Pack C (round 2 #13, 25.11): the dead events (their job failed and sits
+ * in the DLQ) stay `processed_at null` for good, and every run started from
+ * the oldest row — with more than 1 000 of them a newly lost event was never
+ * reached. A run that stops at the cap now leaves its keyset position and
+ * the next run goes on from there; a run that reaches the end starts the
+ * next one from the oldest row again. Every unprocessed event is looked at
+ * within (count / 1 000) runs.
  */
 @Injectable()
 export class StripeWebhookRequeueService
@@ -36,6 +44,8 @@ export class StripeWebhookRequeueService
 {
   private readonly logger = new Logger(StripeWebhookRequeueService.name);
   queue?: Pick<Queue<StripeWebhookJobData>, 'add' | 'getJob' | 'close'>;
+  /** Where the last run stopped at the cap (null: start from the oldest). */
+  private resumeAt: { created_at: Date; id: string } | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -58,7 +68,9 @@ export class StripeWebhookRequeueService
   async sweep(now = new Date()): Promise<{ found: number; requeued: number }> {
     if (!this.queue) return { found: 0, requeued: 0 };
     const cutoff = new Date(now.getTime() - MIN_AGE_MS);
-    let after: { created_at: Date; id: string } | null = null;
+    let after = this.resumeAt;
+    // Reached the end: the next run starts from the oldest row again.
+    this.resumeAt = null;
     let found = 0;
     let requeued = 0;
     while (found < MAX_PER_RUN) {
@@ -98,6 +110,8 @@ export class StripeWebhookRequeueService
       if (rows.length < BATCH) break;
       const last = rows[rows.length - 1];
       after = { created_at: last.created_at, id: last.stripe_event_id };
+      // Stopped at the cap with more to read: go on from here next run.
+      if (found >= MAX_PER_RUN) this.resumeAt = after;
     }
     if (requeued > 0)
       this.logger.warn(

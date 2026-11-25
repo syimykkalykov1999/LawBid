@@ -55,6 +55,13 @@ type Rollout = [percent: number, hashVersion: HashVersion];
  * `isEnabled()`) a partly rolled-out flag reads as OFF; use `isEnabledFor`
  * (server code with a user) or `getFlagsFor` (`GET /config/flags`, signed in).
  */
+/** The FLAG_CATALOG starter value of [key] (retired flags excluded), or
+ * [fallback] for a key the catalog does not list. */
+export function catalogDefault(key: string, fallback: boolean): boolean {
+  const def = FLAG_CATALOG.find((f) => f.key === key && !f.retired);
+  return def ? def.enabled : fallback;
+}
+
 @Injectable()
 export class FeatureFlagsService implements OnModuleInit {
   private readonly logger = new Logger(FeatureFlagsService.name);
@@ -221,16 +228,19 @@ export class FeatureFlagsService implements OnModuleInit {
     userId: string,
   ): Promise<boolean> {
     const flags = await this.getFlagsFor(userId);
-    return flags[key] ?? defaultValue;
+    return flags[key] ?? catalogDefault(key, defaultValue);
   }
 
   /** One flag, for server-side enforcement (login methods, device
-   * attestation). `defaultValue` applies when the row doesn't exist —
-   * callers choose it per flag so a missing seed row fails in the
-   * intended direction (login methods: open; attestation: off). */
+   * attestation). Without its row (a new database, a deleted row, a failed
+   * catalog sync) the flag reads as its FLAG_CATALOG starter value — pack C
+   * (round 2 #23): the callers' own fallbacks had drifted from the catalog
+   * (channels and e-mail login on where the catalog says off, multipart
+   * uploads off where it says on). `defaultValue` applies only to a key the
+   * catalog does not have. */
   async isEnabled(key: string, defaultValue: boolean): Promise<boolean> {
     const flags = await this.getFlags();
-    return flags[key] ?? defaultValue;
+    return flags[key] ?? catalogDefault(key, defaultValue);
   }
 
   /** Drops the cached flag set so the next read goes to the DB — for a

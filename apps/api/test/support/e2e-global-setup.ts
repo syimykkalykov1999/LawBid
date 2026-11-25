@@ -231,6 +231,27 @@ export default async function globalSetup(): Promise<void> {
       update: { enabled: false },
     });
   }
+  // Pack C (round 2 #23): a missing flag row now reads as its FLAG_CATALOG
+  // value, no longer as each caller's own fallback. The suites were written
+  // against those fallbacks (channels and e-mail flows on, multipart
+  // uploads off): they start from the same state, written down here;
+  // a suite about a switch still turns it itself.
+  for (const [key, enabled] of [
+    ['channels', true],
+    ['email_login', true],
+    ['files_multipart', false],
+  ] as const) {
+    await seed.featureFlag.upsert({
+      where: { key },
+      create: {
+        key,
+        enabled,
+        rollout_percent: 100,
+        description: 'e2e: the state the suites were written against',
+      },
+      update: { enabled },
+    });
+  }
   await seed.$disconnect();
   await admin.$disconnect();
 
