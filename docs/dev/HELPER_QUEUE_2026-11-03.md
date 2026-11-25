@@ -99,3 +99,10 @@
 - Никаких сборок (Flutter/Gradle/Xcode) пока работает помощник с tsc/jest/flutter test.
 - После каждой сборки: `./gradlew --stop`, удалить build/ в worktree сборки.
 - Firebase-файлы (google-services.json, GoogleService-Info.plist) копировать в worktree сборки из основного чекаута.
+
+## 18.11 helper «пустой экран после возврата» (ветка fix/blank-screen-after-return от origin/main 699a4dd4d) — ПАУЗА по слову владельца
+- Сделано: прочитаны STRICT_RULES, KNOWN_ERRORS (последний номер 227). Код не менялся.
+- Улики: iPhone 17 Pro Max (00008150-001E545A1480401C) — краш-логов Runner за 18.11 нет (последний Runner .ips 03.11): это не вылет, а зависание/пустой экран. Приложение живо (pid 1086), syslog 25 с пуст (в фоне).
+- Цвет экрана = scaffoldBackgroundColor темы «Синяя» (AppColorsBlue.bg 0xFF003B70) — это PageBackground (back_swipe.dart) или Scaffold без содержимого, не ErrorWidget.
+- Подозрение (не доказано): регрессия от #1261 (Flutter 3.47.9 → 3.50.0, cupertino_ui/material_ui 1.11.1) — сборка b57e5428a первая с ним. Версии в ~/.pub-cache и /opt/homebrew/Caskroom/flutter/3.50.0 есть для сравнения. Другие кандидаты: _PopController в back_swipe.dart (route.controller на 0 при активном маршруте → непрозрачный слой без содержимого), delegatedTransition (строка 88, 13.11).
+- Дальше: собрать dev/prod-флейвор на симуляторе (через heavy.sh), воспроизвести (тема в настройках, шторка комментариев, возврат из Safari/пикера), написать падающий тест, чинить. Вылеты прода смотреть в админке «Система → Вылеты» (нужен 2FA владельца).

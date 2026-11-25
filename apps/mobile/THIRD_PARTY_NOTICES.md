@@ -1040,9 +1040,9 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-## go_router 17.5.0 — BSD-3-Clause
+## go_router 17.5.0 / 18.1.4 — BSD-3-Clause
 
-https://github.com/flutter/packages/tree/main/packages/go_router. Row 148 (go_router 18): `lib/core/navigation/router_error_screen.dart` is go_router 17's `MaterialErrorScreen`, and `AppPageTransitions.material` passes the same `MaterialPage` arguments as its `pageBuilderForMaterialApp`.
+https://github.com/flutter/packages/tree/main/packages/go_router. KNOWN_ERRORS 230 (18.11): `third_party/go_router` is go_router 18.1.4 copied whole (its LICENSE inside), with one change marked «LawBid patch» in `lib/src/delegate.dart` — a pop that would leave no page is refused and reported instead of emptying the router. Row 148 (go_router 18): `lib/core/navigation/router_error_screen.dart` is go_router 17's `MaterialErrorScreen`, and `AppPageTransitions.material` passes the same `MaterialPage` arguments as its `pageBuilderForMaterialApp`.
 
 ```
 Copyright 2013 The Flutter Authors

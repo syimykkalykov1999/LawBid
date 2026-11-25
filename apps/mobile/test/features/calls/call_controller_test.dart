@@ -557,9 +557,11 @@ class _SystemUi implements SystemCallUi {
 }
 
 class _Harness {
-  _Harness({String me = 'me'}) {
+  _Harness({String me = 'me', bool videoCalls = true}) {
     container = ProviderContainer(
       overrides: [
+        // Owner 18.11: the camera follows the admin's `video_calls`.
+        videoCallsEnabledProvider.overrideWithValue(videoCalls),
         callsRepositoryProvider.overrideWithValue(repo),
         callClockProvider.overrideWithValue(() => now()),
         callMediaFactoryProvider.overrideWithValue(() => media),
@@ -2075,13 +2077,17 @@ void main() {
 
   group('the camera switched on mid-call (owner 2026-10-22)', () {
     /// A 1:1 voice call we placed, picked up and connected.
-    Future<_Harness> talking({String me = 'me'}) async {
-      final h = _Harness(me: me);
+    Future<_Harness> talking({
+      String me = 'me',
+      bool videoCalls = true,
+      bool video = false,
+    }) async {
+      final h = _Harness(me: me, videoCalls: videoCalls);
       addTearDown(h.dispose);
-      await h.c.call('conv', peer: _peer);
+      await h.c.call('conv', peer: _peer, video: video);
       h.emit(
         'call:accepted',
-        _event(_call('c1', CallStatus.active, outgoing: true)),
+        _event(_call('c1', CallStatus.active, outgoing: true, video: video)),
       );
       await _settle();
       h.emit('call:signal', {
@@ -2134,6 +2140,47 @@ void main() {
         {'type': 'video', 'on': false},
         {'type': 'camera', 'on': false},
       ]);
+      await h.c.hangUp();
+    });
+
+    test('owner 18.11: video calls off — the camera never goes on', () async {
+      final h = await talking(videoCalls: false);
+      expect(h.c.videoAllowed, isFalse);
+      expect(h.c.canSwitchVideo, isFalse);
+
+      await h.c.toggleVideo();
+      await h.c.toggleCamera();
+      expect(h.media.videoEnables, 0);
+      expect(h.s.video, isFalse);
+      // No new offer, nothing told: the voice call goes on untouched.
+      expect(h.signals, isEmpty);
+      expect(h.s.phase, CallPhase.active);
+
+      // They switch theirs on (an app with an old flag): their picture
+      // shows, but no «Turn on yours?» that could not be kept.
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'video', 'on': true},
+      });
+      await _settle();
+      expect(h.s.video, isTrue);
+      expect(h.s.videoPrompt, isNull);
+      await h.c.toggleVideo();
+      expect(h.media.videoEnables, 0);
+      await h.c.hangUp();
+    });
+
+    test('owner 18.11: a call that began as video keeps its camera button',
+        () async {
+      final h = await talking(videoCalls: false, video: true);
+      expect(h.c.videoAllowed, isTrue);
+      expect(h.c.canSwitchVideo, isTrue);
+      // Off and on again, as before the flag went off.
+      await h.c.toggleVideo();
+      expect(h.s.cameraOn, isFalse);
+      await h.c.toggleVideo();
+      expect(h.s.cameraOn, isTrue);
       await h.c.hangUp();
     });
 
