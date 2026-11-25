@@ -1591,6 +1591,38 @@ export class ChatService {
               message: 'Files can be sent once the bid is accepted.',
             });
           }
+          // Pack B (25.11, ROUND2 #20): one file, one message. Two sends of
+          // the same file at once (two chats, two devices) both passed the
+          // check before this transaction; the file row's lock makes the
+          // second wait for the first and then see its message (read
+          // committed: every statement reads what is committed by then).
+          // The same send retried (same clientMessageId) goes on to the
+          // insert and its unique key, which answers with the first one.
+          if ((attachment || voice) && dto.fileId) {
+            await tx.$queryRaw`SELECT id FROM files
+              WHERE id = ${dto.fileId}::UUID FOR NO KEY UPDATE`;
+            const taken = await tx.message.findFirst({
+              where: { file_id: dto.fileId },
+              select: {
+                conversation_id: true,
+                sender_id: true,
+                client_message_id: true,
+              },
+            });
+            if (
+              taken &&
+              !(
+                taken.conversation_id === id &&
+                taken.sender_id === user.sub &&
+                taken.client_message_id === dto.clientMessageId
+              )
+            ) {
+              throw new ConflictException({
+                code: ErrorCode.FILE_NOT_ATTACHABLE,
+                message: 'This file was already sent.',
+              });
+            }
+          }
           const p =
             prepared.unlocked === locked.contacts_unlocked
               ? prepared
@@ -2006,14 +2038,16 @@ export class ChatService {
       return { lastReadMessageId: target.id, moved: true };
     });
     if (result.moved) {
-      const other =
-        user.sub === conv.client_id ? conv.attorney_id : conv.client_id;
       // No user id: the receiver knows it was the other side.
-      this.realtime.toUsers([other], 'message:read', {
-        conversationId: id,
-        lastReadMessageId: result.lastReadMessageId,
-        readAt: new Date().toISOString(),
-      });
+      this.realtime.toUsers(
+        await this.receiptAudience(conv, user.sub),
+        'message:read',
+        {
+          conversationId: id,
+          lastReadMessageId: result.lastReadMessageId,
+          readAt: new Date().toISOString(),
+        },
+      );
       // Owner 2026-10-22 (load audit finding 2): my devices clear this
       // chat's unread pill in their list without reloading it.
       this.realtime.toUsers([user.sub], 'conversation:read', {
@@ -2079,7 +2113,7 @@ export class ChatService {
         const c = byId.get(r.conversation_id);
         if (!c) continue;
         this.realtime.toUsers(
-          [c.client_id === viewerId ? c.attorney_id : c.client_id],
+          await this.receiptAudience(c, viewerId),
           'message:delivered',
           {
             conversationId: c.id,
@@ -2091,6 +2125,27 @@ export class ChatService {
     } catch {
       // The list is what matters.
     }
+  }
+
+  /**
+   * Pack B (25.11, ROUND2 #4): who hears that [readerId] got or read this
+   * chat's messages — the other side. For the client that is the attorney
+   * AND the firm's team on the bid (they write in the chat too, PR-5, and
+   * their ticks move only on these events); for anyone on the attorney's
+   * side, the client. [] team for every other chat (no query then).
+   */
+  private async receiptAudience(
+    conv: Pick<
+      Conversation,
+      'client_id' | 'attorney_id' | 'case_id' | 'bid_id'
+    >,
+    readerId: string,
+  ): Promise<string[]> {
+    if (readerId !== conv.client_id) return [conv.client_id];
+    const team = (await this.team?.teamOfChat(conv)) ?? [];
+    return [...new Set([conv.attorney_id, ...team])].filter(
+      (id) => id !== readerId,
+    );
   }
 
   /** The delivered pointer moves forward only: the patch to set it to
@@ -2165,13 +2220,15 @@ export class ChatService {
       return { id: target.id, moved: true };
     });
     if (result.moved) {
-      const other =
-        user.sub === conv.client_id ? conv.attorney_id : conv.client_id;
-      this.realtime.toUsers([other], 'message:delivered', {
-        conversationId: id,
-        lastDeliveredMessageId: result.id,
-        deliveredAt: new Date().toISOString(),
-      });
+      this.realtime.toUsers(
+        await this.receiptAudience(conv, user.sub),
+        'message:delivered',
+        {
+          conversationId: id,
+          lastDeliveredMessageId: result.id,
+          deliveredAt: new Date().toISOString(),
+        },
+      );
     }
     return { lastDeliveredMessageId: result.id };
   }
@@ -2288,7 +2345,13 @@ export class ChatService {
       });
       return { message, updated };
     });
-    for (const uid of [updated.client_id, updated.attorney_id]) {
+    // Pack B (ROUND2 #5): every member, the firm's team too (as announce()).
+    const team = (await this.team?.teamOfChat(updated)) ?? [];
+    for (const uid of new Set([
+      updated.client_id,
+      updated.attorney_id,
+      ...team,
+    ])) {
       this.realtime.toUsers([uid], 'message:new', {
         message: this.toMessage(message, uid, updated),
       });

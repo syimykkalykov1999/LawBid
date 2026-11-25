@@ -52,6 +52,7 @@ import 'package:lawbid/features/chat/presentation/chat_post_card.dart';
 import 'package:lawbid/features/chat/presentation/chat_translation.dart';
 import 'package:lawbid/features/chat/presentation/contact_info_screen.dart';
 import 'package:lawbid/features/chat/presentation/desktop_chats.dart';
+import 'package:lawbid/features/chat/presentation/edit_draft_aside.dart';
 import 'package:lawbid/features/chat/presentation/in_chat_search.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/chat/presentation/link_preview_card.dart';
@@ -174,8 +175,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   }
 
   /// Row 189 (Telegram / WhatsApp): the text typed before «Изменить»; it
-  /// comes back into the field when the edit is saved or closed.
-  String? _draftAside;
+  /// comes back into the field when the edit is saved or closed (the same
+  /// keeper as the group's, ROUND1 25.11 row 13).
+  final _draftAside = EditDraftAside<Never>();
 
   /// Row 188: the quoted message's id for a non-text send (the «Ответить»
   /// bar closes); null when nothing is quoted.
@@ -253,6 +255,23 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     s.dispose();
   }
 
+  /// ROUND1 25.11 row 15 (as the group's `_sendVoice`): a recorded note the
+  /// phone could not put in the queue (disk full, the file gone) is not lost
+  /// silently - the reason is shown.
+  Future<void> _sendVoice(VoiceRecording r) async {
+    try {
+      await _thread.sendVoice(
+        path: r.path,
+        durationMs: r.durationMs,
+        waveform: r.waveform,
+        replyToId: _takeReply(),
+      );
+    } on Object catch (e) {
+      if (!mounted) return;
+      showAppSnackBar(context, errorText(ref.read(translatorProvider), e));
+    }
+  }
+
   Future<void> _send() async {
     final text = _text.text;
     if (text.trim().isEmpty) return;
@@ -268,6 +287,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       try {
         await _thread.edit(editing, text);
         if (!mounted) return;
+        // ROUND1 25.11 row 14 (as the group): a slow save must not close
+        // another message's edit picked meanwhile (its text would go).
+        final now = ref.read(chatComposeProvider(widget.conversationId));
+        if (now.editing?.id != editing.id) return;
         _text.clear();
         composeN.clear();
       } on Object catch (e) {
@@ -553,14 +576,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       if (e != null && e.id != prev?.editing?.id) {
         // Row 189: the typed draft is put aside (once, also when another
         // message is picked for editing meanwhile).
-        if (prev?.editing == null) _draftAside = _text.text;
+        _draftAside.hold(_text.text);
         _text.value = TextEditingValue(
           text: e.body,
           selection: TextSelection.collapsed(offset: e.body.length),
         );
       } else if (e == null && prev?.editing != null) {
-        final draft = _draftAside ?? '';
-        _draftAside = null;
+        final draft = _draftAside.release().text;
         _text.value = TextEditingValue(
           text: draft,
           selection: TextSelection.collapsed(offset: draft.length),
@@ -834,12 +856,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                             )
                                         ? (f) => unawaited(_drop(f))
                                         : null,
-                                    onVoice: (r) => _thread.sendVoice(
-                                      path: r.path,
-                                      durationMs: r.durationMs,
-                                      waveform: r.waveform,
-                                      replyToId: _takeReply(),
-                                    ),
+                                    onVoice: _sendVoice,
                                   ),
                                   if (_stickers)
                                     StickerPanel(

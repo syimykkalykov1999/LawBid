@@ -307,6 +307,48 @@ describe('Chat attachments (e2e, OQ-047)', () => {
     );
   });
 
+  // Pack B (25.11, ROUND2 #20): two sends of one file at the same moment
+  // (a double tap, two devices) both passed the «already sent» check and
+  // made two messages on one file. Now the second waits for the first and
+  // is refused; the same send retried still answers with the first message.
+  it('pack B: one file sent twice at once lands once; a retry stays idempotent', async () => {
+    const c = await chat();
+    const doc = await upload(c.attorney.auth, pdf, 'application/pdf');
+    const twice = await Promise.all(
+      [1, 2].map(() =>
+        send(c.attorney.auth, c.id, {
+          type: 'attachment',
+          fileId: doc,
+          fileName: 'twice.pdf',
+        }),
+      ),
+    );
+    expect(twice.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(twice.find((r) => r.status === 409)?.body.error.code).toBe(
+      'FILE_NOT_ATTACHABLE',
+    );
+    expect(await prisma.message.count({ where: { file_id: doc } })).toBe(1);
+
+    const again = await upload(c.client.auth, pdf, 'application/pdf');
+    const clientMessageId = randomUUID();
+    const retried = await Promise.all(
+      [1, 2].map(() =>
+        api()
+          .post(`/api/v1/conversations/${c.id}/messages`)
+          .set(c.client.auth)
+          .send({
+            clientMessageId,
+            type: 'attachment',
+            fileId: again,
+            fileName: 'retry.pdf',
+          }),
+      ),
+    );
+    expect(retried.map((r) => r.status)).toEqual([201, 201]);
+    expect(retried[0].body.data.id).toBe(retried[1].body.data.id);
+    expect(await prisma.message.count({ where: { file_id: again } })).toBe(1);
+  });
+
   it('refuses files before acceptance and from outsiders', async () => {
     const locked = await chat(false);
     const f = await upload(locked.attorney.auth, pdf, 'application/pdf');

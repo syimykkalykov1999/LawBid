@@ -11,9 +11,9 @@ enum DeleteAccountStep {
   /// a password goes on to [reauthPhone] (the code path).
   reauthPassword,
 
-  /// Reauth sub-step 1: enter the phone number verified on this account
-  /// (there is no `GET /users/me` yet to prefill it, see
-  /// `AuthRepository.reauthWithOtp`'s doc comment) and request a code.
+  /// Reauth sub-step 1: request a code to the account's verified e-mail
+  /// (pack E, 25.11: never an SMS — the server sends one only at
+  /// registration and «Забыл пароль»). The name stays for the step order.
   /// Biometric (`BiometricAuthService`) is offered here first as a local
   /// speed bump, but never replaces this step — see that class's doc
   /// comment for why the server still requires the OTP either way.

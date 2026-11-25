@@ -704,11 +704,21 @@ variable "min_daily_signups" {
 variable "tracing_enabled" {
   type        = bool
   default     = false
-  description = "ADOT collector sidecar in the api and worker tasks + OTEL env (spans to AWS X-Ray, 5 % sampled). Off = nothing runs."
+  description = "ADOT collector sidecar in the api and worker tasks + OTEL env (spans to AWS X-Ray: every error and slow trace, tracing_sample_ratio of the rest). Off = nothing runs."
 }
 variable "tracing_sample_ratio" {
   type    = number
   default = 0.05
+}
+# Item 14 (25.11): tail sampling in the collector (modules/ecs).
+variable "tracing_tail_sampling" {
+  type    = bool
+  default = true
+}
+variable "tracing_slow_ms" {
+  type        = number
+  default     = null
+  description = "Traces slower than this (ms) are always kept. null = the p95 latency target (p95_target_ms)."
 }
 variable "synthetic_journey_enabled" {
   type        = bool
@@ -2272,6 +2282,8 @@ module "ecs" {
   kms_key_arn                     = module.kms.key_arn
   tracing_enabled                 = var.tracing_enabled
   tracing_sample_ratio            = var.tracing_sample_ratio
+  tracing_tail_sampling           = var.tracing_tail_sampling
+  tracing_slow_ms                 = coalesce(var.tracing_slow_ms, var.p95_target_ms)
   api_env                         = merge(local.api_env_effective, local.db_pooler_env, local.db_pooler_ca_env, local.object_lock_env, local.db_shard_env, local.db_replica_env)
   worker_db_pool_size             = local.worker_db_pool_size
   cloudfront_invalidation_enabled = true

@@ -268,15 +268,23 @@ export class PostEngagementService {
     await this.visible(postId);
     await this.limits.consume('like', userId);
     // Owner 2026-10-20: one share per user and post per 24 h counts.
+    // Pack E (25.11, ROUND2 #18): the check and the insert run under one
+    // per (post, person) lock, so a double tap or two devices cannot both
+    // pass the "none in 24 h" check (same as PostEventsService.record).
     const since = new Date(Date.now() - 24 * 3600 * 1000);
-    const already = await this.prisma.postShare.findFirst({
-      where: { post_id: postId, user_id: userId, created_at: { gt: since } },
-      select: { post_id: true },
+    const counted = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`post-share:${postId}:${userId}`}, 0))`;
+      const already = await tx.postShare.findFirst({
+        where: { post_id: postId, user_id: userId, created_at: { gt: since } },
+        select: { post_id: true },
+      });
+      if (already) return false;
+      await tx.postShare.create({
+        data: { post_id: postId, user_id: userId },
+      });
+      return true;
     });
-    if (already) return;
-    await this.prisma.postShare.create({
-      data: { post_id: postId, user_id: userId },
-    });
+    if (!counted) return;
     await this.counters.bump('post', postId, 'share_count', 1);
   }
 
