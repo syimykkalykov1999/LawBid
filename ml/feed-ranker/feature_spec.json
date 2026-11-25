@@ -1,0 +1,19 @@
+{
+  "version": "posts-ranker-features-v1",
+  "surface": "posts",
+  "round": 4,
+  "features": [
+    "hot",
+    "interest",
+    "social",
+    "fresh",
+    "language",
+    "authorQuality",
+    "state",
+    "affinity",
+    "seen",
+    "kind_photo",
+    "kind_reel",
+    "kind_brief"
+  ]
+}

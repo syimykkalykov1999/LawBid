@@ -335,6 +335,78 @@ describe('RecommendationsService.postsFor', () => {
     redis.store.set('feed:ver:v', '123');
     expect(await s.postsFor('v', {}, 'k')).toHaveLength(2);
   });
+
+  describe('F2: the learned ranker re-orders the formula’s best N for the model arm', () => {
+    const posts = () => [
+      post('hot', 'A', { like_count: 90 }),
+      post('mid', 'B', { like_count: 40 }),
+      post('low', 'C', { like_count: 5, video_asset_id: 'v' }),
+      post('tail', 'D', { like_count: 0 }),
+    ];
+    const MODEL_ARM = { experimentKey: 'post_ranker', variant: 'model' };
+    const fakeRanker = (answer: 'reverse' | 'fail', topN = 3) => {
+      const seen: Record<string, number>[][] = [];
+      return {
+        seen,
+        topN: jest.fn().mockResolvedValue(topN),
+        score: jest.fn((rows: Record<string, number>[]) => {
+          seen.push(rows);
+          if (answer === 'fail') return Promise.resolve(null);
+          // The model prefers what the formula liked least.
+          return Promise.resolve(Float32Array.from(rows.map((_, i) => i)));
+        }),
+      };
+    };
+    const withRanker = (ranker: unknown) =>
+      new RecommendationsService(
+        makePrisma({ posts: posts() }) as never,
+        makeRedis() as never,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        ranker as never,
+      );
+
+    it('model arm: the top 3 by the formula come back in the model order, the rest below', async () => {
+      const ranker = fakeRanker('reverse');
+      const ids = await withRanker(ranker).postsFor(
+        'viewer',
+        {},
+        'm',
+        MODEL_ARM,
+      );
+      expect(ids).toEqual(['low', 'mid', 'hot', 'tail']);
+      // The model saw the logged-style rows: formula features + seen + kind.
+      expect(ranker.seen[0][0]).toMatchObject({
+        seen: 0,
+        kind_photo: 1,
+        kind_reel: 0,
+      });
+      expect(ranker.seen[0][2]).toMatchObject({ kind_reel: 1 });
+      expect(typeof ranker.seen[0][0].hot).toBe('number');
+    });
+
+    it('control arm and no test: the formula, the model is never asked', async () => {
+      const ranker = fakeRanker('reverse');
+      const control = await withRanker(ranker).postsFor('viewer', {}, 'c', {
+        experimentKey: 'post_ranker',
+        variant: 'control',
+      });
+      const none = await withRanker(ranker).postsFor('viewer', {}, 'n');
+      expect(control).toEqual(['hot', 'mid', 'low', 'tail']);
+      expect(none).toEqual(control);
+      expect(ranker.score).not.toHaveBeenCalled();
+    });
+
+    it('scoring failed (or no model): the formula order is served', async () => {
+      const ranker = fakeRanker('fail');
+      expect(
+        await withRanker(ranker).postsFor('viewer', {}, 'f', MODEL_ARM),
+      ).toEqual(['hot', 'mid', 'low', 'tail']);
+      expect(ranker.score).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 
 describe('RecommendationsService.casesFor', () => {

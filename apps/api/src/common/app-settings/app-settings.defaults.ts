@@ -843,6 +843,34 @@ export const OWNER_EXPERIMENT_SETTINGS = {
   'experiments.ctr_k': 5,
 } as const;
 
+// F2 (docs/dev/ARCHITECTURE_VS_BIG_PLATFORMS_2026-11-25.md §6 item 24): the
+// learned second stage of the posts ranking (Search «For you», reels):
+// a LightGBM model (ml/feed-ranker/train.py) re-orders the formula's best
+// candidates for the model arm of an A/B test. Off until a model exists.
+export const OWNER_RANKER_SETTINGS = {
+  /** 'off' | 'on' | 'auto'. off = the formula for everyone (default). on =
+   * the test runs whenever a model is loaded. auto = only while the loaded
+   * model beat the formula offline (its manifest) and scores inside the
+   * latency budget below. No model = the formula, in every mode. */
+  'reco.ranker.mode': 'off',
+  /** Share of people (0-100) in the test (GrowthBook hash v2, key
+   * `post_ranker`; raising it keeps everyone already inside). */
+  'reco.ranker.traffic_percent': 10,
+  /** Of the people in the test, this share gets the model; the rest are
+   * the control arm (the formula, tagged for the comparison). */
+  'reco.ranker.model_share_percent': 50,
+  /** S3 key of model.onnx in the documents bucket, e.g.
+   * ml/feed-ranker/r202612011530/model.onnx (manifest.json beside it).
+   * Empty = no model. */
+  'reco.ranker.model_key': '',
+  /** How many of the formula's best candidates the model re-orders (the
+   * rest keep the formula's order below them). */
+  'reco.ranker.top_n': 100,
+  /** «Авто»: the model sits out 5 minutes when its scoring p95 (ms) goes
+   * over this. */
+  'reco.ranker.latency_budget_ms': 15,
+} as const;
+
 // Owner 2026-10-05: case urgency. A case with a date reads as "very
 // urgent" with at most `cases.urgency_days_very_urgent` days left, and so
 // on down. Client and hired attorney get reminders
@@ -2458,6 +2486,7 @@ export const APP_SETTINGS = {
   ...OWNER_SEAT_SETTINGS,
   ...OWNER_URGENCY_SETTINGS,
   ...OWNER_EXPERIMENT_SETTINGS,
+  ...OWNER_RANKER_SETTINGS,
   ...OWNER_STALE_SETTINGS,
   ...OWNER_CONTINGENCY_SETTINGS,
   ...OWNER_TRUST_SETTINGS,

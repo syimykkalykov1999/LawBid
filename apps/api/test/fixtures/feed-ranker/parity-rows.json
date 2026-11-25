@@ -1,0 +1,62 @@
+[
+  {
+    "hot": 0.7311,
+    "interest": 0.25,
+    "social": 0.6,
+    "fresh": 0.8807,
+    "language": 1,
+    "authorQuality": 0.4123,
+    "state": 0,
+    "affinity": 0.3333,
+    "seen": 0,
+    "kind_photo": 1,
+    "kind_reel": 0,
+    "kind_brief": 0
+  },
+  {
+    "hot": 0.12345,
+    "interest": 0.00005,
+    "social": 0.99995,
+    "fresh": 0.49999999999999994,
+    "language": 0.5,
+    "authorQuality": 0.123449999,
+    "state": 1e-9,
+    "affinity": 0.66665,
+    "seen": 1,
+    "kind_photo": 0,
+    "kind_reel": 1,
+    "kind_brief": 0
+  },
+  {
+    "hot": 1.5,
+    "interest": -0.2,
+    "social": "0.5",
+    "fresh": true,
+    "language": null,
+    "state": 0,
+    "seen": 0,
+    "kind_brief": 1,
+    "extra_feature_not_in_spec": 0.9
+  },
+  {
+    "hot": 0.0001,
+    "fresh": 0.00004999,
+    "affinity": 0.00015,
+    "kind_photo": 1
+  },
+  {},
+  {
+    "hot": 0.2,
+    "interest": 0.4,
+    "social": 0.6,
+    "fresh": 0.8,
+    "language": 0,
+    "authorQuality": 0.1,
+    "state": 1,
+    "affinity": 0.3,
+    "seen": 0,
+    "kind_photo": 0,
+    "kind_reel": 0,
+    "kind_brief": 1
+  }
+]
