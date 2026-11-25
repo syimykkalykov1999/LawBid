@@ -1,6 +1,7 @@
 import {
   buildSampler,
   safeIncomingSpanAttributes,
+  samplerFromEnv,
   startTelemetry,
   traceSampleRatio,
 } from './otel';
@@ -20,6 +21,21 @@ describe('telemetry knobs (S12-2, S12-6)', () => {
 
   it('builds a parent-based ratio sampler', () => {
     expect(buildSampler(0.05).toString()).toContain('ParentBased');
+  });
+
+  // Item 14 (25.11): with tail sampling the collector decides, so the app
+  // must record every request — also those a phone marked "not sampled".
+  it('records everything when OTEL_TRACES_SAMPLER=always_on (tail sampling)', () => {
+    expect(
+      samplerFromEnv({ OTEL_TRACES_SAMPLER: 'always_on' }).toString(),
+    ).toBe('AlwaysOnSampler');
+    expect(
+      samplerFromEnv({
+        OTEL_TRACES_SAMPLER: 'parentbased_traceidratio',
+        OTEL_TRACES_SAMPLER_ARG: '0.05',
+      }).toString(),
+    ).toContain('ParentBased');
+    expect(samplerFromEnv({}).toString()).toContain('ParentBased');
   });
 
   it('stays off without an endpoint and never throws when the SDK starts', () => {

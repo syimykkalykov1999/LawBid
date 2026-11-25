@@ -300,6 +300,15 @@ export class CommentsService {
           -1,
         );
       }
+      // Pack B (25.11, ROUND2 #6): the people who have the post open drop
+      // it at once, like a new one comes (`comment:new`); [removed] is how
+      // many left the post's count (a top-level one takes its replies).
+      this.realtime?.toRoom(postRoom(c.post_id), 'comment:deleted', {
+        postId: c.post_id,
+        commentId: c.id,
+        parentCommentId: c.parent_comment_id,
+        removed: gone,
+      });
     }
     return { deleted: true };
   }

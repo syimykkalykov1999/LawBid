@@ -1928,10 +1928,15 @@ export class FilesService {
     conversationId: string,
   ): Promise<{ usedBytes: number; quotaBytes: number | null }> {
     const [rows, mb] = await Promise.all([
+      // Pack B (25.11, ROUND2 #14): read through the partial index
+      // messages_conversation_file_idx (prisma/concurrent) — only this
+      // chat's file messages, never every message of a long chat. The
+      // `file_id IS NOT NULL` line is what lets the planner use it.
       this.prisma.$queryRaw<{ bytes: bigint | null }[]>`
         SELECT sum(f.size_bytes)::INT8 AS bytes
         FROM messages m JOIN files f ON f.id = m.file_id
         WHERE m.conversation_id = ${conversationId}::UUID
+          AND m.file_id IS NOT NULL
           AND f.deleted_at IS NULL`,
       this.settings.number('storage.chat_quota_mb'),
     ]);

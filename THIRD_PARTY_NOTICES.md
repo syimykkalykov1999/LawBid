@@ -26,3 +26,4 @@ images, assets) with its verdict: [`docs/dev/LICENSE_AUDIT_2026-11-17.md`](docs/
 | `coturn/coturn` (TURN) | BSD-3-Clause |
 | `quay.io/minio/minio` (local dev and the hidden self-host stack only) | AGPL-3.0, used unmodified; see the audit |
 | `mailhog/mailhog` (local dev only) | MIT |
+| `public.ecr.aws/aws-observability/aws-otel-collector:v0.51.0` (ADOT collector sidecar, only while `tracing_enabled`; its `tail_sampling` processor is OpenTelemetry Collector contrib, configured as documented) | Apache-2.0, used unmodified |

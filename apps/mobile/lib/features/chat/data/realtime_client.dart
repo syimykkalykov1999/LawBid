@@ -139,6 +139,8 @@ class RealtimeClient {
     'channel:post',
     'channel:update',
     'comment:new',
+    // Pack B (25.11): a comment under the open post was deleted.
+    'comment:deleted',
     // Owner row 87 (hotline plan step 5): the client's request moved,
     // «Адвокат на линии». `hotline:connected` / `hotline:ended` come with
     // the attorney / server PR (each name once in this list).
