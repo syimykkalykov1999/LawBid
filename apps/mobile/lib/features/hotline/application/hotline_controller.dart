@@ -9,6 +9,7 @@ import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_screen_addon.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
@@ -16,7 +17,6 @@ import 'package:lawbid/features/hotline/data/hotline_repository.dart';
 import 'package:lawbid/features/hotline/domain/hotline_models.dart';
 import 'package:lawbid/features/hotline/presentation/hotline_call_client.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -146,6 +146,12 @@ final hotlineTimeZoneProvider = Provider<Future<String?> Function()>(
   },
 );
 
+/// The signed-in client's id (the saved request belongs to it). A client
+/// never acts for someone else, so the session's own id is the one.
+final hotlineMeProvider = Provider<String?>(
+  (ref) => ref.watch(sessionControllerProvider.select((s) => s?.sub)),
+);
+
 /// The device clock (tests fix it).
 final hotlineClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
@@ -197,7 +203,7 @@ class HotlineController extends Notifier<HotlineFlow> {
     return const HotlineFlow();
   }
 
-  String? get _me => ref.read(currentUserIdProvider);
+  String? get _me => ref.read(hotlineMeProvider);
   DateTime get _now => ref.read(hotlineClockProvider)();
 
   // --- config / restore -----------------------------------------------------

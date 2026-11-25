@@ -14,7 +14,6 @@ import 'package:lawbid/features/hotline/data/hotline_repository.dart';
 import 'package:lawbid/features/hotline/domain/hotline_models.dart';
 import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -156,7 +155,7 @@ void main() {
         hotlineRepositoryProvider.overrideWithValue(repo),
         featureFlagsControllerProvider.overrideWith(() => _Flags(flag)),
         sharedPreferencesProvider.overrideWithValue(prefs),
-        currentUserIdProvider.overrideWithValue(user),
+        hotlineMeProvider.overrideWithValue(user),
         currentUserRoleProvider.overrideWithValue(UserRole.client),
         realtimeEventsProvider.overrideWithValue(events.stream),
         hotlineEnterCallProvider.overrideWithValue((id) async {
