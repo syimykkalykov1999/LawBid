@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
-import 'package:lawbid/features/blocks/presentation/block_actions.dart';
+import 'package:lawbid/core/safety/block_and_report.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_screen_addon.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
@@ -18,10 +18,6 @@ import 'package:lawbid/features/hotline/domain/hotline_attorney_models.dart';
 import 'package:lawbid/features/hotline/presentation/hotline_line_screen.dart'
     show hotlineLanguageLabel;
 import 'package:lawbid/features/practice/practice_options.dart';
-import 'package:lawbid/features/social/domain/social_models.dart'
-    show ReportTarget;
-import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
-    show showReportSheet;
 import 'package:material_ui/material_ui.dart';
 
 /// The call screen's add-on for the line's call (mockup a4–a7: chips, «⋯»,
@@ -157,10 +153,10 @@ Future<void> showHotlineCallMenu(
   return showAppBottomSheet<void>(
     context: context,
     builder: (sheet) => Consumer(
-      builder: (sheet, ref, _) {
+      builder: (sheet, sheetRef, _) {
         final colors = Theme.of(sheet).extension<AppColorTokens>()!;
         final type = Theme.of(sheet).extension<AppTypographyTokens>()!;
-        final accepting = ref.watch(
+        final accepting = sheetRef.watch(
           hotlineAttorneyControllerProvider.select((s) => s.accepting),
         );
         final line = ref.read(hotlineAttorneyControllerProvider.notifier);
@@ -208,25 +204,15 @@ Future<void> showHotlineCallMenu(
                     showChevron: false,
                     onTap: () async {
                       Navigator.of(sheet).pop();
-                      final blocked = await toggleBlock(
+                      // A block ends the call at once (WhatsApp); the line
+                      // never offers this client to him again (server).
+                      await ref.read(blockAndReportProvider)(
                         context,
                         ref,
                         userId: clientId,
                         displayName: info.clientName,
-                        currentlyBlocked: false,
+                        onBlocked: () => unawaited(line.endBlocked(info)),
                       );
-                      if (!blocked) return;
-                      // A block ends the call at once (WhatsApp); the line
-                      // never offers this client to him again (server).
-                      unawaited(line.endBlocked(info));
-                      if (context.mounted) {
-                        await showReportSheet(
-                          context,
-                          ref,
-                          ReportTarget.user,
-                          clientId,
-                        );
-                      }
                     },
                   ),
                 Padding(

@@ -33,7 +33,6 @@ import {
   CurrentUser,
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
-import { RequireLegalAcceptance } from '../legal-documents/legal-acceptance.guard';
 import { assertHotlineOn } from './hotline-access';
 import {
   HotlineAcceptingDto,
@@ -312,7 +311,6 @@ export class HotlineController {
   }
 
   @Post('requests/:id/offer-case')
-  @RequireLegalAcceptance()
   @ApiOperation({
     summary:
       '«Предложить дело»: our case from the call, offered to its attorney (one per call)',

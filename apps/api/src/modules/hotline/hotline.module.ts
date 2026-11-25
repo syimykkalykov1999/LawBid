@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
-import { LegalAcceptanceModule } from '../legal-documents/legal-acceptance.module';
 import { AdminHotlineController } from './admin-hotline.controller';
 import { CallsHotlineBridge, HOTLINE_CALL_BRIDGE } from './hotline-call-bridge';
 import { HotlineConflictService } from './hotline-conflict.service';
@@ -19,9 +18,9 @@ import { HotlineSweeper } from './hotline-sweeper.service';
  * hotline-calls-untouched.spec.ts). Off by default (flag `hotline`). The
  * gateway adds its events to the existing `/realtime` socket server. */
 @Module({
-  // LegalAcceptanceModule: «Предложить дело» makes a case, so it asks the
-  // same «accept the current documents» as POST /cases.
-  imports: [FeatureFlagsModule, LegalAcceptanceModule],
+  // «Предложить дело» asks the same «accept the current documents» as POST
+  // /cases inside the cases port (cases/hotline-cases.adapter.ts).
+  imports: [FeatureFlagsModule],
   controllers: [HotlineController, AdminHotlineController],
   providers: [
     HotlineService,

@@ -1,16 +1,16 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { PinoLogger } from 'nestjs-pino';
 import { CALL_SILENT_MS } from '../../common/calls/ongoing-call';
-import { ErrorCode } from '../../common/errors/error-code.enum';
-import { BudgetMode } from '../../generated/prisma/client';
+import {
+  HOTLINE_CASES_PORT,
+  type HotlineCaseOffer,
+  type HotlineCasesPort,
+} from '../../common/hotline/hotline-cases.port';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { CallsService } from '../calls/calls.service';
 import { ChatService } from '../chat/chat.service';
-import { CaseInvitesService } from '../cases/case-invites/case-invites.service';
-import { CasesService } from '../cases/cases.service';
-import { FilesService } from '../files/files.service';
 
 /** DI token of the bridge (tests pass a fake or nothing). */
 export const HOTLINE_CALL_BRIDGE = Symbol('HOTLINE_CALL_BRIDGE');
@@ -27,19 +27,11 @@ export interface HotlineCallOpen {
   topic?: string;
 }
 
-/** «Предложить дело» (plan PR 7): the client's case from the call. */
-export interface HotlineCaseOffer {
-  client: RequestUser;
-  attorneyId: string;
-  /** The request's practice code (a category picks its first leaf). */
-  practiceArea: string;
-  state: string;
-  topic: string;
-  budgetAmountDollars?: number;
-  message?: string;
-  clientContactSharingConsent?: boolean;
-  meta: { ip?: string; userAgent?: string; deviceId?: string };
-}
+export type { HotlineCaseOffer } from '../../common/hotline/hotline-cases.port';
+export {
+  caseDescriptionOf,
+  caseTitleOf,
+} from '../../common/hotline/hotline-cases.port';
 
 /** What the 1:1 call machinery says about a hotline call now. */
 export interface HotlineCallState {
@@ -97,24 +89,6 @@ export interface HotlineCallBridge {
 
 const LIVE = new Set(['ringing', 'active']);
 
-/** The case title (10–120 chars, cases DTO): the topic, made long enough
- * with the practice's name when it is a word or two («Развод»). */
-export function caseTitleOf(topic: string, practice: string): string {
-  const t = topic.trim();
-  const title = t.length >= 10 ? t : `${t} — ${practice}`.trim();
-  return (title.length >= 10 ? title : title.padEnd(10, '.')).slice(0, 120);
-}
-
-/** The case description (≥ 20 chars): the topic, the practice and state. */
-export function caseDescriptionOf(
-  topic: string,
-  practice: string,
-  state: string,
-): string {
-  const d = `${topic.trim()}\n\n${practice} · ${state}`;
-  return d.length >= 20 ? d : d.padEnd(20, '.');
-}
-
 const as = (sub: string, role: 'client' | 'attorney'): RequestUser =>
   ({ sub, role }) as RequestUser;
 
@@ -122,9 +96,7 @@ const as = (sub: string, role: 'client' | 'attorney'): RequestUser =>
 export class CallsHotlineBridge implements HotlineCallBridge {
   private callsSvc?: CallsService;
   private chatSvc?: ChatService;
-  private filesSvc?: FilesService;
-  private casesSvc?: CasesService;
-  private invitesSvc?: CaseInvitesService;
+  private casesPortSvc?: HotlineCasesPort;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -145,23 +117,6 @@ export class CallsHotlineBridge implements HotlineCallBridge {
   private get chat(): ChatService {
     this.chatSvc ??= this.moduleRef.get(ChatService, { strict: false });
     return this.chatSvc;
-  }
-
-  private get files(): FilesService {
-    this.filesSvc ??= this.moduleRef.get(FilesService, { strict: false });
-    return this.filesSvc;
-  }
-
-  private get cases(): CasesService {
-    this.casesSvc ??= this.moduleRef.get(CasesService, { strict: false });
-    return this.casesSvc;
-  }
-
-  private get invites(): CaseInvitesService {
-    this.invitesSvc ??= this.moduleRef.get(CaseInvitesService, {
-      strict: false,
-    });
-    return this.invitesSvc;
   }
 
   /** Scenarios 24.11 (Uber / Lyft: a driver on a trip gets no new ride;
@@ -193,80 +148,25 @@ export class CallsHotlineBridge implements HotlineCallBridge {
     return live !== null;
   }
 
-  async avatarUrl(fileId: string | null | undefined): Promise<string | null> {
-    if (!fileId) return null;
-    try {
-      const got = (await this.files.avatarUrlsMany([fileId])).get(fileId);
-      return got?.url256 ?? got?.url ?? null;
-    } catch (err) {
-      this.logger.debug(
-        { err: err instanceof Error ? err.message : err },
-        'hotline: no avatar',
-      );
-      return null;
-    }
+  /** The cases family's port (common/hotline/hotline-cases.port.ts),
+   * looked up once — the hotline module does not import the cases module. */
+  private get casesPort(): HotlineCasesPort {
+    this.casesPortSvc ??= this.moduleRef.get<HotlineCasesPort>(
+      HOTLINE_CASES_PORT,
+      { strict: false },
+    );
+    return this.casesPortSvc;
   }
 
-  /** Plan PR 7 (owner 18.11 mockup c11b / a8): the ordinary case of the
-   * public cases API (the client's checks, limits, contact filter) built
-   * from the call — title and description from «О чём звонок», the
-   * request's practice and state, budget «уточню позже» unless the client
-   * named one — and our ordinary invite to the attorney of the call, who
-   * answers with our bid form. */
-  async offerCase(
+  avatarUrl(fileId: string | null | undefined): Promise<string | null> {
+    return this.casesPort.avatarUrl(fileId);
+  }
+
+  /** «Предложить дело» (plan PR 7): through the cases port. */
+  offerCase(
     i: HotlineCaseOffer,
   ): Promise<{ caseId: string; inviteId: string }> {
-    const area = await this.prisma.practiceArea.findFirst({
-      where: { code: i.practiceArea, is_active: true },
-      select: {
-        id: true,
-        name_en: true,
-        parent_id: true,
-        children: {
-          where: { is_active: true },
-          orderBy: [{ sort: 'asc' }, { code: 'asc' }],
-          select: { id: true },
-          take: 1,
-        },
-      },
-    });
-    const leafId = area?.parent_id ? area.id : area?.children[0]?.id;
-    if (!area || !leafId) {
-      throw new NotFoundException({
-        code: ErrorCode.NOT_FOUND,
-        message: 'The practice area of the call is gone.',
-      });
-    }
-    const topic = i.topic.trim();
-    const title = caseTitleOf(topic, area.name_en);
-    const kase = await this.cases.create(
-      i.client,
-      {
-        practiceAreaId: leafId,
-        title,
-        description: caseDescriptionOf(topic, area.name_en, i.state),
-        primaryStateCode: i.state,
-        budgetMode:
-          i.budgetAmountDollars !== undefined
-            ? BudgetMode.amount
-            : BudgetMode.clarify_later,
-        ...(i.budgetAmountDollars !== undefined
-          ? { budgetAmountDollars: i.budgetAmountDollars }
-          : {}),
-        ...(i.clientContactSharingConsent
-          ? { clientContactSharingConsent: true }
-          : {}),
-      },
-      i.meta,
-    );
-    const invite = await this.invites.create(i.client, kase.id, {
-      attorneyId: i.attorneyId,
-      ...(i.message ? { message: i.message } : {}),
-      ...(i.budgetAmountDollars !== undefined
-        ? { budgetCents: i.budgetAmountDollars * 100 }
-        : {}),
-    });
-    return { caseId: kase.id, inviteId: invite.id };
+    return this.casesPort.offerCase(i);
   }
 
   async open(i: HotlineCallOpen): Promise<{ callId: string }> {
