@@ -28,6 +28,29 @@ describe('effectivePriority (item 21)', () => {
     ).toBe('critical');
   });
 
+  it('call signalling is critical by path (the calls module stays pinned); history is normal', () => {
+    for (const p of [
+      '/api/v1/conversations/c1/calls',
+      '/api/v1/groups/g1/call',
+      '/api/v1/channels/ch1/calls',
+      '/api/v1/calls/k1/join',
+      '/api/v1/calls/k1/accept',
+      '/api/v1/calls/k1/sfu/session',
+      '/api/v1/calls/ice-servers',
+      '/api/v1/calls/k1/status',
+    ]) {
+      expect(effectivePriority(undefined, undefined, p)).toBe('critical');
+    }
+    for (const p of [
+      '/api/v1/calls/history',
+      '/api/v1/calls/history/hide',
+      '/api/v1/calls/ongoing',
+      '/api/v1/conversations/c1/calls-mute',
+    ]) {
+      expect(effectivePriority(undefined, undefined, p)).toBe('degraded');
+    }
+  });
+
   it('the client header only lowers the priority, never raises it', () => {
     expect(effectivePriority(undefined, 'prefetch', '/api/v1/feed')).toBe(
       'best_effort',

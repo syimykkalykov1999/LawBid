@@ -16,7 +16,6 @@ import {
 } from '../../throttler/throttle-setting';
 import { CallIdParamDto, CallStatusQueryDto } from './calls.dto';
 import { CallsService } from './calls.service';
-import { ShedPriority } from '../../common/resilience/shed-priority';
 
 /**
  * Owner 2026-10-28 (a locked Samsung rang on after the caller hung up):
@@ -26,7 +25,6 @@ import { ShedPriority } from '../../common/resilience/shed-priority';
  * `{ state }`. Not part of the app's generated API (the native side calls
  * it), like the LiveKit webhook.
  */
-@ShedPriority('critical')
 @Controller()
 export class CallStatusController {
   constructor(private readonly calls: CallsService) {}

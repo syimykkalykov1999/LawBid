@@ -54,7 +54,6 @@ import {
 } from './sfu.dto';
 import { CallsService } from './calls.service';
 import { RequiresDuty } from '../auth/assistant/assistant-context';
-import { ShedPriority } from '../../common/resilience/shed-priority';
 
 /** OQ-041: in-app audio calls (signaling over the realtime socket);
  * owner 2026-10-05: video calls behind `video_calls`. */
@@ -63,7 +62,6 @@ import { ShedPriority } from '../../common/resilience/shed-priority';
 @ApiErrors(AUTHENTICATED_ERRORS)
 // OQ-048: assistants answer the attorney's calls with the "calls" duty.
 @RequiresDuty('calls')
-@ShedPriority('critical')
 @Controller()
 export class CallsController {
   constructor(private readonly calls: CallsService) {}

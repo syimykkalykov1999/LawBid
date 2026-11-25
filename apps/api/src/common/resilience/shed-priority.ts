@@ -44,6 +44,13 @@ const HEADER_LEVEL: Record<string, ShedPriorityLevel> = {
   degraded: 'degraded',
 };
 
+const ADMIN_PATH = /^\/api\/v1\/admin(\/|$)/;
+/** Call signalling routes of modules/calls (calls.controller.ts,
+ * call-status.controller.ts): start, join, accept, decline, end, SFU
+ * session and ICE servers. Call history stays a normal request. */
+const CALL_SIGNALLING_PATH =
+  /^\/api\/v1\/((conversations|groups|channels)\/[^/]+\/calls?|calls\/(?!history(\/|$)|ongoing$)[^/]+)(\/|$)/;
+
 export function rank(level: ShedPriorityLevel): number {
   return SHED_PRIORITIES.indexOf(level);
 }
@@ -56,9 +63,13 @@ export function effectivePriority(
 ): ShedPriorityLevel {
   // The owner's admin stays reachable during overload (owner rule: no
   // limits on the owner); the admin panel's routes count as critical.
+  // Call signalling is critical too; it is matched by path because the
+  // calls module is pinned unchanged (hotline-calls-untouched.spec.ts).
   const base =
     routeLevel ??
-    (/^\/api\/v1\/admin(\/|$)/.test(path) ? 'critical' : 'degraded');
+    (ADMIN_PATH.test(path) || CALL_SIGNALLING_PATH.test(path)
+      ? 'critical'
+      : 'degraded');
   const raw: unknown = Array.isArray(header)
     ? (header as unknown[])[0]
     : header;
