@@ -7,6 +7,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_catalog.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart'
@@ -21,7 +22,6 @@ import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sh
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
-import 'package:lawbid/features/subscription/subscription_routes.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// What the attorney may put on his line (owner 18.11): the categories of
@@ -612,7 +612,9 @@ class _AccessRow extends ConsumerWidget {
             TextButton(
               key: const ValueKey('hotline-access-connect'),
               onPressed: () => unawaited(
-                context.push<void>(SubscriptionRoutes.subscription),
+                context.push<void>(
+                  AppRoutes.subscriptionRequiredFor('hotline'),
+                ),
               ),
               child: Text(t.t('hotline.att.access.connect')),
             ),

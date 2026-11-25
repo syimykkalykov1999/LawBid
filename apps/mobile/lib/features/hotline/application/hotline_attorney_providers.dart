@@ -5,7 +5,6 @@ import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/hotline/data/hotline_attorney_repository.dart';
 import 'package:lawbid/features/hotline/domain/hotline_attorney_models.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// The master switch (Флаги → «Горячая линия», /config/bootstrap).
@@ -24,9 +23,8 @@ final hotlineFlagOnProvider = Provider<bool>(
 /// The attorney himself (an assistant never waits for calls, the server
 /// refuses it too).
 final hotlineIsAttorneyProvider = Provider<bool>(
-  (ref) =>
-      ref.watch(currentUserRoleProvider) == UserRole.attorney &&
-      !ref.watch(isAssistantProvider),
+  // an assistant has its own role (`UserRole.assistant`), never this one
+  (ref) => ref.watch(currentUserRoleProvider) == UserRole.attorney,
 );
 
 /// `GET /hotline/config` — read only while the flag is on, kept 5 minutes.
