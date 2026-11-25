@@ -1,5 +1,7 @@
 import { ForbiddenException, type ExecutionContext } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
+import { APP_GUARD, Reflector } from '@nestjs/core';
+import { AuthModule } from '../auth.module';
+import { PasskeyController } from '../passkeys/passkey.controller';
 import { lastValueFrom, of } from 'rxjs';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import {
@@ -331,6 +333,58 @@ describe('bot check per route group (item 13)', () => {
       );
       expect(takePending).toHaveBeenCalledWith('sms', '+14155552680');
       expect(record).toHaveBeenCalledWith('sms', sample);
+    });
+  });
+
+  // Item 13: the guard moved from @UseGuards on AuthController and
+  // PasskeyController to one global APP_GUARD. Same routes, same checks.
+  describe('global guard keeps auth and passkey routes exactly as before', () => {
+    it('AuthModule registers AppCheckGuard as a global guard', () => {
+      const providers = Reflect.getMetadata(
+        'providers',
+        AuthModule,
+      ) as unknown[];
+      expect(providers).toContainEqual({
+        provide: APP_GUARD,
+        useClass: AppCheckGuard,
+      });
+    });
+
+    it('the same six auth routes are marked as before, nothing else', () => {
+      const marked = Object.getOwnPropertyNames(AuthController.prototype)
+        .filter((m) => m !== 'constructor')
+        .filter((m) => {
+          const fn = Object.getOwnPropertyDescriptor(
+            AuthController.prototype,
+            m,
+          )!.value as object;
+          return Reflect.getMetadata(APP_CHECK_KEY, fn) !== undefined;
+        })
+        .sort();
+      expect(marked).toEqual(
+        [
+          'passwordLogin',
+          'passwordResetRequest',
+          'phoneStatus',
+          'requestOtp',
+          'social',
+          'verifyOtp',
+        ].sort(),
+      );
+    });
+
+    it('passkey routes carry no mark: the guard passes them as before (it did nothing there)', () => {
+      for (const m of Object.getOwnPropertyNames(PasskeyController.prototype)) {
+        if (m === 'constructor') continue;
+        const fn = Object.getOwnPropertyDescriptor(
+          PasskeyController.prototype,
+          m,
+        )!.value as object;
+        expect(Reflect.getMetadata(APP_CHECK_KEY, fn)).toBeUndefined();
+      }
+      expect(
+        Reflect.getMetadata(APP_CHECK_KEY, PasskeyController),
+      ).toBeUndefined();
     });
   });
 
