@@ -1907,6 +1907,22 @@ export const OWNER_FEED_SETTINGS = {
    * window between two pages' followed posts). Was a fixed 10; extra ones
    * in a busy window were lost. */
   'feed.reposts_per_page': 30,
+  /** Item 23 (F1, 25.11; Twitter "Timelines at Scale"): the followed
+   * posts of the feed come from a timeline precomputed on write (Valkey)
+   * instead of a database read per open. off | on | auto (default: on while
+   * the job queue exists). Any doubt (cold timeline, new follow, an older
+   * page, a cache error) = the database read, the same posts. */
+  'feed.fanout_mode': 'auto',
+  /** Authors with at least this many followers are not written into the
+   * followers' timelines; their posts are read at open time and merged
+   * (Twitter's high-follower accounts). 0 = nobody is written (all read). */
+  'feed.fanout_max_followers': 10000,
+  /** Entries kept in one reader's timeline (Twitter: 800). Older pages
+   * come from the database read. */
+  'feed.fanout_timeline_len': 800,
+  /** A timeline nobody opened for this many days is dropped (only active
+   * readers get writes). */
+  'feed.fanout_timeline_days': 7,
   /** CONTENT H-4: newest verified attorneys added to the «people»
    * candidates next to the 600 best rated, so a new attorney can be
    * suggested at all. 0 = off (only the best rated). */

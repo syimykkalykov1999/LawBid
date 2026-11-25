@@ -43,6 +43,7 @@ describe('switch contract: defaults (a)', () => {
     ['storage.auto_cleanup', true],
     ['storage.auto_retention', true],
     ['chat.link_preview_enabled', 'auto'],
+    ['feed.fanout_mode', 'auto'],
     ['addresses.autocomplete_enabled', 'auto'],
     ['verification.face_match.enabled', 'off'],
     ['files.access_log_enabled', 'auto'],
