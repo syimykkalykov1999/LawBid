@@ -45,10 +45,23 @@ class PlatformDataSaverSource implements SystemDataSaverSource {
     }
   }
 
+  /// EventChannel reports a missing handler through FlutterError.reportError
+  /// when the stream is listened to, not through the stream, so the handler
+  /// is probed on the method channel first: no handler = no stream.
   @override
-  Stream<bool> get changes {
-    if (kIsWeb) return browser.browserSaveDataChanges();
-    return _events
+  Stream<bool> get changes async* {
+    if (kIsWeb) {
+      yield* browser.browserSaveDataChanges();
+      return;
+    }
+    try {
+      await _method.invokeMethod<bool>('isOn');
+    } on MissingPluginException {
+      return;
+    } on PlatformException {
+      // The handler exists; the change stream below still works.
+    }
+    yield* _events
         .receiveBroadcastStream()
         .map((e) => e == true)
         .handleError((Object? _) {}, test: _isPluginError);
