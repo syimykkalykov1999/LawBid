@@ -263,7 +263,8 @@ class ChatMediaAlbum extends ConsumerWidget {
                   url: a.url ?? '',
                   child: ChatPhoto(attachment: a, size: box),
                 ),
-                if (item.sending)
+                // Owner 24.11: the ring only while the bytes go up.
+                if (item.sending && a.progress < 1)
                   ColoredBox(
                     color: Colors.black26,
                     child: Center(
@@ -458,7 +459,7 @@ class ChatDocumentRow extends StatelessWidget {
                     ),
                 ],
               ),
-              if (sending)
+              if (sending && a.progress < 1)
                 Padding(
                   padding: const EdgeInsets.only(top: AppSpacing.xs),
                   child: LinearProgressIndicator(

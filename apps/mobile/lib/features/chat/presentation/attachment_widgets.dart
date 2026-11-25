@@ -23,6 +23,7 @@ import 'package:lawbid/features/chat/application/image_edit.dart'
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
+import 'package:lawbid/features/chat/presentation/chat_camera.dart';
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 import 'package:material_ui/material_ui.dart';
@@ -318,12 +319,14 @@ Future<List<PickedChatFile>> pickChatFiles(
         }
       }
     case 'camera':
-      final f = await ImagePicker().pickImage(
-        source: ImageSource.camera,
+      // ROUND1 25.11 row 17: a refused camera explains itself.
+      if (!context.mounted) return const [];
+      final f = await takeChatPhoto(
+        context,
+        t,
         maxWidth: pickPx,
         maxHeight: pickPx,
         imageQuality: pickQuality,
-        requestFullMetadata: false,
       );
       if (f == null) break;
       if (keepOriginals) {
@@ -547,7 +550,10 @@ class AttachmentMessageBody extends ConsumerWidget {
                     url: a.url ?? '',
                     child: ChatPhoto(attachment: a, size: box),
                   ),
-                  if (sending)
+                  // Owner 24.11 (Telegram): the ring only while the bytes go
+                  // up; then the photo shows plain with the clock until the
+                  // server took the message.
+                  if (sending && a.progress < 1)
                     ColoredBox(
                       color: Colors.black26,
                       child: Center(

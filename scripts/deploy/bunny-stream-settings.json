@@ -1,0 +1,20 @@
+{
+  "$comment": [
+    "Bunny Stream video library encoding settings, kept in code (item 18 / M5 of docs/dev/ARCHITECTURE_VS_BIG_PLATFORMS_2026-11-25.md).",
+    "Field names are Bunny's own (Core API VideoLibraryModel: GET / POST https://api.bunny.net/videolibrary/{id}).",
+    "Checked read-only on every deploy by scripts/deploy/bunny-stream-settings.mjs check; written only by the owner's explicit `apply --yes`.",
+    "HLS is always on in Bunny Stream (no switch), thumbnails are made by Bunny per video (no library switch): nothing to declare for them."
+  ],
+  "encodingTier": 0,
+  "settings": {
+    "EnabledResolutions": ["240p", "360p", "480p", "720p", "1080p"],
+    "EnableMP4Fallback": true,
+    "JitEncodingEnabled": false,
+    "HasWatermark": false
+  },
+  "outputCodecsByTier": {
+    "0": ["x264"],
+    "1": ["x264", "av1"]
+  },
+  "readOnly": ["HasWatermark"]
+}

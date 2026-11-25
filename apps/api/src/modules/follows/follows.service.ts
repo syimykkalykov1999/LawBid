@@ -405,32 +405,43 @@ export class FollowsService {
    * follows indexes — an unchanged list is a 304 without building the
    * people rows. A follow moves the newest time, an unfollow the size.
    * [userId] null = the viewer's own follows (GET /users/me/following).
+   *
+   * Pack E (25.11, ROUND2 #15): the size is the profile's stored
+   * followers_count / following_count plus the unsent counter deltas (every
+   * follow, unfollow, block and account removal bumps them), not a COUNT
+   * over the follows — an attorney with a million followers was a
+   * million-row count on every open, even for the 304. The newest follow is
+   * one row from the (followee|follower, created_at DESC) index.
    */
   async listTag(
     viewerId: string,
     userId: string | null,
     side: 'followers' | 'following',
   ): Promise<string> {
-    const of = async (where: Prisma.FollowWhereInput) => {
-      const [count, newest] = await Promise.all([
-        this.prisma.follow.count({ where }),
+    const of = async (
+      id: string,
+      field: 'followers_count' | 'following_count',
+    ) => {
+      const where: Prisma.FollowWhereInput =
+        field === 'followers_count' ? { followee_id: id } : { follower_id: id };
+      const [size, newest] = await Promise.all([
+        this.storedSize(id, field, where),
         this.prisma.follow.findFirst({
           where,
           orderBy: { created_at: 'desc' },
           select: { created_at: true },
         }),
       ]);
-      return [count, newest?.created_at] as const;
+      return [size, newest?.created_at] as const;
     };
     const list =
       userId === null
         ? null
         : await of(
-            side === 'followers'
-              ? { followee_id: userId }
-              : { follower_id: userId },
+            userId,
+            side === 'followers' ? 'followers_count' : 'following_count',
           );
-    const mine = await of({ follower_id: viewerId });
+    const mine = await of(viewerId, 'following_count');
     return weakEtag(
       'follows',
       side,
@@ -440,6 +451,36 @@ export class FollowsService {
       ...mine,
       timeBucket(FOLLOW_LIST_TAG_BUCKET_MS),
     );
+  }
+
+  /** The list size for [listTag]: the profile counter + its pending
+   * deltas (the same sum the profile shows). A user without a profile row
+   * (an assistant) has no counter, so only then the follows are counted —
+   * such lists are small. */
+  private async storedSize(
+    id: string,
+    field: 'followers_count' | 'following_count',
+    where: Prisma.FollowWhereInput,
+  ): Promise<number> {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { role: true },
+    });
+    const entity = profileEntity(user?.role);
+    const select = { followers_count: true, following_count: true } as const;
+    const row =
+      entity === 'client'
+        ? await this.prisma.clientProfile.findUnique({
+            where: { user_id: id },
+            select,
+          })
+        : await this.prisma.attorneyProfile.findUnique({
+            where: { user_id: id },
+            select,
+          });
+    if (!row) return this.prisma.follow.count({ where });
+    const pending = await this.counters.pending(entity, field, [id]);
+    return row[field] + (pending.get(id) ?? 0);
   }
 
   /** 404 for a profile whose follow lists are not public (R-385: also run

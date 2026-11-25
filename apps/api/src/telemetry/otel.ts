@@ -3,6 +3,7 @@ import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import {
+  AlwaysOnSampler,
   ParentBasedSampler,
   TraceIdRatioBasedSampler,
   type Sampler,
@@ -22,7 +23,9 @@ import { safeUrl } from '../common/logging/http-log-policy';
  * OTEL_EXPORTER_OTLP_ENDPOINT is set (dev/e2e stay untouched); the
  * collector address is the OpenTelemetry Collector sidecar/service of
  * infra (§6.1; modules/ecs `tracing_enabled`, off by default, adds the
- * ADOT sidecar and these env vars; spans go to AWS X-Ray). Sampling is
+ * ADOT sidecar and these env vars; spans go to AWS X-Ray). Sampling: with
+ * tail sampling (default) the app records everything and the collector
+ * keeps errors, slow traces and 5 % of the rest; otherwise
  * ParentBased(TraceIdRatio 5 %). No request bodies or headers are recorded — the
  * instrumentations are left at their defaults and pino redaction covers
  * the logs; spans carry route, status and duration only.
@@ -40,6 +43,19 @@ export function buildSampler(ratio: number): Sampler {
   return new ParentBasedSampler({
     root: new TraceIdRatioBasedSampler(ratio),
   });
+}
+
+/**
+ * Item 14 (25.11): the sampler named by the standard OTEL_TRACES_SAMPLER
+ * env var. `always_on` = tail sampling in the ADOT collector (modules/ecs
+ * `tracing_tail_sampling`): the app records every request, also those a
+ * phone marked "not sampled", and the collector keeps every error and slow
+ * trace plus the configured share of the rest. Anything else = the head
+ * sampling above.
+ */
+export function samplerFromEnv(env: NodeJS.ProcessEnv = process.env): Sampler {
+  if (env.OTEL_TRACES_SAMPLER === 'always_on') return new AlwaysOnSampler();
+  return buildSampler(traceSampleRatio(env));
 }
 
 /**
@@ -84,7 +100,7 @@ function startTelemetryUnsafe(service: 'api' | 'worker'): NodeSDK | null {
       [ATTR_SERVICE_VERSION]: process.env.APP_VERSION ?? 'dev',
     }),
     traceExporter: new OTLPTraceExporter({ url: `${endpoint}/v1/traces` }),
-    sampler: buildSampler(traceSampleRatio()),
+    sampler: samplerFromEnv(),
     instrumentations: [
       getNodeAutoInstrumentations({
         // Noisy, low-value spans (docs/06 §8: API → DB → queues is enough).
