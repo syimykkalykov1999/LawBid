@@ -11,6 +11,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../errors/error-code.enum';
 import { getRequestId } from '../middleware/request-id.middleware';
 import { CallTimeoutError, CircuitOpenError } from '../resilience/resilience';
+import { LoadShedException } from '../resilience/load-shedding';
 import { isRedisInfraError } from '../../redis/redis-errors';
 import { isDbBusyError } from '../../prisma/db-busy-error';
 import type { ApiErrorBody } from '../dto/api-response.dto';
@@ -41,7 +42,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // Plain numeric threshold (not HttpStatus.INTERNAL_SERVER_ERROR) —
     // eslint's no-unsafe-enum-comparison rejects comparing a `number`
     // against an enum member even when the value is a number at runtime.
-    if (status >= 500) {
+    if (exception instanceof LoadShedException) {
+      // Item 21: counted and logged once a minute by LoadSheddingService; a
+      // line per shed request would add load exactly when there is too much.
+    } else if (status >= 500) {
       this.logger.error({ err: exception, requestId }, 'Unhandled exception');
     } else {
       this.logger.warn({ code, requestId }, message);

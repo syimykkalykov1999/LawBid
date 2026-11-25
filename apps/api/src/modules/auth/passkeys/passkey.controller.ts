@@ -60,6 +60,7 @@ import {
   PasskeyRemovedDto,
 } from './passkey.dto';
 import { PasskeyService } from './passkey.service';
+import { ShedPriority } from '../../../common/resilience/shed-priority';
 
 const E = ErrorCode;
 /** Optional: a recent sign-in is enough; otherwise the single-use token
@@ -88,6 +89,7 @@ const PASSKEY_REAUTH_PER_USER_PER_HOUR = 60;
 @ApiTags('auth')
 @ApiErrors(COMMON_ERRORS)
 @AssistantSelf()
+@ShedPriority('critical')
 @Controller('auth/passkeys')
 @UseInterceptors(WebSessionCookieInterceptor)
 @UseGuards(AppCheckGuard)

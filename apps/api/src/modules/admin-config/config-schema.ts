@@ -596,6 +596,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 100000,
   };
+  // Item 21 (A3 / AU2): prioritized load shedding, Выкл / Вкл / Авто.
+  out['realtime.server.shed_mode'] = {
+    ...out['realtime.server.shed_mode'],
+    description:
+      'off | on | auto (default). Load shedding by priority: background first, then prefetch / suggestions, then normal requests; sign-in, payments, calls and sending a message last. on = the fixed thresholds realtime.server.shed_*; auto = the same plus an adaptive concurrency limit (Netflix Gradient2) that sheds only above realtime.server.shed_cpu_start_pct.',
+    pattern: /^(off|on|auto)$/,
+  };
   out['security.password_hash_concurrency'] = {
     ...out['security.password_hash_concurrency'],
     description:
