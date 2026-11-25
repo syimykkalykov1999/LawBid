@@ -26,6 +26,8 @@ LIVE=$(c "Лента: новая кнопка (#1)")
 FIX1=$(c "fix: chat send retried twice (#2)")
 FIX2=$(c "revert: «Лента: новая кнопка» (#3)")
 FEAT=$(c "Звонки: новый экран (#4)")
+RUFIX1=$(c "Исправление: двойная отправка сообщения (#5)")
+RUFIX=$(c "Откат: «Звонки: новый экран» (#6)")
 
 gate() { # gate <tag> [env...]
   local tag="$1"; shift
@@ -51,6 +53,11 @@ ok "budget spent: a feature release is stopped and the override is named"
 gate "$FIX2" FAKE_FIRING="$BURN" || die "fix + revert were stopped"
 grep -q 'only fixes' "$T/out.log" || die "no fix message"
 ok "budget spent: a release of only fix:/revert: commits passes"
+
+# 3b. Our PR titles are Russian: «Исправление:» / «Откат:» count as fixes.
+gate "$RUFIX" LAST_GOOD_TAG="$FEAT" FAKE_FIRING="$BURN" || die "Russian fix / revert titles were stopped"
+grep -q 'only fixes' "$T/out.log" || die "no fix message for Russian titles"
+ok "budget spent: «Исправление:» / «Откат:» commits pass"
 
 # 4. Budget spent + a rollback to an older release: passes.
 gate "$OLD" FAKE_FIRING="$BURN" || die "a rollback was stopped"

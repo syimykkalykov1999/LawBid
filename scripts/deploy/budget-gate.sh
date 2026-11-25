@@ -62,11 +62,11 @@ if [ -n "$LAST" ] && git merge-base --is-ancestor "$LAST" "$TAG" 2>/dev/null; th
 else
   SUBJECTS=$(git log -1 --format=%s "$TAG")
 fi
-NOT_FIX=$(printf '%s\n' "$SUBJECTS" | grep -v -E '^((fix|revert|security)(\([^)]*\))?!?:|Revert ")' | grep -v '^$' || true)
+NOT_FIX=$(printf '%s\n' "$SUBJECTS" | grep -v -E '^((fix|revert|security)(\([^)]*\))?!?:|Revert "|(Исправление|Откат|Безопасность)( |:|$))' | grep -v '^$' || true)
 if [ -z "$NOT_FIX" ]; then
   say "budget gate: the release has only fixes / reverts / security changes, allowed"; exit 0
 fi
-say "budget gate: not a fix (policy: only fix: / revert: / security: ship while a budget is spent):"
+say "budget gate: not a fix (policy: only fix: / revert: / security: / «Исправление:» / «Откат:» / «Безопасность:» ship while a budget is spent):"
 printf '%s\n' "$NOT_FIX" | sed 's/^/  - /' | tee -a "$SUMMARY"
 if [ "$MODE" = "warn" ]; then say "budget gate (warn): would stop this release; continuing"; exit 0; fi
 echo "::error::Error budget spent ($FIRING). Feature releases are halted until the budget recovers (docs/runbooks/error-budget-policy.md). Ship a fix (commit subject fix: / revert: / security:), or the owner sets repository variable BUDGET_GATE=off and writes the reason in the policy log."
