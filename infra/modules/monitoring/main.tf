@@ -1011,6 +1011,9 @@ resource "aws_cloudwatch_metric_alarm" "ses_send_volume" {
 }
 
 output "alerts_topic_arn" { value = aws_sns_topic.alerts.arn }
+# Item 20 (X3): the users-see-errors alarm is the stop condition of every
+# staging FIS drill (Netflix: stop as soon as the steady state breaks).
+output "api_5xx_alarm_arn" { value = aws_cloudwatch_metric_alarm.alb_5xx_ratio.arn }
 output "metrics_namespace" { value = local.ns }
 
 # --- gauges for the dashboards (docs/06 §8 metrics list) ------------------

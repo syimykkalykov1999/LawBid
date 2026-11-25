@@ -22,6 +22,7 @@ terraform {
       version               = "~> 6.72"
       configuration_aliases = [aws.replica]
     }
+    archive = { source = "hashicorp/archive", version = "~> 2.4" }
   }
 }
 
@@ -130,7 +131,47 @@ variable "restore_test_db_class" {
 variable "restore_test_validation_hours" {
   type        = number
   default     = 1
-  description = "Hours the restored copy lives before AWS Backup deletes it (1-168). No custom validation runs; completion and time are the proof."
+  description = "Hours the restored copy lives before AWS Backup deletes it (1-168). The validation query below must finish inside this window."
+}
+
+# --- validation query of the restore test (item 20, D7, 25.11) ------------
+# AWS's documented pattern (aws-backup/latest/devguide/restore-testing-validation.html):
+# EventBridge on the COMPLETED restore job -> Lambda -> PutRestoreValidationResult.
+# The Lambda starts a one-off run of our migrate task with only the host and
+# port pointed at the restored copy; the task runs read queries
+# (lambda/restore_validate.py). Empty cluster = no validation query.
+variable "restore_validation_enabled" {
+  type        = bool
+  default     = true
+  description = "Run a real query against the restored copy and report SUCCESSFUL/FAILED to AWS Backup. Needs restore_test_enabled and the cluster inputs below."
+}
+variable "restore_validation_cluster_name" {
+  type    = string
+  default = ""
+}
+variable "restore_validation_task_family" {
+  type        = string
+  default     = ""
+  description = "Family of the migrate task definition (the latest revision runs, so the image follows every deploy)."
+}
+variable "restore_validation_task_role_arns" {
+  type        = list(string)
+  default     = []
+  description = "Execution and task role of the migrate task (iam:PassRole for RunTask)."
+}
+variable "restore_validation_subnet_ids" {
+  type    = list(string)
+  default = []
+}
+variable "restore_validation_security_group_ids" {
+  type        = list(string)
+  default     = []
+  description = "Security group of the app tasks: the database security group already lets it in."
+}
+variable "restore_validation_min_users" {
+  type        = number
+  default     = 1
+  description = "The restored copy must hold at least this many users (0 for an empty staging)."
 }
 
 variable "tags" {
@@ -345,7 +386,183 @@ resource "aws_cloudwatch_event_target" "restore_test_failed" {
   }
 }
 
+# ------------------------------------------- restore test validation query ----
+locals {
+  restore_validation = var.restore_test_enabled && var.restore_validation_enabled && var.restore_validation_cluster_name != ""
+}
+
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+
+data "archive_file" "restore_validate" {
+  count       = local.restore_validation ? 1 : 0
+  type        = "zip"
+  source_file = "${path.module}/lambda/restore_validate.py"
+  output_path = "${path.module}/.restore-validate-${var.name}.zip"
+}
+
+data "aws_iam_policy_document" "lambda_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "restore_validate" {
+  count              = local.restore_validation ? 1 : 0
+  name               = "${var.name}-restore-validate"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
+  tags               = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "restore_validate_logs" {
+  count      = local.restore_validation ? 1 : 0
+  role       = aws_iam_role.restore_validate[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+data "aws_iam_policy_document" "restore_validate" {
+  count = local.restore_validation ? 1 : 0
+  statement {
+    sid       = "RunTheMigrateTaskInThisClusterOnly"
+    actions   = ["ecs:RunTask"]
+    resources = ["arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task-definition/${var.restore_validation_task_family}:*"]
+    condition {
+      test     = "ArnEquals"
+      variable = "ecs:cluster"
+      values   = ["arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:cluster/${var.restore_validation_cluster_name}"]
+    }
+  }
+  statement {
+    sid       = "WatchAndStopItsTask"
+    actions   = ["ecs:DescribeTasks", "ecs:StopTask"]
+    resources = ["arn:aws:ecs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:task/${var.restore_validation_cluster_name}/*"]
+  }
+  statement {
+    sid       = "PassTheMigrateRoles"
+    actions   = ["iam:PassRole"]
+    resources = var.restore_validation_task_role_arns
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["ecs-tasks.amazonaws.com"]
+    }
+  }
+  statement {
+    sid       = "FindTheRestoredEndpoint"
+    actions   = ["rds:DescribeDBInstances"]
+    resources = ["*"]
+  }
+  statement {
+    sid       = "ReportTheResult"
+    actions   = ["backup:PutRestoreValidationResult"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "restore_validate" {
+  count  = local.restore_validation ? 1 : 0
+  name   = "restore-validate"
+  role   = aws_iam_role.restore_validate[0].id
+  policy = data.aws_iam_policy_document.restore_validate[0].json
+}
+
+resource "aws_cloudwatch_log_group" "restore_validate" {
+  count             = local.restore_validation ? 1 : 0
+  name              = "/aws/lambda/${var.name}-restore-validate"
+  retention_in_days = 400
+  tags              = var.tags
+}
+
+resource "aws_lambda_function" "restore_validate" {
+  count            = local.restore_validation ? 1 : 0
+  function_name    = "${var.name}-restore-validate"
+  role             = aws_iam_role.restore_validate[0].arn
+  runtime          = "python3.14"
+  architectures    = ["arm64"]
+  handler          = "restore_validate.lambda_handler"
+  filename         = data.archive_file.restore_validate[0].output_path
+  source_code_hash = data.archive_file.restore_validate[0].output_base64sha256
+  timeout          = 900
+  memory_size      = 128
+  environment {
+    variables = {
+      CLUSTER              = var.restore_validation_cluster_name
+      TASK_FAMILY          = var.restore_validation_task_family
+      CONTAINER            = "migrate"
+      SUBNETS              = jsonencode(var.restore_validation_subnet_ids)
+      SECURITY_GROUPS      = jsonencode(var.restore_validation_security_group_ids)
+      MIN_USERS            = tostring(var.restore_validation_min_users)
+      TASK_TIMEOUT_SECONDS = "720"
+    }
+  }
+  depends_on = [aws_cloudwatch_log_group.restore_validate]
+  tags       = var.tags
+}
+
+# One attempt per restore job: a validation status cannot be changed once set.
+resource "aws_lambda_function_event_invoke_config" "restore_validate" {
+  count                  = local.restore_validation ? 1 : 0
+  function_name          = aws_lambda_function.restore_validate[0].function_name
+  maximum_retry_attempts = 0
+}
+
+resource "aws_cloudwatch_event_rule" "restore_test_completed" {
+  count       = local.restore_validation ? 1 : 0
+  name        = "${var.name}-restore-test-completed"
+  description = "AWS Backup restore test finished: run the validation query"
+  event_pattern = jsonencode({
+    source        = ["aws.backup"]
+    "detail-type" = ["Restore Job State Change"]
+    detail = {
+      resourceType          = ["RDS"]
+      restoreTestingPlanArn = [aws_backup_restore_testing_plan.db[0].arn]
+      status                = ["COMPLETED"]
+    }
+  })
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_event_target" "restore_test_completed" {
+  count     = local.restore_validation ? 1 : 0
+  rule      = aws_cloudwatch_event_rule.restore_test_completed[0].name
+  target_id = "validate"
+  arn       = aws_lambda_function.restore_validate[0].arn
+}
+
+resource "aws_lambda_permission" "restore_validate" {
+  count         = local.restore_validation ? 1 : 0
+  statement_id  = "AllowEventBridge"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.restore_validate[0].function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = aws_cloudwatch_event_rule.restore_test_completed[0].arn
+}
+
+# FAILED validation = the function raises = this alarm rings the phone.
+resource "aws_cloudwatch_metric_alarm" "restore_validation_failed" {
+  count               = local.restore_validation ? 1 : 0
+  alarm_name          = "${var.name}-restore-validation-failed"
+  alarm_description   = "LawBid: ежемесячная проверка восстановления базы: копия поднялась, но проверочный запрос НЕ прошёл. Что делать: AWS Backup → Jobs → Restore jobs → Validation status; журнал /aws/lambda/${var.name}-restore-validate; docs/runbooks/chaos-and-restore-drills.md. (EN: restore test validation query failed.)"
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions          = { FunctionName = aws_lambda_function.restore_validate[0].function_name }
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [var.critical_topic_arn == "" ? var.alerts_topic_arn : var.critical_topic_arn]
+  ok_actions          = [var.alerts_topic_arn]
+  tags                = var.tags
+}
+
 output "vault_name" { value = aws_backup_vault.main.name }
+output "restore_validation_function" { value = one(aws_lambda_function.restore_validate[*].function_name) }
 output "dr_vault_arn" { value = aws_backup_vault.dr.arn }
 output "plan_id" { value = aws_backup_plan.db.id }
 output "role_arn" { value = aws_iam_role.backup.arn }
