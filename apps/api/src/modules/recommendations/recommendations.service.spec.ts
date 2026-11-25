@@ -274,6 +274,67 @@ describe('RecommendationsService.postsFor', () => {
     await s.postsFor('w', {}, { period: '7d' });
     expect(redis.store.size).toBe(3);
   });
+
+  it('18.11 reels (includeOwn): the viewer’s unwatched own reel leads, a watched one stays in', async () => {
+    const prisma = makePrisma({
+      seen: ['mine-old'],
+      posts: [
+        post('a1', 'A', { like_count: 90, video_asset_id: 'v1' }),
+        post('mine-new', 'viewer', { like_count: 0, video_asset_id: 'v2' }),
+        post('mine-old', 'viewer', {
+          like_count: 0,
+          video_asset_id: 'v3',
+          created_at: new Date(NOW - 50 * 3600 * 1000),
+        }),
+      ],
+    });
+    const ids = await svc(prisma).postsFor('viewer', {}, 'r', null, {
+      includeOwn: true,
+    });
+    expect(ids[0]).toBe('mine-new');
+    expect(ids).toEqual(expect.arrayContaining(['a1', 'mine-old']));
+    expect(ids).toHaveLength(3);
+  });
+
+  it('18.11 the owner’s case: only own reels exist → the ranked list is not empty', async () => {
+    const prisma = makePrisma({
+      posts: [
+        post('r1', 'viewer', { video_asset_id: 'v1' }),
+        post('r2', 'viewer', { video_asset_id: 'v2' }),
+      ],
+    });
+    expect(await svc(prisma).postsFor('viewer', {}, 'r')).toEqual([]);
+    expect(
+      await svc(prisma).postsFor('viewer', {}, 'r', null, {
+        includeOwn: true,
+      }),
+    ).toEqual(['r1', 'r2']);
+  });
+
+  it('24.11 reels: a watched hot reel never comes before an unwatched one (TikTok: nothing seen while new ones are there)', async () => {
+    const prisma = makePrisma({
+      seen: ['hot'],
+      posts: [
+        post('hot', 'A', { like_count: 900, video_asset_id: 'v1' }),
+        post('cold', 'B', { like_count: 0, video_asset_id: 'v2' }),
+      ],
+    });
+    const reels = await svc(prisma).postsFor('viewer', {}, 'r', null, {
+      includeOwn: true,
+    });
+    expect(reels).toEqual(['cold', 'hot']);
+  });
+
+  it('18.11 a bumped feed version (own post public, follow, block) rebuilds the list at once', async () => {
+    const redis = makeRedis();
+    const prisma = makePrisma({ posts: [post('p', 'A')] });
+    const s = svc(prisma, redis);
+    await s.postsFor('v', {}, 'k');
+    prisma.post.findMany.mockResolvedValue([post('p', 'A'), post('q', 'B')]);
+    expect(await s.postsFor('v', {}, 'k')).toEqual(['p']);
+    redis.store.set('feed:ver:v', '123');
+    expect(await s.postsFor('v', {}, 'k')).toHaveLength(2);
+  });
 });
 
 describe('RecommendationsService.casesFor', () => {
@@ -430,12 +491,44 @@ describe('algo audit 2026-10-27 (CONTENT M-6): For-You paging is pinned', () => 
       .spyOn(s, 'postsFor')
       .mockResolvedValueOnce(['a', 'b', 'c'])
       .mockResolvedValueOnce(['z', 'a', 'b']);
-    expect(await s.postsForPage('v', {}, 'k', 0)).toEqual(['a', 'b', 'c']);
-    // The ranked list was rebuilt meanwhile; page 2 still pages the pin.
-    expect(await s.postsForPage('v', {}, 'k', 20)).toEqual(['a', 'b', 'c']);
+    const first = await s.postsForPage('v', {}, 'k', 0);
+    expect(first.ids).toEqual(['a', 'b', 'c']);
+    // The ranked list was rebuilt meanwhile; page 2 still pages the pin
+    // its cursor names (18.11).
+    expect(
+      (await s.postsForPage('v', {}, 'k', 20, { pin: first.pin })).ids,
+    ).toEqual(['a', 'b', 'c']);
     expect(postsFor).toHaveBeenCalledTimes(1);
     // A new first page re-pins the fresh list.
-    expect(await s.postsForPage('v', {}, 'k', 0)).toEqual(['z', 'a', 'b']);
+    expect((await s.postsForPage('v', {}, 'k', 0)).ids).toEqual([
+      'z',
+      'a',
+      'b',
+    ]);
+  });
+
+  it('18.11 a newer first page (pull to refresh, the reels’ fresh mix) never moves an older scroll', async () => {
+    const redis = makeRedis();
+    const s = new RecommendationsService(
+      {} as never,
+      redis as never,
+      settingsOf(true) as never,
+    );
+    jest
+      .spyOn(s, 'postsFor')
+      .mockResolvedValueOnce(['a', 'b', 'c'])
+      .mockResolvedValueOnce(['z', 'a', 'b']);
+    const scroll = await s.postsForPage('v', {}, 'k', 0);
+    const fresh = await s.postsForPage('v', {}, 'k', 0);
+    expect(fresh.ids).toEqual(['z', 'a', 'b']);
+    expect(fresh.pin).not.toBe(scroll.pin);
+    // The old scroll's page 2 still reads ITS copy: nothing skipped/repeated.
+    const page2 = await s.postsForPage('v', {}, 'k', 20, { pin: scroll.pin });
+    expect(page2.ids).toEqual(['a', 'b', 'c']);
+    // And the fresh scroll reads its own.
+    expect(
+      (await s.postsForPage('v', {}, 'k', 20, { pin: fresh.pin })).ids,
+    ).toEqual(['z', 'a', 'b']);
   });
 
   it('a lost pin falls back to the live list (and pins it)', async () => {
@@ -446,7 +539,7 @@ describe('algo audit 2026-10-27 (CONTENT M-6): For-You paging is pinned', () => 
       settingsOf(true) as never,
     );
     jest.spyOn(s, 'postsFor').mockResolvedValue(['x']);
-    expect(await s.postsForPage('v', {}, 'k', 20)).toEqual(['x']);
+    expect((await s.postsForPage('v', {}, 'k', 20)).ids).toEqual(['x']);
     expect(
       [...redis.store.keys()].some((k) => k.startsWith('reco:posts:pin:v:')),
     ).toBe(true);
@@ -464,7 +557,7 @@ describe('algo audit 2026-10-27 (CONTENT M-6): For-You paging is pinned', () => 
       .mockResolvedValueOnce(['a'])
       .mockResolvedValueOnce(['b']);
     await s.postsForPage('v', {}, 'k', 0);
-    expect(await s.postsForPage('v', {}, 'k', 20)).toEqual(['b']);
+    expect((await s.postsForPage('v', {}, 'k', 20)).ids).toEqual(['b']);
     expect(postsFor).toHaveBeenCalledTimes(2);
     expect(redis.store.size).toBe(0);
   });

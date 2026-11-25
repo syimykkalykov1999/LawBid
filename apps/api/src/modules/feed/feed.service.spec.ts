@@ -12,6 +12,8 @@ import { VISIBLE_POST_WHERE } from '../posts/post-presenter.service';
 function fakeRedis(seed: {
   snapshot?: string[];
   seen?: Set<string>;
+  /** When each seen id was seen (ms); default 1 (long ago). */
+  seenAt?: Record<string, number>;
   kv?: Record<string, string>;
   authors?: Record<string, string>;
 }) {
@@ -43,7 +45,11 @@ function fakeRedis(seed: {
       ),
     ),
     zmscore: jest.fn((_k: string, ...ids: string[]) =>
-      Promise.resolve(ids.map((id) => (seed.seen?.has(id) ? '1' : null))),
+      Promise.resolve(
+        ids.map((id) =>
+          seed.seen?.has(id) ? String(seed.seenAt?.[id] ?? 1) : null,
+        ),
+      ),
     ),
     hmget: jest.fn((k: string, ...fields: string[]) =>
       Promise.resolve(
@@ -253,8 +259,11 @@ describe('FeedService recommendation reads (row 64, 10M spike)', () => {
     };
     const old = world({ ...opts, hash: false });
     const now = world({ ...opts, hash: true });
+    // 18.11: the cursor carries when the scroll started (FeedCursor.s).
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(1_795_000_000_000);
     const a = await old.svc.page(viewer, undefined, 10);
     const b = await now.svc.page(viewer, undefined, 10);
+    clock.mockRestore();
     expect(a.items.map((p) => p.id)).toEqual(old.expected(10));
     expect(b.items.map((p) => p.id)).toEqual(a.items.map((p) => p.id));
     expect(b.nextCursor).toEqual(a.nextCursor);
@@ -322,12 +331,13 @@ describe('FeedService followed stream (row 64)', () => {
       string,
       unknown
     >;
+    // 18.11: the viewer's own posts are in every role's stream.
     expect(userWhere).toEqual({
       ...(VISIBLE_POST_WHERE.author as object),
-      id: { in: ['att-1', 'suspended-2'] },
+      id: { in: ['att-1', 'suspended-2', 'viewer'] },
     });
     const stream = streamWhere(prisma);
-    expect(stream?.author_id).toEqual({ in: ['att-1'] });
+    expect(stream?.author_id).toEqual({ in: ['att-1', 'viewer'] });
     expect(stream?.author).toBeUndefined();
     expect(stream).toMatchObject({
       status: 'published',
@@ -339,9 +349,16 @@ describe('FeedService followed stream (row 64)', () => {
   it('no shown author: no posts read for the stream', async () => {
     const { svc, prisma } = build({ redis: fakeRedis({}) });
     prisma.follow.findMany.mockResolvedValue([{ followee_id: 'suspended-1' }]);
-    await svc.page(viewer, undefined, 10);
+    const suspended = { sub: 'suspended-me', role: 'client' } as never;
+    await svc.page(suspended, undefined, 10);
     const stream = streamWhere(prisma);
     expect(stream).toBeUndefined();
+  });
+
+  it('18.11 a client’s own post is in their feed’s page 1 (pull to refresh keeps what they just published)', async () => {
+    const { svc, prisma } = build({ redis: fakeRedis({}) });
+    await svc.page(viewer, undefined, 10);
+    expect(streamWhere(prisma)?.author_id).toEqual({ in: ['viewer'] });
   });
 });
 
@@ -466,7 +483,7 @@ describe('FeedService keyset cursor is an index range (row 126)', () => {
       status: 'published',
       deleted_at: null,
       archived_at: null,
-      author_id: { in: ['att-1'] },
+      author_id: { in: ['att-1', 'viewer'] },
     });
     expect(and[1]).toEqual(postsBefore({ t, id: 'p9' }));
   });
@@ -506,5 +523,71 @@ describe('FeedService keyset cursor is an index range (row 126)', () => {
         expect(now).toEqual(old);
       }
     }
+  });
+});
+
+/** 18.11 (owner: on pull to refresh old posts came on top, new ones at the
+ * bottom, some vanished). */
+describe('FeedService refresh order (18.11)', () => {
+  const tailWhere = (prisma: ReturnType<typeof build>['prisma']) =>
+    postWheres(prisma).find(
+      (w) =>
+        Array.isArray(w.AND) &&
+        (w.AND as Record<string, { notIn?: unknown }>[]).some(
+          (x) => x.author_id?.notIn !== undefined,
+        ),
+    );
+  const notIn = (w: Record<string, unknown> | undefined): string[] => {
+    const item = (w?.AND as Record<string, unknown>[] | undefined)?.find(
+      (x) => 'id' in x,
+    ) as { id: { notIn: string[] } } | undefined;
+    return item?.id.notIn ?? [];
+  };
+
+  it('a recommendation seen on an earlier visit comes back in the tail (it never vanishes)', async () => {
+    const redis = fakeRedis({
+      snapshot: ['p0', 'p1', 'p2'],
+      seen: new Set(['p0', 'p1', 'p2']),
+    });
+    const { svc, prisma } = build({ redis });
+    await svc.page(viewer, undefined, 10);
+    const tail = tailWhere(prisma);
+    expect(tail).toBeDefined();
+    expect(notIn(tail)).not.toEqual(expect.arrayContaining(['p0', 'p1', 'p2']));
+  });
+
+  it('every recommendation seen: no reset that puts the old ranked posts back on top', async () => {
+    const redis = fakeRedis({
+      snapshot: ['p0', 'p1'],
+      seen: new Set(['p0', 'p1']),
+    });
+    const { svc } = build({ redis });
+    const page = await svc.page(viewer, undefined, 10);
+    // The seen set is kept: the page is the newest-first tail, not the
+    // snapshot from its top again.
+    expect(redis.del).not.toHaveBeenCalledWith('feed:seen:viewer');
+    expect(page.items.map((p) => p.id)).toEqual([]);
+  });
+
+  it('within one scroll the tail never repeats what this scroll already served', async () => {
+    const redis = fakeRedis({
+      snapshot: ['p0', 'p1'],
+      seen: new Set(['p0', 'p1']),
+      seenAt: { p0: 5_000, p1: 500 },
+    });
+    const { svc, prisma } = build({ redis });
+    const cursor = encodeFeedCursor({
+      f: null,
+      r: 2,
+      v: 'v1',
+      l: { t: '2026-10-01T12:00:00.000Z', id: 'x' },
+      s: 1_000,
+    });
+    await svc.page(viewer, cursor, 10);
+    const ex = notIn(tailWhere(prisma));
+    // p0 was served in this scroll (seen after it started): left out;
+    // p1 was seen on an earlier visit: may show again lower down.
+    expect(ex).toContain('p0');
+    expect(ex).not.toContain('p1');
   });
 });

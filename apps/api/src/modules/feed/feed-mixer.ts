@@ -49,6 +49,10 @@ export interface FeedCursor {
   /** Last post served by the "everything else, newest first" tail, once
    * followed posts and recommendations ran out; null = tail not started. */
   l?: { t: string; id: string } | null;
+  /** 18.11: when this scroll's first page was read (ms). The tail may show
+   * a recommendation seen before it (an earlier visit: shown lower again,
+   * never lost) but not one this scroll already served. */
+  s?: number;
 }
 
 export function encodeFeedCursor(c: FeedCursor): string {
@@ -85,6 +89,9 @@ export function decodeFeedCursor(raw: string): FeedCursor | null {
       r: Math.floor(c.r),
       v: typeof c.v === 'string' ? c.v : null,
       l: c.l ?? null,
+      ...(typeof c.s === 'number' && Number.isFinite(c.s) && c.s > 0
+        ? { s: Math.floor(c.s) }
+        : {}),
     };
   } catch {
     return null;
