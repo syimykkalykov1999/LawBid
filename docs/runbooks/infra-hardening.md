@@ -80,6 +80,11 @@ Replication), один раз. Маркеры удаления не копиру
 
 - Сейчас: липкость 24 часа на всю группу API. Это перекашивает нагрузку после
   роста и «прибивает» обычные запросы к одной задаче.
+- С 25.11 (G2, STAGE2_ARCH_PERF_2026-11-25) это значение по умолчанию в
+  `infra/envs/prod/variables.tf` вместе с `alb_least_outstanding_requests = true`:
+  первый apply прода после слияния делать в тихое время. Проверка после apply:
+  `/health` без `Set-Cookie: AWSALB`, `/socket.io/?EIO=4&transport=polling` с ней.
+  Откат: обе переменные `false` в tfvars.
 - Включение: `alb_websocket_target_group = true` — отдельная липкая группа
   только для `/socket.io/*`, остальной API без липкости и с
   `least_outstanding_requests`. **Внимание:** провайдер AWS пересоздаёт ECS-сервис

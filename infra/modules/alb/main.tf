@@ -412,8 +412,14 @@ resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.this.arn
   port              = 443
   protocol          = "HTTPS"
-  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = var.certificate_arn
+  # G3 (STAGE2_ARCH_PERF_2026-11-25): hybrid post-quantum key exchange
+  # (X25519MLKEM768 and friends) on TLS 1.3, classical groups for TLS 1.2.
+  # AWS "Security policies for your Application Load Balancer" (checked
+  # 25.11.2026): the recommended policy and the console default; TLS 1.3 + 1.2
+  # like the 2021-06 policy it replaces, minus the four CBC-SHA256/SHA384 TLS 1.2
+  # ciphers (every supported phone and browser has the ECDHE-GCM ones).
+  ssl_policy      = "ELBSecurityPolicy-TLS13-1-2-Res-PQ-2025-09"
+  certificate_arn = var.certificate_arn
   default_action {
     type = "fixed-response"
     fixed_response {

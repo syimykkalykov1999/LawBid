@@ -944,13 +944,20 @@ variable "alb_deletion_protection" {
   type    = bool
   default = true
 }
+# G2 (STAGE2_ARCH_PERF_2026-11-25): prod balances REST by outstanding requests
+# with no stickiness (AWS ELB "Edit target group attributes": least outstanding
+# requests for requests of unequal cost); only /socket.io/* stays sticky on its
+# own target group. The first apply with these ON re-registers the api service
+# in the second group: owner applies it in a quiet window
+# (docs/runbooks/infra-hardening.md, section 6). Incompatible with the ECS built-in
+# canary (api_native_deploy canary/linear): modules/ecs refuses that combination.
 variable "alb_least_outstanding_requests" {
   type    = bool
-  default = false
+  default = true
 }
 variable "alb_websocket_target_group" {
   type    = bool
-  default = false
+  default = true
 }
 
 # Observability round 12: everything billable starts OFF (docs/runbooks/slo.md).
