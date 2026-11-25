@@ -1687,25 +1687,53 @@ describe('hotline use cases (real Valkey)', () => {
 
   // ── plan PR 6–7: the attorney screens (owner 18.11 mockup) ─────────
 
-  it('PR 6: only languages of his own profile put the attorney on the line (owner: the language matters)', async () => {
+  it('owner 25.11: the attorney picks any language of the full list, not only his profile; a client of that language reaches him', async () => {
     if (!up) return;
     spoken.L1 = ['ru'];
     lawyerReady('L1');
+    const view = await svc.goOnline(attorney('L1'), {
+      states: ['CA'],
+      practiceAreas: ['family'],
+      languages: ['ru', 'de'],
+    });
+    expect(view.online).toBe(true);
+    expect(view.languages).toEqual(['ru', 'de']);
+    const a = await ask('C1', ['de']);
+    const offer = offersTo('L1').at(-1)!.data;
+    expect(offer.requestId).toBe(a.id);
+    expect(offer.language).toBe('de');
+    // a language outside the full list is still refused
     await expect(
       svc.goOnline(attorney('L1'), {
         states: ['CA'],
         practiceAreas: ['family'],
-        languages: ['ru', 'en'],
+        languages: ['ru', 'zz'],
       }),
     ).rejects.toMatchObject({
-      response: {
-        code: 'VALIDATION_ERROR',
-        details: { reason: 'language_not_in_profile', languages: ['en'] },
-      },
+      response: { details: { reason: 'unknown_language', languages: ['zz'] } },
     });
-    expect((await svc.lineView('L1', null)).online).toBe(false);
-    await goLine('L1', ['ru']);
-    expect((await svc.lineView('L1', null)).languages).toEqual(['ru']);
+  });
+
+  it('owner 25.11: hotline.attorney_max_languages caps the attorney line (default 50, 0 = no limit)', async () => {
+    if (!up) return;
+    lawyerReady('L1');
+    const line = (languages: string[]) =>
+      svc.goOnline(attorney('L1'), {
+        states: ['CA'],
+        practiceAreas: ['family'],
+        languages,
+      });
+    cfg['hotline.attorney_max_languages'] = 2;
+    await expect(line(['en', 'es', 'ru'])).rejects.toMatchObject({
+      response: { details: { reason: 'languages_too_many', max: 2 } },
+    });
+    expect((await line(['en', 'es'])).languages).toEqual(['en', 'es']);
+    cfg['hotline.attorney_max_languages'] = 0;
+    const all = ['en', 'es', 'ru', 'de', 'fr', 'zh', 'ar', 'hi'];
+    expect((await line(all)).languages).toEqual(all);
+    expect((await svc.config(attorney('L1'))).attorneyMaxLanguages).toBe(0);
+    delete cfg['hotline.attorney_max_languages'];
+    expect((await svc.config(attorney('L1'))).attorneyMaxLanguages).toBe(50);
   });
 
   it('PR 6: a client asking in English never reaches an attorney on the line in Russian only', async () => {
@@ -1723,18 +1751,13 @@ describe('hotline use cases (real Valkey)', () => {
     expect(offer.languages).toEqual(['es', 'ru']);
   });
 
-  it('PR 6: a language he removes from his profile takes him off the line at the next check', async () => {
+  it('owner 25.11: a change of his profile languages keeps him on the line (the line has its own languages)', async () => {
     if (!up) return;
     await goLine('L1', ['en', 'es']);
     expect(await svc.recheckAccess('L1')).toBe(true);
     spoken.L1 = ['en'];
-    expect(await svc.recheckAccess('L1')).toBe(false);
-    const off = events.filter((e) => e.event === 'hotline:line').at(-1)!;
-    expect(off.data).toMatchObject({
-      online: false,
-      reason: 'access',
-      detail: 'language',
-    });
+    expect(await svc.recheckAccess('L1')).toBe(true);
+    expect((await svc.lineView('L1', null)).languages).toEqual(['en', 'es']);
   });
 
   it('PR 6: GET /hotline/config tells the attorney whether and how he may wait for calls', async () => {

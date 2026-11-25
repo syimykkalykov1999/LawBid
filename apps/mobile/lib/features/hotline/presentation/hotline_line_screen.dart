@@ -17,6 +17,10 @@ import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dar
 import 'package:lawbid/features/hotline/application/hotline_attorney_controller.dart';
 import 'package:lawbid/features/hotline/application/hotline_attorney_providers.dart';
 import 'package:lawbid/features/hotline/domain/hotline_attorney_models.dart';
+import 'package:lawbid/features/hotline/presentation/hotline_form_screen.dart'
+    show pickHotlineLanguages;
+import 'package:lawbid/features/hotline/presentation/hotline_text.dart'
+    show hotlineLanguages;
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart'
     show OptionPickerSheet, PickerOption;
 import 'package:lawbid/features/practice/practice_options.dart';
@@ -25,9 +29,10 @@ import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// What the attorney may put on his line (owner 18.11): the categories of
-/// his profile's practices, the states of his VERIFIED licences and the
-/// languages of his profile — the server checks the same (goOnline,
-/// recheckAccess).
+/// his profile's practices and the states of his VERIFIED licences — the
+/// server checks the same (goOnline, recheckAccess). [languages] are his
+/// profile's languages, only pre-selected for convenience: the line takes
+/// any language of the full list, like the client (owner 25.11).
 @immutable
 class HotlineAllowed {
   const HotlineAllowed({
@@ -132,16 +137,27 @@ class _HotlineLineScreenState extends ConsumerState<HotlineLineScreen>
   }
 
   HotlineChoice _initial(HotlineAllowed a) {
+    final known = {for (final l in hotlineLanguages(ref)) l.code};
     final saved = _line.savedChoice().within(
           practices: a.practices.toSet(),
           states: a.states.toSet(),
-          languages: a.languages.toSet(),
+          languages: known,
         );
+    // Pre-selected: his profile's languages, else the app language.
+    final ui = ref.read(languageControllerProvider).value?.code ?? 'en';
+    final fromProfile = [
+      for (final l in a.languages)
+        if (known.contains(l)) l,
+    ];
     return HotlineChoice(
       practiceAreas:
           saved.practiceAreas.isEmpty ? a.practices : saved.practiceAreas,
       states: saved.states.isEmpty ? a.states : saved.states,
-      languages: saved.languages.isEmpty ? a.languages : saved.languages,
+      languages: saved.languages.isNotEmpty
+          ? saved.languages
+          : fromProfile.isNotEmpty
+              ? fromProfile
+              : [ui],
     );
   }
 
@@ -243,13 +259,15 @@ class _HotlineLineScreenState extends ConsumerState<HotlineLineScreen>
           }
         },
         onLanguages: () async {
-          final v = await _pick(
+          // the client's own languages sheet (owner 25.11): the full list
+          final v = await pickHotlineLanguages(
+            context,
+            ref,
+            initial: choice.languages,
+            max: cfg?.attorneyMaxLanguages ?? 50,
             title: t.t('hotline.att.languages'),
-            all: a.languages,
-            current: choice.languages,
-            label: hotlineLanguageLabel,
           );
-          if (v != null && mounted) {
+          if (v != null && v.isNotEmpty && mounted) {
             setState(() => _choice = choice.copyWith(languages: v));
           }
         },
@@ -393,14 +411,11 @@ class _Settings extends ConsumerWidget {
         PickerField(
           key: const ValueKey('hotline-line-languages'),
           label: t.t('hotline.att.languages'),
-          value: allowed.languages.isEmpty
-              ? t.t('hotline.att.noLanguages')
-              : pickedOr(
-                  choice.languages,
-                  hotlineLanguageLabel,
-                  t.t('hotline.att.select'),
-                ),
-          enabled: allowed.languages.isNotEmpty,
+          value: pickedOr(
+            choice.languages,
+            hotlineLanguageLabel,
+            t.t('hotline.att.select'),
+          ),
           onTap: onLanguages,
         ),
         if (error != null) ...[
@@ -687,7 +702,6 @@ class _Notice extends StatelessWidget {
 /// Why the line went off by itself (server `hotline:line` detail).
 String hotlineOffReasonText(Translator t, String reason) => switch (reason) {
       'missed' ||
-      'language' ||
       'licence' ||
       'access' ||
       'switched_off' =>
@@ -701,8 +715,6 @@ String hotlineOffReasonText(Translator t, String reason) => switch (reason) {
 
 /// Why «Ожидать звонки» was refused (`details.reason` or the code).
 String hotlineErrorText(Translator t, String code) => switch (code) {
-      'language_not_in_profile' =>
-        t.t('hotline.att.err.language_not_in_profile'),
       'too_many_combinations' => t.t('hotline.att.err.too_many_combinations'),
       'ATTORNEY_NOT_VERIFIED' || 'licence' => t.t('hotline.att.err.states'),
       'FEATURE_DISABLED' => t.t('hotline.att.offReason.switched_off'),

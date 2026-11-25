@@ -69,6 +69,8 @@ class ApiHotlineAttorneyRepository implements HotlineAttorneyRepository {
       heartbeatSec: d.heartbeatSec.toInt(),
       offerTimeoutSec: d.offerTimeoutSec.toInt(),
       countersIntervalSec: d.countersIntervalSec.toInt(),
+      // an older server sends nothing: its own cap was 50
+      attorneyMaxLanguages: d.attorneyMaxLanguages?.toInt() ?? 50,
       access: a == null
           ? null
           : HotlineAccess(
