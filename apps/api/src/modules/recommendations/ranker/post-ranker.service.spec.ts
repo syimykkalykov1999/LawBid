@@ -253,6 +253,12 @@ describe('PostRankerService', () => {
     const rows = Array.from({ length: 400 }, (_, i) => ({
       ...expected.rows[i % expected.rows.length],
     }));
+    // Warm-up, not timed (standard microbenchmark practice; KNOWN_ERRORS
+    // 244): the first calls compile the WebAssembly / JIT paths and on a
+    // loaded CI runner took >15 ms, which put the cold runs into the p95.
+    for (let i = 0; i < 10; i++) {
+      expect(await r.score(rows)).not.toBeNull();
+    }
     const times: number[] = [];
     for (let i = 0; i < 60; i++) {
       const t0 = performance.now();
