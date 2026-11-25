@@ -261,7 +261,7 @@ void main() {
 
   group('change phone: password / passkey, no SMS code (sms-two-cases)', () {
     testWidgets(
-        '«Забыли пароль?» sends the step-up code to the account e-mail, then the number is saved with no code',
+        '«Забыли пароль?» sends the step-up code by SMS to the account phone (owner 25.11), then the new number is saved with no code',
         (tester) async {
       _tallView(tester);
       final onboarding = FakeOnboardingRepository(_client);
@@ -282,15 +282,16 @@ void main() {
       await tester.tap(find.text('Send code'));
       await tester.pumpAndSettle();
       await _useSms(tester); // owner 2026-10-28: password first
-      // The step-up code goes to the account E-MAIL, never by SMS.
-      expect(onboarding.calls, ['requestReauthCode:ann@example.com']);
+      // Owner 25.11 (`auth.code_channel` = SMS by default): the step-up
+      // code goes by SMS to the account's OWN verified phone.
+      expect(onboarding.calls, ['requestReauthCode:+15551234567']);
       expect(find.text("Confirm it's you"), findsOneWidget);
-      expect(find.textContaining('ann@example.com'), findsOneWidget);
+      expect(find.textContaining('ann@example.com'), findsNothing);
 
       await _enterOtp(tester, '111111');
       // The new number is saved with the token: no code to the new phone.
       expect(onboarding.calls, [
-        'requestReauthCode:ann@example.com',
+        'requestReauthCode:+15551234567',
         'reauth',
         'changePhone:+12025550199:rt',
       ]);
@@ -304,7 +305,7 @@ void main() {
     });
 
     testWidgets(
-        'a phone-only account has no code link: the password or passkey only',
+        'owner 25.11: a phone-only account gets the code link (SMS to its own phone) besides the password',
         (tester) async {
       _tallView(tester);
       final phoneOnly = meFixture(
@@ -342,7 +343,7 @@ void main() {
       await tester.tap(find.text('Send code'));
       await tester.pumpAndSettle();
       expect(find.text('Enter your account password.'), findsOneWidget);
-      expect(find.byKey(const ValueKey('step-up-use-code')), findsNothing);
+      expect(find.byKey(const ValueKey('step-up-use-code')), findsOneWidget);
       expect(onboarding.calls, isEmpty);
       await _tearDown(tester);
     });
@@ -514,9 +515,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(onboarding.calls, ['requestContactCode:ann@example.com']);
     expect(find.text("Confirm it's you"), findsOneWidget);
-    // Owner rule (sms-two-cases): no verified e-mail yet, so no step-up code
-    // at all (never an SMS) — the account password confirms it is me.
-    expect(find.byKey(const ValueKey('step-up-use-code')), findsNothing);
+    // Owner 25.11: no verified e-mail yet, but the verified phone can get
+    // the step-up code by SMS; here the account password confirms it is me.
+    expect(find.byKey(const ValueKey('step-up-use-code')), findsOneWidget);
     await tester.enterText(
       find.descendant(
         of: find.byKey(const ValueKey('step-up-password')),

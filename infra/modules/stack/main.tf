@@ -2545,6 +2545,14 @@ data "aws_iam_policy_document" "task_common" {
       values   = [var.ses_from_address]
     }
   }
+  # Owner 25.11 (`auth.code_channel` = Авто): read-only SES account state —
+  # sending enabled and the daily quota (above 200 = out of the sandbox),
+  # so confirmation codes switch to e-mail only once SES really delivers.
+  # These two actions have no resource-level permissions.
+  statement {
+    actions   = ["ses:GetAccountSendingEnabled", "ses:GetSendQuota"]
+    resources = ["*"]
+  }
 }
 
 # Row 204: the writes of the background jobs into the public site, the status

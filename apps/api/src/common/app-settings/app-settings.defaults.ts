@@ -873,6 +873,11 @@ export const OWNER_RANKER_SETTINGS = {
   /** «Авто»: the model sits out 5 minutes when its scoring p95 (ms) goes
    * over this. */
   'reco.ranker.latency_budget_ms': 15,
+  /** Owner 25.11: Feed → «Посты» (GET /feed), model arm: how many posts of
+   * the feed as it is (followed + own, recommendations, reposts, the
+   * tail) the posts model orders at the start of a scroll; the scroll
+   * pages that order, then goes on newest first. */
+  'reco.ranker.feed_window': 100,
   // Owner 25.11: the reels feed's own model (train.py --feed reels; labels:
   // share, save, like, a real watch). Same meaning as the posts keys above;
   // test key `reel_ranker`; model under ml/feed-ranker/reels/<version>/.
@@ -1324,6 +1329,13 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * answers 403 FEATURE_DISABLED. Identifiers already linked keep working for
    * sign-in; changing the account's one phone/email is a different route. */
   'auth.additional_identifiers_enabled': false,
+  /** Owner 25.11: where a one-time confirmation code of a signed-in person
+   * goes (step-up for case history, data export, account deletion, contact
+   * change, a first password): `sms` (default; SES is not connected),
+   * `email` or `auto` (e-mail while SES is configured and out of its
+   * sandbox). The chosen contact must be verified, else the other one is
+   * used (common/app-settings/code-channel.service.ts). */
+  'auth.code_channel': 'sms',
 };
 
 /** Owner 2026-10-05: storage like Telegram (Система → Хранилище). Every

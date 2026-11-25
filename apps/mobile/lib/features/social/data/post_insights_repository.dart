@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/reels/application/reel_watch_queue.dart'
+    show ReelWatchReport;
 import 'package:lawbid/features/social/domain/post_insights_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -82,6 +84,27 @@ class PostInsightsRepository {
                     api.PostEventItemDtoKind.profileVisit,
                   PostEventKind.view => api.PostEventItemDtoKind.view,
                 },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Owner 25.11: ended reel views (watch time) — `POST /posts/watch`.
+  Future<void> recordWatch(List<ReelWatchReport> views) async {
+    if (views.isEmpty) return;
+    await guardApiCall(
+      () => _posts.recordReelWatch(
+        body: api.RecordReelWatchDto(
+          events: [
+            for (final v in views)
+              api.ReelWatchItemDto(
+                postId: v.postId,
+                viewId: v.viewId,
+                watchedMs: v.watchedMs,
+                durationMs: v.durationMs,
+                completed: v.completed,
               ),
           ],
         ),

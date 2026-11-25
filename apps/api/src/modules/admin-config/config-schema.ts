@@ -734,6 +734,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'On (default): a re-authentication or add-a-sign-in-method code asked by an older app build (without its purpose) is still accepted. Off: a code works only for the flow it was asked for.',
   };
+  // Owner 25.11: SMS by default until SES is connected (a typo must not act).
+  out['auth.code_channel'] = {
+    ...out['auth.code_channel'],
+    description:
+      'Where a confirmation code of a signed-in person goes (case history, data export, account deletion, contact change, first password): sms (default) = the verified phone | email = the verified e-mail | auto = the e-mail while SES is configured and out of its sandbox, else the phone. A person without the chosen contact gets the code on the other verified one.',
+    pattern: /^(sms|email|auto)$/,
+  };
   out['security.signup_block_disposable_email'] = {
     ...out['security.signup_block_disposable_email'],
     description:
@@ -1948,7 +1955,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['reco.ranker.mode'] = {
     ...out['reco.ranker.mode'],
     description:
-      'Learned posts ranker (Search «For you»): off (formula for everyone), on (A/B test whenever a model is loaded), auto (default; only while the model beat the formula offline and scores inside the latency budget).',
+      'Learned posts ranker (Search «For you» and Feed «Posts»): off (formula for everyone), on (A/B test whenever a model is loaded), auto (default; only while the model beat the formula offline and scores inside the latency budget).',
     pattern: /^(off|on|auto)$/,
   };
   out['reco.ranker.traffic_percent'] = {
@@ -1976,6 +1983,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['reco.ranker.latency_budget_ms'],
     min: 1,
     max: 1000,
+  };
+  out['reco.ranker.feed_window'] = {
+    ...out['reco.ranker.feed_window'],
+    description:
+      'Feed «Posts» (GET /feed), model arm: how many posts of the feed as it is the posts model orders at the start of a scroll (the scroll pages that order, then goes on newest first).',
+    min: 20,
+    max: 400,
   };
   // Owner 25.11: the reels' and the case feed's own learned rankers.
   for (const feed of ['reels', 'cases'] as const) {
