@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Datoteka",
   "chat.attach.photo": "Fotografija",
   "chat.attach.photos": "Biblioteka fotografija",
+  "chat.attach.removed": "Datoteka uklonjena: nije prošla sigurnosnu provjeru",
   "chat.attach.skipped": "{count} nije dodano: nepodržan format ili veće od {max} MB",
   "chat.attach.template": "Šablon dokumenta",
   "chat.attach.video": "Video",

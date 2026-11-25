@@ -1261,6 +1261,7 @@
   "chat.attach.label": "فائل",
   "chat.attach.photo": "تصویر",
   "chat.attach.photos": "فوٹو لائبریری",
+  "chat.attach.removed": "فائل ہٹا دی گئی: یہ سیکیورٹی جانچ میں ناکام رہی",
   "chat.attach.skipped": "{count} شامل نہیں کیے گئے: غیر معاون فارمیٹ یا {max} MB سے زیادہ",
   "chat.attach.template": "دستاویزی ٹیمپلیٹ",
   "chat.attach.video": "ویڈیو",

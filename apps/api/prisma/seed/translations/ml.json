@@ -1261,6 +1261,7 @@
   "chat.attach.label": "ഫയൽ",
   "chat.attach.photo": "ഫോട്ടോ",
   "chat.attach.photos": "ഫോട്ടോ ലൈബ്രറി",
+  "chat.attach.removed": "ഫയൽ നീക്കം ചെയ്തു: സുരക്ഷാ പരിശോധനയിൽ പരാജയപ്പെട്ടു",
   "chat.attach.skipped": "{count} ചേർത്തിട്ടില്ല: പിന്തുണയ്ക്കാത്ത ഫോർമാറ്റ് അല്ലെങ്കിൽ {max} MB-യിൽ കൂടുതൽ",
   "chat.attach.template": "രേഖാ ടെംപ്ലേറ്റ്",
   "chat.attach.video": "വീഡിയോ",

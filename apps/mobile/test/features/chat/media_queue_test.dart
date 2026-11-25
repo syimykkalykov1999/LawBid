@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/uploads/storage_uploader.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
@@ -282,9 +283,10 @@ void main() {
   });
 
   test(
-      'owner 24.11: a photo whose scan is slow stays «sending» with its '
-      'ring done, then goes by itself without a second upload', () async {
+      'M3 (owner 25.11, Slack / Telegram): the photo goes as soon as storage '
+      'has it, the scan still running, uploaded once', () async {
     final chat = _Chat();
+    // The server would still answer «pending» to two scan questions.
     final uploader = FakeStorageUploader()..pendingScans = 2;
     final c = _container(chat, uploader);
     final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
@@ -297,27 +299,46 @@ void main() {
       name: 'x.png',
       mime: 'image/png',
     );
+    await c.read(chatMediaOutboxProvider).drain();
     await _settle();
-    var local = c.read(chatThreadProvider('c1')).voiceOutbox.single;
-    // Before: after the scan wait the photo was «not sent» for good.
+
+    // Before: the job waited for the scan and stayed «sending».
+    expect(chat.sent, ['x.png']);
+    expect(uploader.uploads, hasLength(1), reason: 'never sent twice');
+    expect(uploader.notWaited, 1);
+    expect(c.read(chatThreadProvider('c1')).voiceOutbox, isEmpty);
+  });
+
+  test(
+      'an older server still checking (409 pending) keeps the photo '
+      '«sending»; it goes by itself without a second upload', () async {
+    final chat = _Chat()..failSend = StorageUploader.scanPending;
+    final uploader = FakeStorageUploader();
+    final c = _container(chat, uploader);
+    final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+    addTearDown(sub.close);
+    await _settle();
+    final thread = c.read(chatThreadProvider('c1').notifier);
+
+    await thread.sendAttachment(
+      bytes: Uint8List.fromList([1, 2, 3]),
+      name: 'x.png',
+      mime: 'image/png',
+    );
+    await _settle();
+    final local = c.read(chatThreadProvider('c1')).voiceOutbox.single;
     expect(local.delivery, DeliveryState.sending);
     expect(local.failedCode, isNull);
     // The bytes are up: the bubble shows the photo without the ring.
     expect(local.attachment!.progress, 1);
     expect(local.attachment!.localBytes, isNotNull);
 
-    // The queue asks again (backoff / resume / reconnect): only the scan.
+    chat.failSend = null;
     await c.read(chatMediaOutboxProvider).drain();
     await _settle();
-    local = c.read(chatThreadProvider('c1')).voiceOutbox.single;
-    expect(local.delivery, DeliveryState.sending);
-    await c.read(chatMediaOutboxProvider).drain();
-    await _settle();
-
     expect(chat.sent, ['x.png']);
     expect(chat.clientIds.single, local.clientMessageId);
     expect(uploader.uploads, hasLength(1), reason: 'never sent twice');
-    expect(uploader.waited, ['file-1', 'file-1']);
     expect(c.read(chatThreadProvider('c1')).voiceOutbox, isEmpty);
   });
 

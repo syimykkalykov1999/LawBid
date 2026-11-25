@@ -14,6 +14,9 @@ VoiceNoteDto _$VoiceNoteDtoFromJson(Map<String, dynamic> json) => VoiceNoteDto(
   listened: json['listened'] as bool,
   url: json['url'] as String?,
   m4aUrl: json['m4aUrl'] as String?,
+  state: json['state'] == null
+      ? null
+      : ChatMediaState.fromJson(json['state'] as String),
 );
 
 Map<String, dynamic> _$VoiceNoteDtoToJson(VoiceNoteDto instance) =>
@@ -23,4 +26,5 @@ Map<String, dynamic> _$VoiceNoteDtoToJson(VoiceNoteDto instance) =>
       'durationMs': instance.durationMs,
       'waveform': instance.waveform,
       'listened': instance.listened,
+      'state': ?instance.state?.toJson(),
     };

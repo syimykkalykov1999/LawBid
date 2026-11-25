@@ -778,6 +778,44 @@ describe('FilesService', () => {
         service.assertAttachable('u1', 'f1', ['avatar']),
       ).resolves.toMatchObject({ id: 'f1' });
     });
+
+    // M3 (owner 25.11): a chat message may go while the scan still runs —
+    // only when the caller says so, and never with a refused file.
+    it('M3: a pending file only with { pending: true }; infected / failed never', async () => {
+      const pending = make({
+        file: { purpose: 'chat_attachment', scan_status: 'pending' },
+      });
+      await expect(
+        pending.service.assertAttachable(
+          'u1',
+          'f1',
+          ['chat_attachment'],
+          undefined,
+          { pending: true },
+        ),
+      ).resolves.toMatchObject({ id: 'f1', scan_status: 'pending' });
+      expect(
+        await code(
+          pending.service.assertAttachable('u1', 'f1', ['chat_attachment']),
+        ),
+      ).toBe('FILE_NOT_ATTACHABLE');
+      for (const scan_status of ['infected', 'failed'] as const) {
+        const { service } = make({
+          file: { purpose: 'chat_attachment', scan_status },
+        });
+        expect(
+          await code(
+            service.assertAttachable(
+              'u1',
+              'f1',
+              ['chat_attachment'],
+              undefined,
+              { pending: true },
+            ),
+          ),
+        ).toBe('FILE_NOT_ATTACHABLE');
+      }
+    });
   });
 
   describe('assertReadable (security audit #3, finding 8)', () => {

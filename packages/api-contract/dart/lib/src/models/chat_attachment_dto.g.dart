@@ -18,6 +18,9 @@ ChatAttachmentDto _$ChatAttachmentDtoFromJson(Map<String, dynamic> json) =>
       width: (json['width'] as num?)?.toInt(),
       height: (json['height'] as num?)?.toInt(),
       blurhash: json['blurhash'] as String?,
+      state: json['state'] == null
+          ? null
+          : ChatMediaState.fromJson(json['state'] as String),
     );
 
 Map<String, dynamic> _$ChatAttachmentDtoToJson(ChatAttachmentDto instance) =>
@@ -32,4 +35,5 @@ Map<String, dynamic> _$ChatAttachmentDtoToJson(ChatAttachmentDto instance) =>
       'width': ?instance.width,
       'height': ?instance.height,
       'blurhash': ?instance.blurhash,
+      'state': ?instance.state?.toJson(),
     };

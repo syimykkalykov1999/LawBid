@@ -1261,6 +1261,7 @@
   "chat.attach.label": "கோப்பு",
   "chat.attach.photo": "புகைப்படம்",
   "chat.attach.photos": "புகைப்பட நூலகம்",
+  "chat.attach.removed": "கோப்பு அகற்றப்பட்டது: பாதுகாப்புச் சோதனையில் தோல்வியடைந்தது",
   "chat.attach.skipped": "{count} சேர்க்கப்படவில்லை: ஆதரிக்கப்படாத வடிவம் அல்லது {max} MB-ஐ விட பெரியது",
   "chat.attach.template": "ஆவண வார்ப்புரு",
   "chat.attach.video": "வீடியோ",

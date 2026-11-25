@@ -436,6 +436,16 @@ export class MuteCallsDto {
 }
 
 /** OQ-040: the audio of a voice message. */
+/**
+ * M3 (owner 25.11, Slack / Telegram): where a chat file is. A message goes
+ * while the antivirus still checks its file: `processing` (only its sender
+ * has a link), then `ready` (everybody), or `removed` (infected, failed or
+ * deleted: a placeholder for everybody). Absent from an older server:
+ * treat a link as ready and no link as processing.
+ */
+export const CHAT_MEDIA_STATES = ['processing', 'ready', 'removed'] as const;
+export type ChatMediaState = (typeof CHAT_MEDIA_STATES)[number];
+
 export class VoiceNoteDto {
   @ApiPropertyOptional({
     type: String,
@@ -460,6 +470,14 @@ export class VoiceNoteDto {
 
   @ApiProperty({ description: 'The recipient has played it.' })
   listened!: boolean;
+
+  @ApiPropertyOptional({
+    enum: CHAT_MEDIA_STATES,
+    enumName: 'ChatMediaState',
+    description:
+      'M3: processing (only the sender has a link) → ready, or removed (infected / failed / deleted).',
+  })
+  state?: ChatMediaState;
 }
 
 /** OQ-047: a photo or a document in a chat. */
@@ -503,6 +521,14 @@ export class ChatAttachmentDto {
   // while the picture loads instead of a grey box; null for non-images.
   @ApiPropertyOptional({ type: String, nullable: true })
   blurhash?: string | null;
+
+  @ApiPropertyOptional({
+    enum: CHAT_MEDIA_STATES,
+    enumName: 'ChatMediaState',
+    description:
+      'M3: processing (only the sender has a link) → ready, or removed (infected / failed / deleted).',
+  })
+  state?: ChatMediaState;
 }
 
 /** OQ-041: a call in the chat log; senderId is the caller. */

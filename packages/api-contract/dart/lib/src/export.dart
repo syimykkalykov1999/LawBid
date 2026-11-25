@@ -2107,6 +2107,7 @@ export 'models/conversation_counterpart_dto.dart';
 export 'models/contact_card_dto.dart';
 export 'models/shared_post_author_dto.dart';
 export 'models/shared_post_card_dto.dart';
+export 'models/chat_media_state.dart';
 export 'models/voice_note_dto.dart';
 export 'models/chat_attachment_dto.dart';
 export 'models/call_outcome.dart';

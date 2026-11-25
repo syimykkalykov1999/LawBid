@@ -155,6 +155,21 @@ export interface SignedAttachment {
   blurhash: string | null;
 }
 
+/**
+ * M3 (owner 25.11, Slack / Telegram / WhatsApp): a chat file whose message
+ * already went while the antivirus still checks it, or that was removed.
+ * `processing`: only its sender gets a link (`ownerUrl`, the very bytes they
+ * uploaded); everybody else sees the placeholder until `ready`. `removed`:
+ * infected, failed, too big to scan or deleted, for everyone.
+ */
+export interface UnscannedChatFile {
+  state: 'processing' | 'removed';
+  mime: string | null;
+  sizeBytes: number | null;
+  ownerId: string | null;
+  ownerUrl: string | null;
+}
+
 /** Links of one post photo; `blurhash` is the loading placeholder. */
 export interface PostImageLinks {
   url: string;
@@ -945,6 +960,10 @@ export class FilesService {
     // Row 69 (KE 123): a caller inside a transaction passes it, so this read
     // does not take a second pool connection while the transaction holds one.
     db: Pick<Prisma.TransactionClient, 'file'> = this.prisma,
+    // M3 (owner 25.11, Slack / Telegram): a chat message goes while the
+    // antivirus still checks its file; the file is shown to the others only
+    // once clean (ChatService / GroupPresenter hide its link till then).
+    opts: { pending?: boolean } = {},
   ): Promise<File> {
     const file = await db.file.findUnique({ where: { id: fileId } });
     if (!file || file.owner_user_id !== userId) {
@@ -953,7 +972,10 @@ export class FilesService {
         message: 'File not found.',
       });
     }
-    if (!purposes.includes(file.purpose) || file.scan_status !== 'clean') {
+    const scanOk =
+      file.scan_status === 'clean' ||
+      (opts.pending === true && file.scan_status === 'pending');
+    if (!purposes.includes(file.purpose) || !scanOk) {
       throw new ConflictException({
         code: ErrorCode.FILE_NOT_ATTACHABLE,
         message: 'This file cannot be attached.',
@@ -1307,6 +1329,57 @@ export class FilesService {
     fileIds: string[],
   ): Promise<Map<string, SignedAttachment>> {
     return this.signedAttachments('chat_attachment', fileIds);
+  }
+
+  /**
+   * M3 (owner 25.11): the chat files among [fileIds] that have no clean link
+   * ([attachmentUrls] / [voiceLinks] left them out): still being checked, or
+   * removed. One query, and none at all when every file is clean (the usual
+   * page). A pending file's sender gets a short link to their own upload;
+   * nobody else ever gets a link to an unscanned file.
+   */
+  async unscannedChatFiles(
+    purpose: 'chat_attachment' | 'chat_voice',
+    fileIds: string[],
+    linked: ReadonlySet<string>,
+  ): Promise<Map<string, UnscannedChatFile>> {
+    const out = new Map<string, UnscannedChatFile>();
+    const ids = [...new Set(fileIds)].filter((id) => !linked.has(id));
+    if (ids.length === 0) return out;
+    const rows = await this.prisma.file.findMany({
+      where: { id: { in: ids }, purpose },
+      select: {
+        id: true,
+        mime: true,
+        size_bytes: true,
+        scan_status: true,
+        deleted_at: true,
+        owner_user_id: true,
+        s3_bucket: true,
+        s3_key: true,
+      },
+    });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const ttl = this.storage.configured ? await this.confidentialTtl() : 0;
+    for (const id of ids) {
+      const f = byId.get(id);
+      if (f && f.scan_status === 'clean' && f.deleted_at === null) {
+        // Clean, but no link was made (storage not set up, dev): ready.
+        continue;
+      }
+      const processing = f?.scan_status === 'pending' && f.deleted_at === null;
+      out.set(id, {
+        state: processing ? 'processing' : 'removed',
+        mime: processing ? f.mime : null,
+        sizeBytes: processing ? Number(f.size_bytes) : null,
+        ownerId: f?.owner_user_id ?? null,
+        ownerUrl:
+          processing && this.storage.configured
+            ? await this.storage.signedGetUrl(f.s3_bucket, f.s3_key, ttl)
+            : null,
+      });
+    }
+    return out;
   }
 
   /**

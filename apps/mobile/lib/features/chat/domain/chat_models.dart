@@ -427,6 +427,7 @@ class ChatAttachment {
     this.localBytes,
     this.progress = 0,
     this.blurhash,
+    this.removed = false,
   });
 
   final String fileId;
@@ -450,6 +451,10 @@ class ChatAttachment {
   /// Owner row 106 (Telegram): the photo's tiny blurred stand-in from the
   /// server, drawn while the picture loads instead of a grey box.
   final String? blurhash;
+
+  /// M3 (owner 25.11): the antivirus refused the file (or it is gone) — the
+  /// bubble shows «removed» for everyone instead of the file.
+  final bool removed;
 
   /// Lowercase extension of [name] ("pdf", "xlsx"…), '' when none.
   /// Owner 2026-10-17: a video (MP4 / MOV).
@@ -478,6 +483,7 @@ class ChatAttachment {
         localBytes: localBytes,
         progress: progress ?? this.progress,
         blurhash: blurhash,
+        removed: removed,
       );
 }
 

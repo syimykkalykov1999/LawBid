@@ -1,5 +1,6 @@
 import { videoDimensions } from '../processing/video-dimensions';
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import type { File } from '../../../generated/prisma/client';
 import { createHash } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';
@@ -36,6 +37,11 @@ import { MediaModerationQueue } from '../../media-moderation/media-moderation.qu
 import { ReadBudget, SCAN_READ_BUDGET_MB } from '../read-budget';
 import { RealtimePublisher } from '../../realtime/realtime-publisher.service';
 import { ScanHandoff } from './scan-handoff';
+import {
+  CHAT_SCAN_PURPOSES,
+  FILE_SCAN_LISTENER_TOKENS,
+  type FileScanListener,
+} from './scan-listeners';
 import { readUploadLimits } from '../upload-limits';
 import {
   FfmpegUnavailableError,
@@ -112,6 +118,8 @@ export class FileScanProcessor {
     @Optional() private readonly realtime?: RealtimePublisher,
     // Owner row 146: the AAC/M4A copy of a browser (WebM/Opus) voice note.
     @Optional() private readonly voice?: VoiceTranscoder,
+    // M3 (owner 25.11): the chats whose message waits for this file.
+    @Optional() private readonly moduleRef?: ModuleRef,
   ) {
     this.logger.setContext(FileScanProcessor.name);
   }
@@ -581,13 +589,49 @@ export class FileScanProcessor {
    * of asking every 700 ms. Best effort: the app still asks now and then.
    */
   private ready(
-    file: Pick<File, 'id' | 'owner_user_id'>,
+    file: Pick<File, 'id' | 'owner_user_id' | 'purpose'>,
     scanStatus: 'clean' | 'infected' | 'failed',
   ): void {
     this.realtime?.toUsers([file.owner_user_id], 'file:ready', {
       fileId: file.id,
       scanStatus,
     });
+    // M3 (owner 25.11, Slack / Telegram): a chat message sent while this
+    // file was checked shows it to the others now, or shows it removed.
+    if (CHAT_SCAN_PURPOSES.includes(file.purpose)) {
+      void this.tellChats(file, scanStatus);
+    }
+  }
+
+  private listeners?: FileScanListener[];
+
+  /** The chat listeners of the running app, found once (none in a test
+   * module without chats). Best effort, like the push above: the page
+   * itself always shows the file's current state. */
+  private async tellChats(
+    file: Pick<File, 'id' | 'owner_user_id' | 'purpose'>,
+    scanStatus: 'clean' | 'infected' | 'failed',
+  ): Promise<void> {
+    this.listeners ??= FILE_SCAN_LISTENER_TOKENS.flatMap((token) => {
+      try {
+        const l = this.moduleRef?.get<FileScanListener>(token, {
+          strict: false,
+        });
+        return l ? [l] : [];
+      } catch {
+        return [];
+      }
+    });
+    for (const l of this.listeners) {
+      try {
+        await l.fileScanEnded(file, scanStatus);
+      } catch (err) {
+        this.logger.warn(
+          { fileId: file.id, err },
+          'Chat not told that its file check ended',
+        );
+      }
+    }
   }
 
   /**
@@ -651,10 +695,10 @@ export class FileScanProcessor {
       where: { id: fileId, scan_status: 'pending' },
       data: { scan_status: status },
     });
-    if (!this.realtime || !(done?.count > 0)) return;
+    if ((!this.realtime && !this.moduleRef) || !(done?.count > 0)) return;
     const row = await this.prisma.file.findUnique({
       where: { id: fileId },
-      select: { id: true, owner_user_id: true },
+      select: { id: true, owner_user_id: true, purpose: true },
     });
     if (row) this.ready(row, status);
   }

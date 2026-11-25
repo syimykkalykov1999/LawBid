@@ -6,6 +6,7 @@ import { AdminAccessModule } from '../admin-access/admin-access.module';
 import { BlocksModule } from '../blocks/blocks.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { FilesModule } from '../files/files.module';
+import { GROUP_FILE_SCAN_LISTENER } from '../files/files.public';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { PrivacySettingsModule } from '../privacy-settings/privacy-settings.module';
@@ -51,6 +52,8 @@ import { GroupFanoutQueue } from './group-fanout.queue';
     AdminGroupsService,
     // Owner 2026-10-22: the ordered fan-out queue (producer side).
     GroupFanoutQueue,
+    // M3 (owner 25.11): the end of a file's check reaches its group message.
+    { provide: GROUP_FILE_SCAN_LISTENER, useExisting: GroupsService },
   ],
   exports: [GroupsService],
 })
