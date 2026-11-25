@@ -621,6 +621,10 @@ export class BootstrapService {
         // older server does not send the key, and the page sends no mark).
         'client.request_priority_enabled':
           CLIENT_TUNING_DEFS['client.request_priority_enabled'].default,
+        // Stage 2 SRE (Б5): always present, so the website learns that THIS
+        // server allows `X-Request-Timeout-Ms` in CORS (same rule as above).
+        'client.deadline_header_enabled':
+          CLIENT_TUNING_DEFS['client.deadline_header_enabled'].default,
         // D1-53: always present, so the consent never shows a stale number.
         'verification.face_match.retention_days':
           APP_SETTINGS['verification.face_match.retention_days'],

@@ -1121,6 +1121,20 @@ Redistribution and use in source and binary forms, with or without modification,
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
+## grpc-java retry throttling (gRFC A6) — Apache-2.0 (ported)
+
+https://github.com/grpc/grpc-java (Copyright 2017 The gRPC Authors) and the
+design https://github.com/grpc/proposal/blob/master/A6-client-retries.md
+(«Retry Throttling»). Stage 2 SRE (Б5): `lib/core/network/retry_budget.dart`
+`RetryThrottle` is a Dart port of `core/src/main/java/io/grpc/internal/
+RetriableStream.java` `Throttle` (counts in thousandths, threshold = half
+of the max, a qualified failure takes 1, a success gives `tokenRatio`).
+Changed: Java → Dart, no atomics (one isolate), numbers from the server's
+`client.retry_tokens_max` / `client.retry_token_ratio`. The client-side
+adaptive throttling next to it (`AdaptiveThrottle`) is the formula published
+in the Google SRE Book, ch. 21 «Handling Overload» (no code copied).
+License: Apache License 2.0, https://www.apache.org/licenses/LICENSE-2.0
+
 ## Native iOS / Android SDKs linked by the Flutter plugins (licence audit 2026-11-17)
 
 Flutter puts the LICENSE of every Dart package into the app by itself. The

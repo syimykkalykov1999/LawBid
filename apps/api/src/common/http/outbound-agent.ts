@@ -1,4 +1,5 @@
 import { Agent, setGlobalDispatcher, type Dispatcher } from 'undici';
+import { currentDeadlineSignal } from '../resilience/request-deadline';
 
 /**
  * S8-3 (speed audit 2026-10-25): outbound HTTP to vendors (FCM, Bunny,
@@ -79,6 +80,49 @@ const STALE_CODES = new Set([
   'ERR_HTTP2_STREAM_CANCEL',
   'ERR_HTTP2_INVALID_SESSION',
 ]);
+
+let deadlineFetchInstalled = false;
+let originalFetch: typeof globalThis.fetch | undefined;
+
+/**
+ * Stage 2 SRE (Б5, SRE Book ch. 22 «Cancellation propagation»): an outbound
+ * `fetch` started by a read request whose app already gave up (its
+ * `X-Request-Timeout-Ms` passed, or it hung up) is aborted with it — the
+ * request's AbortSignal joins the caller's own one (`AbortSignal.any`,
+ * Node ≥ 20; WHATWG fetch: the init signal wins over the Request's).
+ * Outside such a request (no header, writes, cron jobs) the call is
+ * unchanged. Kill switch: `OUTBOUND_DEADLINE=off` (env, read at boot).
+ */
+export function installDeadlineFetch(
+  env: NodeJS.ProcessEnv = process.env,
+): void {
+  if (deadlineFetchInstalled || env.OUTBOUND_DEADLINE === 'off') return;
+  const base = globalThis.fetch;
+  if (typeof base !== 'function') return;
+  deadlineFetchInstalled = true;
+  originalFetch = base;
+  globalThis.fetch = (
+    input: Parameters<typeof fetch>[0],
+    init?: RequestInit,
+  ) => {
+    const request = currentDeadlineSignal();
+    if (!request) return base(input, init);
+    const own =
+      init?.signal ??
+      (typeof Request !== 'undefined' && input instanceof Request
+        ? input.signal
+        : undefined);
+    const signal = own ? AbortSignal.any([own, request]) : request;
+    return base(input, { ...init, signal });
+  };
+}
+
+/** Test hook. */
+export function resetDeadlineFetchForTest(): void {
+  if (originalFetch) globalThis.fetch = originalFetch;
+  originalFetch = undefined;
+  deadlineFetchInstalled = false;
+}
 
 /** True for the errors of a kept-alive socket the peer closed meanwhile. */
 export function isStaleSocketError(error: unknown): boolean {

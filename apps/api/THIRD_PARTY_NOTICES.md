@@ -76,6 +76,15 @@ bounds settable at run time from the admin settings. The npm port
 License: Apache License 2.0, https://www.apache.org/licenses/LICENSE-2.0
 (full text in the repository's LICENSE file).
 
+## Envoy `x-envoy-expected-rq-timeout-ms` — Apache-2.0 (idea only)
+
+https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/router_filter
+— Stage 2 SRE (Б5): the apps send `X-Request-Timeout-Ms` (how long they
+wait), the job Envoy's header does between proxies; the server stops a read
+nobody waits for (`src/common/resilience/request-deadline.ts`, Google SRE
+Book ch. 22 «deadline propagation», «cancellation propagation»). No code
+copied; the scope follows our own `common/queues/job-signal.ts`.
+
 ## @fastify/under-pressure — MIT (idea only)
 
 https://github.com/fastify/under-pressure — the event-loop utilization signal

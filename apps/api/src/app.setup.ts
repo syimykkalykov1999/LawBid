@@ -235,6 +235,10 @@ export function configureApp(
         // (load shedding). The website sends it only after the bootstrap
         // of a server with this line says so (`client.request_priority_enabled`).
         'X-Request-Priority',
+        // Stage 2 SRE (Б5): how long the app waits (Envoy-style deadline).
+        // The website sends it only after the bootstrap of a server with
+        // this line says so (`client.deadline_header_enabled`).
+        'X-Request-Timeout-Ms',
       ],
       // ... and reads the tag from `ETag`, which a cross-origin page may
       // not see unless it is exposed.

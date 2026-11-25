@@ -12,6 +12,10 @@ import { ErrorCode } from '../errors/error-code.enum';
 import { getRequestId } from '../middleware/request-id.middleware';
 import { CallTimeoutError, CircuitOpenError } from '../resilience/resilience';
 import { LoadShedException } from '../resilience/load-shedding';
+import {
+  deadlinePassedNow,
+  isDeadlineError,
+} from '../resilience/request-deadline';
 import { isRedisInfraError } from '../../redis/redis-errors';
 import { isDbBusyError } from '../../prisma/db-busy-error';
 import type { ApiErrorBody } from '../dto/api-response.dto';
@@ -24,6 +28,9 @@ import type { ApiErrorBody } from '../dto/api-response.dto';
  * `code` in its response body matching ErrorCode; this filter normalizes
  * whatever it gets into that shape rather than each controller doing it.
  */
+/** Stage 2 SRE (Б5): the gRPC status name; the apps never retry it. */
+const DEADLINE_EXCEEDED = 'DEADLINE_EXCEEDED';
+
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   constructor(private readonly logger: PinoLogger) {
@@ -45,6 +52,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (exception instanceof LoadShedException) {
       // Item 21: counted and logged once a minute by LoadSheddingService; a
       // line per shed request would add load exactly when there is too much.
+    } else if (code === DEADLINE_EXCEEDED) {
+      // Stage 2 SRE (Б5): the app's own deadline, not a server fault.
+      this.logger.warn({ code, requestId }, message);
     } else if (status >= 500) {
       this.logger.error({ err: exception, requestId }, 'Unhandled exception');
     } else {
@@ -99,6 +109,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
         code: ErrorCode.VALIDATION_ERROR,
         message: 'Request validation failed.',
         details,
+      };
+    }
+
+    // Stage 2 SRE (Б5): work stopped because the app's deadline
+    // (`X-Request-Timeout-Ms`) passed or it hung up — a read the app no
+    // longer waits for. Also an error that a stopped read caused further
+    // down (Postgres «canceling statement due to statement timeout», an
+    // aborted fetch) while the deadline is over. gRPC: DEADLINE_EXCEEDED.
+    if (
+      isDeadlineError(exception) ||
+      (!(exception instanceof HttpException) && deadlinePassedNow())
+    ) {
+      return {
+        status: HttpStatus.GATEWAY_TIMEOUT,
+        code: DEADLINE_EXCEEDED,
+        message: 'The request ran past the time the app waits for it.',
       };
     }
 

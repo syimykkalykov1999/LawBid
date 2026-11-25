@@ -6,6 +6,7 @@ import {
   LoadSheddingMiddleware,
   LoadSheddingModule,
 } from './common/resilience/load-shedding';
+import { RequestDeadlineMiddleware } from './common/resilience/request-deadline.middleware';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 import { startTime, type Options as PinoHttpOptions } from 'pino-http';
@@ -534,6 +535,9 @@ export class AppModule implements NestModule {
     // instead of timing out. Item 21: this counts requests in flight and
     // samples their time; LoadSheddingGuard decides by route priority.
     consumer.apply(LoadSheddingMiddleware).forRoutes(ALL_ROUTES);
+    // Stage 2 SRE (Б5): a read carrying `X-Request-Timeout-Ms` stops when
+    // the app no longer waits (deadline / hang-up), SRE Book ch. 22.
+    consumer.apply(RequestDeadlineMiddleware).forRoutes(ALL_ROUTES);
     // Owner 2026-10-22: error rate and p95 for «Состояние системы».
     consumer.apply(HttpStatsMiddleware).forRoutes(ALL_ROUTES);
     // Owner 2026-10-23: admin GETs are private and revalidated by ETag.
