@@ -83,6 +83,7 @@ import {
   QrLoginPollResultDto,
   QrLoginPreviewDto,
 } from './dto/qr-login.dto';
+import { ShedPriority } from '../../common/resilience/shed-priority';
 
 const E = ErrorCode;
 /** Global JwtAuthGuard 401s, for the routes that need a bearer token. */
@@ -127,6 +128,7 @@ const IdempotencyKeyHeader = ApiHeader({
 // the attorney's account, set the attorney's password or sign the
 // attorney's devices out (OWASP ASVS V4.1.3 least privilege).
 @AssistantSelf()
+@ShedPriority('critical')
 @Controller('auth')
 // Owner 2026-10-22 (audit #7): the website's refresh token goes into an
 // HttpOnly cookie on every route that issues one (see web-session-cookie).

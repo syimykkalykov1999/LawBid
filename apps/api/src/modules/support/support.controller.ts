@@ -41,6 +41,7 @@ import {
   AssistantAllowed,
   AssistantSelf,
 } from '../auth/assistant/assistant-context';
+import { ShedPriority } from '../../common/resilience/shed-priority';
 
 const E = ErrorCode;
 type Page<T> = { items: T[]; nextCursor: string | null };
@@ -101,6 +102,7 @@ export class SupportController {
   }
 
   @AssistantSelf()
+  @ShedPriority('critical')
   @Post(':id/messages')
   @ApiOperation({
     summary: 'Write to support (reopens a resolved ticket; closed → 409)',

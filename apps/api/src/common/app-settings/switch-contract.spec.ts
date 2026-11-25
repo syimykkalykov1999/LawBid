@@ -64,6 +64,8 @@ describe('switch contract: defaults (a)', () => {
     ['hotline.short_notice_enabled', false],
     ['hotline.review_enabled', true],
     ['hotline.client_steps_enabled', true],
+    // Item 21: prioritized load shedding, Авто by default.
+    ['realtime.server.shed_mode', 'auto'],
   ];
   it.each(table)('%s defaults to %p with nothing stored', async (key, want) => {
     expect(APP_SETTINGS[key]).toBe(want);

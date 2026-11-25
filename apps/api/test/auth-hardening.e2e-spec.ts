@@ -257,9 +257,12 @@ describe('Auth hardening (e2e)', () => {
   // -------------------------------------------------------------------
   describe('login-method flags enforced server-side', () => {
     afterAll(async () => {
-      for (const k of ['phone_login', 'email_login', 'google_login']) {
+      for (const k of ['phone_login', 'google_login']) {
         await clearFlag(k);
       }
+      // Pack C: a missing row is now the catalog value (off); the suites'
+      // baseline (e2e-global-setup.ts) keeps e-mail flows on.
+      await setFlag('email_login', true);
     });
 
     it('phone_login=false rejects otp/request and otp/verify with AUTH_PROVIDER_DISABLED; email keeps working', async () => {

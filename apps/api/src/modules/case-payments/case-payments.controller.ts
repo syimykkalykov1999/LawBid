@@ -62,6 +62,7 @@ import {
   RefundCasePaymentDto,
 } from './case-payments.dto';
 import { CasePaymentsService } from './case-payments.service';
+import { ShedPriority } from '../../common/resilience/shed-priority';
 
 const E = ErrorCode;
 type Page<T> = { items: T[]; nextCursor: string | null };
@@ -72,6 +73,7 @@ type Page<T> = { items: T[]; nextCursor: string | null };
 @ApiTags('case-payments')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+@ShedPriority('critical')
 @Controller()
 export class CasePaymentsController {
   constructor(private readonly payments: CasePaymentsService) {}

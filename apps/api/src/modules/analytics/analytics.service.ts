@@ -63,18 +63,21 @@ export class AnalyticsService {
     const allowed = this.consent
       ? this.consent.allowed(userId)
       : Promise.resolve(true);
+    // Pack C (round 2 #8): the day mark goes into Redis only AFTER the row
+    // is written. It used to be set first (SET NX), so one failed INSERT
+    // left the mark and the person was not counted for the whole day. Two
+    // calls at once both write; ON CONFLICT keeps it one row.
+    const key = `act:${today}:${userId}`;
     const write: Promise<void> = allowed
-      .then((ok) =>
-        ok
-          ? this.redis.set(`act:${today}:${userId}`, '1', 'EX', 36 * 3600, 'NX')
-          : null,
-      )
-      .then(async (fresh) => {
-        if (fresh === null) return;
+      .then(async (ok) => {
+        if (!ok) return;
+        // Redis away: write anyway (the row is idempotent).
+        if ((await this.redis.get(key).catch(() => null)) !== null) return;
         await this.prisma.$executeRaw`
           INSERT INTO user_activity_days (user_id, day)
           VALUES (${userId}::UUID, ${today}::DATE)
           ON CONFLICT DO NOTHING`;
+        await this.redis.set(key, '1', 'EX', 36 * 3600);
       })
       .catch(() => undefined)
       .finally(() => this.pendingTouches.delete(write));

@@ -1148,6 +1148,12 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * polling 29 panels every minute. Off = the panel gets no ticket and
    * keeps the minute poll (the fallback it uses anyway while offline). */
   'realtime.admin_events_enabled': true,
+  /** Item 21 (A3 / AU2, 25.11): prioritized load shedding (Netflix). off =
+   * nothing is turned away; on = the fixed thresholds
+   * (`realtime.server.shed_*`); auto (default) = the same thresholds plus
+   * an adaptive concurrency limit (Netflix Gradient2) that only sheds once
+   * CPU is above `shed_cpu_start_pct` (above the autoscaling target). */
+  'realtime.server.shed_mode': 'auto',
   /** Owner 2026-10-25: password screening (NIST SP 800-63B-4 §3.1.1.2). */
   'security.password_breach_check_enabled': true,
   /** Milliseconds to wait for the breached-password service; later = skip. */

@@ -105,4 +105,60 @@ describe('StripeWebhookRequeueService.sweep', () => {
       .mockResolvedValue(page) as never;
     expect((await always.svc.sweep()).found).toBe(1000);
   });
+
+  it('pack C (round 2 #13): past 1 000 dead events a newly lost one is still reached', async () => {
+    // 1 500 dead events (their failed job sits in the DLQ) and, newest, one
+    // event whose job Redis lost.
+    const at = (i: number) => new Date(Date.UTC(2026, 9, 1) + i * 1000);
+    const db = [
+      ...Array.from({ length: 1500 }, (_, i) => ({
+        stripe_event_id: `evt_dead_${String(i).padStart(4, '0')}`,
+        created_at: at(i),
+      })),
+      { stripe_event_id: 'evt_lost', created_at: at(2000) },
+    ];
+    type Where = {
+      OR?: [
+        { created_at: { gt: Date } },
+        { created_at: Date; stripe_event_id: { gt: string } },
+      ];
+    };
+    const findMany = jest.fn((q: { where: Where; take: number }) => {
+      const k = q.where.OR;
+      const rows = db.filter(
+        (r) =>
+          !k ||
+          r.created_at > k[0].created_at.gt ||
+          (r.created_at.getTime() === k[1].created_at.getTime() &&
+            r.stripe_event_id > k[1].stripe_event_id.gt),
+      );
+      return Promise.resolve(rows.slice(0, q.take));
+    });
+    const queue = {
+      add: jest.fn(() => Promise.resolve({})),
+      // Every dead event still has its failed job; the lost one has none.
+      getJob: jest.fn((id: string) =>
+        Promise.resolve(id === 'evt_lost' ? null : { id }),
+      ),
+      close: jest.fn(),
+    };
+    const svc = new StripeWebhookRequeueService(
+      { stripeWebhookEvent: { findMany } } as never,
+      { get: () => undefined } as never,
+    );
+    svc.queue = queue as never;
+    const now = new Date(Date.UTC(2026, 9, 2));
+    expect(await svc.sweep(now)).toEqual({ found: 1000, requeued: 0 });
+    // The next run goes on where the last one stopped and reaches it.
+    expect(await svc.sweep(now)).toEqual({ found: 501, requeued: 1 });
+    expect(queue.add).toHaveBeenCalledWith(
+      STRIPE_WEBHOOK_JOB,
+      { eventId: 'evt_lost' },
+      expect.objectContaining({ jobId: 'evt_lost' }),
+    );
+    // Reached the end: the run after starts from the oldest row again.
+    findMany.mockClear();
+    await svc.sweep(now);
+    expect(findMany.mock.calls[0][0].where.OR).toBeUndefined();
+  });
 });

@@ -16,12 +16,14 @@ import { ErrorCode } from '../../common/errors/error-code.enum';
 import { Public } from '../auth/decorators/public.decorator';
 import { AppEventBatchDto } from './app-events.dto';
 import { AppEventsService } from './app-events.service';
+import { ShedPriority } from '../../common/resilience/shed-priority';
 
 /** Owner 2026-10-15: the phone sends its events here in batches (no token
  * needed: counts only, nothing about a person; rate limited).
  * Owner 2026-10-22 (audit #4 §5): when a token comes along and that
  * person's latest `analytics` consent is «no», the batch is dropped. */
 @ApiTags('app-events')
+@ShedPriority('bulk')
 @Controller('app-events')
 export class AppEventsController {
   constructor(

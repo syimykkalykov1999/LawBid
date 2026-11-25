@@ -161,7 +161,43 @@ export const REALTIME_SETTING_DEFS: readonly RealtimeSettingDef[] = [
     min: 0,
     max: 60_000,
     labelRu:
-      'Сервер: при отставании главного цикла больше этого (мс) новые запросы получают 503 «подождите»; 0 = защита выключена',
+      'Сервер, сброс нагрузки: при отставании главного цикла больше этого (мс) 503 «подождите» получают и самые важные запросы (вход, оплата, звонки, отправка сообщения); 0 = этот признак не смотреть. Работает, когда realtime.server.shed_mode не «Выкл»',
+  },
+  {
+    key: 'realtime.server.shed_lag_start_ms',
+    field: null,
+    default: 200,
+    min: 0,
+    max: 60_000,
+    labelRu:
+      'Сервер, сброс нагрузки: с какого отставания главного цикла (мс) первыми получают 503 фоновые запросы (статистика), затем предзагрузка и подсказки, затем обычные; самые важные — только на пороге realtime.server.shed_event_loop_lag_ms. 0 = все на одном пороге',
+  },
+  {
+    key: 'realtime.server.shed_cpu_start_pct',
+    field: null,
+    default: 75,
+    min: 0,
+    max: 100,
+    labelRu:
+      'Сервер, сброс нагрузки: с какой загрузки процессора одного сервера (%) первыми получают 503 фоновые запросы. Держите выше цели автодобавления серверов (API: процессор, % — цель, сейчас 70), чтобы сначала добавлялись серверы. 0 = все на одном пороге',
+  },
+  {
+    key: 'realtime.server.shed_cpu_critical_pct',
+    field: null,
+    default: 95,
+    min: 0,
+    max: 100,
+    labelRu:
+      'Сервер, сброс нагрузки: при какой загрузке процессора (%) 503 получают и самые важные запросы; 0 = процессор не смотреть',
+  },
+  {
+    key: 'realtime.server.shed_in_flight_start_pct',
+    field: null,
+    default: 70,
+    min: 0,
+    max: 100,
+    labelRu:
+      'Сервер, сброс нагрузки: при какой доле предела одновременных запросов (%) первыми получают 503 фоновые запросы; самые важные — только на самом пределе. 0 или 100 = все на пределе',
   },
   {
     key: 'realtime.server.shed_max_in_flight',
@@ -170,7 +206,34 @@ export const REALTIME_SETTING_DEFS: readonly RealtimeSettingDef[] = [
     min: 0,
     max: 100_000,
     labelRu:
-      'Сервер: при стольких одновременных запросах на одном экземпляре новые получают 503 «подождите»; 0 = защита выключена',
+      'Сервер, сброс нагрузки: предел одновременных запросов на одном сервере. «Вкл» — этот предел; «Авто» — потолок для предела, который сервер считает сам по времени ответов; 0 = во «Вкл» не смотреть, в «Авто» без потолка',
+  },
+  {
+    key: 'realtime.server.shed_auto_min_limit',
+    field: null,
+    default: 20,
+    min: 1,
+    max: 100_000,
+    labelRu:
+      'Сервер, сброс нагрузки, «Авто»: самый низкий предел одновременных запросов, который сервер может себе поставить',
+  },
+  {
+    key: 'realtime.server.shed_auto_max_limit',
+    field: null,
+    default: 1000,
+    min: 1,
+    max: 100_000,
+    labelRu:
+      'Сервер, сброс нагрузки, «Авто»: самый высокий предел одновременных запросов, который сервер может себе поставить',
+  },
+  {
+    key: 'realtime.server.shed_retry_after_max_seconds',
+    field: null,
+    default: 5,
+    min: 1,
+    max: 300,
+    labelRu:
+      'Сервер, сброс нагрузки: через сколько секунд самое позднее приложение повторит запрос, получивший 503 (каждому случайно от 1 до этого числа, чтобы не вернулись разом)',
   },
   {
     key: 'realtime.server.presence_offline_grace_seconds',
@@ -256,7 +319,14 @@ export const OWNER_REALTIME_SETTINGS = {
   'realtime.server.auth_grace_seconds': 120,
   'realtime.server.going_away_spread_ms': 20_000,
   'realtime.server.shed_event_loop_lag_ms': 500,
+  'realtime.server.shed_lag_start_ms': 200,
+  'realtime.server.shed_cpu_start_pct': 75,
+  'realtime.server.shed_cpu_critical_pct': 95,
+  'realtime.server.shed_in_flight_start_pct': 70,
   'realtime.server.shed_max_in_flight': 0,
+  'realtime.server.shed_auto_min_limit': 20,
+  'realtime.server.shed_auto_max_limit': 1000,
+  'realtime.server.shed_retry_after_max_seconds': 5,
   'realtime.server.presence_offline_grace_seconds': 10,
   'realtime.server.presence_permission_cache_seconds': 30,
   'realtime.server.calls_request_sweep_seconds': 0,

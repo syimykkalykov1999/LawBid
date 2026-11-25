@@ -48,6 +48,11 @@ import {
 import { shardFromArgs } from '../sharding/shard-args';
 import { shardStats } from '../sharding/shard-stats';
 import { withGlobalFacade } from '../sharding/tx-global-facade';
+import {
+  dropCommitScope,
+  flushCommitScope,
+  openCommitScope,
+} from './after-commit';
 
 /**
  * The application's database client. Every query made through it (and
@@ -540,27 +545,43 @@ export class PrismaService
           // A Jest spy on the primary client stays the spy (see below).
           (facade || !(value as { _isMockFunction?: boolean })._isMockFunction)
         ) {
-          return (arg: unknown, ...rest: unknown[]) =>
-            typeof arg === 'function'
-              ? (value as (...a: unknown[]) => unknown).call(
-                  client,
-                  (tx: object) =>
-                    withTxShardLookup(txParentShardLookup(tx), () =>
-                      (arg as (t: object) => unknown)(
-                        facade
-                          ? withGlobalFacade(tx, real, (model, op) =>
-                              shardStats.globalWriteInShardTx(model, op),
-                            )
-                          : tx,
-                      ),
-                    ),
-                  ...rest,
-                )
-              : (value as (...a: unknown[]) => unknown).call(
-                  client,
-                  arg,
-                  ...rest,
+          return (arg: unknown, ...rest: unknown[]) => {
+            if (typeof arg !== 'function') {
+              return (value as (...a: unknown[]) => unknown).call(
+                client,
+                arg,
+                ...rest,
+              );
+            }
+            // Pack C (round 2 #3): afterCommit() callbacks of this attempt
+            // run once it commits and are dropped when it rolls back.
+            let scope: Array<() => void> | undefined;
+            const run = (value as (...a: unknown[]) => unknown).call(
+              client,
+              (tx: object) => {
+                const t = facade
+                  ? withGlobalFacade(tx, real, (model, op) =>
+                      shardStats.globalWriteInShardTx(model, op),
+                    )
+                  : tx;
+                scope = openCommitScope(t);
+                return withTxShardLookup(txParentShardLookup(tx), () =>
+                  (arg as (t: object) => unknown)(t),
                 );
+              },
+              ...rest,
+            ) as Promise<unknown>;
+            return Promise.resolve(run).then(
+              (result) => {
+                if (scope) flushCommitScope(scope);
+                return result;
+              },
+              (error: unknown) => {
+                if (scope) dropCommitScope(scope);
+                throw error;
+              },
+            );
+          };
         }
         // Jest spies must stay as they are: binding would hide .mockXxx().
         if (
