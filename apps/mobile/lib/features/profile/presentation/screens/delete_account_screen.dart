@@ -25,8 +25,9 @@ import 'package:material_ui/material_ui.dart';
 /// e-mail the code went to, the armed reauth token) and none of them is
 /// independently deep-linkable or resumable the way the onboarding flow's
 /// screens are (file 07 §6.5's "закрытие приложения на середине
-/// онбординга" acceptance item doesn't apply to a destructive confirmation flow — the safe
-/// default on any interruption is to start over at the warning, which a
+/// онбординга" acceptance item doesn't apply to a destructive confirmation
+/// flow — the safe default on any interruption is to start over at the
+/// warning, which a
 /// single screen gives for free).
 class DeleteAccountScreen extends ConsumerStatefulWidget {
   const DeleteAccountScreen({super.key});
