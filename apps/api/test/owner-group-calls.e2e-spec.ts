@@ -9,6 +9,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { AppSettingsService } from '../src/common/app-settings/app-settings.service';
+import { CallsService } from '../src/modules/calls/calls.service';
 
 /**
  * Owner 2026-10-20: group calls. A member adds a person to the running call
@@ -486,6 +487,199 @@ describe('Group calls (e2e)', () => {
       .expect(200);
     const done = await prisma.call.findUniqueOrThrow({ where: { id: callId } });
     expect(done.status).toBe('ended');
+  });
+
+  it('owner 18.11: everyone connected hangs up while an invitee still rings — the call ends, the invitee stops ringing and is free for a 1:1 call at once', async () => {
+    const client = await prisma.user.create({
+      data: { role: 'client', first_name: 'Iris', last_name: 'Group' },
+    });
+    const a1 = await attorney('Ivan');
+    const a2 = await attorney('Jana');
+    const conv1 = await chatBetween(client.id, a1.id);
+    const conv2 = await chatBetween(client.id, a2.id);
+    const cAuth = auth(client.id, 'client');
+    const a1Auth = auth(a1.id, 'attorney');
+    const a2Sock = await connect(token(a2.id, 'attorney'));
+
+    const started = await api()
+      .post(`/api/v1/conversations/${conv1}/calls`)
+      .set(a1Auth)
+      .expect(201);
+    const callId = started.body.data.id as string;
+    await api().post(`/api/v1/calls/${callId}/accept`).set(cAuth).expect(200);
+    // a2 is added and rings; nobody answers there.
+    await api()
+      .post(`/api/v1/calls/${callId}/participants`)
+      .set(cAuth)
+      .send({ userId: a2.id })
+      .expect(200);
+
+    // Both people who talked hang up while a2 still rings.
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(a1Auth)
+      .send({})
+      .expect(200);
+    const ended = once<{ call: { id: string; status: string } }>(
+      a2Sock,
+      'call:ended',
+    );
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(cAuth)
+      .send({})
+      .expect(200);
+
+    // Nobody is connected any more: the call is over (WhatsApp), and the
+    // ringing phone hears it.
+    const call = await prisma.call.findUniqueOrThrow({ where: { id: callId } });
+    expect(call.status).toBe('ended');
+    expect((await ended).call).toMatchObject({ id: callId, status: 'ended' });
+
+    // A 1:1 call to a2 right after rings — no «busy».
+    const next = await api()
+      .post(`/api/v1/conversations/${conv2}/calls`)
+      .set(cAuth)
+      .expect(201);
+    expect(next.body.data.status).toBe('ringing');
+    await api()
+      .post(`/api/v1/calls/${next.body.data.id as string}/end`)
+      .set(cAuth)
+      .send({})
+      .expect(200);
+  });
+
+  it('owner 18.11: the caller left while the added person rang; that person declines or never answers — the one left alone is not kept «in a call»', async () => {
+    for (const how of ['decline', 'no answer'] as const) {
+      const client = await prisma.user.create({
+        data: { role: 'client', first_name: 'Mira', last_name: how },
+      });
+      const a1 = await attorney('Nils');
+      const a2 = await attorney('Olga');
+      const conv1 = await chatBetween(client.id, a1.id);
+      const convOut = await chatBetween(client.id, (await attorney('Pia')).id);
+      const cAuth = auth(client.id, 'client');
+      const a1Auth = auth(a1.id, 'attorney');
+      const a2Auth = auth(a2.id, 'attorney');
+      await chatBetween(client.id, a2.id);
+
+      const started = await api()
+        .post(`/api/v1/conversations/${conv1}/calls`)
+        .set(a1Auth)
+        .expect(201);
+      const callId = started.body.data.id as string;
+      await api().post(`/api/v1/calls/${callId}/accept`).set(cAuth).expect(200);
+      await api()
+        .post(`/api/v1/calls/${callId}/participants`)
+        .set(cAuth)
+        .send({ userId: a2.id })
+        .expect(200);
+      // The caller hangs up while a2 rings: the client stays for a2
+      // (WhatsApp: the call goes on while someone is still being called).
+      const left = await api()
+        .post(`/api/v1/calls/${callId}/end`)
+        .set(a1Auth)
+        .send({})
+        .expect(200);
+      expect(left.body.data.status).toBe('active');
+
+      if (how === 'decline') {
+        await api()
+          .post(`/api/v1/calls/${callId}/decline`)
+          .set(a2Auth)
+          .expect(200);
+      } else {
+        await prisma.callParticipant.updateMany({
+          where: { call_id: callId, user_id: a2.id },
+          data: { invited_at: new Date(Date.now() - 10 * 60_000) },
+        });
+        await app.get(CallsService).sweep();
+      }
+
+      // Nobody else is in it or rings: the call of two is over, and the
+      // client is free for a 1:1 call at once (it used to stay up until
+      // the client's own app hung up or the 180 s silence sweep).
+      const call = await prisma.call.findUniqueOrThrow({
+        where: { id: callId },
+      });
+      expect({ how, status: call.status }).toEqual({ how, status: 'ended' });
+      const next = await api()
+        .post(`/api/v1/conversations/${convOut}/calls`)
+        .set(cAuth)
+        .expect(201);
+      expect(next.body.data.status).toBe('ringing');
+      await api()
+        .post(`/api/v1/calls/${next.body.data.id as string}/end`)
+        .set(cAuth)
+        .send({})
+        .expect(200);
+    }
+  });
+
+  it('owner 18.11: three talked — each one who hangs up is free for a 1:1 call at once, the last ones too', async () => {
+    const client = await prisma.user.create({
+      data: { role: 'client', first_name: 'Kira', last_name: 'Group' },
+    });
+    const other = await prisma.user.create({
+      data: { role: 'client', first_name: 'Lev', last_name: 'Outside' },
+    });
+    const a1 = await attorney('Kai');
+    const a2 = await attorney('Lia');
+    const conv1 = await chatBetween(client.id, a1.id);
+    const conv2 = await chatBetween(client.id, a2.id);
+    const convOut = await chatBetween(other.id, a1.id);
+    const cAuth = auth(client.id, 'client');
+    const a1Auth = auth(a1.id, 'attorney');
+    const a2Auth = auth(a2.id, 'attorney');
+
+    const started = await api()
+      .post(`/api/v1/conversations/${conv1}/calls`)
+      .set(a1Auth)
+      .expect(201);
+    const callId = started.body.data.id as string;
+    await api().post(`/api/v1/calls/${callId}/accept`).set(cAuth).expect(200);
+    await api()
+      .post(`/api/v1/calls/${callId}/participants`)
+      .set(cAuth)
+      .send({ userId: a2.id })
+      .expect(200);
+    await api().post(`/api/v1/calls/${callId}/accept`).set(a2Auth).expect(200);
+
+    // a1 hangs up: the other two go on, a1 is free at once.
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(a1Auth)
+      .send({})
+      .expect(200);
+    const out = await api()
+      .post(`/api/v1/conversations/${convOut}/calls`)
+      .set(a1Auth)
+      .expect(201);
+    expect(out.body.data.status).toBe('ringing');
+    await api()
+      .post(`/api/v1/calls/${out.body.data.id as string}/end`)
+      .set(a1Auth)
+      .send({})
+      .expect(200);
+
+    // a2 hangs up: one is left, the call is over; both are free at once.
+    await api()
+      .post(`/api/v1/calls/${callId}/end`)
+      .set(a2Auth)
+      .send({})
+      .expect(200);
+    const call = await prisma.call.findUniqueOrThrow({ where: { id: callId } });
+    expect(call.status).toBe('ended');
+    const next = await api()
+      .post(`/api/v1/conversations/${conv2}/calls`)
+      .set(cAuth)
+      .expect(201);
+    expect(next.body.data.status).toBe('ringing');
+    await api()
+      .post(`/api/v1/calls/${next.body.data.id as string}/end`)
+      .set(cAuth)
+      .send({})
+      .expect(200);
   });
 
   it('a call made a group: whoever left comes back while it runs; a stranger cannot; looking does not keep it alive', async () => {
