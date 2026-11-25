@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
 import 'package:lawbid/features/stories/domain/story_models.dart';
@@ -251,7 +252,7 @@ class _ViewersSheetState extends ConsumerState<_ViewersSheet> {
                         widget.story,
                       );
                       if (gone && context.mounted) {
-                        Navigator.of(context).pop(true);
+                        context.popIfCurrent(true);
                       }
                     },
                   ),

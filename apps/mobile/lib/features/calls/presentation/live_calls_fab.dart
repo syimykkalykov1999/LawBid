@@ -7,6 +7,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/time/shown_tick.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/live_calls.dart';
@@ -91,9 +92,7 @@ class LiveCallsSheet extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     ref.listen(liveCallsProvider, (_, next) {
-      if (next.isEmpty && Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      }
+      if (next.isEmpty) _leave(context);
     });
     return SafeArea(
       child: Column(
@@ -121,11 +120,7 @@ class LiveCallsSheet extends ConsumerWidget {
                   LiveCallRow(
                     key: ValueKey('live-call-${c.id}'),
                     call: c,
-                    afterJoin: () {
-                      if (Navigator.of(context).canPop()) {
-                        Navigator.of(context).pop();
-                      }
-                    },
+                    afterJoin: () => _leave(context),
                   ),
               ],
             ),
@@ -135,6 +130,23 @@ class LiveCallsSheet extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Closes the sheet of [context] — only the sheet.
+///
+/// Round 1 check 25.11 №3: «Join» waits for the microphone and the server
+/// (seconds), and meanwhile `CallHost` opens `/call` OVER this sheet. The old
+/// late `Navigator.pop()` then closed the call screen just opened (the call
+/// went on minimised, the sheet showed again). Now the sheet pops only while
+/// it is on top (`popIfCurrent`, KNOWN_ERRORS 230); covered by the call
+/// screen, the sheet (a pageless route) is taken out from under it.
+void _leave(BuildContext context) {
+  if (!context.mounted || context.popIfCurrent<void>()) return;
+  final route = ModalRoute.of(context);
+  if (route == null || !route.isActive || route.settings is Page<Object?>) {
+    return;
+  }
+  Navigator.of(context).removeRoute(route);
 }
 
 /// Avatar · name · «people · length» · green «Join» / «Return».

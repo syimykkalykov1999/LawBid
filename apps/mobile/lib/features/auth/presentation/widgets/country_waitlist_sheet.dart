@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/auth/presentation/screens/email_screen.dart';
 import 'package:lawbid/features/onboarding/application/countries_providers.dart';
@@ -65,7 +66,7 @@ class _CountryWaitlistSheetState extends ConsumerState<CountryWaitlistSheet> {
         locale: Localizations.localeOf(context).languageCode,
       );
       if (!mounted) return;
-      Navigator.of(context).pop();
+      context.popIfCurrent();
       showAppSnackBar(
         context,
         t.t(open ? 'auth.phone.waitlist.open' : 'auth.phone.waitlist.done'),

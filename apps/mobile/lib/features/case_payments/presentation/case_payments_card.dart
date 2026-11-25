@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/money_input.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/time/resume_refresh_gate.dart';
 import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
@@ -617,7 +618,7 @@ class _PaySheetState extends ConsumerState<PaySheet> {
         showAppSnackBar(context, t.t('plans.cantOpen'));
         return;
       }
-      Navigator.of(context).pop();
+      context.popIfCurrent();
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
@@ -901,7 +902,7 @@ class _RefundSheetState extends ConsumerState<RefundSheet> {
           );
       if (!mounted) return;
       widget.onDone();
-      Navigator.of(context).pop();
+      context.popIfCurrent();
       showAppSnackBar(context, t.t('cpay.refund.done'));
     } on Object catch (e) {
       if (!mounted) return;

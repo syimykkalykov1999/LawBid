@@ -6,6 +6,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Row 148 (go_router 18): the page an unknown address showed on go_router
@@ -29,8 +30,10 @@ class RouterErrorScreen extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             SelectableText(error?.toString() ?? 'page not found'),
+            // Round 1 check 25.11 №27: the app has no `/` route — that led
+            // to this same page again. Home is the feed.
             TextButton(
-              onPressed: () => context.go('/'),
+              onPressed: () => context.go(AppRoutes.feed),
               child: Text(t.t('router.notFound.home')),
             ),
           ],

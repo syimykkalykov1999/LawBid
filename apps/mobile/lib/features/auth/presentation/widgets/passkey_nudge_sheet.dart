@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/auth/application/passkeys_providers.dart';
@@ -112,13 +113,13 @@ class _PasskeyNudgeSheetState extends ConsumerState<PasskeyNudgeSheet> {
       await ref.read(passkeyNudgePolicyProvider)?.enabled();
       if (!mounted) return;
       showAppSnackBar(context, t.t('passkey.added'));
-      Navigator.of(context).pop(true);
+      context.popIfCurrent(true);
     } on Object catch (e) {
       if (!mounted) return;
       // A cancelled system sheet is not an error: «Later» semantics.
       if (e is PasskeyAuthenticatorException &&
           e.failure == PasskeyFailure.cancelled) {
-        Navigator.of(context).pop(false);
+        context.popIfCurrent(false);
         return;
       }
       setState(() {
