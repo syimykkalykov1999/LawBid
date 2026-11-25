@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -12,6 +13,7 @@ import 'package:lawbid/core/media/stable_network_image.dart'
     show stableImageCacheKey;
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
 import 'package:lawbid/core/sync/synced_list_notifier.dart';
 import 'package:lawbid/core/transfers/adaptive_limiter.dart';
@@ -30,6 +32,7 @@ import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
+import 'package:shared_preferences/shared_preferences.dart';
 
 Duration? _noRetry(int retryCount, Object error) => null;
 
@@ -566,6 +569,155 @@ final groupThreadMemoryProvider =
   return ThreadMemory<api.GroupMessageDto>();
 });
 
+/// ROUND1 25.11 row 16 (the 1:1 chat keeps an unsent message in its
+/// outbox): the texts — and files sent without the queue — of a group thread
+/// that the server has not confirmed yet («sending» or «Not sent», with
+/// Retry), per thread, for as long as the app runs. Leaving the group no
+/// longer drops them (the thread is auto-disposed); a send that ends after
+/// the thread closed writes its result here, and a thread open again takes
+/// it ([changes]). Files and voice notes of the queue are on disk already.
+/// Like the 1:1 outbox (and the drafts, chatTextDraftsProvider) the rows
+/// are on the device per account (SharedPreferences): after the app was
+/// killed they are back, and those that were still being sent go out again
+/// with the same client id ([unsentAtStart]; the server keeps one message
+/// per id).
+class GroupUnsent {
+  GroupUnsent({SharedPreferences? prefs, String key = ''})
+      : _prefs = prefs,
+        _key = key {
+    _load();
+  }
+
+  final SharedPreferences? _prefs;
+  final String _key;
+  final _byThread = <String, List<PendingGroupMessage>>{};
+  final _changes = StreamController<String>.broadcast(sync: true);
+
+  /// Rows read from the device that were «sending» when the app stopped.
+  final _restarted = <String>{};
+
+  List<PendingGroupMessage> of(String thread) => _byThread[thread] ?? const [];
+
+  /// The rows of [thread] that were in flight when the app was killed (each
+  /// returned once: the thread that opens sends them again).
+  List<PendingGroupMessage> unsentAtStart(String thread) {
+    final out = [
+      for (final p in of(thread))
+        if (_restarted.remove(p.clientMessageId)) p,
+    ];
+    return out;
+  }
+
+  /// The open thread's own copy (no event: it is the one that changed).
+  void put(String thread, List<PendingGroupMessage> rows) {
+    if (rows.isEmpty) {
+      if (_byThread.remove(thread) == null) return;
+    } else {
+      _byThread[thread] = List.unmodifiable(rows);
+    }
+    _save();
+  }
+
+  void _load() {
+    final raw = _prefs?.getString(_key);
+    if (raw == null) return;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      for (final e in decoded.entries) {
+        final rows = e.value;
+        if (e.key is! String || rows is! List) continue;
+        final list = [
+          for (final r in rows)
+            if (r is Map && r['id'] is String && r['body'] is String)
+              PendingGroupMessage(
+                clientMessageId: r['id'] as String,
+                body: r['body'] as String,
+                failed: r['failed'] == true,
+                replyToId: r['replyTo'] as String?,
+                mentionIds: [
+                  for (final m in (r['mentions'] as List?) ?? const [])
+                    if (m is String) m,
+                ],
+                fileName: r['fileName'] as String?,
+                fileId: r['fileId'] as String?,
+              ),
+        ];
+        if (list.isEmpty) continue;
+        _byThread[e.key as String] = List.unmodifiable(list);
+        _restarted.addAll([
+          for (final p in list)
+            if (!p.failed) p.clientMessageId,
+        ]);
+      }
+    } on FormatException {
+      // A broken copy: nothing to restore.
+    }
+  }
+
+  void _save() {
+    final prefs = _prefs;
+    if (prefs == null) return;
+    final rows = {
+      for (final e in _byThread.entries)
+        e.key: [
+          for (final p in e.value)
+            {
+              'id': p.clientMessageId,
+              'body': p.body,
+              if (p.failed) 'failed': true,
+              if (p.replyToId != null) 'replyTo': p.replyToId,
+              if (p.mentionIds.isNotEmpty) 'mentions': p.mentionIds,
+              if (p.fileName != null) 'fileName': p.fileName,
+              if (p.fileId != null) 'fileId': p.fileId,
+            },
+        ],
+    };
+    unawaited(
+      (rows.isEmpty
+              ? prefs.remove(_key)
+              : prefs.setString(_key, jsonEncode(rows)))
+          .catchError((Object _) => false),
+    );
+  }
+
+  /// A send that ended while its thread was closed: confirmed (gone) or
+  /// refused ([failed] takes the row's place).
+  void settle(
+    String thread,
+    String clientMessageId, {
+    PendingGroupMessage? failed,
+  }) {
+    put(thread, [
+      for (final p in of(thread))
+        if (p.clientMessageId != clientMessageId)
+          p
+        else if (failed != null)
+          failed,
+    ]);
+    if (!_changes.isClosed) _changes.add(thread);
+  }
+
+  /// The threads [settle] changed.
+  Stream<String> get changes => _changes.stream;
+
+  void dispose() => unawaited(_changes.close());
+}
+
+/// Per account: the next account never sees these.
+final groupUnsentProvider = Provider<GroupUnsent>((ref) {
+  final user = ref.watch(currentUserIdProvider);
+  SharedPreferences? prefs;
+  try {
+    prefs = user == null ? null : ref.read(sharedPreferencesProvider);
+  } on Object {
+    // No device storage (a test without it): memory only.
+  }
+  final unsent = GroupUnsent(prefs: prefs, key: 'group.unsent.v1.$user');
+  ref.onDispose(unsent.dispose);
+  return unsent;
+});
+
 /// A message I wrote that the server has not confirmed yet.
 class PendingGroupMessage {
   const PendingGroupMessage({
@@ -597,6 +749,18 @@ class PendingGroupMessage {
   /// Groups WhatsApp parity: a queued voice note (its recording plays from
   /// the phone while it is being sent, as in 1:1).
   final VoiceNote? voice;
+
+  /// This message refused by the server («Not sent», Retry).
+  PendingGroupMessage asFailed({int? slowWaitS}) => PendingGroupMessage(
+        clientMessageId: clientMessageId,
+        body: body,
+        failed: true,
+        slowWaitS: slowWaitS,
+        replyToId: replyToId,
+        mentionIds: mentionIds,
+        fileName: fileName,
+        fileId: fileId,
+      );
 }
 
 class GroupThreadState {
@@ -694,11 +858,23 @@ class GroupThread extends Notifier<GroupThreadState> {
     });
     // Owner 2026-10-21: disappearing messages leave the list by the clock.
     final memory = ref.read(groupThreadMemoryProvider);
+    // ROUND1 25.11 row 16: what is not confirmed outlives this thread.
+    final unsent = ref.read(groupUnsentProvider);
+    final settled = unsent.changes.listen((thread) {
+      if (thread == _storeKey) _adoptUnsent();
+    });
+    ref.onDispose(() => unawaited(settled.cancel()));
     listenSelf((prev, next) {
       if (!identical(prev?.messages, next.messages)) {
         _armExpiry();
         // Groups WhatsApp parity: the newest page stays in memory.
         memory.put(_storeKey, next.messages);
+      }
+      if (!identical(prev?.pending, next.pending)) {
+        unsent.put(_storeKey, [
+          for (final p in next.pending)
+            if (!_mediaIds.contains(p.clientMessageId)) p,
+        ]);
       }
     });
     unawaited(load());
@@ -709,13 +885,58 @@ class GroupThread extends Notifier<GroupThreadState> {
       for (final m in memory.take(_storeKey) ?? const <api.GroupMessageDto>[])
         if (!m.isExpired(now)) m,
     ];
+    final waiting = unsent.of(_storeKey);
+    // Killed while these were being sent: they go again (same client id).
+    final again = unsent.unsentAtStart(_storeKey);
+    if (again.isNotEmpty) {
+      scheduleMicrotask(() {
+        if (ref.mounted) {
+          for (final p in again) {
+            unawaited(_send(_dtoOf(p)));
+          }
+        }
+      });
+    }
     return warm.isEmpty
-        ? const GroupThreadState()
+        ? GroupThreadState(pending: waiting)
         : GroupThreadState(
             messages: warm,
+            pending: waiting,
             nextCursor: localCursor,
             loading: false,
           );
+  }
+
+  /// The request of a pending text or (already uploaded) file.
+  api.SendGroupMessageDto _dtoOf(PendingGroupMessage p) => p.fileId != null
+      ? api.SendGroupMessageDto(
+          clientMessageId: p.clientMessageId,
+          type: api.SendGroupMessageDtoType.attachment,
+          body: p.body.isEmpty ? null : p.body,
+          topicId: key.topicId,
+          replyToId: p.replyToId,
+          fileId: p.fileId,
+          fileName: p.fileName,
+        )
+      : api.SendGroupMessageDto(
+          clientMessageId: p.clientMessageId,
+          type: api.SendGroupMessageDtoType.text,
+          body: p.body,
+          topicId: key.topicId,
+          replyToId: p.replyToId,
+          mentionIds: p.mentionIds.isEmpty ? null : p.mentionIds,
+        );
+
+  /// A send of a closed instance of this thread ended: its row goes (sent)
+  /// or turns «Not sent»; the queue's rows stay as they are.
+  void _adoptUnsent() {
+    state = state.copyWith(
+      pending: [
+        ...ref.read(groupUnsentProvider).of(_storeKey),
+        for (final p in state.pending)
+          if (_mediaIds.contains(p.clientMessageId)) p,
+      ],
+    );
   }
 
   /// Drops the messages that ran out and arms one timer for the next one.
@@ -1285,30 +1506,43 @@ class GroupThread extends Notifier<GroupThreadState> {
   }
 
   Future<void> _send(api.SendGroupMessageDto dto) async {
+    // ROUND1 25.11 row 16: read before the request — the group may be left
+    // while it runs (this provider is auto-disposed), and its result must
+    // still land: the message on the phone, a refusal as «Not sent».
+    final unsent = ref.read(groupUnsentProvider);
+    final store = _store;
+    final storeKey = _storeKey;
+    final sentOut = ref.read(groupMediaSentProvider);
+    final cmid = dto.clientMessageId;
     try {
       final m = await _repo.send(key.groupId, dto);
-      if (ref.mounted) _upsert(m);
-    } on ApiException catch (e) {
-      if (!ref.mounted) return;
-      final slow = e.details?['kind'] == 'group_slow_mode'
-          ? (e.details?['retryAfterSeconds'] as num?)?.toInt()
+      if (ref.mounted) {
+        _upsert(m);
+        return;
+      }
+      unawaited(store?.put(storeKey, [m]) ?? Future.value());
+      unsent.settle(storeKey, cmid);
+      // A thread of this group open again meanwhile shows it at once.
+      if (!sentOut.isClosed) sentOut.add(m);
+    } on Object catch (e) {
+      final details = e is ApiException ? e.details : null;
+      final slow = details?['kind'] == 'group_slow_mode'
+          ? (details?['retryAfterSeconds'] as num?)?.toInt()
           : null;
+      if (!ref.mounted) {
+        final p = unsent
+            .of(storeKey)
+            .where((x) => x.clientMessageId == cmid)
+            .firstOrNull;
+        if (p != null) {
+          unsent.settle(storeKey, cmid, failed: p.asFailed(slowWaitS: slow));
+        }
+        return;
+      }
       state = state.copyWith(
         pending: [
           for (final p in state.pending)
-            if (p.clientMessageId == dto.clientMessageId)
-              PendingGroupMessage(
-                clientMessageId: p.clientMessageId,
-                body: p.body,
-                failed: true,
-                slowWaitS: slow,
-                replyToId: p.replyToId,
-                mentionIds: p.mentionIds,
-                fileName: p.fileName,
-                fileId: p.fileId,
-              )
-            else
-              p,
+            if (p.clientMessageId == cmid) p.asFailed(slowWaitS: slow) else p,
         ],
       );
     }

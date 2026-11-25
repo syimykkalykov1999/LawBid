@@ -247,6 +247,10 @@ dev_dependencies:
   # Owner 2026-10-22: the fake store-review platform in
   # test/core/platform/review_prompter_test.dart.
   in_app_review_platform_interface: ^2.0.5
+  # ROUND1 25.11 row 18: the fake camera of
+  # test/features/stories/story_camera_interrupt_test.dart (the version the
+  # camera plugin already resolves).
+  camera_platform_interface: ^2.15.1
   # Owner 2026-10-22: uploads the release symbols to Sentry (fastlane
   # `sentry_symbols`; config in `sentry:` below).
   sentry_dart_plugin: ^3.4.0
