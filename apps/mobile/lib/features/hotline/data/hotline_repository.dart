@@ -18,12 +18,32 @@ abstract interface class HotlineRepository {
   Future<List<HotlineCounter>> counters(List<String> keys);
   Future<void> ackDisclosure(int version);
   Future<bool> review(String requestId, {required int stars, String? comment});
+
+  /// «Предложить дело» (mockup c11b): our case made from the call, offered
+  /// to its attorney; the new case id.
+  Future<String> offerCase(String requestId);
 }
 
 class ApiHotlineRepository implements HotlineRepository {
-  ApiHotlineRepository(Dio dio) : _api = api.HotlineClient(dio);
+  ApiHotlineRepository(Dio dio)
+      : _dio = dio,
+        _api = api.HotlineClient(dio);
 
+  final Dio _dio;
   final api.HotlineClient _api;
+
+  /// The `{data: …}` body of a POST the generated client does not have yet
+  /// (the attorney / server PR adds `review` and `offer-case`, plan doc
+  /// «API contract»); an older server answers 404 → [ApiException].
+  Future<Map<String, Object?>> _post(String path, Map<String, Object?> body) =>
+      guardApiCall(() async {
+        final r = await _dio.post<Object?>(path, data: body);
+        final d = r.data;
+        final inner = d is Map ? d['data'] : null;
+        return inner is Map
+            ? Map<String, Object?>.from(inner)
+            : const <String, Object?>{};
+      });
 
   static HotlineDisclosure? _disclosure(api.HotlineDisclosureDto? d) =>
       d == null || d.key == null || d.kind == null
@@ -51,8 +71,6 @@ class ApiHotlineRepository implements HotlineRepository {
                 name: d.lawyer!.name,
                 state: d.lawyer!.state,
                 barNumber: d.lawyer!.barNumber,
-                username: d.lawyer!.username,
-                avatarUrl: d.lawyer!.avatarUrl,
               ),
         notifyUntil: d.notifyUntil == null
             ? null
@@ -93,8 +111,9 @@ class ApiHotlineRepository implements HotlineRepository {
       );
 
   @override
-  Future<HotlineRequest> get(String id) async =>
-      requestOf((await guardApiCall(() => _api.hotlineGetRequest(id: id))).data);
+  Future<HotlineRequest> get(String id) async => requestOf(
+        (await guardApiCall(() => _api.hotlineGetRequest(id: id))).data,
+      );
 
   @override
   Future<HotlineRequest> cancel(String id) async => requestOf(
@@ -165,21 +184,26 @@ class ApiHotlineRepository implements HotlineRepository {
     required int stars,
     String? comment,
   }) async {
-    final d = (await guardApiCall(
-      () => _api.hotlineReviewRequest(
-        id: requestId,
-        body: api.HotlineReviewDto(
-          stars: stars,
-          comment: comment == null || comment.trim().isEmpty
-              ? null
-              : comment.trim(),
-        ),
-      ),
-    ))
-        .data;
-    return d.ok;
+    final text = comment?.trim() ?? '';
+    final d = await _post('/hotline/requests/$requestId/review', {
+      'stars': stars,
+      if (text.isNotEmpty) 'comment': text,
+    });
+    return d['ok'] == true;
   }
 
+  @override
+  Future<String> offerCase(String requestId) async {
+    final d = await _post('/hotline/requests/$requestId/offer-case', {});
+    final id = d['caseId'];
+    if (id is! String) {
+      throw const ApiException(
+        code: ApiErrorCodes.notFound,
+        message: 'no case',
+      );
+    }
+    return id;
+  }
 }
 
 final hotlineRepositoryProvider = Provider<HotlineRepository>(

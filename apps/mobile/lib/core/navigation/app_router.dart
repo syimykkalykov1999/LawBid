@@ -56,10 +56,10 @@ import 'package:lawbid/features/deadlines/deadlines_routes.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
 import 'package:lawbid/features/feed/presentation/widgets/desktop_feed_pane.dart';
 import 'package:lawbid/features/groups/group_router.dart';
+import 'package:lawbid/features/hotline/hotline_routes.dart';
 import 'package:lawbid/features/legal/presentation/dmca_notice_screen.dart'
     deferred as d_dmca_notice_screen;
 import 'package:lawbid/features/legal/presentation/legal_accept_screen.dart';
-import 'package:lawbid/features/hotline/hotline_routes.dart';
 import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/mine/presentation/screens/mine_screen.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';

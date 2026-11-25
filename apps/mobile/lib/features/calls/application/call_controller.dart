@@ -1077,6 +1077,68 @@ class CallController extends Notifier<CallSession> {
     }
   }
 
+  // --- Hotline (plan steps 5–6, owner 18.11 mockup a4) -----------------
+  //
+  // Hotline-only: nothing below runs for a 1:1 or group call. The hotline
+  // call row is opened ANSWERED by «Взять» on the server
+  // (hotline-call-bridge.ts), so there is no ringing call to accept.
+
+  /// Hotline: joins the 1:1 voice call the line opened on «Взять» — the
+  /// client is the caller (sends the WebRTC offer, as after
+  /// `call:accepted`), the attorney the callee. The client side calls it on
+  /// `hotline:connected` with [caller] true.
+  Future<void> enterHotlineCall(String callId, {required bool caller}) async {
+    if (state.busy && state.call?.id != callId) {
+      callTrace('hotline enter $callId: busy with ${state.call?.id}');
+      return;
+    }
+    if (state.call?.id == callId && state.phase != CallPhase.idle) return;
+    _reset();
+    state = const CallSession(phase: CallPhase.connecting);
+    await _enterAnswered(callId, caller: caller);
+  }
+
+  Future<void> _enterAnswered(String callId, {required bool caller}) async {
+    final gen = _gen;
+    try {
+      await _requireSupportedProvider();
+      final call = await _repo.get(callId);
+      if (!ref.mounted || gen != _gen) return;
+      if (call.status != CallStatus.active) {
+        _finish(call.status, call: call);
+        return;
+      }
+      // the signals of this call are kept from here (media not open yet)
+      state = state.copyWith(
+        phase: CallPhase.connecting,
+        call: call,
+        peer: call.peer,
+        video: false,
+      );
+      unawaited(ref.read(systemCallUiProvider).showOngoing(call));
+      _startSync();
+      await _openMedia(call.id, peer: call.peer.id);
+      if (!ref.mounted || gen != _gen) return;
+      _armConnectTimeout();
+      if (caller) {
+        await _sendOffer(call);
+      } else {
+        final early = List.of(_earlySignals);
+        _earlySignals.clear();
+        for (final e in early) {
+          await _onSignal(e.data, from: e.from);
+        }
+      }
+      if (_sfu == null) unawaited(_nudgeSignals(call.id));
+    } on Object catch (e) {
+      callTrace('hotline enter $callId failed: $e');
+      if (gen != _gen) return;
+      if (_isMicDenied(e)) state = state.copyWith(errorCode: kMicDenied);
+      _finish(CallStatus.failed);
+      unawaited(_endQuietly(callId, CallEndReason.failed));
+    }
+  }
+
   Future<void> decline() async {
     final call = state.call;
     if (call == null || state.phase != CallPhase.incoming) return;

@@ -8,17 +8,21 @@ import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
-import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/hotline/data/hotline_repository.dart';
 import 'package:lawbid/features/hotline/domain/hotline_models.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// The master switch («Флаги → Горячая линия»).
 const kHotlineFlag = 'hotline';
+
+/// The client's phone is not confirmed by SMS (owner q. 10): the form
+/// says so instead of «could not connect».
+const kHotlinePhoneNotVerified = 'PHONE_NOT_VERIFIED';
 
 /// The push of «Сообщите, когда появится адвокат» (server
 /// `HOTLINE_NOTICE_TYPE`): data `requestId`, `claimToken`, `expiresAt`.
@@ -45,7 +49,12 @@ class HotlineFlow {
     this.notice,
     this.review,
     this.waitingSince,
+    this.callId,
   });
+
+  /// The hotline call this device entered (kept after it ends, so the
+  /// closing call screen keeps the attorney's card).
+  final String? callId;
 
   /// `GET /hotline/config`; null until read.
   final HotlineConfig? config;
@@ -86,8 +95,10 @@ class HotlineFlow {
     HotlineReviewPrompt? review,
     bool clearReview = false,
     DateTime? waitingSince,
+    String? callId,
   }) =>
       HotlineFlow(
+        callId: callId ?? this.callId,
         config: config ?? this.config,
         draft: clearRequest ? null : draft ?? this.draft,
         request: clearRequest ? null : request ?? this.request,
@@ -100,13 +111,24 @@ class HotlineFlow {
       );
 }
 
-/// Opens the running hotline call on our ordinary 1:1 call screen. The
-/// call row is already answered by «Взять»; the client is the caller (its
-/// app sends the WebRTC offer). Overridden in tests.
+/// Opens the running hotline call on our ordinary 1:1 call screen (the
+/// call host opens it, CallKit / the Android call notification show it as
+/// an ongoing call, Cloudflare TURN as for 1:1). The call row is already
+/// answered by «Взять»; the client is the caller (its app sends the WebRTC
+/// offer). Overridden in tests.
 final hotlineEnterCallProvider =
     Provider<Future<void> Function(String callId)>((ref) {
-  return (callId) =>
-      throw UnimplementedError('wired by the calls hand-off: $callId');
+  return (callId) => ref
+      .read(callControllerProvider.notifier)
+      .enterHotlineCall(callId, caller: true);
+});
+
+/// The id of the client's hotline call while it is connected — the call
+/// screen adds the attorney's card and drops the camera only for it.
+final hotlineClientCallIdProvider = Provider<String?>((ref) {
+  final f = ref.watch(hotlineControllerProvider);
+  final r = f.request;
+  return f.callId ?? (r?.status == HotlineStatus.connected ? r?.callId : null);
 });
 
 /// The IANA zone of the phone for «Сообщите…» (the night window); tests
@@ -158,11 +180,11 @@ class HotlineController extends Notifier<HotlineFlow> {
     );
     // The admin switched the line off: whatever was on screen goes.
     ref.listen<bool>(
-      featureFlagsControllerProvider
-          .select((f) => f.isEnabled(kHotlineFlag)),
+      featureFlagsControllerProvider.select((f) => f.isEnabled(kHotlineFlag)),
       (prev, on) {
         if (prev == true && !on) {
-          state = HotlineFlow(config: HotlineConfig.off);
+          // A call that runs keeps its card until the server ends it.
+          state = HotlineFlow(config: HotlineConfig.off, callId: state.callId);
         } else if (prev == false && on) {
           unawaited(loadConfig());
         }
@@ -262,7 +284,12 @@ class HotlineController extends Notifier<HotlineFlow> {
       return true;
     } on ApiException catch (e) {
       if (!ref.mounted) return false;
-      state = state.copyWith(busy: false, errorCode: e.code);
+      final phone = e.code == ApiErrorCodes.forbidden &&
+          e.details?['reason'] == 'phone_not_verified';
+      state = state.copyWith(
+        busy: false,
+        errorCode: phone ? kHotlinePhoneNotVerified : e.code,
+      );
       if (e.code == ApiErrorCodes.featureDisabled) {
         state = state.copyWith(config: HotlineConfig.off);
       }
@@ -315,9 +342,9 @@ class HotlineController extends Notifier<HotlineFlow> {
   Future<void> changeLanguages(List<String> languages) async {
     if (languages.isEmpty) return;
     final draft = state.draft;
-    if (draft != null) state = state.copyWith(draft: draft.copyWith(
-          languages: languages,
-        ));
+    if (draft != null) {
+      state = state.copyWith(draft: draft.copyWith(languages: languages));
+    }
     await _act(
       'hotline.languages',
       (id) => _repo.changeLanguages(id, languages),
@@ -336,8 +363,11 @@ class HotlineController extends Notifier<HotlineFlow> {
     final id = state.notice?.requestId ?? state.request?.id;
     if (id == null) return;
     state = state.copyWith(clearNotice: true);
-    final code =
-        await _act('hotline.claim', (_) => _repo.claim(id, token: token), id: id);
+    final code = await _act(
+      'hotline.claim',
+      (_) => _repo.claim(id, token: token),
+      id: id,
+    );
     // An older notice than the newest one is refused; in the app the client
     // may claim without it (the server keeps his place).
     if (token != null && code == ApiErrorCodes.forbidden) {
@@ -354,19 +384,7 @@ class HotlineController extends Notifier<HotlineFlow> {
     if (d == null) return;
     final r = state.request;
     if (r != null) {
-      state = state.copyWith(
-        request: HotlineRequest(
-          id: r.id,
-          status: r.status,
-          positionBand: r.positionBand,
-          waitBand: r.waitBand,
-          endReason: r.endReason,
-          lawyer: r.lawyer,
-          notifyUntil: r.notifyUntil,
-          callId: r.callId,
-          conversationId: r.conversationId,
-        ),
-      );
+      state = state.copyWith(request: r.withoutDisclosure());
     }
     try {
       await _repo.ackDisclosure(d.version);
@@ -388,6 +406,21 @@ class HotlineController extends Notifier<HotlineFlow> {
   }
 
   void dismissReview() => state = state.copyWith(clearReview: true);
+
+  /// «Предложить дело» in the call (mockup c11b): the case made from this
+  /// call, offered to its attorney. The case id, or the refusal's code.
+  Future<({String? caseId, String? code})> offerCase() async {
+    final id = state.request?.id;
+    if (id == null) return (caseId: null, code: ApiErrorCodes.notFound);
+    AppEvents.track('hotline.offer_case', screen: 'hotline');
+    try {
+      return (caseId: await _repo.offerCase(id), code: null);
+    } on ApiException catch (e) {
+      return (caseId: null, code: e.code);
+    } on Object {
+      return (caseId: null, code: 'NETWORK');
+    }
+  }
 
   /// Back to the form after an ended request (or a refusal).
   void clearError() => state = state.copyWith(clearError: true);
@@ -440,6 +473,7 @@ class HotlineController extends Notifier<HotlineFlow> {
   void _enter(String callId) {
     if (_enteredCall == callId) return;
     _enteredCall = callId;
+    state = state.copyWith(callId: callId);
     AppEvents.track('hotline.connected', screen: 'hotline');
     unawaited(
       ref.read(hotlineEnterCallProvider)(callId).then<void>(
@@ -449,7 +483,7 @@ class HotlineController extends Notifier<HotlineFlow> {
     );
   }
 
-  // --- live events ------------------------------------------------------------
+  // --- live events ---------------------------------------------------------
 
   void _onEvent(RealtimeEvent e) {
     final data = e.data;
@@ -513,8 +547,24 @@ final hotlineControllerProvider =
 /// The server's view (socket payload) → the app model; null = not one.
 HotlineRequest? hotlineRequestFromJson(Map<String, Object?> json) {
   try {
-    return ApiHotlineRepository.requestOf(
+    final r = ApiHotlineRepository.requestOf(
       api.HotlineRequestViewDto.fromJson(json),
+    );
+    // A newer server also sends the attorney's @username and photo (plan
+    // doc «API contract»); the generated model does not know them yet.
+    final raw = json['lawyer'];
+    final l = r.lawyer;
+    if (l == null || raw is! Map) return r;
+    String? s(String k) => raw[k] is String ? raw[k] as String : null;
+    return r.withLawyer(
+      HotlineLawyer(
+        id: l.id,
+        name: l.name,
+        state: l.state,
+        barNumber: l.barNumber,
+        username: s('username'),
+        avatarUrl: s('avatarUrl'),
+      ),
     );
   } on Object {
     return null;

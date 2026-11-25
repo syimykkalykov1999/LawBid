@@ -9,34 +9,46 @@ import 'package:lawbid/features/hotline/hotline_routes.dart';
 import 'package:lawbid/features/hotline/presentation/hotline_review_sheet.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// The client's hotline over every screen (like [CallHost] for calls):
+/// The client's hotline over every screen (like `CallHost` for calls):
 /// after a start or a restart it brings back the request this account had
 /// waiting; «Адвокат на линии. Позвонить сейчас?» opens wherever the client
 /// is; the short review comes up after a call that was connected. Does
 /// nothing while the hotline is off or for an attorney.
-class HotlineHost extends ConsumerWidget {
+class HotlineHost extends ConsumerStatefulWidget {
   const HotlineHost({required this.router, required this.child, super.key});
 
   final GoRouter router;
   final Widget child;
+
+  @override
+  ConsumerState<HotlineHost> createState() => _HotlineHostState();
+}
+
+class _HotlineHostState extends ConsumerState<HotlineHost> {
+  GoRouter get router => widget.router;
 
   bool _onStatus() =>
       router.routerDelegate.currentConfiguration.uri.path ==
       HotlineRoutes.status;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void initState() {
+    super.initState();
+    ref.listenManual<bool>(
+      hotlineClientVisibleProvider,
+      (_, on) {
+        if (!on) return;
+        final c = ref.read(hotlineControllerProvider.notifier);
+        unawaited(c.loadConfig());
+        unawaited(c.restore());
+      },
+      fireImmediately: true,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     ref
-      ..listen<bool>(
-        hotlineClientVisibleProvider,
-        (_, on) {
-          if (!on) return;
-          final c = ref.read(hotlineControllerProvider.notifier);
-          unawaited(c.loadConfig());
-          unawaited(c.restore());
-        },
-        fireImmediately: true,
-      )
       ..listen<HotlineNotice?>(
         hotlineControllerProvider.select((s) => s.notice),
         (_, n) {
@@ -59,6 +71,6 @@ class HotlineHost extends ConsumerWidget {
           });
         },
       );
-    return child;
+    return widget.child;
   }
 }

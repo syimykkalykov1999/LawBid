@@ -305,7 +305,7 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
     });
   }
 
-  /// The picked ones as removable chips (owner 18.11, [chipsOnTop]).
+  /// The picked ones as removable chips (owner 18.11, `chipsOnTop`).
   Widget _chips(AppColorTokens colors) {
     final byValue = {for (final o in widget.options) o.value: o};
     return Wrap(

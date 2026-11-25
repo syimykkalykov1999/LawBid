@@ -179,6 +179,28 @@ class HotlineRequest {
   final HotlineDisclosure? disclosure;
   final String? callId;
   final String? conversationId;
+
+  HotlineRequest _copy({
+    HotlineLawyer? lawyer,
+    bool dropDisclosure = false,
+  }) =>
+      HotlineRequest(
+        id: id,
+        status: status,
+        positionBand: positionBand,
+        waitBand: waitBand,
+        endReason: endReason,
+        lawyer: lawyer ?? this.lawyer,
+        notifyUntil: notifyUntil,
+        disclosure: dropDisclosure ? null : disclosure,
+        callId: callId,
+        conversationId: conversationId,
+      );
+
+  HotlineRequest withLawyer(HotlineLawyer lawyer) => _copy(lawyer: lawyer);
+
+  /// «Понятно» read: the card goes at once (the server agrees next read).
+  HotlineRequest withoutDisclosure() => _copy(dropDisclosure: true);
 }
 
 /// One row of «Сейчас на линии»: banded counts ('0', '1' = «есть», '10+'…).

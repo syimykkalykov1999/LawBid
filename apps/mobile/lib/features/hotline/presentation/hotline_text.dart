@@ -79,5 +79,6 @@ String? hotlineErrorText(Translator t, String? code) => switch (code) {
       'RATE_LIMITED' => t.t('hotline.c.err.rate'),
       'FEATURE_DISABLED' => t.t('hotline.c.err.off'),
       'NETWORK' => t.t('hotline.c.err.network'),
+      'PHONE_NOT_VERIFIED' => t.t('hotline.c.err.phone'),
       _ => t.t('hotline.c.end.lost'),
     };

@@ -13,18 +13,22 @@ const hotlineClientRu = <String, String>{
   'hotline.c.form.topicHint': 'Например, развод, раздел квартиры',
   'hotline.c.form.practice': 'Квалификация',
   'hotline.c.form.state': 'Штат',
-  'hotline.c.form.stateNote': 'Позвонит только адвокат с проверенной лицензией в этом штате.',
+  'hotline.c.form.stateNote':
+      'Позвонит только адвокат с проверенной лицензией в этом штате.',
   'hotline.c.form.languages': 'На каком языке говорить · до {max}',
-  'hotline.c.form.languagesNote': 'Язык приложения уже выбран. Ищем сразу на всех выбранных — так быстрее.',
+  'hotline.c.form.languagesNote':
+      'Язык приложения уже выбран. Ищем сразу на всех выбранных — так быстрее.',
   'hotline.c.form.langLimit': 'Можно выбрать до {max} языков',
   'hotline.c.form.select': 'Выбрать',
   'hotline.c.form.call': 'Позвонить',
   'hotline.c.disclosure.title': 'Перед первым звонком',
-  'hotline.c.disclosure.text': 'Звонки не записываются. Мы соединяем с адвокатом с лицензией в вашем штате. Разговор не делает его вашим адвокатом, пока вы не договоритесь.',
+  'hotline.c.disclosure.text':
+      'Звонки не записываются. Мы соединяем с адвокатом с лицензией в вашем штате. Разговор не делает его вашим адвокатом, пока вы не договоритесь.',
   'hotline.c.disclosure.ok': 'Понятно',
   'hotline.c.notice.short': 'Звонки не записываются',
   'hotline.c.search.title': 'Ищем адвоката…',
-  'hotline.c.search.sub': 'Ищем адвоката, говорящего {langs}. Обычно до 30 секунд.',
+  'hotline.c.search.sub':
+      'Ищем адвоката, говорящего {langs}. Обычно до 30 секунд.',
   'hotline.c.langs.or': ' или ',
   'hotline.c.speak.other': 'на языке «{name}»',
   'hotline.c.speak.en': 'по-английски',
@@ -57,7 +61,8 @@ const hotlineClientRu = <String, String>{
   'hotline.c.cancel': 'Отменить',
   'hotline.c.queue.bar': 'Горячая линия · {time}',
   'hotline.c.queue.title': 'Все адвокаты, говорящие {langs}, сейчас заняты',
-  'hotline.c.queue.place': 'Вы в очереди: {place}. {wait}Соединим, как только адвокат освободится.',
+  'hotline.c.queue.place':
+      'Вы в очереди: {place}. {wait}Соединим, как только адвокат освободится.',
   'hotline.c.pos.1': '1-й',
   'hotline.c.pos.2-5': '2–5-й',
   'hotline.c.pos.6-20': '6–20-й',
@@ -90,7 +95,8 @@ const hotlineClientRu = <String, String>{
   'hotline.c.again': 'Позвонить снова',
   'hotline.c.err.rate': 'Слишком много звонков за час. Попробуйте позже.',
   'hotline.c.err.off': 'Горячая линия сейчас выключена.',
-  'hotline.c.err.network': 'Нет связи. Попробуем ещё раз, как только появится сеть.',
+  'hotline.c.err.network':
+      'Нет связи. Попробуем ещё раз, как только появится сеть.',
   'hotline.c.call.verified': 'Проверенный адвокат · {states}',
   'hotline.c.call.rating': '{practice} · ★ {rating} · {reviews}',
   'hotline.c.call.profile': 'Посмотреть профиль',
@@ -102,6 +108,12 @@ const hotlineClientRu = <String, String>{
   'hotline.c.review.write': 'Написать адвокату',
   'hotline.c.review.skip': 'Пропустить',
   'hotline.c.review.thanks': 'Спасибо за отзыв',
+  'hotline.c.sent.title': 'Дело отправлено',
+  'hotline.c.sent.text':
+      'Адвокат сразу видит форму бида и может прислать условия, пока вы говорите.',
+  'hotline.c.sent.case': '«{topic} · {state}»',
+  'hotline.c.err.phone':
+      'Подтвердите номер телефона по SMS, чтобы звонить на линию.',
 };
 
 const hotlineClientEn = <String, String>{
@@ -113,18 +125,22 @@ const hotlineClientEn = <String, String>{
   'hotline.c.form.topicHint': 'For example, divorce, splitting an apartment',
   'hotline.c.form.practice': 'Practice area',
   'hotline.c.form.state': 'State',
-  'hotline.c.form.stateNote': 'Only an attorney with a verified license in this state will answer.',
+  'hotline.c.form.stateNote':
+      'Only an attorney with a verified license in this state will answer.',
   'hotline.c.form.languages': 'Language of the call · up to {max}',
-  'hotline.c.form.languagesNote': 'Your app language is already picked. We search all chosen languages at once — it is faster.',
+  'hotline.c.form.languagesNote':
+      'Your app language is already picked. We search all chosen languages at once — it is faster.',
   'hotline.c.form.langLimit': 'You can pick up to {max} languages',
   'hotline.c.form.select': 'Choose',
   'hotline.c.form.call': 'Call',
   'hotline.c.disclosure.title': 'Before your first call',
-  'hotline.c.disclosure.text': 'Calls are not recorded. We connect you with an attorney licensed in your state. The call does not make them your attorney until you both agree.',
+  'hotline.c.disclosure.text':
+      'Calls are not recorded. We connect you with an attorney licensed in your state. The call does not make them your attorney until you both agree.',
   'hotline.c.disclosure.ok': 'Got it',
   'hotline.c.notice.short': 'Calls are not recorded',
   'hotline.c.search.title': 'Finding an attorney…',
-  'hotline.c.search.sub': 'Looking for an attorney who speaks {langs}. Usually under 30 seconds.',
+  'hotline.c.search.sub':
+      'Looking for an attorney who speaks {langs}. Usually under 30 seconds.',
   'hotline.c.langs.or': ' or ',
   'hotline.c.speak.other': '{name}',
   'hotline.c.speak.en': 'English',
@@ -157,7 +173,8 @@ const hotlineClientEn = <String, String>{
   'hotline.c.cancel': 'Cancel',
   'hotline.c.queue.bar': 'Call hotline · {time}',
   'hotline.c.queue.title': 'All attorneys who speak {langs} are busy right now',
-  'hotline.c.queue.place': 'Your place in line: {place}. {wait}We will connect you as soon as an attorney is free.',
+  'hotline.c.queue.place':
+      'Your place in line: {place}. {wait}We will connect you as soon as an attorney is free.',
   'hotline.c.pos.1': '1st',
   'hotline.c.pos.2-5': '2nd–5th',
   'hotline.c.pos.6-20': '6th–20th',
@@ -183,14 +200,16 @@ const hotlineClientEn = <String, String>{
   'hotline.c.end.title': 'The call did not happen',
   'hotline.c.end.exhausted': 'We could not reach you. Please ask again.',
   'hotline.c.end.expired': 'The waiting time is over. Please ask again.',
-  'hotline.c.end.full': 'The line is full right now. Please try a little later.',
+  'hotline.c.end.full':
+      'The line is full right now. Please try a little later.',
   'hotline.c.end.lost': 'We could not connect you. Please try again.',
   'hotline.c.end.timeLimit': 'The call time is over.',
   'hotline.c.end.done': 'The call has ended.',
   'hotline.c.again': 'Call again',
   'hotline.c.err.rate': 'Too many calls this hour. Please try later.',
   'hotline.c.err.off': 'The call hotline is off right now.',
-  'hotline.c.err.network': 'No connection. We will try again once you are online.',
+  'hotline.c.err.network':
+      'No connection. We will try again once you are online.',
   'hotline.c.call.verified': 'Verified attorney · {states}',
   'hotline.c.call.rating': '{practice} · ★ {rating} · {reviews}',
   'hotline.c.call.profile': 'View profile',
@@ -202,4 +221,9 @@ const hotlineClientEn = <String, String>{
   'hotline.c.review.write': 'Message the attorney',
   'hotline.c.review.skip': 'Skip',
   'hotline.c.review.thanks': 'Thank you for the review',
+  'hotline.c.sent.title': 'Case sent',
+  'hotline.c.sent.text':
+      'The attorney sees the bid form at once and can send terms while you talk.',
+  'hotline.c.sent.case': '“{topic} · {state}”',
+  'hotline.c.err.phone': 'Confirm your phone number by SMS to call the line.',
 };

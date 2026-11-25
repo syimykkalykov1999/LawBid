@@ -114,12 +114,6 @@ class RealtimeClient {
     // channel's call started, changed or ended (no polling).
     'call:ongoing',
     'call:ongoing_ended',
-    // Owner row 87: the client's call hotline (its request moved, the call
-    // was taken / ended, «Адвокат на линии»).
-    'hotline:request',
-    'hotline:connected',
-    'hotline:ended',
-    'hotline:notify',
     'typing',
     'notification:new',
     // Owner 2026-10-24: somebody opened a file of mine («Просмотры»).
@@ -145,6 +139,14 @@ class RealtimeClient {
     'channel:post',
     'channel:update',
     'comment:new',
+    // Owner row 87 (hotline plan step 5): the client's request moved, the
+    // call was taken / ended, «Адвокат на линии» (the attorney's PR adds its
+    // own events here — one list, each name once, or a socket event would
+    // arrive twice).
+    'hotline:request',
+    'hotline:notify',
+    'hotline:connected',
+    'hotline:ended',
   ];
 
   /// Owner 2026-10-23 (part C2): `reconnected` reaches each listener after

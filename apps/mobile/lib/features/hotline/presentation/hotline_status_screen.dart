@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/feedback/app_confirm_sheet.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -39,13 +40,20 @@ class _HotlineStatusScreenState extends ConsumerState<HotlineStatusScreen>
   Timer? _poll;
   Timer? _tick;
 
+  /// The saved request was looked up (until then a spinner, never «ended»).
+  bool _loaded = false;
+
   HotlineController get _c => ref.read(hotlineControllerProvider.notifier);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    unawaited(_c.restore());
+    unawaited(
+      _c.restore().whenComplete(() {
+        if (mounted) setState(() => _loaded = true);
+      }),
+    );
     _start();
   }
 
@@ -132,15 +140,31 @@ class _HotlineStatusScreenState extends ConsumerState<HotlineStatusScreen>
         if (text != null && code != 'NETWORK') showAppSnackBar(context, text);
       },
     );
+    // The admin switched the line off (or the account is no longer a
+    // client): the request is gone on the server too — the screen goes.
+    ref.listen<bool>(hotlineClientVisibleProvider, (_, on) {
+      if (on || !mounted) return;
+      showAppSnackBar(context, t.t('hotline.c.err.off'));
+      context.safeBack();
+    });
     final r = f.request;
     final now = ref.read(hotlineClockProvider)();
     final notice = f.notice;
     final Widget body;
-    String title = t.t('hotline.c.title');
+    var title = t.t('hotline.c.title');
     if (notice != null && !notice.expired(now)) {
       body = _NowView(flow: f);
-    } else if (r == null) {
+    } else if (r == null && (f.busy || !_loaded)) {
       body = const Center(child: CircularProgressIndicator.adaptive());
+    } else if (r == null) {
+      // Nothing waits (it ended elsewhere, or a stale push was tapped).
+      body = _EndedView(
+        request: const HotlineRequest(id: '', status: HotlineStatus.ended),
+        onAgain: () {
+          _c.clearError();
+          context.pushReplacement(HotlineRoutes.form);
+        },
+      );
     } else {
       switch (r.status) {
         case HotlineStatus.searching:
@@ -202,9 +226,9 @@ class _HotlineStatusScreenState extends ConsumerState<HotlineStatusScreen>
 
 /// The scrolling content over the pinned buttons (the form's layout).
 class _Frame extends StatelessWidget {
-  const _Frame({required this.children, required this.buttons});
+  const _Frame({required this.items, required this.buttons});
 
-  final List<Widget> children;
+  final List<Widget> items;
   final List<Widget> buttons;
 
   @override
@@ -221,7 +245,7 @@ class _Frame extends StatelessWidget {
               AppSpacing.screenSide,
             ),
             children: [
-              for (final c in children) ...[
+              for (final c in items) ...[
                 c,
                 const SizedBox(height: AppSpacing.md),
               ],
@@ -440,25 +464,23 @@ class _Counters extends ConsumerWidget {
               horizontalInside: BorderSide(color: colors.border),
             ),
             children: [
-              row([
-                t.t('hotline.c.counters.lang'),
-                t.t('hotline.c.counters.clients'),
-                t.t('hotline.c.counters.lawyers'),
-              ], head),
+              row(
+                [
+                  t.t('hotline.c.counters.lang'),
+                  t.t('hotline.c.counters.clients'),
+                  t.t('hotline.c.counters.lawyers'),
+                ],
+                head,
+              ),
               for (final code in codes)
-                row([
-                  hotlineLanguageName(langs, code),
-                  byKey['l:$code'] == null
-                      ? '–'
-                      : hotlineBand(t, byKey['l:$code']!.clients),
-                  byKey['l:$code'] == null
-                      ? '–'
-                      : hotlineBand(
-                          t,
-                          byKey['l:$code']!.lawyers,
-                          lawyers: true,
-                        ),
-                ], cell),
+                row(
+                  [
+                    hotlineLanguageName(langs, code),
+                    _band(t, byKey['l:$code']?.clients),
+                    _band(t, byKey['l:$code']?.lawyers, lawyers: true),
+                  ],
+                  cell,
+                ),
             ],
           ),
         ],
@@ -466,6 +488,10 @@ class _Counters extends ConsumerWidget {
     );
   }
 }
+
+/// A counter cell: «–» before the first numbers arrive.
+String _band(Translator t, String? raw, {bool lawyers = false}) =>
+    raw == null ? '–' : hotlineBand(t, raw, lawyers: lawyers);
 
 String _speaks(WidgetRef ref, Translator t, HotlineFlow f) {
   final langs = hotlineLanguages(ref);
@@ -488,7 +514,7 @@ class _SearchingView extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final d = flow.request?.disclosure;
     return _Frame(
-      children: [
+      items: [
         if (d != null) _Disclosure(disclosure: d),
         _Title(t.t('hotline.c.search.title'), center: true),
         _Sub(
@@ -529,7 +555,7 @@ class _QueueView extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final r = flow.request!;
     return _Frame(
-      children: [
+      items: [
         if (r.disclosure != null) _Disclosure(disclosure: r.disclosure!),
         _Title(
           key: const ValueKey('hotline-queue-title'),
@@ -587,7 +613,7 @@ class _OfflineView extends ConsumerWidget {
     final t = ref.watch(translatorProvider);
     final until = request.notifyUntil;
     return _Frame(
-      children: [
+      items: [
         _Centered(
           icon: AppIcons.notificationsActiveOutlined,
           title: t.t('hotline.c.notify.title'),
@@ -628,7 +654,7 @@ class _NowView extends ConsumerWidget {
     final c = ref.read(hotlineControllerProvider.notifier);
     final d = flow.draft;
     return _Frame(
-      children: [
+      items: [
         _Centered(
           icon: AppIcons.callRounded,
           title: t.t('hotline.c.now.title'),
@@ -672,7 +698,7 @@ class _EndedView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     return _Frame(
-      children: [
+      items: [
         _Centered(
           icon: AppIcons.callRounded,
           title: request.endReason == 'ended'

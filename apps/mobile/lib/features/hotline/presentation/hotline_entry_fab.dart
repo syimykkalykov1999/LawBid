@@ -46,7 +46,8 @@ class _HotlineEntryFabState extends ConsumerState<HotlineEntryFab> {
     }
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final waiting = ref.watch(hotlineControllerProvider.select((s) => s.active));
+    final waiting =
+        ref.watch(hotlineControllerProvider.select((s) => s.active));
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpacing.md),
       child: AppFab(

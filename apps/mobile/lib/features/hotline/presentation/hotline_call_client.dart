@@ -3,15 +3,20 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart'
+    show avatarFullUrlFor;
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 import 'package:lawbid/features/cases/presentation/widgets/offer_case_sheet.dart';
 import 'package:lawbid/features/hotline/application/hotline_controller.dart';
+import 'package:lawbid/features/hotline/hotline_routes.dart';
 import 'package:lawbid/features/hotline/presentation/hotline_text.dart';
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// The client's side of a hotline call on our ordinary 1:1 voice call
@@ -45,6 +50,44 @@ class HotlineCallClientPanel extends ConsumerWidget {
     unawaited(router.push<void>(AppRoutes.lawyer(username)));
   }
 
+  /// «Предложить дело» (mockup c11b): one tap makes the case from the call
+  /// (topic, state, qualification) and offers it to this attorney; the call
+  /// minimises and «Дело отправлено» opens over it. A server without that
+  /// step, or one that needs more (contact consent, a missing contact),
+  /// gets the app's ordinary «Предложить дело» sheet instead.
+  Future<void> _offer(
+    BuildContext context,
+    WidgetRef ref, {
+    required String attorneyId,
+    required String name,
+    required Set<String> states,
+    required Set<String> practices,
+  }) async {
+    final router = GoRouter.of(context);
+    final t = ref.read(translatorProvider);
+    final res = await ref.read(hotlineControllerProvider.notifier).offerCase();
+    if (!context.mounted) return;
+    if (res.caseId != null) {
+      unawaited(Navigator.of(context).maybePop());
+      unawaited(router.push<void>(HotlineRoutes.caseSent));
+      return;
+    }
+    if (res.code == ApiErrorCodes.rateLimited ||
+        res.code == ApiErrorCodes.featureDisabled ||
+        res.code == 'NETWORK') {
+      final text = hotlineErrorText(t, res.code);
+      if (text != null) showAppSnackBar(context, text);
+      return;
+    }
+    await showOfferCaseSheet(
+      context,
+      attorneyId: attorneyId,
+      attorneyName: name,
+      licensedStateCodes: states,
+      practiceIds: practices,
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
@@ -64,7 +107,7 @@ class HotlineCallClientPanel extends ConsumerWidget {
     final practice = flow.draft?.practice;
     final rating = profile?.rating;
     final small = type.body.copyWith(
-      color: Colors.white.withValues(alpha: 0.85),
+      color: AppCallColors.onStage.withValues(alpha: 0.85),
       fontSize: CallTextSizes.status,
     );
     final top = MediaQuery.paddingOf(context).top + 56;
@@ -81,7 +124,7 @@ class HotlineCallClientPanel extends ConsumerWidget {
                   Text(
                     '@$username',
                     style: small.copyWith(
-                      color: Colors.white.withValues(alpha: 0.75),
+                      color: AppCallColors.onStage.withValues(alpha: 0.75),
                     ),
                   ),
                 Semantics(
@@ -102,7 +145,7 @@ class HotlineCallClientPanel extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
                         style: type.body.copyWith(
-                          color: Colors.white,
+                          color: AppCallColors.onStage,
                           fontWeight: FontWeight.w600,
                           fontSize: 18,
                         ),
@@ -201,18 +244,19 @@ class HotlineCallClientPanel extends ConsumerWidget {
                     onTap: lawyer == null
                         ? null
                         : () => unawaited(
-                              showOfferCaseSheet(
+                              _offer(
                                 context,
+                                ref,
                                 attorneyId: lawyer.id,
-                                attorneyName: name,
-                                licensedStateCodes: {
-                                  for (final s
-                                      in profile?.licensedStates ?? const [])
+                                name: name,
+                                states: {
+                                  for (final s in profile?.licensedStates ??
+                                      const <StateRef>[])
                                     s.code,
                                 },
-                                practiceIds: {
-                                  for (final p
-                                      in profile?.practices ?? const [])
+                                practices: {
+                                  for (final p in profile?.practices ??
+                                      const <SelectedPractice>[])
                                     p.id,
                                 },
                               ),

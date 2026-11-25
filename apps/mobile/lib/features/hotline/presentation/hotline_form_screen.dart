@@ -14,7 +14,8 @@ import 'package:lawbid/features/hotline/domain/hotline_models.dart';
 import 'package:lawbid/features/hotline/hotline_routes.dart';
 import 'package:lawbid/features/hotline/presentation/hotline_text.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
-import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
+import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart'
+    show OptionPickerSheet, PickerOption;
 import 'package:lawbid/features/practice/practice_options.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -56,8 +57,7 @@ class _HotlineFormScreenState extends ConsumerState<HotlineFormScreen> {
     super.dispose();
   }
 
-  int get _max =>
-      ref.read(hotlineControllerProvider).config?.maxLanguages ?? 3;
+  int get _max => ref.read(hotlineControllerProvider).config?.maxLanguages ?? 3;
 
   HotlineDraft get _draft => HotlineDraft(
         topic: _topic.text,
@@ -126,7 +126,6 @@ class _HotlineFormScreenState extends ConsumerState<HotlineFormScreen> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final flow = ref.watch(hotlineControllerProvider);
     final langs = hotlineLanguages(ref);
     final maxChars = flow.config?.topicMaxChars ?? 80;
