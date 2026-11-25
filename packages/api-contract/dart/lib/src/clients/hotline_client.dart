@@ -13,13 +13,18 @@ import '../models/hotline_counters_envelope.dart';
 import '../models/hotline_disclosure_ack_dto.dart';
 import '../models/hotline_disclosure_envelope.dart';
 import '../models/hotline_end_envelope.dart';
+import '../models/hotline_heartbeat_envelope.dart';
 import '../models/hotline_languages_dto.dart';
 import '../models/hotline_line_dto.dart';
 import '../models/hotline_line_view_envelope.dart';
 import '../models/hotline_notify_me_dto.dart';
+import '../models/hotline_offer_case_dto.dart';
+import '../models/hotline_offer_case_result_envelope.dart';
 import '../models/hotline_offer_result_envelope.dart';
+import '../models/hotline_ok_envelope.dart';
 import '../models/hotline_request_dto.dart';
 import '../models/hotline_request_view_envelope.dart';
+import '../models/hotline_review_dto.dart';
 
 part 'hotline_client.g.dart';
 
@@ -68,7 +73,7 @@ abstract class HotlineClient {
 
   /// REST fallback of the socket `hotline:heartbeat` (screen open)
   @POST('/hotline/heartbeat')
-  Future<HotlineEndEnvelope> hotlineHeartbeat({
+  Future<HotlineHeartbeatEnvelope> hotlineHeartbeat({
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -134,6 +139,22 @@ abstract class HotlineClient {
   Future<HotlineRequestViewEnvelope> hotlineNotifyMe({
     @Path('id') required String id,
     @Body() required HotlineNotifyMeDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// «Предложить дело»: our case from the call, offered to its attorney (one per call)
+  @POST('/hotline/requests/{id}/offer-case')
+  Future<HotlineOfferCaseResultEnvelope> hotlineOfferCase({
+    @Path('id') required String id,
+    @Body() required HotlineOfferCaseDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// «Как прошёл разговор?» (client, first answer wins)
+  @POST('/hotline/requests/{id}/review')
+  Future<HotlineOkEnvelope> hotlineReview({
+    @Path('id') required String id,
+    @Body() required HotlineReviewDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

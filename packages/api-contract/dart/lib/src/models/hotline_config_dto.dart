@@ -4,7 +4,9 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'hotline_access_dto.dart';
 import 'hotline_disclosure_dto.dart';
+import 'hotline_mode.dart';
 
 part 'hotline_config_dto.g.dart';
 
@@ -21,6 +23,8 @@ class HotlineConfigDto {
     required this.reviewEnabled,
     required this.clientStepsEnabled,
     required this.disclosure,
+    this.mode,
+    this.access,
   });
 
   factory HotlineConfigDto.fromJson(Map<String, Object?> json) =>
@@ -41,6 +45,12 @@ class HotlineConfigDto {
   /// hotline.client_steps_enabled («Дальше / Назад»)
   final bool clientStepsEnabled;
   final HotlineDisclosureDto disclosure;
+
+  /// `hotline.mode` for every role (off_for_all: no buttons). Optional for apps that met an older server.
+  final HotlineMode? mode;
+
+  /// Attorneys only (null for clients and assistants).
+  final HotlineAccessDto? access;
 
   Map<String, Object?> toJson() => _$HotlineConfigDtoToJson(this);
 }

@@ -904,6 +904,15 @@ export class AccountAnonymizationService implements AccountEraser {
         where: { client_id: userId, private_details: { not: null } },
         data: { private_details: null },
       });
+      // Hotline plan PR 7: the words of a hotline review and «О чём звонок»
+      // are the client's free text; the billing row and the stars stay.
+      await tx.hotlineCall.updateMany({
+        where: {
+          client_id: userId,
+          OR: [{ review_comment: { not: null } }, { topic: { not: null } }],
+        },
+        data: { review_comment: null, topic: null },
+      });
       // Round 13 (S13-1): the erasure ledger row commits with the erasure.
       await this.ledger?.record(userId, now, reason, tx);
       const released = files.filter((f) => !evidence.has(f.id));

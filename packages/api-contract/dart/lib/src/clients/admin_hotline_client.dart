@@ -6,12 +6,19 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/hotline_live_envelope.dart';
+import '../models/hotline_stats_envelope.dart';
 
 part 'admin_hotline_client.g.dart';
 
 @RestApi()
 abstract class AdminHotlineClient {
   factory AdminHotlineClient(Dio dio, {String? baseUrl}) = _AdminHotlineClient;
+
+  /// Hotline, last 30 days (nightly snapshot)
+  @GET('/admin/hotline/stats')
+  Future<HotlineStatsEnvelope> adminHotlineStats({
+    @Extras() Map<String, dynamic>? extras,
+  });
 
   /// Hotline now: line, queues, calls (Valkey only)
   @GET('/admin/hotline/live')

@@ -78004,7 +78004,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HotlineEndEnvelope"
+                  "$ref": "#/components/schemas/HotlineHeartbeatEnvelope"
                 }
               }
             }
@@ -78893,6 +78893,248 @@
         ]
       }
     },
+    "/hotline/requests/{id}/offer-case": {
+      "post": {
+        "operationId": "hotlineOfferCase",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotlineOfferCaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineOfferCaseResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, CASE_CONTAINS_CONTACT_INFO",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED, FORBIDDEN, CLIENT_CONTACTS_INCOMPLETE, ONBOARDING_INCOMPLETE, CLIENT_CONTACT_SHARING_CONSENT_REQUIRED, COUNTRY_NOT_AVAILABLE, LEGAL_REACCEPT_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: INVITE_ATTORNEY_UNAVAILABLE, CASE_INVALID_STATE, BID_ALREADY_EXISTS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Предложить дело»: our case from the call, offered to its attorney (one per call)",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
+    "/hotline/requests/{id}/review": {
+      "post": {
+        "operationId": "hotlineReview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotlineReviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineOkEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED, FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "«Как прошёл разговор?» (client, first answer wins)",
+        "tags": [
+          "hotline"
+        ]
+      }
+    },
     "/hotline/requests/{id}/claim": {
       "post": {
         "operationId": "hotlineClaim",
@@ -79081,6 +79323,83 @@
         "summary": "Banded «адвокатов / клиентов» of buckets (ETag / 304, 5 s)",
         "tags": [
           "hotline"
+        ]
+      }
+    },
+    "/admin/hotline/stats": {
+      "get": {
+        "operationId": "adminHotlineStats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotlineStatsEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "admin": []
+          }
+        ],
+        "summary": "Hotline, last 30 days (nightly snapshot)",
+        "tags": [
+          "admin-hotline"
         ]
       }
     },
@@ -182416,6 +182735,56 @@
           "version"
         ]
       },
+      "HotlineMode": {
+        "type": "string",
+        "enum": [
+          "on_for_all",
+          "by_subscription",
+          "off_for_all"
+        ],
+        "description": "`hotline.mode` for every role (off_for_all: no buttons). Optional for apps that met an older server."
+      },
+      "HotlineAccessVia": {
+        "type": "string",
+        "enum": [
+          "free",
+          "plan",
+          "addon",
+          "trial"
+        ]
+      },
+      "HotlineAccessDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineMode"
+              }
+            ]
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "via": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineAccessVia"
+              }
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "description": "off_for_all, not_in_plan, addon_required (when not allowed)"
+          }
+        },
+        "required": [
+          "mode",
+          "allowed"
+        ]
+      },
       "HotlineConfigDto": {
         "type": "object",
         "properties": {
@@ -182451,6 +182820,24 @@
           },
           "disclosure": {
             "$ref": "#/components/schemas/HotlineDisclosureDto"
+          },
+          "mode": {
+            "description": "`hotline.mode` for every role (off_for_all: no buttons). Optional for apps that met an older server.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineMode"
+              }
+            ]
+          },
+          "access": {
+            "nullable": true,
+            "description": "Attorneys only (null for clients and assistants).",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineAccessDto"
+              }
+            ]
           }
         },
         "required": [
@@ -182489,15 +182876,6 @@
           "not_accepting",
           "paused",
           "off"
-        ]
-      },
-      "HotlineAccessVia": {
-        "type": "string",
-        "enum": [
-          "free",
-          "plan",
-          "addon",
-          "trial"
         ]
       },
       "HotlineLineViewDto": {
@@ -182655,7 +183033,40 @@
           "accepting"
         ]
       },
-      "HotlineEndDto": {
+      "HotlineWaitingDto": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "practiceArea": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "description": "The call language (matched to his line)."
+          },
+          "waitingSince": {
+            "type": "number",
+            "description": "ms, «ждёт 1:40» counts from here"
+          }
+        },
+        "required": [
+          "requestId",
+          "topic",
+          "state",
+          "practiceArea",
+          "language",
+          "waitingSince"
+        ]
+      },
+      "HotlineHeartbeatDto": {
         "type": "object",
         "properties": {
           "ok": {
@@ -182663,12 +183074,17 @@
           },
           "seconds": {
             "type": "number",
-            "description": "Talked seconds (from «Взять»)."
+            "description": "Always 0 (the shape of HotlineEndDto)."
           },
-          "conversationId": {
-            "type": "string",
+          "waiting": {
             "nullable": true,
-            "description": "The direct chat of the two, opened or reused after the call (WhatsApp-style)."
+            "description": "In a hotline call with «Принимать звонки» on: the client who waits longest in his queues.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/HotlineWaitingDto"
+              }
+            ]
           }
         },
         "required": [
@@ -182676,11 +183092,11 @@
           "seconds"
         ]
       },
-      "HotlineEndEnvelope": {
+      "HotlineHeartbeatEnvelope": {
         "type": "object",
         "properties": {
           "data": {
-            "$ref": "#/components/schemas/HotlineEndDto"
+            "$ref": "#/components/schemas/HotlineHeartbeatDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -182737,6 +183153,41 @@
           "data"
         ]
       },
+      "HotlineEndDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "seconds": {
+            "type": "number",
+            "description": "Talked seconds (from «Взять»)."
+          },
+          "conversationId": {
+            "type": "string",
+            "nullable": true,
+            "description": "The direct chat of the two, opened or reused after the call (WhatsApp-style)."
+          }
+        },
+        "required": [
+          "ok",
+          "seconds"
+        ]
+      },
+      "HotlineEndEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HotlineEndDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "HotlineRequestStatus": {
         "type": "string",
         "enum": [
@@ -182756,6 +183207,14 @@
           },
           "name": {
             "type": "string"
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
           },
           "state": {
             "type": "string",
@@ -182953,6 +183412,95 @@
           }
         }
       },
+      "HotlineOfferCaseResultDto": {
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string"
+          },
+          "inviteId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "caseId"
+        ]
+      },
+      "HotlineOfferCaseDto": {
+        "type": "object",
+        "properties": {
+          "budgetAmountDollars": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 10000000
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "clientContactSharingConsent": {
+            "type": "boolean",
+            "description": "The same consent as POST /cases (asked once; 403 CLIENT_CONTACT_SHARING_CONSENT_REQUIRED until given)."
+          }
+        }
+      },
+      "HotlineOfferCaseResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HotlineOfferCaseResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "HotlineOkDto": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ]
+      },
+      "HotlineReviewDto": {
+        "type": "object",
+        "properties": {
+          "stars": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "stars"
+        ]
+      },
+      "HotlineOkEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HotlineOkDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "HotlineClaimDto": {
         "type": "object",
         "properties": {
@@ -183003,6 +183551,158 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/HotlineCountersDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "HotlineStatsDayDto": {
+        "type": "object",
+        "properties": {
+          "day": {
+            "type": "string",
+            "description": "YYYY-MM-DD (UTC)"
+          },
+          "calls": {
+            "type": "number"
+          },
+          "talkSeconds": {
+            "type": "number"
+          },
+          "casesOffered": {
+            "type": "number",
+            "description": "calls turned into a case («Предложить дело»)"
+          },
+          "reviews": {
+            "type": "number"
+          },
+          "starsSum": {
+            "type": "number",
+            "description": "sum of the stars (average = starsSum / reviews)"
+          },
+          "clients": {
+            "type": "number"
+          },
+          "attorneys": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "day",
+          "calls",
+          "talkSeconds",
+          "casesOffered",
+          "reviews",
+          "starsSum",
+          "clients",
+          "attorneys"
+        ]
+      },
+      "HotlineStatsTotalsDto": {
+        "type": "object",
+        "properties": {
+          "calls": {
+            "type": "number"
+          },
+          "talkSeconds": {
+            "type": "number"
+          },
+          "casesOffered": {
+            "type": "number"
+          },
+          "reviews": {
+            "type": "number"
+          },
+          "starsSum": {
+            "type": "number"
+          },
+          "clients": {
+            "type": "number",
+            "description": "client-days (people per day added up)"
+          },
+          "attorneys": {
+            "type": "number",
+            "description": "attorney-days (people per day added up)"
+          }
+        },
+        "required": [
+          "calls",
+          "talkSeconds",
+          "casesOffered",
+          "reviews",
+          "starsSum",
+          "clients",
+          "attorneys"
+        ]
+      },
+      "HotlineStatsRowDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "calls": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "key",
+          "calls"
+        ]
+      },
+      "HotlineStatsDto": {
+        "type": "object",
+        "properties": {
+          "computedAt": {
+            "type": "string",
+            "description": "ISO time the snapshot was counted"
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotlineStatsDayDto"
+            }
+          },
+          "totals": {
+            "$ref": "#/components/schemas/HotlineStatsTotalsDto"
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotlineStatsRowDto"
+            }
+          },
+          "practices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotlineStatsRowDto"
+            }
+          },
+          "endReasons": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotlineStatsRowDto"
+            }
+          }
+        },
+        "required": [
+          "computedAt",
+          "days",
+          "totals",
+          "states",
+          "practices",
+          "endReasons"
+        ]
+      },
+      "HotlineStatsEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/HotlineStatsDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
