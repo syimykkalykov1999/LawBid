@@ -139,6 +139,16 @@ class RealtimeClient {
     'channel:post',
     'channel:update',
     'comment:new',
+    // Owner row 87 (hotline plan step 6): the attorney's line — an offer and
+    // its end, the line on / off, the case the client offered from the
+    // call, the banded counters; both sides: connected / ended.
+    'hotline:offer',
+    'hotline:offer_ended',
+    'hotline:line',
+    'hotline:case_offered',
+    'hotline:counters',
+    'hotline:connected',
+    'hotline:ended',
   ];
 
   /// Owner 2026-10-23 (part C2): `reconnected` reaches each listener after
@@ -641,6 +651,29 @@ class RealtimeClient {
         return false;
       },
     );
+  }
+
+  /// Hotline (plan step 6): a request with an answer on the open socket
+  /// (`hotline:heartbeat`, `hotline:away`, `hotline:watch`); null when the
+  /// socket is down or no answer came in 5 s (the caller falls back to
+  /// REST).
+  Future<Map<String, Object?>?> emitAck(
+    String event, [
+    Map<String, Object?> body = const {},
+  ]) {
+    final s = _socket;
+    if (s == null || !s.connected) return Future.value();
+    final done = Completer<Map<String, Object?>?>();
+    s.emitWithAck(
+      event,
+      body,
+      ack: (Object? r) {
+        if (done.isCompleted) return;
+        done.complete(r is Map ? Map<String, Object?>.from(r) : null);
+      },
+    );
+    return done.future
+        .timeout(const Duration(seconds: 5), onTimeout: () => null);
   }
 
   bool _keepUpForCall = false;
