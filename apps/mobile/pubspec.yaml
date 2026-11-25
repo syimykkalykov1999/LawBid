@@ -319,7 +319,7 @@ dependency_overrides:
   passkeys_web:
     path: third_party/passkeys_web
 
-  # KNOWN_ERRORS 228 (owner 18.11, «the screen goes empty, nothing responds»):
+  # KNOWN_ERRORS 229 (owner 18.11, «the screen goes empty, nothing responds»):
   # go_router 18.1.4 (BSD-3, flutter/packages) with one patch — a pop that
   # would leave no page is refused instead of emptying the router (upstream
   # only asserts in debug; release built SizedBox.shrink() for the whole

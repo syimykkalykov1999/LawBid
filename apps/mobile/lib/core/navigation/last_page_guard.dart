@@ -1,7 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 
-/// KNOWN_ERRORS 228 (owner 18.11, «the screen goes empty, nothing responds,
+/// KNOWN_ERRORS 229 (owner 18.11, «the screen goes empty, nothing responds,
 /// only closing the app helps» — after payments, calls, settings, photos,
 /// chats, comments).
 ///
@@ -32,7 +32,7 @@ abstract final class LastPageGuard {
     GoRouterDelegate.onLastPagePopRefused =
         (route, stack) => CrashReporter.instance?.report(
               StateError(
-                'KNOWN_ERRORS 228: refused a pop of the last page '
+                'KNOWN_ERRORS 229: refused a pop of the last page '
                 '(${route.settings.name})',
               ),
               stack,
