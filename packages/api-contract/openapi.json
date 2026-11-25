@@ -184312,7 +184312,8 @@
               "cloudflare_usage",
               "bunny_usage",
               "table_growth",
-              "shard_growth"
+              "shard_growth",
+              "cache_cdc"
             ]
           },
           "status": {

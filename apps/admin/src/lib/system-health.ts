@@ -238,6 +238,64 @@ export function word(item: HealthItem): Worded {
         runbook: "table-partitioning.md",
       };
     }
+    case "cache_cdc": {
+      type Db = {
+        db: string;
+        state: string;
+        blockers?: string[];
+        lagSec?: number | null;
+        slotRetainedMb?: number | null;
+        applied?: number;
+        overflows?: number;
+        slotDrops?: number;
+        lastError?: string | null;
+      };
+      const dbs = (d.dbs as Db[] | undefined) ?? [];
+      const STATE: Record<string, string> = {
+        off: "выключено",
+        waiting: "ждёт, когда в базе включат логическую репликацию",
+        not_ready: "не готово",
+        streaming: "работает",
+        starting: "подключается",
+        standby: "работает (читает другой обработчик)",
+        error: "ошибка, повтор через 30 с",
+      };
+      const BLOCKER: Record<string, string> = {
+        wal_level: "в базе не включена логическая репликация (rds.logical_replication)",
+        no_publication: "нет публикации lawbid_cache_cdc",
+        no_replication_right: "у пользователя базы нет права rds_replication",
+      };
+      const line =
+        d.mode === undefined
+          ? "Обработчик ещё не прислал состояние."
+          : d.mode === "off"
+            ? "Выключено (db.cdc_mode = Выкл): кэш сбрасывает только приложение, как раньше."
+            : dbs
+                .map((x) => {
+                  const parts = [`${x.db}: ${STATE[x.state] ?? x.state}`];
+                  if (x.lagSec !== null && x.lagSec !== undefined) parts.push(`задержка ${x.lagSec} с`);
+                  if (x.slotRetainedMb !== null && x.slotRetainedMb !== undefined)
+                    parts.push(`журнал для чтения ${x.slotRetainedMb} МБ`);
+                  if (x.applied) parts.push(`изменений ${x.applied}`);
+                  if (x.slotDrops) parts.push(`место чтения пересоздано ${x.slotDrops} раз`);
+                  return parts.join(", ");
+                })
+                .join("; ") || "Баз для чтения нет.";
+      const missing = [...new Set(dbs.flatMap((x) => x.blockers ?? []))];
+      return {
+        title: "Сброс кэша по журналу базы",
+        line,
+        todo:
+          s === "red"
+            ? `База держит для чтения журнала почти ${String(d.maxSlotWalMb)} МБ (потолок db.cdc_max_slot_wal_mb). Защита сама удалит место чтения; если цифра не падает — переключите db.cdc_mode на Выкл.`
+            : s === "yellow"
+              ? missing.length
+                ? `Не хватает шага владельца: ${missing.map((m) => BLOCKER[m] ?? m).join("; ")}. Пока так — кэш сбрасывает только приложение.`
+                : `Сброс по журналу отстаёт или сбоит${dbs.find((x) => x.lastError)?.lastError ? ` (${dbs.find((x) => x.lastError)?.lastError})` : ""}. Приложение по-прежнему сбрасывает кэш само; если держится больше часа — напишите Claude «cache cdc».`
+              : undefined,
+        runbook: "cache-cdc.md",
+      };
+    }
     case "shard_growth": {
       const sizeGb = n(d.sizeGb);
       const thrGb = n(d.thresholdGb);

@@ -117,6 +117,7 @@
     "nodemailer": "^10.6.0",
     "pdfkit": "^0.20.2",
     "pg": "^8.23.1",
+    "pg-logical-replication": "2.6.0",
     "pino-http": "^11.0.0",
     "prisma": "7.10.1",
     "qrcode": "1.5.4",

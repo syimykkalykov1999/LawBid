@@ -1687,6 +1687,15 @@ export const OWNER_OPS_SETTINGS = {
   // and the biggest table the heap estimate may read (indexes are never read).
   'db.bloat_mode': 'auto',
   'db.bloat_scan_max_mb': 256,
+  /** C2 (25.11, modules/cache-cdc): cache invalidation from the database
+   * change log (logical replication) as the second line behind the
+   * in-request deletes. Выкл / Вкл / Авто; Выкл by default until the
+   * owner turns on rds.logical_replication (Авто then starts by itself).
+   * The slot guard drops a slot that keeps more WAL than the MB below
+   * (0 = only a lost slot); the lag alarm is in seconds. */
+  'db.cdc_mode': 'off',
+  'db.cdc_max_slot_wal_mb': 2048,
+  'db.cdc_lag_alarm_sec': 120,
   /** 14.11 (DB scale review, finding 1): the nightly `sessions.cleanup` walk
    * — rows scanned per statement (one short transaction each) and how long
    * a signed-out / blocked session row is kept before it is removed. */

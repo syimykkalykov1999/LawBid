@@ -38,6 +38,7 @@ export class HealthItemDto {
       'bunny_usage',
       'table_growth',
       'shard_growth',
+      'cache_cdc',
     ],
   })
   key!: string;

@@ -33,6 +33,7 @@ import { CaseFanoutModule } from '../modules/notifications/case-fanout/case-fano
 import { GroupFanoutModule } from '../modules/groups/group-fanout.module';
 import { PostFanoutModule } from '../modules/notifications/post-fanout.worker';
 import { ChannelFanoutModule } from '../modules/channels/channel-fanout.module';
+import { CacheCdcModule } from '../modules/cache-cdc/cache-cdc.module';
 
 /**
  * Root module of the dedicated `worker` process (docs/06_PRODUCTION.md §6:
@@ -124,6 +125,8 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     CountersModule,
     // docs/05 §8.5: jobs publish realtime events through Redis.
     RealtimeModule,
+    // C2 (25.11): cache invalidation from the database change log.
+    CacheCdcModule,
   ],
 })
 export class WorkerModule {}

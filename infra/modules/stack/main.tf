@@ -112,6 +112,11 @@ variable "database_logical_replication" {
   default     = false
   description = "rds.logical_replication = 1 (static: needs a reboot). Needed for shard moves and Blue/Green upgrades."
 }
+variable "database_max_slot_wal_keep_size_mb" {
+  type        = number
+  default     = 0
+  description = "C2: max_slot_wal_keep_size (MB) on the database; 0 = engine default (no limit). docs/runbooks/cache-cdc.md."
+}
 variable "database_monitoring_interval" {
   type        = number
   default     = 0
@@ -1267,6 +1272,7 @@ module "postgres" {
   upgrade_to_major           = var.database_major_version
   auto_minor_version_upgrade = var.database_auto_minor_upgrade
   rds_logical_replication    = var.database_logical_replication
+  max_slot_wal_keep_size_mb  = var.database_max_slot_wal_keep_size_mb
   monitoring_interval        = var.database_monitoring_interval
   database_insights_advanced = var.database_insights_advanced
   log_group_class            = var.database_log_group_class
