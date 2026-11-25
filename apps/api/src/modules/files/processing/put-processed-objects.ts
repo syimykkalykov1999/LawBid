@@ -87,7 +87,7 @@ export async function putProcessedObjects(
 
 /** Owner 2026-10-25: the AVIF twins (`images.avif_enabled`). A failure
  * only costs the smaller file — the WebP/JPEG stays what is served. */
-async function putAvifTwins(
+export async function putAvifTwins(
   storage: Pick<S3StorageService, 'put'>,
   logger: Pick<PinoLogger, 'warn'>,
   file: Pick<File, 'id' | 's3_bucket' | 's3_key'>,
