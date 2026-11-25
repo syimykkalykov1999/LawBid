@@ -168,7 +168,9 @@ export type RealtimeEvent =
   | 'hotline:notify'
   | 'hotline:connected'
   | 'hotline:ended'
-  | 'hotline:counters';
+  | 'hotline:counters'
+  // plan PR 7: «Предложить дело» — the attorney's app opens our bid form
+  | 'hotline:case_offered';
 
 /** Owner 2026-10-22: QR sign-in status for the waiting browser (never a
  * token — it redeems through `POST /auth/qr/poll` with its secret). */

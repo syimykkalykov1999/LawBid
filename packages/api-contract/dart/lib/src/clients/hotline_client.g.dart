@@ -213,7 +213,7 @@ class _HotlineClient implements HotlineClient {
   }
 
   @override
-  Future<HotlineEndEnvelope> hotlineHeartbeat({
+  Future<HotlineHeartbeatEnvelope> hotlineHeartbeat({
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
@@ -222,7 +222,7 @@ class _HotlineClient implements HotlineClient {
     queryParameters.removeWhere((k, v) => v == null);
     final _headers = <String, dynamic>{};
     const Map<String, dynamic>? _data = null;
-    final _options = _setStreamType<HotlineEndEnvelope>(
+    final _options = _setStreamType<HotlineHeartbeatEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
@@ -233,9 +233,9 @@ class _HotlineClient implements HotlineClient {
           .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
     );
     final _result = await _dio.fetch<Map<String, Object?>>(_options);
-    late HotlineEndEnvelope _value;
+    late HotlineHeartbeatEnvelope _value;
     try {
-      _value = HotlineEndEnvelope.fromJson(_result.data!);
+      _value = HotlineHeartbeatEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;
@@ -530,6 +530,74 @@ class _HotlineClient implements HotlineClient {
     late HotlineRequestViewEnvelope _value;
     try {
       _value = HotlineRequestViewEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<HotlineOfferCaseResultEnvelope> hotlineOfferCase({
+    required String id,
+    required HotlineOfferCaseDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<HotlineOfferCaseResultEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/hotline/requests/${id}/offer-case',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late HotlineOfferCaseResultEnvelope _value;
+    try {
+      _value = HotlineOfferCaseResultEnvelope.fromJson(_result.data!);
+    } on Object catch (e, s) {
+      errorLogger?.logError(e, s, _options, response: _result);
+      rethrow;
+    }
+    return _value;
+  }
+
+  @override
+  Future<HotlineOkEnvelope> hotlineReview({
+    required String id,
+    required HotlineReviewDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    final _extra = <String, dynamic>{};
+    _extra.addAll(extras ?? <String, dynamic>{});
+    final queryParameters = <String, dynamic>{};
+    queryParameters.removeWhere((k, v) => v == null);
+    final _headers = <String, dynamic>{};
+    final _data = <String, dynamic>{};
+    _data.addAll(body.toJson());
+    final _options = _setStreamType<HotlineOkEnvelope>(
+      Options(method: 'POST', headers: _headers, extra: _extra)
+          .compose(
+            _dio.options,
+            '/hotline/requests/${id}/review',
+            queryParameters: queryParameters,
+            data: _data,
+          )
+          .copyWith(baseUrl: _combineBaseUrls(_dio.options.baseUrl, baseUrl)),
+    );
+    final _result = await _dio.fetch<Map<String, Object?>>(_options);
+    late HotlineOkEnvelope _value;
+    try {
+      _value = HotlineOkEnvelope.fromJson(_result.data!);
     } on Object catch (e, s) {
       errorLogger?.logError(e, s, _options, response: _result);
       rethrow;

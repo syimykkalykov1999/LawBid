@@ -61,6 +61,12 @@ describe('hotline use cases (real Valkey)', () => {
   }[];
   /** Slows the fake bridge's open (the double «Взять» race). */
   let openDelayMs: number;
+  /** attorney_profiles.languages; absent = he speaks every test language. */
+  let spoken: Record<string, string[]>;
+  /** hotline_calls rows by request (offer-case, review). */
+  let callRows: Map<string, Record<string, unknown>>;
+  let caseOffers: string[];
+  let busyIn: Set<string>;
 
   const attorney = (id: string): RequestUser =>
     ({ sub: id, role: 'attorney' }) as RequestUser;
@@ -99,8 +105,18 @@ describe('hotline use cases (real Valkey)', () => {
     entitlementValues = {};
     hotlineCalls = [];
     openDelayMs = 0;
+    spoken = {};
+    callRows = new Map();
+    caseOffers = [];
+    busyIn = new Set();
     k = new HotlineKeys(`hltest:{hls${process.pid}x${n}}`);
     const prisma = {
+      attorneyProfile: {
+        findUnique: ({ where }: { where: { user_id: string } }) =>
+          Promise.resolve({
+            languages: spoken[where.user_id] ?? ['en', 'es', 'ru'],
+          }),
+      },
       attorneyLicense: {
         findMany: ({ where }: { where: { attorney_id: string } }) =>
           Promise.resolve(licences[where.attorney_id] ?? []),
@@ -110,6 +126,24 @@ describe('hotline use cases (real Valkey)', () => {
           Promise.resolve(users[where.id] ?? null),
       },
       hotlineCall: {
+        findUnique: ({ where }: { where: { request_id: string } }) =>
+          Promise.resolve(callRows.get(where.request_id) ?? null),
+        updateMany: ({
+          where,
+          data,
+        }: {
+          where: Record<string, unknown>;
+          data: Record<string, unknown>;
+        }) => {
+          const row = callRows.get(where.request_id as string);
+          const match =
+            !!row &&
+            Object.entries(where).every(
+              ([key, v]) => key === 'request_id' || (row[key] ?? null) === v,
+            );
+          if (match) Object.assign(row, data);
+          return Promise.resolve({ count: match ? 1 : 0 });
+        },
         findFirst: ({
           where,
         }: {
@@ -209,7 +243,29 @@ describe('hotline use cases (real Valkey)', () => {
         end: null,
       });
       bridgeLog.push(`open ${i.clientId}->${i.attorneyId} at ${i.answeredAt}`);
+      callRows.set(i.requestId, {
+        client_id: i.clientId,
+        attorney_id: i.attorneyId,
+        state_code: i.state,
+        practice_area: i.practiceArea,
+        topic: i.topic ?? null,
+        case_id: null,
+        case_invite_id: null,
+        reviewed_at: null,
+      });
       return { callId: id };
+    },
+    inOtherCall: (id) => Promise.resolve(busyIn.has(id)),
+    avatarUrl: (fileId) =>
+      Promise.resolve(fileId ? `https://cdn.test/${fileId}.jpg` : null),
+    offerCase: async (i) => {
+      caseOffers.push(`${i.client.sub}->${i.attorneyId} ${i.topic}`);
+      // a slow case service: the double tap races the first one
+      await new Promise((ok) => setTimeout(ok, 30));
+      return {
+        caseId: `case-${caseOffers.length}`,
+        inviteId: `inv-${caseOffers.length}`,
+      };
     },
     hangUp: (id, by, reason) => {
       const c = calls.get(id);
@@ -471,6 +527,8 @@ describe('hotline use cases (real Valkey)', () => {
     expect(v.lawyer).toEqual({
       id: 'L1',
       name: 'Ann L1',
+      username: null,
+      avatarUrl: null,
       state: 'CA',
       barNumber: 'B-L1',
     });
@@ -701,6 +759,29 @@ describe('hotline use cases (real Valkey)', () => {
     expect(offersTo('L3')[0].data.requestId).toBe(a.id);
   });
 
+  it('scenarios 24.11 (blocked users): a block made after a remembered «no conflict» applies at the very next offer', async () => {
+    if (!up) return;
+    cfg['hotline.conflict_cache_sec'] = 3600;
+    await goLine('L1');
+    const first = await ask('C1');
+    // the pair is now remembered as «no conflict» for an hour
+    expect(offersTo('L1').map((e) => e.data.requestId)).toEqual([first.id]);
+    await svc.decline(attorney('L1'), first.id);
+    await svc.cancelRequest(client('C1'), first.id);
+    // «Заблокировать и пожаловаться» in that call
+    blocks.push(['L1', 'C1']);
+    now += 60_000;
+    const again = await ask('C1');
+    expect(offersTo('L1').map((e) => e.data.requestId)).not.toContain(again.id);
+    // and the other way round: the client blocked the attorney
+    blocks.length = 0;
+    await svc.cancelRequest(client('C1'), again.id);
+    blocks.push(['C1', 'L1']);
+    now += 60_000;
+    const third = await ask('C1');
+    expect(offersTo('L1').map((e) => e.data.requestId)).not.toContain(third.id);
+  });
+
   it('UC 19 (owner b): 3 attorneys join, 2 online + offline list → 2 online served, offline notified for the 3rd', async () => {
     if (!up) return;
     const offs: string[] = [];
@@ -899,7 +980,10 @@ describe('hotline use cases (real Valkey)', () => {
     await svc.accept(attorney('L1'), a.id);
     const off = await ask('O1');
     await svc.notifyMe(client('O1'), off.id, 'UTC', true);
-    const live = await new AdminHotlineController(svc).adminHotlineLive();
+    const live = await new AdminHotlineController(
+      svc,
+      {} as never,
+    ).adminHotlineLive();
     expect(live).toMatchObject({
       inCall: 1,
       callsNow: 1,
@@ -956,6 +1040,46 @@ describe('hotline use cases (real Valkey)', () => {
     ).toMatchObject({ requestId: a.id, callId, video: false });
     const v = await svc.getRequest(client('C1'), a.id);
     expect(v).toMatchObject({ status: 'connected', callId });
+  });
+
+  it('scenarios 24.11: an attorney in a 1:1 call (any device) gets no offer — the client goes to the next one, he is asked again after one heartbeat', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    cfg['hotline.heartbeat_sec'] = 5;
+    await goLine('L1');
+    now += 1;
+    await goLine('L2');
+    busyIn.add('L1'); // a chat call on his laptop
+    const a = await ask('C1');
+    expect(offersTo('L1')).toHaveLength(0);
+    expect(offersTo('L2').map((e) => e.data.requestId)).toEqual([a.id]);
+    // the 1:1 call is over; after the rest the line asks him again
+    busyIn.delete('L1');
+    now += 6000;
+    await tick();
+    const b = await ask('C2');
+    expect(offersTo('L1').map((e) => e.data.requestId)).toEqual([b.id]);
+  });
+
+  it('scenarios 24.11: two attorneys tap «Взять» on one client at the same instant → only the attorney the line reserved gets the call', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    await goLine('L1');
+    now += 1;
+    await goLine('L2');
+    const a = await ask('C1');
+    // the offer is reserved for L1 only (Twilio TaskRouter reservation)
+    expect(offersTo('L1').map((e) => e.data.requestId)).toEqual([a.id]);
+    expect(offersTo('L2')).toHaveLength(0);
+    const [one, two] = await Promise.all([
+      svc.accept(attorney('L1'), a.id),
+      svc.accept(attorney('L2'), a.id),
+    ]);
+    expect(one).toMatchObject({ ok: true, state: 'connected' });
+    expect(two).toMatchObject({ ok: false });
+    expect(bridgeLog.filter((l) => l.startsWith('open'))).toEqual([
+      `open C1->L1 at ${now}`,
+    ]);
   });
 
   it('UC 35 (PR 4): the red button on the hotline ends the 1:1 call too; billing from «Взять»; the direct chat opens', async () => {
@@ -1559,5 +1683,219 @@ describe('hotline use cases (real Valkey)', () => {
     const aggKey = k.agg(new Date(now).toISOString().slice(0, 13));
     expect(await redis.hget(aggKey, 'peakOnline')).toBe('1');
     expect(await redis.ttl(aggKey)).toBeGreaterThan(0);
+  });
+
+  // ── plan PR 6–7: the attorney screens (owner 18.11 mockup) ─────────
+
+  it('PR 6: only languages of his own profile put the attorney on the line (owner: the language matters)', async () => {
+    if (!up) return;
+    spoken.L1 = ['ru'];
+    lawyerReady('L1');
+    await expect(
+      svc.goOnline(attorney('L1'), {
+        states: ['CA'],
+        practiceAreas: ['family'],
+        languages: ['ru', 'en'],
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'VALIDATION_ERROR',
+        details: { reason: 'language_not_in_profile', languages: ['en'] },
+      },
+    });
+    expect((await svc.lineView('L1', null)).online).toBe(false);
+    await goLine('L1', ['ru']);
+    expect((await svc.lineView('L1', null)).languages).toEqual(['ru']);
+  });
+
+  it('PR 6: a client asking in English never reaches an attorney on the line in Russian only', async () => {
+    if (!up) return;
+    spoken.L1 = ['ru'];
+    await goLine('L1', ['ru']);
+    const a = await ask('C1', ['en']);
+    expect(offersTo('L1')).toHaveLength(0);
+    expect((await svc.getRequest(client('C1'), a.id)).status).toBe('queued');
+    const b = await ask('C2', ['es', 'ru']);
+    const offer = offersTo('L1').at(-1)!.data;
+    expect(offer.requestId).toBe(b.id);
+    // the call's language is the one that matched his line
+    expect(offer.language).toBe('ru');
+    expect(offer.languages).toEqual(['es', 'ru']);
+  });
+
+  it('PR 6: a language he removes from his profile takes him off the line at the next check', async () => {
+    if (!up) return;
+    await goLine('L1', ['en', 'es']);
+    expect(await svc.recheckAccess('L1')).toBe(true);
+    spoken.L1 = ['en'];
+    expect(await svc.recheckAccess('L1')).toBe(false);
+    const off = events.filter((e) => e.event === 'hotline:line').at(-1)!;
+    expect(off.data).toMatchObject({
+      online: false,
+      reason: 'access',
+      detail: 'language',
+    });
+  });
+
+  it('PR 6: GET /hotline/config tells the attorney whether and how he may wait for calls', async () => {
+    if (!up) return;
+    expect((await svc.config(attorney('L1'))).access).toEqual({
+      mode: 'on_for_all',
+      allowed: true,
+      via: 'free',
+      reason: null,
+    });
+    cfg['hotline.mode'] = 'off_for_all';
+    expect((await svc.config(attorney('L1'))).access).toEqual({
+      mode: 'off_for_all',
+      allowed: false,
+      via: null,
+      reason: 'off_for_all',
+    });
+    expect((await svc.config(client('C1'))).access).toBeNull();
+    // the mode itself for every role (the client's button hides too)
+    expect((await svc.config(client('C1'))).mode).toBe('off_for_all');
+  });
+
+  it('PR 6: the offer and the connected call carry the topic, language, names, usernames and photos', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    users.C1 = {
+      first_name: 'Anna',
+      last_name: 'Koval',
+      phone_verified_at: new Date(1),
+      avatar_file_id: 'f-c1',
+      client_profile: { username: 'anna.k' },
+    } as never;
+    const a = await ask('C1', ['en'], 'Divorce, flat split');
+    licences.L1 = [{ state_code: 'CA', bar_number: 'B-L1' }];
+    users.L1 = {
+      first_name: 'Dan',
+      last_name: 'Rivera',
+      phone_verified_at: null,
+      avatar_file_id: 'f-l1',
+      attorney_profile: { username: 'daniel.rivera' },
+    } as never;
+    await svc.goOnline(attorney('L1'), {
+      states: ['CA'],
+      practiceAreas: ['family'],
+      languages: ['en'],
+    });
+    expect(offersTo('L1').at(-1)!.data).toMatchObject({
+      requestId: a.id,
+      topic: 'Divorce, flat split',
+      state: 'CA',
+      practiceArea: 'family',
+      language: 'en',
+      clientName: 'Anna K',
+      clientUsername: 'anna.k',
+      clientAvatarUrl: 'https://cdn.test/f-c1.jpg',
+    });
+    await svc.accept(attorney('L1'), a.id);
+    const conn = events.find((e) => e.event === 'hotline:connected')!;
+    expect(conn.to.sort()).toEqual(['C1', 'L1']);
+    expect(conn.data).toMatchObject({
+      topic: 'Divorce, flat split',
+      language: 'en',
+      client: { id: 'C1', username: 'anna.k' },
+      lawyer: {
+        id: 'L1',
+        name: 'Dan Rivera',
+        username: 'daniel.rivera',
+        avatarUrl: 'https://cdn.test/f-l1.jpg',
+      },
+    });
+    const view = await svc.getRequest(client('C1'), a.id);
+    expect(view.lawyer).toMatchObject({
+      username: 'daniel.rivera',
+      avatarUrl: 'https://cdn.test/f-l1.jpg',
+    });
+  });
+
+  it('PR 6: «Клиент ждёт» — in a call with «Принимать звонки» on, the heartbeat names the longest-waiting client', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    const a = await ask('C1');
+    await goLine('L1', ['en', 'es']);
+    await svc.accept(attorney('L1'), a.id);
+    expect((await svc.heartbeat('L1')).waiting).toBeNull();
+    now += 1000;
+    const b = await ask('C2', ['es'], 'Inheritance');
+    now += 1000;
+    await ask('C3', ['en'], 'Later one');
+    const hb = await svc.heartbeat('L1');
+    expect(hb.waiting).toMatchObject({
+      requestId: b.id,
+      topic: 'Inheritance',
+      language: 'es',
+      state: 'CA',
+      practiceArea: 'family',
+    });
+    // «Принимать звонки» off: nobody is shown
+    await svc.setAccepting(attorney('L1'), false);
+    expect((await svc.heartbeat('L1')).waiting).toBeNull();
+    // an idle attorney's heartbeat has no «waiting» at all
+    await goLine('L2');
+    expect((await svc.heartbeat('L2')).waiting).toBeUndefined();
+  });
+
+  it('PR 7: «Предложить дело» — one case per call to ITS attorney, a double tap gets the same case', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    const a = await ask('C1', ['en'], 'Divorce, flat split');
+    await goLine('L1');
+    await svc.accept(attorney('L1'), a.id);
+    const meta = {};
+    const [x, y] = await Promise.all([
+      svc.offerCase(client('C1'), a.id, { budgetAmountDollars: 1500 }, meta),
+      svc.offerCase(client('C1'), a.id, {}, meta),
+    ]);
+    expect(x).toEqual({ caseId: 'case-1', inviteId: 'inv-1' });
+    expect(y).toEqual(x);
+    expect(caseOffers).toEqual(['C1->L1 Divorce, flat split']);
+    const sent = events.filter((e) => e.event === 'hotline:case_offered');
+    expect(sent).toHaveLength(1);
+    expect(sent[0].to).toEqual(['L1']);
+    expect(sent[0].data).toMatchObject({
+      requestId: a.id,
+      caseId: 'case-1',
+      topic: 'Divorce, flat split',
+      state: 'CA',
+      budgetCents: 150_000,
+    });
+    // after the call too, the same case
+    await svc.endCall(a.id, 'ended', 'C1');
+    expect(await svc.offerCase(client('C1'), a.id, {}, meta)).toEqual(x);
+    // nobody else's call, and never the attorney
+    await expect(
+      svc.offerCase(client('C9'), a.id, {}, meta),
+    ).rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+    await expect(
+      svc.offerCase(attorney('L1'), a.id, {}, meta),
+    ).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+  });
+
+  it('PR 7: the review — only the client of the call, first answer wins, off with hotline.review_enabled', async () => {
+    if (!up) return;
+    build(fakeBridge());
+    const a = await ask('C1');
+    await goLine('L1');
+    await svc.accept(attorney('L1'), a.id);
+    await svc.endCall(a.id, 'ended', 'L1');
+    await expect(
+      svc.review(client('C1'), a.id, { stars: 5, comment: ' Great ' }),
+    ).resolves.toEqual({ ok: true });
+    await svc.review(client('C1'), a.id, { stars: 1 });
+    expect(callRows.get(a.id)).toMatchObject({
+      review_stars: 5,
+      review_comment: 'Great',
+    });
+    await expect(
+      svc.review(client('C2'), a.id, { stars: 3 }),
+    ).rejects.toMatchObject({ response: { code: 'NOT_FOUND' } });
+    cfg['hotline.review_enabled'] = false;
+    await expect(
+      svc.review(client('C1'), a.id, { stars: 3 }),
+    ).rejects.toMatchObject({ response: { code: 'FEATURE_DISABLED' } });
   });
 });
