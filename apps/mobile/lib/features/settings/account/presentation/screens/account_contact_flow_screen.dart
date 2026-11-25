@@ -85,9 +85,8 @@ class _AccountContactFlowScreenState
       .read(contactVerificationProvider(widget.type).notifier)
       .confirmWithToken(token);
 
-  Future<void> _useSmsCode() => ref
-      .read(contactVerificationProvider(widget.type).notifier)
-      .useSmsCode();
+  Future<void> _useSmsCode() =>
+      ref.read(contactVerificationProvider(widget.type).notifier).useSmsCode();
 
   Future<void> _submitCode(ContactVerificationState state, String code) {
     final notifier =
@@ -203,8 +202,7 @@ class _AccountContactFlowScreenState
     final kind = _isPhone ? 'phone' : 'email';
     final error = state.error == null ? null : errorText(t, state.error!);
     final canUseCode = ref.watch(
-      currentUserControllerProvider
-          .select((s) => s.user?.reauthIdentifier != null),
+      stepUpCodeTargetProvider.select((t) => t != null),
     );
     String display(String v) => v.startsWith('+') ? UsPhone.format(v) : v;
 

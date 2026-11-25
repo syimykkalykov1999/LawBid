@@ -143,7 +143,8 @@ void main() {
   testWidgets('locked: says so and points to the SMS code', (tester) async {
     await pump(tester);
     await submit(tester, 'locked');
-    expect(find.text(_en.t('stepUp.password.locked')), findsOneWidget);
+    // Owner 25.11: the code goes by SMS by default (`auth.code_channel`).
+    expect(find.text(_en.t('stepUp.password.locked.sms')), findsOneWidget);
     expect(find.byKey(const ValueKey('step-up-use-code')), findsOneWidget);
   });
 

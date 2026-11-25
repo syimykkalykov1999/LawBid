@@ -249,11 +249,17 @@ describe('SMS only for new numbers and password reset (e2e)', () => {
       .send({ type: 'phone', value: newPhone });
     expect(bySms.status).toBe(400);
     expect(code(bySms)?.code).toBe('VALIDATION_ERROR');
-    // A step-up SMS is refused too: the step-up is the password.
+    // Owner 25.11 («по умолчанию SMS»): a step-up code goes to the OWN
+    // verified number (auth.code_channel = sms); the new number gets none.
     const stepUpSms = await otp(oldPhone)
       .set(auth)
       .send({ channel: 'phone', identifier: oldPhone, purpose: 'reauth' });
-    expect(stepUpSms.status).toBe(400);
+    expect(stepUpSms.status).toBe(200);
+    const stepUpNew = await otp(newPhone)
+      .set(auth)
+      .send({ channel: 'phone', identifier: newPhone, purpose: 'reauth' });
+    expect(stepUpNew.status).toBe(401);
+    expect(code(stepUpNew)?.code).toBe('REAUTH_INVALID');
 
     const noToken = await api()
       .post('/api/v1/users/me/phone')

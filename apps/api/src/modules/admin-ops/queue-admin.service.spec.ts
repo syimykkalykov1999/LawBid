@@ -87,4 +87,19 @@ describe('QueueAdminService.retryFailed (S10-7)', () => {
     );
     expect(remove).toHaveBeenCalled();
   });
+
+  it('item 8 (25.11): a replayed dead event is live again for the requeue sweep', async () => {
+    dead = [{ data: { eventId: 'evt_1' }, remove: jest.fn() }];
+    const updateMany = jest.fn(() => Promise.resolve({ count: 1 }));
+    const svc = new QueueAdminService(
+      { getOrThrow: () => 'redis://x' } as never,
+      { setContext: jest.fn(), info: jest.fn() } as never,
+      { stripeWebhookEvent: { updateMany } } as never,
+    );
+    await svc.retryFailed();
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { stripe_event_id: 'evt_1', processed_at: null },
+      data: { dead_at: null },
+    });
+  });
 });

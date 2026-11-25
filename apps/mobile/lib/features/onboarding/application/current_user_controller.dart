@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:lawbid/core/diagnostics/app_events.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/app_session.dart';
@@ -135,6 +136,24 @@ final currentUserControllerProvider =
     NotifierProvider<CurrentUserController, CurrentUserState>(
   CurrentUserController.new,
 );
+
+/// Owner 25.11 («по умолчанию SMS»): where a confirmation code (case
+/// history, data export, account deletion, contact change, first password)
+/// goes. The server names the channel in the bootstrap
+/// (`app_config['auth.code_channel']`: `sms` / `email`, Авто already
+/// resolved) and sends to the same contact; an older server that sends
+/// nothing means SMS. Null: no verified phone or e-mail.
+final stepUpCodeTargetProvider =
+    Provider<({String channel, String identifier})?>((ref) {
+  final preferEmail = ref.watch(
+    featureFlagsControllerProvider
+        .select((s) => s.appConfig['auth.code_channel'] == 'email'),
+  );
+  return ref.watch(
+    currentUserControllerProvider
+        .select((s) => s.user?.codeTarget(preferEmail: preferEmail)),
+  );
+});
 
 /// The signed-in user's role (docs/01_FOUNDATION_AUTH.md §11), from
 /// `GET /users/me`, falling back to the access token's `role` claim while
