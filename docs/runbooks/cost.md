@@ -52,13 +52,19 @@ S3), CloudWatch Logs ingestion (debug logging left on), ECS tasks stuck at
 счёте видно, сколько стоит каждая часть. Это изменение тегов «на месте»,
 без пересоздания.
 
-Теги в счёте появляются только после активации (по умолчанию выключены):
+Теги в счёте появляются только после активации. С 25.11 (Б9) её делает
+Terraform прода: ресурс `aws_ce_cost_allocation_tag` в `infra/modules/budget`,
+список ключей `cost_allocation_tags` в `infra/envs/prod/variables.tf`
+(`Project`, `Env`, `Component`, `ManagedBy`), статус `Active`. Ручного шага
+больше нет, дрейфа тоже: выключенный руками ключ следующий apply вернёт.
 
-1. Войти под **управляющим** аккаунтом (management account).
-2. AWS Billing and Cost Management → **Cost allocation tags** → вкладка
-   **User-defined cost allocation tags**.
-3. Отметить `Project`, `Env`, `Component`, `ManagedBy` (появляются в списке
-   в течение суток после первого ресурса с тегом) → **Activate**.
+1. Apply прода работает в **управляющем** или отдельном аккаунте (иначе AWS
+   отказывает); роли apply нужно `ce:UpdateCostAllocationTagsStatus`
+   (`infra/bootstrap/infra-apply.tf`).
+2. Ключ, которого AWS ещё не видел (первые сутки после первого ресурса с
+   тегом), apply отклонит: подождать сутки и применить снова.
+3. Запасной путь руками: AWS Billing and Cost Management → **Cost allocation
+   tags** → **User-defined cost allocation tags** → **Activate**.
 4. Данные в Cost Explorer появляются примерно через 24 часа. Чтобы подтянуть
    прошлое: на той же странице **Backfill tags** → выбрать месяц (назад до 12
    месяцев; раз в 24 часа; считаются только периоды, когда тег уже стоял на
