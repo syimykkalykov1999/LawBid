@@ -844,15 +844,19 @@ export const OWNER_EXPERIMENT_SETTINGS = {
 } as const;
 
 // F2 (docs/dev/ARCHITECTURE_VS_BIG_PLATFORMS_2026-11-25.md §6 item 24): the
-// learned second stage of the posts ranking (Search «For you», reels):
-// a LightGBM model (ml/feed-ranker/train.py) re-orders the formula's best
-// candidates for the model arm of an A/B test. Off until a model exists.
+// learned second stage of the posts ranking (Search «For you»): a LightGBM
+// model (ml/feed-ranker/train.py --feed posts) re-orders the formula's
+// best candidates for the model arm of an A/B test. Owner 25.11: the reels
+// and the attorneys' case feed have their own (`reco.ranker.reels.*`,
+// `reco.ranker.cases.*`, below). «Авто» by default: nothing changes until
+// a trained model that beat the formula offline is set in `model_key`.
 export const OWNER_RANKER_SETTINGS = {
-  /** 'off' | 'on' | 'auto'. off = the formula for everyone (default). on =
-   * the test runs whenever a model is loaded. auto = only while the loaded
+  /** 'off' | 'on' | 'auto'. off = the formula for everyone. on = the test
+   * runs whenever a model is loaded. auto (default) = only while the loaded
    * model beat the formula offline (its manifest) and scores inside the
-   * latency budget below. No model = the formula, in every mode. */
-  'reco.ranker.mode': 'off',
+   * latency budget below; while not off, the sampled impressions of the
+   * feed are logged for training. No model = the formula, in every mode. */
+  'reco.ranker.mode': 'auto',
   /** Share of people (0-100) in the test (GrowthBook hash v2, key
    * `post_ranker`; raising it keeps everyone already inside). */
   'reco.ranker.traffic_percent': 10,
@@ -869,6 +873,25 @@ export const OWNER_RANKER_SETTINGS = {
   /** «Авто»: the model sits out 5 minutes when its scoring p95 (ms) goes
    * over this. */
   'reco.ranker.latency_budget_ms': 15,
+  // Owner 25.11: the reels feed's own model (train.py --feed reels; labels:
+  // share, save, like, a real watch). Same meaning as the posts keys above;
+  // test key `reel_ranker`; model under ml/feed-ranker/reels/<version>/.
+  'reco.ranker.reels.mode': 'auto',
+  'reco.ranker.reels.traffic_percent': 10,
+  'reco.ranker.reels.model_share_percent': 50,
+  'reco.ranker.reels.model_key': '',
+  'reco.ranker.reels.top_n': 100,
+  'reco.ranker.reels.latency_budget_ms': 15,
+  // Owner 25.11: the attorneys' case feed's own model (train.py --feed
+  // cases; labels: hired, offer made, opened). Only re-orders the cases the
+  // hard filters (state, licence, qualification) already allow; test key
+  // `case_ranker`; model under ml/feed-ranker/cases/<version>/.
+  'reco.ranker.cases.mode': 'auto',
+  'reco.ranker.cases.traffic_percent': 10,
+  'reco.ranker.cases.model_share_percent': 50,
+  'reco.ranker.cases.model_key': '',
+  'reco.ranker.cases.top_n': 100,
+  'reco.ranker.cases.latency_budget_ms': 15,
 } as const;
 
 // Owner 2026-10-05: case urgency. A case with a date reads as "very

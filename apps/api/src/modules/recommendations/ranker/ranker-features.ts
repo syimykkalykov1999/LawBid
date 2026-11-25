@@ -1,4 +1,5 @@
 import type { PostKind } from '../posts.scoring';
+import { featureValueAt, toMatrixBy, vectorizeBy } from './feature-spec';
 
 /**
  * F2 (docs/dev/ARCHITECTURE_VS_BIG_PLATFORMS_2026-11-25.md §6 item 24): the
@@ -45,38 +46,21 @@ export const RANKER_FEATURE_SPEC = {
 
 export type RankerFeatureName = (typeof RANKER_FEATURE_SPEC.features)[number];
 
-const SCALE = Math.pow(10, RANKER_FEATURE_SPEC.round);
-
-/**
- * One logged / live feature value → the model's number. A finite number is
- * clamped to 0..1 and rounded half up to `round` decimals (Math.round, the
- * events log's own rounding); anything else (absent, null, text, a boolean,
- * NaN, ±Infinity) is NaN = "missing", which LightGBM and the ONNX
- * TreeEnsemble both send down the trained missing-value branch.
- */
+/** featureValueAt with the posts spec's rounding (see feature-spec.ts). */
 export function featureValue(v: unknown): number {
-  if (typeof v !== 'number' || !Number.isFinite(v)) return Number.NaN;
-  const c = Math.min(1, Math.max(0, v));
-  return Math.round(c * SCALE) / SCALE;
+  return featureValueAt(RANKER_FEATURE_SPEC.round, v);
 }
 
-/** The model's input row for one candidate, in spec order. */
+/** The posts model's input row for one candidate, in spec order. */
 export function vectorize(row: Readonly<Record<string, unknown>>): number[] {
-  return RANKER_FEATURE_SPEC.features.map((name) =>
-    featureValue(
-      Object.prototype.hasOwnProperty.call(row, name) ? row[name] : undefined,
-    ),
-  );
+  return vectorizeBy(RANKER_FEATURE_SPEC, row);
 }
 
-/** Many rows as the model's [n, features] float32 input. */
+/** Many rows as the posts model's [n, features] float32 input. */
 export function toMatrix(
   rows: readonly Readonly<Record<string, unknown>>[],
 ): Float32Array {
-  const width = RANKER_FEATURE_SPEC.features.length;
-  const out = new Float32Array(rows.length * width);
-  rows.forEach((r, i) => out.set(vectorize(r), i * width));
-  return out;
+  return toMatrixBy(RANKER_FEATURE_SPEC, rows);
 }
 
 /**

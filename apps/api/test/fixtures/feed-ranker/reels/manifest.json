@@ -1,0 +1,39 @@
+{
+  "feature_spec_version": "reels-ranker-features-v1",
+  "features": [
+    "hot",
+    "interest",
+    "social",
+    "fresh",
+    "language",
+    "authorQuality",
+    "state",
+    "affinity",
+    "seen",
+    "own",
+    "likeRate",
+    "saveRate",
+    "shareRate",
+    "commentRate",
+    "views",
+    "length"
+  ],
+  "feed": "reels",
+  "input_name": "features",
+  "libs": {
+    "lightgbm": "4.7.0",
+    "onnxmltools": "1.16.0"
+  },
+  "metrics": {
+    "judged_lists": 12,
+    "k": 10,
+    "ndcg_formula": 0.588369,
+    "ndcg_model": 0.984942
+  },
+  "onnx_max_abs_diff": 3.3163751256282126e-07,
+  "rows": 720,
+  "sha256": "09112806dbe2f3a27dcf41c2a03fd64a4b75478597619d95b6c540ea433de964",
+  "trained_at": "2026-11-25T00:00:00Z",
+  "trees": 8,
+  "version": "fixture"
+}
