@@ -242,6 +242,9 @@ export class FeedService implements FeedProvider {
     limit: number,
   ): Promise<PostPage> {
     const first = !rawCursor;
+    // 18.11: when this scroll started (see FeedCursor.s); an older cursor
+    // without it keeps the old rule (no seen recommendation in the tail).
+    const startedAt = Date.now();
     let cursor: FeedCursor = { f: null, r: 0, v: null };
     if (rawCursor) {
       const decoded = decodeFeedCursor(rawCursor);
@@ -280,10 +283,16 @@ export class FeedService implements FeedProvider {
     });
     const hasFollows = followees.length > 0;
     const authorIds = followees.map((f) => f.followee_id);
-    if (viewer.role === 'attorney') authorIds.push(viewer.sub);
+    // 18.11 (Instagram): everyone's own posts are in their feed, newest
+    // first with the followed ones. Clients post too (photos, briefs,
+    // reels); their own post used to be missing from the server's page 1,
+    // so a pull to refresh dropped the post they had just published (or
+    // left it to a recommendation slot / the tail at the bottom).
+    authorIds.push(viewer.sub);
 
     // Once the "everything else" tail has started, the followed stream and
     // the recommendations were already exhausted: keep paging the tail.
+    const since = first ? startedAt : (cursor.s ?? 0);
     if (!first && cursor.l) {
       const tail = await this.latestTail(
         viewer,
@@ -293,6 +302,7 @@ export class FeedService implements FeedProvider {
         [],
         limit,
         only,
+        since,
       );
       const last = tail[tail.length - 1];
       return {
@@ -305,6 +315,7 @@ export class FeedService implements FeedProvider {
                 r: cursor.r,
                 v: cursor.v,
                 l: { t: last.created_at.toISOString(), id: last.id },
+                ...(since ? { s: since } : {}),
               }),
       };
     }
@@ -344,7 +355,13 @@ export class FeedService implements FeedProvider {
     // the followed stream can't fill it.
     const recoNeed =
       following.length > limit ? recoSlotsFor(limit, hasFollows) : limit;
-    let reco = await this.recommendations(
+    // Owner 2026-10-02: a viewer who has already been shown every
+    // recommendation must not open on "Your feed is empty". 18.11: the
+    // tail below now shows the recommendations seen on earlier visits
+    // (newest first, under the fresh posts), so nothing has to be reset —
+    // the reset used to bring the old ranked posts back ON TOP of posts
+    // published since (owner: «старое сверху, новое внизу»).
+    const reco = await this.recommendations(
       viewer,
       authorIds,
       first ? 0 : cursor.r,
@@ -352,26 +369,6 @@ export class FeedService implements FeedProvider {
       recoNeed,
       only,
     );
-    // Owner 2026-10-02: a viewer who has already been shown every
-    // recommendation (a small catalog, or someone who follows nobody) must
-    // not open on "Your feed is empty" — start the rotation over.
-    // An attorney's own posts count as "followed" here, so test `hasFollows`
-    // as well: with no follows the own posts must not stop the rotation.
-    if (
-      first &&
-      reco.posts.length === 0 &&
-      (following.length === 0 || !hasFollows)
-    ) {
-      await this.cache.del(seenKey(viewer.sub));
-      reco = await this.recommendations(
-        viewer,
-        authorIds,
-        0,
-        null,
-        recoNeed,
-        only,
-      );
-    }
 
     const page = mixPage(
       following.slice(0, limit),
@@ -397,6 +394,7 @@ export class FeedService implements FeedProvider {
             page.map((p) => p.id),
             limit - page.length,
             only,
+            since,
           )
         : [];
     page.push(...tail);
@@ -412,6 +410,7 @@ export class FeedService implements FeedProvider {
       r: reco.next(usedReco.length),
       v: reco.version,
       l: lastL ? { t: lastL.created_at.toISOString(), id: lastL.id } : null,
+      ...(since ? { s: since } : {}),
     };
     const nextCursor = page.length < limit ? null : encodeFeedCursor(next);
 
@@ -700,9 +699,12 @@ export class FeedService implements FeedProvider {
   }
 
   /** Every other visible post, newest first, after [after]: not by a
-   * followed/own author (their stream already ran out), not in the
-   * recommendation snapshot (served there), not on this page and not by
-   * anyone blocked either way. */
+   * followed/own author (their stream already ran out), not on this page
+   * and not by anyone blocked either way. Of the recommendation snapshot
+   * only what the viewer saw before [seenBefore] (an earlier visit, ms):
+   * the rest is the recommendations' to serve. 18.11: a recommendation,
+   * once seen, used to be left out of the whole feed for 3 days (owner:
+   * posts vanished on pull to refresh). [seenBefore] 0 = none of it. */
   private async latestTail(
     viewer: RequestUser,
     excludeAuthors: string[],
@@ -711,6 +713,7 @@ export class FeedService implements FeedProvider {
     excludeIds: string[],
     take: number,
     only: Prisma.PostWhereInput = {},
+    seenBefore = 0,
   ): Promise<Post[]> {
     if (take <= 0) return [];
     const authors = new Set(excludeAuthors);
@@ -718,7 +721,17 @@ export class FeedService implements FeedProvider {
     const ids = new Set(excludeIds);
     if (version) {
       const snapshot = await this.redis.zrevrange(recoKey(version), 0, -1);
-      for (const id of snapshot) ids.add(id);
+      // When each was seen (null = not yet); a dead cache node = none seen.
+      const seenAt =
+        seenBefore > 0 && snapshot.length > 0
+          ? await this.cache
+              .zmscore(seenKey(viewer.sub), ...snapshot)
+              .catch(() => snapshot.map(() => null))
+          : null;
+      snapshot.forEach((id, i) => {
+        const at = seenAt?.[i];
+        if (at == null || Number(at) >= seenBefore) ids.add(id);
+      });
     }
     return this.prisma.post.findMany({
       where: {

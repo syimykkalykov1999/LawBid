@@ -10,6 +10,7 @@ import { adminSession } from './support/admin-login';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { AnalyticsService } from '../src/modules/analytics/analytics.service';
+import { AnalyticsModule } from '../src/modules/analytics/analytics.module';
 
 /**
  * Owner 2026-10-15: own analytics. Opening the app counts a person once a
@@ -85,7 +86,14 @@ describe('Own analytics (e2e)', () => {
     base = `http://127.0.0.1:${((app.getHttpServer() as Server).address() as AddressInfo).port}`;
     prisma = app.get(PrismaService);
     tokens = app.get(TokenService);
-    analytics = app.get(AnalyticsService);
+    // KNOWN_ERRORS 232: JobsModule provides its own AnalyticsService (for
+    // the nightly snapshot), and `app.get` returns the LAST registered
+    // instance — that one, not the one GET /users/me writes through. Its
+    // `idle()` had nothing to wait for, so the read raced the last write.
+    // Take the instance of the module that owns the endpoint.
+    analytics = app
+      .select(AnalyticsModule)
+      .get(AnalyticsService, { strict: true });
   });
 
   afterAll(async () => {
