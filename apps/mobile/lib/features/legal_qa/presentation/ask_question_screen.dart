@@ -6,6 +6,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
@@ -100,6 +101,7 @@ class _AskQuestionScreenState extends ConsumerState<AskQuestionScreen> {
       ref.read(questionsTouchedProvider.notifier).bump();
       if (!mounted) return;
       showAppSnackBar(context, t.t('qa.sent'));
+      if (!context.isCurrentRoute) return;
       context.pop();
       unawaited(context.push(LegalQaRoutes.question(q.id)));
     } on Object catch (e) {

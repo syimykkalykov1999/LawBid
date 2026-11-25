@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/channels/application/channel_compose.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
@@ -95,7 +96,6 @@ class _ChannelComposerScreenState extends ConsumerState<ChannelComposerScreen> {
   Future<void> _publish() async {
     final t = ref.read(translatorProvider);
     final body = _text.text.trim();
-    final nav = Navigator.of(context);
     setState(() => _saving = true);
     try {
       final edited = widget.editing;
@@ -103,7 +103,7 @@ class _ChannelComposerScreenState extends ConsumerState<ChannelComposerScreen> {
         await ref
             .read(channelPostsProvider(widget.channelId).notifier)
             .edit(edited, body);
-        if (mounted) nav.pop();
+        if (mounted) context.popIfCurrent<void>();
         return;
       }
       final post = await ref
@@ -111,7 +111,7 @@ class _ChannelComposerScreenState extends ConsumerState<ChannelComposerScreen> {
           .publish(body);
       if (post == null || !mounted) return;
       showAppSnackBar(context, t.t('channel.compose.published'));
-      nav.pop();
+      context.popIfCurrent<void>();
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, channelErrorText(t, e));
     } finally {

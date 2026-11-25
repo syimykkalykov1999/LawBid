@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/cases/application/case_media_picker.dart';
 import 'package:lawbid/features/cases/application/create_case_controller.dart';
@@ -44,7 +45,7 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
     final state = ref.read(createCaseControllerProvider);
     if (state.draft.isEmpty && state.photos.isEmpty) {
       await _c.finishEditing(keepDraft: false);
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) context.popIfCurrent();
       return;
     }
     // Owner row 109 (14.11, Instagram / Thumbtack / Upwork): «Save draft?»
@@ -62,7 +63,7 @@ class _CreateCaseScreenState extends ConsumerState<CreateCaseScreen> {
     );
     if (choice == LeaveChoice.stay) return;
     await _c.finishEditing(keepDraft: choice == LeaveChoice.save);
-    if (mounted) Navigator.of(context).pop();
+    if (mounted) context.popIfCurrent();
   }
 
   Future<void> _publish() async {

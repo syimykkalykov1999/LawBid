@@ -14,6 +14,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
 import 'package:lawbid/features/profile/application/review_outbox.dart';
 import 'package:lawbid/features/profile/data/client_reviews_repository.dart';
@@ -250,7 +251,7 @@ class _SheetState extends ConsumerState<_Sheet> {
         _text.text,
         [for (final p in _photos) p.fileId],
       );
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) context.popIfCurrent(true);
     } on Object catch (e) {
       if (mounted) {
         setState(() => _busy = false);

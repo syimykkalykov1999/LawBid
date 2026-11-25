@@ -10,13 +10,19 @@ import 'package:material_ui/material_ui.dart';
 /// Block / unblock [userId] with a confirmation for blocking (owner
 /// 2026-09-29, OQ-028). Returns true when the state changed. Callers
 /// refresh the profile they show (its `isBlocked` flag).
+///
+/// Round 1 check 25.11 №1: the providers are read through the container
+/// of [context], not a caller's `WidgetRef`. The «⋯» sheet's row closes its
+/// sheet first, and its own `ref` was disposed by the time the dialog
+/// answered (Riverpod 3: «Cannot use ref after the widget was disposed») —
+/// «Block» did nothing and showed an error.
 Future<bool> toggleBlock(
-  BuildContext context,
-  WidgetRef ref, {
+  BuildContext context, {
   required String userId,
   required String displayName,
   required bool currentlyBlocked,
 }) async {
+  final ref = ProviderScope.containerOf(context, listen: false);
   final t = ref.read(translatorProvider);
   if (!currentlyBlocked) {
     final ok = await showAppDialog<bool>(
@@ -102,7 +108,6 @@ class BlockListRow extends ConsumerWidget {
         navigator.pop();
         final changed = await toggleBlock(
           rootContext,
-          ref,
           userId: userId,
           displayName: displayName,
           currentlyBlocked: currentlyBlocked,

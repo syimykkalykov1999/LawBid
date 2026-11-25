@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/platform/secure_screen.dart';
 import 'package:lawbid/features/verification/application/verification_overview_controller.dart';
@@ -317,7 +318,9 @@ class _VerificationWizardScreenState
               : 'verification.submit.success',
         ),
       );
-      if (context.canPop()) {
+      if (!context.isCurrentRoute) {
+        // Left or covered meanwhile: stay where the person is.
+      } else if (context.canPop()) {
         context.pop();
       } else {
         context.go(AppRoutes.verification);

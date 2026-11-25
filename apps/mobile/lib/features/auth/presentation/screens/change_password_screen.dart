@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
 import 'package:lawbid/features/auth/domain/login_identifier.dart';
 import 'package:lawbid/features/auth/presentation/widgets/password_form_widgets.dart';
@@ -52,7 +53,7 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
     if (result.isSuccess) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(t.t('auth.change.done'))));
-      if (context.canPop()) context.pop();
+      if (context.isCurrentRoute && context.canPop()) context.pop();
     }
   }
 

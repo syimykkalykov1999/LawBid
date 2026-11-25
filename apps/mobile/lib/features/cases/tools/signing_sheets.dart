@@ -5,6 +5,7 @@ import 'package:lawbid/core/files/pick_files.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/tools/signature_pad.dart';
 import 'package:lawbid/features/cases/tools/signing_data.dart';
@@ -153,7 +154,7 @@ class _RequestSheetState extends ConsumerState<_RequestSheet> {
             title: _title.text.trim(),
           );
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      context.popIfCurrent(true);
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {
@@ -284,7 +285,7 @@ class _SignSheetState extends ConsumerState<_SignSheet> {
             imagePngBase64: png,
           );
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      context.popIfCurrent(true);
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {
@@ -441,7 +442,7 @@ class _DeclineSheetState extends ConsumerState<_DeclineSheet> {
             reason: _reason.text,
           );
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      context.popIfCurrent(true);
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {

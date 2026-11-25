@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/demo/presentation/demo_actions.dart';
 import 'package:material_ui/material_ui.dart';
@@ -68,7 +69,7 @@ class _DemoCodeSheetState extends ConsumerState<DemoCodeSheet> {
     try {
       final session = await ref.read(demoRepositoryProvider).redeem(code);
       if (!mounted) return;
-      Navigator.of(context).pop();
+      context.popIfCurrent();
       await enterDemoAndGo(context, ref, session);
     } catch (e) {
       if (!mounted) return;

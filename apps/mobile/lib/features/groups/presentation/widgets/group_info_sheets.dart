@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart' show kMuteForever;
 import 'package:material_ui/material_ui.dart';
 
@@ -203,7 +204,7 @@ class _TextSheetState extends ConsumerState<_TextSheet> {
     final error = await widget.submit(value);
     if (!mounted) return;
     if (error == null) {
-      Navigator.of(context).pop(true);
+      context.popIfCurrent(true);
     } else {
       setState(() {
         _busy = false;
