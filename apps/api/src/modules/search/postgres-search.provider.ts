@@ -980,7 +980,23 @@ export class PostgresSearchProvider implements SearchProvider {
       ORDER BY t.created_at DESC
       LIMIT 500`;
     if (fast.length > 0) return fast.map((r) => r.id);
-    const rows = await this.db.$queryRaw<{ id: string }[]>`
+    // Pack E (25.11, ROUND2 #16): the fallback (a typo, a fragment inside a
+    // text) has no index for `body ILIKE` and walks the questions and
+    // answers, so it runs inside the same time budget as every other
+    // full-text step: out of time = nothing found, not a busy database.
+    const rows = await this.budget(SEARCH_BUDGET_MS, () =>
+      this.questionsFallback(text, like, topics),
+    );
+    return rows.map((r) => r.id);
+  }
+
+  /** The [searchQuestions] query for what the indexes did not find. */
+  private questionsFallback(
+    text: string,
+    like: string,
+    topics: string[],
+  ): Promise<{ id: string }[]> {
+    return this.db.$queryRaw<{ id: string }[]>`
       SELECT q.id::TEXT AS id
       FROM legal_questions q
       WHERE q.status = 'published' AND q.deleted_at IS NULL
@@ -1000,7 +1016,6 @@ export class PostgresSearchProvider implements SearchProvider {
         )
       ORDER BY q.created_at DESC
       LIMIT 500`;
-    return rows.map((r) => r.id);
   }
 
   /** Search-engine step: only questions that are still published, newest

@@ -319,6 +319,9 @@ class UploadQueue with WidgetsBindingObserver {
   /// Worth repeating as it is (same rule as the text outbox).
   static bool temporary(Object e) {
     if (e is! ApiException) return e is! ArgumentError && e is! StateError;
+    // Owner 24.11: the server's antivirus is still busy with the file (slow
+    // worker). Waited for again with the usual backoff, never «not sent».
+    if (StorageUploader.isScanPending(e)) return true;
     if (_final.contains(e.code)) return false;
     final c = e.statusCode ?? 500;
     return e.isNetworkError ||

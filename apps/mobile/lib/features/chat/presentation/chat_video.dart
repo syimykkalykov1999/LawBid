@@ -218,7 +218,8 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                         ),
                       ),
                     Center(
-                      child: widget.sending
+                      // Owner 24.11: the ring only while the bytes go up.
+                      child: widget.sending && a.progress < 1
                           ? Container(
                               width: widget.fill ? 32 : 48,
                               height: widget.fill ? 32 : 48,

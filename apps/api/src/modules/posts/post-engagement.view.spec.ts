@@ -153,7 +153,12 @@ describe('PostEngagementService share dedup', () => {
           .mockResolvedValue(existing ? { post_id: 'p1' } : null),
         create,
       },
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      $transaction: jest.fn(),
     };
+    prisma.$transaction.mockImplementation(
+      (fn: (tx: typeof prisma) => Promise<unknown>) => fn(prisma),
+    );
     const service = new PostEngagementService(
       prisma as never,
       { consume } as never,
@@ -178,5 +183,73 @@ describe('PostEngagementService share dedup', () => {
     await service.share('me', 'p1');
     expect(create).not.toHaveBeenCalled();
     expect(bump).not.toHaveBeenCalled();
+  });
+
+  /** Pack E (25.11, ROUND2 #18): a double tap / two devices at once. The
+   * fake keeps rows in memory and models pg_advisory_xact_lock: the second
+   * transaction waits on the key until the first one ends. */
+  it('two shares at the same moment count once', async () => {
+    const rows: { post_id: string; user_id: string }[] = [];
+    const tick = () => new Promise((r) => setImmediate(r));
+    const postShare = {
+      findFirst: jest.fn(
+        async (a: { where: { post_id: string; user_id: string } }) => {
+          await tick();
+          return (
+            rows.find(
+              (r) =>
+                r.post_id === a.where.post_id && r.user_id === a.where.user_id,
+            ) ?? null
+          );
+        },
+      ),
+      create: jest.fn(
+        async (a: { data: { post_id: string; user_id: string } }) => {
+          await tick();
+          rows.push(a.data);
+          return a.data;
+        },
+      ),
+    };
+    const held = new Map<string, Promise<void>>();
+    const prisma = {
+      post: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'p1', author_id: 'a' }),
+      },
+      postShare,
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+        const release: (() => void)[] = [];
+        const tx = {
+          postShare,
+          $executeRaw: async (_s: TemplateStringsArray, key: string) => {
+            while (held.has(key)) await held.get(key);
+            let done!: () => void;
+            held.set(key, new Promise<void>((r) => (done = r)));
+            release.push(() => {
+              held.delete(key);
+              done();
+            });
+          },
+        };
+        try {
+          return await fn(tx);
+        } finally {
+          for (const r of release) r();
+        }
+      },
+    };
+    const bump = jest.fn().mockResolvedValue(undefined);
+    const service = new PostEngagementService(
+      prisma as never,
+      { consume: jest.fn().mockResolvedValue(undefined) } as never,
+      { bump } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    await Promise.all([service.share('me', 'p1'), service.share('me', 'p1')]);
+    expect(rows).toHaveLength(1);
+    expect(bump).toHaveBeenCalledTimes(1);
   });
 });
