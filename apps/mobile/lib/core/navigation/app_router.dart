@@ -10,6 +10,7 @@ import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/deferred_screen.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
+import 'package:lawbid/core/navigation/last_page_guard.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
 import 'package:lawbid/core/navigation/router_error_screen.dart';
 import 'package:lawbid/core/navigation/shell/desktop_layouts.dart';
@@ -152,7 +153,7 @@ GoRouter appRouter(Ref ref) {
   final refresh = _GuardRefresh(ref);
   ref.onDispose(refresh.dispose);
 
-  return GoRouter(
+  final router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.splash,
     // Owner 2026-10-15 (web): a typed or shared address (/lawyer/anna) first
@@ -978,6 +979,10 @@ GoRouter appRouter(Ref ref) {
       ...privacyRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
     ],
   );
+  // KNOWN_ERRORS 228: go_router (third_party patch) refuses a pop that
+  // would leave no page; each such pop is reported with its stack.
+  LastPageGuard.install();
+  return router;
 }
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();

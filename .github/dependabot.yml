@@ -47,6 +47,9 @@ updates:
     ignore:
       - dependency-name: "flutter_secure_storage"
         update-types: ["version-update:semver-major"]
+      # KNOWN_ERRORS 228: go_router is the patched copy third_party/go_router
+      # (dependency_overrides); a new version is copied by hand with the patch.
+      - dependency-name: "go_router"
     groups:
       pub-minor-patch:
         patterns: ["*"]
