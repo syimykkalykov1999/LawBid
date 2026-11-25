@@ -261,9 +261,13 @@ describe('PostRankerService', () => {
     }
     const times: number[] = [];
     for (let i = 0; i < 60; i++) {
-      const t0 = performance.now();
+      // Process CPU time, not wall-clock (KNOWN_ERRORS 245): on a shared CI
+      // runner other jest workers steal the CPU and wall time measures their
+      // load, not ours. The «Авто» guard in prod keeps measuring wall time.
+      const c0 = process.cpuUsage();
       expect(await r.score(rows)).not.toBeNull();
-      times.push(performance.now() - t0);
+      const c = process.cpuUsage(c0);
+      times.push((c.user + c.system) / 1000);
     }
     const ms = p95(times);
     // perf guard (perf-user.e2e-spec): 300 ms p95 per endpoint; the
