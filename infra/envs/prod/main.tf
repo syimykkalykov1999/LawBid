@@ -237,6 +237,9 @@ module "stack" {
   alb_deletion_protection        = var.alb_deletion_protection
   alb_least_outstanding_requests = var.alb_least_outstanding_requests
   alb_websocket_target_group     = var.alb_websocket_target_group
+  api_edge_enabled               = var.api_edge_enabled
+  api_edge_dns                   = var.api_edge_dns
+  api_edge_origin_lock           = var.api_edge_origin_lock
   waf_bot_control_enabled        = var.waf_bot_control_enabled
   waf_bot_control_block          = var.waf_bot_control_block
   waf_atp_enabled                = var.waf_atp_enabled
