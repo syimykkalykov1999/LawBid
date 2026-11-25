@@ -10,6 +10,7 @@ import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { REALTIME_NAMESPACE } from '../realtime/realtime-publisher.service';
 import { HotlineService } from './hotline.service';
 import { hotlineCounterRoom } from './hotline-sweeper.service';
+import { SOCKET_SERVER_ORIGIN_OPTIONS } from '../../common/cors/socket-origin';
 
 interface HotlineSocketData {
   user?: { sub?: string };
@@ -39,7 +40,13 @@ const MAX_WATCH = 10;
  *  - `hotline:watch` / `hotline:unwatch` — the counters rooms (only sockets
  *    on the hotline screen get counters).
  */
-@WebSocketGateway({ namespace: REALTIME_NAMESPACE })
+// ASVS V4.4.2 (#6): Nest builds the shared Socket.IO server from the
+// gateway declared first, which is this one: it must carry the same
+// handshake Origin check as the others (common/cors/socket-origin.ts).
+@WebSocketGateway({
+  namespace: REALTIME_NAMESPACE,
+  ...SOCKET_SERVER_ORIGIN_OPTIONS,
+})
 export class HotlineGateway implements OnGatewayDisconnect {
   constructor(private readonly hotline: HotlineService) {}
 

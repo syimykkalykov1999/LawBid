@@ -24,6 +24,7 @@ import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import { LeaseService } from './lease.service';
 import { StaffEventsPublisher } from './staff-events.publisher';
 import { StaffPresenceService } from './staff-presence.service';
+import { SOCKET_SERVER_ORIGIN_OPTIONS } from '../../common/cors/socket-origin';
 
 export { STAFF_NAMESPACE };
 
@@ -60,7 +61,8 @@ const dataOf = (socket: Socket): StaffSocketData | undefined =>
  */
 @WebSocketGateway({
   namespace: STAFF_NAMESPACE,
-  cors: { origin: true },
+  // ASVS V4.4.2 (#6): the HTTP CORS allowlist, also for the handshake.
+  ...SOCKET_SERVER_ORIGIN_OPTIONS,
   transports: ['websocket', 'polling'],
   maxHttpBufferSize: 4 * 1024,
   pingInterval: 25_000,

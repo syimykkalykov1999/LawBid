@@ -78,6 +78,7 @@ import {
   takeSocketEvent,
   type SocketEventBucket,
 } from './socket-event-bucket';
+import { SOCKET_SERVER_ORIGIN_OPTIONS } from '../../common/cors/socket-origin';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -208,7 +209,8 @@ function expiryOf(token: string): number | null {
  */
 @WebSocketGateway({
   namespace: REALTIME_NAMESPACE,
-  cors: { origin: true },
+  // ASVS V4.4.2 (#6): the HTTP CORS allowlist, also for the handshake.
+  ...SOCKET_SERVER_ORIGIN_OPTIONS,
   transports: ['websocket', 'polling'],
   // Owner 2026-10-15: limits so one heavy or broken client cannot hurt the
   // rest. Every socket event is small (join, typing, presence, a call's

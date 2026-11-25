@@ -6,6 +6,7 @@ import type { Socket } from 'socket.io';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { QR_LOGIN_TTL_SEC, RateLimitService } from '../auth/auth.public';
 import { QR_LOGIN_NAMESPACE, qrRoom } from './realtime-publisher.service';
+import { SOCKET_SERVER_ORIGIN_OPTIONS } from '../../common/cors/socket-origin';
 
 /** Same shape as the REST DTO (`qrId`: 16–64 URL-safe chars). */
 const QR_ID = /^[A-Za-z0-9_-]{16,64}$/;
@@ -26,7 +27,8 @@ const QR_SOCKETS_PER_IP_PER_HOUR = 300;
  */
 @WebSocketGateway({
   namespace: QR_LOGIN_NAMESPACE,
-  cors: { origin: true },
+  // ASVS V4.4.2 (#6): the HTTP CORS allowlist, also for the handshake.
+  ...SOCKET_SERVER_ORIGIN_OPTIONS,
   transports: ['websocket', 'polling'],
   maxHttpBufferSize: 4 * 1024,
   pingInterval: 25_000,
