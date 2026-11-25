@@ -68,7 +68,9 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 import 'package:material_ui/material_ui.dart';
 
 // OQ-048: [team] — assistants' approval requests and activity (attorney).
-enum InboxTab { chats, notifications, requests, team }
+// Owner 2026-11-18 (Samsung): [cases] — the case chats, moved from the
+// «Кейсы» chip under Chats to a top tab of their own (everyone).
+enum InboxTab { chats, notifications, requests, team, cases }
 
 /// The screen behind the Chats icon (docs/05 §8.1, §9.1). Owner
 /// 2026-09-30: three compact tabs — Chats · Notifications · Requests — in
@@ -114,10 +116,23 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
   /// only (the header too while chats are being selected).
   final _query = ValueNotifier<String>('');
 
+  /// Owner 2026-11-18: the «Кейсы» tab keeps its own search, like the
+  /// «Кейсы» chip had while it was chosen.
+  final _casesQuery = ValueNotifier<String>('');
+
+  /// The tab on screen in the last build (the magnifier opens its search).
+  InboxTab _shownTab = InboxTab.chats;
+
+  /// Each tab's own count of «open the search» (the magnifier, Ctrl+F):
+  /// both pages stay alive side by side, only the shown one opens.
+  int _chatsSearchSignal = 0;
+  int _casesSearchSignal = 0;
+
   @override
   void initState() {
     super.initState();
     _query.addListener(_onQuery);
+    _casesQuery.addListener(_onQuery);
   }
 
   void _onQuery() {
@@ -127,38 +142,46 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
   @override
   void dispose() {
     _query.dispose();
+    _casesQuery.dispose();
     super.dispose();
   }
+
+  /// The folder on screen: the «Кейсы» tab is the cases folder, «Чаты» the
+  /// chosen chip.
+  ChatListFolder get _shownFolder =>
+      _shownTab == InboxTab.cases ? ChatListFolder.cases : _folder;
 
   /// The rows of the folder on screen (Select all, the bulk bar): direct
   /// chats and, in «All», my groups.
   List<ChatListEntry> _visibleEntries() {
-    if (_folder == ChatListFolder.requests) return const [];
-    final query = _query.value;
+    final folder = _shownFolder;
+    if (folder == ChatListFolder.requests) return const [];
+    final query =
+        _shownTab == InboxTab.cases ? _casesQuery.value : _query.value;
     if (query.isNotEmpty) {
       return [
         for (final e in ref
                 .watch(
-                  mergedChatSearchProvider((folder: _folder, q: query)),
+                  mergedChatSearchProvider((folder: folder, q: query)),
                 )
                 .value
                 ?.items ??
             const <ChatListEntry>[])
-          if (_folder != ChatListFolder.unread || e.hasUnread) e,
+          if (folder != ChatListFolder.unread || e.hasUnread) e,
       ];
     }
-    if (_folder == ChatListFolder.groups) {
+    if (folder == ChatListFolder.groups) {
       return ref.watch(groupChatListProvider).value?.items ?? const [];
     }
-    if (_folder == ChatListFolder.all || _folder == ChatListFolder.unread) {
+    if (folder == ChatListFolder.all || folder == ChatListFolder.unread) {
       // R-404 (b): a person's row stands for all the chats behind it.
       return <ChatListEntry>[
         for (final e in ref.watch(mergedChatListProvider).value?.items ??
             const <ChatListEntry>[])
-          if (_folder == ChatListFolder.all || e.hasUnread)
+          if (folder == ChatListFolder.all || e.hasUnread)
             if (e case PersonChatEntry(:final conversations))
               for (final c in conversations)
-                if (_folder == ChatListFolder.all || c.hasUnread)
+                if (folder == ChatListFolder.all || c.hasUnread)
                   DirectChatEntry(c)
                 else
                   ...[]
@@ -168,7 +191,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     }
     return [
       for (final c
-          in ref.watch(folderConversationsProvider(_folder)).value?.items ??
+          in ref.watch(folderConversationsProvider(folder)).value?.items ??
               const <Conversation>[])
         DirectChatEntry(c),
     ];
@@ -185,6 +208,38 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     );
     final selection = ref.watch(chatSelectionProvider);
     final selecting = selection != null;
+    final requests = ref.watch(messageRequestsCountProvider).value ?? 0;
+    final showTeam = ref.watch(currentUserRoleProvider) == UserRole.attorney;
+    final teamPending =
+        showTeam ? (ref.watch(pendingRequestsCountProvider).value ?? 0) : 0;
+    // Audit 2026-10-04: an assistant without "chats" still reaches the
+    // notifications here (the bell stays open, no Chats segment).
+    final chatsAllowed = ref.watch(canDoProvider(AssistantDuty.chats));
+    var tab = !showTeam && _tab == InboxTab.team ? InboxTab.chats : _tab;
+    if (!chatsAllowed && (tab == InboxTab.chats || tab == InboxTab.cases)) {
+      tab = InboxTab.notifications;
+    }
+    _shownTab = tab;
+    // Owner 2026-11-18: «Кейсы» is a chats list too (the «+», ⋮, search).
+    final chatList = tab == InboxTab.chats || tab == InboxTab.cases;
+    // Owner 2026-10-21: how many case chats wait for my answer — the count
+    // the «Кейсы» chip had, now on the «Кейсы» tab.
+    final casesCount = chatsAllowed
+        ? ref.watch(
+            chatFolderCountsProvider.select((c) => c.value?.cases ?? 0),
+          )
+        : 0;
+    // The magnifier in the top bar (and Ctrl+F on a desktop) opens the
+    // search of the tab on screen only.
+    ref.listen(chatSearchOpenProvider, (_, __) {
+      setState(() {
+        if (_shownTab == InboxTab.cases) {
+          _casesSearchSignal++;
+        } else {
+          _chatsSearchSignal++;
+        }
+      });
+    });
     final entries = selecting ? _visibleEntries() : const <ChatListEntry>[];
     final chats = [
       for (final e in entries)
@@ -194,15 +249,6 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
       for (final e in entries)
         if (e is GroupChatEntry) e.group,
     ];
-    final requests = ref.watch(messageRequestsCountProvider).value ?? 0;
-    final showTeam = ref.watch(currentUserRoleProvider) == UserRole.attorney;
-    final teamPending =
-        showTeam ? (ref.watch(pendingRequestsCountProvider).value ?? 0) : 0;
-    // Audit 2026-10-04: an assistant without "chats" still reaches the
-    // notifications here (the bell stays open, no Chats segment).
-    final chatsAllowed = ref.watch(canDoProvider(AssistantDuty.chats));
-    var tab = !showTeam && _tab == InboxTab.team ? InboxTab.chats : _tab;
-    if (!chatsAllowed && tab == InboxTab.chats) tab = InboxTab.notifications;
     final bell = _Bell(
       count: badges.$2,
       selected: tab == InboxTab.notifications,
@@ -236,7 +282,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     );
     return Scaffold(
       backgroundColor: colors.bg,
-      floatingActionButton: tab == InboxTab.chats && !selecting
+      floatingActionButton: chatList && !selecting
           ? _NewChatButton(label: t.t('phoneContacts.title'))
           : null,
       body: SafeArea(
@@ -324,6 +370,13 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                     t.t('inbox.tab.chats'),
                                 badges.$1 + requests,
                               ),
+                            // Owner 2026-11-18: «Чаты | Кейсы | Команда».
+                            if (chatsAllowed)
+                              (
+                                InboxTab.cases,
+                                t.t('chat.folder.cases'),
+                                casesCount,
+                              ),
                             if (showTeam)
                               (
                                 InboxTab.team,
@@ -373,9 +426,9 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                 // "Select chats" like Instagram.
                                 // Organizing chats is the attorney's own
                                 // (the server refuses an assistant).
-                                if (tab == InboxTab.chats &&
+                                if (chatList &&
                                     !ref.watch(isAssistantProvider) &&
-                                    _folder != ChatListFolder.requests)
+                                    _shownFolder != ChatListFolder.requests)
                                   AppIconButton(
                                     key: const ValueKey('chats-menu'),
                                     compact: true,
@@ -392,7 +445,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                 // call, video, invite).
                                 // Owner 2026-10-21: the magnifier up here,
                                 // the «+» in the folders row (swapped).
-                                if (tab == InboxTab.chats)
+                                if (chatList)
                                   AppIconButton(
                                     key: const ValueKey('chat-search-top'),
                                     compact: true,
@@ -490,6 +543,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                 builder: (context) {
                   final values = [
                     if (chatsAllowed) InboxTab.chats,
+                    if (chatsAllowed) InboxTab.cases,
                     if (showTeam) InboxTab.team,
                   ];
                   Widget pageFor(InboxTab v) => switch (v) {
@@ -502,6 +556,24 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                   onFolder: (f) => setState(() => _folder = f),
                                   query: query,
                                   onQuery: (q) => _query.value = q,
+                                  openSignal: _chatsSearchSignal,
+                                ),
+                              )
+                            : const SizedBox.shrink(),
+                        // Owner 2026-11-18: what the «Кейсы» chip showed —
+                        // the case chats; no chips, the search opens from
+                        // the magnifier like on Chats.
+                        InboxTab.cases => chatsAllowed
+                            ? ValueListenableBuilder<String>(
+                                valueListenable: _casesQuery,
+                                builder: (context, query, _) =>
+                                    ConversationsView(
+                                  key: const ValueKey('inbox-cases-page'),
+                                  folder: ChatListFolder.cases,
+                                  showFolders: false,
+                                  query: query,
+                                  onQuery: (q) => _casesQuery.value = q,
+                                  openSignal: _casesSearchSignal,
                                 ),
                               )
                             : const SizedBox.shrink(),
@@ -545,8 +617,8 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     Translator t,
     InboxTab tab,
   ) async {
-    final organize =
-        !ref.read(isAssistantProvider) && _folder != ChatListFolder.requests;
+    final organize = !ref.read(isAssistantProvider) &&
+        _shownFolder != ChatListFolder.requests;
     // The admin switch «Группы в чатах» (on by default).
     final groups = ref.read(groupsEnabledProvider);
     final pick = await showAppBottomSheet<String>(
@@ -604,7 +676,9 @@ class InboxTabsBar extends StatelessWidget {
   final List<(InboxTab, String, int)> tabs;
   final ValueChanged<InboxTab> onChanged;
 
-  double get _segment => tabs.length > 3 ? 72.0 : 88.0;
+  // Owner 2026-11-18: «Чаты | Кейсы | Команда» take the bar's existing
+  // narrow segment (it was the four-tab size), so the words stay readable.
+  double get _segment => tabs.length > 2 ? 72.0 : 88.0;
   static const _height = 36.0;
 
   @override
@@ -622,6 +696,7 @@ class InboxTabsBar extends StatelessWidget {
           label: count > 0 ? '$label, $count' : label,
           excludeSemantics: true,
           child: AppPressable(
+            key: ValueKey('inbox-tab-${tab.name}'),
             onTap: () => onChanged(tab),
             child: SizedBox(
               height: _height,
@@ -836,11 +911,21 @@ class ConversationsView extends ConsumerWidget {
     this.onFolder,
     this.query = '',
     this.onQuery,
+    this.showFolders = true,
+    this.openSignal,
     super.key,
   });
 
   final ChatListFolder folder;
   final ValueChanged<ChatListFolder>? onFolder;
+
+  /// Owner 2026-11-18: false on the «Кейсы» tab — no chips, only the
+  /// search row once the magnifier opens it.
+  final bool showFolders;
+
+  /// Each change opens the search (null: the top bar's magnifier,
+  /// [chatSearchOpenProvider]).
+  final int? openSignal;
 
   /// Owner 2026-10-18: the typed search ('' = the normal list). The field
   /// shows when [onQuery] is set.
@@ -994,13 +1079,14 @@ class ConversationsView extends ConsumerWidget {
         onRetryMore: n.retryLoadMore,
       );
     }
-    final filters = onQuery != null && onFolder != null
+    final filters = onQuery != null && (onFolder != null || !showFolders)
         ? ChatsFilterRow(
             folder: folder,
-            onFolder: onFolder!,
+            onFolder: onFolder ?? (_) {},
             query: query,
             onQuery: onQuery!,
-            openSignal: ref.watch(chatSearchOpenProvider),
+            showFolders: showFolders,
+            openSignal: openSignal ?? ref.watch(chatSearchOpenProvider),
             // Owner 2026-10-20: the channels' door at the start of the row.
             // Owner 2026-10-22: hidden while channels are «coming soon».
             leading: !ref.watch(channelsComingSoonProvider) &&

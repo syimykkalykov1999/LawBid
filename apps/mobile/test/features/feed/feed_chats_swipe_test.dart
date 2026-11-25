@@ -144,7 +144,7 @@ void main() {
   });
 
   testWidgets(
-      'attorney: Cases → Chats, a swipe inside goes Chats → Team, '
+      'attorney: Cases → Chats, a swipe inside goes Chats → Кейсы → Team, '
       'and back past Chats leaves to the feed', (tester) async {
     await pump(tester, UserRole.attorney);
     await swipe(tester, -300); // Posts → Reels
@@ -153,12 +153,22 @@ void main() {
     await swipe(tester, -300); // Cases → Chats
     expect(chats, findsOneWidget);
     expect(find.byType(InboxTabsBar), findsOneWidget);
-    // Inside the Chats screen its own pages move first: Chats → Team.
+    InboxTab lit() =>
+        tester.widget<InboxTabsBar>(find.byType(InboxTabsBar)).value;
+    // Inside the Chats screen its own pages move first. Owner 2026-11-18:
+    // Chats → Кейсы → Team.
+    await swipe(tester, -300);
+    expect(chats, findsOneWidget);
+    expect(lit(), InboxTab.cases);
     await swipe(tester, -300);
     expect(chats, findsOneWidget);
     expect(tester.getTopLeft(chats).dx, 0);
+    expect(lit(), InboxTab.team);
     expect(find.text('Anna Petrova'), findsNothing);
-    await swipe(tester, 300); // Team → Chats
+    await swipe(tester, 300); // Team → Кейсы
+    expect(lit(), InboxTab.cases);
+    await swipe(tester, 300); // Кейсы → Chats
+    expect(lit(), InboxTab.chats);
     expect(find.text('Anna Petrova'), findsOneWidget);
     // Past the first inner page the swipe belongs to the feed.
     await swipe(tester, 300); // Chats → Cases
