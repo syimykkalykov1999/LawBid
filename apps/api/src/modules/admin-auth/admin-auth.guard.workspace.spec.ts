@@ -33,6 +33,7 @@ function setup(
   headOn = switchOn,
 ) {
   const reflector = {
+    get: () => undefined,
     getAllAndOverride: (key: string) =>
       key === ADMIN_ROLES_KEY ? ALL : undefined,
   } as unknown as Reflector;

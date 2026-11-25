@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/chat/application/quick_replies_providers.dart';
 import 'package:lawbid/features/chat/data/quick_replies_repository.dart';
 import 'package:material_ui/material_ui.dart';
@@ -216,7 +217,7 @@ class _QuickReplyEditorState extends ConsumerState<_QuickReplyEditor> {
       } else {
         await notifier.edit(c.id, _title.text.trim(), _body.text.trim());
       }
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) context.popIfCurrent();
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {

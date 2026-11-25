@@ -7,6 +7,7 @@ import 'package:lawbid/core/design_system/widgets/pickers/app_pickers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/onboarding/domain/us_states.dart';
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart';
@@ -163,7 +164,7 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
         barNumber: bar,
         expiresAt: _expires,
       );
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) context.popIfCurrent(true);
     } on Object catch (e) {
       if (mounted) {
         final locked =
@@ -213,7 +214,7 @@ class _AddLicenseSheetState extends ConsumerState<AddLicenseSheet> {
         barCard: card,
         note: _note.text,
       );
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) context.popIfCurrent(true);
     } on Object catch (e) {
       if (mounted) {
         setState(

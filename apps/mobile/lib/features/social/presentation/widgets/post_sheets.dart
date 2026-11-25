@@ -594,7 +594,6 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
                           Navigator.of(sheet).pop();
                           final done = await toggleBlock(
                             context,
-                            ref,
                             userId: post.author.id,
                             displayName: post.author.displayName,
                             currentlyBlocked: false,

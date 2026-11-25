@@ -106,13 +106,16 @@ export class AdminPromotionsController {
   @ApiEnvelopeResponse(AdminPromotionActionResultDto, { status: 201 })
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
     404: [E.CASE_NOT_FOUND, E.POST_NOT_FOUND],
     409: [E.CASE_INVALID_STATE, E.PROMOTION_ALREADY_ACTIVE],
   })
-  grantAdminPromotion(
+  async grantAdminPromotion(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminGrantPromotionDto,
   ): Promise<AdminPromotionActionResultDto> {
+    // Round 4 (25.11, С3): a paid boost for free — a fresh 2FA code.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.promotions.grant(admin, dto.caseId, dto.days, dto.reason, {
       target: dto.target ?? 'case',
       dailyBudgetCents: dto.dailyBudgetCents,

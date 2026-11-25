@@ -146,7 +146,6 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   config: 'settings',
   // Owner 2026-10-05: Система → Хранилище.
   storage: 'settings',
-  'legal-documents': 'legal',
   // Owner 2026-10-05 (legal): DMCA notices, disclaimers, incident contact.
   legal: 'legal',
   'data-requests': 'data_requests',
@@ -189,6 +188,20 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   // is every staff member's own page like `workspace`; the right to each
   // queue is checked per kind in work-lease (canWorkQueue).
   desk: 'workspace',
+  // Round 4 admin check (25.11, В1): sections the panel shows to staff but
+  // the table did not know, so everyone but the owner got 404. Each is
+  // filed under the area of the menu item that opens it (apps/admin rbac.ts).
+  'media-moderation': 'moderation',
+  'legal-qa': 'moderation',
+  compliance: 'moderation',
+  deadlines: 'cases',
+  'form-templates': 'content',
+  'attorney-ads': 'legal',
+  demo: 'money',
+  pnl: 'money',
+  // …and the live-updates ticket every admin's panel asks for (a socket
+  // that only says «this list changed»; without it staff fell back to polls).
+  realtime: 'workspace',
   // Staff package T4: `admin/staff/*` (own progress, the head's people and
   // suggestions, the owner's settings) is reached through the workspace
   // area so that heads and workers get past the area gate; WHO may use each

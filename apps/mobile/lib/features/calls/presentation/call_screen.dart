@@ -115,9 +115,18 @@ class _CallScreenState extends ConsumerState<CallScreen>
     if (route.isCurrent) {
       nav.pop();
     } else if (route.isActive) {
-      nav
-        ..popUntil((r) => r == route || r.isFirst)
-        ..removeRoute(route);
+      nav.popUntil((r) => r == route || r.isFirst);
+      // Round 1 check 25.11 №2: a router page (`/call` of go_router) leaves
+      // with `pop`, like the branch above. `removeRoute` skips the pop
+      // callback that go_router listens to, so `/call` stayed in the
+      // router's stack: the next call did not open and the incoming banner
+      // stayed hidden. Flutter: a page-based route goes by its page, never
+      // by `removeRoute`; a pageless route may still be removed at once.
+      if (route.settings is Page<Object?> && route.isCurrent) {
+        nav.pop();
+      } else if (route.isActive) {
+        nav.removeRoute(route);
+      }
     }
   }
 

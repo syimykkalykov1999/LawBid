@@ -21,6 +21,7 @@ import {
   SkipAutoAudit,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
   AdminTrustCardDto,
   BarNumberBlockDto,
@@ -69,7 +70,10 @@ const ERRORS = {
 @SkipAutoAudit()
 @Controller('admin/trust')
 export class AdminTrustController {
-  constructor(private readonly admin: AdminTrustService) {}
+  constructor(
+    private readonly admin: AdminTrustService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get('settings')
   @ApiOperation({ summary: 'What to require and the automatic actions' })
@@ -321,11 +325,17 @@ export class AdminTrustController {
     summary: 'Clear / request documents / reject / release many',
   })
   @ApiEnvelopeResponse(BulkTrustResultDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.FORBIDDEN] })
-  bulkTrust(
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN, E.ADMIN_STEP_UP_REQUIRED],
+  })
+  async bulkTrust(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: BulkTrustDto,
   ): Promise<BulkTrustResultDto> {
+    // Round 4 (25.11, С5): many attorneys at once (reject = suspend) — a
+    // fresh 2FA code, like the bulk actions with people.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.admin.bulk(admin, dto);
   }
 

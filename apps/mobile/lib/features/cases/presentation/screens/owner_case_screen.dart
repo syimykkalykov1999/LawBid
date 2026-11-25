@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payments_card.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/deals/deal_record_card.dart';
@@ -114,7 +115,7 @@ class _OwnerCaseScreenState extends ConsumerState<OwnerCaseScreen> {
     final done = await _run(action, doneKey: doneKey);
     if (done && popAfter && mounted) {
       closeCaseRoute(context, () {
-        if (context.canPop()) context.pop();
+        if (context.isCurrentRoute && context.canPop()) context.pop();
       });
     }
   }

@@ -13,6 +13,7 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
@@ -822,7 +823,7 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                             );
                             if (!ok || !context.mounted) return;
                             await _run(() => repo.delete(pack.id));
-                            if (context.mounted) Navigator.of(context).pop();
+                            if (context.mounted) context.popIfCurrent();
                           },
                           itemBuilder: (_) => [
                             PopupMenuItem(

@@ -5,7 +5,6 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
-import 'package:lawbid/features/case_payments/application/case_payments_providers.dart';
 import 'package:lawbid/features/case_payments/presentation/case_payments_history_screen.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';

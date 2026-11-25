@@ -266,12 +266,14 @@ export class AdminPartnersController {
     summary: 'One-off bonus (+) or deduction (−), approved at once',
   })
   @ApiEnvelopeResponse(AdminPartnerCommissionRowDto)
-  @ApiErrors(MUTATION_ERRORS)
-  adjustAdminPartner(
+  @ApiErrors({ ...MUTATION_ERRORS, 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async adjustAdminPartner(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminPartnerIdParamDto,
     @Body() dto: AdminPartnerAdjustmentDto,
   ): Promise<AdminPartnerCommissionRowDto> {
+    // Round 4 (25.11, С3): a bonus is money owed — a fresh 2FA code.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.partners.adjust(admin, p.id, dto);
   }
 

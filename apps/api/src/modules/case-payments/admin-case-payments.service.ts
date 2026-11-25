@@ -1,3 +1,5 @@
+import { readDailySnapshot } from '../../common/admin-summary/snapshot-gate';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import type {
   CasePayment,
@@ -67,6 +69,7 @@ export class AdminCasePaymentsService {
     private readonly flags: FeatureFlagsService,
     private readonly audit: AuditLogService,
     @Optional() private readonly secrets?: SecretsService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   async getSettings(): Promise<AdminPaymentSettingsViewDto> {
@@ -204,7 +207,15 @@ export class AdminCasePaymentsService {
     }));
   }
 
-  async stats(now = new Date()): Promise<AdminCasePaymentStatsDto> {
+  /** Round 4 admin check (25.11, С11): these totals scan whole tables, so the
+   * page reads the daily snapshot (snapshot-gate.ts), not a live count. */
+  stats(now = new Date()): Promise<AdminCasePaymentStatsDto> {
+    return readDailySnapshot(this.summary, 'case-payments:stats', () =>
+      this.computeStats(now),
+    );
+  }
+
+  private async computeStats(now: Date): Promise<AdminCasePaymentStatsDto> {
     const since = new Date(now.getTime() - 30 * DAY_MS);
     const paidStatuses = ['succeeded', 'partially_refunded', 'refunded'];
     const [

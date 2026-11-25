@@ -68,10 +68,16 @@ export class AdminEconomyController {
   @Patch('settings')
   @ApiOperation({ summary: 'The spend rule, ceiling mode, unit prices, flag' })
   @ApiEnvelopeResponse(EconomyReportDto)
+  @ApiErrors({ 403: [E.ADMIN_STEP_UP_REQUIRED] })
   async updateEconomySettings(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: UpdateEconomyDto,
   ): Promise<EconomyReportDto> {
+    // Round 4 (25.11, В5): the guard switch is a money switch — a fresh
+    // 2FA code before anything of this save is written.
+    if (dto.guardEnabled !== undefined) {
+      await this.auth.assertStepUp(admin.sessionId);
+    }
     await this.writer.write(admin.id, 'economy.settings', {
       'economy.max_spend_percent': dto.percent,
       'economy.min_threshold_usd': dto.thresholdUsd,

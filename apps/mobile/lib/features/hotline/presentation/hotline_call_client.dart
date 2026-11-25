@@ -7,6 +7,7 @@ import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart
     show avatarFullUrlFor;
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
@@ -68,7 +69,7 @@ class HotlineCallClientPanel extends ConsumerWidget {
     final res = await ref.read(hotlineControllerProvider.notifier).offerCase();
     if (!context.mounted) return;
     if (res.caseId != null) {
-      unawaited(Navigator.of(context).maybePop());
+      unawaited(context.maybePopIfCurrent<void>());
       unawaited(router.push<void>(HotlineRoutes.caseSent));
       return;
     }

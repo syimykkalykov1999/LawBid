@@ -1,3 +1,4 @@
+import { AdminSummaryService } from '../src/common/admin-summary/admin-summary.service';
 import type { AddressInfo, Server } from 'node:net';
 import { createHash, randomUUID } from 'node:crypto';
 import { UnsubscribeTokenCodec } from '../src/modules/outreach/unsubscribe-token';
@@ -479,6 +480,9 @@ describe('Outreach (e2e)', () => {
     expect(late.body.data.status).toBe('paid');
 
     // The owner's dashboard: who works and what it brought.
+    // Round 4 (С11): the page reads the daily snapshot; this suite wants
+    // the numbers of its own rows, so it drops the stored copy first.
+    await app.get(AdminSummaryService).drop('outreach:stats:all:30d:now');
     const stats = await api()
       .get('/api/v1/admin/outreach/stats')
       .set(owner.auth)
@@ -503,6 +507,9 @@ describe('Outreach (e2e)', () => {
     expect(row!.commissionCents).toBe(5_000);
     expect(stats.body.data.byStatus.paid).toBeGreaterThanOrEqual(1);
     // The employee sees only their own row.
+    await app
+      .get(AdminSummaryService)
+      .drop(`outreach:stats:${partnerId}:30d:now`);
     const empStats = await api()
       .get('/api/v1/admin/outreach/stats')
       .set(emp.auth)

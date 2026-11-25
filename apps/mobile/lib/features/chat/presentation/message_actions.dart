@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_saved_providers.dart';
@@ -1258,7 +1259,7 @@ class PinnedBanner extends ConsumerWidget {
                                       }
                                     }
                                     if (pins.length <= 1 && sheet.mounted) {
-                                      Navigator.of(sheet).pop();
+                                      sheet.popIfCurrent();
                                     }
                                   },
                                 ),

@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
@@ -369,7 +370,7 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
       if (!mounted) return;
       showAppSnackBar(context, t.t('bid.firm.joined'));
       setState(() => _leaving = true);
-      context.pop();
+      if (context.isCurrentRoute) context.pop();
     } on Object catch (err) {
       if (!mounted) return;
       setState(() {

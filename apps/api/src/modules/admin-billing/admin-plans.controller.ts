@@ -31,6 +31,16 @@ import {
   PlanIdParamDto,
 } from './admin-plans.dto';
 import { AdminPlansService } from './admin-plans.service';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
+
+/** Round 4 (25.11, С2): a save that sets a price is money. */
+function setsPrice(dto: PlanFieldsDto): boolean {
+  return (
+    dto.amountCents !== undefined ||
+    dto.compareAtCents !== undefined ||
+    dto.showDiscount !== undefined
+  );
+}
 
 const E = ErrorCode;
 
@@ -43,7 +53,10 @@ const E = ErrorCode;
 @SkipAutoAudit()
 @Controller('admin/billing/plans')
 export class AdminPlansController {
-  constructor(private readonly plans: AdminPlansService) {}
+  constructor(
+    private readonly plans: AdminPlansService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -58,11 +71,16 @@ export class AdminPlansController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Create a plan (draft unless status is given)' })
   @ApiEnvelopeResponse(AdminPlanResultDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 409: [E.PLAN_CODE_EXISTS] })
-  adminCreatePlan(
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    409: [E.PLAN_CODE_EXISTS],
+  })
+  async adminCreatePlan(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: CreatePlanDto,
   ): Promise<AdminPlanResultDto> {
+    if (setsPrice(dto)) await this.auth.assertStepUp(admin.sessionId);
     return this.plans.create(admin, dto);
   }
 
@@ -72,12 +90,17 @@ export class AdminPlansController {
       'Edit a plan: texts, entitlements, price, status (subscribers keep their terms)',
   })
   @ApiEnvelopeResponse(AdminPlanResultDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  adminUpdatePlan(
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+  })
+  async adminUpdatePlan(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: PlanIdParamDto,
     @Body() dto: PlanFieldsDto,
   ): Promise<AdminPlanResultDto> {
+    if (setsPrice(dto)) await this.auth.assertStepUp(admin.sessionId);
     return this.plans.update(admin, p.id, dto);
   }
 
@@ -112,12 +135,18 @@ export class AdminPlansController {
     summary: "Give current subscribers the plan's terms as they are now",
   })
   @ApiEnvelopeResponse(ApplyPlanResultDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  adminApplyPlanToSubscribers(
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+  })
+  async adminApplyPlanToSubscribers(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: PlanIdParamDto,
     @Body() dto: ApplyPlanDto,
   ): Promise<ApplyPlanResultDto> {
+    // Round 4 (25.11, С2): changes the terms of EVERY current subscriber.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.plans.applyToSubscribers(admin, p.id, dto.reason);
   }
 }

@@ -21,6 +21,7 @@ import {
   SkipAutoAudit,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
   AdminBanDto,
   BanIdParamDto,
@@ -42,7 +43,10 @@ const E = ErrorCode;
 @SkipAutoAudit()
 @Controller('admin/sanctions')
 export class AdminSanctionsController {
-  constructor(private readonly sanctions: AdminSanctionsService) {}
+  constructor(
+    private readonly sanctions: AdminSanctionsService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get('bans')
   @ApiOperation({ summary: 'Blocks and bans, newest first' })
@@ -68,12 +72,19 @@ export class AdminSanctionsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Lift a block or ban' })
   @ApiEnvelopeResponse(AdminBanDto)
-  @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.VALIDATION_ERROR] })
-  liftBan(
+  @ApiErrors({
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+    409: [E.VALIDATION_ERROR],
+  })
+  async liftBan(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: BanIdParamDto,
     @Body() dto: LiftBanDto,
   ): Promise<AdminBanDto> {
+    // Round 4 (25.11, Н1): lifting a ban asks a fresh code; banning stays
+    // one click (owner: switch off fast).
+    await this.auth.assertStepUp(admin.sessionId);
     return this.sanctions.lift(admin, p.id, dto.reason);
   }
 

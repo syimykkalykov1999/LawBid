@@ -7,7 +7,7 @@ import { AppModule } from '../src/app.module';
 import { PAYMENT_PROVIDER } from '../src/modules/billing/billing.constants';
 import type { FakePaymentProvider } from '../src/modules/billing/fake-payment.provider';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { adminSession } from './support/admin-login';
+import { adminSession, adminStepUp } from './support/admin-login';
 
 /**
  * Owner 2026-10-04: support cancels an attorney's subscription on request —
@@ -129,9 +129,31 @@ describe('Admin cancels a subscription (e2e, fake provider)', () => {
       .expect(200)
       .expect((r) => expect(r.body.data.cancelAtPeriodEnd).toBe(false));
 
+    // Round 4 (В4): money back asks what «Возврат» asks — a retry key and
+    // a fresh 2FA code; without them nothing is cancelled or refunded.
+    await api()
+      .post(`/api/v1/admin/subscriptions/${userId}/cancel`)
+      .set(admin.auth)
+      .send({ when: 'now', refund: 'prorated', reason: REASON })
+      .expect(400)
+      .expect((r) =>
+        expect(r.body.error.code).toBe('IDEMPOTENCY_KEY_REQUIRED'),
+      );
+    await api()
+      .post(`/api/v1/admin/subscriptions/${userId}/cancel`)
+      .set(admin.auth)
+      .set('Idempotency-Key', `cancel-${userId}`)
+      .send({ when: 'now', refund: 'prorated', reason: REASON })
+      .expect(403)
+      .expect((r) => expect(r.body.error.code).toBe('ADMIN_STEP_UP_REQUIRED'));
+    expect(
+      await prisma.refund.count({ where: { payment_id: payment.id } }),
+    ).toBe(0);
+    await adminStepUp(base, admin);
     const now = await api()
       .post(`/api/v1/admin/subscriptions/${userId}/cancel`)
       .set(admin.auth)
+      .set('Idempotency-Key', `cancel-${userId}`)
       .send({ when: 'now', refund: 'prorated', reason: REASON })
       .expect(200);
     expect(now.body.data.status).toBe('canceled');
