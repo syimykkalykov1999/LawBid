@@ -485,6 +485,228 @@ describe('RecommendationsService.casesFor', () => {
     expect(await svc(prisma).casesFor('att', [], {})).toEqual([]);
     expect(prisma.case.findMany).not.toHaveBeenCalled();
   });
+
+  describe('owner 25.11: the case feed’s own learned ranker', () => {
+    // Formula order: strong (own topic + licensed state) > mid > weak.
+    const rows = () => [
+      row('weak', { budget_cents: null, bids_count: 30 }),
+      row('mid'),
+      row('strong', {
+        practice_area_id: 'leaf-own',
+        practice_area: { id: 'leaf-own', parent_id: 'cat-own' },
+        primary_state_code: 'NJ',
+      }),
+    ];
+    const caseRanker = (
+      arm: 'model' | 'control' | null,
+      answer: 'reverse' | 'fail' = 'reverse',
+    ) => {
+      const seen: Record<string, number>[][] = [];
+      return {
+        seen,
+        assign: jest
+          .fn()
+          .mockResolvedValue(
+            arm ? { experimentKey: 'case_ranker', variant: arm } : null,
+          ),
+        topN: jest.fn().mockResolvedValue(10),
+        formulaVersion: jest.fn().mockReturnValue('ranker:c1'),
+        score: jest.fn((r: Record<string, number>[]) => {
+          seen.push(r);
+          if (answer === 'fail') return Promise.resolve(null);
+          return Promise.resolve(Float32Array.from(r.map((_, i) => i)));
+        }),
+      };
+    };
+    const withCaseRanker = (ranker: unknown) =>
+      new RecommendationsService(
+        casePrisma(rows()) as never,
+        makeRedis() as never,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        ranker as never,
+      );
+    const ids = ['weak', 'mid', 'strong'];
+
+    it('model arm: the cases come in the model’s order (not the formula’s)', async () => {
+      const formula = await svc(casePrisma(rows())).casesFor('att', ids, {});
+      expect(formula).toEqual(['strong', 'mid', 'weak']);
+      const r = caseRanker('model');
+      const model = await withCaseRanker(r).casesFor('att', ids, {});
+      expect(model).toEqual(['weak', 'mid', 'strong']);
+      expect(model).not.toEqual(formula);
+      // The model saw the formula's case features and «offer made» only:
+      // nothing about who the client is.
+      expect(Object.keys(r.seen[0][0]).sort()).toEqual(
+        [
+          'bidOn',
+          'budget',
+          'client',
+          'clientActive',
+          'competition',
+          'dateNear',
+          'demand',
+          'fresh',
+          'practice',
+          'state',
+          'urgency',
+          'urgentActive',
+        ].sort(),
+      );
+    });
+
+    it('control arm, «Выкл» (no assignment) and a failed score: the formula', async () => {
+      for (const r of [
+        caseRanker('control'),
+        caseRanker(null),
+        caseRanker('model', 'fail'),
+      ]) {
+        expect(await withCaseRanker(r).casesFor('att', ids, {})).toEqual([
+          'strong',
+          'mid',
+          'weak',
+        ]);
+      }
+    });
+
+    it('the hard filters stay before ranking: only the ids the SQL let through are read', async () => {
+      const prisma = casePrisma(rows());
+      const s = new RecommendationsService(
+        prisma as never,
+        makeRedis() as never,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        caseRanker('model') as never,
+      );
+      await s.casesFor('att', ['mid', 'weak'], {});
+      expect(prisma.case.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: { in: ['mid', 'weak'] } } }),
+      );
+    });
+  });
+});
+
+describe('owner 25.11: the reels feed’s own learned ranker', () => {
+  const reel = (
+    id: string,
+    author: string,
+    over: Record<string, unknown> = {},
+  ) => ({
+    id,
+    author_id: author,
+    created_at: new Date(NOW - 5 * 3600 * 1000),
+    like_count: 5,
+    comment_count: 1,
+    save_count: 0,
+    share_count: 0,
+    view_count: 10,
+    language: 'en',
+    video_asset_id: `v-${id}`,
+    video_asset: { duration_sec: 30 },
+    practice_area: { id: 'leaf', parent_id: 'tax' },
+    _count: { media: 0 },
+    ...over,
+  });
+  const reels = () => [
+    reel('hot', 'A', { like_count: 90 }),
+    reel('mid', 'B', { like_count: 40 }),
+    reel('low', 'C', { like_count: 5, video_asset: { duration_sec: null } }),
+  ];
+  const fake = (key: string, arm: 'model' | null = 'model') => {
+    const seen: Record<string, number>[][] = [];
+    return {
+      seen,
+      assign: jest
+        .fn()
+        .mockResolvedValue(arm ? { experimentKey: key, variant: arm } : null),
+      topN: jest.fn().mockResolvedValue(10),
+      formulaVersion: jest.fn().mockReturnValue('ranker:r1'),
+      score: jest.fn((r: Record<string, number>[]) => {
+        seen.push(r);
+        return Promise.resolve(Float32Array.from(r.map((_, i) => i)));
+      }),
+    };
+  };
+  const build = (posts: unknown, reelsR: unknown) =>
+    new RecommendationsService(
+      makePrisma({ posts: reels() }) as never,
+      makeRedis() as never,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      posts as never,
+      reelsR as never,
+    );
+
+  it('the reels feed is ranked by the reels model, with reel features; the posts model is not asked', async () => {
+    const postsR = fake('post_ranker');
+    const reelsR = fake('reel_ranker');
+    const s = build(postsR, reelsR);
+    const page = await s.postsForPage('viewer', {}, { reels: true }, 0, {
+      includeOwn: true,
+      feed: 'reel',
+    });
+    expect(reelsR.assign).toHaveBeenCalledWith('viewer');
+    expect(postsR.assign).not.toHaveBeenCalled();
+    expect(postsR.score).not.toHaveBeenCalled();
+    expect(page.ids).toEqual(['low', 'mid', 'hot']);
+    const row = reelsR.seen[0][0];
+    for (const k of [
+      'likeRate',
+      'saveRate',
+      'shareRate',
+      'own',
+      'seen',
+      'views',
+      'length',
+    ])
+      expect(row).toHaveProperty(k);
+    // An unknown length stays missing for the model.
+    expect(reelsR.seen[0].find((r) => r.length === undefined)).toBeDefined();
+  });
+
+  it('formula order without the reels model arm (or with «Выкл»)', async () => {
+    const reelsR = fake('reel_ranker', null);
+    const page = await build(undefined, reelsR).postsForPage(
+      'viewer',
+      {},
+      { reels: true },
+      0,
+      { includeOwn: true, feed: 'reel' },
+    );
+    expect(page.ids).toEqual(['hot', 'mid', 'low']);
+    expect(reelsR.score).not.toHaveBeenCalled();
+  });
+
+  it('a posts-model assignment never re-orders the reels (and the reverse)', async () => {
+    const postsR = fake('post_ranker');
+    const reelsR = fake('reel_ranker');
+    const s = build(postsR, reelsR);
+    const reelsWithPostsArm = await s.postsFor(
+      'viewer',
+      {},
+      'x1',
+      { experimentKey: 'post_ranker', variant: 'model' },
+      { includeOwn: true, feed: 'reel' },
+    );
+    expect(reelsWithPostsArm).toEqual(['hot', 'mid', 'low']);
+    const postsWithReelsArm = await s.postsFor('viewer', {}, 'x2', {
+      experimentKey: 'reel_ranker',
+      variant: 'model',
+    });
+    expect(postsWithReelsArm).toEqual(['hot', 'mid', 'low']);
+    expect(postsR.score).not.toHaveBeenCalled();
+    expect(reelsR.score).not.toHaveBeenCalled();
+  });
 });
 
 describe('algo audit 2026-10-27 (CONTENT H-4): new attorneys are candidates', () => {
