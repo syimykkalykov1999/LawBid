@@ -1,16 +1,40 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/conversation_screen.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart';
+import 'package:lawbid/features/chat/presentation/voice_hold.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'contact_info_test.dart';
+
+/// An edit the server answers only when [gate] completes.
+class _SlowEditChat extends FakeContactChat {
+  _SlowEditChat() : super(makeConv());
+
+  final gate = Completer<void>();
+
+  @override
+  Future<ChatMessage> editMessage(
+    String id,
+    String messageId,
+    String body,
+  ) async {
+    await gate.future;
+    return textMessages
+        .firstWhere((m) => m.id == messageId)
+        .copyWith(body: body, editedAt: DateTime.now());
+  }
+}
 
 /// Owner rows 184 and 189 (2026-11-17) on the real chat screen, and the
 /// composer half of row 188.
@@ -27,7 +51,8 @@ List<ChatMessage> _history() => [
     ];
 
 /// The chat opened on top of a list screen, as from the chats tab.
-Widget _app(FakeContactChat chat) => contactTestApp(
+Widget _app(FakeContactChat chat, {List<Override> extra = const []}) =>
+    contactTestApp(
       chat,
       Scaffold(
         body: Builder(
@@ -42,11 +67,17 @@ Widget _app(FakeContactChat chat) => contactTestApp(
         ),
       ),
       pushed: [],
+      extra: extra,
     );
 
-Future<ProviderContainer> _openChat(WidgetTester tester) async {
-  final chat = FakeContactChat(makeConv())..textMessages.addAll(_history());
-  await pumpContact(tester, _app(chat));
+Future<ProviderContainer> _openChat(
+  WidgetTester tester, {
+  FakeContactChat? with_,
+  List<Override> extra = const [],
+}) async {
+  final chat = (with_ ?? FakeContactChat(makeConv()))
+    ..textMessages.addAll(_history());
+  await pumpContact(tester, _app(chat, extra: extra));
   await tester.tap(find.text('open chat'));
   await tester.pumpAndSettle();
   expect(find.byType(ConversationScreen), findsOneWidget);
@@ -124,6 +155,55 @@ void main() {
     await tester.pumpAndSettle();
     expect(_field(tester).controller.text, 'half a thought');
     expect(c.read(chatTextDraftsProvider)['c1'], 'half a thought');
+    await _done(tester);
+  });
+
+  // ROUND1 25.11 row 14 (as the group): a slow save of one edit must not
+  // close the edit of another message picked meanwhile (its text went).
+  testWidgets('a slow edit save leaves the next edit open', (tester) async {
+    final chat = _SlowEditChat();
+    final c = await _openChat(tester, with_: chat);
+    final compose = c.read(chatComposeProvider('c1').notifier);
+    final mine = _history().where((m) => m.senderId == 'me').toList();
+    compose.edit(mine[0]);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(EditableText).last, 'fixed text');
+    await tester.pump();
+    await tester.tap(
+      find.bySemanticsLabel(const StaticTranslatorRu().t('chat.send')),
+    );
+    await tester.pump();
+
+    compose.edit(mine[1]);
+    await tester.pumpAndSettle();
+    expect(_field(tester).controller.text, mine[1].body);
+
+    chat.gate.complete();
+    await tester.pumpAndSettle();
+    expect(c.read(chatComposeProvider('c1')).editing?.id, mine[1].id);
+    expect(_field(tester).controller.text, mine[1].body);
+    await _done(tester);
+  });
+
+  // ROUND1 25.11 row 15 (as the group's _sendVoice): a note the phone could
+  // not put in the queue (here the recording is gone) tells why instead of
+  // vanishing with an unhandled error.
+  testWidgets('a voice note that cannot be queued says so', (tester) async {
+    // uxOverrides already gives the chat the upload queue (a temp folder).
+    await _openChat(tester);
+    final composer = tester.state<ConsumerState>(
+      find.byWidgetPredicate((w) => '${w.runtimeType}' == '_Composer'),
+    ) as VoiceHoldRecorder;
+    await tester.runAsync(
+      () => composer.sendVoiceRecording(
+        (path: '/no/such/dir/note.m4a', durationMs: 1200, waveform: const [3]),
+      ),
+    );
+    await tester.pump();
+    expect(
+      find.text(const StaticTranslatorRu().t('error.default.message')),
+      findsOneWidget,
+    );
     await _done(tester);
   });
 

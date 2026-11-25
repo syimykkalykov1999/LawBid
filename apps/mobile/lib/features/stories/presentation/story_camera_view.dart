@@ -83,13 +83,44 @@ class _StoryCameraViewState extends State<StoryCameraView>
     if (state == AppLifecycleState.inactive) {
       final c = _controller;
       if (c == null) return;
-      setState(() => _controller = null);
-      unawaited(c.dispose());
+      // ROUND1 25.11 row 18: a call or the Control Center while a video
+      // records. The camera goes, so the recording ends here too: the timer
+      // stops and the shutter is free again after the return (it stayed
+      // «recording» and refused every new hold); what was recorded is kept
+      // like a released hold.
+      final recorded = _recording
+          ? DateTime.now()
+              .difference(_recordStart ?? DateTime.now())
+              .inMilliseconds
+          : null;
+      _ticker?.cancel();
+      _ticker = null;
+      _recordStart = null;
+      setState(() {
+        _controller = null;
+        _recording = false;
+        _progress = 0;
+      });
+      unawaited(_release(c, recordedMs: recorded));
     } else if (state == AppLifecycleState.resumed &&
         _controller == null &&
         !_failed) {
       unawaited(_init());
     }
+  }
+
+  /// Closes [c]; a recording that was running first ends and, when longer
+  /// than a mis-tap, goes on like a released hold.
+  Future<void> _release(CameraController c, {int? recordedMs}) async {
+    if (recordedMs != null) {
+      try {
+        final file = await c.stopVideoRecording();
+        if (mounted && recordedMs >= 500) widget.onVideo(file);
+      } on Object {
+        // Nothing usable was recorded.
+      }
+    }
+    await c.dispose();
   }
 
   Future<void> _init() async {

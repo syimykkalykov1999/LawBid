@@ -270,6 +270,9 @@ module "stack" {
   deploy_rollback_on_slo             = var.deploy_rollback_on_slo
   api_native_deploy                  = var.api_native_deploy
   tracing_enabled                    = var.tracing_enabled
+  tracing_sample_ratio               = var.tracing_sample_ratio
+  tracing_tail_sampling              = var.tracing_tail_sampling
+  tracing_slow_ms                    = var.tracing_slow_ms
   synthetic_journey_enabled          = var.synthetic_journey_enabled
   synthetic_journey_secret_arn       = var.synthetic_journey_secret_arn
   synthetic_journey_conversation_id  = var.synthetic_journey_conversation_id

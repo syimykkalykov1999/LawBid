@@ -407,9 +407,15 @@ variable "admin_deployment_alarm_names" {
 # `tracing_enabled = false` nothing is added to the tasks and nothing is billed.
 # On: a small AWS Distro for OpenTelemetry (ADOT) collector runs as a NON-essential
 # sidecar in the api and worker tasks (a collector crash never restarts the app),
-# receives OTLP on 127.0.0.1:4318 and sends the spans to AWS X-Ray. The app samples
-# 5 % of the traces (ParentBased + TraceIdRatio; a phone's traceparent decides for
-# its own requests). X-Ray: first 100 000 traces a month free, then $5 per million.
+# receives OTLP on 127.0.0.1:4318 and sends the spans to AWS X-Ray.
+# Item 14 (25.11, Google Dapper / Uber Jaeger practice): tail sampling. The app
+# records every request (always_on) and the collector's `tail_sampling`
+# processor (OpenTelemetry Collector contrib, Apache-2.0, built into ADOT
+# v0.51.0) decides once the whole trace is in: 100 % of traces with an error,
+# 100 % of traces slower than `tracing_slow_ms`, and `tracing_sample_ratio` of
+# the rest. `tracing_tail_sampling = false` = the old head sampling
+# (ParentBased + TraceIdRatio in the app, a phone's traceparent decides).
+# X-Ray: first 100 000 traces a month free, then $5 per million.
 variable "tracing_enabled" {
   type        = bool
   default     = false
@@ -418,16 +424,30 @@ variable "tracing_enabled" {
 variable "tracing_sample_ratio" {
   type        = number
   default     = 0.05
-  description = "Share of requests traced when no caller decided (ParentBased TraceIdRatio). 0.05 = 5 %. The admin/tfvars ceiling of the tracing bill: spans per month = requests x ratio."
+  description = "Share of the ordinary traces kept (no error, not slow). 0.05 = 5 %. Tail sampling on: the collector's probabilistic policy; off: ParentBased TraceIdRatio in the app. The tfvars ceiling of the tracing bill: traces per month = errors + slow + requests x ratio."
   validation {
     condition     = var.tracing_sample_ratio >= 0 && var.tracing_sample_ratio <= 0.5
     error_message = "tracing_sample_ratio must be between 0 and 0.5."
   }
 }
+variable "tracing_tail_sampling" {
+  type        = bool
+  default     = true
+  description = "Tail sampling in the collector: keep 100 % of traces with an error or slower than tracing_slow_ms, tracing_sample_ratio of the rest (the app then records every request). false = head sampling in the app (errors outside the sampled share are lost)."
+}
+variable "tracing_slow_ms" {
+  type        = number
+  default     = 600
+  description = "A trace longer than this (milliseconds, first span start to last span end) is always kept. The stack passes the p95 latency target (p95_target_ms) unless tracing_slow_ms is set."
+  validation {
+    condition     = var.tracing_slow_ms >= 1 && var.tracing_slow_ms == floor(var.tracing_slow_ms)
+    error_message = "tracing_slow_ms must be a whole number of milliseconds, at least 1."
+  }
+}
 variable "adot_image" {
   type        = string
-  default     = "public.ecr.aws/aws-observability/aws-otel-collector:v0.43.3"
-  description = "ADOT collector image (public ECR, pulled through the NAT like any public image). Check the newest tag at https://gallery.ecr.aws/aws-observability/aws-otel-collector before the first apply."
+  default     = "public.ecr.aws/aws-observability/aws-otel-collector:v0.51.0"
+  description = "ADOT collector image (public ECR, pulled through the NAT like any public image). v0.51.0 (29.10.2026, OpenTelemetry Collector + contrib v0.158.0, tail_sampling included). Check the newest tag at https://github.com/aws-observability/aws-otel-collector/releases before bumping."
 }
 variable "adot_memory_reservation" {
   type        = number
@@ -732,33 +752,46 @@ locals {
 }
 
 locals {
-  tracing_env = var.tracing_enabled ? [
+  # Tail sampling: the app sends every span (always_on, a phone's unsampled
+  # traceparent no longer drops the request) and the collector decides.
+  tracing_env = var.tracing_enabled ? (var.tracing_tail_sampling ? [
+    { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://127.0.0.1:4318" },
+    { name = "OTEL_TRACES_SAMPLER", value = "always_on" },
+    ] : [
     { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://127.0.0.1:4318" },
     { name = "OTEL_TRACES_SAMPLER", value = "parentbased_traceidratio" },
     { name = "OTEL_TRACES_SAMPLER_ARG", value = tostring(var.tracing_sample_ratio) },
-  ] : []
-  adot_config = <<-YAML
-    receivers:
-      otlp:
-        protocols:
-          http:
-            endpoint: 127.0.0.1:4318
-    processors:
-      memory_limiter:
-        check_interval: 1s
-        limit_mib: 80
-      batch:
-        timeout: 5s
-    exporters:
-      awsxray:
-        region: ${data.aws_region.current.region}
-    service:
-      pipelines:
-        traces:
-          receivers: [otlp]
-          processors: [memory_limiter, batch]
-          exporters: [awsxray]
-  YAML
+  ]) : []
+  # tail_sampling as in the processor README (contrib v0.158.0): a trace is
+  # kept when ANY policy says so. decision_wait 10s as in the README example
+  # (how long the collector waits for a trace's last span); num_traces stays
+  # at its default and memory_limiter caps the sidecar.
+  adot_tail_sampling = var.tracing_tail_sampling ? {
+    decision_wait = "10s"
+    policies = [
+      { name = "errors", type = "status_code", status_code = { status_codes = ["ERROR"] } },
+      { name = "slow", type = "latency", latency = { threshold_ms = var.tracing_slow_ms } },
+      { name = "sampled-rest", type = "probabilistic", probabilistic = { sampling_percentage = var.tracing_sample_ratio * 100 } },
+    ]
+  } : null
+  adot_config = yamlencode({
+    receivers = { otlp = { protocols = { http = { endpoint = "127.0.0.1:4318" } } } }
+    processors = merge(
+      { memory_limiter = { check_interval = "1s", limit_mib = 80 } },
+      var.tracing_tail_sampling ? { tail_sampling = local.adot_tail_sampling } : {},
+      { batch = { timeout = "5s" } },
+    )
+    exporters = { awsxray = { region = data.aws_region.current.region } }
+    service = {
+      pipelines = {
+        traces = {
+          receivers  = ["otlp"]
+          processors = var.tracing_tail_sampling ? ["memory_limiter", "tail_sampling", "batch"] : ["memory_limiter", "batch"]
+          exporters  = ["awsxray"]
+        }
+      }
+    }
+  })
   # Not essential: if the collector dies the app keeps serving (spans are dropped).
   adot_container = var.tracing_enabled ? [{
     name              = "adot"

@@ -935,7 +935,27 @@ variable "alb_websocket_target_group" {
 variable "tracing_enabled" {
   type        = bool
   default     = false
-  description = "ADOT collector sidecar + OTEL env: spans to AWS X-Ray, 5 % sampled. X-Ray first 100k traces/month free, then $5 per million."
+  description = "ADOT collector sidecar + OTEL env: spans to AWS X-Ray (every error and slow trace + tracing_sample_ratio of the rest). X-Ray first 100k traces/month free, then $5 per million."
+}
+# Item 14 (25.11): tail sampling — the owner's numbers, set in terraform.tfvars.
+variable "tracing_sample_ratio" {
+  type        = number
+  default     = 0.05
+  description = "Share of the ordinary traces kept (no error, not slow). 0.05 = 5 %."
+  validation {
+    condition     = var.tracing_sample_ratio >= 0 && var.tracing_sample_ratio <= 0.5
+    error_message = "tracing_sample_ratio must be between 0 and 0.5."
+  }
+}
+variable "tracing_tail_sampling" {
+  type        = bool
+  default     = true
+  description = "Keep 100 % of traces with an error or slower than tracing_slow_ms (collector tail sampling). false = the old head sampling in the app."
+}
+variable "tracing_slow_ms" {
+  type        = number
+  default     = null
+  description = "A trace slower than this (milliseconds) is always kept. null = the p95 latency target p95_target_ms (600)."
 }
 variable "synthetic_journey_enabled" {
   type        = bool
