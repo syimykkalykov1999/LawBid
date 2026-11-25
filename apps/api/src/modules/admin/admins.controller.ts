@@ -79,11 +79,17 @@ export class AdminsController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create an administrator (no self-registration)' })
   @ApiEnvelopeResponse(AdminAccountDto, { status: HttpStatus.CREATED })
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 409: [E.ADMIN_EMAIL_TAKEN] })
-  createAdmin(
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    409: [E.ADMIN_EMAIL_TAKEN],
+  })
+  async createAdmin(
     @CurrentAdmin() actor: AdminActor,
     @Body() dto: CreateAdminDto,
   ): Promise<AdminAccountDto> {
+    // Round 4 (25.11, Н2): a new staff account asks the code an invite asks.
+    await this.auth.assertStepUp(actor.sessionId);
     return this.admins.create(
       actor,
       dto.email,

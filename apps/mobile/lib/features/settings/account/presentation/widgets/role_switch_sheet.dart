@@ -3,9 +3,11 @@ import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/auth/presentation/widgets/password_step_up.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/onboarding/application/onboarding_providers.dart';
 import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/role_switch_preview.dart';
@@ -33,6 +35,10 @@ class _RoleSwitchSheetState extends ConsumerState<RoleSwitchSheet> {
 
   Future<void> _switch(RoleSwitchPreview preview, String reauthToken) async {
     final t = ref.read(translatorProvider);
+    // Round 1 check 25.11 №11: the sheet can be swiped away while the
+    // server switches (and the token refresh waits up to 15 s). Its own
+    // `ref` is gone then; the app's container finishes the switch.
+    final app = ProviderScope.containerOf(context, listen: false);
     setState(() => _error = null);
     final CurrentUser user;
     try {
@@ -52,19 +58,23 @@ class _RoleSwitchSheetState extends ConsumerState<RoleSwitchSheet> {
       return;
     }
     // Lists of the old role must not come back from the phone's copy.
-    await ref.read(httpCacheInterceptorProvider).clear();
+    await app.read(httpCacheInterceptorProvider).clear();
     // The new role claim (as after the onboarding role step). A failure or
     // a slow network here is not a failed switch: the server has switched,
     // and the next expired token refreshes anyway.
     try {
-      await ref
+      await app
           .read(sessionControllerProvider.notifier)
           .refreshAccessToken()
           .timeout(const Duration(seconds: 15));
     } on Object {
       // See above.
     }
-    if (mounted) Navigator.of(context).pop(user);
+    // On top: the Account screen rebuilds the app around the new role, as
+    // before. Swiped away meanwhile: the server is on the new role, so the
+    // app is rebuilt here — it never keeps the old role's tabs.
+    if (mounted && context.popIfCurrent(user)) return;
+    app.read(currentUserControllerProvider.notifier).resetForNewSession();
   }
 
   @override

@@ -1,14 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Patch,
-  Post,
-  Put,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Put } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   ApiEnvelopeResponse,
@@ -27,13 +17,10 @@ import {
   BudgetLimitParamDto,
   ConfigEntryDto,
   ConfigKeyParamDto,
-  CreateLegalDocumentDto,
   FeatureFlagAdminDto,
   FlagKeyParamDto,
   LanguageAdminDto,
   LanguageCodeParamDto,
-  LegalDocumentAdminDto,
-  LegalDocumentIdParamDto,
   UpdateBudgetLimitDto,
   UpdateConfigDto,
   UpdateFlagDto,
@@ -93,6 +80,7 @@ export class AdminConfigController {
   @ApiEnvelopeResponse(FeatureFlagAdminDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
+    403: [E.FORBIDDEN, E.ADMIN_STEP_UP_REQUIRED],
     404: [E.NOT_FOUND],
     409: [E.FLAG_PROVIDER_KEYS_MISSING, E.STALE_VERSION],
   })
@@ -188,54 +176,5 @@ export class AdminConfigController {
     @Body() dto: UpdateLanguageDto,
   ): Promise<LanguageAdminDto> {
     return this.config.updateLanguage(admin, params.code, dto);
-  }
-
-  @Get('legal-documents')
-  @ApiOperation({
-    summary:
-      'Every version of terms / privacy / disclaimer / client_contact_sharing',
-  })
-  @ApiEnvelopeResponse(LegalDocumentAdminDto, { isArray: true })
-  listLegalDocuments(): Promise<LegalDocumentAdminDto[]> {
-    return this.config.listLegalDocuments();
-  }
-
-  @Get('legal-documents/:id')
-  @ApiOperation({ summary: 'One version with the full text' })
-  @ApiEnvelopeResponse(LegalDocumentAdminDto)
-  @ApiErrors({ 404: [E.NOT_FOUND] })
-  getLegalDocument(
-    @Param() params: LegalDocumentIdParamDto,
-  ): Promise<LegalDocumentAdminDto> {
-    return this.config.getLegalDocument(params.id);
-  }
-
-  @Post('legal-documents')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a draft version' })
-  @ApiEnvelopeResponse(LegalDocumentAdminDto, { status: HttpStatus.CREATED })
-  @ApiErrors({
-    400: [E.VALIDATION_ERROR],
-    409: [E.LEGAL_DOCUMENT_INVALID_STATE],
-  })
-  createLegalDocument(
-    @CurrentAdmin() admin: AdminActor,
-    @Body() dto: CreateLegalDocumentDto,
-  ): Promise<LegalDocumentAdminDto> {
-    return this.config.createLegalDocument(admin, dto);
-  }
-
-  @Post('legal-documents/:id/publish')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Make the version current: users re-accept on their next sign-in',
-  })
-  @ApiEnvelopeResponse(LegalDocumentAdminDto)
-  @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.LEGAL_DOCUMENT_INVALID_STATE] })
-  publishLegalDocument(
-    @CurrentAdmin() admin: AdminActor,
-    @Param() params: LegalDocumentIdParamDto,
-  ): Promise<LegalDocumentAdminDto> {
-    return this.config.publishLegalDocument(admin, params.id);
   }
 }

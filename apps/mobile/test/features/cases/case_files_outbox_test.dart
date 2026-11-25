@@ -83,7 +83,7 @@ void main() {
         .read(caseWorkspaceActionsProvider)
         .addUpdate('case-1', 'Docs attached', [_file('a.pdf'), _file('b.jpg')]);
     await _until(() => updates.isNotEmpty);
-    // KNOWN_ERRORS 234: the files go up in parallel — which one first is
+    // KNOWN_ERRORS 235: the files go up in parallel — which one first is
     // not the contract, both are.
     expect(files.sent, unorderedEquals(['a.pdf', 'b.jpg']));
     final post = updates.single;

@@ -21,6 +21,7 @@ import { useToast } from '@/components/ui/toast';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
+import { canAct } from '@/lib/rbac';
 import { casePaymentsCsvQuery } from '@/lib/export-query';
 import { useUrlSearchText, useUrlState } from '@/lib/url-state';
 import {
@@ -85,7 +86,8 @@ function PartyCell({ p, id }: { p: Party | null; id: string }) {
  * refunds, attorneys' payout accounts, the fee settings. */
 export default function CasePaymentsPage() {
   const { data: me } = useMe();
-  const canWrite = me?.role === 'super_admin' || me?.role === 'finance';
+  // Round 4 (С10): finance with «Деньги: управление» (what the API checks).
+  const canWrite = canAct(me, 'money', ['finance']);
   const [tab, setTab] = useUrlState<Tab>('tab', 'payments', TABS);
   // Row 180 B7: the CSV is what the Платежи tab shows (its filters).
   const [payStatus] = useUrlState<StatusTab>('status', 'all', STATUS_TABS);

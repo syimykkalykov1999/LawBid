@@ -20,7 +20,7 @@ import { growthError } from '@/components/growth/errors';
 import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { useMe } from '@/lib/hooks';
-import { can } from '@/lib/rbac';
+import { can, canAct } from '@/lib/rbac';
 import { BID_STATUS, CASE_STATUS, FEE_TYPE, INVITE_STATUS, JOURNAL_EVENT, label, PARTY_ROLE, partyName, StatusPill, usd } from '@/lib/labels';
 import { formatDateTime } from '@/lib/utils';
 import { CopyButton } from '@/components/ui/copy-button';
@@ -66,7 +66,8 @@ export default function CaseDetailPage() {
   const toast = useToast();
   const { ask, dialog } = useReason();
   const { data: me } = useMe();
-  const canWrite = can(me, 'cases', 'manage');
+  // Round 4 (С10): the API's own role list for this action, plus the area.
+  const canWrite = canAct(me, 'cases', ['support']);
   const canOpenUsers = can(me, 'users');
 
   const view = useViewReason('Причина просмотра кейса');

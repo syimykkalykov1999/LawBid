@@ -29,7 +29,7 @@ import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { dayBounds, type Noun } from '@/lib/bulk';
 import { useMe } from '@/lib/hooks';
-import { can } from '@/lib/rbac';
+import { canAct } from '@/lib/rbac';
 import { US_STATES } from '@/lib/us-states';
 import { ROLE_TEXT, STATUS_LABEL, StatusBadge, StatusPill, VERIFICATION_STATUS } from '@/lib/labels';
 import { sortRows, useTableSort } from '@/lib/table-sort';
@@ -82,7 +82,8 @@ export default function UsersPage() {
   const filters = { q: search, role, status, stateCode, ...dayBounds(dates.from, dates.to) };
   const qc = useQueryClient();
   const { data: me } = useMe();
-  const canWrite = can(me, 'users', 'manage');
+  // Round 4 (С10): the API's own role list for this action, plus the area.
+  const canWrite = canAct(me, 'users', ['moderator']);
   const sel = useSelection(JSON.stringify(filters));
   // S18-10: «select all by filter» keeps the FILTER, not 2 000 ids: the
   // server resolves the users itself (preview count first).

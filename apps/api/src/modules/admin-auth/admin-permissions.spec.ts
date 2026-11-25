@@ -30,6 +30,60 @@ describe('admin permissions', () => {
     expect(routeArea('/api/v1/cases')).toBeNull();
   });
 
+  // Round 4 admin check (25.11, В1): eight sections the panel shows to staff
+  // answered 404 to everyone but the owner because their first path segment
+  // was missing from SEGMENT_AREA ('unknown' = super admin only).
+  it.each([
+    ['media-moderation', 'moderation'],
+    ['legal-qa/questions', 'moderation'],
+    ['compliance/minors', 'moderation'],
+    ['deadlines/rules', 'cases'],
+    ['form-templates', 'content'],
+    ['attorney-ads/archive', 'legal'],
+    ['demo/accounts', 'money'],
+    ['pnl', 'money'],
+    ['realtime/ticket', 'workspace'],
+  ])('/admin/%s belongs to %s', (seg, area) => {
+    expect(routeArea(`/api/v1/admin/${seg}`)).toBe(area);
+  });
+
+  it('every admin controller open to staff roles has an area', () => {
+    // A controller whose class roles name anyone besides the super admin
+    // must be reachable through an area; otherwise the guard hides it.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require('node:fs') as typeof import('node:fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const path = require('node:path') as typeof import('node:path');
+    const root = path.join(__dirname, '..', '..');
+    const files: string[] = [];
+    const walk = (d: string): void => {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        const p = path.join(d, e.name);
+        if (e.isDirectory()) walk(p);
+        else if (p.endsWith('.controller.ts')) files.push(p);
+      }
+    };
+    walk(root);
+    const missing: string[] = [];
+    const re =
+      /@AdminEndpoint\(([^)]*)\)\s*(?:@[A-Za-z]+\([^)]*\)\s*)*@Controller\(\s*['"]admin\/([a-z0-9-]+)/g;
+    for (const f of files) {
+      const src = fs.readFileSync(f, 'utf8');
+      for (const m of src.matchAll(re)) {
+        const roles = m[1].replace(/\s+/g, '');
+        if (roles === "'super_admin'") continue;
+        // The skeleton of pinned menu pages has no routes yet.
+        if (m[2] === 'nav') continue;
+        // Owner's hotline and no-show queues are not in the panel's menu.
+        if (m[2] === 'hotline' || m[2] === 'consultation-no-shows') continue;
+        if (routeArea(`/api/v1/admin/${m[2]}`) === 'unknown') {
+          missing.push(`${m[2]} (${path.relative(root, f)})`);
+        }
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
   it('super admin reaches everything', () => {
     expect(
       canAccess('super_admin', {}, '/api/v1/admin/billing/refunds', 'POST'),

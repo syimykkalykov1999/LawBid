@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
@@ -204,7 +205,7 @@ class _PracticesEditorState extends ConsumerState<PracticesEditor> {
       showAppSnackBar(context, t.t('practices.saved'));
       // Owner 2026-10-05 (audit): saved = done, back to where it came from.
       final nav = Navigator.of(context);
-      if (nav.canPop()) nav.pop();
+      if (context.isCurrentRoute && nav.canPop()) nav.pop();
       setState(() => _saving = false);
     } catch (e) {
       if (mounted) {

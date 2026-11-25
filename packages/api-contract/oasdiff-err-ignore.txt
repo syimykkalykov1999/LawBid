@@ -711,3 +711,7 @@ PATCH /groups/{id}/messages/{messageId} added the new `voice` enum value to the 
 PUT /groups/{id}/messages/{messageId}/reaction added the new `voice` enum value to the `data/type` response property for the response status `200`
 POST /groups/{id}/polls added the new `voice` enum value to the `data/type` response property for the response status `200`
 GET /groups/{id}/shared added the new `voice` enum value to the `data/items/type` response property for the response status `200`
+GET /admin/legal-documents api path removed without deprecation
+POST /admin/legal-documents api path removed without deprecation
+GET /admin/legal-documents/{id} api path removed without deprecation
+POST /admin/legal-documents/{id}/publish api path removed without deprecation

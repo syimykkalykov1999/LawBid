@@ -27,7 +27,7 @@ vi.mock('next/link', () => ({
   ),
 }));
 vi.mock('@/lib/hooks', () => ({ useMe: () => ({ data: { id: 'me', role, workspacesEnabled: true } }) }));
-vi.mock('@/lib/rbac', async (orig) => ({ ...(await orig<typeof import('@/lib/rbac')>()), can: () => true, canOpen: () => true }));
+vi.mock('@/lib/rbac', async (orig) => ({ ...(await orig<typeof import('@/lib/rbac')>()), can: () => true, canAct: () => true, canOpen: () => true }));
 vi.mock('@/lib/api/client', () => ({
   api: { GET: (...a: unknown[]) => GET(...a), POST: (...a: unknown[]) => POST(...a), PATCH: (...a: unknown[]) => PATCH(...a) },
   ApiError: class extends Error {

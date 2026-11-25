@@ -156,6 +156,8 @@ describe('Admin flexibility: user filters + bulk users / cases (e2e)', () => {
 
   it('bulk closes, archives and restores cases', async () => {
     const admin = await adminSession(base, prisma, 'super_admin');
+    // Round 4 (С5): a bulk action asks a fresh 2FA code.
+    await adminStepUp(base, admin);
     const owner = await client('CaseOwner', 'NY');
     // Its own topic: the suite must not depend on another suite's rows.
     const code = `flex${randomUUID().slice(0, 8)}`;

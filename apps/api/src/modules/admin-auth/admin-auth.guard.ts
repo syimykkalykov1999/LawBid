@@ -301,6 +301,30 @@ export class AdminAuthGuard implements CanActivate {
         );
         throw hidden();
       }
+      // Round 4 admin check (25.11, С10): an action whose own @Roles(...)
+      // names who may do it (refund: super_admin + finance; sanctions:
+      // + moderator; support replies: + support) is refused to any other
+      // role, whatever area toggles they hold — the panel shows those
+      // buttons by the same role list. Reading stays with the area toggles
+      // (the «Только просмотр» preset sees every section it was given).
+      const actionRoles = this.reflector.get<AdminRole[] | undefined>(
+        ADMIN_ROLES_KEY,
+        context.getHandler(),
+      );
+      if (
+        actionRoles &&
+        levelForMethod(req.method) === 'manage' &&
+        !actionRoles.includes(adminRole)
+      ) {
+        void this.note(
+          'admin.access_denied',
+          claims.sub,
+          req.method,
+          path,
+          req.ip,
+        );
+        throw hidden();
+      }
       // Owner 2026-10-05: who looked at money is visible in the audit log.
       const area = routeArea(path);
       await this.assertReason(area, req.method, req.body, context);

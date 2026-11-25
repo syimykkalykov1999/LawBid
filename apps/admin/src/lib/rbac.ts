@@ -158,6 +158,19 @@ export function can(
   return have === 'manage' || (have === 'view' && level === 'view');
 }
 
+/**
+ * Round 4 admin check (25.11, С10): an action the API marks with its own
+ * role list (`@Roles(...)` on the route: refunds and partner payouts for
+ * finance, sanctions for moderators, case actions and ticket replies for
+ * support). Besides the owner, only those roles, and only while they hold
+ * [area] at «manage» — exactly what AdminAuthGuard lets through.
+ */
+export function canAct(me: AccessSubject | undefined, area: string, roles: readonly AdminRole[]): boolean {
+  if (!me) return false;
+  if (me.role === 'super_admin') return true;
+  return roles.includes(me.role) && can(me, area, 'manage');
+}
+
 /** True when [inner] asks for nothing [outer] does not already hold. */
 export function covers(outer: Permissions, inner: Permissions): boolean {
   const rank = { view: 1, manage: 2 } as const;
@@ -250,7 +263,7 @@ export const GROUPS: readonly SectionGroup[] = [
       { href: '/stars', label: 'Звёзды', icon: 'star', area: 'moneyOwner', ownerOnly: true, hint: 'пакеты звёзд, подарки, цены наборов стикеров, отчёт' },
       { href: '/prices', label: 'Цены', icon: 'tag', area: 'moneyOwner', ownerOnly: true, hint: 'стоимость тарифов и галочки' },
       { href: '/plans', label: 'Планы', icon: 'stack', area: 'moneyOwner', ownerOnly: true, hint: 'планы подписок и их возможности' },
-      { href: '/pnl', label: 'Прибыль', icon: 'chart-line', area: 'super', onlyRoles: ['finance'], hint: 'доход после возвратов и комиссии Stripe минус счета сервисов: день, неделя, месяц, 12 недель' },
+      { href: '/pnl', label: 'Прибыль', icon: 'chart-line', area: 'money', onlyRoles: ['finance'], hint: 'доход после возвратов и комиссии Stripe минус счета сервисов: день, неделя, месяц, 12 недель' },
       { href: '/treasury', label: 'Прибыль и резерв', icon: 'bank', area: 'money', hint: 'расходы отдельно, на карту: чистая прибыль' },
       { href: '/payroll', label: 'Зарплаты', icon: 'wallet', area: 'payroll', hint: 'сотрудники, массовая выплата' },
       { href: '/economy', label: 'Экономика', icon: 'chart-line', area: 'super', ownerOnly: true, hint: 'доход и расходы на сторонние сервисы, потолок серверов' },
@@ -373,7 +386,9 @@ function opens(me: AccessSubject, s: Section): boolean {
   // else's (the deputy and the accountant do not see them at all). Two
   // exceptions: a country partner's lead hires their own team on /admins,
   // and so does the head of a workspace (staff package T2).
-  if (s.onlyRoles) return me.role === 'super_admin' || s.onlyRoles.includes(me.role);
+  // Round 4 (В1): the API files the page under an area too (/pnl → money),
+  // so the role alone is not enough.
+  if (s.onlyRoles) return me.role === 'super_admin' || (s.onlyRoles.includes(me.role) && (s.area === 'super' || can(me, s.area)));
   if (s.ownerOnly) {
     if (me.role === 'super_admin') return true;
     return s.href === '/admins' && (me.partnerLead === true || (me.workspaceHead === true && navModeFor(me) === 'desk'));
@@ -386,8 +401,9 @@ function opens(me: AccessSubject, s: Section): boolean {
   if (s.area === 'everyone') return true;
   // Owner 2026-10-06: the partner team's own page.
   if (s.area === 'partner') return !!me.countryPartnerId;
-  // Document forms: the API lets only the super admin and moderators in.
-  if (s.area === 'formTemplates') return me.role === 'super_admin' || me.role === 'moderator';
+  // Document forms: the API lets only the super admin and moderators in,
+  // filed under «Посты и отзывы» (Round 4, В1: `form-templates` → content).
+  if (s.area === 'formTemplates') return me.role === 'super_admin' || (me.role === 'moderator' && can(me, 'content'));
   return can(me, s.area);
 }
 

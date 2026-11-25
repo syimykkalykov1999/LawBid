@@ -34,7 +34,7 @@ import { api, errorText } from '@/lib/api/client';
 import type { components } from '@/lib/api/schema';
 import { dayBounds, type Noun } from '@/lib/bulk';
 import { useMe } from '@/lib/hooks';
-import { can } from '@/lib/rbac';
+import { canAct } from '@/lib/rbac';
 import { CONTENT_STATUS, StatusPill } from '@/lib/labels';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
@@ -78,7 +78,8 @@ const filterQuery = (f: ListFilter) => ({ authorId: f.author?.id, ...dayBounds(f
 
 function useCanModerate() {
   const { data: me } = useMe();
-  return can(me, 'content', 'manage');
+  // Round 4 (С10): the API's own role list for this action, plus the area.
+  return canAct(me, 'content', ['moderator']);
 }
 
 /** The three bulk buttons; [actions] picks which apply to the list. */

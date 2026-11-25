@@ -5,6 +5,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/language_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/cases/tools/signing_data.dart';
 import 'package:lawbid/features/cases/tools/signing_sheets.dart';
@@ -121,7 +122,7 @@ class _TemplateSheetState extends ConsumerState<TemplateSheet> {
           );
       if (!mounted) return;
       showAppSnackBar(context, t.t('sign.sent'));
-      Navigator.of(context).pop();
+      context.popIfCurrent();
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {

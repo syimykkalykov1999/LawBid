@@ -23,6 +23,7 @@ import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/media/video_frames.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/social/application/social_providers.dart'
     show postProvider;
 import 'package:lawbid/features/social/domain/social_models.dart' show Post;
@@ -604,7 +605,7 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
     ref
       ..watch(storySettingsProvider)
       ..listen(storyPublishJobProvider, (prev, next) {
-        if (next.phase == StoryPublishPhase.done && context.mounted) {
+        if (next.phase == StoryPublishPhase.done && context.isCurrentRoute) {
           _leave();
         } else if (next.phase == StoryPublishPhase.failed &&
             prev?.phase != StoryPublishPhase.failed) {

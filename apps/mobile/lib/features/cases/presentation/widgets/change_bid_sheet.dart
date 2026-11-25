@@ -3,6 +3,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/deals/deal_record_data.dart';
 import 'package:lawbid/features/cases/deals/pay_block.dart';
@@ -81,7 +82,7 @@ class _ChangeBidSheetState extends ConsumerState<_ChangeBidSheet> {
               percentAllowed: widget.percentAllowed,
             ),
           );
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) context.popIfCurrent();
     } on Object catch (e) {
       if (mounted) {
         setState(() => _busy = false);

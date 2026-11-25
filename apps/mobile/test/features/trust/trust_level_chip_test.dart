@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
@@ -42,10 +43,12 @@ Widget _app(
   PublicTrust? trust,
   String? me,
   OwnTrust? own,
+  bool payments = true,
 }) =>
     ProviderScope(
       overrides: [
         translatorProvider.overrideWithValue(translator),
+        casePaymentsFlagProvider.overrideWithValue(payments),
         currentUserIdProvider.overrideWithValue(me),
         if (trust != null)
           attorneyTrustProvider.overrideWith((ref, id) async => trust),
@@ -141,6 +144,29 @@ void main() {
       findsOneWidget,
     );
     expect(find.text("Can't be paid through LawBid yet"), findsOneWidget);
+    expect(find.byKey(const ValueKey('trust-registry-CA')), findsOneWidget);
+  });
+
+  testWidgets(
+      'round 1 №20: payments off — the sheet shows no payment notice, the '
+      'signals and registry links stay', (tester) async {
+    await tester.pumpWidget(
+      _app(
+        const TrustLevelChip(level: 1, attorneyId: 'a1'),
+        trust: _fixture,
+        payments: false,
+      ),
+    );
+    await tester.tap(find.byType(TrustLevelChip));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(TrustLevelSheet), findsOneWidget);
+    expect(find.text('Bar number matched the state registry'), findsOneWidget);
+    expect(find.byType(TrustPaymentNotice), findsNothing);
+    expect(
+      find.textContaining("You can't pay this attorney through LawBid yet"),
+      findsNothing,
+    );
     expect(find.byKey(const ValueKey('trust-registry-CA')), findsOneWidget);
   });
 

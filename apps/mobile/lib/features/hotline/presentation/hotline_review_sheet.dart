@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/hotline/application/hotline_controller.dart';
 import 'package:material_ui/material_ui.dart';
@@ -48,12 +49,11 @@ class _HotlineReviewSheetState extends ConsumerState<HotlineReviewSheet> {
 
   Future<void> _send() async {
     final t = ref.read(translatorProvider);
-    final nav = Navigator.of(context);
     final ok = await ref
         .read(hotlineControllerProvider.notifier)
         .sendReview(_stars, _comment.text);
     if (!mounted) return;
-    nav.pop();
+    context.popIfCurrent<void>();
     if (ok) showAppSnackBar(context, t.t('hotline.c.review.thanks'));
   }
 

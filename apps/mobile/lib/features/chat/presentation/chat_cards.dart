@@ -13,6 +13,7 @@ import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/chat/domain/card_tools.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/open_direct_chat.dart';
@@ -549,7 +550,7 @@ class _PlaceSheetState extends ConsumerState<_PlaceSheet> {
     if (!mounted) return;
     switch (found) {
       case LocationFound(:final text):
-        Navigator.of(context).pop(text);
+        context.popIfCurrent(text);
       case LocationUnavailable():
         showAppSnackBar(
           context,

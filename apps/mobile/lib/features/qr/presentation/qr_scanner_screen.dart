@@ -10,6 +10,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/qr/domain/qr_target.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -170,7 +171,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
           TextButton(
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: text));
-              if (dialog.mounted) Navigator.of(dialog).pop();
+              if (dialog.mounted) dialog.popIfCurrent<void>();
               if (mounted) showAppSnackBar(context, t.t('share.copied'));
             },
             child: Text(t.t('share.copy')),

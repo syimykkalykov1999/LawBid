@@ -3,6 +3,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_style.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -108,7 +109,7 @@ class _TopicEditorState extends ConsumerState<_TopicEditor> {
         }
       }
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      context.popIfCurrent(true);
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _busy = false);
