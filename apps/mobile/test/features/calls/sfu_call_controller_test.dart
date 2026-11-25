@@ -328,6 +328,8 @@ class _H {
   _H(AppCall call) : repo = _Repo(call) {
     container = ProviderContainer(
       overrides: [
+        // Owner 18.11: the camera follows the admin's `video_calls`.
+        videoCallsEnabledProvider.overrideWithValue(true),
         callsRepositoryProvider.overrideWithValue(repo),
         callClockProvider.overrideWithValue(() => now()),
         callsSfuApiProvider.overrideWithValue(sfuApi),

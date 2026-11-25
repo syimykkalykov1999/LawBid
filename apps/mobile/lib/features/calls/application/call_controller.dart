@@ -1788,7 +1788,7 @@ class CallController extends Notifier<CallSession> {
   Future<void> toggleCamera() async {
     if (!state.video) return;
     final on = !state.cameraOn;
-    if (on && videoBlocked) return;
+    if (on && (videoBlocked || !videoAllowed)) return;
     state = state.copyWith(cameraOn: on);
     try {
       await _media?.setCameraOn(on);
@@ -1825,9 +1825,20 @@ class CallController extends Notifier<CallSession> {
         call.channelId != null) {
       return false;
     }
+    // Owner 18.11: with `video_calls` off a voice call never turns video;
+    // a camera that is on (switched on before the flag went off) can still
+    // go off.
+    if (!videoAllowed && !(state.video && state.cameraOn)) return false;
     return call.participants.where((m) => m.joined).length <=
         (call.viaSfu ? kSfuVideoSwitchMaxPeople : kVideoSwitchMaxPeople);
   }
+
+  /// Owner 18.11 («звонки с видео временно выключены»): our camera may be
+  /// switched on only while the admin's `video_calls` flag is on — or in a
+  /// call that began as video (it was allowed when it started, its picture
+  /// is already negotiated; it keeps its camera button as before).
+  bool get videoAllowed =>
+      (state.call?.video ?? false) || ref.read(videoCallsEnabledProvider);
 
   /// Owner 2026-10-22 (WhatsApp / Zoom): the camera button. A voice call
   /// becomes a video call: the camera opens, every link gets a new offer
@@ -1848,6 +1859,8 @@ class CallController extends Notifier<CallSession> {
     // Owner 2026-10-24: too many people for the camera while Cloudflare is
     // down — the screen says so; the camera stays off.
     if (on && videoBlocked) return;
+    // Owner 18.11: video calls are off in the admin — the camera stays off.
+    if (on && !videoAllowed) return;
     if (on) {
       final speaker = state.speaker;
       state = state.copyWith(
@@ -1948,7 +1961,8 @@ class CallController extends Notifier<CallSession> {
           unawaited(toggleSpeaker());
         }
       }
-      if (fresh && mineOff) {
+      // Owner 18.11: no «Turn on yours?» while our camera may not go on.
+      if (fresh && mineOff && videoAllowed) {
         state = state.copyWith(videoPrompt: peer);
         // Owner 2026-10-22 (R-007): the sound has its own switch.
         if (ref.read(callVideoSoundProvider)) {

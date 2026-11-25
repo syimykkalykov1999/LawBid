@@ -10,6 +10,7 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/platform/app_settings_opener.dart';
+import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
@@ -130,6 +131,16 @@ class _CallScreenState extends ConsumerState<CallScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _visible.set(visible: true);
+      // Owner 18.11: the admin's `video_calls` switch is read again when a
+      // call opens, so the camera button follows it without a restart
+      // (the app is already running: its start controller exists).
+      if (ref.read(appStartupProvider.exists)) {
+        unawaited(
+          ref
+              .read(appStartupProvider.notifier)
+              .refreshConfigIfOlderThan(kCallConfigFresh),
+        );
+      }
       // Opened (a stale tap) with no call at all: nothing to show.
       if (ref.read(callControllerProvider).phase == CallPhase.idle) _close();
     });
@@ -374,6 +385,12 @@ class _CallScreenState extends ConsumerState<CallScreen>
     // The other member stays on screen until it closes (never a «?»).
     final peer = s.peer ?? s.call?.peer ?? _lastPeer;
     _lastPeer = peer;
+    // Owner row 87 (hotline mockup v4 a4–a7): a call another feature adds
+    // to (the hotline's chips, «⋯», «Клиент ждёт»). Every other call — every
+    // 1:1 and group call: unchanged.
+    final slot = ref.watch(callScreenAddonProvider);
+    final addon =
+        !group && slot != null && s.call?.id == slot.callId ? slot : null;
     final peerCameraOff = ref.watch(callCamerasOffProvider).contains(peer?.id);
     // Row 166 (WhatsApp «X muted»): their microphone is off (1:1 only; a
     // group shows it in the people list).
@@ -381,12 +398,6 @@ class _CallScreenState extends ConsumerState<CallScreen>
         !group && s.busy && ref.watch(callMicsOffProvider).contains(peer?.id);
     final active = s.phase == CallPhase.active;
     final incoming = s.phase == CallPhase.incoming;
-    // Owner row 87 (hotline mockup v4 c10b): a call another feature draws
-    // the middle of (the hotline's attorney card), voice only. Every other
-    // call: unchanged.
-    final slot = ref.watch(callScreenAddonProvider);
-    final addon =
-        !group && slot != null && s.call?.id == slot.callId ? slot : null;
     final ringing = s.phase == CallPhase.outgoing || incoming;
     _syncPulse(on: ringing && !context.reduceMotion);
 
@@ -488,13 +499,13 @@ class _CallScreenState extends ConsumerState<CallScreen>
           ],
         ),
       );
-    } else if (addon != null) {
+    } else if (addon?.stage case final stage?) {
       picture = Stack(
         fit: StackFit.expand,
         children: [
           const CallAudioBackdrop(),
           CallPhotoBackdrop(url: peer?.avatarUrl),
-          addon.stage(
+          stage(
             context,
             peer: peer,
             bottomInset: sheetHeight,
@@ -591,6 +602,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
     ];
 
     final audio = ref.watch(callAudioRouterProvider);
+    final videoCallsOn = ref.watch(videoCallsEnabledProvider);
     // Row 166 (WhatsApp «No answer» · Cancel · Call again; iOS mic alert
     // with Settings): an ended call that leaves something to do.
     final endedActions =
@@ -635,7 +647,14 @@ class _CallScreenState extends ConsumerState<CallScreen>
                       : null,
                   // Owner 2026-10-22: switches video on / off mid-call; a
                   // channel's video call keeps the plain camera pause.
-                  showVideo: addon == null,
+                  // Owner 18.11: no camera button while video calls are
+                  // off (`video_calls`) — unless this call began as video or
+                  // our camera is still on (it can go off). Row 87: a call
+                  // with an add-on (the hotline) is voice only.
+                  showVideo: addon == null &&
+                      (videoCallsOn ||
+                          (s.call?.video ?? false) ||
+                          (s.video && s.cameraOn)),
                   onVideo: c.canSwitchVideo
                       ? () => _videoTap(c, s, c.toggleVideo)
                       : s.video && s.busy
@@ -808,6 +827,10 @@ const double kCallTopRowHeight = 52 + 2 * AppSpacing.xs;
 
 /// The top scrim's height (REFERENCE.md: 160 px, black 45 % → 0).
 const double kCallScrimHeight = 160;
+
+/// Owner 18.11: a call screen re-reads the admin's switches unless they
+/// were read this recently (a second screen for the same call asks nothing).
+const Duration kCallConfigFresh = Duration(seconds: 30);
 
 /// UI-06: a soft black gradient (45 % → 0) from the top or the bottom edge.
 class _Scrim extends StatelessWidget {

@@ -139,14 +139,11 @@ class RealtimeClient {
     'channel:post',
     'channel:update',
     'comment:new',
-    // Owner row 87 (hotline plan step 5): the client's request moved, the
-    // call was taken / ended, «Адвокат на линии» (the attorney's PR adds its
-    // own events here — one list, each name once, or a socket event would
-    // arrive twice).
+    // Owner row 87 (hotline plan step 5): the client's request moved,
+    // «Адвокат на линии». `hotline:connected` / `hotline:ended` come with
+    // the attorney / server PR (each name once in this list).
     'hotline:request',
     'hotline:notify',
-    'hotline:connected',
-    'hotline:ended',
   ];
 
   /// Owner 2026-10-23 (part C2): `reconnected` reaches each listener after
