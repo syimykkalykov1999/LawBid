@@ -63,4 +63,5 @@ ChatAttachment groupChatAttachment(api.ChatAttachmentDto a) => ChatAttachment(
       width: a.width,
       height: a.height,
       blurhash: a.blurhash,
+      removed: a.state == api.ChatMediaState.removed,
     );

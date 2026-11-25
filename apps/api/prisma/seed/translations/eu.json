@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fitxategia",
   "chat.attach.photo": "Argazkia",
   "chat.attach.photos": "Argazki-liburutegia",
+  "chat.attach.removed": "Fitxategia kendu da: ez du segurtasun-egiaztapena gainditu",
   "chat.attach.skipped": "{count} ez dira gehitu: onartzen ez den formatua edo {max} MB baino handiagoa",
   "chat.attach.template": "Dokumentu-txantiloia",
   "chat.attach.video": "Bideoa",

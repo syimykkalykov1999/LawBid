@@ -1261,6 +1261,7 @@
   "chat.attach.label": "ფაილი",
   "chat.attach.photo": "ფოტო",
   "chat.attach.photos": "ფოტოთეკა",
+  "chat.attach.removed": "ფაილი წაიშალა: ვერ გაიარა უსაფრთხოების შემოწმება",
   "chat.attach.skipped": "{count} არ დაემატა: მხარდაუჭერელი ფორმატი ან {max} MB-ზე მეტი",
   "chat.attach.template": "დოკუმენტის შაბლონი",
   "chat.attach.video": "ვიდეო",

@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fail",
   "chat.attach.photo": "Foto",
   "chat.attach.photos": "Fototeek",
+  "chat.attach.removed": "Fail eemaldati: see ei läbinud turvakontrolli",
   "chat.attach.skipped": "{count} ei lisatud: vormingut ei toetata või fail on suurem kui {max} MB",
   "chat.attach.template": "Dokumendimall",
   "chat.attach.video": "Video",

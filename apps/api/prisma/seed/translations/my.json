@@ -1261,6 +1261,7 @@
   "chat.attach.label": "ဖိုင်",
   "chat.attach.photo": "ဓာတ်ပုံ",
   "chat.attach.photos": "ဓာတ်ပုံပြခန်း",
+  "chat.attach.removed": "ဖိုင်ကို ဖယ်ရှားလိုက်သည်- လုံခြုံရေးစစ်ဆေးမှုကို မအောင်ပါ",
   "chat.attach.skipped": "{count} ခု မထည့်ရသေးပါ: မထောက်ပံ့သော ဖိုင်ပုံစံ သို့မဟုတ် {max} MB ထက်ကြီးနေသည်",
   "chat.attach.template": "စာရွက်စာတမ်း ပုံစံ",
   "chat.attach.video": "ဗီဒီယို",

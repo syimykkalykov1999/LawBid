@@ -199864,6 +199864,15 @@
           "available"
         ]
       },
+      "ChatMediaState": {
+        "type": "string",
+        "enum": [
+          "processing",
+          "ready",
+          "removed"
+        ],
+        "description": "M3: processing (only the sender has a link) → ready, or removed (infected / failed / deleted)."
+      },
       "VoiceNoteDto": {
         "type": "object",
         "properties": {
@@ -199889,6 +199898,14 @@
           "listened": {
             "type": "boolean",
             "description": "The recipient has played it."
+          },
+          "state": {
+            "description": "M3: processing (only the sender has a link) → ready, or removed (infected / failed / deleted).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChatMediaState"
+              }
+            ]
           }
         },
         "required": [
@@ -199939,6 +199956,14 @@
           "blurhash": {
             "type": "string",
             "nullable": true
+          },
+          "state": {
+            "description": "M3: processing (only the sender has a link) → ready, or removed (infected / failed / deleted).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ChatMediaState"
+              }
+            ]
           }
         },
         "required": [

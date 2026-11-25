@@ -1261,6 +1261,7 @@
   "chat.attach.label": "فایل",
   "chat.attach.photo": "انځور",
   "chat.attach.photos": "د انځورونو کتابتون",
+  "chat.attach.removed": "دوتنه لرې شوه: د امنیت له ازموینې ونه وتله",
   "chat.attach.skipped": "{count} نه دي اضافه شوي: نه ملاتړ شوی بڼه یا له {max} MB څخه ډېر",
   "chat.attach.template": "د سند کتار",
   "chat.attach.video": "ویډیو",

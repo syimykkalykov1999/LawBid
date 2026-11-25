@@ -155,14 +155,17 @@ Future<void> Function(String) _keepStored(UploadJobScope scope) => (id) async {
       await scope.saveProgress({kStoredFileKey: id});
     };
 
-/// A job whose file is already stored: waits for its scan only. Null when
-/// the server no longer has that file (then it is uploaded again).
+/// A job whose file is already stored: nothing is uploaded again. M3 (owner
+/// 25.11, Slack / Telegram): the message does not wait for the scan either
+/// (the server shows the file to the others once it is clean); only a file
+/// the scan already refused stops. Null when the server no longer has that
+/// file (then it is uploaded again).
 Future<String?> _waitStored(UploadJob job, UploadJobScope scope) async {
   final stored = storedFileOf(job);
   if (stored == null) return null;
   scope.reportProgress(1);
   try {
-    return await scope.uploader.waitStored(stored);
+    return await scope.uploader.waitStored(stored, waitScan: false);
   } on ApiException catch (e) {
     if (e.statusCode != 404 && e.code != ApiErrorCodes.notFound) rethrow;
     await scope.saveProgress({kStoredFileKey: null});
@@ -201,6 +204,7 @@ Future<String> uploadChatVoiceJob(UploadJob job, UploadJobScope scope) async {
     savedTarget: StorageTarget.fromJson(job.progress['target']),
     onTarget: (t) => scope.saveProgress({'target': t.toJson()}),
     onStored: _keepStored(scope),
+    waitScan: false,
   );
 }
 
@@ -232,6 +236,7 @@ Future<String> uploadChatAttachmentJob(
     resumeFileId: job.progress['partsFileId'] as String?,
     onPartsFileId: (id) => unawaited(scope.saveProgress({'partsFileId': id})),
     onStored: _keepStored(scope),
+    waitScan: false,
   );
 }
 

@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'chat_media_state.dart';
+
 part 'voice_note_dto.g.dart';
 
 @JsonSerializable()
@@ -14,6 +16,7 @@ class VoiceNoteDto {
     required this.listened,
     this.url,
     this.m4aUrl,
+    this.state,
   });
 
   factory VoiceNoteDto.fromJson(Map<String, Object?> json) =>
@@ -29,6 +32,9 @@ class VoiceNoteDto {
 
   /// The recipient has played it.
   final bool listened;
+
+  /// M3: processing (only the sender has a link) → ready, or removed (infected / failed / deleted).
+  final ChatMediaState? state;
 
   Map<String, Object?> toJson() => _$VoiceNoteDtoToJson(this);
 }

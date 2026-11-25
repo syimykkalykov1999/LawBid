@@ -4,6 +4,8 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'chat_media_state.dart';
+
 part 'chat_attachment_dto.g.dart';
 
 @JsonSerializable()
@@ -19,6 +21,7 @@ class ChatAttachmentDto {
     this.width,
     this.height,
     this.blurhash,
+    this.state,
   });
 
   factory ChatAttachmentDto.fromJson(Map<String, Object?> json) =>
@@ -38,6 +41,9 @@ class ChatAttachmentDto {
   final int? width;
   final int? height;
   final String? blurhash;
+
+  /// M3: processing (only the sender has a link) → ready, or removed (infected / failed / deleted).
+  final ChatMediaState? state;
 
   Map<String, Object?> toJson() => _$ChatAttachmentDtoToJson(this);
 }
