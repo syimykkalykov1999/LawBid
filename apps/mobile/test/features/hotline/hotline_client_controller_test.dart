@@ -57,11 +57,16 @@ class _Repo implements HotlineRepository {
   HotlineRequest Function()? onCreate;
   HotlineRequest Function()? onGet;
   ApiException? createError;
+  ApiException? newEndpointError;
+  ApiException? configError;
   ApiException? claimTokenError;
   HotlineRequest current = _r(HotlineStatus.searching);
 
   @override
-  Future<HotlineConfig> config() async => const HotlineConfig(enabled: true);
+  Future<HotlineConfig> config() async {
+    if (configError != null) throw configError!;
+    return const HotlineConfig(enabled: true);
+  }
 
   @override
   Future<HotlineRequest> create(HotlineDraft draft) async {
@@ -114,12 +119,14 @@ class _Repo implements HotlineRepository {
   @override
   Future<bool> review(String id, {required int stars, String? comment}) async {
     calls.add('review:$stars');
+    if (newEndpointError != null) throw newEndpointError!;
     return true;
   }
 
   @override
   Future<String> offerCase(String id) async {
     calls.add('offer:$id');
+    if (newEndpointError != null) throw newEndpointError!;
     return 'case-1';
   }
 }
@@ -279,9 +286,7 @@ void main() {
     expect(c.read(callScreenAddonProvider)?.callId, 'call-1');
   });
 
-  test(
-      'C5b a tapped «Адвокат на линии» opens «Позвонить сейчас?» (no token in the link)',
-      () {
+  test('C5b a tapped notice opens «Позвонить сейчас?», no token in link', () {
     expect(
       notificationRoute(
         type: 'hotline_attorney_available',
@@ -515,5 +520,49 @@ void main() {
     final res = await ctl(c).offerCase();
     expect(res.caseId, 'case-1');
     expect(repo.calls, contains('offer:req-1'));
+  });
+
+  test('C18 server without review / offer-case (404): nothing breaks',
+      () async {
+    final c = await make();
+    repo.onCreate = () => _r(HotlineStatus.connected, callId: 'call-1');
+    await ctl(c).start(_draft);
+    repo.newEndpointError = const ApiException(
+      code: ApiErrorCodes.notFound,
+      message: 'Cannot POST',
+      statusCode: 404,
+    );
+    // «Предложить дело»: the refusal comes back (the call card then opens
+    // the ordinary «Предложить дело» sheet), no throw
+    final res = await ctl(c).offerCase();
+    expect(res.caseId, isNull);
+    expect(res.code, ApiErrorCodes.notFound);
+    // the review: quietly not sent, no throw
+    await emit('hotline:ended', {
+      'requestId': 'req-1',
+      'seconds': 30,
+      'review': true,
+    });
+    expect(await ctl(c).sendReview(4, null), isFalse);
+    expect(c.read(hotlineControllerProvider).review, isNull);
+  });
+
+  test('C19 flag off: no button, no request, no server call', () async {
+    final c = await make(flag: false);
+    expect(c.read(hotlineClientVisibleProvider), isFalse);
+    await ctl(c).restore();
+    expect(repo.calls, isEmpty);
+  });
+
+  test('C20 hotline off on the server (FEATURE_DISABLED): the button goes',
+      () async {
+    final c = await make();
+    repo.configError = const ApiException(
+      code: ApiErrorCodes.featureDisabled,
+      message: 'off',
+    );
+    await ctl(c).loadConfig();
+    expect(c.read(hotlineControllerProvider).config, HotlineConfig.off);
+    expect(c.read(hotlineClientVisibleProvider), isFalse);
   });
 }
