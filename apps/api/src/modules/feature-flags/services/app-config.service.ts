@@ -143,8 +143,14 @@ export class AppConfigService {
       }
       return appConfigMemo.value;
     }
+    // KNOWN_ERRORS 241: a cold read that began before an admin write
+    // (clearAppConfigMemo) must not keep its pre-write map as the memo —
+    // the same generation rule as the background refresh above.
+    const generation = appConfigGeneration;
     const value = await this.loadConfig();
-    if (memoOn) appConfigMemo = { at: Date.now(), value };
+    if (memoOn && generation === appConfigGeneration) {
+      appConfigMemo = { at: Date.now(), value };
+    }
     return value;
   }
 

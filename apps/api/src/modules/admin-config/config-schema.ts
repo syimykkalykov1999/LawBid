@@ -2158,6 +2158,30 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Feed content for people who never chose: all = every post, legal_only = only legal posts (general posts hidden).',
     pattern: /^(all|legal_only)$/,
   };
+  // Item 23 (F1): the hybrid feed (fan-out on write + on read).
+  out['feed.fanout_mode'] = {
+    ...out['feed.fanout_mode'],
+    description:
+      'off | on | auto (default). Followed posts of the feed come from a timeline precomputed when a post is published (Valkey) instead of a database read per open; auto = on while the job queue exists. Any doubt falls back to the database read, the same posts.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['feed.fanout_max_followers'] = {
+    ...out['feed.fanout_max_followers'],
+    description:
+      'Authors with at least this many followers are read when the feed opens instead of being written into every follower timeline. 0 = nobody is written.',
+    min: 0,
+  };
+  out['feed.fanout_timeline_len'] = {
+    ...out['feed.fanout_timeline_len'],
+    description:
+      'Posts kept in one reader timeline; older pages read the database.',
+    min: 1,
+  };
+  out['feed.fanout_timeline_days'] = {
+    ...out['feed.fanout_timeline_days'],
+    description: 'A timeline not opened for this many days is dropped.',
+    min: 1,
+  };
   out['translate.scope'] = {
     ...out['translate.scope'],
     description:
@@ -2465,6 +2489,9 @@ export const SCANNED_UPLOAD_MAX_MB = 100;
 
 /** Owner 14.11: «Авто» numbers without a ceiling (config-schema.no-limits.spec). */
 export const NO_CEILING: readonly string[] = [
+  'feed.fanout_max_followers',
+  'feed.fanout_timeline_len',
+  'feed.fanout_timeline_days',
   'search.engine_timeout_ms',
   'search.engine_request_timeout_ms',
   'search.engine_max_retries',

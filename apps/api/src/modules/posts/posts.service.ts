@@ -71,6 +71,7 @@ import {
 import type Redis from 'ioredis';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import { bumpFeedVersion } from '../../common/cache/feed-version';
+import { FeedTimelineService } from '../feed/feed-timeline.service';
 import { cachedBlockSet } from '../blocks/block-set.cache';
 import { extractHashtags } from './hashtags';
 import { PostAttachmentsPolicy } from './post-attachments.policy';
@@ -170,6 +171,8 @@ export class PostsService {
     @Optional() private readonly autoHold?: AutoHoldService,
     // Owner 2026-11-08: reels ordered for the viewer (`reco.reels_ranked`).
     @Optional() private readonly recommendations?: RecommendationsService,
+    // Item 23 (F1): followers' precomputed feeds (fan-out on write).
+    @Optional() private readonly timeline?: FeedTimelineService,
   ) {}
 
   /** Owner 2026-10-06: News is switched off for now (flag `news_posts`,
@@ -429,6 +432,9 @@ export class PostsService {
       authorId: user.sub,
     });
     if (finalStatus === 'published') await this.afterPublish(post.id);
+    // Item 23 (F1): a held or processing post is in the followers' feeds
+    // too (the feed shows it once it is public, at its own created_at).
+    else await this.timeline?.onPostWritten(post);
     // CONTENT C-2: a held post is a ticket in the moderators' queue.
     if (finalStatus === 'hidden') {
       await this.autoHold?.queue({
@@ -461,9 +467,14 @@ export class PostsService {
         kind: true,
         video_asset_id: true,
         archived_at: true,
+        created_at: true,
         _count: { select: { media: true, attachments: true } },
       },
     });
+    // Item 23 (F1): into the followers' precomputed feeds — also a reel
+    // whose created_at moved to "now" when its video became ready, and an
+    // archived post (it is back in place when the author shows it again).
+    if (post) await this.timeline?.onPostWritten(post);
     // Owner 2026-10-18: an archived post is not public (it counts and
     // alerts when the author shows it in the profile again).
     if (!post || post.archived_at) return;

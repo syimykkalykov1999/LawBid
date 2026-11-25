@@ -17,6 +17,12 @@ import {
 } from '../../common/queues/queue-hardening';
 import { bullOptions } from '../../redis/redis-connection';
 import { shardContext } from '../../sharding/shard-context';
+import { FeedTimelineModule } from '../feed/feed-timeline.module';
+import {
+  FeedTimelineService,
+  TIMELINE_JOB,
+  type TimelineFanoutJob,
+} from '../feed/feed-timeline.service';
 import { NotificationsModule } from './notifications.module';
 import {
   POST_FANOUT_QUEUE,
@@ -36,13 +42,16 @@ export interface PostFanoutOptions {
 export class PostFanoutWorker
   implements OnApplicationBootstrap, OnApplicationShutdown
 {
-  private worker?: Worker<PostFanoutJob>;
+  private worker?: Worker<PostFanoutJob | TimelineFanoutJob>;
 
   constructor(
     @Inject(POST_FANOUT_OPTIONS) private readonly options: PostFanoutOptions,
     private readonly config: ConfigService,
     private readonly fanout: PostFanoutService,
     private readonly logger: PinoLogger,
+    // Item 23 (F1): job `timeline` of the same queue writes a new post into
+    // the followers' precomputed feeds.
+    private readonly timeline: FeedTimelineService,
   ) {
     this.logger.setContext(PostFanoutWorker.name);
   }
@@ -57,9 +66,13 @@ export class PostFanoutWorker
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
     if (!url || !this.enabled) return;
-    this.worker = new Worker<PostFanoutJob>(
+    this.worker = new Worker<PostFanoutJob | TimelineFanoutJob>(
       POST_FANOUT_QUEUE,
-      outageProof((job: Job<PostFanoutJob>) => this.process(job.data)),
+      outageProof((job: Job<PostFanoutJob | TimelineFanoutJob>) =>
+        job.name === TIMELINE_JOB
+          ? this.processTimeline(job.data as TimelineFanoutJob)
+          : this.process(job.data as PostFanoutJob),
+      ),
       {
         ...bullOptions(POST_FANOUT_QUEUE, url, { worker: true }),
         ...workerTuning(POST_FANOUT_QUEUE),
@@ -80,6 +93,15 @@ export class PostFanoutWorker
     );
   }
 
+  async processTimeline(data: TimelineFanoutJob): Promise<number> {
+    await demoContext.run(data.demo === true, () =>
+      shardContext.runFromKey(data.shardKey, () =>
+        this.timeline.runBatch(data),
+      ),
+    );
+    return 0;
+  }
+
   async onApplicationShutdown(): Promise<void> {
     await closeWorker(this.worker);
   }
@@ -90,7 +112,7 @@ export class PostFanoutModule {
   static register(options: PostFanoutOptions): DynamicModule {
     return {
       module: PostFanoutModule,
-      imports: [NotificationsModule],
+      imports: [NotificationsModule, FeedTimelineModule],
       providers: [
         { provide: POST_FANOUT_OPTIONS, useValue: options },
         PostFanoutWorker,
