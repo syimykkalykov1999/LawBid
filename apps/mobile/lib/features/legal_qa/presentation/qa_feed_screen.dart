@@ -295,6 +295,15 @@ class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
               ],
             ),
           ),
+        // Owner row 87 (hotline mockup a1): the attorney's line button in
+        // the «+» place (attorneys have no «Ask»).
+        if (attorney)
+          if (ref.watch(qaFeedFabSlotProvider) case final extra?)
+            PositionedDirectional(
+              end: AppSpacing.screenSide,
+              bottom: AppSpacing.screenSide,
+              child: extra(context),
+            ),
       ],
     );
   }

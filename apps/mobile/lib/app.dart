@@ -24,6 +24,7 @@ import 'package:lawbid/core/platform/web_safe_area.dart';
 import 'package:lawbid/core/platform/web_tab_title.dart';
 import 'package:lawbid/core/theme/preferences_sync.dart';
 import 'package:lawbid/features/calls/presentation/call_host.dart';
+import 'package:lawbid/features/hotline/presentation/hotline_attorney_host.dart';
 import 'package:lawbid/features/hotline/presentation/hotline_host.dart';
 import 'package:lawbid/features/onboarding/application/countries_providers.dart';
 import 'package:lawbid/features/settings/storage/application/storage_providers.dart';
@@ -149,26 +150,35 @@ class LawBidApp extends ConsumerWidget {
                                       // the review after the call).
                                       child: HotlineHost(
                                         router: router,
-                                        child: AccountRestrictedHost(
-                                        router: router,
-                                        // Owner 2026-10-22: system back never
-                                        // closes the app from a deep screen.
-                                        child: SystemBackGuard(
+                                        // Row 87: the attorney's hotline offers
+                                        // and «Дело из звонка».
+                                        child: HotlineAttorneyHost(
                                           router: router,
-                                          rootNavigatorKey: appRootNavigatorKey,
-                                          exitHint: () => ref
-                                              .read(translatorProvider)
-                                              .t('nav.backAgainToExit'),
-                                          // Desktop web plan 2026-10-28:
-                                          // Ctrl/⌘+K, Esc, Alt+↑/↓ on a
-                                          // desktop window (off elsewhere).
-                                          child: DesktopShortcuts(
-                                            onSearch: () =>
-                                                router.go(AppRoutes.search),
-                                            child: BackSwipeTheme(child: child),
+                                          child: AccountRestrictedHost(
+                                            router: router,
+                                            // Owner 2026-10-22: system back
+                                            // never closes the app from a
+                                            // deep screen.
+                                            child: SystemBackGuard(
+                                              router: router,
+                                              rootNavigatorKey:
+                                                  appRootNavigatorKey,
+                                              exitHint: () => ref
+                                                  .read(translatorProvider)
+                                                  .t('nav.backAgainToExit'),
+                                              // Desktop web plan 2026-10-28:
+                                              // Ctrl/⌘+K, Esc, Alt+↑/↓ on a
+                                              // desktop window (off elsewhere).
+                                              child: DesktopShortcuts(
+                                                onSearch: () =>
+                                                    router.go(AppRoutes.search),
+                                                child: BackSwipeTheme(
+                                                  child: child,
+                                                ),
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                      ),
                                       ),
                                     ),
                             ),

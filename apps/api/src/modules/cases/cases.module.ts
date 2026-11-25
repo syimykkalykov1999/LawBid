@@ -1,3 +1,4 @@
+import { HOTLINE_CASES_PORT } from '../../common/hotline/hotline-cases.port';
 import { UsageLimitsModule } from '../../common/usage-limits/usage-limits.module';
 import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { PromotionsCoreModule } from '../promotions/promotions.module';
@@ -22,6 +23,7 @@ import { CaseInvitesController } from './case-invites/case-invites.controller';
 import { CaseInvitesService } from './case-invites/case-invites.service';
 import { CasesController } from './cases.controller';
 import { CasesFeedController } from './cases-feed.controller';
+import { HotlineCasesAdapter } from './hotline-cases.adapter';
 import { CasesService } from './cases.service';
 import { CaseContactsController } from './contacts/case-contacts.controller';
 import { CaseContactsService } from './contacts/case-contacts.service';
@@ -96,6 +98,10 @@ import { PresenceModule } from '../presence/presence.module';
   ],
   providers: [
     CasesService,
+    // Owner row 87: the hotline's port to the cases family («Предложить
+    // дело», photos) — the hotline module does not import this one.
+    HotlineCasesAdapter,
+    { provide: HOTLINE_CASES_PORT, useExisting: HotlineCasesAdapter },
     // OQ-031: case photos.
     CasePhotosService,
     CaseWorkspaceService,

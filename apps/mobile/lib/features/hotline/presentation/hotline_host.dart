@@ -36,18 +36,19 @@ class _HotlineHostState extends ConsumerState<HotlineHost> {
   @override
   void initState() {
     super.initState();
-    // «Вопросы» shows our call button above its «+» (mockup v4 c1); the
-    // button itself hides while the line is off or for an attorney.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref
-          .read(qaFeedFabSlotProvider.notifier)
-          .set((_) => const HotlineEntryFab());
-    });
     ref.listenManual<bool>(
       hotlineClientVisibleProvider,
       (_, on) {
         if (!on) return;
+        // «Вопросы» shows our call button above its «+» (mockup v4 c1).
+        // Only for a client (the attorney's host fills the same slot with
+        // his line button); never cleared here — the button hides itself.
+        Future<void>.microtask(() {
+          if (!mounted) return;
+          ref
+              .read(qaFeedFabSlotProvider.notifier)
+              .set((_) => const HotlineEntryFab());
+        });
         final c = ref.read(hotlineControllerProvider.notifier);
         unawaited(c.loadConfig());
         unawaited(c.restore());

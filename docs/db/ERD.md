@@ -907,6 +907,12 @@ erDiagram
     String end_reason "nullable"
     Int duration_sec "nullable"
     String conversation_id "nullable"
+    String topic "nullable"
+    String case_id "nullable"
+    String case_invite_id "nullable"
+    Int review_stars "nullable"
+    String review_comment "nullable"
+    DateTime reviewed_at "nullable"
     DateTime created_at
     Int shard_id
   }

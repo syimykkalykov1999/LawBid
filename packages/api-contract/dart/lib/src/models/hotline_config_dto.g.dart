@@ -20,6 +20,12 @@ HotlineConfigDto _$HotlineConfigDtoFromJson(Map<String, dynamic> json) =>
       disclosure: HotlineDisclosureDto.fromJson(
         json['disclosure'] as Map<String, dynamic>,
       ),
+      mode: json['mode'] == null
+          ? null
+          : HotlineMode.fromJson(json['mode'] as String),
+      access: json['access'] == null
+          ? null
+          : HotlineAccessDto.fromJson(json['access'] as Map<String, dynamic>),
     );
 
 Map<String, dynamic> _$HotlineConfigDtoToJson(HotlineConfigDto instance) =>
@@ -34,4 +40,6 @@ Map<String, dynamic> _$HotlineConfigDtoToJson(HotlineConfigDto instance) =>
       'reviewEnabled': instance.reviewEnabled,
       'clientStepsEnabled': instance.clientStepsEnabled,
       'disclosure': instance.disclosure.toJson(),
+      'mode': ?instance.mode?.toJson(),
+      'access': ?instance.access?.toJson(),
     };
