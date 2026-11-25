@@ -32,8 +32,21 @@ import { SubscriptionAdminService } from './subscription-admin.service';
  * PAYMENT_PROVIDER comes from the global BillingModule.
  */
 import { LedgerModule } from '../ledger/ledger.public';
+/**
+ * Holes re-check (25.11, item 17): provided ONCE, here. JobsModule used to
+ * list BillingOverviewService again (the nightly snapshot), so the API process ran a second instance (Nest:
+ * a provider belongs to one module, others import it). JobsModule imports
+ * this module; jobs.module.spec.ts fails on any copy.
+ */
+@Module({
+  providers: [BillingOverviewService],
+  exports: [BillingOverviewService],
+})
+export class BillingOverviewCoreModule {}
+
 @Module({
   imports: [
+    BillingOverviewCoreModule,
     AdminAccessModule,
     // Owner 2026-11-04 (R-399): a saved price rebuilds the public site.
     AdminLaunchModule,
@@ -63,7 +76,6 @@ import { LedgerModule } from '../ledger/ledger.public';
     DuplicateFixesAdminService,
     // R-237: «Возвраты по спорам».
     DisputeRefundsAdminService,
-    BillingOverviewService,
     AdminPricingService,
     AdminPlansService,
     SeatLimitRequestsService,

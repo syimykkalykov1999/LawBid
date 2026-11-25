@@ -284,8 +284,14 @@ export class BootstrapService {
         appConfig && 'security.turnstile.mode' in appConfig
           ? appConfig['security.turnstile.mode']
           : await this.settings?.string('security.turnstile.mode');
-      if (mode !== 'monitor' && mode !== 'enforce') return {};
-      const key = (await this.secrets?.get('turnstile'))?.fields?.siteKey;
+      if (mode !== 'monitor' && mode !== 'enforce' && mode !== 'auto') {
+        return {};
+      }
+      const fields = (await this.secrets?.get('turnstile'))?.fields;
+      const key = fields?.siteKey;
+      // Holes re-check (25.11): «Авто» (the default) shows the widget only
+      // once the secret key is saved too, so the server can check it.
+      if (mode === 'auto' && !fields?.secretKey) return {};
       return key ? { 'turnstile.site_key': key } : {};
     } catch {
       return {};
@@ -610,6 +616,11 @@ export class BootstrapService {
           CLIENT_TUNING_DEFS['client.guest_browse_app_enabled'].default,
         'client.guest_browse_web_enabled':
           CLIENT_TUNING_DEFS['client.guest_browse_web_enabled'].default,
+        // Holes re-check (25.11, item 21): always present, so the website
+        // learns that THIS server allows `X-Request-Priority` in CORS (an
+        // older server does not send the key, and the page sends no mark).
+        'client.request_priority_enabled':
+          CLIENT_TUNING_DEFS['client.request_priority_enabled'].default,
         // D1-53: always present, so the consent never shows a stale number.
         'verification.face_match.retention_days':
           APP_SETTINGS['verification.face_match.retention_days'],

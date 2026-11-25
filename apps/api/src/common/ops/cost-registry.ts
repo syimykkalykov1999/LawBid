@@ -2944,10 +2944,13 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     control: {
       type: 'app-setting',
       key: 'security.turnstile.mode',
-      map: { off: 'off', on: 'monitor', auto: 'enforce' },
+      // Holes re-check (25.11): Авто is the server's own `auto` (off until
+      // both keys are saved, then monitor, enforce once the website's real
+      // visitors pass); Вкл = watch only.
+      map: { off: 'off', on: 'monitor', auto: 'auto' },
     },
     states: ['off', 'on', 'auto'],
-    defaultState: 'off',
+    defaultState: 'auto',
     ceiling: null,
     price: price(
       'free',
@@ -2956,7 +2959,8 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ),
     usd: { launch: R(0), k100: R(0), m1: R(0) },
     needed: 'later',
-    neededNote: 'Включайте при волне накрутки.',
+    neededNote:
+      'Авто (по умолчанию): ничего не делает, пока в «Ключи и сервисы» нет обоих ключей Turnstile; с ключами само включается, когда настоящие люди на сайте проходят проверку.',
     alarm: null,
     providers: ['turnstile'],
   },

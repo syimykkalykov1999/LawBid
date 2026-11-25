@@ -36,6 +36,8 @@ export const ShedPriority = (level: ShedPriorityLevel) =>
  */
 export const PRIORITY_HEADER = 'x-request-priority';
 
+// Only these values are read; anything else (including `critical`) is
+// ignored, and a known value can only LOWER the route's level.
 const HEADER_LEVEL: Record<string, ShedPriorityLevel> = {
   prefetch: 'best_effort',
   best_effort: 'best_effort',
@@ -73,6 +75,9 @@ export function effectivePriority(
   const raw: unknown = Array.isArray(header)
     ? (header as unknown[])[0]
     : header;
+  // Holes re-check (25.11): `user` is what the apps send for what a person
+  // is waiting for. It keeps the route's own level (sign-in stays
+  // critical), exactly like no header.
   const asked =
     typeof raw === 'string'
       ? HEADER_LEVEL[raw.trim().toLowerCase()]

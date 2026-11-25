@@ -654,8 +654,8 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['security.turnstile.mode'] = {
     ...out['security.turnstile.mode'],
     description:
-      'Cloudflare Turnstile на сайте (не в приложении): off (по умолчанию) | monitor (проверять и писать в лог, не блокировать) | enforce (неверный токен — 403 TURNSTILE_FAILED, верный пропускает без App Check). Нужен секретный ключ в Интеграции → Cloudflare Turnstile.',
-    pattern: /^(off|monitor|enforce)$/,
+      'Cloudflare Turnstile на сайте (не в приложении): off | monitor (проверять и писать в лог, не блокировать) | enforce (неверный токен — 403 TURNSTILE_FAILED, верный пропускает без App Check) | auto (по умолчанию: как off, пока в Интеграции → Cloudflare Turnstile не сохранены оба ключа; потом monitor, а enforce — когда настоящие люди на сайте проходят проверку на уровне security.app_check.auto_pass_rate_pct).',
+    pattern: /^(off|monitor|enforce|auto)$/,
   };
   out['security.app_check.replay_protection'] = {
     ...out['security.app_check.replay_protection'],
@@ -680,14 +680,14 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   ] as const) {
     out[key] = {
       ...out[key],
-      description: `Bot check on ${what}: off (default) = the general security.app_check.mode | on = a valid App Check token (website: or a valid Turnstile token) is required | auto = on once the pass rate of proven-real people over security.app_check.auto_days reaches security.app_check.auto_pass_rate_pct (at least security.app_check.auto_min_requests of them, every platform too).`,
+      description: `Bot check on ${what}: off = the general security.app_check.mode | on = a valid App Check token (website: or a valid Turnstile token) is required | auto = on once the pass rate of proven-real people over security.app_check.auto_days reaches security.app_check.auto_pass_rate_pct (at least security.app_check.auto_min_requests of them, every platform too; a platform with people but no valid proof keeps it off; the website is never enforced while it has no working proof). Default auto.`,
       pattern: /^(off|on|auto)$/,
     };
   }
   out['security.app_check.replay.mode'] = {
     ...out['security.app_check.replay.mode'],
     description:
-      'Replay protection on the costly routes while they enforce: off (default) | on | auto (on once enough valid tokens there are limited-use).',
+      'Replay protection on the costly routes while they enforce: off | on | auto (default: on once enough valid tokens there are limited-use).',
     pattern: /^(off|on|auto)$/,
   };
   out['security.app_check.auto_days'] = {
@@ -1413,7 +1413,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['outreach.signed_unsubscribe_links'] = {
     ...out['outreach.signed_unsubscribe_links'],
     description:
-      'Cold emails print the signed unsubscribe link (nothing secret in the database). Off: the legacy token, which a rollback can still read. Turn on once this release is fully live.',
+      'Cold emails print the signed unsubscribe link (nothing secret in the database; RFC 8058 one-click). On by default. Off: the legacy random token is printed again. Links already sent keep working either way.',
   };
   out['sessions.cleanup_batch'] = {
     ...out['sessions.cleanup_batch'],

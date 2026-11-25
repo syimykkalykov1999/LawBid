@@ -56,7 +56,14 @@ async function reroute(
   if (country) headers.set('x-admin-country', country);
   // S18-1: reads made while nobody touches the screen must not keep the
   // 30-minute idle session alive.
-  if (request.method === 'GET' && isBackgroundNow()) headers.set('x-background', '1');
+  // Holes re-check (25.11, item 21): the same reads are the tab's own
+  // polling, not the person — marked background so an overloaded API puts
+  // them off before what someone clicked (Netflix load shedding; the API
+  // only lets a client LOWER its priority).
+  if (request.method === 'GET' && isBackgroundNow()) {
+    headers.set('x-background', '1');
+    headers.set('x-request-priority', 'background');
+  }
   const hasBody = request.method !== 'GET' && request.method !== 'HEAD';
   // A POST without a body (e.g. «Проверить» on an integration) must stay
   // bodyless: `new Request(url, { body: '' })` makes the browser add
