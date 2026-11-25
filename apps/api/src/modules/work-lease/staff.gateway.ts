@@ -24,6 +24,7 @@ import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import { LeaseService } from './lease.service';
 import { StaffEventsPublisher } from './staff-events.publisher';
 import { StaffPresenceService } from './staff-presence.service';
+import { WS_PER_MESSAGE_DEFLATE } from '../realtime/ws-compression';
 
 export { STAFF_NAMESPACE };
 
@@ -63,6 +64,10 @@ const dataOf = (socket: Socket): StaffSocketData | undefined =>
   cors: { origin: true },
   transports: ['websocket', 'polling'],
   maxHttpBufferSize: 4 * 1024,
+  // G6: the Socket.IO server is shared by every gateway and created with
+  // the options of whichever starts first, so each one carries the same
+  // websocket compression option (ws-compression.ts decides per socket).
+  perMessageDeflate: { ...WS_PER_MESSAGE_DEFLATE },
   pingInterval: 25_000,
   pingTimeout: 20_000,
   connectTimeout: 10_000,

@@ -603,6 +603,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'off | on | auto (default). Load shedding by priority: background first, then prefetch / suggestions, then normal requests; sign-in, payments, calls and sending a message last. on = the fixed thresholds realtime.server.shed_*; auto = the same plus an adaptive concurrency limit (Netflix Gradient2) that sheds only above realtime.server.shed_cpu_start_pct.',
     pattern: /^(off|on|auto)$/,
   };
+  // G6 (25.11): websocket compression, Выкл / Вкл / Авто.
+  out['realtime.server.ws_compression_mode'] = {
+    ...out['realtime.server.ws_compression_mode'],
+    description:
+      'off | on | auto (default). Websocket permessage-deflate for frames of realtime.server.ws_compression_threshold_bytes and more. on = every new socket; auto = new sockets while this server holds fewer than realtime.server.ws_compression_auto_max_sockets compressed sockets. Applies to new sockets at once.',
+    pattern: /^(off|on|auto)$/,
+  };
   out['security.password_hash_concurrency'] = {
     ...out['security.password_hash_concurrency'],
     description:

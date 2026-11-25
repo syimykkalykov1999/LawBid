@@ -6,6 +6,7 @@ import type { Socket } from 'socket.io';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { QR_LOGIN_TTL_SEC, RateLimitService } from '../auth/auth.public';
 import { QR_LOGIN_NAMESPACE, qrRoom } from './realtime-publisher.service';
+import { WS_PER_MESSAGE_DEFLATE } from './ws-compression';
 
 /** Same shape as the REST DTO (`qrId`: 16–64 URL-safe chars). */
 const QR_ID = /^[A-Za-z0-9_-]{16,64}$/;
@@ -29,6 +30,10 @@ const QR_SOCKETS_PER_IP_PER_HOUR = 300;
   cors: { origin: true },
   transports: ['websocket', 'polling'],
   maxHttpBufferSize: 4 * 1024,
+  // G6: the Socket.IO server is shared by every gateway and created with
+  // the options of whichever starts first, so each one carries the same
+  // websocket compression option (ws-compression.ts decides per socket).
+  perMessageDeflate: { ...WS_PER_MESSAGE_DEFLATE },
   pingInterval: 25_000,
   pingTimeout: 20_000,
   connectTimeout: 10_000,

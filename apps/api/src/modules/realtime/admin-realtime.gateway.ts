@@ -24,6 +24,7 @@ import {
   ADMINS_ROOM,
   adminTicketKey,
 } from './realtime-publisher.service';
+import { WS_PER_MESSAGE_DEFLATE } from './ws-compression';
 
 /** The ticket is 24 random bytes in base64url (32 chars). */
 const TICKET_RE = /^[A-Za-z0-9_-]{16,64}$/;
@@ -62,6 +63,10 @@ const scopeKey = (countries: string[] | null) =>
   cors: { origin: true },
   transports: ['websocket', 'polling'],
   maxHttpBufferSize: 4 * 1024,
+  // G6: the Socket.IO server is shared by every gateway and created with
+  // the options of whichever starts first, so each one carries the same
+  // websocket compression option (ws-compression.ts decides per socket).
+  perMessageDeflate: { ...WS_PER_MESSAGE_DEFLATE },
   pingInterval: 25_000,
   pingTimeout: 20_000,
   connectTimeout: 10_000,
