@@ -23,6 +23,7 @@ import {
 import type { Request } from 'express';
 import { apiBaseOf } from '../billing/pay-link.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
+import { RequireAppCheck } from '../auth/auth.public';
 import {
   AdminEndpoint,
   CurrentAdmin,
@@ -114,6 +115,13 @@ export class StarsController {
   // attorney's money — an assistant must not buy them, send gifts bought
   // with them to their own profile, or convert received gifts into stars.
   @AttorneyOnly()
+  // Item 13 (L2, 2026-11-25): starting a payment carries the bot check
+  // (admin security.app_check.payments.mode; log only by default).
+  @RequireAppCheck({
+    group: 'payments',
+    signedIn: true,
+    consumeWhen: () => true,
+  })
   @Post('packs/:packId/buy')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Start the payment (web page) for a stars pack' })

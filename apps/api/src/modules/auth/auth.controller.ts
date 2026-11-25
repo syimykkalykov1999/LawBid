@@ -66,7 +66,11 @@ import { QrLoginService } from './services/qr-login.service';
 import { AssistantSelf } from './assistant/assistant-context';
 import { ReauthGuard } from './guards/reauth.guard';
 import { PasswordReauthService } from './services/password-reauth.service';
-import { AppCheckGuard, RequireAppCheck } from './app-check/app-check.guard';
+import { RequireAppCheck } from './app-check/app-check.guard';
+import {
+  BotCheckProof,
+  BotCheckProofInterceptor,
+} from './app-check/bot-check-proof.interceptor';
 import { ReauthRequired } from './decorators/reauth-required.decorator';
 import { requestCountry } from './request-country.util';
 import { ReauthVerifier } from './services/reauth-verifier.service';
@@ -132,8 +136,11 @@ const IdempotencyKeyHeader = ApiHeader({
 // HttpOnly cookie on every route that issues one (see web-session-cookie).
 @UseInterceptors(WebSessionCookieInterceptor)
 // Security research #5 (2026-10-22), A4: only the routes marked
-// @RequireAppCheck() are looked at (app-check.guard.ts).
-@UseGuards(AppCheckGuard)
+// @RequireAppCheck() are looked at (app-check.guard.ts, a global guard
+// since item 13 so payment routes in other modules can carry it too).
+// Item 13 (2026-11-25): @BotCheckProof routes count the proven-real pass
+// rate the «Авто» switch reads.
+@UseInterceptors(BotCheckProofInterceptor)
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
@@ -163,8 +170,10 @@ export class AuthController {
   // a code by e-mail stays free (no SMS money at stake). S14-7: with replay
   // protection on, the SMS route also consumes its token.
   @RequireAppCheck({
+    group: 'sms',
     freeWhen: (b) => b.channel === 'email',
     consumeWhen: (b) => b.channel === 'phone',
+    rememberWhen: (b) => b.channel === 'phone',
   })
   @Post('otp/request')
   @HttpCode(HttpStatus.OK)
@@ -208,7 +217,10 @@ export class AuthController {
   @Public()
   // S14-13: asks for an App Check / Turnstile token only after repeated wrong
   // codes (security.auth_challenge_after_failures), never on the happy path.
-  @RequireAppCheck({ challenge: 'otp' })
+  // Item 13: the right code proves a real person: its own verdict counts
+  // for «login», the SMS request's verdict for «sms».
+  @RequireAppCheck({ challenge: 'otp', group: 'login' })
+  @BotCheckProof({ self: true, pending: ['sms'] })
   @Post('otp/verify')
   @UseInterceptors(IdempotencyInterceptor)
   async verifyOtp(
@@ -317,7 +329,8 @@ export class AuthController {
   })
   @IdempotencyKeyHeader
   @Public()
-  @RequireAppCheck()
+  @RequireAppCheck({ group: 'login' })
+  @BotCheckProof({ self: true })
   @Post('social')
   @UseInterceptors(IdempotencyInterceptor)
   async social(
@@ -509,7 +522,7 @@ export class AuthController {
   }
 
   @Public()
-  @RequireAppCheck({ consumeWhen: () => true })
+  @RequireAppCheck({ group: 'sms', consumeWhen: () => true })
   @Post('phone/status')
   @HttpCode(HttpStatus.OK)
   @ApiEnvelopeResponse(PhoneStatusResultDto)
@@ -542,7 +555,8 @@ export class AuthController {
   // Security audit 2026-11-08 (M1): App Check like the other auth routes
   // (security.app_check.mode; monitor only logs), plus the challenge after
   // repeated failures.
-  @RequireAppCheck({ challenge: 'password', always: true })
+  @RequireAppCheck({ challenge: 'password', always: true, group: 'login' })
+  @BotCheckProof({ self: true })
   @Post('password/login')
   async passwordLogin(
     @Body() dto: PasswordLoginDto,
@@ -592,7 +606,11 @@ export class AuthController {
   })
   @Public()
   // Security research #5 (2026-10-22), A4: a reset code is an SMS.
-  @RequireAppCheck({ consumeWhen: () => true })
+  @RequireAppCheck({
+    group: 'password_reset',
+    consumeWhen: () => true,
+    rememberWhen: () => true,
+  })
   @Post('password/reset/request')
   @HttpCode(HttpStatus.OK)
   async passwordResetRequest(
@@ -619,6 +637,8 @@ export class AuthController {
   })
   @ApiErrors({ 409: [E.AUTH_OTHER_DEVICE_ACTIVE] })
   @Public()
+  // Item 13: the right reset code proves the person who asked for it.
+  @BotCheckProof({ pending: ['password_reset'] })
   @Post('password/reset/confirm')
   async passwordResetConfirm(
     @Body() dto: PasswordResetConfirmDto,

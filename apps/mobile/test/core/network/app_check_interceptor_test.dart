@@ -123,6 +123,72 @@ void main() {
       expect(asked, [false, true, false]);
     });
 
+    // Item 13 (2026-11-25): limited-use tokens where the server may consume
+    // them, and the payment starts.
+    group('limited-use tokens', () {
+      Dio withLimited(Future<String?> Function() limited) {
+        adapter = FakeHttpAdapter((o) async => ok({'ok': true}));
+        return Dio(BaseOptions(baseUrl: 'http://test/api/v1'))
+          ..httpClientAdapter = adapter
+          ..interceptors.add(
+            AppCheckInterceptor(
+              token: ({bool forceRefresh = false}) async {
+                asked.add(forceRefresh);
+                return token;
+              },
+              limitedToken: limited,
+            ),
+          );
+      }
+
+      test('the SMS, reset, phone-status and payment routes get one', () async {
+        final d = withLimited(() async => 'lim-1');
+        await d.post<dynamic>('/auth/otp/request');
+        await d.post<dynamic>('/auth/password/reset/request');
+        await d.post<dynamic>('/auth/phone/status');
+        await d.post<dynamic>('/client-plans/checkout');
+        await d.post<dynamic>('/verification/client/checkout');
+        await d.post<dynamic>('/stars/packs/p-1/buy');
+        await d.post<dynamic>('/bid-packs/p-2/buy');
+        for (final r in adapter.requests) {
+          expect(
+            r.headers[AppCheckInterceptor.header],
+            'lim-1',
+            reason: r.path,
+          );
+          expect(r.headers[AppCheckInterceptor.limitedHeader], '1');
+        }
+        expect(asked, isEmpty);
+      });
+
+      test('sign-in itself keeps the normal cached token', () async {
+        final d = withLimited(() async => 'lim-1');
+        await d.post<dynamic>('/auth/password/login');
+        final h = adapter.requests.single.headers;
+        expect(h[AppCheckInterceptor.header], 'tok-1');
+        expect(h.containsKey(AppCheckInterceptor.limitedHeader), isFalse);
+      });
+
+      test('no limited-use token: the cached one goes, not marked', () async {
+        final d = withLimited(() async => null);
+        await d.post<dynamic>('/auth/otp/request');
+        final h = adapter.requests.single.headers;
+        expect(h[AppCheckInterceptor.header], 'tok-1');
+        expect(h.containsKey(AppCheckInterceptor.limitedHeader), isFalse);
+      });
+
+      test('a payment route with a deeper path is not matched', () async {
+        final d = withLimited(() async => 'lim-1');
+        await d.post<dynamic>('/stars/packs/p-1/x/buy');
+        expect(
+          adapter.requests.single.headers.containsKey(
+            AppCheckInterceptor.header,
+          ),
+          isFalse,
+        );
+      });
+    });
+
     group('X-Firebase-AppCheck-Status (2026-11-08)', () {
       test('with a token: the token goes out, no status', () async {
         dio = build(status: () => 'off: should not be sent');

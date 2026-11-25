@@ -644,6 +644,16 @@ variable "waf_bot_control_block" {
   default     = false
   description = "Block the Bot Control verdicts instead of counting them (only with waf_bot_control_enabled)."
 }
+# Item 13 (L4, 2026-11-25): AWS WAF Account Takeover Prevention on the
+# password sign-in (modules/alb). Paid, off by default, counts first.
+variable "waf_atp_enabled" {
+  type    = bool
+  default = false
+}
+variable "waf_atp_action" {
+  type    = string
+  default = "count"
+}
 variable "waf_enabled" {
   type        = bool
   default     = true
@@ -1176,6 +1186,8 @@ module "alb" {
   slow_start_seconds        = var.alb_slow_start_seconds
   waf_bot_control_enabled   = var.waf_bot_control_enabled
   waf_bot_control_block     = var.waf_bot_control_block
+  waf_atp_enabled           = var.waf_atp_enabled
+  waf_atp_action            = var.waf_atp_action
 
   # The load-balancer log goes to the locked audit bucket (prefix `alb`).
   access_logs_bucket = one(module.audit_logs[*].bucket)

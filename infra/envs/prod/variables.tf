@@ -913,6 +913,17 @@ variable "waf_auth_rate_action" {
   type    = string
   default = "count"
 }
+# Item 13 (L4, 2026-11-25): AWS WAF Account Takeover Prevention on the
+# password sign-in. Paid (subscription + per 1 000 sign-ins analyzed), off by
+# default; "count" first, "block" after a clean week of the WAF metric.
+variable "waf_atp_enabled" {
+  type    = bool
+  default = false
+}
+variable "waf_atp_action" {
+  type    = string
+  default = "count"
+}
 variable "alb_deletion_protection" {
   type    = bool
   default = true

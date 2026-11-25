@@ -10,7 +10,6 @@ import {
   ParseUUIDPipe,
   Post,
   Req,
-  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -31,7 +30,6 @@ import {
 } from '../../../common/dto/api-docs.decorators';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { AppCheckGuard } from '../app-check/app-check.guard';
 import { AssistantSelf } from '../assistant/assistant-context';
 import { AuthService } from '../auth.service';
 import {
@@ -90,7 +88,6 @@ const PASSKEY_REAUTH_PER_USER_PER_HOUR = 60;
 @AssistantSelf()
 @Controller('auth/passkeys')
 @UseInterceptors(WebSessionCookieInterceptor)
-@UseGuards(AppCheckGuard)
 export class PasskeyController {
   constructor(
     private readonly passkeys: PasskeyService,
