@@ -10,6 +10,7 @@ sources:
   - Bunny Stream authentication | https://bunny.net/docs/stream/authentication
   - Embed token authentication | https://bunny.net/docs/stream-embed-token-authentication
   - Token authentication with mobile SDKs | https://docs.bunny.net/stream/mobile-sdk-token-authentication
+  - Update Video Library (API) | https://bunny.net/docs/reference/videolibrarypublic_update
 ---
 
 ## Что это и зачем
@@ -61,3 +62,22 @@ Bunny Stream принимает загруженные видео и рилсы,
 - Вставили API Key аккаунта вместо ключа библиотеки: загрузка не пройдёт.
 - Перепутали API Key и ключ токена-защиты: ссылки не будут открываться.
 - Не пополнили счёт: сервис остановит загрузку.
+
+## Настройки кодирования записаны в коде
+
+Какие качества (240p, 360p, 480p, 720p, 1080p), какие кодеки (H.264; AV1 только на платном **Premium encoding**), запасной MP4 и отсутствие водяного знака записаны в файле `scripts/deploy/bunny-stream-settings.json`. При каждом выкате сервер сам сверяет их с библиотекой в Bunny, только читает. Если в панели Bunny что-то поменяли, проверка «Deploy: Bunny Stream settings match the code» краснеет и приходит сообщение; сам выкат при этом идёт.
+
+Пока ключей нет, проверка только пишет «не проверено». Чтобы она заработала:
+
+1. В Bunny откройте настройки аккаунта (**Account settings** → **API**; точное место сверьте на экране) и скопируйте **API Key** аккаунта, не библиотеки. Этот же ключ уже может стоять в нашей админке в поле «Account API key».
+2. На GitHub: репозиторий → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
+3. Имя `BUNNY_ACCOUNT_API_KEY`, значение: ключ из шага 1. Сохранить (**Add secret**).
+4. Ещё один секрет: имя `BUNNY_LIBRARY_ID`, значение: Video Library ID (цифры, как в нашей админке).
+
+Если проверка покраснела, исправить библиотеку под код может только владелец, отдельной командой в терминале из папки проекта (сначала без `--yes`: она лишь покажет разницу):
+
+`BUNNY_LIBRARY_ID=<цифры> BUNNY_ACCOUNT_API_KEY=<ключ> node scripts/deploy/bunny-stream-settings.mjs apply --yes`
+
+Водяной знак так не снимается: **Stream** → библиотека → **Encoding** → **Watermark** → удалить.
+
+AV1 (меньше трафика у новых телефонов, как у Instagram Reels) Bunny даёт только на **Premium encoding**, он платный за минуту. Включать только по решению владельца: в файле поставить `"encodingTier": 1`, затем команда выше. H.264 остаётся всегда, для старых телефонов.

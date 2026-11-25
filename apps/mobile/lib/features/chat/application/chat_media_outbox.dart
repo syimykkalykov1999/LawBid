@@ -140,9 +140,41 @@ class ChatMediaHandler extends UploadJobHandler {
   }
 }
 
+/// Owner 24.11 (Telegram / Signal outgoing queue: sending → sent): the
+/// saved progress key of a file whose bytes are already in storage and
+/// confirmed; only its antivirus scan is still awaited.
+const kStoredFileKey = 'storedFileId';
+
+/// The file id kept by [_keepStored] (null: the bytes still have to go).
+String? storedFileOf(UploadJob job) => job.progress[kStoredFileKey] as String?;
+
+/// Hands the uploader the step that keeps a stored file in the job: a slow
+/// scan is then waited for again, the bytes are never sent twice.
+Future<void> Function(String) _keepStored(UploadJobScope scope) => (id) async {
+      scope.reportProgress(1);
+      await scope.saveProgress({kStoredFileKey: id});
+    };
+
+/// A job whose file is already stored: waits for its scan only. Null when
+/// the server no longer has that file (then it is uploaded again).
+Future<String?> _waitStored(UploadJob job, UploadJobScope scope) async {
+  final stored = storedFileOf(job);
+  if (stored == null) return null;
+  scope.reportProgress(1);
+  try {
+    return await scope.uploader.waitStored(stored);
+  } on ApiException catch (e) {
+    if (e.statusCode != 404 && e.code != ApiErrorCodes.notFound) rethrow;
+    await scope.saveProgress({kStoredFileKey: null});
+    return null;
+  }
+}
+
 /// Sends the note of a chat or group voice job to storage (`chat_voice`,
 /// m4a, or webm from a browser) and returns its file id.
 Future<String> uploadChatVoiceJob(UploadJob job, UploadJobScope scope) async {
+  final stored = await _waitStored(job, scope);
+  if (stored != null) return stored;
   // A note is small: read it whole to tell m4a from a browser's webm.
   final bytes = await scope.bytes();
   if (bytes == null) {
@@ -168,6 +200,7 @@ Future<String> uploadChatVoiceJob(UploadJob job, UploadJobScope scope) async {
     taskId: job.id,
     savedTarget: StorageTarget.fromJson(job.progress['target']),
     onTarget: (t) => scope.saveProgress({'target': t.toJson()}),
+    onStored: _keepStored(scope),
   );
 }
 
@@ -177,6 +210,8 @@ Future<String> uploadChatAttachmentJob(
   UploadJob job,
   UploadJobScope scope,
 ) async {
+  final stored = await _waitStored(job, scope);
+  if (stored != null) return stored;
   final body = await scope.body();
   if (await body.length() > kChatAttachmentCeilingBytes) {
     throw const ApiException(
@@ -196,6 +231,7 @@ Future<String> uploadChatAttachmentJob(
     // R-251: parts already in storage are not sent again after a restart.
     resumeFileId: job.progress['partsFileId'] as String?,
     onPartsFileId: (id) => unawaited(scope.saveProgress({'partsFileId': id})),
+    onStored: _keepStored(scope),
   );
 }
 
@@ -268,7 +304,10 @@ ChatMessage chatMessageOfJob(
             localBytes: previewBytes,
             width: (p['width'] as num?)?.toInt(),
             height: (p['height'] as num?)?.toInt(),
-            progress: progress,
+            // Owner 24.11: bytes in storage (also after a restart) = 1, so
+            // the bubble stops its ring while only the server's scan runs.
+            progress:
+                job.fileId != null || storedFileOf(job) != null ? 1 : progress,
           )
         : null,
   );

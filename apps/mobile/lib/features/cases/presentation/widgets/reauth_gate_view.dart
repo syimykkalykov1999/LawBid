@@ -9,8 +9,8 @@ import 'package:material_ui/material_ui.dart';
 
 /// Re-authentication gate (docs/04 §12, docs/06 §5.2). Owner 2026-10-28:
 /// the ACCOUNT PASSWORD first ([PasswordStepUp]); a code to the verified
-/// phone only after «Забыли пароль?» or for an account without a password
-/// → `POST /auth/reauth`; the resulting token lives in
+/// e-mail (pack E, 25.11: never an SMS) only after «Забыли пароль?» or for
+/// an account without a password → `POST /auth/reauth`; the resulting token lives in
 /// [historyAccessProvider] for five minutes and unlocks every
 /// reauth-guarded settings screen (case history, data export).
 class ReauthGateView extends ConsumerWidget {
@@ -37,7 +37,11 @@ class ReauthGateView extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final c = ref.read(historyAccessProvider.notifier);
-    final phone = c.phone;
+    // The verified e-mail the code goes to (the same one [c] sends to).
+    final contact = ref.watch(
+      currentUserControllerProvider
+          .select((s) => s.user?.reauthIdentifier?.identifier),
+    );
     // Owner 2026-10-08: no code can reach a demo session — one tap instead.
     final demo = ref.watch(isDemoSessionProvider);
     // Owner 2026-10-28: the account password instead of a paid SMS code.
@@ -87,9 +91,9 @@ class ReauthGateView extends ConsumerWidget {
                 ? t.t('demo.reauth.message')
                 : password
                     ? t.t('stepUp.password.body')
-                    : phone == null
+                    : contact == null
                         ? t.t('history.reauth.noPhone')
-                        : t.t('history.reauth.message', {'phone': phone}),
+                        : t.t('history.reauth.message', {'phone': contact}),
             textAlign: TextAlign.center,
             style: typography.body.copyWith(color: colors.textSecondary),
           ),
@@ -129,7 +133,7 @@ class ReauthGateView extends ConsumerWidget {
             style: typography.bodySmall.copyWith(color: colors.dangerText),
           ),
         if (!demo && !password) const SizedBox(height: AppSpacing.xl),
-        if (!demo && !password && !access.codeSent && phone != null)
+        if (!demo && !password && !access.codeSent && contact != null)
           AppButton(
             label: t.t('history.reauth.send'),
             isLoading: access.busy,

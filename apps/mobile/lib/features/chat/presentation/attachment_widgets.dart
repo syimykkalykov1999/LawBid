@@ -550,7 +550,10 @@ class AttachmentMessageBody extends ConsumerWidget {
                     url: a.url ?? '',
                     child: ChatPhoto(attachment: a, size: box),
                   ),
-                  if (sending)
+                  // Owner 24.11 (Telegram): the ring only while the bytes go
+                  // up; then the photo shows plain with the clock until the
+                  // server took the message.
+                  if (sending && a.progress < 1)
                     ColoredBox(
                       color: Colors.black26,
                       child: Center(
