@@ -129,7 +129,7 @@ ProviderContainer _container(
   return c;
 }
 
-/// KNOWN_ERRORS 235: the queue sends in the background (`unawaited(drain())`
+/// KNOWN_ERRORS 237: the queue sends in the background (`unawaited(drain())`
 /// after `sendVoice` / `retry`) through real file I/O, Drift and its
 /// query stream, so a fixed 50 ms wait lost the race under the full suite's
 /// load. Wait for the thread to reach the expected state instead (as
