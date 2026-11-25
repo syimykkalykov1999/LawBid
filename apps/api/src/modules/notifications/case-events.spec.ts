@@ -1,3 +1,8 @@
+import {
+  dropCommitScope,
+  flushCommitScope,
+  openCommitScope,
+} from '../../prisma/after-commit';
 import { eventOf, publishCaseEvent } from './case-events';
 import { NotificationsService } from './notifications.service';
 
@@ -135,11 +140,39 @@ describe('case events from notifications', () => {
       source: 'bid_received',
     });
     toUsers.mockClear();
-    publishCaseEvent(realtime, 'u1', 'case_closed', { caseId: 'c' }, 300);
-    expect(toUsers).not.toHaveBeenCalled();
-    jest.advanceTimersByTime(300);
-    expect(toUsers).toHaveBeenCalledTimes(1);
     publishCaseEvent(undefined, 'u1', 'case_closed', { caseId: 'c' });
+    jest.useRealTimers();
+  });
+
+  it('pack C: inside a transaction it leaves after the commit, once; a rollback sends nothing', () => {
+    jest.useFakeTimers();
+    const toUsers = jest.fn();
+    const realtime = { toUsers } as never;
+    const tx = {};
+    const scope = openCommitScope(tx);
+    publishCaseEvent(realtime, 'u1', 'case_closed', { caseId: 'c' }, tx);
+    // No timer sends it while the transaction is still open.
+    jest.advanceTimersByTime(5_000);
+    expect(toUsers).not.toHaveBeenCalled();
+    flushCommitScope(scope);
+    expect(toUsers).toHaveBeenCalledTimes(1);
+    flushCommitScope(scope);
+    expect(toUsers).toHaveBeenCalledTimes(1);
+
+    toUsers.mockClear();
+    const rolledBack = {};
+    const lost = openCommitScope(rolledBack);
+    publishCaseEvent(
+      realtime,
+      'u1',
+      'case_closed',
+      { caseId: 'c' },
+      rolledBack,
+    );
+    dropCommitScope(lost);
+    jest.advanceTimersByTime(5_000);
+    flushCommitScope(lost);
+    expect(toUsers).not.toHaveBeenCalled();
     jest.useRealTimers();
   });
 

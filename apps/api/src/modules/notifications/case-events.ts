@@ -1,3 +1,4 @@
+import { afterCommit } from '../../prisma/after-commit';
 import type { RealtimePublisher } from '../realtime/realtime-publisher.service';
 
 /**
@@ -166,19 +167,21 @@ function bidPatchOf(
   };
 }
 
-/** Publishes the implied event to [recipientId]; [delayMs] > 0 lets the
- * caller's transaction commit first (best-effort, like the push). */
+/** Publishes the implied event to [recipientId]. With [tx] it leaves only
+ * once that transaction has committed, exactly once (pack C, round 2 #3:
+ * a 300 ms timer sent it for rolled-back and retried transactions too). */
 export function publishCaseEvent(
   realtime: RealtimePublisher | undefined,
   recipientId: string,
   type: string,
   payload: unknown,
-  delayMs = 0,
+  tx?: object | null,
 ): void {
   if (!realtime) return;
   const ev = eventOf(type, payload);
   if (!ev) return;
   const send = () => realtime.toUsers([recipientId], ev.event, ev.data);
-  if (delayMs > 0) setTimeout(send, delayMs).unref?.();
-  else send();
+  // A transaction the PrismaService did not open (a hand-made test client)
+  // cannot report its commit: it is sent right away.
+  if (!afterCommit(tx, send)) send();
 }
