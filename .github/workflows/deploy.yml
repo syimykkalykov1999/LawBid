@@ -604,6 +604,16 @@ jobs:
           SYNTHETIC_IDENTIFIER: ${{ secrets.SYNTHETIC_IDENTIFIER }}
           SYNTHETIC_PASSWORD: ${{ secrets.SYNTHETIC_PASSWORD }}
         run: node scripts/ops/synthetic-check.mjs "${{ secrets.PROD_API_URL }}" --expect-version "$IMAGE_TAG"
+      # Б6: the website and the status page after every release. Only a
+      # report: a website fault is not this API release's fault, so it never
+      # rolls the API back (the step is not in the rollback condition below).
+      - name: Synthetic website (lawbid.dev + status page, report only)
+        continue-on-error: true
+        env:
+          SYNTHETIC_ONLY_WEB: "1"
+          SYNTHETIC_WEB_URL: ${{ vars.SYNTHETIC_WEB_URL || 'https://lawbid.dev' }}
+          SYNTHETIC_STATUS_URL: ${{ vars.SYNTHETIC_STATUS_URL || 'https://status.lawbid.dev' }}
+        run: node scripts/ops/synthetic-check.mjs "${{ secrets.PROD_API_URL }}"
       # Owner 15.11 («разреши "Авто" само применять обновления кода своих
       # функций без меня»): the autoscale Lambdas' source hash on main. The
       # API compares it with deploy/autoscale_code_applied (written by the

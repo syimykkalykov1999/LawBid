@@ -1005,6 +1005,34 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
+## web-vitals 6.2.3 (Google) — Apache-2.0
+
+Б6 / G8 (25.11): `web/vendor/web-vitals-6.2.3/web-vitals.iife.js` is the file
+`dist/web-vitals.iife.js` of the npm package `web-vitals@6.2.3`
+(https://github.com/GoogleChrome/web-vitals), copied whole and **unmodified**,
+SHA-256 `1e5e9b9af6b8d71cfef508e5a869c53b4cf2bbccad8c9b5ac664c34e93f6151a`
+(the same version the admin panel already uses through npm). It measures LCP,
+INP, CLS and TTFB of real visits of the website. Our own glue,
+`web/js/web_vitals_beacon.js`, only calls its public `onLCP` / `onINP` /
+`onCLS` / `onTTFB` and sends the good / needs-improvement / poor rating.
+Full licence text: `web/vendor/web-vitals-6.2.3/LICENSE`.
+
+NOTICE:
+
+Copyright 2020 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
 ## flutter_secure_storage 9.2.4 — BSD-3-Clause
 
 https://github.com/juliansteenbakker/flutter_secure_storage. Row 149: `android/app/src/main/kotlin/com/lawbid/lawbid/LegacySecureStorage.kt` reads what version 9 kept in EncryptedSharedPreferences with the file name, key prefix and MasterKey scheme copied from version 9's `FlutterSecureStorage.java` (and the Tink key-set names from version 11's `UpgradeInspector.java`). The reading itself is done by `androidx.security:security-crypto` 1.1.0 (Apache-2.0, Google), the library version 9 used.

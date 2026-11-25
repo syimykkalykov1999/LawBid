@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/connectivity/connection_title.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
+import 'package:lawbid/core/diagnostics/sentry_native.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
@@ -1271,11 +1272,15 @@ class _MessageListState extends ConsumerState<_MessageList> {
       // R-380: the composer is already up (the conversation came from the
       // chats list); the first page is still on its way.
       if (state.loading) return const CasesListSkeleton();
+      // Б6 / G7: an empty chat is fully shown too (time to full display).
+      SentryNative.reportFullyDisplayed();
       return AppEmptyState(
         icon: AppIcons.chatBubbleOutlineRounded,
         message: t.t('chat.thread.empty'),
       );
     }
+    // Б6 / G7: the chat's messages are on the screen (time to full display).
+    SentryNative.reportFullyDisplayed();
     // The newest own message the other side has read (§8.2 "Seen"), and
     // two grey ticks up to the newest message that reached the other
     // device (reading counts as well). Owner 2026-10-19: photos / files
