@@ -353,6 +353,12 @@
       "owner": false,
       "skip": "Тревога процессора серверов для инженера; владельцу — «Масштаб»."
     },
+    "error-budget-policy.md": {
+      "owner": true,
+      "guides": [
+        "error-budget-policy"
+      ]
+    },
     "infra-alarms.md": {
       "owner": false,
       "guides": [
