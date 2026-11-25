@@ -459,6 +459,25 @@ void main() {
     expect(loader.calls, 1);
     await Future<void>.delayed(const Duration(milliseconds: 60));
   });
+
+  test('owner 18.11: a call screen re-reads the switches unless just read',
+      () async {
+    final c = await make();
+    final startup = c.read(appStartupProvider.notifier);
+    // Not started yet: nothing is asked.
+    await startup.refreshConfigIfOlderThan(Duration.zero);
+    expect(loader.calls, 0);
+    await startup.run();
+    expect(loader.calls, 1);
+    // Read a moment ago: a second call screen asks nothing.
+    await startup.refreshConfigIfOlderThan(const Duration(minutes: 1));
+    expect(loader.calls, 1);
+    // Older than allowed: read again (the admin's video switch with it).
+    await startup.refreshConfigIfOlderThan(Duration.zero);
+    expect(loader.calls, 2);
+    expect(flags.calls, hasLength(2));
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+  });
 }
 
 class _NoNetworkEvents implements NetworkInterfaceMonitor {
