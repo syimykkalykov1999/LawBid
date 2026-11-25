@@ -446,6 +446,12 @@
       "owner": false,
       "skip": "Тревога Redis для инженера; владельцу — карточка на «Масштабе» и «Автомасштабирование»."
     },
+    "region-dr.md": {
+      "owner": true,
+      "guides": [
+        "region-dr"
+      ]
+    },
     "restore-drill.md": {
       "owner": false,
       "guides": [

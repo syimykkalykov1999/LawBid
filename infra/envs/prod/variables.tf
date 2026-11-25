@@ -6,6 +6,12 @@ variable "replica_region" {
   type    = string
   default = "us-west-2"
 }
+# Stage 2 SRE (Б8): every secret also lives in replica_region (the DR region),
+# so envs/dr can start after a region loss. ≈ $0.40 per secret a month.
+variable "secrets_replica_enabled" {
+  type    = bool
+  default = true
+}
 variable "azs" {
   type    = list(string)
   default = ["us-east-1a", "us-east-1b"]
