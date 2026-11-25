@@ -292,6 +292,15 @@ is (https://developer.android.com/topic/performance/graphics/load-bitmap,
 read 2026-11-13). Code samples on that site are licensed under the Apache
 License, Version 2.0, as for livekit_client above.
 
+## Android developer guide «Optimize network data usage» — Apache-2.0
+
+The Data Saver check in `android/.../DataSaverChannel.kt`
+(`isActiveNetworkMetered`, then `restrictBackgroundStatus ==
+RESTRICT_BACKGROUND_STATUS_ENABLED`, and the in-code receiver for
+`ACTION_RESTRICT_BACKGROUND_CHANGED`) is the guide's Kotlin sample
+(https://developer.android.com/develop/connectivity/network-ops/data-saver,
+read 2026-11-25), Apache License, Version 2.0, as above.
+
 ## tus-js-client — MIT
 
 The parallel reel upload in `lib/features/reels/data/reels_repository.dart`
