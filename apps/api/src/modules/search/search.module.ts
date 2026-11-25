@@ -6,6 +6,7 @@ import { CasesModule } from '../cases/cases.module';
 import { FollowsModule } from '../follows/follows.module';
 import { PostsModule } from '../posts/posts.module';
 import { ProfilesModule } from '../profiles/profiles.module';
+import { RecommendationsModule } from '../recommendations/recommendations.module';
 import { OPENSEARCH_CLIENT_PROVIDER } from './engine/opensearch.client';
 import { OpenSearchProvider } from './engine/opensearch-search.provider';
 import { SearchDocsLoader } from './engine/search-docs.loader';
@@ -62,6 +63,11 @@ export class SearchCoreModule {}
     ProfilesModule,
     // OQ-028: blocked users drop out of People.
     BlocksModule,
+    // 25.11 (owner-reco-ranker e2e): SearchService takes the ranking as
+    // @Optional() and this module never imported it, so «Для вас» of the
+    // Posts grid was served newest first and the people / cases
+    // tie-breaks never ran.
+    RecommendationsModule,
   ],
   controllers: [SearchController],
   providers: [

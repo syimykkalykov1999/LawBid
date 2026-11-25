@@ -88,6 +88,14 @@ interface Seen {
 
 export const positionsKey = (userId: string): string => `rk:pos:${userId}`;
 
+/** The learned rankers' switches (posts, reels, cases): one not off keeps
+ * «Авто» logging (their training data). */
+export const LEARNED_RANKER_MODES = [
+  'reco.ranker.mode',
+  'reco.ranker.reels.mode',
+  'reco.ranker.cases.mode',
+] as const;
+
 /**
  * The ranking events log (owner 2026-10-25). `logImpression` / `logAction`
  * never throw and never wait for the database: rows are buffered and written
@@ -274,16 +282,21 @@ export class RankingEventsService implements OnModuleDestroy {
     const now = Date.now();
     if (this.cfg && now - this.cfg.at < SETTINGS_TTL_MS) return this.cfg;
     try {
-      const [rawMode, sample] = await Promise.all([
+      const [rawMode, sample, ...rankerModes] = await Promise.all([
         this.settings.string('ranking.events_mode'),
         this.settings.number('ranking.impression_sample_percent'),
+        ...LEARNED_RANKER_MODES.map((k) => this.settings.string(k)),
       ]);
       const mode: RankingEventsMode =
         rawMode === 'on' || rawMode === 'off' ? rawMode : 'auto';
-      // «Авто»: the signal is "at least one experiment is running".
+      // «Авто»: the signal is "at least one experiment is running" — or
+      // (owner 25.11) a feed's learned ranker is not off: it needs the
+      // sampled impressions to be trained at all (a model only takes over
+      // once trained on them and better than the formula).
       const running =
         mode === 'auto'
-          ? (await this.prisma.experiment.count({
+          ? rankerModes.some((m) => m === 'on' || m === 'auto') ||
+            (await this.prisma.experiment.count({
               where: { status: 'running' },
             })) > 0
           : false;

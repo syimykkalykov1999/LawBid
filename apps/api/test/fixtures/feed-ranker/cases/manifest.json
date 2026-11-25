@@ -1,0 +1,35 @@
+{
+  "feature_spec_version": "cases-ranker-features-v1",
+  "features": [
+    "practice",
+    "state",
+    "fresh",
+    "budget",
+    "competition",
+    "urgency",
+    "client",
+    "demand",
+    "clientActive",
+    "urgentActive",
+    "dateNear",
+    "bidOn"
+  ],
+  "feed": "cases",
+  "input_name": "features",
+  "libs": {
+    "lightgbm": "4.7.0",
+    "onnxmltools": "1.16.0"
+  },
+  "metrics": {
+    "judged_lists": 12,
+    "k": 10,
+    "ndcg_formula": 0.551064,
+    "ndcg_model": 0.969387
+  },
+  "onnx_max_abs_diff": 2.0852771376311807e-07,
+  "rows": 720,
+  "sha256": "068f23bdec696f5d867785d0ff6da98d3a92600bcc38f7fde657764a43498e3c",
+  "trained_at": "2026-11-25T00:00:00Z",
+  "trees": 8,
+  "version": "fixture"
+}

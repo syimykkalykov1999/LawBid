@@ -464,10 +464,12 @@ describe('Recommendations + experiments wiring (e2e)', () => {
         .map((p) => p.id)
         .filter((id) => mine.includes(id));
     expect(await reels()).toEqual([loved.id, fresh.id]);
+    // Owner 25.11: the reels feed logs on its own surface (its own learned
+    // ranker trains on it).
     const imps = await rankingRows({
       kind: 'impression',
       user_id: viewer.id,
-      surface: 'posts',
+      surface: 'reels',
       item_id: { in: mine },
     });
     expect(imps.map((r) => r.item_id)).toEqual([loved.id, fresh.id]);

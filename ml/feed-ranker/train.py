@@ -1,21 +1,28 @@
-"""Offline training of the posts ranker (F2): LightGBM LambdaMART -> ONNX.
+"""Offline training of the learned feed rankers: LightGBM LambdaMART -> ONNX.
 
-Two-stage ranking like Instagram / Twitter: the API's formula picks and
-orders the candidates (stage 1); this model re-orders the best N of them
-for each viewer (stage 2). It learns from ranking_events: the impressions
-of the Search «For you» grid and the reels (surface `posts`, each with the
-0..1 features the formula saw) and what the viewer then did with the post.
+Two-stage ranking like Instagram / TikTok / YouTube: the API's formula
+picks and orders the candidates (stage 1); a model re-orders the best N of
+them for each viewer (stage 2). One model per feed (--feed), each with its
+own features (features.py, feature_spec*.json) and labels, learned from
+ranking_events: the impressions of that feed (each with the 0..1 features
+the API saw) and what the viewer then did with the item.
 
-  relevance 3 = saved it, 2 = liked it, 1 = opened it, 0 = nothing
-  (likes and saves count within 24 h after the impression)
+  --feed posts (default; Search «Для вас», surface `posts`):
+    3 = saved it, 2 = liked it, 1 = opened it, 0 = nothing (24 h)
+  --feed reels (the reels feed, surface `reels`):
+    4 = shared it, 3 = saved it, 2 = liked it,
+    1 = watched it (3 s of real playback, or opened), 0 = scrolled past (24 h)
+  --feed cases (the attorneys' case feed, surface `case_feed`):
+    3 = hired on it (offer made within 7 days, accepted), 2 = made an offer
+    (within 7 days), 1 = opened it, 0 = nothing
 
 Usage
   # straight from the database (read replica; read-only queries):
-  python train.py --dsn "$RANKER_TRAIN_DSN" --days 30 --out out
+  python train.py --feed reels --dsn "$RANKER_TRAIN_DSN" --days 30 --out out
   # or from an export (one JSON object per line, see Record below):
-  python train.py --input events.jsonl --out out
+  python train.py --feed cases --input events.jsonl --out out
   # the live A/B test once a model runs (model arm vs the formula):
-  python train.py --report --dsn "$RANKER_TRAIN_DSN" --days 14
+  python train.py --feed posts --report --dsn "$RANKER_TRAIN_DSN" --days 14
 
 Writes out/<version>/model.onnx and out/<version>/manifest.json and prints
 where to put them (S3 key) and which admin setting to change. It uploads
@@ -63,7 +70,7 @@ class Record:
 # data
 
 
-SQL = """
+SQL_HEAD = """
 WITH imp AS (
   SELECT list_id, item_id, user_id, position, features, created_at,
          COALESCE(formula_version, '') AS formula_version
@@ -81,29 +88,75 @@ WITH imp AS (
 SELECT imp.list_id, imp.item_id, imp.position, imp.features::text,
        EXTRACT(EPOCH FROM imp.created_at)::float8, imp.formula_version,
        CASE
-         WHEN EXISTS (SELECT 1 FROM saved_items s
-                       WHERE s.user_id = imp.user_id AND s.item_type = 'post'
-                         AND s.item_id = imp.item_id::uuid
-                         AND s.created_at BETWEEN imp.created_at
-                                              AND imp.created_at + interval '1 day') THEN 3
-         WHEN EXISTS (SELECT 1 FROM post_likes l
-                       WHERE l.user_id = imp.user_id AND l.post_id = imp.item_id::uuid
-                         AND l.created_at BETWEEN imp.created_at
-                                              AND imp.created_at + interval '1 day') THEN 2
-         WHEN clk.list_id IS NOT NULL THEN 1
+"""
+
+SQL_TAIL = """
          ELSE 0
        END AS relevance
   FROM imp LEFT JOIN clk ON clk.list_id = imp.list_id AND clk.item_id = imp.item_id
  ORDER BY imp.created_at
 """
 
+_DAY = "imp.created_at AND imp.created_at + interval '1 day'"
+_WEEK = "imp.created_at AND imp.created_at + interval '7 days'"
+_SAVED = f"""WHEN EXISTS (SELECT 1 FROM saved_items s
+                       WHERE s.user_id = imp.user_id AND s.item_type = 'post'
+                         AND s.item_id = imp.item_id::uuid
+                         AND s.created_at BETWEEN {_DAY})"""
+_LIKED = f"""WHEN EXISTS (SELECT 1 FROM post_likes l
+                       WHERE l.user_id = imp.user_id AND l.post_id = imp.item_id::uuid
+                         AND l.created_at BETWEEN {_DAY})"""
 
-def load_db(dsn: str, days: int, surface: str) -> list[Record]:
+# The relevance label of each feed (graded, best first).
+LABELS = {
+    "posts": f"""
+         {_SAVED} THEN 3
+         {_LIKED} THEN 2
+         WHEN clk.list_id IS NOT NULL THEN 1""",
+    "reels": f"""
+         WHEN EXISTS (SELECT 1 FROM post_shares sh
+                       WHERE sh.user_id = imp.user_id AND sh.post_id = imp.item_id::uuid
+                         AND sh.created_at BETWEEN {_DAY}) THEN 4
+         {_SAVED} THEN 3
+         {_LIKED} THEN 2
+         WHEN clk.list_id IS NOT NULL
+           OR EXISTS (SELECT 1 FROM post_view_events v
+                       WHERE v.viewer_id = imp.user_id AND v.post_id = imp.item_id::uuid
+                         AND v.kind = 'view'
+                         AND v.created_at BETWEEN {_DAY}) THEN 1""",
+    "cases": f"""
+         WHEN EXISTS (SELECT 1 FROM bids b
+                       WHERE b.attorney_id = imp.user_id AND b.case_id = imp.item_id::uuid
+                         AND b.status = 'accepted'
+                         AND b.created_at BETWEEN {_WEEK}) THEN 3
+         WHEN EXISTS (SELECT 1 FROM bids b
+                       WHERE b.attorney_id = imp.user_id AND b.case_id = imp.item_id::uuid
+                         AND b.created_at BETWEEN {_WEEK}) THEN 2
+         WHEN clk.list_id IS NOT NULL THEN 1""",
+}
+
+# What the API calls each feed's test and where its model lives.
+FEED_RUNTIME = {
+    "posts": {"experiment": "post_ranker", "dir": "ml/feed-ranker", "setting": "reco.ranker"},
+    "reels": {"experiment": "reel_ranker", "dir": "ml/feed-ranker/reels", "setting": "reco.ranker.reels"},
+    "cases": {"experiment": "case_ranker", "dir": "ml/feed-ranker/cases", "setting": "reco.ranker.cases"},
+}
+
+
+def label_sql(feed: str) -> str:
+    return SQL_HEAD + LABELS[feed] + SQL_TAIL
+
+
+# Posts query under its first name.
+SQL = label_sql("posts")
+
+
+def load_db(dsn: str, days: int, surface: str, feed: str = "posts") -> list[Record]:
     conn = connect(dsn)
     try:
         cur = conn.cursor()
         cur.execute("SET TRANSACTION READ ONLY")
-        cur.execute(SQL, (surface, days, surface, days))
+        cur.execute(label_sql(feed), (surface, days, surface, days))
         return [
             Record(r[0], r[1], int(r[2] or 0), json.loads(r[3]), float(r[4]), r[5], int(r[6]))
             for r in cur.fetchall()
@@ -119,7 +172,7 @@ SELECT variant,
        COUNT(*) FILTER (WHERE kind = 'impression' AND position <= %s) AS top_impressions,
        COUNT(*) FILTER (WHERE kind = 'click' AND position <= %s) AS top_clicks
   FROM ranking_events
- WHERE experiment_key = 'post_ranker' AND surface = %s
+ WHERE experiment_key = %s AND surface = %s
    AND created_at >= now() - make_interval(days => %s)
  GROUP BY variant
  ORDER BY variant
@@ -153,19 +206,21 @@ def connect(dsn: str):
     )
 
 
-def report(dsn: str, days: int, surface: str) -> int:
-    """The live A/B test (key post_ranker): CTR of the model arm vs the
-    control arm (the formula), with 95% intervals. Read-only."""
+def report(dsn: str, days: int, surface: str, feed: str = "posts") -> int:
+    """The live A/B test of [feed] (post_ranker / reel_ranker /
+    case_ranker): CTR of the model arm vs the control arm (the formula),
+    with 95% intervals. Read-only."""
+    key = FEED_RUNTIME[feed]["experiment"]
     conn = connect(dsn)
     try:
         cur = conn.cursor()
         cur.execute("SET TRANSACTION READ ONLY")
-        cur.execute(REPORT_SQL, (K, K, surface, days))
+        cur.execute(REPORT_SQL, (K, K, key, surface, days))
         rows = cur.fetchall()
     finally:
         conn.close()
     if not rows:
-        print("No post_ranker impressions yet.")
+        print(f"No {key} impressions yet.")
         return 0
     for variant, imp, clk, timp, tclk in rows:
         lo, hi = wilson(int(tclk), int(timp))
@@ -227,20 +282,21 @@ def mean(xs: list[float]) -> float:
 # model
 
 
-def matrix(lists: list[list[Record]]):
+def matrix(lists: list[list[Record]], spec: feats.FeedSpec = feats.POSTS):
     import numpy as np
 
-    rows = [feats.vectorize(r.features) for g in lists for r in g]
-    x = np.array(rows, dtype=np.float32).reshape(-1, len(feats.FEATURES))
+    rows = [spec.vectorize(r.features) for g in lists for r in g]
+    x = np.array(rows, dtype=np.float32).reshape(-1, len(spec.features))
     y = np.array([r.relevance for g in lists for r in g], dtype=np.int32)
     return x, y, [len(g) for g in lists]
 
 
-def train_model(train: list[list[Record]], valid: list[list[Record]], args) -> Any:
+def train_model(train: list[list[Record]], valid: list[list[Record]], args,
+                spec: feats.FeedSpec = feats.POSTS) -> Any:
     import lightgbm as lgb
 
-    x, y, g = matrix(train)
-    vx, vy, vg = matrix(valid)
+    x, y, g = matrix(train, spec)
+    vx, vy, vg = matrix(valid, spec)
     model = lgb.LGBMRanker(
         objective="lambdarank",
         n_estimators=args.trees,
@@ -270,13 +326,13 @@ def train_model(train: list[list[Record]], valid: list[list[Record]], args) -> A
     return model
 
 
-def export_onnx(model: Any) -> bytes:
+def export_onnx(model: Any, spec: feats.FeedSpec = feats.POSTS) -> bytes:
     from onnxmltools import convert_lightgbm
     from onnxmltools.convert.common.data_types import FloatTensorType
 
     onx = convert_lightgbm(
         model,
-        initial_types=[(INPUT_NAME, FloatTensorType([None, len(feats.FEATURES)]))],
+        initial_types=[(INPUT_NAME, FloatTensorType([None, len(spec.features)]))],
         target_opset=ONNX_OPSET,
         zipmap=False,
     )
@@ -349,16 +405,17 @@ def onnx_matches(model: Any, onnx_bytes: bytes, x, tol: float = 1e-4) -> float:
     return diff
 
 
-def model_order(model: Any, g: list[Record]) -> list[int]:
+def model_order(model: Any, g: list[Record], spec: feats.FeedSpec = feats.POSTS) -> list[int]:
     import numpy as np
 
-    x = np.array([feats.vectorize(r.features) for r in g], dtype=np.float32)
+    x = np.array([spec.vectorize(r.features) for r in g], dtype=np.float32)
     s = model.predict(x)
     order = sorted(range(len(g)), key=lambda i: (-float(s[i]), g[i].position))
     return [g[i].relevance for i in order]
 
 
-def evaluate(model: Any, valid: list[list[Record]]) -> dict[str, Any]:
+def evaluate(model: Any, valid: list[list[Record]],
+             spec: feats.FeedSpec = feats.POSTS) -> dict[str, Any]:
     """NDCG@K of the order people saw (the formula) vs the model's order, on
     the validation lists served by the formula where somebody did something."""
     judged = [
@@ -367,7 +424,7 @@ def evaluate(model: Any, valid: list[list[Record]]) -> dict[str, Any]:
         if any(r.relevance > 0 for r in g) and not g[0].formula_version.startswith("ranker:")
     ]
     formula = [ndcg_at_k([r.relevance for r in g]) for g in judged]
-    learned = [ndcg_at_k(model_order(model, g)) for g in judged]
+    learned = [ndcg_at_k(model_order(model, g, spec)) for g in judged]
     return {
         "k": K,
         "judged_lists": len(judged),
@@ -376,14 +433,16 @@ def evaluate(model: Any, valid: list[list[Record]]) -> dict[str, Any]:
     }
 
 
-def manifest_for(model: Any, onnx_bytes: bytes, version: str, info: dict[str, Any]) -> dict[str, Any]:
+def manifest_for(model: Any, onnx_bytes: bytes, version: str, info: dict[str, Any],
+                 spec: feats.FeedSpec = feats.POSTS) -> dict[str, Any]:
     import lightgbm
     import onnxmltools
 
     return {
         "version": version,
-        "feature_spec_version": feats.SPEC["version"],
-        "features": feats.FEATURES,
+        "feed": spec.feed,
+        "feature_spec_version": spec.version,
+        "features": spec.features,
         "input_name": INPUT_NAME,
         "sha256": hashlib.sha256(onnx_bytes).hexdigest(),
         "trained_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -412,10 +471,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     src = p.add_mutually_exclusive_group(required=True)
     src.add_argument("--dsn", help="postgresql:// URL of the read replica")
     src.add_argument("--input", help="JSON lines export instead of the database")
+    p.add_argument("--feed", choices=feats.FEEDS, default="posts",
+                   help="which feed's model: posts (Search «Для вас»), reels, cases")
     p.add_argument("--report", action="store_true",
                    help="print the live A/B result (model vs formula) instead of training")
     p.add_argument("--days", type=int, default=30)
-    p.add_argument("--surface", default=feats.SPEC["surface"])
+    p.add_argument("--surface", default=None,
+                   help="ranking_events surface (default: the feed's own)")
     p.add_argument("--out", default="out")
     p.add_argument("--version", default="r" + time.strftime("%Y%m%d%H%M", time.gmtime()))
     p.add_argument("--valid-share", type=float, default=0.2)
@@ -429,6 +491,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     a = p.parse_args(argv)
     if len("ranker:" + a.version) > 32:
         p.error("--version: at most 25 characters (ranking_events.formula_version is 32)")
+    a.spec = feats.spec_for(a.feed)
+    a.surface = a.surface or a.spec.surface
     return a
 
 
@@ -438,8 +502,10 @@ def main(argv: list[str]) -> int:
         if not args.dsn:
             print("--report needs --dsn")
             return 2
-        return report(args.dsn, args.days, args.surface)
-    records = load_db(args.dsn, args.days, args.surface) if args.dsn else load_jsonl(args.input)
+        return report(args.dsn, args.days, args.surface, args.feed)
+    spec = args.spec
+    records = (load_db(args.dsn, args.days, args.surface, args.feed)
+               if args.dsn else load_jsonl(args.input))
     lists = group_lists(records)
     cut = int(len(lists) * (1 - args.valid_share))
     train = [g for g in lists[:cut] if any(r.relevance > 0 for r in g)]
@@ -451,15 +517,15 @@ def main(argv: list[str]) -> int:
         print(f"Not enough data yet: {judged} judged validation lists, need {args.min_judged_lists}. "
               "Nothing written; run again later.")
         return 3
-    model = train_model(train, valid, args)
-    onnx_bytes = export_onnx(model)
-    vx, _, _ = matrix(valid)
+    model = train_model(train, valid, args, spec)
+    onnx_bytes = export_onnx(model, spec)
+    vx, _, _ = matrix(valid, spec)
     try:
         diff = onnx_matches(model, onnx_bytes, vx)
     except ValueError as e:
         print(f"Export check failed: {e}. Nothing written.")
         return 4
-    metrics = evaluate(model, valid)
+    metrics = evaluate(model, valid, spec)
     manifest = manifest_for(
         model,
         onnx_bytes,
@@ -478,16 +544,19 @@ def main(argv: list[str]) -> int:
                 "seed": args.seed,
             },
         },
+        spec,
     )
     d = write_artifact(args.out, args.version, onnx_bytes, manifest)
     better = metrics["ndcg_model"] > metrics["ndcg_formula"]
-    key = f"ml/feed-ranker/{args.version}/model.onnx"
+    rt = FEED_RUNTIME[args.feed]
+    folder = f"{rt['dir']}/{args.version}/"
+    key = f"{folder}model.onnx"
     print(json.dumps(metrics))
-    print(f"Written: {d}/model.onnx and manifest.json")
+    print(f"Written: {d}/model.onnx and manifest.json ({args.feed} feed)")
     print(f"Model {'beats' if better else 'does NOT beat'} the formula offline "
           f"(NDCG@{K} {metrics['ndcg_model']} vs {metrics['ndcg_formula']}).")
-    print(f"Upload both files to the documents bucket under ml/feed-ranker/{args.version}/ "
-          f"and set the admin setting reco.ranker.model_key to {key}")
+    print(f"Upload both files to the documents bucket under {folder} "
+          f"and set the admin setting {rt['setting']}.model_key to {key}")
     return 0
 
 
