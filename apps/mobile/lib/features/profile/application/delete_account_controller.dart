@@ -116,12 +116,11 @@ class DeleteAccountController extends _$DeleteAccountController {
     return ref.read(biometricAuthServiceProvider).authenticate(reason: reason);
   }
 
-  /// Reauth-code request step. Pack E (25.11, ROUND1 #12): the code goes to
-  /// the account's verified e-mail (`CurrentUser.reauthIdentifier`) through
-  /// `POST /auth/otp/request`, never by SMS — the server sends an SMS only
-  /// at registration and «Забыл пароль» (owner rule sms-two-cases), so a
-  /// code asked for the account's own phone never arrived. No verified
-  /// e-mail: nothing to send to (the screen offers only the password).
+  /// Reauth-code request step through `POST /auth/otp/request`. Owner
+  /// 25.11 («по умолчанию SMS»): the code goes to the contact
+  /// [stepUpCodeTargetProvider] names (the server's `auth.code_channel`
+  /// among the account's verified ones). None verified: nothing to send to
+  /// (the screen offers only the password).
   Future<void> sendCode() async {
     final target = _codeTarget;
     if (target == null) return;
@@ -141,7 +140,7 @@ class DeleteAccountController extends _$DeleteAccountController {
 
   ({String channel, String identifier})? get _codeTarget {
     try {
-      return ref.read(currentUserControllerProvider).user?.reauthIdentifier;
+      return ref.read(stepUpCodeTargetProvider);
     } on Object {
       return null;
     }
