@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { Injectable, Optional } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { SecretsService } from '../../../common/secrets/secrets.service';
 
 export const TURNSTILE_HEADER = 'x-turnstile-token';
@@ -9,6 +11,8 @@ export const TURNSTILE_SITEVERIFY_URL =
 export const TURNSTILE_TOKEN_MAX = 2048;
 /** Cloudflare's own example waits 10 s; a sign-in screen should not. */
 export const TURNSTILE_TIMEOUT_MS = 5_000;
+/** One try plus one retry with the same idempotency key (item 13). */
+export const TURNSTILE_ATTEMPTS = 2;
 
 export type TurnstileVerdict =
   /** Cloudflare accepted the token (and host / action matched). */
@@ -50,6 +54,7 @@ export class TurnstileService {
   constructor(
     private readonly secrets: SecretsService,
     private readonly logger: PinoLogger,
+    @Optional() private readonly settings?: AppSettingsService,
   ) {
     this.logger.setContext(TurnstileService.name);
   }
@@ -66,31 +71,27 @@ export class TurnstileService {
     }
     const body = new URLSearchParams({ secret, response: token });
     if (opts.ip) body.set('remoteip', opts.ip);
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), TURNSTILE_TIMEOUT_MS);
-    let json: SiteverifyBody;
-    try {
-      const res = await fetch(TURNSTILE_SITEVERIFY_URL, {
-        method: 'POST',
-        headers: { 'content-type': 'application/x-www-form-urlencoded' },
-        body,
-        signal: ctrl.signal,
-      });
-      if (!res.ok) {
-        return { verdict: 'unavailable', reason: `http-${res.status}` };
+    // Item 13 (L3): Cloudflare's documented safe retry — one UUID per
+    // validation, reused on the retry, so a retried check is not taken for
+    // a reused token (server-side-validation, updated 2026-11-16).
+    body.set('idempotency_key', randomUUID());
+    const timeoutMs = await this.timeoutMs();
+    let json: SiteverifyBody | undefined;
+    let failure: TurnstileResult | undefined;
+    for (let attempt = 0; attempt < TURNSTILE_ATTEMPTS; attempt++) {
+      const out = await this.siteverify(body, timeoutMs);
+      if ('json' in out) {
+        json = out.json;
+        failure = undefined;
+        break;
       }
-      json = (await res.json()) as SiteverifyBody;
-    } catch (err) {
-      this.logger.warn({ err }, 'Turnstile siteverify failed');
-      return {
-        verdict: 'unavailable',
-        reason:
-          err instanceof Error && err.name === 'AbortError'
-            ? 'timeout'
-            : 'network',
-      };
-    } finally {
-      clearTimeout(timer);
+      failure = out.failure;
+      // Only a network failure or timeout is worth a second try; an HTTP
+      // answer from Cloudflare is final.
+      if (failure.reason?.startsWith('http-')) break;
+    }
+    if (!json) {
+      return failure ?? { verdict: 'unavailable', reason: 'network' };
     }
     const hostname =
       typeof json.hostname === 'string' ? json.hostname : undefined;
@@ -131,7 +132,9 @@ export class TurnstileService {
         reason: 'hostname-mismatch',
       };
     }
-    if (opts.expectedAction && action !== opts.expectedAction) {
+    // Item 13: an older page renders the widget without an action; only a
+    // token that names a DIFFERENT form is refused.
+    if (opts.expectedAction && action && action !== opts.expectedAction) {
       return {
         verdict: 'invalid',
         hostname,
@@ -140,5 +143,54 @@ export class TurnstileService {
       };
     }
     return { verdict: 'valid', hostname, action };
+  }
+
+  private async siteverify(
+    body: URLSearchParams,
+    timeoutMs: number,
+  ): Promise<{ json: SiteverifyBody } | { failure: TurnstileResult }> {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(TURNSTILE_SITEVERIFY_URL, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body,
+        signal: ctrl.signal,
+      });
+      if (!res.ok) {
+        return {
+          failure: { verdict: 'unavailable', reason: `http-${res.status}` },
+        };
+      }
+      return { json: (await res.json()) as SiteverifyBody };
+    } catch (err) {
+      this.logger.warn({ err }, 'Turnstile siteverify failed');
+      return {
+        failure: {
+          verdict: 'unavailable',
+          reason:
+            err instanceof Error && err.name === 'AbortError'
+              ? 'timeout'
+              : 'network',
+        },
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** `security.turnstile.timeout_ms` (admin), 500–10 000; the built-in 5 s
+   * when the setting cannot be read. */
+  private async timeoutMs(): Promise<number> {
+    try {
+      const n = await this.settings?.number('security.turnstile.timeout_ms');
+      if (typeof n === 'number' && Number.isFinite(n)) {
+        return Math.min(10_000, Math.max(500, Math.floor(n)));
+      }
+    } catch {
+      // the default below
+    }
+    return TURNSTILE_TIMEOUT_MS;
   }
 }

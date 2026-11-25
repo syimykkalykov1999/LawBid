@@ -10,19 +10,22 @@ import '../../helpers/fake_http_adapter.dart';
 void main() {
   late FakeHttpAdapter adapter;
   late List<String> asked;
+  late List<String?> actions;
   String? siteKey;
   String? token;
 
-  Dio build({Future<String?> Function(String key)? fake}) {
+  Dio build({Future<String?> Function(String key, {String? action})? fake}) {
     adapter = FakeHttpAdapter((o) async => ok({'ok': true}));
     final d = Dio(BaseOptions(baseUrl: 'http://test/api/v1'))
       ..httpClientAdapter = adapter;
     d.interceptors.add(
       TurnstileInterceptor(
         siteKey: () => siteKey,
-        token: fake ??
-            (key) async {
+        token:
+            fake ??
+            (key, {action}) async {
               asked.add(key);
+              actions.add(action);
               return token;
             },
       ),
@@ -32,6 +35,7 @@ void main() {
 
   setUp(() {
     asked = [];
+    actions = [];
     siteKey = '0x4AAA';
     token = 'ts-1';
   });
@@ -81,7 +85,9 @@ void main() {
         isFalse,
       );
 
-      dio = build(fake: (_) async => throw StateError('script blocked'));
+      dio = build(
+        fake: (_, {action}) async => throw StateError('script blocked'),
+      );
       final res = await dio.post<Map<String, dynamic>>('/auth/otp/request');
       expect(res.data!['data'], {'ok': true});
       expect(
@@ -90,6 +96,26 @@ void main() {
         ),
         isFalse,
       );
+    });
+  });
+
+  // Item 13 (2026-11-25): the widget names the server's route group, and a
+  // payment (signed in) never asks for a Turnstile token.
+  group('actions', () {
+    test('each sign-in route names its group', () async {
+      final dio = build();
+      await dio.post<dynamic>('/auth/otp/request');
+      await dio.post<dynamic>('/auth/password/login');
+      await dio.post<dynamic>('/auth/password/reset/request');
+      await dio.post<dynamic>('/auth/social');
+      expect(actions, ['sms', 'login', 'password_reset', 'login']);
+    });
+
+    test('payment starts get no Turnstile token', () async {
+      final dio = build();
+      await dio.post<dynamic>('/client-plans/checkout');
+      await dio.post<dynamic>('/stars/packs/p1/buy');
+      expect(asked, isEmpty);
     });
   });
 

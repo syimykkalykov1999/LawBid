@@ -32,6 +32,7 @@ import { PasswordReauthService } from './services/password-reauth.service';
 import { AppCheckGuard } from './app-check/app-check.guard';
 import { AppCheckService } from './app-check/app-check.service';
 import { TurnstileService } from './turnstile/turnstile.service';
+import { BotCheckProofInterceptor } from './app-check/bot-check-proof.interceptor';
 import { ReauthVerifier } from './services/reauth-verifier.service';
 import { DemoReauthService } from './services/demo-reauth.service';
 import { SMS_PROVIDER, EMAIL_PROVIDER } from './providers/provider.tokens';
@@ -127,7 +128,9 @@ import { demoNoop } from '../../common/demo/demo-guards';
     // Security research #5 (2026-10-22), A4: Firebase App Check.
     AppCheckService,
     TurnstileService,
-    AppCheckGuard,
+    // Item 13 (2026-11-25): counts the proven-real pass rate for the «Авто»
+    // switches (BotCheckStatsService comes from the global OpsModule).
+    BotCheckProofInterceptor,
     DemoReauthService,
     // Owner 2026-10-28: step-up with the account password.
     PasswordReauthService,
@@ -195,6 +198,10 @@ import { demoNoop } from '../../common/demo/demo-guards';
       inject: [ConfigService, PinoLogger, SecretsService, PrismaService],
     },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // Item 13 (2026-11-25): App Check / Turnstile as a global guard. It
+    // looks only at routes marked @RequireAppCheck (auth, and the payment
+    // starts in other modules), every other route passes at once.
+    { provide: APP_GUARD, useClass: AppCheckGuard },
   ],
   exports: [
     TokenService,

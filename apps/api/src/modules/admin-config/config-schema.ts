@@ -662,6 +662,66 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'With App Check on enforce: every token is accepted once on the sign-in code (phone), password-reset code and phone-status routes (replay protection, one extra round trip). Turn on only after the app sends limited-use tokens there.',
   };
+  // Item 13 (L2, 2026-11-25): Выкл / Вкл / Авто per route group.
+  for (const [key, what] of [
+    [
+      'security.app_check.sms.mode',
+      'SMS code requests (sign-in and registration) and the phone-status check',
+    ],
+    [
+      'security.app_check.login.mode',
+      'password sign-in, the code check and Google / Apple sign-in',
+    ],
+    [
+      'security.app_check.password_reset.mode',
+      'the password-reset code («Забыл пароль»)',
+    ],
+    ['security.app_check.payments.mode', 'starting a payment (signed-in)'],
+  ] as const) {
+    out[key] = {
+      ...out[key],
+      description: `Bot check on ${what}: off (default) = the general security.app_check.mode | on = a valid App Check token (website: or a valid Turnstile token) is required | auto = on once the pass rate of proven-real people over security.app_check.auto_days reaches security.app_check.auto_pass_rate_pct (at least security.app_check.auto_min_requests of them, every platform too).`,
+      pattern: /^(off|on|auto)$/,
+    };
+  }
+  out['security.app_check.replay.mode'] = {
+    ...out['security.app_check.replay.mode'],
+    description:
+      'Replay protection on the costly routes while they enforce: off (default) | on | auto (on once enough valid tokens there are limited-use).',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['security.app_check.auto_days'] = {
+    ...out['security.app_check.auto_days'],
+    type: 'integer',
+    description:
+      'Days of proven-real sign-ins the «Авто» bot-check switches look at (1–90).',
+    min: 1,
+    max: 90,
+  };
+  out['security.app_check.auto_pass_rate_pct'] = {
+    ...out['security.app_check.auto_pass_rate_pct'],
+    type: 'number',
+    description:
+      'Percent of proven-real people that must pass the bot check before «Авто» enforces (50–100).',
+    min: 50,
+    max: 100,
+  };
+  out['security.app_check.auto_min_requests'] = {
+    ...out['security.app_check.auto_min_requests'],
+    type: 'integer',
+    description:
+      'Fewer proven-real people than this in the window: «Авто» keeps logging only (1–1 000 000).',
+    min: 1,
+    max: 1_000_000,
+  };
+  out['security.turnstile.timeout_ms'] = {
+    ...out['security.turnstile.timeout_ms'],
+    type: 'integer',
+    description:
+      'Milliseconds to wait for Cloudflare Turnstile siteverify (500–10 000); one retry with the same idempotency key.',
+    min: 500,
+    max: 10_000,
+  };
   out['security.auth_challenge_after_failures'] = {
     ...out['security.auth_challenge_after_failures'],
     description:

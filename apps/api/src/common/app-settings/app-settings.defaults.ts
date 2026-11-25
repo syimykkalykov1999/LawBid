@@ -1200,6 +1200,42 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * the app sends a limited-use token on those routes; before that, a
    * second request with the same cached token would be refused. */
   'security.app_check.replay_protection': false,
+  /** Item 13 (L2, owner 2026-11-25): the bot check of each route group,
+   * Выкл / Вкл / Авто. `off` (default) = the general
+   * `security.app_check.mode` above (monitor: log only, nobody blocked);
+   * `on` = a request without a valid App Check token (or, on the website, a
+   * valid Turnstile token) is refused; `auto` = `on` once the pass rate of
+   * PROVEN-REAL people (they typed the SMS code, the right password, a
+   * Google / Apple token, or are signed in) over `auto_days` is at least
+   * `auto_pass_rate_pct` with at least `auto_min_requests` of them, for
+   * every platform too; until then the general mode. A flood of scripted
+   * requests never counts, so it cannot hold Auto back.
+   * sms = code by SMS (sign-in and registration) + «is this number
+   * registered»; login = password, code check (opens a new account),
+   * Google / Apple; password_reset = «Забыл пароль»; payments = starting a
+   * payment (signed-in; the general mode only logs there).
+   * docs/runbooks/APP_CHECK.md */
+  'security.app_check.sms.mode': 'off',
+  'security.app_check.login.mode': 'off',
+  'security.app_check.password_reset.mode': 'off',
+  'security.app_check.payments.mode': 'off',
+  /** Item 13: replay protection (each token accepted once) on the costly
+   * routes while they enforce — Выкл / Вкл / Авто. `auto` = on once at least
+   * `auto_pass_rate_pct` of the valid tokens there are limited-use (the app
+   * sends them since this release), so an older build is never refused for
+   * reusing its cached token. The old `replay_protection: true` still means
+   * on. */
+  'security.app_check.replay.mode': 'off',
+  /** Item 13: the window «Авто» looks at, days (1–90). */
+  'security.app_check.auto_days': 7,
+  /** Item 13: the share of proven-real people that must pass, percent. */
+  'security.app_check.auto_pass_rate_pct': 99,
+  /** Item 13: below this many proven-real people in the window «Авто» waits
+   * (too little data never turns enforcement on). */
+  'security.app_check.auto_min_requests': 200,
+  /** Item 13 (L3): how long the server waits for Cloudflare's siteverify,
+   * milliseconds (500–10 000); one retry with the same idempotency key. */
+  'security.turnstile.timeout_ms': 5000,
   /** 2026-10-25 (S14-13): after this many wrong passwords / codes for one
    * account in 15 minutes (or 5 times as many from one address) the next
    * attempt must carry a valid App Check / Turnstile token. 0 = never (the

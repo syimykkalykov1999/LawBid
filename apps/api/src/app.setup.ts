@@ -227,6 +227,9 @@ export function configureApp(
         // fails, so the web could not sign up the moment it sent a token.
         'X-Firebase-AppCheck',
         'X-Firebase-AppCheck-Status',
+        // Item 13 (2026-11-25): "this token is limited-use" (phones send it
+        // now; allowed here first so a later web build can too).
+        'X-Firebase-AppCheck-Limited',
         'X-Turnstile-Token',
       ],
       // ... and reads the tag from `ETag`, which a cross-origin page may
