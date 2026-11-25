@@ -53,6 +53,7 @@ import { SubscriptionsService } from './subscriptions.service';
 import { SeatsService } from './seats.service';
 import { HotlineAddonService } from './hotline-addon.service';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
+import { ShedPriority } from '../../common/resilience/shed-priority';
 
 const E = ErrorCode;
 const ATTORNEY_ERRORS = {
@@ -68,6 +69,7 @@ const IDEMPOTENCY_KEY_RE = /^[\w.:-]{8,200}$/;
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
 @AttorneyOnly()
+@ShedPriority('critical')
 @Controller('subscriptions')
 export class SubscriptionsController {
   constructor(

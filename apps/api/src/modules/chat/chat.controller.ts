@@ -55,6 +55,7 @@ import {
   RequiresDuty,
   AttorneyOnly,
 } from '../auth/assistant/assistant-context';
+import { ShedPriority } from '../../common/resilience/shed-priority';
 
 /** docs/05 §8, §15 "Чаты" (stage 5.7). */
 @ApiTags('chat')
@@ -192,6 +193,7 @@ export class ChatController {
     return this.chat.storage(user, p.id);
   }
 
+  @ShedPriority('critical')
   @Post(':id/messages')
   @ApiOperation({ summary: 'Send, idempotent on clientMessageId (§8.4)' })
   @ApiEnvelopeResponse(MessageDto, { status: 201 })

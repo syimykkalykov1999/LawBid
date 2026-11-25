@@ -449,13 +449,13 @@ export class NotificationsService {
     // Owner 2026-10-22 (package E): the realtime `case:update` /
     // `consultation:update` — before the block / dedupe rules, which are
     // about the stored notification, not about the row the app shows.
-    // Inside a transaction the event waits a moment for the commit.
+    // Inside a transaction the event leaves after its commit (pack C).
     publishCaseEvent(
       this.realtime,
       input.recipientId,
       input.type,
       input.payload,
-      tx ? 300 : 0,
+      tx,
     );
     // Audit 2026-10-01: nothing reaches a person from someone they
     // blocked (or who blocked them).

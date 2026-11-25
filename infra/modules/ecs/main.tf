@@ -293,6 +293,20 @@ variable "readonly_root_filesystem" {
   type    = bool
   default = true
 }
+# Item 20 (X3, 25.11): AWS FIS aws:ecs:task-* actions (API latency) on the
+# API task. STAGING ONLY: the variable refuses to be true for a prod name.
+# Off = the api task definition is exactly what it was (no sidecar, no
+# pidMode, no fault-injection flag, no extra roles).
+variable "fault_injection_enabled" {
+  type        = bool
+  default     = false
+  description = "Add the AWS FIS SSM-agent sidecar, pidMode=task and enableFaultInjection to the API task (docs: fis/latest/userguide/ecs-task-actions.html). Staging chaos drills only (docs/runbooks/chaos-and-restore-drills.md)."
+}
+variable "fault_injection_ssm_agent_image" {
+  type        = string
+  default     = "public.ecr.aws/amazon-ssm-agent/amazon-ssm-agent:latest"
+  description = "SSM agent sidecar image, as in the AWS FIS ECS task actions guide."
+}
 variable "deployment_alarm_rollback" {
   type        = bool
   default     = true
@@ -885,8 +899,114 @@ resource "aws_ecs_task_definition" "api" {
   # (ha-auto, replica auto); api-admin (same container, no such flag) does.
   container_definitions = jsonencode(concat([merge(local.api_container, {
     environment = concat(local.api_container.environment, var.task_role_split ? [{ name = "OPS_INFRA_WRITES", value = "off" }] : [])
-  })], local.adot_container))
-  tags = var.tags
+  })], local.adot_container, local.fis_ssm_container))
+  # Item 20 (X3): FIS network faults on Fargate need both (null = unset, the
+  # task definition stays as before when fault injection is off).
+  pid_mode               = var.fault_injection_enabled ? "task" : null
+  enable_fault_injection = var.fault_injection_enabled ? true : null
+  tags                   = var.tags
+  lifecycle {
+    precondition {
+      condition     = !var.fault_injection_enabled || !can(regex("prod", var.name))
+      error_message = "REFUSING: fault injection (FIS sidecar) is for staging / load-test stacks only, never prod."
+    }
+  }
+}
+
+# --- AWS FIS ECS task actions (item 20, staging only) ----------------------
+# Copied as is from the AWS FIS user guide, "Use the AWS FIS aws:ecs:task
+# actions" (fis/latest/userguide/ecs-task-actions.html, read 25.11.2026):
+# the SSM-agent container and its command, the managed instance role and
+# the task-role permissions. The sidecar registers the task in SSM (tags
+# ECS_TASK_ARN / ECS_TASK_AVAILABILITY_ZONE) so FIS can find it, and
+# deregisters it on SIGTERM. Not essential: if it dies the API keeps serving.
+# ECS Exec stays off on every service (the guide: it must be off).
+locals {
+  fis_ssm_container = var.fault_injection_enabled ? [{
+    name         = "amazon-ssm-agent"
+    image        = var.fault_injection_ssm_agent_image
+    cpu          = 0
+    essential    = false
+    entryPoint   = []
+    portMappings = []
+    command = [
+      "/bin/bash",
+      "-c",
+      "set -e; dnf upgrade -y; dnf install jq procps awscli -y; term_handler() { echo \"Deleting SSM activation $ACTIVATION_ID\"; if ! aws ssm delete-activation --activation-id $ACTIVATION_ID --region $ECS_TASK_REGION; then echo \"SSM activation $ACTIVATION_ID failed to be deleted\" 1>&2; fi; MANAGED_INSTANCE_ID=$(jq -e -r .ManagedInstanceID /var/lib/amazon/ssm/registration); echo \"Deregistering SSM Managed Instance $MANAGED_INSTANCE_ID\"; if ! aws ssm deregister-managed-instance --instance-id $MANAGED_INSTANCE_ID --region $ECS_TASK_REGION; then echo \"SSM Managed Instance $MANAGED_INSTANCE_ID failed to be deregistered\" 1>&2; fi; kill -SIGTERM $SSM_AGENT_PID; }; trap term_handler SIGTERM SIGINT; if [[ -z $MANAGED_INSTANCE_ROLE_NAME ]]; then echo \"Environment variable MANAGED_INSTANCE_ROLE_NAME not set, exiting\" 1>&2; exit 1; fi; if ! ps ax | grep amazon-ssm-agent | grep -v grep > /dev/null; then if [[ -n $ECS_CONTAINER_METADATA_URI_V4 ]] ; then echo \"Found ECS Container Metadata, running activation with metadata\"; TASK_METADATA=$(curl \"$${ECS_CONTAINER_METADATA_URI_V4}/task\"); ECS_TASK_AVAILABILITY_ZONE=$(echo $TASK_METADATA | jq -e -r '.AvailabilityZone'); ECS_TASK_ARN=$(echo $TASK_METADATA | jq -e -r '.TaskARN'); ECS_TASK_REGION=$(echo $ECS_TASK_AVAILABILITY_ZONE | sed 's/.$//'); ECS_TASK_AVAILABILITY_ZONE_REGEX='^(af|ap|ca|cn|eu|me|sa|us|us-gov)-(central|north|(north(east|west))|south|south(east|west)|east|west)-[0-9]{1}[a-z]{1}$'; if ! [[ $ECS_TASK_AVAILABILITY_ZONE =~ $ECS_TASK_AVAILABILITY_ZONE_REGEX ]]; then echo \"Error extracting Availability Zone from ECS Container Metadata, exiting\" 1>&2; exit 1; fi; ECS_TASK_ARN_REGEX='^arn:(aws|aws-cn|aws-us-gov):ecs:[a-z0-9-]+:[0-9]{12}:task/[a-zA-Z0-9_-]+/[a-zA-Z0-9]+$'; if ! [[ $ECS_TASK_ARN =~ $ECS_TASK_ARN_REGEX ]]; then echo \"Error extracting Task ARN from ECS Container Metadata, exiting\" 1>&2; exit 1; fi; CREATE_ACTIVATION_OUTPUT=$(aws ssm create-activation --iam-role $MANAGED_INSTANCE_ROLE_NAME --tags Key=ECS_TASK_AVAILABILITY_ZONE,Value=$ECS_TASK_AVAILABILITY_ZONE Key=ECS_TASK_ARN,Value=$ECS_TASK_ARN Key=FAULT_INJECTION_SIDECAR,Value=true --region $ECS_TASK_REGION); ACTIVATION_CODE=$(echo $CREATE_ACTIVATION_OUTPUT | jq -e -r .ActivationCode); ACTIVATION_ID=$(echo $CREATE_ACTIVATION_OUTPUT | jq -e -r .ActivationId); if ! amazon-ssm-agent -register -code $ACTIVATION_CODE -id $ACTIVATION_ID -region $ECS_TASK_REGION; then echo \"Failed to register with AWS Systems Manager (SSM), exiting\" 1>&2; exit 1; fi; amazon-ssm-agent & SSM_AGENT_PID=$!; wait $SSM_AGENT_PID; else echo \"ECS Container Metadata not found, exiting\" 1>&2; exit 1; fi; else echo \"SSM agent is already running, exiting\" 1>&2; exit 1; fi"
+    ]
+    environment = [{ name = "MANAGED_INSTANCE_ROLE_NAME", value = aws_iam_role.fis_managed_instance[0].name }]
+    # dnf installs packages at start: this one container writes its disk.
+    readonlyRootFilesystem = false
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-group         = aws_cloudwatch_log_group.svc["api"].name
+        awslogs-region        = data.aws_region.current.region
+        awslogs-stream-prefix = "fis-ssm-agent"
+      }
+    }
+  }] : []
+}
+
+data "aws_iam_policy_document" "ssm_assume" {
+  statement {
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["ssm.amazonaws.com"]
+    }
+  }
+}
+
+# The "managed instance role" of the guide: attached to the task once it is
+# registered in SSM.
+resource "aws_iam_role" "fis_managed_instance" {
+  count              = var.fault_injection_enabled ? 1 : 0
+  name               = "${var.name}-fis-ssm-instance"
+  assume_role_policy = data.aws_iam_policy_document.ssm_assume.json
+  tags               = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "fis_managed_instance_core" {
+  count      = var.fault_injection_enabled ? 1 : 0
+  role       = aws_iam_role.fis_managed_instance[0].name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+data "aws_iam_policy_document" "fis_managed_instance" {
+  statement {
+    actions   = ["ssm:DeleteActivation", "ssm:DeregisterManagedInstance"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "fis_managed_instance" {
+  count  = var.fault_injection_enabled ? 1 : 0
+  name   = "fis-deregister"
+  role   = aws_iam_role.fis_managed_instance[0].id
+  policy = data.aws_iam_policy_document.fis_managed_instance.json
+}
+
+# Task role (the sidecar runs the aws CLI with it): the guide's three
+# permissions, plus delete-activation / deregister-managed-instance that the
+# sidecar's own SIGTERM handler calls with the same credentials.
+data "aws_iam_policy_document" "task_fis_sidecar" {
+  count = var.fault_injection_enabled ? 1 : 0
+  statement {
+    actions   = ["ssm:CreateActivation", "ssm:AddTagsToResource", "ssm:DeleteActivation", "ssm:DeregisterManagedInstance"]
+    resources = ["*"]
+  }
+  statement {
+    actions   = ["iam:PassRole"]
+    resources = [aws_iam_role.fis_managed_instance[0].arn]
+  }
+}
+
+resource "aws_iam_role_policy" "task_fis_sidecar" {
+  count  = var.fault_injection_enabled ? 1 : 0
+  name   = "fis-ssm-sidecar"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.task_fis_sidecar[0].json
 }
 
 # Row 204 (detective R4B-2): the admin panel's API. The same container as api
@@ -1585,6 +1705,9 @@ output "api_admin_service_name" { value = one(aws_ecs_service.api_admin[*].name)
 # Services on Fargate Spot (name => ARN) for modules/spot-fallback.
 output "spot_services" { value = local.spot_services }
 output "migrate_task_definition_arn" { value = aws_ecs_task_definition.migrate.arn }
+output "migrate_task_family" { value = aws_ecs_task_definition.migrate.family }
+# Roles of the migrate task: the monthly restore check runs it (iam:PassRole).
+output "migrate_task_role_arns" { value = [aws_iam_role.execution.arn, aws_iam_role.task_minimal.arn] }
 output "log_group_names" { value = { for k, g in aws_cloudwatch_log_group.svc : k => g.name } }
 
 # Load review: CPU alone lags a traffic spike; requests per task scales

@@ -10,7 +10,10 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { PrismaService } from '../../prisma/prisma.service';
 import { PAYMENT_PROVIDER } from '../../modules/billing/billing.constants';
 import { refreshProvider } from '../../modules/billing/dynamic-payment.provider';
-import type { PaymentProvider } from '../../modules/billing/payment-provider';
+import type {
+  PaymentProvider,
+  ProviderRefund,
+} from '../../modules/billing/payment-provider';
 import { SubscriptionSyncService } from '../../modules/billing/subscription-sync.service';
 
 export interface VerificationLossResult {
@@ -22,6 +25,20 @@ export interface VerificationLossResult {
 
 /** Attorneys checked per set-based read of [VerificationLossBillingJob]. */
 const LOSS_CHECK_BATCH = 1000;
+
+/** Every loss refund starts its reason with this (see [handle]). */
+const LOSS_REFUND_WHERE = {
+  admin_id: null,
+  stripe_refund_id: null,
+  reason: { startsWith: 'Verification lost:' },
+};
+
+/** Stripe keeps an idempotency key at least 24 h: a retry inside this
+ * window can never refund twice (stripe.com/docs/api/idempotent_requests). */
+const REFUND_RETRY_WINDOW_MS = 23 * 3_600_000;
+
+/** Unsent loss refunds retried per run. */
+const LOSS_REFUND_RETRY_BATCH = 100;
 
 /** Batch E (14.11): JSON [LossMark] — where the last run stopped reading. */
 export const LOSS_MARK_KEY = 'billing:verification-loss:mark';
@@ -77,6 +94,9 @@ export class VerificationLossBillingJob {
       refundedCents: 0,
       promotionsCanceled: 0,
     };
+    // Pack C (round 2 #7): refunds a Stripe error left unsent go out first,
+    // even with the switch off (the subscription / boost is already gone).
+    out.refundedCents += await this.retryRefunds();
     if (!(await this.settings.boolean('billing.cancel_on_verification_loss'))) {
       return out;
     }
@@ -443,34 +463,143 @@ export class VerificationLossBillingJob {
         admin_id: null,
       },
     });
+    const sent = await this.send(row.id, intent, amount, payment.id);
+    return sent === 'failed' ? 0 : amount;
+  }
+
+  /**
+   * One provider call for a reserved refund row, always with the row's own
+   * key: Stripe answers a repeated key with the first result (keys live at
+   * least 24 h), so a retry never refunds twice. A provider error leaves the
+   * row `pending` — the money stays reserved and [retryRefunds] sends it
+   * again — instead of the old `failed` + `return 0`, after which no run
+   * looked at it again (round 2 #7). `retry`: not sent yet, still
+   * reserved; `failed`: Stripe itself marked the refund failed.
+   */
+  private async send(
+    refundId: string,
+    intent: string,
+    amount: number,
+    paymentId: string,
+    retrying = false,
+  ): Promise<'sent' | 'retry' | 'failed'> {
+    let r: ProviderRefund;
     try {
-      const r = await this.provider.refund({
+      r = await this.provider.refund!({
         paymentIntentId: intent,
         amountCents: amount,
-        idempotencyKey: `refund:${row.id}`,
-        metadata: { refundId: row.id, paymentId: payment.id, system: 'loss' },
+        idempotencyKey: `refund:${refundId}`,
+        metadata: { refundId, paymentId, system: 'loss' },
       });
-      await this.prisma.refund.update({
-        where: { id: row.id },
-        data: {
-          status: r.status,
-          stripe_refund_id: r.id,
-          failure_reason: r.failureReason,
-        },
-      });
-      return r.status === 'failed' ? 0 : amount;
     } catch (e) {
+      const message = (e instanceof Error ? e.message : String(e)).slice(
+        0,
+        500,
+      );
       await this.prisma.refund.update({
-        where: { id: row.id },
-        data: {
-          status: 'failed',
-          failure_reason: (e instanceof Error ? e.message : String(e)).slice(
-            0,
-            500,
-          ),
-        },
+        where: { id: refundId },
+        data: { status: 'pending', failure_reason: message },
       });
-      return 0;
+      // One error line per refund; the retries after it are warnings.
+      this.logger[retrying ? 'warn' : 'error'](
+        { err: e, refundId, paymentId },
+        'verification-loss refund not sent; retried on the next run',
+      );
+      return 'retry';
     }
+    await this.prisma.refund.update({
+      where: { id: refundId },
+      data: {
+        status: r.status,
+        stripe_refund_id: r.id,
+        failure_reason: r.failureReason,
+      },
+    });
+    if (r.status === 'failed') {
+      this.logger.error(
+        { refundId, paymentId, reason: r.failureReason },
+        'verification-loss refund failed at the provider',
+      );
+      return 'failed';
+    }
+    return 'sent';
+  }
+
+  /**
+   * Pack C (round 2 #7): the loss refunds a provider error left unsent —
+   * `pending` (or `failed` by the old code) and no Stripe id — are sent
+   * again with the same key and amount while Stripe still knows the key
+   * ([REFUND_RETRY_WINDOW_MS]); past it a person must look (error log,
+   * the row turns `failed` and frees the reservation). Returns the cents
+   * that went back.
+   */
+  private async retryRefunds(): Promise<number> {
+    if (typeof this.provider.refund !== 'function') return 0;
+    const since = new Date(Date.now() - REFUND_RETRY_WINDOW_MS);
+    let back = 0;
+    try {
+      const stale = await this.prisma.refund.updateMany({
+        where: {
+          ...LOSS_REFUND_WHERE,
+          status: 'pending',
+          created_at: { lt: since },
+        },
+        data: { status: 'failed' },
+      });
+      if (stale.count > 0) {
+        this.logger.error(
+          { count: stale.count },
+          'verification-loss refunds unsent past the retry window: Admin → Платежи → Возвраты',
+        );
+      }
+      const rows = await this.prisma.refund.findMany({
+        where: {
+          ...LOSS_REFUND_WHERE,
+          status: { in: ['pending', 'failed'] },
+          created_at: { gte: since },
+        },
+        orderBy: { created_at: 'asc' },
+        take: LOSS_REFUND_RETRY_BATCH,
+      });
+      if (rows.length > 0) await refreshProvider(this.provider);
+      for (const row of rows) {
+        throwIfJobStopped();
+        const payment = await this.prisma.payment.findUnique({
+          where: { id: row.payment_id },
+        });
+        const intent =
+          payment?.stripe_payment_intent_id ??
+          (payment && this.provider.name === 'fake'
+            ? `pi_fake_${payment.id}`
+            : null);
+        if (!payment || !intent) continue;
+        if (row.status === 'failed') {
+          // The old code freed this amount: take it back only if the
+          // payment still has room for it.
+          const live = await this.prisma.refund.aggregate({
+            where: {
+              payment_id: payment.id,
+              id: { not: row.id },
+              status: { in: ['pending', 'succeeded'] },
+            },
+            _sum: { amount_cents: true },
+          });
+          const room = payment.amount_cents - (live._sum.amount_cents ?? 0);
+          if (row.amount_cents > room) continue;
+        }
+        const sent = await this.send(
+          row.id,
+          intent,
+          row.amount_cents,
+          payment.id,
+          true,
+        );
+        if (sent === 'sent') back += row.amount_cents;
+      }
+    } catch (err) {
+      if (err instanceof JobStoppedError) throw err;
+      this.logger.error({ err }, 'verification-loss refund retry failed');
+    }
+    return back;
   }
 }

@@ -25,6 +25,7 @@ import type { ProviderEvent } from './payment-provider';
 import type { StripeWebhookJobData } from './stripe-webhook.intake';
 import { SubscriptionSyncService } from './subscription-sync.service';
 import { bullOptions } from '../../redis/redis-connection';
+import { keepJobScheduler } from '../../common/queues/keep-scheduler';
 import {
   closeWorker,
   workerTuning,
@@ -46,6 +47,7 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
   private workers: Worker[] = [];
   private dlq?: Queue;
   private subscriptionsQueue?: Queue;
+  private stopKeep?: () => void;
 
   constructor(
     @Inject(BILLING_OPTIONS) private readonly options: BillingModuleOptions,
@@ -77,23 +79,23 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
     // trigger — an hourly scheduler (one per id, however many processes)
     // puts back what Redis lost. Stripe/Netflix pattern "DB truth, queue
     // trigger, periodic reconcile".
-    void this.subscriptionsQueue
-      .upsertJobScheduler(
-        TRIAL_REMINDER_RECONCILE_JOB,
-        { every: 60 * 60_000 },
-        {
-          name: TRIAL_REMINDER_RECONCILE_JOB,
-          opts: {
-            removeOnComplete: { count: 24 },
-            removeOnFail: { count: 50 },
-          },
+    // Pack C (round 2 #11): re-checked every heartbeat, not only at boot.
+    this.stopKeep = keepJobScheduler(
+      this.subscriptionsQueue,
+      TRIAL_REMINDER_RECONCILE_JOB,
+      { every: 60 * 60_000 },
+      {
+        name: TRIAL_REMINDER_RECONCILE_JOB,
+        opts: {
+          removeOnComplete: { count: 24 },
+          removeOnFail: { count: 50 },
         },
-      )
-      .catch((e: unknown) =>
+      },
+      (e: unknown) =>
         this.logger.warn(
           `trial reminder reconcile not scheduled: ${String(e)}`,
         ),
-      );
+    );
     this.workers.push(
       new Worker<StripeWebhookJobData>(
         STRIPE_WEBHOOKS_QUEUE,
@@ -120,6 +122,7 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
+    this.stopKeep?.();
     await Promise.all([
       ...this.workers.map((w) => closeWorker(w)),
       this.dlq?.close(),

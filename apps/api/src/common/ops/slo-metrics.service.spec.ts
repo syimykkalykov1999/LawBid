@@ -35,6 +35,8 @@ describe('SloMetricsService (owner 2026-10-22, audit #4 §7)', () => {
       payFail: 0,
       authFailed: 0,
       otpRequested: 0,
+      shedCritical: 0,
+      shedLow: 0,
     });
     expect(logger.info).toHaveBeenCalledWith(
       expect.objectContaining({ metric: 'slo', pushOk: 3, pushFailed: 1 }),

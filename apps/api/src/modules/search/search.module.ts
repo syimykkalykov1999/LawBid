@@ -19,9 +19,41 @@ import { SearchSynonymsService } from './search-synonyms.service';
 import { SEARCH_PROVIDER } from './search.provider';
 import { SearchService } from './search.service';
 
+/**
+ * Pack C (round 2 #22, 25.11): the search parts with state of their own —
+ * the engine client (its connections), the indexer (its pause after
+ * failures), the synonyms (their one-time starter import), the search log —
+ * live here, provided ONCE. SearchModule and JobsModule import this module
+ * instead of listing the classes again (JobsModule used to build a second
+ * copy of each inside the API process).
+ */
+@Module({
+  providers: [
+    SearchSynonymsService,
+    SearchLogService,
+    OPENSEARCH_CLIENT_PROVIDER,
+    SearchDocsLoader,
+    SearchIndexerService,
+    SearchReindexService,
+    // infra «Авто» drives the reindex through this token (no module import).
+    { provide: SEARCH_REINDEX_PORT, useExisting: SearchReindexService },
+  ],
+  exports: [
+    SearchSynonymsService,
+    SearchLogService,
+    OPENSEARCH_CLIENT_PROVIDER.provide,
+    SearchDocsLoader,
+    SearchIndexerService,
+    SearchReindexService,
+    SEARCH_REINDEX_PORT,
+  ],
+})
+export class SearchCoreModule {}
+
 /** docs/05 §7 search (stage 5.6). */
 @Module({
   imports: [
+    SearchCoreModule,
     UsageLimitsModule,
     CasesModule,
     FollowsModule,
@@ -34,28 +66,13 @@ import { SearchService } from './search.service';
   controllers: [SearchController],
   providers: [
     SearchService,
-    SearchSynonymsService,
-    SearchLogService,
     // Owner 2026-10-24 (search-ready): Postgres and the engine behind the
     // `search.engine` switch; SearchService talks to the switch.
     PostgresSearchProvider,
     OpenSearchProvider,
-    OPENSEARCH_CLIENT_PROVIDER,
-    SearchDocsLoader,
-    SearchIndexerService,
-    SearchReindexService,
-    // infra «Авто» drives the reindex through this token (no module import).
-    { provide: SEARCH_REINDEX_PORT, useExisting: SearchReindexService },
     SwitchingSearchProvider,
     { provide: SEARCH_PROVIDER, useExisting: SwitchingSearchProvider },
   ],
-  exports: [
-    SearchSynonymsService,
-    SearchLogService,
-    SEARCH_PROVIDER,
-    SearchIndexerService,
-    SearchReindexService,
-    SEARCH_REINDEX_PORT,
-  ],
+  exports: [SearchCoreModule, SEARCH_PROVIDER],
 })
 export class SearchModule {}

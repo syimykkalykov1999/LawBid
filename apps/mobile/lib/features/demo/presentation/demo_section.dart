@@ -117,7 +117,7 @@ class _AccountRow extends ConsumerWidget {
     try {
       final session = await ref.read(demoRepositoryProvider).enter(account.id);
       if (!context.mounted) return;
-      await enterDemoAndGo(context, ref, session);
+      await enterDemoAndGo(context, session);
     } catch (e) {
       if (context.mounted) showAppSnackBar(context, errorText(t, e));
     }
@@ -261,7 +261,7 @@ class _RolePickerSheetState extends ConsumerState<_RolePickerSheet> {
       ref.invalidate(demoMeProvider);
       if (!mounted) return;
       context.popIfCurrent();
-      await enterDemoAndGo(context, ref, session);
+      await enterDemoAndGo(context, session);
     } catch (e) {
       if (!mounted) return;
       setState(() => _creating = null);

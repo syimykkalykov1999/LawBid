@@ -51,6 +51,11 @@ export const SLO_COUNTERS = [
   // S12-13: sign-in abuse signals (anomaly alarms, not an SLO ratio).
   'authFailed',
   'otpRequested',
+  // Item 21 (A3 / AU2): requests turned away by load shedding — critical
+  // ones (sign-in, payments, calls, sending) and all lower priorities.
+  // Alarms of their own (monitoring/slo.tf `load-shed-*`), not an SLO ratio.
+  'shedCritical',
+  'shedLow',
 ] as const;
 export type SloCounter = (typeof SLO_COUNTERS)[number];
 
