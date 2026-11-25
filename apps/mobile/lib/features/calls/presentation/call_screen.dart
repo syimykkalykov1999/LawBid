@@ -16,6 +16,7 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_quality.dart';
+import 'package:lawbid/features/calls/application/call_screen_addon.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_add_panel.dart';
@@ -393,6 +394,12 @@ class _CallScreenState extends ConsumerState<CallScreen>
     // The other member stays on screen until it closes (never a «?»).
     final peer = s.peer ?? s.call?.peer ?? _lastPeer;
     _lastPeer = peer;
+    // Owner row 87 (hotline mockup v4 a4–a7): a call another feature adds
+    // to (the hotline's chips, «⋯», «Клиент ждёт»). Every other call — every
+    // 1:1 and group call: unchanged.
+    final slot = ref.watch(callScreenAddonProvider);
+    final addon =
+        !group && slot != null && s.call?.id == slot.callId ? slot : null;
     final peerCameraOff = ref.watch(callCamerasOffProvider).contains(peer?.id);
     // Row 166 (WhatsApp «X muted»): their microphone is off (1:1 only; a
     // group shows it in the people list).
@@ -517,6 +524,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
             type: type,
             bottomInset: sheetHeight,
             peerMuted: peerMuted,
+            extra: addon?.below?.call(context),
           ),
         ],
       );
@@ -531,11 +539,15 @@ class _CallScreenState extends ConsumerState<CallScreen>
       onMinimize: () => unawaited(Navigator.of(context).maybePop()),
       // Owner 2026-11-04 (R-376): no «Add participant» while group calls
       // are off.
-      onAdd: active && ref.watch(groupCallsEnabledProvider)
+      onAdd: addon == null && active && ref.watch(groupCallsEnabledProvider)
           ? () => unawaited(showAddToCallPanel(context))
           : null,
       minimizeLabel: t.t('call.minimize'),
       addLabel: t.t('call.addParticipant'),
+      onMore: addon?.onMore != null && s.busy
+          ? () => addon!.onMore!(context, ref)
+          : null,
+      moreLabel: addon?.moreLabel ?? '',
     );
 
     // Row 166 (WhatsApp «Poor connection», Telegram «Weak network signal»):
@@ -574,6 +586,8 @@ class _CallScreenState extends ConsumerState<CallScreen>
         ),
       if (group && s.call?.vote != null)
         CallVoteStrip(vote: s.call!.vote!, call: s.call!),
+      // Row 87 (hotline mockup a7): «Клиент ждёт · язык» while he talks.
+      if (addon?.banner != null && s.busy) addon!.banner!(context),
     ];
 
     final audio = ref.watch(callAudioRouterProvider);
@@ -937,7 +951,13 @@ class _TopBar extends StatelessWidget {
     required this.onAdd,
     required this.minimizeLabel,
     required this.addLabel,
+    this.onMore,
+    this.moreLabel = '',
   });
+
+  /// Hotline only (mockup a5): «⋯» in place of «+».
+  final VoidCallback? onMore;
+  final String moreLabel;
 
   final String title;
 
@@ -1001,14 +1021,21 @@ class _TopBar extends StatelessWidget {
             ),
             SizedBox(
               width: 48,
-              child: onAdd == null
-                  ? null
-                  : _TopIcon(
-                      key: const Key('call-btn-add'),
-                      icon: AppIcons.personAddAlt1Rounded,
-                      label: addLabel,
-                      onTap: onAdd!,
-                    ),
+              child: onMore != null
+                  ? _TopIcon(
+                      key: const Key('hotline-call-more'),
+                      icon: AppIcons.moreHorizRounded,
+                      label: moreLabel,
+                      onTap: onMore!,
+                    )
+                  : onAdd == null
+                      ? null
+                      : _TopIcon(
+                          key: const Key('call-btn-add'),
+                          icon: AppIcons.personAddAlt1Rounded,
+                          label: addLabel,
+                          onTap: onAdd!,
+                        ),
             ),
           ],
         ),
@@ -1097,7 +1124,11 @@ class _BigPerson extends StatelessWidget {
     required this.type,
     required this.bottomInset,
     this.peerMuted = false,
+    this.extra,
   });
+
+  /// Hotline only: the topic and chips under the status (mockup a4 / a5).
+  final Widget? extra;
 
   /// Row 166: their microphone is off — «X muted» under the status.
   final bool peerMuted;
@@ -1176,6 +1207,11 @@ class _BigPerson extends StatelessWidget {
               ),
             ),
           ),
+          if (extra != null)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.md),
+              child: extra,
+            ),
           if (peerMuted)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.md),

@@ -139,6 +139,8 @@ export class HotlineKeys {
   tokens = (req: string) => `${this.p}:tok:${req}`;
   /** One «Взять» opens the call; a second waits for it (audit 17.11 #5). */
   callLock = (req: string) => `${this.p}:clk:${req}`;
+  /** «Предложить дело» lock: one case per call (double tap). */
+  caseLock = (req: string) => `${this.p}:csk:${req}`;
   request = (id: string) => `${this.p}:rq:${id}`;
   client = (id: string) => `${this.p}:cl:${id}`;
   rate = (id: string, hour: number) => `${this.p}:rl:${id}:${hour}`;

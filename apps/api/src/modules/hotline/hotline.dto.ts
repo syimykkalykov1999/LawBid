@@ -8,6 +8,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   Min,
   Length,
   MaxLength,
@@ -35,6 +36,31 @@ export class HotlineDisclosureDto {
   @ApiPropertyOptional({ nullable: true }) en!: string | null;
 }
 
+/** GET /hotline/config `access` (plan PR 6, mockup a2): may this attorney
+ * wait for calls, and through what. */
+export class HotlineAccessDto {
+  @ApiProperty({
+    enum: ['on_for_all', 'by_subscription', 'off_for_all'],
+    enumName: 'HotlineMode',
+  })
+  mode!: 'on_for_all' | 'by_subscription' | 'off_for_all';
+
+  @ApiProperty() allowed!: boolean;
+
+  @ApiPropertyOptional({
+    enum: ['free', 'plan', 'addon', 'trial'],
+    enumName: 'HotlineAccessVia',
+    nullable: true,
+  })
+  via!: 'free' | 'plan' | 'addon' | 'trial' | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'off_for_all, not_in_plan, addon_required (when not allowed)',
+  })
+  reason!: string | null;
+}
+
 /** GET /hotline/config */
 export class HotlineConfigDto {
   @ApiProperty({ description: 'Флаги → «Горячая линия».' }) enabled!: boolean;
@@ -52,6 +78,21 @@ export class HotlineConfigDto {
   clientStepsEnabled!: boolean;
   @ApiProperty({ type: HotlineDisclosureDto })
   disclosure!: HotlineDisclosureDto;
+
+  @ApiPropertyOptional({
+    enum: ['on_for_all', 'by_subscription', 'off_for_all'],
+    enumName: 'HotlineMode',
+    description:
+      '`hotline.mode` for every role (off_for_all: no buttons). Optional for apps that met an older server.',
+  })
+  mode?: 'on_for_all' | 'by_subscription' | 'off_for_all';
+
+  @ApiPropertyOptional({
+    type: HotlineAccessDto,
+    nullable: true,
+    description: 'Attorneys only (null for clients and assistants).',
+  })
+  access!: HotlineAccessDto | null;
 }
 
 /** PUT /hotline/line — «Ожидать звонки». */
@@ -219,6 +260,8 @@ export class HotlineClaimDto {
 export class HotlineLawyerDto {
   @ApiProperty() id!: string;
   @ApiProperty() name!: string;
+  @ApiPropertyOptional({ nullable: true }) username!: string | null;
+  @ApiPropertyOptional({ nullable: true }) avatarUrl!: string | null;
   @ApiProperty({ description: 'The client’s state' }) state!: string;
   @ApiPropertyOptional({ nullable: true, description: 'Bar number there.' })
   barNumber!: string | null;
@@ -308,6 +351,80 @@ export class HotlineEndDto {
   conversationId?: string | null;
 }
 
+/** «Клиент ждёт · язык» (plan step 6, mockup a7). */
+export class HotlineWaitingDto {
+  @ApiProperty() requestId!: string;
+  @ApiProperty() topic!: string;
+  @ApiProperty() state!: string;
+  @ApiProperty() practiceArea!: string;
+  @ApiProperty({ description: 'The call language (matched to his line).' })
+  language!: string;
+  @ApiProperty({ description: 'ms, «ждёт 1:40» counts from here' })
+  waitingSince!: number;
+}
+
+/** POST /hotline/heartbeat */
+export class HotlineHeartbeatDto {
+  @ApiProperty() ok!: boolean;
+  @ApiProperty({ description: 'Always 0 (the shape of HotlineEndDto).' })
+  seconds!: number;
+  @ApiPropertyOptional({
+    type: HotlineWaitingDto,
+    nullable: true,
+    description:
+      'In a hotline call with «Принимать звонки» on: the client who waits longest in his queues.',
+  })
+  waiting?: HotlineWaitingDto | null;
+}
+
+/** POST /hotline/requests/:id/offer-case — «Предложить дело». */
+export class HotlineOfferCaseDto {
+  @ApiPropertyOptional({ minimum: 1, maximum: 10_000_000 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10_000_000)
+  budgetAmountDollars?: number;
+
+  @ApiPropertyOptional({ maxLength: 1000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  message?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'The same consent as POST /cases (asked once; 403 CLIENT_CONTACT_SHARING_CONSENT_REQUIRED until given).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  clientContactSharingConsent?: boolean;
+}
+
+export class HotlineOfferCaseResultDto {
+  @ApiProperty() caseId!: string;
+  @ApiPropertyOptional({ nullable: true }) inviteId!: string | null;
+}
+
+/** POST /hotline/requests/:id/review — «Как прошёл разговор?». */
+export class HotlineReviewDto {
+  @ApiProperty({ minimum: 1, maximum: 5 })
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  stars!: number;
+
+  @ApiPropertyOptional({ maxLength: 300 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  comment?: string;
+}
+
+export class HotlineOkDto {
+  @ApiProperty() ok!: boolean;
+}
+
 export class HotlineCounterDto {
   @ApiProperty({ description: 'b:<state~practice~lang> or l:<lang>' })
   key!: string;
@@ -353,4 +470,49 @@ export class HotlineLiveDto {
   @ApiProperty() callsNow!: number;
   @ApiProperty({ type: [HotlineBucketRowDto] }) buckets!: HotlineBucketRowDto[];
   @ApiProperty({ type: [HotlineHourDto] }) hours!: HotlineHourDto[];
+}
+
+/** One UTC day of the nightly snapshot. */
+export class HotlineStatsDayDto {
+  @ApiProperty({ description: 'YYYY-MM-DD (UTC)' }) day!: string;
+  @ApiProperty() calls!: number;
+  @ApiProperty() talkSeconds!: number;
+  @ApiProperty({ description: 'calls turned into a case («Предложить дело»)' })
+  casesOffered!: number;
+  @ApiProperty() reviews!: number;
+  @ApiProperty({
+    description: 'sum of the stars (average = starsSum / reviews)',
+  })
+  starsSum!: number;
+  @ApiProperty() clients!: number;
+  @ApiProperty() attorneys!: number;
+}
+
+export class HotlineStatsTotalsDto {
+  @ApiProperty() calls!: number;
+  @ApiProperty() talkSeconds!: number;
+  @ApiProperty() casesOffered!: number;
+  @ApiProperty() reviews!: number;
+  @ApiProperty() starsSum!: number;
+  @ApiProperty({ description: 'client-days (people per day added up)' })
+  clients!: number;
+  @ApiProperty({ description: 'attorney-days (people per day added up)' })
+  attorneys!: number;
+}
+
+export class HotlineStatsRowDto {
+  @ApiProperty() key!: string;
+  @ApiProperty() calls!: number;
+}
+
+/** GET /admin/hotline/stats — the nightly snapshot of the last 30 days. */
+export class HotlineStatsDto {
+  @ApiProperty({ description: 'ISO time the snapshot was counted' })
+  computedAt!: string;
+  @ApiProperty({ type: [HotlineStatsDayDto] }) days!: HotlineStatsDayDto[];
+  @ApiProperty({ type: HotlineStatsTotalsDto }) totals!: HotlineStatsTotalsDto;
+  @ApiProperty({ type: [HotlineStatsRowDto] }) states!: HotlineStatsRowDto[];
+  @ApiProperty({ type: [HotlineStatsRowDto] }) practices!: HotlineStatsRowDto[];
+  @ApiProperty({ type: [HotlineStatsRowDto] })
+  endReasons!: HotlineStatsRowDto[];
 }

@@ -17,6 +17,7 @@ import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/data/cases_repository.dart';
 import 'package:lawbid/features/cases/deals/deal_record_data.dart';
 import 'package:lawbid/features/cases/deals/pay_block.dart';
+import 'package:lawbid/features/cases/domain/bid_from_call.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/domain/contingency.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_case_screen.dart';
@@ -45,10 +46,15 @@ class BidFormScreen extends ConsumerStatefulWidget {
   const BidFormScreen({
     required this.caseId,
     this.initialAmountCents,
+    this.fromCall,
     super.key,
   });
 
   final String caseId;
+
+  /// Hotline (owner 18.11, mockup a8): the client offered this case during
+  /// a hotline call — the «Дело из звонка» card on top. Null everywhere else.
+  final BidFromCall? fromCall;
 
   /// Owner 2026-10-05: answering a client's invite starts from the
   /// client's budget.
@@ -436,6 +442,39 @@ class _BidFormScreenState extends ConsumerState<BidFormScreen> {
                 assistant ? 'assistant.mode.noBids' : 'cases.bidForm.subtitle',
               ),
             ),
+            if (widget.fromCall case final call?)
+              Container(
+                key: const ValueKey('bid-from-call'),
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppSpacing.md),
+                margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                decoration: BoxDecoration(
+                  color: colors.iconTintFill,
+                  borderRadius: BorderRadius.circular(AppRadii.field),
+                  border: Border.all(color: colors.goldStroke),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      t.t('hotline.bid.fromCall'),
+                      style: typography.caption
+                          .copyWith(color: colors.textSecondary),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      [
+                        if (call.topic.isNotEmpty) '«${call.topic}»',
+                        if (call.state.isNotEmpty) call.state,
+                      ].join(' · '),
+                      style: typography.body.copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             if (!assistant) ConflictBanner(caseId: widget.caseId),
             if (_draftBy != null) ...[
               Container(
