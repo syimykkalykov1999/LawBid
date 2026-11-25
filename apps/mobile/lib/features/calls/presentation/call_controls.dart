@@ -23,8 +23,14 @@ class CallControlBar extends ConsumerWidget {
     required this.onEnd,
     this.onFlip,
     this.audioRoute,
+    this.showVideo = true,
     super.key,
   });
+
+  /// Owner 18.11: false while video calls are off in the admin
+  /// (`video_calls`) — the camera button is not there at all; the others
+  /// keep their look and the pill holds three.
+  final bool showVideo;
 
   final bool speaker;
 
@@ -71,16 +77,18 @@ class CallControlBar extends ConsumerWidget {
             selected: speaker,
             onTap: onSpeaker,
           ),
-        const SizedBox(width: gap),
-        CallRoundButton(
-          key: const Key('call-btn-video'),
-          icon: videoOn
-              ? AppIcons.videoCameraOutlined
-              : AppIcons.videocamOffOutlined,
-          label: t.t('call.camera'),
-          selected: videoOn,
-          onTap: onVideo,
-        ),
+        if (showVideo) ...[
+          const SizedBox(width: gap),
+          CallRoundButton(
+            key: const Key('call-btn-video'),
+            icon: videoOn
+                ? AppIcons.videoCameraOutlined
+                : AppIcons.videocamOffOutlined,
+            label: t.t('call.camera'),
+            selected: videoOn,
+            onTap: onVideo,
+          ),
+        ],
         const SizedBox(width: gap),
         CallRoundButton(
           key: const Key('call-btn-mute'),

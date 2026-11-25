@@ -557,9 +557,11 @@ class _SystemUi implements SystemCallUi {
 }
 
 class _Harness {
-  _Harness({String me = 'me'}) {
+  _Harness({String me = 'me', bool videoCalls = true}) {
     container = ProviderContainer(
       overrides: [
+        // Owner 18.11: the camera follows the admin's `video_calls`.
+        videoCallsEnabledProvider.overrideWithValue(videoCalls),
         callsRepositoryProvider.overrideWithValue(repo),
         callClockProvider.overrideWithValue(() => now()),
         callMediaFactoryProvider.overrideWithValue(() => media),
@@ -2075,13 +2077,17 @@ void main() {
 
   group('the camera switched on mid-call (owner 2026-10-22)', () {
     /// A 1:1 voice call we placed, picked up and connected.
-    Future<_Harness> talking({String me = 'me'}) async {
-      final h = _Harness(me: me);
+    Future<_Harness> talking({
+      String me = 'me',
+      bool videoCalls = true,
+      bool video = false,
+    }) async {
+      final h = _Harness(me: me, videoCalls: videoCalls);
       addTearDown(h.dispose);
-      await h.c.call('conv', peer: _peer);
+      await h.c.call('conv', peer: _peer, video: video);
       h.emit(
         'call:accepted',
-        _event(_call('c1', CallStatus.active, outgoing: true)),
+        _event(_call('c1', CallStatus.active, outgoing: true, video: video)),
       );
       await _settle();
       h.emit('call:signal', {
@@ -2134,6 +2140,47 @@ void main() {
         {'type': 'video', 'on': false},
         {'type': 'camera', 'on': false},
       ]);
+      await h.c.hangUp();
+    });
+
+    test('owner 18.11: video calls off — the camera never goes on', () async {
+      final h = await talking(videoCalls: false);
+      expect(h.c.videoAllowed, isFalse);
+      expect(h.c.canSwitchVideo, isFalse);
+
+      await h.c.toggleVideo();
+      await h.c.toggleCamera();
+      expect(h.media.videoEnables, 0);
+      expect(h.s.video, isFalse);
+      // No new offer, nothing told: the voice call goes on untouched.
+      expect(h.signals, isEmpty);
+      expect(h.s.phase, CallPhase.active);
+
+      // They switch theirs on (an app with an old flag): their picture
+      // shows, but no «Turn on yours?» that could not be kept.
+      h.emit('call:signal', {
+        'callId': 'c1',
+        'from': 'p1',
+        'data': {'type': 'video', 'on': true},
+      });
+      await _settle();
+      expect(h.s.video, isTrue);
+      expect(h.s.videoPrompt, isNull);
+      await h.c.toggleVideo();
+      expect(h.media.videoEnables, 0);
+      await h.c.hangUp();
+    });
+
+    test('owner 18.11: a call that began as video keeps its camera button',
+        () async {
+      final h = await talking(videoCalls: false, video: true);
+      expect(h.c.videoAllowed, isTrue);
+      expect(h.c.canSwitchVideo, isTrue);
+      // Off and on again, as before the flag went off.
+      await h.c.toggleVideo();
+      expect(h.s.cameraOn, isFalse);
+      await h.c.toggleVideo();
+      expect(h.s.cameraOn, isTrue);
       await h.c.hangUp();
     });
 
@@ -2838,6 +2885,161 @@ void main() {
         });
         async.flushMicrotasks();
         expect(h.s.phase, CallPhase.ended);
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
+  });
+
+  group('owner 18.11: nobody stays «in a call» after a group call', () {
+    CallMember m(String id, CallMemberStatus st) => CallMember(
+          userId: id,
+          status: st,
+          displayName: id,
+          joinedAt: st == CallMemberStatus.invited
+              ? null
+              : DateTime.utc(2026, 11, 18),
+        );
+
+    // A 1:1 call made a group: p1 and me talk, x was added and still rings.
+    _Harness talkingWhileXRings(FakeAsync async) {
+      final h = _Harness();
+      h.repo.acceptMembers = [
+        m('p1', CallMemberStatus.joined),
+        m('me', CallMemberStatus.joined),
+        m('x', CallMemberStatus.invited),
+      ];
+      h.repo.acceptGroupId = null;
+      h.emit(
+        'call:incoming',
+        _event(
+          _call(
+            'g1',
+            CallStatus.active,
+            outgoing: false,
+            members: [
+              m('p1', CallMemberStatus.joined),
+              m('me', CallMemberStatus.invited),
+              m('x', CallMemberStatus.invited),
+            ],
+          ),
+        ),
+      );
+      async.flushMicrotasks();
+      h.c.accept();
+      async
+        ..flushMicrotasks()
+        ..elapse(const Duration(milliseconds: 50));
+      h.media.onState!(CallMediaState.connected);
+      async.flushMicrotasks();
+      expect(h.s.phase, CallPhase.active);
+      expect(h.s.call?.participants.length, 3);
+      return h;
+    }
+
+    test(
+        'the other one hangs up while an added person still rings: a «bye» '
+        "does not drop this phone behind the server's back", () {
+      fakeAsync((async) {
+        final h = talkingWhileXRings(async)
+          ..emit('call:signal', {
+            'callId': 'g1',
+            'data': {'type': 'bye'},
+          });
+        async.flushMicrotasks();
+        // The server keeps the call (and us in it) while x rings: the phone
+        // must not go quiet and leave us «busy» there.
+        expect(h.s.phase, CallPhase.active);
+        expect(h.repo.endedIds, isEmpty);
+        h.c.hangUp();
+        async.flushMicrotasks();
+        expect(h.repo.endedIds, ['g1']);
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
+
+    test(
+        'our hang-up while an added person rings: no «bye», '
+        'the server hears it', () {
+      fakeAsync((async) {
+        final h = talkingWhileXRings(async);
+        h.signals.clear();
+        h.c.hangUp();
+        async.flushMicrotasks();
+        expect(h.signals.where((s) => s['type'] == 'bye'), isEmpty);
+        expect(h.repo.endedIds, ['g1']);
+        expect(h.s.phase, CallPhase.ended);
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
+
+    test('a «bye» that ends a group call here is told to the server too', () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.repo.acceptMembers = [
+          m('p1', CallMemberStatus.joined),
+          m('me', CallMemberStatus.joined),
+        ];
+        h.repo.acceptGroupId = null;
+        h.emit(
+          'call:incoming',
+          _event(
+            _call(
+              'g1',
+              CallStatus.active,
+              outgoing: false,
+              members: [
+                m('p1', CallMemberStatus.joined),
+                m('me', CallMemberStatus.invited),
+              ],
+            ),
+          ),
+        );
+        async.flushMicrotasks();
+        h.c.accept();
+        async
+          ..flushMicrotasks()
+          ..elapse(const Duration(milliseconds: 50));
+        h.media.onState!(CallMediaState.connected);
+        async.flushMicrotasks();
+        h.emit('call:signal', {
+          'callId': 'g1',
+          'data': {'type': 'bye'},
+        });
+        async.flushMicrotasks();
+        expect(h.s.phase, CallPhase.ended);
+        // Our own row closes on the server too (idempotent there): an end
+        // lost on the other phone cannot keep us «in a call».
+        expect(h.repo.endedIds, ['g1']);
+        h
+          ..sub.close()
+          ..container.dispose();
+      });
+    });
+
+    test('a plain 1:1 «bye» is unchanged: ends here, nothing extra sent', () {
+      fakeAsync((async) {
+        final h = _Harness();
+        h.c.call('conv', peer: _peer);
+        async.flushMicrotasks();
+        h.emit(
+          'call:accepted',
+          _event(_call('c1', CallStatus.active, outgoing: true)),
+        );
+        async.flushMicrotasks();
+        h.media.onState!(CallMediaState.connected);
+        h.emit('call:signal', {
+          'callId': 'c1',
+          'data': {'type': 'bye'},
+        });
+        async.flushMicrotasks();
+        expect(h.s.phase, CallPhase.ended);
+        expect(h.repo.endedIds, isEmpty);
         h
           ..sub.close()
           ..container.dispose();

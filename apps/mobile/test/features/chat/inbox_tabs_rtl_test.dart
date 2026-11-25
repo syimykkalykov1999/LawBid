@@ -5,10 +5,11 @@ import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 (Samsung, Arabic): the lit segment of «Chats | Team'
 /// sat on the wrong one — it was placed from the physical left while the row
-/// of segments mirrors in right-to-left languages.
+/// of segments mirrors in right-to-left languages. Owner 2026-11-18: three
+/// segments, «Chats | Cases | Team».
 void main() {
   for (final rtl in [false, true]) {
-    for (final lit in [InboxTab.chats, InboxTab.team]) {
+    for (final lit in [InboxTab.chats, InboxTab.cases, InboxTab.team]) {
       testWidgets('the lit segment is under its label (rtl: $rtl, $lit)',
           (tester) async {
         await tester.pumpWidget(
@@ -22,6 +23,7 @@ void main() {
                     value: lit,
                     tabs: const [
                       (InboxTab.chats, 'Chats', 0),
+                      (InboxTab.cases, 'Cases', 0),
                       (InboxTab.team, 'Team', 0),
                     ],
                     onChanged: (_) {},
@@ -32,7 +34,11 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        final label = lit == InboxTab.chats ? 'Chats' : 'Team';
+        final label = switch (lit) {
+          InboxTab.chats => 'Chats',
+          InboxTab.cases => 'Cases',
+          _ => 'Team',
+        };
         final labelX = tester.getCenter(find.text(label)).dx;
         final colors = AppTheme.light().extension<AppColorTokens>()!;
         final lamp = find.byWidgetPredicate(
@@ -44,8 +50,10 @@ void main() {
         expect(tester.getCenter(lamp).dx, closeTo(labelX, 4));
         // Chats is the first segment: right-most in right-to-left.
         final chatsX = tester.getCenter(find.text('Chats')).dx;
+        final casesX = tester.getCenter(find.text('Cases')).dx;
         final teamX = tester.getCenter(find.text('Team')).dx;
-        expect(chatsX < teamX, !rtl);
+        expect(chatsX < casesX, !rtl);
+        expect(casesX < teamX, !rtl);
       });
     }
   }
