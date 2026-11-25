@@ -238,6 +238,48 @@ void main() {
     );
   });
 
+  test(
+      'owner 24.11: a scan still running is a temporary wait, the stored id '
+      'is handed over first and the wait never sends the bytes again',
+      () async {
+    scans = ['pending'];
+    final stored = <String>[];
+    await expectLater(
+      uploader().upload(
+        purpose: api.FilePurpose.chatAttachment,
+        body: UploadBody.bytes(Uint8List(3)),
+        mime: 'image/png',
+        onStored: (id) async => stored.add(id),
+      ),
+      throwsA(
+        isA<ApiException>()
+            .having((e) => e.code, 'code', ApiErrorCodes.fileNotAttachable)
+            .having(StorageUploader.isScanPending, 'pending', isTrue),
+      ),
+    );
+    expect(stored, ['file-1']);
+    expect(storage.requests, hasLength(1));
+
+    scans = ['pending', 'clean'];
+    expect(await uploader().waitStored('file-1'), 'file-1');
+    expect(storage.requests, hasLength(1));
+    expect(
+      apiAdapter.requests.where((r) => r.path == '/files/presign'),
+      hasLength(1),
+    );
+  });
+
+  test('an infected scan is not a «still checking» wait', () async {
+    scans = ['infected'];
+    await expectLater(
+      uploader().waitStored('file-1'),
+      throwsA(
+        isA<ApiException>()
+            .having(StorageUploader.isScanPending, 'pending', isFalse),
+      ),
+    );
+  });
+
   test('a file body is hashed and streamed from disk', () async {
     final dir = await Directory.systemTemp.createTemp('upload_body');
     addTearDown(() => dir.delete(recursive: true));

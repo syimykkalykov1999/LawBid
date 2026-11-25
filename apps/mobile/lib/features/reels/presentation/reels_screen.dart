@@ -122,6 +122,10 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   @override
   void initState() {
     super.initState();
+    // Owner 24.11 (Instagram / TikTok keep 2–3 reels ready on open): a
+    // reel opened from the feed warms its next ones at once, not only after
+    // the first swipe.
+    if (_items.isNotEmpty) _warmAhead(_items, _index.value);
     _load();
     if (!widget.embedded) {
       _counted = true;
@@ -222,6 +226,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     unawaited(_mixFresh());
     if (!mounted) return;
     setState(() => _loading = true);
+    final first = _cursor == null;
     try {
       final page = await ref.read(reelsRepositoryProvider).reels(
             cursor: _cursor,
@@ -238,6 +243,9 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
         _error = null;
         _loading = false;
       });
+      // Owner 24.11: the next reels are warmed as soon as the first page is
+      // there (before, only from the first swipe).
+      if (first) _warmAhead(_items, _index.value);
     } on Object catch (e) {
       if (mounted) {
         setState(() {

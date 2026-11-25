@@ -281,6 +281,46 @@ void main() {
     expect(s.voiceOutbox, isEmpty);
   });
 
+  test(
+      'owner 24.11: a photo whose scan is slow stays «sending» with its '
+      'ring done, then goes by itself without a second upload', () async {
+    final chat = _Chat();
+    final uploader = FakeStorageUploader()..pendingScans = 2;
+    final c = _container(chat, uploader);
+    final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
+    addTearDown(sub.close);
+    await _settle();
+    final thread = c.read(chatThreadProvider('c1').notifier);
+
+    await thread.sendAttachment(
+      bytes: Uint8List.fromList([1, 2, 3]),
+      name: 'x.png',
+      mime: 'image/png',
+    );
+    await _settle();
+    var local = c.read(chatThreadProvider('c1')).voiceOutbox.single;
+    // Before: after the scan wait the photo was «not sent» for good.
+    expect(local.delivery, DeliveryState.sending);
+    expect(local.failedCode, isNull);
+    // The bytes are up: the bubble shows the photo without the ring.
+    expect(local.attachment!.progress, 1);
+    expect(local.attachment!.localBytes, isNotNull);
+
+    // The queue asks again (backoff / resume / reconnect): only the scan.
+    await c.read(chatMediaOutboxProvider).drain();
+    await _settle();
+    local = c.read(chatThreadProvider('c1')).voiceOutbox.single;
+    expect(local.delivery, DeliveryState.sending);
+    await c.read(chatMediaOutboxProvider).drain();
+    await _settle();
+
+    expect(chat.sent, ['x.png']);
+    expect(chat.clientIds.single, local.clientMessageId);
+    expect(uploader.uploads, hasLength(1), reason: 'never sent twice');
+    expect(uploader.waited, ['file-1', 'file-1']);
+    expect(c.read(chatThreadProvider('c1')).voiceOutbox, isEmpty);
+  });
+
   test('a refused photo shows «not sent»; Delete removes it', () async {
     final chat = _Chat();
     final uploader = FakeStorageUploader()

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/physics.dart' show SpringSimulation;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -593,11 +594,10 @@ class _StoryPlaybackViewState extends ConsumerState<StoryPlaybackView>
                   .catchError((Object _) {}),
             );
           }
-          final stream = s.video?.playbackUrl;
-          // The story player does not read the video disk cache.
-          if (stream != null) {
-            HlsPrefetcher.instance.prefetch(stream, viaCache: false);
-          }
+          // Owner 24.11: the story player reads the video disk cache (like
+          // reels), so the warmed bytes of the URL it opens are played.
+          final stream = s.video?.urlFor(web: kIsWeb);
+          if (stream != null) HlsPrefetcher.instance.prefetch(stream);
         case StoryKind.text:
           break;
       }
