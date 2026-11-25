@@ -13,6 +13,7 @@ import type { components } from '@/lib/api/schema';
 import { PRIVATE_KIND_LABEL } from '@/lib/labels';
 import { sortRows, useTableSort } from '@/lib/table-sort';
 import { formatDateTime } from '@/lib/utils';
+import { useMe } from '@/lib/hooks';
 
 type MessagesPage = components['schemas']['PrivateMessagesPageDto'];
 type CallsPage = components['schemas']['PrivateCallsDto'];
@@ -49,6 +50,10 @@ const lastMonth = () => {
  * with a fresh authenticator code. No second administrator is needed.
  */
 export default function PrivateContentPage() {
+  // Round 4 (Н5): the monthly report is the owner's (the API answers 404 to
+  // everyone else, which showed staff an error block).
+  const { data: me } = useMe();
+  const isOwner = me?.role === 'super_admin';
   const [conversationId, setConversationId] = useState('');
   const [caseId, setCaseId] = useState('');
   const [reasonCode, setReasonCode] = useState(REASONS[0].value);
@@ -145,6 +150,7 @@ export default function PrivateContentPage() {
       if (r.error) throw r.error;
       return r.data.data;
     },
+    enabled: isOwner,
     retry: false,
   });
 
@@ -316,41 +322,45 @@ export default function PrivateContentPage() {
         ) : null}
       </Card>
 
-      <SectionTitle>Месячный отчёт: кто читал приватное</SectionTitle>
-      <Card className="space-y-3 p-5">
-        <Field label="Месяц (ГГГГ-ММ)" hint="Отчёт приходит владельцу на почту 1-го числа; журнал аудита хранит каждую строку.">
-          <Input value={month} onChange={(e) => setMonth(e.target.value)} className="max-w-40" />
-        </Field>
-        <ErrorNote text={report.error ? errorText(report.error) : null} />
-        {report.data ? (
-          <>
-            <p className="text-sm text-muted">
-              Всего обращений за {report.data.month}: <b>{report.data.total}</b>
-            </p>
-            <Table>
-              <thead>
-                <tr>
-                  <SortTh {...reportSort.header('admin')}>Сотрудник</SortTh>
-                  <SortTh {...reportSort.header('kind')}>Что читал</SortTh>
-                  <SortTh {...reportSort.header('reason')}>Причина</SortTh>
-                  <SortTh {...reportSort.header('count')}>Раз</SortTh>
-                </tr>
-              </thead>
-              <tbody>
-                {report.data.rows.length === 0 ? <TableEmpty colSpan={4}>Никто не читал приватное</TableEmpty> : null}
-                {reportRows.map((r) => (
-                  <tr key={`${r.adminId}|${r.kind}|${r.reasonCode}`}>
-                    <Td>{r.adminEmail ?? r.adminId}</Td>
-                    <Td>{PRIVATE_KIND_LABEL[r.kind] ?? r.kind}</Td>
-                    <Td>{r.reasonCode ? <Badge>{REASON_LABEL[r.reasonCode] ?? r.reasonCode}</Badge> : '—'}</Td>
-                    <Td>{r.count}</Td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </>
-        ) : null}
-      </Card>
+      {isOwner ? (
+        <>
+          <SectionTitle>Месячный отчёт: кто читал приватное</SectionTitle>
+          <Card className="space-y-3 p-5">
+            <Field label="Месяц (ГГГГ-ММ)" hint="Отчёт приходит владельцу на почту 1-го числа; журнал аудита хранит каждую строку.">
+              <Input value={month} onChange={(e) => setMonth(e.target.value)} className="max-w-40" />
+            </Field>
+            <ErrorNote text={report.error ? errorText(report.error) : null} />
+            {report.data ? (
+              <>
+                <p className="text-sm text-muted">
+                  Всего обращений за {report.data.month}: <b>{report.data.total}</b>
+                </p>
+                <Table>
+                  <thead>
+                    <tr>
+                      <SortTh {...reportSort.header('admin')}>Сотрудник</SortTh>
+                      <SortTh {...reportSort.header('kind')}>Что читал</SortTh>
+                      <SortTh {...reportSort.header('reason')}>Причина</SortTh>
+                      <SortTh {...reportSort.header('count')}>Раз</SortTh>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {report.data.rows.length === 0 ? <TableEmpty colSpan={4}>Никто не читал приватное</TableEmpty> : null}
+                    {reportRows.map((r) => (
+                      <tr key={`${r.adminId}|${r.kind}|${r.reasonCode}`}>
+                        <Td>{r.adminEmail ?? r.adminId}</Td>
+                        <Td>{PRIVATE_KIND_LABEL[r.kind] ?? r.kind}</Td>
+                        <Td>{r.reasonCode ? <Badge>{REASON_LABEL[r.reasonCode] ?? r.reasonCode}</Badge> : '—'}</Td>
+                        <Td>{r.count}</Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              </>
+            ) : null}
+          </Card>
+        </>
+      ) : null}
 
       <StepUpDialog
         open={stepUp !== null}

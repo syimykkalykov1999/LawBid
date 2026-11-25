@@ -60,7 +60,7 @@ export function DeadlinesPanel() {
 
 function RulesView() {
   const { data: me } = useMe();
-  const canWrite = can(me, 'content', 'manage');
+  const canWrite = can(me, 'cases', 'manage');
   const qc = useQueryClient();
   const [open, setOpen] = useState<Rule | 'new' | null>(null);
   const [kind, setKind] = useState<Kind | 'all'>('all');
@@ -372,7 +372,7 @@ function RuleDialog({ rule, canWrite, onClose, onSaved }: { rule: Rule | null; c
 
 function HolidaysView() {
   const { data: me } = useMe();
-  const canWrite = can(me, 'content', 'manage');
+  const canWrite = can(me, 'cases', 'manage');
   const qc = useQueryClient();
   const toast = useToast();
   const { confirm, dialog } = useConfirm();

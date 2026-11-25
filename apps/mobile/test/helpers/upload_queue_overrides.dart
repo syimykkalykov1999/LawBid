@@ -26,6 +26,13 @@ class FakeStorageUploader extends StorageUploader {
   final uploads = <({api.FilePurpose purpose, int size, String? taskId})>[];
   ApiException? fail;
 
+  /// Owner 24.11: this many scan answers are still «pending» (a slow
+  /// server); the file counts as stored before that wait.
+  int pendingScans = 0;
+
+  /// Stored files whose scan was asked for again ([waitStored]).
+  final waited = <String>[];
+
   @override
   Future<String> upload({
     required api.FilePurpose purpose,
@@ -41,12 +48,29 @@ class FakeStorageUploader extends StorageUploader {
     Future<void> Function(StorageTarget target)? onTarget,
     String? resumeFileId,
     void Function(String fileId)? onPartsFileId,
+    Future<void> Function(String fileId)? onStored,
   }) async {
     final f = fail;
     if (f != null) throw f;
     uploads.add((purpose: purpose, size: await body.length(), taskId: taskId));
     onProgress?.call(1);
-    return 'file-${uploads.length}';
+    final id = 'file-${uploads.length}';
+    await onStored?.call(id);
+    if (pendingScans > 0) {
+      pendingScans--;
+      throw StorageUploader.scanPending;
+    }
+    return id;
+  }
+
+  @override
+  Future<String> waitStored(String fileId, {int? maxPolls}) async {
+    waited.add(fileId);
+    if (pendingScans > 0) {
+      pendingScans--;
+      throw StorageUploader.scanPending;
+    }
+    return fileId;
   }
 }
 

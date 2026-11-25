@@ -1,3 +1,4 @@
+import { AdminSummaryService } from '../src/common/admin-summary/admin-summary.service';
 import type { AddressInfo, Server } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
@@ -327,6 +328,9 @@ describe('Partner program (e2e)', () => {
       .set(admin.auth)
       .expect(200);
     expect(commissions.body.data).toHaveLength(3); // paid, deduction, reversed
+    // Round 4 (С11): the page reads the daily snapshot; this suite wants
+    // the numbers of its own rows, so it drops the stored copy first.
+    await app.get(AdminSummaryService).drop('partners:stats');
     const stats = await api()
       .get('/api/v1/admin/partners/stats')
       .set(admin.auth)
@@ -434,6 +438,9 @@ describe('Partner program (e2e)', () => {
       .set(auth(friend.id, 'attorney'))
       .send({ code: applicantCode })
       .expect(403); // pending: not a partner yet, friends' program off
+    // Round 4 (С11): the page reads the daily snapshot; this suite wants
+    // the numbers of its own rows, so it drops the stored copy first.
+    await app.get(AdminSummaryService).drop('partners:stats');
     const pendingStats = await api()
       .get('/api/v1/admin/partners/stats')
       .set(admin.auth)

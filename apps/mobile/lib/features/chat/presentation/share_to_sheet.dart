@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/text/search_fold.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
@@ -179,7 +180,7 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
               'total': context.digits('$total'),
             }),
     );
-    Navigator.of(context).pop(ShareToSheet.sent);
+    context.popIfCurrent(ShareToSheet.sent);
   }
 
   @override

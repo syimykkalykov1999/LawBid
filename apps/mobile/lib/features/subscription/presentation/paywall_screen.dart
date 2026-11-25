@@ -39,9 +39,21 @@ class PaywallScreen extends ConsumerStatefulWidget {
 }
 
 class _PaywallScreenState extends ConsumerState<PaywallScreen> {
+  bool _closed = false;
+
   // Detective R2 item 2: a paywall opened by its URL (alone) closes to
   // Feed instead of staying forever.
-  void _close() => context.safeBack();
+  //
+  // Round 1 check 25.11 №4: once, and only while the paywall is on top. The
+  // «active» listener closed it, then the paid checkout returned `true`
+  // while it still slid out and closed it again — `safeBack` then took the
+  // page under it (the bid, the chat, the case) too (KNOWN_ERRORS 230).
+  void _close() {
+    if (_closed || !mounted) return;
+    if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
+    _closed = true;
+    context.safeBack();
+  }
 
   @override
   Widget build(BuildContext context) {

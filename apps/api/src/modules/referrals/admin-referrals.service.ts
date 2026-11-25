@@ -1,3 +1,5 @@
+import { readDailySnapshot } from '../../common/admin-summary/snapshot-gate';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import {
   BadRequestException,
   ConflictException,
@@ -78,6 +80,7 @@ export class AdminReferralsService {
     private readonly referrals: ReferralsService,
     private readonly audit: AuditLogService,
     @Optional() private readonly partners?: PartnersService,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   async getSettings(): Promise<ReferralSettingsView> {
@@ -197,7 +200,15 @@ export class AdminReferralsService {
     };
   }
 
-  async stats(): Promise<AdminReferralStatsDto> {
+  /** Round 4 admin check (25.11, С11): these totals scan whole tables, so the
+   * page reads the daily snapshot (snapshot-gate.ts), not a live count. */
+  stats(): Promise<AdminReferralStatsDto> {
+    return readDailySnapshot(this.summary, 'referrals:stats', () =>
+      this.computeStats(),
+    );
+  }
+
+  private async computeStats(): Promise<AdminReferralStatsDto> {
     const [byStatus, byRole, sums] = await Promise.all([
       this.prisma.referral.groupBy({ by: ['status'], _count: { _all: true } }),
       this.prisma.referral.groupBy({

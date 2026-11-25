@@ -33,6 +33,7 @@ import {
   UPLOAD_LIMITS_KEY,
   UPLOAD_PLACES,
   sanitizeUploadLimits,
+  storedUploadLimits,
   type UploadLimits,
 } from '../files/upload-limits';
 import {
@@ -79,9 +80,9 @@ export class AdminStorageController {
   async getStorageOverview(): Promise<StorageOverviewDto> {
     const [usage, tables, topUsers, history, lastCleanup, settings, r2] =
       await Promise.all([
-        this.stats.usage(),
+        this.stats.usageSnapshot(),
         this.stats.tables(),
-        this.stats.topUsers(),
+        this.stats.topUsersSnapshot(),
         this.stats.history(),
         this.cleanup.lastRun(),
         this.readSettings(),
@@ -168,9 +169,13 @@ export class AdminStorageController {
       const { place, ...limits } = p;
       next[place] = limits;
     }
-    const clean = sanitizeUploadLimits(next);
+    const clean = sanitizeUploadLimits(next, { offered: true });
     await this.writer.write(admin.id, 'uploads.limits.update', {
-      [UPLOAD_LIMITS_KEY]: clean as unknown as Prisma.InputJsonValue,
+      // M7: with the formats this screen offered, so a later code default
+      // never turns back on a format the admin unticked here.
+      [UPLOAD_LIMITS_KEY]: storedUploadLimits(
+        clean,
+      ) as unknown as Prisma.InputJsonValue,
     });
     return this.uploadSettings(clean);
   }

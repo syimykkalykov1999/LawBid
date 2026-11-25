@@ -20,8 +20,10 @@ const ENTITIES: { code: string; title: string; hint: string; icon: Icon; reason?
 /** Owner 2026-09-30: CSV exports (UTF-8, up to 50 000 rows each). */
 export default function ExportsPage() {
   const { data: me } = useMe();
-  // Payments are money: the super admin only.
-  const entities = ENTITIES.filter((e) => (e.code !== 'payments' && e.code !== 'case_payments') || me?.role === 'super_admin');
+  // Payments are money: the super admin and the trusted deputy, who reads
+  // money (Round 4, Н6: the same rule as the API's export route).
+  const moneyOk = me?.role === 'super_admin' || me?.canManageAdmins === true;
+  const entities = ENTITIES.filter((e) => (e.code !== 'payments' && e.code !== 'case_payments') || moneyOk);
   return (
     <>
       <PageHeader

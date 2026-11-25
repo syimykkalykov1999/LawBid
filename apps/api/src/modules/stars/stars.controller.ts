@@ -244,10 +244,13 @@ export class AdminStarsController {
   @Put('settings')
   @ApiOperation({ summary: 'Save the stars packs and gift settings' })
   @ApiEnvelopeResponse(StarsAdminSettingsDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  saveAdminStarsSettings(
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async saveAdminStarsSettings(
+    @CurrentAdmin() admin: AdminActor,
     @Body() dto: SaveStarsSettingsDto,
   ): Promise<StarsAdminSettingsDto> {
+    // Round 4 (25.11, С2): star pack prices and the gift fee are money.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.stars.saveSettings(dto);
   }
 

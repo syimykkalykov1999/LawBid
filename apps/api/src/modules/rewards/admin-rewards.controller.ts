@@ -31,6 +31,7 @@ import {
   UpdateRewardsSettingsDto,
 } from './rewards.dto';
 import { RewardsService } from './rewards.service';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 
 const E = ErrorCode;
 
@@ -41,7 +42,10 @@ const E = ErrorCode;
 @AdminEndpoint('super_admin')
 @Controller('admin/rewards')
 export class AdminRewardsController {
-  constructor(private readonly rewards: RewardsService) {}
+  constructor(
+    private readonly rewards: RewardsService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get('settings')
   @ApiOperation({
@@ -55,11 +59,15 @@ export class AdminRewardsController {
   @Put('settings')
   @ApiOperation({ summary: 'Switch rewards on/off, period, prizes, bonuses' })
   @ApiEnvelopeResponse(RewardsSettingsDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  updateRewardsSettings(
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async updateRewardsSettings(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: UpdateRewardsSettingsDto,
   ): Promise<RewardsSettingsDto> {
+    // Round 4 (25.11, С4): a department's bonus goes into salaries.
+    if (dto.departments?.some((d) => d.bonusCents !== undefined)) {
+      await this.auth.assertStepUp(admin.sessionId);
+    }
     return this.rewards.updateSettings(admin.id, dto);
   }
 
@@ -88,11 +96,19 @@ export class AdminRewardsController {
     summary: 'Give a prize; a bonus goes to Зарплаты as an accrual',
   })
   @ApiEnvelopeResponse(RewardAwardDto, { status: HttpStatus.CREATED })
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  createRewardAward(
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+  })
+  async createRewardAward(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: CreateRewardAwardDto,
   ): Promise<RewardAwardDto> {
+    // Round 4 (25.11, С4): a bonus up to $10 000 lands in Зарплаты — the
+    // same code the payroll bonus asks. No amount given = the department's
+    // bonus, so only an explicit 0 goes without the code.
+    if (dto.bonusCents !== 0) await this.auth.assertStepUp(admin.sessionId);
     return this.rewards.give(admin.id, dto);
   }
 

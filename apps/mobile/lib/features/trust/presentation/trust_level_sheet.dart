@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -131,11 +132,16 @@ class TrustLevelSheet extends ConsumerWidget {
                       ),
                       data: (p) => TrustSignalsList(trust: p, t: t, self: self),
                     ),
-                    const SizedBox(height: AppSpacing.lg),
-                    TrustPaymentNotice(
-                      attorneyId: attorneyId,
-                      showRegistryLinks: false,
-                    ),
+                    // Round 1 check 25.11 №20: the pre-payment notice
+                    // only while payments are on, like every other
+                    // payment entry point.
+                    if (ref.watch(casePaymentsFlagProvider)) ...[
+                      const SizedBox(height: AppSpacing.lg),
+                      TrustPaymentNotice(
+                        attorneyId: attorneyId,
+                        showRegistryLinks: false,
+                      ),
+                    ],
                     if (trust != null && trust.registryLinks.isNotEmpty) ...[
                       section(t.t('trust.sheet.registry')),
                       Text(

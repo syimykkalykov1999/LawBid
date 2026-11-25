@@ -55,6 +55,7 @@ import {
   SubmitClientBadgeDto,
 } from './client-badge.dto';
 import { ClientBadgeService } from './client-badge.service';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
 
 const E = ErrorCode;
@@ -153,7 +154,10 @@ export class ClientBadgeController {
 @SkipAutoAudit()
 @Controller('admin/client-badges')
 export class AdminClientBadgeController {
-  constructor(private readonly admin: ClientBadgeAdminService) {}
+  constructor(
+    private readonly admin: ClientBadgeAdminService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Requests, newest first (filter by status)' })
@@ -178,11 +182,14 @@ export class AdminClientBadgeController {
     summary: 'Approve many requests at once (skips invalid ones)',
   })
   @ApiEnvelopeResponse(AdminClientBadgeBulkResultDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  bulkApproveAdminClientBadges(
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async bulkApproveAdminClientBadges(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminClientBadgeBulkApproveDto,
   ): Promise<AdminClientBadgeBulkResultDto> {
+    // Round 4 (25.11, С3/С5): up to 100 at once (maybe for free) — a code,
+    // like the bulk actions with people.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.admin.bulkApprove(admin, dto.ids, dto.free ?? false);
   }
 
@@ -190,11 +197,12 @@ export class AdminClientBadgeController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reject many pending requests with one reason' })
   @ApiEnvelopeResponse(AdminClientBadgeBulkResultDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  bulkRejectAdminClientBadges(
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async bulkRejectAdminClientBadges(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: AdminClientBadgeBulkRejectDto,
   ): Promise<AdminClientBadgeBulkResultDto> {
+    await this.auth.assertStepUp(admin.sessionId);
     return this.admin.bulkReject(admin, dto.ids, dto.reason);
   }
 
@@ -215,12 +223,18 @@ export class AdminClientBadgeController {
     summary: 'Approve (free: true = give the badge for nothing)',
   })
   @ApiEnvelopeResponse(AdminClientBadgeDto)
-  @ApiErrors({ 404: [E.NOT_FOUND], 409: [E.CONTENT_INVALID_STATE] })
-  approveAdminClientBadge(
+  @ApiErrors({
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+    409: [E.CONTENT_INVALID_STATE],
+  })
+  async approveAdminClientBadge(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminClientBadgeIdParamDto,
     @Body() dto: AdminClientBadgeApproveDto,
   ): Promise<AdminClientBadgeDto> {
+    // Round 4 (25.11, С3): the $10 badge for nothing — a fresh code.
+    if (dto.free === true) await this.auth.assertStepUp(admin.sessionId);
     return this.admin.approve(admin, p.id, dto.free ?? false);
   }
 

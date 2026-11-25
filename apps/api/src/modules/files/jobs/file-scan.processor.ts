@@ -14,7 +14,10 @@ import { ImageProcessor } from '../processing/image-processor';
 import { dangerousContent } from '../content-guard';
 import { detectMime } from '../magic-bytes';
 import { computeBlurhash } from '../processing/blurhash';
-import { putProcessedObjects } from '../processing/put-processed-objects';
+import {
+  putAvifTwins,
+  putProcessedObjects,
+} from '../processing/put-processed-objects';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import {
   DEDUP_PROFILE,
@@ -243,9 +246,14 @@ export class FileScanProcessor {
 
     const mime = detectMime(data, file.mime);
     let processed;
+    // M4 (owner 24.11; Meta 2022: costly copies off the send path): the AVIF
+    // twins (×2.7 the encode time) are made right after the file turned
+    // clean, so the sender's message never waits for them.
+    const quality = await imageQuality(this.settings);
+    let input: Parameters<ImageProcessor['process']>[0] | undefined;
     try {
       if (!mime) throw new Error('unrecognised content');
-      processed = await this.images.process({
+      input = {
         data,
         mime,
         avatar: file.purpose === 'avatar',
@@ -261,12 +269,16 @@ export class FileScanProcessor {
           // GPS of the owner's photo is ever stored or sent to the AI.
           file.purpose === 'ai_attachment',
         format: await this.imageFormat(),
-        quality: await imageQuality(this.settings),
+        quality,
         keepSmallOriginal: await this.keepSmallOriginals(),
         // Media check 14.11: images kept at their size lose EXIF/GPS too
         // (a sticker is public on the CDN).
         stripMetadata:
           file.purpose === 'sticker' || file.purpose === 'task_attachment',
+      };
+      processed = await this.images.process({
+        ...input,
+        quality: { ...quality, avif: null },
       });
     } catch (err) {
       // Undecodable image: permanent, retrying won't help.
@@ -322,6 +334,10 @@ export class FileScanProcessor {
       });
       this.ready(file, 'clean');
       await this.moderation?.enqueueFile(fileId, file.purpose);
+      if (main && quality.avif && input) {
+        await this.addAvifTwins(file, input);
+        lap('avif');
+      }
       // Owner 2026-11-08 (R2 speed): where a slow check spends its time.
       const totalMs = Date.now() - started;
       if (totalMs >= SCAN_SLOW_MS) {
@@ -346,6 +362,30 @@ export class FileScanProcessor {
       this.logger.error({ fileId, err }, 'Storing processed file failed');
       await this.setStatus(fileId, 'failed');
       return 'failed';
+    }
+  }
+
+  /**
+   * M4: the AVIF twins of a file that is already clean (and served as
+   * WebP/JPEG meanwhile), from the same upload bytes, so they match the
+   * pixels of the stored copies. Best effort: a failure only keeps the
+   * WebP/JPEG links (`avif_twins` stays false), never the file.
+   */
+  private async addAvifTwins(
+    file: File,
+    input: Parameters<ImageProcessor['process']>[0],
+  ): Promise<void> {
+    try {
+      const withTwins = await this.images.process(input);
+      if (!(await putAvifTwins(this.storage, this.logger, file, withTwins))) {
+        return;
+      }
+      await this.prisma.file.updateMany({
+        where: { id: file.id, scan_status: 'clean' },
+        data: { avif_twins: true },
+      });
+    } catch (err) {
+      this.logger.warn({ fileId: file.id, err }, 'AVIF twins not made');
     }
   }
 

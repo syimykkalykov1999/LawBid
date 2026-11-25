@@ -323,6 +323,52 @@ describe('BootstrapService.build guest browsing (dedup D-12)', () => {
   });
 });
 
+// Round 4 admin check (25.11, С9): the flag `guest_browsing` and the setting
+// `guest.browsing_enabled` were two master switches that could disagree.
+describe('BootstrapService.build: one rule for guest browsing (round 4, С9)', () => {
+  it('the flag off: the app is told off and the client keys are off too', async () => {
+    const r = await build({
+      flags: { guest_browsing: false, apple_login: true },
+      config: {
+        'client.guest_browse_app_enabled': true,
+        'client.guest_browse_web_enabled': true,
+      },
+    }).service.build();
+    expect(r.flags.guest_browsing).toBe(false);
+    expect(r.app_config['client.guest_browse_app_enabled']).toBe(false);
+    expect(r.app_config['client.guest_browse_web_enabled']).toBe(false);
+  });
+
+  it('the setting off: the flag the app reads says off as well', async () => {
+    const r = await build({
+      flags: { guest_browsing: true },
+      config: { 'guest.browsing_enabled': false },
+    }).service.build();
+    expect(r.flags.guest_browsing).toBe(false);
+  });
+
+  it('both on: the flag stays on', async () => {
+    const r = await build({ flags: { guest_browsing: true } }).service.build();
+    expect(r.flags.guest_browsing).toBe(true);
+  });
+});
+
+// Round 4 admin check (25.11, С8): `case.max_practices` never reached the
+// app (no `case.` in PUBLIC_CONFIG_PREFIXES), so the wizard always allowed 3.
+describe('BootstrapService.build: case topics limit (round 4, С8)', () => {
+  it('carries the admin value', async () => {
+    const r = await build({
+      config: { 'case.max_practices': 2 },
+    }).service.build();
+    expect(r.app_config['case.max_practices']).toBe(2);
+  });
+
+  it('carries the default on a fresh database', async () => {
+    const r = await build().service.build();
+    expect(r.app_config['case.max_practices']).toBe(3);
+  });
+});
+
 describe('BootstrapService.build', () => {
   it('aggregates flags, app_config, active languages, translation versions, and current legal documents', async () => {
     const { service, prisma } = build();
@@ -360,6 +406,8 @@ describe('BootstrapService.build', () => {
       'verification.face_match.retention_days': 30,
       // Row 173: the website's cross-origin isolation, always sent (off).
       'web.cross_origin_isolation': false,
+      // Round 4 (С8): the case topics limit, always sent.
+      'case.max_practices': 3,
       // R2-A #17: the SMS wait the app counts down, always sent.
       'sms.resend_cooldown_seconds': 60,
       // S20-9: the reel warm-up the app obeys (Wi-Fi / mobile data).

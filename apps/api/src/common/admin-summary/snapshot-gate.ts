@@ -39,3 +39,41 @@ export function withSnapshotTimeout<T>(
     { timeout: 120_000, maxWait: 10_000 },
   );
 }
+
+/** What {@link readDailySnapshot} needs of AdminSummaryService. */
+interface SnapshotStore {
+  peek<T>(key: string): Promise<{ data: T; computedAt: string } | null>;
+  refresh<T>(
+    key: string,
+    compute: () => Promise<T>,
+    waitForOther?: boolean,
+  ): Promise<{ data: T; computedAt: string }>;
+}
+
+/**
+ * Round 4 admin check (25.11, С11): the owner rule «admin numbers come from
+ * the nightly snapshot, never a live heavy query on each open» for a page
+ * whose service the worker does not load. The stored copy is returned at any
+ * age; when the daily recount is due ({@link dailyDue}: the 04 UTC hour, or
+ * older than 26 h) ONE process recounts it in the background (the
+ * AdminSummaryService lock) while this request still answers from the copy.
+ * Only when nothing was ever stored does the first request count it once,
+ * and concurrent openers wait for that one count. Without the store (unit
+ * tests, a tool) it simply counts.
+ */
+export async function readDailySnapshot<T>(
+  store: SnapshotStore | undefined,
+  key: string,
+  compute: () => Promise<T>,
+  now: Date = new Date(),
+): Promise<T> {
+  if (!store) return compute();
+  const hit = await store.peek<T>(key);
+  if (hit) {
+    if (dailyDue(hit.computedAt, now)) {
+      void store.refresh(key, compute).catch(() => undefined);
+    }
+    return hit.data;
+  }
+  return (await store.refresh(key, compute, true)).data;
+}

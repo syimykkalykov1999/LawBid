@@ -3,6 +3,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/presentation/poll/poll_logic.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -84,7 +85,6 @@ class _CreatePollSheetState extends ConsumerState<_CreatePollSheet> {
     if (_issues.isNotEmpty || _sending) return;
     final t = ref.read(translatorProvider);
     final repo = ref.read(groupRepositoryProvider);
-    final navigator = Navigator.of(context);
     setState(() => _sending = true);
     try {
       await repo.createPoll(
@@ -99,7 +99,7 @@ class _CreatePollSheetState extends ConsumerState<_CreatePollSheet> {
         ),
       );
       if (!mounted) return;
-      navigator.pop(true);
+      context.popIfCurrent(true);
     } on Object catch (e) {
       if (!mounted) return;
       setState(() => _sending = false);

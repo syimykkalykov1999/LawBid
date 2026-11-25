@@ -23,6 +23,7 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { AdminReferralsService } from './admin-referrals.service';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import {
   AdminReferralCodeRowDto,
   AdminReferralCodesQueryDto,
@@ -44,7 +45,10 @@ type Page<T> = { items: T[]; nextCursor: string | null };
 @AdminEndpoint('super_admin', 'finance', 'support')
 @Controller('admin/referrals')
 export class AdminReferralsController {
-  constructor(private readonly referrals: AdminReferralsService) {}
+  constructor(
+    private readonly referrals: AdminReferralsService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Referrals, newest first' })
@@ -136,14 +140,17 @@ export class AdminReferralsController {
   @ApiEnvelopeResponse(AdminReferralRowDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
     404: [E.NOT_FOUND],
     409: [E.REFERRAL_INVALID_STATE],
   })
-  rewardAdminReferral(
+  async rewardAdminReferral(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminReferralIdParamDto,
     @Body() dto: AdminReferralReasonDto,
   ): Promise<AdminReferralRowDto> {
+    // Round 4 (25.11, С3): credits money to balances — a fresh 2FA code.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.referrals.reward(admin, p.id, dto.reason);
   }
 

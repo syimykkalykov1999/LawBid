@@ -477,6 +477,12 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
       .expect(409);
     expect((again.body as Body).error?.code).toBe('ACCOUNT_SUSPENDED');
 
+    // Round 4 (Н1): giving rights back asks a fresh 2FA code.
+    await api()
+      .post(`/api/v1/admin/users/${c.id}/restore`)
+      .set(moderator.auth)
+      .expect(403);
+    await adminStepUp(baseUrl, moderator);
     await api()
       .post(`/api/v1/admin/users/${c.id}/restore`)
       .set(moderator.auth)
@@ -536,6 +542,7 @@ describe('stage 6.3 — admin users and sanctions (e2e)', () => {
     expect(
       (await prisma.bid.findUniqueOrThrow({ where: { id: b.id } })).status,
     ).toBe('withdrawn');
+    await adminStepUp(baseUrl, sup);
     await api()
       .post(`/api/v1/admin/users/${a.id}/restore`)
       .set(sup.auth)

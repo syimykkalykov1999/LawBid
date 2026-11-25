@@ -5,6 +5,7 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/subscription/presentation/seat_purchase_sheet.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -250,7 +251,7 @@ class _AddSheetState extends ConsumerState<_AddSheet> {
       final m = await ref
           .read(teamProvider.notifier)
           .add(name: name.isEmpty ? null : name);
-      if (mounted) Navigator.of(context).pop(m);
+      if (mounted) context.popIfCurrent(m);
     } on Object catch (e) {
       if (mounted) {
         setState(() => _busy = false);

@@ -35,7 +35,12 @@ import type { Request } from 'express';
 import { apiBaseOf } from '../billing/pay-link.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { RequireAppCheck } from '../auth/auth.public';
-import { AdminEndpoint } from '../admin-auth/admin-auth.decorators';
+import {
+  AdminEndpoint,
+  CurrentAdmin,
+  type AdminActor,
+} from '../admin-auth/admin-auth.decorators';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
 import {
   CurrentUser,
@@ -145,7 +150,10 @@ export class BidPacksController {
 @AdminEndpoint('super_admin')
 @Controller('admin/billing/bid-packs')
 export class AdminBidPacksController {
-  constructor(private readonly packs: BidPacksService) {}
+  constructor(
+    private readonly packs: BidPacksService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Offer packs: sizes and prices' })
@@ -157,8 +165,13 @@ export class AdminBidPacksController {
   @Put()
   @ApiOperation({ summary: 'Save the offer packs' })
   @ApiEnvelopeResponse(SaveBidPacksDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  async saveBidPacks(@Body() dto: SaveBidPacksDto): Promise<SaveBidPacksDto> {
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async saveBidPacks(
+    @CurrentAdmin() admin: AdminActor,
+    @Body() dto: SaveBidPacksDto,
+  ): Promise<SaveBidPacksDto> {
+    // Round 4 (25.11, С2): pack prices are money — a fresh 2FA code.
+    await this.auth.assertStepUp(admin.sessionId);
     return { packs: await this.packs.savePacks(dto.packs) };
   }
 }

@@ -6,6 +6,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
@@ -210,7 +211,7 @@ class _BookingSheetState extends ConsumerState<_BookingSheet> {
         ..invalidate(consultationSlotsProvider);
       if (!mounted) return;
       final router = GoRouter.of(context);
-      Navigator.of(context).pop();
+      context.popIfCurrent();
       showAppSnackBar(
         context,
         t.t(auto ? 'consult.booked' : 'consult.requested'),
@@ -371,7 +372,7 @@ class _RescheduleSheetState extends ConsumerState<_RescheduleSheet> {
           .reschedule(widget.consultation.id, slot.startsAt);
       refreshConsultationsIn(container, id: widget.consultation.id);
       if (!mounted) return;
-      Navigator.of(context).pop(true);
+      context.popIfCurrent(true);
       showAppSnackBar(context, t.t('consult.moved'));
     } on Object catch (e) {
       if (!mounted) return;

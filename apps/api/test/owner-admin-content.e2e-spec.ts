@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
-import { adminSession } from './support/admin-login';
+import { adminSession, adminStepUp } from './support/admin-login';
 import { ensurePostPractices } from './support/post-practices';
 
 /**
@@ -47,6 +47,8 @@ describe('Admin content (e2e)', () => {
 
   it('overview, content removal, practice areas, broadcast, CSV', async () => {
     const admin = await adminSession(base, prisma, 'super_admin');
+    // Round 4 (С7): a broadcast asks a fresh 2FA code.
+    await adminStepUp(base, admin);
     const author = await prisma.user.create({
       data: {
         role: 'attorney',

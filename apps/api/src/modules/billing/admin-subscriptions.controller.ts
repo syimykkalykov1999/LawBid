@@ -25,6 +25,7 @@ import {
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import { SubscriptionAccessService } from '../subscriptions/subscription-access.service';
 import { PAYMENT_PROVIDER } from './billing.constants';
 import {
@@ -55,6 +56,7 @@ export class AdminSubscriptionsController {
     private readonly access: SubscriptionAccessService,
     private readonly audit: AuditLogService,
     private readonly notifications: NotificationsService,
+    private readonly auth: AdminAuthService,
   ) {}
 
   @Get(':userId')
@@ -74,12 +76,18 @@ export class AdminSubscriptionsController {
   @Roles('super_admin', 'finance')
   @ApiOperation({ summary: 'Extend by N days (compensation), reason required' })
   @ApiEnvelopeResponse(AdminSubscriptionDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.SUBSCRIPTION_NOT_FOUND] })
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.SUBSCRIPTION_NOT_FOUND],
+  })
   async extendSubscription(
     @CurrentAdmin() admin: AdminActor,
     @Param() params: AdminSubscriptionUserParamDto,
     @Body() dto: ExtendSubscriptionDto,
   ): Promise<AdminSubscriptionDto> {
+    // Round 4 (25.11, С3): free days of a paid plan — a fresh 2FA code.
+    await this.auth.assertStepUp(admin.sessionId);
     const row = await this.prisma.subscription.findUnique({
       where: { user_id: params.userId },
     });

@@ -8,6 +8,7 @@ import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/time/local_now.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -304,7 +305,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
           .read(tasksProvider(widget.listKey).notifier)
           .setStatus(_task, status, note: note, rescheduleTo: rescheduleTo);
       if (!mounted) return;
-      Navigator.of(context).pop(updated);
+      context.popIfCurrent(updated);
       if (rescheduleTo != null) {
         showAppSnackBar(
           context,
@@ -547,7 +548,7 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
       await ref.read(teamRepositoryProvider).deleteTask(_task.id);
       ref.read(tasksHubProvider).drop(_task.id);
       if (!mounted) return;
-      Navigator.of(context).pop();
+      context.popIfCurrent();
       showAppSnackBar(context, t.t('tasks.deleted'));
     } on Object catch (e) {
       if (mounted) {
