@@ -10,6 +10,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
 import { cached } from '../../common/cache/cached';
+import { feedVersion } from '../../common/cache/feed-version';
 import {
   type Assignment,
   ExperimentsService,
@@ -618,42 +619,67 @@ export class RecommendationsService {
    * served for POST_PIN_TTL_SEC; later pages read that copy while it lives
    * (a lost copy = today's behaviour). `reco.pin_paging_enabled` off = no
    * pin. Status and blocks are re-checked when the page is presented.
+   *
+   * 18.11 (owner: reels / posts skipped or repeated after a refresh): the
+   * copy is named by its content ([pin], carried in the caller's cursor).
+   * One shared copy per viewer was overwritten by ANY newer first page of
+   * the same list — the Reels screen reads a fresh first page every 3
+   * minutes while the viewer scrolls (the fresh-reels mix), so the scroll
+   * jumped to another ranking mid-way. Now a scroll keeps paging the copy
+   * its own first page served; a new first page starts a new copy.
+   * [opts.includeOwn]: the viewer's own posts stay in the list (reels).
    */
   async postsForPage(
     viewerId: string,
     where: Prisma.PostWhereInput,
     filterKey: unknown,
     offset: number,
-  ): Promise<string[]> {
-    let pin = APP_SETTINGS['reco.pin_paging_enabled'];
+    opts: { pin?: string | null; includeOwn?: boolean } = {},
+  ): Promise<{ ids: string[]; pin: string | null }> {
+    let pinOn = APP_SETTINGS['reco.pin_paging_enabled'];
     try {
       if (this.settings)
-        pin = await this.settings.boolean('reco.pin_paging_enabled');
+        pinOn = await this.settings.boolean('reco.pin_paging_enabled');
     } catch {
       // unreadable: the built-in default
     }
     const variant = await this.assignmentFor(viewerId, 'post');
-    if (!pin) return this.postsFor(viewerId, where, filterKey, variant);
-    const key = `reco:posts:pin:${viewerId}:${hashOf(filterKey)}${variantSuffix(variant)}`;
+    const build = () =>
+      this.postsFor(viewerId, where, filterKey, variant, {
+        includeOwn: opts.includeOwn,
+      });
+    if (!pinOn) return { ids: await build(), pin: null };
+    const base = `reco:posts:pin:${viewerId}:${hashOf(filterKey)}${variantSuffix(variant)}`;
     if (offset > 0) {
       try {
-        const raw = await this.redis.get(key);
+        // A cursor from before 18.11 has no pin: the old shared copy.
+        const raw = await this.redis.get(
+          opts.pin ? `${base}:${opts.pin}` : base,
+        );
         if (raw) {
           const ids = JSON.parse(raw) as unknown;
-          if (Array.isArray(ids)) return ids as string[];
+          if (Array.isArray(ids))
+            return { ids: ids as string[], pin: opts.pin ?? null };
         }
       } catch {
         // cache down or garbage: rebuild below
       }
     }
-    const ids = await this.postsFor(viewerId, where, filterKey, variant);
-    // Pinned on the first page, or re-pinned when the copy was lost.
+    const ids = await build();
+    // Pinned on the first page, or re-pinned when the copy was lost. The
+    // same list gives the same name (no new key while the ranking holds).
+    const pin = hashOf(ids).slice(0, 12);
     await Promise.resolve()
       .then(() =>
-        this.redis.set(key, JSON.stringify(ids), 'EX', POST_PIN_TTL_SEC),
+        this.redis.set(
+          `${base}:${pin}`,
+          JSON.stringify(ids),
+          'EX',
+          POST_PIN_TTL_SEC,
+        ),
       )
       .catch(() => undefined);
-    return ids;
+    return { ids, pin };
   }
 
   /**
@@ -661,14 +687,20 @@ export class RecommendationsService {
    * [POST_CANDIDATES] posts matching [where] (the caller's filters, blocks
    * and visibility). Cached per viewer and filter set.
    */
-  postsFor(
+  async postsFor(
     viewerId: string,
     where: Prisma.PostWhereInput,
     filterKey: unknown,
     variant: Assignment | null = null,
+    opts: { includeOwn?: boolean } = {},
   ): Promise<string[]> {
+    const includeOwn = opts.includeOwn === true;
+    // 18.11: the viewer's feed version (common/cache/feed-version.ts) is
+    // part of the key — an own post going public, a follow or a block
+    // starts a fresh list at once instead of after LISTING_TTL_SEC.
+    const ver = await feedVersion(this.redis, viewerId);
     return this.cached(
-      `reco:posts:${viewerId}:${hashOf(filterKey)}${variantSuffix(variant)}`,
+      `reco:posts:${viewerId}:${hashOf(filterKey)}${includeOwn ? ':own' : ''}:${ver}${variantSuffix(variant)}`,
       LISTING_TTL_SEC,
       async () => {
         const rows = await this.prisma.post.findMany({
@@ -737,9 +769,19 @@ export class RecommendationsService {
           ]),
           LISTING_TTL_SEC,
         );
+        // Own posts are not "discovery" (Search). 18.11: the reels keep
+        // them (Instagram: your reel is in your Reels) — unwatched own
+        // reels lead, newest first; watched ones rank like any other.
+        const leaders = includeOwn
+          ? candidates
+              .filter((c) => c.authorId === viewerId && !seen.has(c.id))
+              .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          : [];
+        const led = new Set(leaders.map((c) => c.id));
         const scored: Scored<PostCandidate>[] = candidates
-          // Own posts are not "discovery".
-          .filter((c) => c.authorId !== viewerId)
+          .filter((c) =>
+            includeOwn ? !led.has(c.id) : c.authorId !== viewerId,
+          )
           .map((c) => ({
             item: c,
             score: postScore(
@@ -751,13 +793,25 @@ export class RecommendationsService {
               w,
             ),
           }));
-        return diversify(scored, {
-          key: (c) => c.authorId,
-          kind: (c) => c.kind,
-          window: 6,
-        })
-          .slice(0, POST_POOL)
-          .map((c) => c.id);
+        const spread = (list: Scored<PostCandidate>[]) =>
+          diversify(list, {
+            key: (c) => c.authorId,
+            kind: (c) => c.kind,
+            window: 6,
+          });
+        // 24.11 (owner: «нормальный алгоритм для каждой ленты»; TikTok
+        // newsroom 18.06.2020 "How TikTok recommends videos #ForYou": no
+        // video you have already seen while new ones are there): in the
+        // reels every reel not watched yet comes before any watched one;
+        // the watched ones follow, still ranked, so the stream never ends.
+        // Search keeps the softer SEEN_FACTOR alone.
+        const ranked = includeOwn
+          ? [
+              ...spread(scored.filter((s) => !seen.has(s.item.id))),
+              ...spread(scored.filter((s) => seen.has(s.item.id))),
+            ]
+          : spread(scored);
+        return [...leaders, ...ranked].slice(0, POST_POOL).map((c) => c.id);
       },
     );
   }

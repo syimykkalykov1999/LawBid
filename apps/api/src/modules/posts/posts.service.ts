@@ -4,7 +4,10 @@ import { PromotionDeliveryService } from '../promotions/promotion-delivery.servi
 
 import { DomainEvents } from '../events/domain-events.service';
 import { RecommendationsService } from '../recommendations/recommendations.service';
-import { decodeOffset, encodeOffset } from '../recommendations/offset-cursor';
+import {
+  decodeOffsetCursor,
+  encodeOffset,
+} from '../recommendations/offset-cursor';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import {
   BadRequestException,
@@ -1159,6 +1162,13 @@ export class PostsService {
    * variants apply) over the newest ready reels, paged by offset through a
    * pinned copy. Null = the newest-first list (setting off, a guest, an
    * older keyset cursor, or the ranking failed).
+   *
+   * 18.11 (owner's phone: «Пока нет рилсов» while his 2 reels were ready):
+   * the ranked list dropped the viewer's own posts (a Search rule) and an
+   * empty ranked first page was returned as is, so the newest-first list
+   * never ran. Now the viewer's own reels stay in the ranking (unwatched
+   * ones first) and an empty ranked first page falls back to newest first:
+   * ready reels are never hidden behind an empty ranking.
    */
   private async rankedReels(
     user: RequestUser,
@@ -1169,11 +1179,12 @@ export class PostsService {
   ): Promise<PostPage | null> {
     if (!this.recommendations || user.guest) return null;
     let offset = 0;
+    let pin: string | null = null;
     if (cursor) {
       try {
-        offset = decodeOffset(cursor);
+        ({ offset, pin } = decodeOffsetCursor(cursor));
       } catch {
-        return null; // a newest-first cursor from before: keep paging that way
+        return null; // a newest-first cursor: keep paging that way
       }
     }
     try {
@@ -1189,12 +1200,15 @@ export class PostsService {
           hidden.length ? { author_id: { notIn: hidden } } : {},
         ],
       };
-      const ids = await this.recommendations.postsForPage(
+      const ranked = await this.recommendations.postsForPage(
         user.sub,
         where,
         { reels: true, practice: practice ?? null },
         offset,
+        { pin, includeOwn: true },
       );
+      const ids = ranked.ids;
+      if (offset === 0 && ids.length === 0) return null;
       const slice = ids.slice(offset, offset + limit);
       const rows = slice.length
         ? await this.prisma.post.findMany({
@@ -1208,7 +1222,9 @@ export class PostsService {
       return {
         items: await this.withPromotedReels(user, items, hidden),
         nextCursor:
-          offset + limit < ids.length ? encodeOffset(offset + limit) : null,
+          offset + limit < ids.length
+            ? encodeOffset(offset + limit, ranked.pin)
+            : null,
       };
     } catch {
       return null;
