@@ -30,6 +30,7 @@ import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/data/message_store.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_providers.dart';
 import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart'
@@ -69,6 +70,8 @@ final chatRepositoryProvider = Provider<ChatRepository>(
     storageDio: ref.watch(storageDioProvider),
     listCache: ref.watch(chatListCacheProvider),
     messageStore: ref.watch(messageStoreProvider),
+    // Item 25: end-to-end encrypted chats.
+    e2ee: ref.watch(e2eeServiceProvider),
   ),
 );
 
@@ -119,6 +122,12 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
 
   @override
   Future<PaginatedList<Conversation>> build() {
+    // Item 25: this device's MLS key and KeyPackages reach the server as
+    // soon as the chats are opened (then «Авто» can encrypt its chats).
+    final e2ee = ref.read(e2eeServiceProvider);
+    if (e2ee != null) {
+      unawaited(e2ee.engine().then((_) {}, onError: (Object _) {}));
+    }
     _outside.clear();
     _asked.clear();
     _pullSince = null;
@@ -1062,6 +1071,12 @@ class ChatThread extends Notifier<ChatThreadState> {
   /// copy at once, the server is asked only for what came after the newest
   /// message on the phone; a chat without a copy reads its first page.
   Future<void> load() async {
+    // Item 25: the chat's encryption group is brought up to date while the
+    // messages load (joins, others' commits, new devices of the members).
+    final e2ee = ref.read(e2eeServiceProvider);
+    if (e2ee != null) {
+      unawaited(e2ee.sync(id).then((_) {}, onError: (Object _) {}));
+    }
     final store = _store;
     if (store != null) {
       // R-380: no list in memory — the saved chats list (read alongside the
