@@ -491,7 +491,6 @@
 "cases.activity.lastSeen.two":"ग्राहक {n} दिन अघि सक्रिय थिए",
 "cases.activity.lastSeen.zero":"ग्राहक {n} दिन अघि सक्रिय थिए",
 "cases.activity.online":"ग्राहक अनलाइन छन्",
-"cases.activity.responds":"सामान्यतया एक दिनभित्र जवाफ दिन्छन्",
 "cases.activity.taskClosed":"{name} द्वारा “{title}” बन्द गरियो",
 "cases.activity.taskCreated":"{name} द्वारा कार्य “{title}” बनाइयो",
 "cases.activity.taskDone":"{name} द्वारा “{title}” सम्पन्न गरियो",

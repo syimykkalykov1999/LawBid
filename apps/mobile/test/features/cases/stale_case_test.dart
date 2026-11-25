@@ -338,10 +338,8 @@ void main() {
       );
       expect(find.byType(ClientActivityLine), findsOneWidget);
       expect(find.textContaining('Client active 2 days ago'), findsOneWidget);
-      expect(
-        find.textContaining('Usually replies within a day'),
-        findsOneWidget,
-      );
+      // Owner 18.11: the typical response time is shown nowhere.
+      expect(find.textContaining('replies within'), findsNothing);
     });
 
     testWidgets('no line when the client hides their activity', (tester) async {
