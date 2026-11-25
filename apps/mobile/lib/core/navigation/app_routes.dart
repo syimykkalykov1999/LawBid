@@ -1,6 +1,9 @@
 /// Path constants for go_router. Centralized here (never a string literal at
 /// a `context.go(...)` call site) so a path rename is a one-line change.
 abstract final class AppRoutes {
+  /// Owner row 87: the client's hotline request (search, queue, «Позвонить
+  /// сейчас?»); `?requestId=` from a tapped «Адвокат на линии».
+  static const hotlineStatus = '/hotline/status';
   static const feed = '/feed';
   static const search = '/search';
   static const mine = '/mine';

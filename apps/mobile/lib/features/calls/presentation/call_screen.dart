@@ -15,6 +15,7 @@ import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_quality.dart';
+import 'package:lawbid/features/calls/application/call_screen_addon.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_add_panel.dart';
@@ -27,8 +28,6 @@ import 'package:lawbid/features/calls/presentation/call_vote.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart'
     show voiceClock;
-import 'package:lawbid/features/hotline/application/hotline_controller.dart';
-import 'package:lawbid/features/hotline/presentation/hotline_call_client.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/plans/presentation/plan_offer.dart';
 import 'package:lawbid/features/subscription/presentation/paywall_screen.dart';
@@ -382,11 +381,12 @@ class _CallScreenState extends ConsumerState<CallScreen>
         !group && s.busy && ref.watch(callMicsOffProvider).contains(peer?.id);
     final active = s.phase == CallPhase.active;
     final incoming = s.phase == CallPhase.incoming;
-    // Owner row 87 (hotline mockup v4 c10b): the client's hotline call —
-    // the attorney's card on top, his photo opens full screen, «Посмотреть
-    // профиль» · «Предложить дело», no camera. Every other call: unchanged.
-    final hotlineId = ref.watch(hotlineClientCallIdProvider);
-    final hotline = !group && hotlineId != null && s.call?.id == hotlineId;
+    // Owner row 87 (hotline mockup v4 c10b): a call another feature draws
+    // the middle of (the hotline's attorney card), voice only. Every other
+    // call: unchanged.
+    final slot = ref.watch(callScreenAddonProvider);
+    final addon =
+        !group && slot != null && s.call?.id == slot.callId ? slot : null;
     final ringing = s.phase == CallPhase.outgoing || incoming;
     _syncPulse(on: ringing && !context.reduceMotion);
 
@@ -488,13 +488,14 @@ class _CallScreenState extends ConsumerState<CallScreen>
           ],
         ),
       );
-    } else if (hotline) {
+    } else if (addon != null) {
       picture = Stack(
         fit: StackFit.expand,
         children: [
           const CallAudioBackdrop(),
           CallPhotoBackdrop(url: peer?.avatarUrl),
-          HotlineCallClientPanel(
+          addon.stage(
+            context,
             peer: peer,
             bottomInset: sheetHeight,
             clock: _CallClock(
@@ -634,7 +635,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
                       : null,
                   // Owner 2026-10-22: switches video on / off mid-call; a
                   // channel's video call keeps the plain camera pause.
-                  showVideo: !hotline,
+                  showVideo: addon == null,
                   onVideo: c.canSwitchVideo
                       ? () => _videoTap(c, s, c.toggleVideo)
                       : s.video && s.busy

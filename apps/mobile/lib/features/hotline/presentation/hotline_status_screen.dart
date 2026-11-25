@@ -28,7 +28,12 @@ import 'package:material_ui/material_ui.dart';
 /// `hotline.counters_interval_sec` (ETag: a 304 costs nothing), and once
 /// more when the app comes back or the network returns.
 class HotlineStatusScreen extends ConsumerStatefulWidget {
-  const HotlineStatusScreen({super.key});
+  const HotlineStatusScreen({this.noticeRequestId, super.key});
+
+  /// Opened from a tapped «Адвокат на линии» (the push's `requestId`):
+  /// «Позвонить сейчас?» shows at once; the server keeps the place for a
+  /// late tap too.
+  final String? noticeRequestId;
 
   @override
   ConsumerState<HotlineStatusScreen> createState() =>
@@ -49,6 +54,12 @@ class _HotlineStatusScreenState extends ConsumerState<HotlineStatusScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    final notice = widget.noticeRequestId;
+    if (notice != null && notice.isNotEmpty) {
+      Future.microtask(
+        () => _c.noticeArrived(HotlineNotice(requestId: notice)),
+      );
+    }
     unawaited(
       _c.restore().whenComplete(() {
         if (mounted) setState(() => _loaded = true);

@@ -9,8 +9,8 @@ import 'package:lawbid/core/navigation/back_swipe.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
-import 'package:lawbid/features/hotline/presentation/hotline_entry_fab.dart';
 import 'package:lawbid/features/legal_qa/application/legal_qa_providers.dart';
+import 'package:lawbid/features/legal_qa/application/qa_feed_slots.dart';
 import 'package:lawbid/features/legal_qa/domain/qa_models.dart';
 import 'package:lawbid/features/legal_qa/legal_qa_routes.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_filter_sheet.dart';
@@ -285,7 +285,8 @@ class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                const HotlineEntryFab(),
+                if (ref.watch(qaFeedFabSlotProvider) case final extra?)
+                  extra(context),
                 AppFab(
                   buttonKey: const ValueKey('qa-ask'),
                   semanticLabel: t.t('qa.ask'),

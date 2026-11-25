@@ -147,7 +147,7 @@ class HotlineCallClientPanel extends ConsumerWidget {
                         style: type.body.copyWith(
                           color: AppCallColors.onStage,
                           fontWeight: FontWeight.w600,
-                          fontSize: 18,
+                          fontSize: CallTextSizes.title,
                         ),
                       ),
                     ),

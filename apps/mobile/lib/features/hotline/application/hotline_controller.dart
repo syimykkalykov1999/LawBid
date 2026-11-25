@@ -4,14 +4,17 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:lawbid/core/diagnostics/app_event_names.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
+import 'package:lawbid/features/calls/application/call_screen_addon.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/hotline/data/hotline_repository.dart';
 import 'package:lawbid/features/hotline/domain/hotline_models.dart';
+import 'package:lawbid/features/hotline/presentation/hotline_call_client.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
@@ -276,7 +279,7 @@ class HotlineController extends Notifier<HotlineFlow> {
   Future<bool> start(HotlineDraft draft) async {
     if (!draft.valid || state.busy) return false;
     state = state.copyWith(busy: true, clearError: true, draft: draft);
-    AppEvents.track('hotline.request', screen: 'hotline');
+    AppEvents.track(AppEventNames.hotlineRequest, screen: 'hotline');
     try {
       final r = await _repo.create(draft);
       if (!ref.mounted) return false;
@@ -336,7 +339,7 @@ class HotlineController extends Notifier<HotlineFlow> {
   }
 
   Future<void> cancel() async {
-    await _act('hotline.cancel', (id) => _repo.cancel(id));
+    await _act(AppEventNames.hotlineCancel, (id) => _repo.cancel(id));
   }
 
   Future<void> changeLanguages(List<String> languages) async {
@@ -346,7 +349,7 @@ class HotlineController extends Notifier<HotlineFlow> {
       state = state.copyWith(draft: draft.copyWith(languages: languages));
     }
     await _act(
-      'hotline.languages',
+      AppEventNames.hotlineLanguages,
       (id) => _repo.changeLanguages(id, languages),
     );
     unawaited(refreshCounters());
@@ -355,7 +358,10 @@ class HotlineController extends Notifier<HotlineFlow> {
   /// «Сообщите, когда появится адвокат».
   Future<void> notifyMe() async {
     final zone = await ref.read(hotlineTimeZoneProvider)();
-    await _act('hotline.notify', (id) => _repo.notifyMe(id, timeZone: zone));
+    await _act(
+      AppEventNames.hotlineNotify,
+      (id) => _repo.notifyMe(id, timeZone: zone),
+    );
   }
 
   /// «Вернуться в очередь» / «Позвонить сейчас» (in the app: no token).
@@ -364,14 +370,14 @@ class HotlineController extends Notifier<HotlineFlow> {
     if (id == null) return;
     state = state.copyWith(clearNotice: true);
     final code = await _act(
-      'hotline.claim',
+      AppEventNames.hotlineClaim,
       (_) => _repo.claim(id, token: token),
       id: id,
     );
     // An older notice than the newest one is refused; in the app the client
     // may claim without it (the server keeps his place).
     if (token != null && code == ApiErrorCodes.forbidden) {
-      await _act('hotline.claim', (_) => _repo.claim(id), id: id);
+      await _act(AppEventNames.hotlineClaim, (_) => _repo.claim(id), id: id);
     }
   }
 
@@ -397,7 +403,7 @@ class HotlineController extends Notifier<HotlineFlow> {
     final p = state.review;
     if (p == null) return false;
     state = state.copyWith(clearReview: true);
-    AppEvents.track('hotline.review', screen: 'hotline');
+    AppEvents.track(AppEventNames.hotlineReview, screen: 'hotline');
     try {
       return await _repo.review(p.requestId, stars: stars, comment: comment);
     } on Object {
@@ -412,7 +418,7 @@ class HotlineController extends Notifier<HotlineFlow> {
   Future<({String? caseId, String? code})> offerCase() async {
     final id = state.request?.id;
     if (id == null) return (caseId: null, code: ApiErrorCodes.notFound);
-    AppEvents.track('hotline.offer_case', screen: 'hotline');
+    AppEvents.track(AppEventNames.hotlineOfferCase, screen: 'hotline');
     try {
       return (caseId: await _repo.offerCase(id), code: null);
     } on ApiException catch (e) {
@@ -474,7 +480,24 @@ class HotlineController extends Notifier<HotlineFlow> {
     if (_enteredCall == callId) return;
     _enteredCall = callId;
     state = state.copyWith(callId: callId);
-    AppEvents.track('hotline.connected', screen: 'hotline');
+    // The call screen draws the attorney's card for this call (voice only).
+    ref.read(callScreenAddonProvider.notifier).set(
+          CallScreenAddon(
+            callId: callId,
+            stage: (
+              context, {
+              required peer,
+              required clock,
+              required bottomInset,
+            }) =>
+                HotlineCallClientPanel(
+              peer: peer,
+              clock: clock,
+              bottomInset: bottomInset,
+            ),
+          ),
+        );
+    AppEvents.track(AppEventNames.hotlineConnected, screen: 'hotline');
     unawaited(
       ref.read(hotlineEnterCallProvider)(callId).then<void>(
             (_) {},

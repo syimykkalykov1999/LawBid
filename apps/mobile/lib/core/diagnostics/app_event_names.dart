@@ -31,8 +31,26 @@ abstract final class AppEventNames {
   /// Owner row 112: «Not interested» on someone else's post.
   static const postNotInterested = 'post_not_interested';
 
+  // Owner row 87: the client's call hotline.
+  static const hotlineRequest = 'hotline_request';
+  static const hotlineCancel = 'hotline_cancel';
+  static const hotlineLanguages = 'hotline_languages';
+  static const hotlineNotify = 'hotline_notify';
+  static const hotlineClaim = 'hotline_claim';
+  static const hotlineConnected = 'hotline_connected';
+  static const hotlineReview = 'hotline_review';
+  static const hotlineOfferCase = 'hotline_offer_case';
+
   /// Every name the app can send (the document must list each one).
   static const all = <String>{
+    hotlineRequest,
+    hotlineCancel,
+    hotlineLanguages,
+    hotlineNotify,
+    hotlineClaim,
+    hotlineConnected,
+    hotlineReview,
+    hotlineOfferCase,
     appOpen,
     screenView,
     otpRequested,

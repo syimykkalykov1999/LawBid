@@ -6,7 +6,9 @@ import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/features/hotline/application/hotline_controller.dart';
 import 'package:lawbid/features/hotline/domain/hotline_models.dart';
 import 'package:lawbid/features/hotline/hotline_routes.dart';
+import 'package:lawbid/features/hotline/presentation/hotline_entry_fab.dart';
 import 'package:lawbid/features/hotline/presentation/hotline_review_sheet.dart';
+import 'package:lawbid/features/legal_qa/application/qa_feed_slots.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// The client's hotline over every screen (like `CallHost` for calls):
@@ -34,6 +36,14 @@ class _HotlineHostState extends ConsumerState<HotlineHost> {
   @override
   void initState() {
     super.initState();
+    // «Вопросы» shows our call button above its «+» (mockup v4 c1); the
+    // button itself hides while the line is off or for an attorney.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref
+          .read(qaFeedFabSlotProvider.notifier)
+          .set((_) => const HotlineEntryFab());
+    });
     ref.listenManual<bool>(
       hotlineClientVisibleProvider,
       (_, on) {

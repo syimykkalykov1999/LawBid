@@ -7,10 +7,12 @@ import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/features/calls/application/call_screen_addon.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/hotline/application/hotline_controller.dart';
 import 'package:lawbid/features/hotline/data/hotline_repository.dart';
 import 'package:lawbid/features/hotline/domain/hotline_models.dart';
+import 'package:lawbid/features/notifications/presentation/notifications_view.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
@@ -273,6 +275,22 @@ void main() {
     expect(repo.calls, contains('claim:test-claim-token'));
     expect(entered, ['call-1']);
     expect(c.read(hotlineClientCallIdProvider), 'call-1');
+    // the call screen draws the attorney's card for exactly this call
+    expect(c.read(callScreenAddonProvider)?.callId, 'call-1');
+  });
+
+  test(
+      'C5b a tapped «Адвокат на линии» opens «Позвонить сейчас?» (no token in the link)',
+      () {
+    expect(
+      notificationRoute(
+        type: 'hotline_attorney_available',
+        payload: const {'requestId': 'req-1', 'claimToken': 'test-claim-token'},
+        attorney: false,
+        myId: 'client-1',
+      ),
+      '/hotline/status?requestId=req-1',
+    );
   });
 
   test('C6 push ignored / expired: nothing opens, the place stays', () async {
