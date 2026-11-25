@@ -170,6 +170,14 @@ export class StickersService {
     await this.assertInstallRoom(userId);
     await this.limits.consume('sticker_pack_create', userId);
     const pack = await this.prisma.$transaction(async (tx) => {
+      // Pack E (25.11, ROUND2 #19): the admin's cap is counted again under
+      // a per-person lock (as quick-replies), so a double tap or two
+      // devices cannot both pass the check above.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`sticker-packs:${userId}`}, 0))`;
+      const ownNow = await tx.stickerPack.count({
+        where: { owner_user_id: userId, deleted_at: null },
+      });
+      if (ownNow >= max) throw limit('own_packs', max);
       const p = await tx.stickerPack.create({
         data: {
           owner_user_id: userId,
@@ -239,12 +247,22 @@ export class StickersService {
     // is published only after the media scan (Rekognition + CSAM hash).
     const moderation = await this.initialModeration(fileId);
     const sticker = await this.prisma.$transaction(async (tx) => {
+      // Pack E (25.11, ROUND2 #19): one writer per pack at a time and its
+      // count read again under the lock, so two adds at once cannot pass
+      // the admin's cap or take the same position.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`sticker-pack:${pack.id}`}, 0))`;
+      const now = await tx.stickerPack.findUnique({
+        where: { id: pack.id },
+        select: { sticker_count: true },
+      });
+      const count = now?.sticker_count ?? pack.sticker_count;
+      if (count >= max) throw limit('per_pack', max);
       const s = await tx.sticker.create({
         data: {
           pack_id: pack.id,
           file_id: fileId,
           emoji: (emoji ?? '').trim() || '🙂',
-          position: pack.sticker_count,
+          position: count,
           moderation_status: moderation,
         },
       });

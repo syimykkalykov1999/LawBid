@@ -187,13 +187,10 @@ const Map<String, String> compiledStringsRu = {
   'deleteAccount.reauth.biometric.button': 'Использовать Face ID / Touch ID',
   'deleteAccount.reauth.biometric.prompt':
       'Подтвердите личность, чтобы продолжить',
-  'deleteAccount.reauth.useCode': 'Использовать код по SMS',
-  'deleteAccount.reauth.phoneHint': 'Номер телефона, привязанный к аккаунту',
+  'deleteAccount.reauth.useCode': 'Использовать код на почту',
   'deleteAccount.reauth.sendCode': 'Отправить код',
   'deleteAccount.reauth.codeSubtitle': 'Мы отправили код на {phone}',
   'deleteAccount.reauth.submit': 'Подтвердить код',
-  'deleteAccount.reauth.error.invalid':
-      'Неверный код, или номер не привязан к вашему аккаунту',
   'deleteAccount.reauth.error.network': 'Ошибка сети, попробуйте снова',
   'deleteAccount.reauth.error.expired':
       'Подтверждение истекло, попробуйте снова',
@@ -1263,13 +1260,10 @@ const Map<String, String> compiledStringsEn = {
   'deleteAccount.reauth.title': "Confirm it's you",
   'deleteAccount.reauth.biometric.button': 'Use Face ID / Touch ID',
   'deleteAccount.reauth.biometric.prompt': "Confirm it's you to continue",
-  'deleteAccount.reauth.useCode': 'Use a text message code instead',
-  'deleteAccount.reauth.phoneHint': 'Phone number linked to your account',
+  'deleteAccount.reauth.useCode': 'Use an email code instead',
   'deleteAccount.reauth.sendCode': 'Send code',
   'deleteAccount.reauth.codeSubtitle': 'We sent a code to {phone}',
   'deleteAccount.reauth.submit': 'Confirm code',
-  'deleteAccount.reauth.error.invalid':
-      "Incorrect code, or that number isn't linked to your account",
   'deleteAccount.reauth.error.network': 'Network error, please try again',
   'deleteAccount.reauth.error.expired':
       'Confirmation expired, please try again',
@@ -1820,8 +1814,7 @@ const Map<String, String> compiledStringsEn = {
       "Records can't be changed or deleted and are kept for 5 years.",
   'history.reauth.title': "Confirm it's you",
   'history.reauth.message': "We'll send a code to {phone}.",
-  'history.reauth.noPhone':
-      'Add a verified phone in settings to open the history.',
+  'history.reauth.noPhone': 'Add a verified email in settings to continue.',
   'history.reauth.send': 'Get code',
   'history.reauth.resend': 'Send the code again',
   'history.reauth.code': 'Confirmation code',

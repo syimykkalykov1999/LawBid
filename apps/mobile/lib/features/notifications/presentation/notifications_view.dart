@@ -5,6 +5,7 @@ import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/channels/channels_routes.dart';
@@ -228,6 +229,13 @@ String? notificationRoute({
       return AppRoutes.dataExport;
     case 'case_history_export_ready':
       return AppRoutes.caseHistory;
+    // Pack E (25.11): «Аккаунт будет удалён» reaches a phone that is signed
+    // out (the deletion ended every session). Signing in within the grace
+    // period keeps the account (the server cancels the deletion on sign-in),
+    // so the tap opens the phone + password sign-in; a signed-in app is
+    // sent on to the feed by the router guard.
+    case 'account_deletion_scheduled':
+      return AuthRoutes.login;
     // Owner 2026-10-22 (security audit #3): a changed phone / e-mail /
     // sign-in method / password opens Active devices to sign out an intruder.
     case 'security_new_device' ||

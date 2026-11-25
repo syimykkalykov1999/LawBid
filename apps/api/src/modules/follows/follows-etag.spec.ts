@@ -29,9 +29,22 @@ describe('follow lists cheap ETag (R-385)', () => {
         count: jest.fn().mockResolvedValue(3),
         findFirst: jest.fn().mockResolvedValue({ created_at: new Date(5) }),
       },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({ role: 'attorney' }),
+      },
+      attorneyProfile: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ followers_count: 3, following_count: 3 }),
+      },
+      clientProfile: { findUnique: jest.fn().mockResolvedValue(null) },
+    };
+    const pending = new Map<string, number>();
+    const counters = {
+      pending: jest.fn(() => Promise.resolve(new Map(pending))),
     };
     const svc = Object.create(FollowsService.prototype) as FollowsService;
-    Object.assign(svc, { prisma });
+    Object.assign(svc, { prisma, counters });
     const assertListable = jest
       .spyOn(svc, 'assertListable')
       .mockResolvedValue(undefined);
@@ -42,6 +55,7 @@ describe('follow lists cheap ETag (R-385)', () => {
     return {
       c: new FollowsController(svc),
       prisma,
+      pending,
       assertListable,
       followers,
       following,
@@ -68,12 +82,45 @@ describe('follow lists cheap ETag (R-385)', () => {
     const t = build();
     const first = http();
     await t.c.listFollowing(user, a1, {}, first.req, first.res);
-    t.prisma.follow.count.mockResolvedValue(2);
+    t.prisma.attorneyProfile.findUnique.mockResolvedValue({
+      followers_count: 3,
+      following_count: 2,
+    });
     const again = http(first.headers.ETag);
     expect(
       await t.c.listFollowing(user, a1, {}, again.req, again.res),
     ).toBeDefined();
     expect(t.following).toHaveBeenCalledTimes(2);
+  });
+
+  it('pack E (ROUND2 #15): the tag never counts the follows of a profile', async () => {
+    const t = build();
+    const h = http();
+    await t.c.listFollowers(user, a1, {}, h.req, h.res);
+    await t.c.listMyFollowing(user, {}, h.req, h.res);
+    expect(t.prisma.follow.count).not.toHaveBeenCalled();
+  });
+
+  it('pack E: an unsent counter delta (an unfollow not flushed yet) changes the tag', async () => {
+    const t = build();
+    const first = http();
+    await t.c.listFollowers(user, a1, {}, first.req, first.res);
+    t.pending.set('a1', -1);
+    const again = http(first.headers.ETag);
+    expect(
+      await t.c.listFollowers(user, a1, {}, again.req, again.res),
+    ).toBeDefined();
+    expect(t.followers).toHaveBeenCalledTimes(2);
+  });
+
+  it('pack E: a user without a profile row (assistant) still gets a size', async () => {
+    const t = build();
+    t.prisma.attorneyProfile.findUnique.mockResolvedValue(null);
+    const h = http();
+    await t.c.listMyFollowing(user, {}, h.req, h.res);
+    expect(t.prisma.follow.count).toHaveBeenCalledWith({
+      where: { follower_id: 'viewer' },
+    });
   });
 
   it('a search or a next page is never tagged', async () => {

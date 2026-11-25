@@ -7,8 +7,9 @@ part 'delete_account_flow_state.freezed.dart';
 /// State for `/profile/settings/delete-account` (file 01 §10.7). One
 /// notifier for the whole flow, same reasoning as `OnboardingFlowState`
 /// (features/auth/domain/onboarding_flow_state.dart's doc comment): later
-/// steps display data collected on earlier ones (the phone number typed in
-/// [DeleteAccountStep.reauthPhone] is shown on [DeleteAccountStep.reauthCode]).
+/// steps display data collected on earlier ones (the e-mail the code was
+/// sent to on [DeleteAccountStep.reauthPhone] is shown on
+/// [DeleteAccountStep.reauthCode]).
 ///
 /// Phase 4 of the auth networking work (docs/CHANGELOG.md).
 ///
@@ -21,7 +22,9 @@ abstract class DeleteAccountFlowState with _$DeleteAccountFlowState {
   const factory DeleteAccountFlowState({
     @Default(DeleteAccountStep.warning) DeleteAccountStep step,
     @Default(false) bool biometricAvailable,
-    String? phoneNumber,
+
+    /// Pack E (25.11): the verified e-mail the reauth code went to.
+    String? codeTarget,
     @Default(false) bool codeRequested,
     String? reauthToken,
     @Default('') String confirmPhraseInput,
