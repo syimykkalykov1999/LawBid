@@ -1620,11 +1620,17 @@ class CallController extends Notifier<CallSession> {
 
   /// A call between two people only: not a group chat's or a channel's,
   /// and never more than two people in it (the server's twin rule).
+  /// Owner 18.11: a call made a group with someone added who still rings is
+  /// not one — the server keeps it for the one who stays (`settleHeadcount`
+  /// ends a call of two only when nobody rings), so a «bye» there must not
+  /// drop that phone out while the server still counts it «in the call»
+  /// (it then read «busy» to every 1:1 call). A plain 1:1 is unchanged.
   bool _twoPersonCall(AppCall call) =>
       !call.group ||
       (call.groupId == null &&
           call.channelId == null &&
-          call.participants.where((m) => m.joinedAt != null).length <= 2);
+          call.participants.where((m) => m.joinedAt != null).length <= 2 &&
+          !call.participants.any((m) => m.ringing));
 
   /// One link per joined member: new ones are added (the later joiner
   /// offers), those who left are closed.
@@ -3126,6 +3132,13 @@ class CallController extends Notifier<CallSession> {
                 ? CallStatus.ended
                 : CallStatus.canceled,
           );
+          // Owner 18.11: in a call made a group our own row lives on the
+          // server until we leave it — say so (idempotent there), or a lost
+          // end on the other phone keeps us «in a call» (busy) for minutes.
+          // A plain 1:1 is closed by the other side's end, as before.
+          if (current.group) {
+            unawaited(_endQuietly(current.id, CallEndReason.hangup));
+          }
           return;
         }
         if (payload is Map) {

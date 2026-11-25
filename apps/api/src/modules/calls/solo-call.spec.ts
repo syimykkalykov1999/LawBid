@@ -128,7 +128,7 @@ describe('a call with one person left', () => {
     expect(w.finish).toHaveBeenCalledTimes(1);
   });
 
-  it('nobody connected ends at once, unless somebody still rings', async () => {
+  it('nobody connected ends at once, also while somebody still rings (owner 18.11)', async () => {
     const w = world(30);
     w.setRows([{ user_id: 'a', status: 'left' }]);
     await w.svc.settleHeadcount(w.call, null);
@@ -139,7 +139,8 @@ describe('a call with one person left', () => {
       { user_id: 'b', status: 'invited' },
     ]);
     await r.svc.settleHeadcount(r.call, null);
-    expect(r.finish).not.toHaveBeenCalled();
+    // Owner 18.11: the ringing person must not stay «busy» in an empty call.
+    expect(r.finish).toHaveBeenCalledTimes(1);
   });
 
   it('a second stamp does not restart the grace (two instances)', async () => {
