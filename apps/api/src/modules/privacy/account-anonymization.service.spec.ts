@@ -339,6 +339,14 @@ describe('AccountAnonymizationService — registry «scrub» rows really scrubbe
       where: { holder_user_id: UID },
       data: { holder_user_id: ERASED_USERNAME_HOLDER },
     });
+    // hotline plan PR 7: the review words and the topic go, the stars stay
+    expect(t.did('hotlineCall', 'updateMany')[0]?.arg).toEqual({
+      where: {
+        client_id: UID,
+        OR: [{ review_comment: { not: null } }, { topic: { not: null } }],
+      },
+      data: { review_comment: null, topic: null },
+    });
     expect(t.did('attorneyTaskPerson', 'updateMany')[0]?.arg).toEqual({
       where: { user_id: UID },
       data: { user_id: null, phone: null, email: null },

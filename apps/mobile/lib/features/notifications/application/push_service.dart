@@ -444,6 +444,8 @@ class PushService {
     // Audit 2026-10-04: opening a push reads its notification.
     final id = data['notificationId'];
     if (id is String) unawaited(_markRead(id));
+    // Owner row 87: «Адвокат на линии» opens «Позвонить сейчас?» through
+    // its route (also from a closed app; notificationRoute).
     final route = notificationRoute(
       type: '${data['type'] ?? ''}',
       payload: Map<String, Object?>.from(data),

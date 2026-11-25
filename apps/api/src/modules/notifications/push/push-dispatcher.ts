@@ -92,6 +92,15 @@ export interface PushModuleOptions {
   mode: 'api' | 'worker';
 }
 
+/** A notification payload value as push data (FCM / APNs data are strings
+ * only): a string as is, a finite number as its digits (the hotline
+ * notice's `expiresAt`, ms), anything else not sent. */
+export function pushDataValue(v: unknown): string | undefined {
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+  return undefined;
+}
+
 /** Not committed yet (or rolled back): BullMQ retries, then drops it. */
 export class NotificationNotCommittedError extends Error {}
 
@@ -757,8 +766,11 @@ export class PushDispatcher
       'dueAt',
       // Owner row 87: «Позвонить сейчас» from the hotline notice.
       'claimToken',
+      // …and until when it can be tapped (ms; FCM / APNs data are strings).
+      'expiresAt',
     ]) {
-      if (typeof payload[k] === 'string') deepLink[k] = payload[k];
+      const v = pushDataValue(payload[k]);
+      if (v !== undefined) deepLink[k] = v;
     }
     if (payload.missed === true) deepLink.missed = '1';
     // Owner 2026-10-20 (like WhatsApp): a missed call shows who called —
