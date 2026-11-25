@@ -1329,6 +1329,13 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * answers 403 FEATURE_DISABLED. Identifiers already linked keep working for
    * sign-in; changing the account's one phone/email is a different route. */
   'auth.additional_identifiers_enabled': false,
+  /** Owner 25.11: where a one-time confirmation code of a signed-in person
+   * goes (step-up for case history, data export, account deletion, contact
+   * change, a first password): `sms` (default; SES is not connected),
+   * `email` or `auto` (e-mail while SES is configured and out of its
+   * sandbox). The chosen contact must be verified, else the other one is
+   * used (common/app-settings/code-channel.service.ts). */
+  'auth.code_channel': 'sms',
 };
 
 /** Owner 2026-10-05: storage like Telegram (Система → Хранилище). Every

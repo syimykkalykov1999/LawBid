@@ -53,14 +53,20 @@ export type OtpChannel = 'phone' | 'email';
 // flow's attempts.
 export type OtpPurpose = 'login' | 'contact' | 'reset' | 'reauth' | 'link';
 
-/** Owner rule (memory sms-two-cases, 2026-11-07/08): an SMS code goes out in
- * exactly two cases — registration of a new number (`login` through
- * POST /auth/otp/request, sent only for an unregistered number) and
- * «Забыл пароль» (`reset`). A step-up, a new sign-in method or a phone
- * change is confirmed with the password / passkey, never by SMS. Checked
- * here, in the only place that calls the SMS provider, so no future caller
- * can slip a third case in (sms-two-cases.guard.spec.ts pins the callers). */
-export const SMS_OTP_PURPOSES: readonly OtpPurpose[] = ['login', 'reset'];
+/** Owner rule (memory sms-two-cases, 2026-11-07/08; widened 25.11): an SMS
+ * code goes out in exactly three cases — registration of a new number
+ * (`login` through POST /auth/otp/request, sent only for an unregistered
+ * number), «Забыл пароль» (`reset`) and, owner 25.11 («по умолчанию SMS»,
+ * `auth.code_channel`), a step-up code to the signed-in person's own
+ * verified number (`reauth`). A new sign-in method or a phone change is
+ * never confirmed by an SMS to the new number. Checked here, in the only
+ * place that calls the SMS provider, so no future caller can slip another
+ * case in (sms-two-cases.guard.spec.ts pins the callers). */
+export const SMS_OTP_PURPOSES: readonly OtpPurpose[] = [
+  'login',
+  'reset',
+  'reauth',
+];
 
 /** Extra scoping of one code (S14-8 / S14-12). */
 export interface OtpScope {
@@ -240,7 +246,7 @@ export class OtpService {
         throw new BadRequestException({
           code: ErrorCode.VALIDATION_ERROR,
           message:
-            'An SMS code is only for registration and a forgotten password.',
+            'An SMS code is only for registration, a forgotten password and a confirmation.',
         });
       }
       await this.assertSmsDestinationAllowed(identifier);
