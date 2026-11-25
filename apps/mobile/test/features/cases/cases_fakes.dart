@@ -78,6 +78,9 @@ class FakeCasesRepository implements CasesRepository {
   }) async =>
       _empty();
 
+  /// What each feed() call asked for (sort, filters).
+  final feedExtras = <CaseFeedExtras>[];
+
   @override
   Future<CursorPage<FeedCase>> feed({
     String? cursor,
@@ -89,6 +92,7 @@ class FakeCasesRepository implements CasesRepository {
     // Owner 2026-10-06: several states at once.
     List<String> states = const [],
   }) async {
+    feedExtras.add(extras);
     if (readingFromPhoneOnly) {
       final copy = feedPhoneCopy;
       if (copy == null) throw StateError(kNoPhoneCopy);

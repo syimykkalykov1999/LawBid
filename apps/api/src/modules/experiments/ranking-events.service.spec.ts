@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { RankingEventsService } from './ranking-events.service';
 
-function build(sample = 100, mode: string = 'on', running = true) {
+function build(
+  sample = 100,
+  mode: string = 'on',
+  running = true,
+  rankerMode: string = 'off',
+) {
   const createMany = jest
     .fn<
       Promise<{ count: number }>,
@@ -13,7 +18,9 @@ function build(sample = 100, mode: string = 'on', running = true) {
     experiment: { count: jest.fn().mockResolvedValue(running ? 1 : 0) },
   };
   const settings = {
-    string: jest.fn().mockResolvedValue(mode),
+    string: jest.fn((key: string) =>
+      Promise.resolve(key.startsWith('reco.ranker') ? rankerMode : mode),
+    ),
     number: jest.fn().mockResolvedValue(sample),
   };
   const svc = new RankingEventsService(prisma as never, settings as never);
@@ -110,6 +117,27 @@ describe('RankingEventsService', () => {
     await busy.svc.logImpression(base(u));
     await busy.svc.flush();
     expect(busy.createMany.mock.calls[0][0].data).toHaveLength(1);
+  });
+
+  it('auto: a learned ranker that is not off keeps the sampled impressions (its training data)', async () => {
+    const u = randomUUID();
+    for (const [feedMode, kept] of [
+      ['auto', 1],
+      ['on', 1],
+      ['off', 0],
+    ] as const) {
+      const r = build(100, 'auto', false, feedMode);
+      await r.svc.logImpression(base(u));
+      await r.svc.logAction('bid', base(u));
+      await r.svc.flush();
+      const kinds = r.createMany.mock.calls[0][0].data.map((x) => x.kind);
+      expect(kinds.filter((k) => k === 'impression')).toHaveLength(kept);
+    }
+    // «Выкл» of the log itself wins over the rankers.
+    const off = build(100, 'off', false, 'auto');
+    await off.svc.logImpression(base(u));
+    await off.svc.flush();
+    expect(off.createMany).not.toHaveBeenCalled();
   });
 
   it('never throws when the database fails', async () => {
