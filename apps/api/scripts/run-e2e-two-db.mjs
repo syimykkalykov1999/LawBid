@@ -11,8 +11,13 @@
 // "knownLimitations" lists the suites that cannot work yet, with the reason
 // and the plan step that fixes them; they are reported, not run.
 //
-// Usage: node scripts/run-e2e-two-db.mjs [--all] [jest args...]
+// Usage: node scripts/run-e2e-two-db.mjs [--all] [--part=I/N] [jest args...]
 //   --all  run every suite, limitations included (to re-measure the list)
+//   --part=I/N  run only the I-th of N equal groups of the SAME batches (CI
+//          matrix, deploy speed 25.11: 9 batches one after the other took 25 of
+//          the 28 min of API CI). Every batch keeps exactly its files and order;
+//          each part has its own databases, so together the N parts run every
+//          suite of "run" once, as before.
 // Needs the same Postgres + Redis (+ local S3) as `npm run test:e2e`.
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -21,7 +26,17 @@ import { join } from 'node:path';
 
 const args = process.argv.slice(2);
 const all = args.includes('--all');
-const rest = args.filter((a) => a !== '--all');
+const partArg = args.find((a) => a.startsWith('--part='));
+const rest = args.filter((a) => a !== '--all' && !a.startsWith('--part='));
+let part = null;
+if (partArg) {
+  const m = /^--part=(\d+)\/(\d+)$/.exec(partArg);
+  if (!m || Number(m[1]) < 1 || Number(m[1]) > Number(m[2])) {
+    console.error(`bad ${partArg}: use --part=I/N with 1 <= I <= N`);
+    process.exit(2);
+  }
+  part = { i: Number(m[1]), n: Number(m[2]) };
+}
 const cfg = JSON.parse(
   readFileSync(
     join(import.meta.dirname, '..', 'test', 'two-db-suites.json'),
@@ -45,9 +60,27 @@ if (paths.length === 0) batches.push([]);
 for (let i = 0; i < paths.length; i += BATCH) {
   batches.push(paths.slice(i, i + BATCH));
 }
+// --part: a contiguous slice of the batch list (the parts cover it exactly once).
+const mine = part
+  ? batches.slice(
+      Math.floor((batches.length * (part.i - 1)) / part.n),
+      Math.floor((batches.length * part.i) / part.n),
+    )
+  : batches;
+if (part) {
+  console.log(
+    `part ${part.i}/${part.n}: ${mine.length} of ${batches.length} batch(es), ` +
+      `${mine.reduce((k, b) => k + b.length, 0)} suite(s)`,
+  );
+}
+// E2E_TWO_DB_LIST=1: print the files of this part and stop (proves the split).
+if (process.env.E2E_TWO_DB_LIST === '1') {
+  for (const b of mine) for (const f of b) console.log(f);
+  process.exit(0);
+}
 let status = 0;
 let n = 0;
-for (const batch of batches) {
+for (const batch of mine) {
   // The native Prisma engine can SIGSEGV while jest force-exits a finished
   // run; the JSON report says what the tests did, the exit status only
   // decides when no report was written.

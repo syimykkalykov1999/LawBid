@@ -34,6 +34,19 @@
 # ListServiceDeployments -> DescribeServiceRevisions -> DescribeServiceDeployments):
 # SUCCESSFUL = done, ROLLBACK_* / STOPPED = ECS rejected the release (exit 1).
 # ROLLING services (today's default) keep the rolloutState wait below unchanged.
+#
+# Deploy speed (25.11, owner: «2,5 ч до прода»): the same checks, split in phases
+# so deploy.yml can overlap the ECS bake of the api with the worker / admin roll.
+#   ROLL_PHASE=all    (default) start + wait until COMPLETED, exactly as before;
+#   ROLL_PHASE=start  register the revisions and UpdateService only; what the wait
+#                     needs is saved in $ROLL_STATE (default roll-state-<services>.env);
+#   ROLL_PHASE=wait   read $ROLL_STATE and wait;
+#   ROLL_UNTIL=steady (with wait / all, ROLLING services only) return as soon as
+#                     our revision runs ALL desired tasks and every older
+#                     deployment runs 0 = the new release takes all the traffic,
+#                     ECS's alarm bake goes on. A later ROLL_PHASE=wait without it
+#                     waits for COMPLETED of the same revisions (FAILED = red).
+#                     Native (CANARY / LINEAR) services always wait for the end.
 set -eu
 CLUSTER="$1"; TAG="$2"; SERVICES="${3:-${SERVICES:-api worker admin}}"
 for S in $SERVICES; do
@@ -41,12 +54,27 @@ for S in $SERVICES; do
 done
 ROLL_TIMEOUT_SECONDS="${ROLL_TIMEOUT_SECONDS:-1800}"
 ROLL_POLL_SECONDS="${ROLL_POLL_SECONDS:-10}"
+ROLL_PHASE="${ROLL_PHASE:-all}"
+ROLL_UNTIL="${ROLL_UNTIL:-completed}"
+case "$ROLL_PHASE" in all|start|wait) ;; *) echo "ROLL_PHASE: all | start | wait" >&2; exit 2 ;; esac
+case "$ROLL_UNTIL" in completed|steady) ;; *) echo "ROLL_UNTIL: completed | steady" >&2; exit 2 ;; esac
+ROLL_STATE="${ROLL_STATE:-roll-state-$(printf '%s' "$SERVICES" | tr ' ' '_').env}"
 REVS=""
 REGISTRY="${ECR_REGISTRY:?ECR_REGISTRY is required}"
+ADM_PREV=""
+NATIVE=""
+if [ "$ROLL_PHASE" = wait ]; then
+  [ -s "$ROLL_STATE" ] || { echo "::error::no $ROLL_STATE: run ROLL_PHASE=start for '$SERVICES' first"; exit 1; }
+  ROLL_TAG=""
+  # shellcheck disable=SC1090
+  case "$ROLL_STATE" in /*) . "$ROLL_STATE" ;; *) . "./$ROLL_STATE" ;; esac
+  [ "$ROLL_TAG" = "$TAG" ] || { echo "::error::$ROLL_STATE is for '$ROLL_TAG', not $TAG"; exit 1; }
+  [ -n "$REVS" ] || { echo "::error::$ROLL_STATE lists no revisions"; exit 1; }
+fi
 # 13.11 (KE 126 audit): on ARM64 tasks an image without an arm64 build cannot
 # start (images before 22.10 are amd64 only — a rollback or a manual
 # image_tag). Checked for every service BEFORE any of them is touched.
-for SVC in $SERVICES; do
+[ "$ROLL_PHASE" = wait ] || for SVC in $SERVICES; do
   ARCH=$(aws ecs describe-task-definition --task-definition "${CLUSTER}-${SVC}" \
     --query 'taskDefinition.runtimePlatform.cpuArchitecture' --output text 2>/dev/null || echo None)
   if [ "$ARCH" = ARM64 ]; then
@@ -85,9 +113,7 @@ new_revision() {
   aws ecs register-task-definition --cli-input-json file://td.new.json --query 'taskDefinition.taskDefinitionArn' --output text
 }
 
-ADM_PREV=""
-NATIVE=""
-for SVC in $SERVICES; do
+[ "$ROLL_PHASE" = wait ] || for SVC in $SERVICES; do
   FAMILY="${CLUSTER}-${SVC}"
   IMAGE="${REGISTRY}/lawbid-$( [ "$SVC" = admin ] && echo admin || echo api ):${TAG}"
   SRC="$FAMILY"
@@ -125,6 +151,12 @@ for SVC in $SERVICES; do
     REVS="$REVS api-admin=$ADM_REV"
   fi
 done
+if [ "$ROLL_PHASE" = start ]; then
+  # Only ARNs, service names and the tag (no spaces inside a value, no quotes).
+  printf "ROLL_TAG='%s'\nREVS='%s'\nADM_PREV='%s'\nNATIVE='%s'\n" "$TAG" "$REVS" "$ADM_PREV" "$NATIVE" > "$ROLL_STATE"
+  echo "started ($SERVICES) on $TAG at $(date -u +%H:%M:%S)Z; ROLL_PHASE=wait waits for it ($ROLL_STATE)"
+  exit 0
+fi
 
 # D1-35 (13.11): api-admin runs api's revision (row 204: or its own family's
 # revision with api's image). When api's rollout fails (ECS rolled api back)
@@ -194,10 +226,21 @@ wait_native() {
   done
 }
 
-# Wait until every service has OUR revision as COMPLETED, nothing else left.
+# steady_now <service> <revision>: 0 when our revision runs all its desired
+# tasks and every other deployment of the service runs none (ECS then only
+# bakes: it watches the alarms before it marks the rollout COMPLETED).
+steady_now() {
+  aws ecs describe-services --cluster "$CLUSTER" --services "$1" \
+    --query 'services[0].deployments[].[taskDefinition,desiredCount,runningCount]' --output text 2>/dev/null \
+    | awk -v rev="$2" '$1 == rev { ours = ($3 == $2 && $2 > 0) ; seen = 1; next } $3 != 0 { other = 1 } END { exit !(seen && ours && !other) }'
+}
+
+# Wait until every service has OUR revision as COMPLETED, nothing else left
+# (ROLL_UNTIL=steady: until it takes all the traffic, see the top).
 start=$(date +%s)
 for pair in $REVS; do
   SVC="${pair%%=*}"; REV="${pair#*=}"
+  STEADY_SAID=""
   case " $NATIVE " in *" $SVC "*)
     if wait_native "$SVC" "$REV"; then continue; fi
     [ "$SVC" = api ] && align_api_admin
@@ -212,7 +255,7 @@ for pair in $REVS; do
       COMPLETED)
         # Our revision is complete; make sure ECS finished removing the old one.
         N=$(aws ecs describe-services --cluster "$CLUSTER" --services "$SVC" --query 'length(services[0].deployments)' --output text)
-        if [ "$N" = "1" ]; then echo "$SVC: rollout COMPLETED"; break; fi
+        if [ "$N" = "1" ]; then echo "$SVC: rollout COMPLETED after $(( $(date +%s) - start ))s"; break; fi
         ;;
       FAILED)
         echo "::error::$SVC: rollout FAILED and was rolled back by ECS ($OUT)"
@@ -220,6 +263,13 @@ for pair in $REVS; do
           --query 'services[0].events[0:8].message' --output text || true
         [ "$SVC" = api ] && align_api_admin
         exit 1
+        ;;
+      IN_PROGRESS)
+        if [ -z "$STEADY_SAID" ] && steady_now "$SVC" "$REV"; then
+          STEADY_SAID=1
+          echo "$SVC: all new tasks running, old ones stopped after $(( $(date +%s) - start ))s (ECS alarm bake goes on)"
+          if [ "$ROLL_UNTIL" = steady ]; then break; fi
+        fi
         ;;
       "" | None)
         # Our deployment is gone: replaced by a rollback or a newer deploy.
@@ -235,4 +285,8 @@ for pair in $REVS; do
     sleep "$ROLL_POLL_SECONDS"
   done
 done
-echo "services ($SERVICES) rolled out to $TAG"
+if [ "$ROLL_UNTIL" = steady ]; then
+  echo "services ($SERVICES) run $TAG on every task (ECS still bakes; ROLL_PHASE=wait waits for COMPLETED)"
+else
+  echo "services ($SERVICES) rolled out to $TAG"
+fi
