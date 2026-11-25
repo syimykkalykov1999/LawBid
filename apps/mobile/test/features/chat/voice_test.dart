@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/native.dart';
@@ -128,8 +129,35 @@ ProviderContainer _container(
   return c;
 }
 
-Future<void> _settle() =>
-    Future<void>.delayed(const Duration(milliseconds: 50));
+/// KNOWN_ERRORS 235: the queue sends in the background (`unawaited(drain())`
+/// after `sendVoice` / `retry`) through real file I/O, Drift and its
+/// query stream, so a fixed 50 ms wait lost the race under the full suite's
+/// load. Wait for the thread to reach the expected state instead (as
+/// `expectLater(stream, emitsThrough(...))`); [ok] never met within 10 s
+/// returns the state as it is, and the test's own `expect` says what is off.
+Future<ChatThreadState> _until(
+  ProviderContainer c,
+  bool Function(ChatThreadState s) ok,
+) async {
+  final reached = Completer<ChatThreadState>();
+  final sub = c.listen<ChatThreadState>(
+    chatThreadProvider('c1'),
+    (_, s) {
+      if (ok(s) && !reached.isCompleted) reached.complete(s);
+    },
+    fireImmediately: true,
+  );
+  try {
+    return await reached.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => c.read(chatThreadProvider('c1')),
+    );
+  } finally {
+    sub.close();
+  }
+}
+
+bool _loaded(ChatThreadState s) => s.messages.isNotEmpty;
 
 Future<String> _recordedFile() async {
   final dir = await Directory.systemTemp.createTemp('voice');
@@ -145,15 +173,18 @@ void main() {
     final c = _container(chat);
     final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
     addTearDown(sub.close);
-    await _settle();
+    await _until(c, _loaded);
 
     await c.read(chatThreadProvider('c1').notifier).sendVoice(
       path: await _recordedFile(),
       durationMs: 4200,
       waveform: const [5, 60, 100],
     );
-    await _settle();
-    final s = c.read(chatThreadProvider('c1'));
+    final s = await _until(
+      c,
+      (s) =>
+          s.voiceOutbox.isEmpty && s.messages.any((m) => m.id == 'srv-file-1'),
+    );
     expect(chat.uploads, [2048]);
     expect(chat.uploader.uploads.single.purpose, api.FilePurpose.chatVoice);
     // The OS transfer is keyed by the message's own id.
@@ -175,7 +206,7 @@ void main() {
     final c = _container(chat);
     final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
     addTearDown(sub.close);
-    await _settle();
+    await _until(c, _loaded);
     final thread = c.read(chatThreadProvider('c1').notifier);
 
     await thread.sendVoice(
@@ -183,15 +214,22 @@ void main() {
       durationMs: 1500,
       waveform: const [20],
     );
-    await _settle();
-    var s = c.read(chatThreadProvider('c1'));
+    var s = await _until(
+      c,
+      (s) =>
+          s.voiceOutbox.length == 1 &&
+          s.voiceOutbox.single.delivery == DeliveryState.failed,
+    );
     expect(s.voiceOutbox.single.delivery, DeliveryState.failed);
     expect(s.all.first.kind, MessageKind.voice);
 
     chat.uploader.fail = null;
     await thread.retry(s.voiceOutbox.single);
-    await _settle();
-    s = c.read(chatThreadProvider('c1'));
+    s = await _until(
+      c,
+      (s) =>
+          s.voiceOutbox.isEmpty && s.messages.any((m) => m.id == 'srv-file-1'),
+    );
     expect(s.voiceOutbox, isEmpty);
     expect(s.messages.any((m) => m.id == 'srv-file-1'), isTrue);
   });
@@ -212,17 +250,17 @@ void main() {
 
     final first = _container(chat, queueDb: queueDb, files: files);
     final sub = first.listen(chatThreadProvider('c1'), (_, __) {});
-    await _settle();
+    await _until(first, _loaded);
     await first.read(chatThreadProvider('c1').notifier).sendVoice(
       path: await _recordedFile(),
       durationMs: 900,
       waveform: const [1],
     );
-    await _settle();
-    expect(
-      first.read(chatThreadProvider('c1')).voiceOutbox.single.delivery,
-      DeliveryState.sending,
-    );
+    // The queue's pass ends (the offline failure is handled) before the
+    // bubble is checked, so «sending» is the state after it, not before.
+    await first.read(chatMediaOutboxProvider).drain();
+    final s = await _until(first, (s) => s.voiceOutbox.isNotEmpty);
+    expect(s.voiceOutbox.single.delivery, DeliveryState.sending);
     // The app is killed.
     sub.close();
     first.dispose();
@@ -243,7 +281,7 @@ void main() {
     final c = _container(chat);
     final sub = c.listen(chatThreadProvider('c1'), (_, __) {});
     addTearDown(sub.close);
-    await _settle();
+    await _until(c, _loaded);
     final thread = c.read(chatThreadProvider('c1').notifier);
     final theirs = c.read(chatThreadProvider('c1')).messages.single;
 
