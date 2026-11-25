@@ -734,6 +734,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'On (default): a re-authentication or add-a-sign-in-method code asked by an older app build (without its purpose) is still accepted. Off: a code works only for the flow it was asked for.',
   };
+  // Owner 25.11: SMS by default until SES is connected (a typo must not act).
+  out['auth.code_channel'] = {
+    ...out['auth.code_channel'],
+    description:
+      'Where a confirmation code of a signed-in person goes (case history, data export, account deletion, contact change, first password): sms (default) = the verified phone | email = the verified e-mail | auto = the e-mail while SES is configured and out of its sandbox, else the phone. A person without the chosen contact gets the code on the other verified one.',
+    pattern: /^(sms|email|auto)$/,
+  };
   out['security.signup_block_disposable_email'] = {
     ...out['security.signup_block_disposable_email'],
     description:
