@@ -979,7 +979,7 @@ GoRouter appRouter(Ref ref) {
       ...privacyRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
     ],
   );
-  // KNOWN_ERRORS 229: go_router (third_party patch) refuses a pop that
+  // KNOWN_ERRORS 230: go_router (third_party patch) refuses a pop that
   // would leave no page; each such pop is reported with its stack.
   LastPageGuard.install();
   return router;

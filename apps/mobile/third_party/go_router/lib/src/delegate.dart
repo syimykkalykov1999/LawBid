@@ -142,7 +142,7 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList> with ChangeNotifie
       return popped;
     }
 
-    // LawBid patch (KNOWN_ERRORS 229): a pop that would leave no page at all
+    // LawBid patch (KNOWN_ERRORS 230): a pop that would leave no page at all
     // is refused. Upstream only asserts in debug (`_debugAssertMatchListNotEmpty`);
     // a release build then built `SizedBox.shrink()` for the whole app — the
     // theme's plain background, nothing to tap, until the app was killed.
@@ -183,7 +183,7 @@ class GoRouterDelegate extends RouterDelegate<RouteMatchList> with ChangeNotifie
     return false;
   }
 
-  /// LawBid patch (KNOWN_ERRORS 229): told about every pop that was refused
+  /// LawBid patch (KNOWN_ERRORS 230): told about every pop that was refused
   /// because it would have removed the last page (with the stack of that
   /// pop), so the app can report where it came from.
   static void Function(Route<Object?> route, StackTrace stack)? onLastPagePopRefused;
