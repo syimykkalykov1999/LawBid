@@ -2769,6 +2769,12 @@ export class CallsService {
       callId: call.id,
       exceptChainId: user.sid,
     });
+    // Owner 18.11: the last one who rang said no — whoever is left alone in
+    // the call is settled like after a hang-up (a call of two ends now, a
+    // group gets the grace). It used to stay up for that one person, who
+    // read «busy» to every 1:1 call until their own app hung up.
+    const over = await this.settleHeadcount(call, user.sub);
+    if (over) return over;
     await this.broadcastParticipants(call.id, [user.sub]);
     return this.toDto(call, user.sub);
   }
@@ -2784,9 +2790,9 @@ export class CallsService {
       where: { id: row.id, status: 'joined' },
       data: { status: 'left', left_at: new Date() },
     });
-    // Like [endIfAlone]: while someone still rings the call stays, so the
-    // one who left can come back (inbox 20b); one person left gets the
-    // grace (owner 2026-10-23).
+    // Like [endIfAlone]: one person left gets the grace (owner 2026-10-23);
+    // while someone still rings it stays for that one person (inbox 20b);
+    // nobody connected ends it (owner 18.11, see [settleHeadcount]).
     const over = await this.settleHeadcount(call, user.sub);
     if (over) return over;
     await this.push.enqueueCallEnded({
@@ -3212,11 +3218,13 @@ export class CallsService {
     }
   }
 
-  /** A group-chat call whose host is left alone with nobody still ringing
-   * is over (like WhatsApp: "no answer"). */
+  /** A group call whose last ringing invite ran out is settled: one left
+   * alone with nobody still ringing is over (like WhatsApp: "no answer").
+   * Owner 18.11: also a 1:1 call made a group — the person left in it after
+   * the caller hung up stayed «busy» when the added one never answered. */
   private async endIfAlone(callId: string): Promise<void> {
     const call = await this.prisma.call.findUnique({ where: { id: callId } });
-    if (!(call?.group_id || call?.channel_id) || call.status !== 'active') {
+    if (!call?.is_group || call.status !== 'active') {
       return;
     }
     await this.settleHeadcount(call, null);
@@ -3234,7 +3242,8 @@ export class CallsService {
    * Owner 2026-10-23: a call with one person left must end (their phone
    * stayed in an empty call and cost us a media session). Called whenever
    * somebody stops being connected:
-   *  - nobody connected (and nobody still ringing) → ends now;
+   *  - nobody connected → ends now, even while someone still rings
+   *    (owner 18.11: the ringing person stayed «busy» in an empty call);
    *  - one connected, nobody ringing → `solo_since` is stamped in the row and
    *    the call ends after `calls.solo_end_seconds` unless somebody joins
    *    (0 = at once). The end is a conditional update, so two API instances
@@ -3250,7 +3259,13 @@ export class CallsService {
     const rows = await this.rowsOf(call.id);
     const joined = rows.filter((r) => r.status === 'joined').length;
     const ringing = rows.some((r) => r.status === 'invited');
-    if (joined === 0 && !ringing) {
+    // Owner 18.11 (prod: «абонент занят» right after a group call): nobody
+    // connected = the call is over, even while an added person still rings
+    // (WhatsApp: the ring stops when the last one in the call hangs up).
+    // It used to stay up for the ringing phone: that person stayed «in a
+    // call» (busy for every 1:1 call) and could only answer into an empty
+    // call. [finish] tells the ringing phones (`call:ended` + push).
+    if (joined === 0) {
       return this.finish(call, 'ended', viewerId);
     }
     if (joined === 1 && !ringing) {
