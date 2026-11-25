@@ -350,6 +350,16 @@ variable "api_production_listener_rule_arn" {
   default     = ""
   description = "X1: the weighted listener rule ECS shifts (modules/alb api_weighted)."
 }
+variable "api_ws_alternate_target_group_arn" {
+  type        = string
+  default     = ""
+  description = "S2-1 + X1: the green socket group (modules/alb api_ws_green); needed with CANARY / LINEAR when the socket group is on."
+}
+variable "api_ws_production_listener_rule_arn" {
+  type        = string
+  default     = ""
+  description = "S2-1 + X1: the weighted /socket.io rule ECS shifts (modules/alb api_ws_weighted)."
+}
 variable "api_canary_percent" {
   type        = number
   default     = 10
@@ -1260,6 +1270,16 @@ resource "aws_ecs_service" "api" {
       target_group_arn = load_balancer.value
       container_name   = "api"
       container_port   = 3000
+      # AWS: advancedConfiguration is required on every load balancer of a
+      # non-ROLLING deployment; the socket group shifts with the api group.
+      dynamic "advanced_configuration" {
+        for_each = local.api_native ? [1] : []
+        content {
+          alternate_target_group_arn = var.api_ws_alternate_target_group_arn
+          production_listener_rule   = var.api_ws_production_listener_rule_arn
+          role_arn                   = aws_iam_role.ecs_lb_infra[0].arn
+        }
+      }
     }
   }
   # X1: sent only when set (""= today's service, no change in the plan). The
@@ -1315,10 +1335,11 @@ resource "aws_ecs_service" "api" {
   lifecycle {
     ignore_changes = [desired_count, capacity_provider_strategy]
     # X1: AWS: "advancedConfiguration field is required for all loadBalancers
-    # when using a non-ROLLING deployment strategy" (the websocket group has none).
+    # when using a non-ROLLING deployment strategy": the socket group, when on,
+    # needs its own green group and weighted rule too (modules/alb api_ws_*).
     precondition {
-      condition     = !local.api_native || (var.api_alternate_target_group_arn != "" && var.api_production_listener_rule_arn != "" && var.api_ws_target_group_arn == "")
-      error_message = "CANARY / LINEAR need the green target group and the weighted rule (modules/alb stage on) and no websocket target group."
+      condition     = !local.api_native || (var.api_alternate_target_group_arn != "" && var.api_production_listener_rule_arn != "" && (var.api_ws_target_group_arn == "" || (var.api_ws_alternate_target_group_arn != "" && var.api_ws_production_listener_rule_arn != "")))
+      error_message = "CANARY / LINEAR need the green target group and the weighted rule (modules/alb stage on), and the same pair for the socket group when it is on."
     }
   }
   # The role must outlive the service on destroy (provider note: else DRAINING).

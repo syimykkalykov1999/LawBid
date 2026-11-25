@@ -325,7 +325,7 @@ resource "aws_lb_target_group" "api_ws" {
 }
 
 resource "aws_lb_listener_rule" "api_ws" {
-  count        = var.ws_target_group_enabled ? 1 : 0
+  count        = var.ws_target_group_enabled && var.api_native_deploy_stage != "on" ? 1 : 0
   listener_arn = aws_lb_listener.https.arn
   priority     = 9
   action {
@@ -337,6 +337,72 @@ resource "aws_lb_listener_rule" "api_ws" {
   }
   condition {
     path_pattern { values = ["/socket.io/*", "/socket.io"] }
+  }
+}
+
+# 25.11 (S2-1 + X1): the socket group next to the ECS built-in canary / linear
+# deployment. AWS (ECS API reference, LoadBalancer.advancedConfiguration):
+# "required for all loadBalancers when using a non-ROLLING deployment
+# strategy", so the socket group gets its own green pair and production rule,
+# exactly like api / api_green / api_weighted below, and ECS shifts both rules
+# in one deployment. Priority 8 sits in front of rule 9 while the stage is
+# `prepare`; with blue 100 / green 0 it forwards to the same sticky group rule 9
+# does, so no request changes server. `on` removes rule 9. The forward-level
+# stickiness (AWS ELB user guide, "Group-level stickiness") keeps a polling
+# session in one group while ECS moves the weights during a deployment.
+resource "aws_lb_target_group" "api_ws_green" {
+  count                = var.ws_target_group_enabled && var.api_native_deploy_stage != "off" ? 1 : 0
+  name                 = "${var.name}-api-ws-green"
+  port                 = 3000
+  protocol             = "HTTP"
+  target_type          = "ip"
+  vpc_id               = var.vpc_id
+  deregistration_delay = 60
+  health_check {
+    path                = "/health/live"
+    matcher             = "200"
+    interval            = 10
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+  }
+  stickiness {
+    type            = "lb_cookie"
+    cookie_duration = 86400
+    enabled         = true
+  }
+  tags = var.tags
+}
+
+resource "aws_lb_listener_rule" "api_ws_weighted" {
+  count        = var.ws_target_group_enabled && var.api_native_deploy_stage != "off" ? 1 : 0
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 8
+  action {
+    type = "forward"
+    forward {
+      target_group {
+        arn    = aws_lb_target_group.api_ws[0].arn
+        weight = 100
+      }
+      target_group {
+        arn    = aws_lb_target_group.api_ws_green[0].arn
+        weight = 0
+      }
+      stickiness {
+        enabled  = true
+        duration = 86400
+      }
+    }
+  }
+  condition {
+    host_header { values = [var.api_host] }
+  }
+  condition {
+    path_pattern { values = ["/socket.io/*", "/socket.io"] }
+  }
+  lifecycle {
+    ignore_changes = [action[0].forward]
   }
 }
 
@@ -1158,5 +1224,7 @@ output "api_admin_target_group_arn_suffix" { value = var.admin_api_target_group_
 output "api_green_target_group_arn" { value = var.api_native_deploy_stage == "off" ? "" : aws_lb_target_group.api_green[0].arn }
 output "api_green_target_group_arn_suffix" { value = var.api_native_deploy_stage == "off" ? "" : aws_lb_target_group.api_green[0].arn_suffix }
 output "api_production_listener_rule_arn" { value = var.api_native_deploy_stage == "off" ? "" : aws_lb_listener_rule.api_weighted[0].arn }
+output "api_ws_green_target_group_arn" { value = var.ws_target_group_enabled && var.api_native_deploy_stage != "off" ? aws_lb_target_group.api_ws_green[0].arn : "" }
+output "api_ws_production_listener_rule_arn" { value = var.ws_target_group_enabled && var.api_native_deploy_stage != "off" ? aws_lb_listener_rule.api_ws_weighted[0].arn : "" }
 output "admin_target_group_arn" { value = aws_lb_target_group.admin.arn }
 output "admin_target_group_arn_suffix" { value = aws_lb_target_group.admin.arn_suffix }
