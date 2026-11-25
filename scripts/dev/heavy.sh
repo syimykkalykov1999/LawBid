@@ -27,11 +27,21 @@ LOCK=${HEAVY_LOCK_DIR:-/tmp/lawbid-heavy.lock}
 # a job may run in LOCK2 when lane 1 is busy, free RAM >= LANE2_MIN_RAM %, and
 # neither job is a `git commit` (pre-commit lint uses an 8 GB heap).
 LOCK2=${LOCK}2
-LANE2_MIN_RAM=${HEAVY_LANE2_MIN_RAM:-65}
+LANE2_MIN_RAM=${HEAVY_LANE2_MIN_RAM:-101} # 25.11: Mac dipped to 33 % with two lanes; one heavy lane only
 STALE_MIN=${HEAVY_STALE_MIN:-120}
 POLL=${HEAVY_POLL_SECONDS:-3}
 
-alive() { [ -n "${1:-}" ] && kill -0 "$1" 2>/dev/null; }
+# A sandboxed caller cannot signal other users' processes: kill -0 then fails with
+# EPERM ("Operation not permitted"). That process exists, so it is alive; only
+# "No such process" means dead. Treating EPERM as dead deleted live tickets and
+# left their owners waiting forever (KNOWN_ERRORS 233).
+alive() {
+  [ -n "${1:-}" ] || return 1
+  local e
+  e=$(kill -0 "$1" 2>&1) && return 0
+  case "$e" in *"not permitted"*) return 0;; esac
+  return 1
+}
 now_ms() { perl -MTime::HiRes=time -e 'printf "%.0f", time()*1000'; }
 say() { [ "${QUIET:-0}" = 1 ] || echo "[heavy] $*" >&2; }
 
@@ -128,6 +138,9 @@ start=$(date +%s)
 lastsay=0
 while :; do
   sweep
+  # Self-heal: if another process removed our live ticket, put it back with the
+  # same name so we keep our place instead of waiting forever.
+  [ -e "$TICKET" ] || printf '%s\n%s\n' "$$" "$*" > "$TICKET"
   me=$(basename "$TICKET"); first=$(first_ticket); second=$(ls "$Q" 2>/dev/null | sort | sed -n 2p)
   if [ "$first" = "$me" ] && mkdir "$LOCK" 2>/dev/null; then
     HAVE_LOCK=1

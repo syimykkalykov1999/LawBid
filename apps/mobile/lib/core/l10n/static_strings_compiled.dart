@@ -44,6 +44,8 @@ import 'package:lawbid/core/l10n/strings/group_calls_strings.dart';
 import 'package:lawbid/core/l10n/strings/group_slow_strings.dart';
 import 'package:lawbid/core/l10n/strings/group_strings.dart';
 import 'package:lawbid/core/l10n/strings/hotline_addon_strings.dart';
+import 'package:lawbid/core/l10n/strings/hotline_attorney_strings.dart';
+import 'package:lawbid/core/l10n/strings/hotline_client_strings.dart';
 import 'package:lawbid/core/l10n/strings/id_selfie_strings.dart';
 import 'package:lawbid/core/l10n/strings/invite_strings.dart';
 import 'package:lawbid/core/l10n/strings/legal_docs_strings.dart';
@@ -1162,6 +1164,8 @@ const Map<String, String> compiledStringsRu = {
   ...accountSafetyRu,
   ...bidLeaveRu,
   ...hotlineAddonRu,
+  ...hotlineClientRu,
+  ...hotlineAttorneyRu,
   ...routerRu,
   ...postInnerRu,
   ...emailFlowsRu,
@@ -2585,6 +2589,8 @@ const Map<String, String> compiledStringsEn = {
   ...accountSafetyEn,
   ...bidLeaveEn,
   ...hotlineAddonEn,
+  ...hotlineClientEn,
+  ...hotlineAttorneyEn,
   ...routerEn,
   ...postInnerEn,
   ...storiesEn,

@@ -264,6 +264,8 @@ export const GROUPS: readonly SectionGroup[] = [
     items: [
       { href: '/users', label: 'Пользователи', icon: 'users', area: 'users', hint: 'поиск, санкции, сессии' },
       { href: '/support', label: 'Поддержка', icon: 'lifebuoy', area: 'support', count: 'support', hint: 'обращения пользователей' },
+      // Row 87: the call hotline — who is on the line now (Valkey) and the last 30 days (nightly snapshot).
+      { href: '/hotline', label: 'Горячая линия', icon: 'phone-call', area: 'support', hint: 'кто на линии сейчас, очереди, звонки за 30 дней' },
       { href: '/cases', label: 'Кейсы', icon: 'briefcase', area: 'cases', hint: 'кейсы, споры, «не могу связаться»' },
       { href: '/bids', label: 'Ставки', icon: 'gavel', area: 'cases' },
       { href: '/deadlines', label: 'Сроки', icon: 'scales', area: 'cases', hint: 'сроки судов, давность, выходные суда', flag: 'deadline_calculator' },

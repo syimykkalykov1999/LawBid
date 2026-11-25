@@ -8,6 +8,7 @@ import { PushHotlineNotifier } from './hotline-push-notifier';
 import { HotlineController } from './hotline.controller';
 import { HotlineGateway } from './hotline.gateway';
 import { HotlineService } from './hotline.service';
+import { HotlineStatsService } from './hotline-stats.service';
 import { HotlineSweeper } from './hotline-sweeper.service';
 
 /** Owner row 87 (16.11): the call hotline — server part (plan PR 3). Valkey
@@ -17,6 +18,8 @@ import { HotlineSweeper } from './hotline-sweeper.service';
  * hotline-calls-untouched.spec.ts). Off by default (flag `hotline`). The
  * gateway adds its events to the existing `/realtime` socket server. */
 @Module({
+  // «Предложить дело» asks the same «accept the current documents» as POST
+  // /cases inside the cases port (cases/hotline-cases.adapter.ts).
   imports: [FeatureFlagsModule],
   controllers: [HotlineController, AdminHotlineController],
   providers: [
@@ -24,6 +27,8 @@ import { HotlineSweeper } from './hotline-sweeper.service';
     HotlineConflictService,
     HotlineGateway,
     HotlineSweeper,
+    // the admin page's nightly snapshot (owner rule: no live heavy counts)
+    HotlineStatsService,
     CallsHotlineBridge,
     { provide: HOTLINE_CALL_BRIDGE, useExisting: CallsHotlineBridge },
     // plan PR 5: «Адвокат на линии» as a push to a closed app too

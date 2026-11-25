@@ -46,23 +46,49 @@ function hideSeo() {
        post...) opened in a phone's browser because the app is not installed
        (or the phone did not hand the link over): offer "Open in LawBid" —
        the app when it is there, the store when it is not. Phones only; the
-       bar can be closed. (Add <meta name="apple-itunes-app"
-       content="app-id=<App Store id>"> in <head> once the App Store id of
-       the listing exists: iOS Safari then shows its own banner too.) */
+       bar can be closed.
+   Pack F (25.11, ROUND5 F7): the proven smart-banner pattern of each
+       platform, no dead ends while the app is not in the stores:
+       - iOS: Apple's own Smart App Banner (<meta name="apple-itunes-app"
+         content="app-id=..., app-argument=<this url>">, developer.apple.com
+         "Promoting apps with Smart App Banners"): Safari itself opens the
+         app when it is installed and the App Store when it is not. Our own
+         bar is never shown on iOS: a lawbid:// link there makes Safari say
+         "the address is invalid" when the app is missing. Until the App
+         Store id below is filled in, iOS shows nothing.
+       - Android: Chrome's intent:// link (developer.chrome.com "Android
+         Intents with Chrome"): the app when it is installed, otherwise
+         S.browser_fallback_url, which is the Play listing once the app is
+         in Play and this very page until then (never a Play page that does
+         not exist yet).
+       Paths: the app-link paths the phones open (AASA, AndroidManifest),
+       now with /c/ and /attorneys/. */
     (function () {
-      var m = location.pathname.match(/^\/(u|g|case|lawyer|post|r|q)\/([^\/]+)/);
+      /* Fill in when the store listings are live. */
+      var APP_STORE_ID = '';
+      var PLAY_LISTED = false;
+      var m = location.pathname.match(/^\/(u|g|c|case|lawyer|attorneys|post|r|q)\/([^\/]+)/);
       var ua = navigator.userAgent || '';
       var android = /Android/i.test(ua);
       var ios = /iPhone|iPad|iPod/i.test(ua);
       if (!m || !(android || ios)) return;
+      if (ios) {
+        if (!APP_STORE_ID || document.querySelector('meta[name="apple-itunes-app"]')) return;
+        var meta = document.createElement('meta');
+        meta.name = 'apple-itunes-app';
+        meta.content = 'app-id=' + APP_STORE_ID + ', app-argument=' + location.href;
+        document.head.appendChild(meta);
+        return;
+      }
       try { if (sessionStorage.getItem('openAppClosed')) return; } catch (e) {}
       var ru = /^ru/i.test(navigator.language || '');
       var label = ru ? 'Открыть в LawBid' : 'Open in LawBid';
       var close = ru ? 'Закрыть' : 'Close';
-      var play = 'https://play.google.com/store/apps/details?id=com.lawbid.lawbid';
-      var href = android
-        ? 'intent://lawbid.dev' + location.pathname + '#Intent;scheme=https;package=com.lawbid.lawbid;S.browser_fallback_url=' + encodeURIComponent(play) + ';end'
-        : 'lawbid://' + m[1] + '/' + m[2];
+      var fallback = PLAY_LISTED
+        ? 'https://play.google.com/store/apps/details?id=com.lawbid.lawbid'
+        : location.href;
+      var href = 'intent://' + location.host + location.pathname + location.search +
+        '#Intent;scheme=https;package=com.lawbid.lawbid;S.browser_fallback_url=' + encodeURIComponent(fallback) + ';end';
       var bar = document.createElement('div');
       bar.setAttribute('role', 'region');
       bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;display:flex;align-items:center;gap:8px;padding:calc(env(safe-area-inset-top) + 6px) 12px 6px;background:#0A1A3C;color:#fff;font:600 14px/1.2 -apple-system,Roboto,sans-serif;box-shadow:0 1px 6px rgba(0,0,0,.35)';

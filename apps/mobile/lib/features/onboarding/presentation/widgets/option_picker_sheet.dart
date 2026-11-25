@@ -107,8 +107,20 @@ class OptionPickerSheet extends ConsumerStatefulWidget {
     this.remoteSearch,
     this.unknownLabel,
     this.confirm = false,
+    this.maxSelected,
+    this.limitMessage,
+    this.chipsOnTop = false,
     super.key,
   });
+
+  /// Owner 18.11 (hotline languages «до 3»): a multi-pick of at most this
+  /// many; one more shows [limitMessage] instead of ticking.
+  final int? maxSelected;
+  final String? limitMessage;
+
+  /// Owner 18.11 (approved hotline mockup c2L): the picked ones as removable
+  /// chips above the list, so a pick far down the long list stays in view.
+  final bool chipsOnTop;
 
   /// Owner 2026-10-15: asks the server which options a word in ANY language
   /// names (value → the matching word); they join the local matches.
@@ -149,6 +161,9 @@ class OptionPickerSheet extends ConsumerStatefulWidget {
     Future<Map<String, String?>> Function(String query)? remoteSearch,
     String? unknownLabel,
     bool confirm = false,
+    int? maxSelected,
+    String? limitMessage,
+    bool chipsOnTop = false,
   }) {
     return showAppBottomSheet<Set<String>>(
       context: context,
@@ -158,6 +173,9 @@ class OptionPickerSheet extends ConsumerStatefulWidget {
         remoteSearch: remoteSearch,
         unknownLabel: unknownLabel,
         confirm: confirm,
+        maxSelected: maxSelected,
+        limitMessage: limitMessage,
+        chipsOnTop: chipsOnTop,
         title: title,
         options: options,
         initial: initial,
@@ -276,8 +294,39 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
           ..add(value);
         return;
       }
-      if (!_selected.remove(value)) _selected.add(value);
+      if (_selected.remove(value)) return;
+      final max = widget.maxSelected;
+      if (max != null && _counted >= max) {
+        final msg = widget.limitMessage;
+        if (msg != null) showAppSnackBar(context, msg);
+        return;
+      }
+      _selected.add(value);
     });
+  }
+
+  /// The picked ones as removable chips (owner 18.11, `chipsOnTop`).
+  Widget _chips(AppColorTokens colors) {
+    final byValue = {for (final o in widget.options) o.value: o};
+    return Wrap(
+      key: const ValueKey('picker-chips'),
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        for (final v in _selected)
+          AppChip(
+            key: ValueKey('picker-chip-$v'),
+            label: byValue[v]?.label ?? v,
+            selected: true,
+            trailing: AppIcon(
+              AppIcons.closeRounded,
+              size: AppSizes.iconSm,
+              color: colors.textSecondary,
+            ),
+            onTap: () => setState(() => _selected.remove(v)),
+          ),
+      ],
+    );
   }
 
   int get _counted => _selected.where((v) => !_oneOf.containsKey(v)).length;
@@ -417,6 +466,10 @@ class _OptionPickerSheetState extends ConsumerState<OptionPickerSheet> {
                     variant: AppButtonVariant.secondary,
                     onPressed: () => Navigator.of(context).pop({''}),
                   ),
+                ],
+                if (widget.chipsOnTop && _selected.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  _chips(colors),
                 ],
                 const SizedBox(height: AppSpacing.md),
                 Expanded(

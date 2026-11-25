@@ -43,6 +43,8 @@ const checks = [
   ['the build uses our flutter_bootstrap.js template (load({}), no service-worker step)', /_flutter\.loader\.load\(\{\}\);\s*$/.test(loader.slice(loader.lastIndexOf('_flutter.loader.load(')))],
   ['the build declares its engineRevision (40 hex)', /"engineRevision"\s*:\s*"[0-9a-f]{40}"/.test(loader)],
   ['boot_head.js has the engine folder placeholder', head.includes("'__LB_E__'")],
+  // Pack F (ROUND5 F8): the database files' hashed names.
+  ['boot_head.js has the database files placeholder', head.includes("'__LB_D__'")],
 ];
 // A newer loader that also needs more features must be mirrored in boot_head.js.
 const newer = /string[-_ ]?builtins|exnref|jsStringBuiltins/i.test(loader);

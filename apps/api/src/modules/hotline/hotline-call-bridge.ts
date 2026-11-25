@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { PinoLogger } from 'nestjs-pino';
+import { CALL_SILENT_MS } from '../../common/calls/ongoing-call';
+import {
+  HOTLINE_CASES_PORT,
+  type HotlineCaseOffer,
+  type HotlineCasesPort,
+} from '../../common/hotline/hotline-cases.port';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { CallsService } from '../calls/calls.service';
@@ -17,7 +23,15 @@ export interface HotlineCallOpen {
   practiceArea: string;
   /** «Взять», ms — billing counts from here. */
   answeredAt: number;
+  /** «О чём звонок» — kept for «Дело из звонка» (plan PR 7). */
+  topic?: string;
 }
+
+export type { HotlineCaseOffer } from '../../common/hotline/hotline-cases.port';
+export {
+  caseDescriptionOf,
+  caseTitleOf,
+} from '../../common/hotline/hotline-cases.port';
 
 /** What the 1:1 call machinery says about a hotline call now. */
 export interface HotlineCallState {
@@ -62,6 +76,15 @@ export interface HotlineCallBridge {
   states(callIds: string[]): Promise<Map<string, HotlineCallState>>;
   /** The billing row closed and the direct chat opened (or reused). */
   finish(i: HotlineCallFinish): Promise<{ conversationId: string | null }>;
+  /** A person's photo for the hotline screens (null: none / hidden). */
+  avatarUrl?(fileId: string | null | undefined): Promise<string | null>;
+  /** «Предложить дело»: our ordinary case + its invite to this attorney. */
+  offerCase?(
+    i: HotlineCaseOffer,
+  ): Promise<{ caseId: string; inviteId: string }>;
+  /** In another live call (a 1:1 or group call, any of his devices) other
+   * than [exceptCallId]: the line does not offer him a client meanwhile. */
+  inOtherCall?(userId: string, exceptCallId?: string): Promise<boolean>;
 }
 
 const LIVE = new Set(['ringing', 'active']);
@@ -73,6 +96,7 @@ const as = (sub: string, role: 'client' | 'attorney'): RequestUser =>
 export class CallsHotlineBridge implements HotlineCallBridge {
   private callsSvc?: CallsService;
   private chatSvc?: ChatService;
+  private casesPortSvc?: HotlineCasesPort;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -93,6 +117,56 @@ export class CallsHotlineBridge implements HotlineCallBridge {
   private get chat(): ChatService {
     this.chatSvc ??= this.moduleRef.get(ChatService, { strict: false });
     return this.chatSvc;
+  }
+
+  /** Scenarios 24.11 (Uber / Lyft: a driver on a trip gets no new ride;
+   * WhatsApp: busy): the same «live call» rule as the calls module's own
+   * busy check — a ringing or active 1:1 call, or a group call he is still
+   * in — read here so the calls code stays untouched. A call silent for
+   * CALL_SILENT_MS counts as over, as there. */
+  async inOtherCall(userId: string, exceptCallId?: string): Promise<boolean> {
+    const live = await this.prisma.call.findFirst({
+      where: {
+        status: { in: ['ringing', 'active'] },
+        updated_at: { gte: new Date(Date.now() - CALL_SILENT_MS) },
+        ...(exceptCallId ? { id: { not: exceptCallId } } : {}),
+        OR: [
+          {
+            is_group: false,
+            OR: [{ caller_id: userId }, { callee_id: userId }],
+          },
+          {
+            is_group: true,
+            participants: {
+              some: { user_id: userId, status: { in: ['joined', 'invited'] } },
+            },
+          },
+        ],
+      },
+      select: { id: true },
+    });
+    return live !== null;
+  }
+
+  /** The cases family's port (common/hotline/hotline-cases.port.ts),
+   * looked up once — the hotline module does not import the cases module. */
+  private get casesPort(): HotlineCasesPort {
+    this.casesPortSvc ??= this.moduleRef.get<HotlineCasesPort>(
+      HOTLINE_CASES_PORT,
+      { strict: false },
+    );
+    return this.casesPortSvc;
+  }
+
+  avatarUrl(fileId: string | null | undefined): Promise<string | null> {
+    return this.casesPort.avatarUrl(fileId);
+  }
+
+  /** «Предложить дело» (plan PR 7): through the cases port. */
+  offerCase(
+    i: HotlineCaseOffer,
+  ): Promise<{ caseId: string; inviteId: string }> {
+    return this.casesPort.offerCase(i);
   }
 
   async open(i: HotlineCallOpen): Promise<{ callId: string }> {
@@ -125,6 +199,7 @@ export class CallsHotlineBridge implements HotlineCallBridge {
         state_code: i.state,
         practice_area: i.practiceArea,
         answered_at: answeredAt,
+        ...(i.topic ? { topic: i.topic.slice(0, 200) } : {}),
       },
       update: { call_id: call.id },
     });

@@ -96,3 +96,28 @@ test("an app screen is not redirected", async () => {
   assert.equal(r.statusCode, undefined);
   assert.equal(r.uri, "/releases/abc1234/spa.html");
 });
+
+// Pack F (25.11, ROUND5 F3): og:image / twitter:image of every site page is
+// /opengraph-image (a Next.js metadata file without an extension). It went
+// to the app's spa.html (text/html), so link previews had no picture.
+test("the link-preview images are served as the root files, not as an app screen", async () => {
+  const handler = load({ web_release: "abc1234", web_app_paths: "assets,v" });
+  for (const uri of ["/opengraph-image", "/twitter-image"]) {
+    const r = await handler(req(uri, { "47bb": { value: "" } }));
+    assert.equal(r.statusCode, undefined, uri);
+    assert.equal(r.uri, uri, uri);
+  }
+});
+
+// Pack F (ROUND5 F2): the site's /attorneys/ and /practice-areas/ index pages
+// (Next.js, inline scripts) get the site's CSP by exact path; the stale
+// for-attorneys prefix is gone; the app's policy carries no 'unsafe-inline'.
+test("site CSP paths: exact /attorneys/ and /practice-areas/, no for-attorneys", () => {
+  const sitePaths = /site_paths = \[([\s\S]*?)\]/.exec(tf)[1];
+  assert.doesNotMatch(sitePaths, /for-attorneys/);
+  assert.match(tf, /site_exact_paths = \["\/attorneys\/", "\/practice-areas\/"\]/);
+  assert.match(tf, /for_each = concat\(\[for p in local\.site_paths : "\/\$\{p\}\*"\], local\.site_exact_paths\)/);
+  const app = /\n\s+app\s+= join\(([^\n]*)\n/.exec(tf)[1];
+  assert.doesNotMatch(app, /unsafe-inline/);
+  assert.match(app, /flutterfire_script_hashes/);
+});

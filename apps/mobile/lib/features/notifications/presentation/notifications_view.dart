@@ -47,6 +47,15 @@ String? notificationRoute({
   final bidId = s('bidId');
   final postId = s('postId');
   switch (type) {
+    // Owner row 87: «Адвокат на линии» opens the hotline request.
+    case 'hotline_attorney_available':
+      final req = s('requestId');
+      return req == null
+          ? AppRoutes.hotlineStatus
+          : Uri(
+              path: AppRoutes.hotlineStatus,
+              queryParameters: {'requestId': req},
+            ).toString();
     // Owner 2026-10-21: a group invitation opens its card (look, then answer).
     case 'group_invite':
       final inviteId = s('inviteId');
