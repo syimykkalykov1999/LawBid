@@ -276,6 +276,37 @@ export const PLACE_SPECS: Record<UploadPlace, PlaceSpec> = {
 
 export type UploadLimits = Record<UploadPlace, PlaceLimits>;
 
+/**
+ * M7 (owner 24.11): the formats a place's admin screen did NOT offer yet when
+ * an old value was saved (that value has no `known` list). A safe default
+ * format added in code later (chat videos, 2026-10-17) is on for such a value
+ * instead of staying off forever; a format the admin unticks on the current
+ * screen stays off (the save keeps `known`, see [storedUploadLimits]).
+ * The same idea as a settings schema version: what the person never saw is
+ * not a choice they made.
+ */
+const ADDED_AFTER_LEGACY_SAVE: Partial<Record<UploadPlace, UploadFormat[]>> = {
+  chat: [...VIDEO_FORMATS],
+};
+
+/** The value to store: the sanitized limits plus, per place, the formats
+ * the admin screen offered (so later code defaults never override them). */
+export function storedUploadLimits(
+  clean: UploadLimits,
+): Record<UploadPlace, PlaceLimits & { known: UploadFormat[] }> {
+  const out = {} as Record<
+    UploadPlace,
+    PlaceLimits & { known: UploadFormat[] }
+  >;
+  for (const place of UPLOAD_PLACES) {
+    out[place] = {
+      ...clean[place],
+      known: [...PLACE_SPECS[place].safeFormats],
+    };
+  }
+  return out;
+}
+
 function clampInt(v: unknown, min: number, max: number, def: number): number {
   if (typeof v !== 'number' || !Number.isFinite(v)) return def;
   return Math.min(max, Math.max(min, Math.floor(v)));
@@ -283,7 +314,12 @@ function clampInt(v: unknown, min: number, max: number, def: number): number {
 
 /** The stored value (anything) → limits inside the ceilings and the safe
  * lists. Unknown places, fields and formats are dropped. */
-export function sanitizeUploadLimits(raw: unknown): UploadLimits {
+export function sanitizeUploadLimits(
+  raw: unknown,
+  // M7: true for a value just sent from the admin screen, which offers every
+  // safe format (so nothing is re-added on top of the admin's choice).
+  opts: { offered?: boolean } = {},
+): UploadLimits {
   const src =
     raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
   const out = {} as UploadLimits;
@@ -298,6 +334,15 @@ export function sanitizeUploadLimits(raw: unknown): UploadLimits {
       p = { ...p, maxFiles: undefined };
     }
     const picked = Array.isArray(p.formats) ? (p.formats as unknown[]) : null;
+    // M7: safe default formats the saved value's screen did not offer.
+    const known = opts.offered
+      ? spec.safeFormats
+      : Array.isArray(p.known)
+        ? (p.known as unknown[])
+        : spec.safeFormats.filter(
+            (f) => !(ADDED_AFTER_LEGACY_SAVE[place] ?? []).includes(f),
+          );
+    const unseen = d.formats.filter((f) => !known.includes(f));
     out[place] = {
       maxPhotos:
         spec.count === 'split' || spec.count === 'photos'
@@ -316,7 +361,9 @@ export function sanitizeUploadLimits(raw: unknown): UploadLimits {
           ? clampInt(p.totalMb, 1, spec.ceiling.totalMb, d.totalMb)
           : 0,
       formats: picked
-        ? spec.safeFormats.filter((f) => picked.includes(f))
+        ? spec.safeFormats.filter(
+            (f) => picked.includes(f) || unseen.includes(f),
+          )
         : [...d.formats],
     };
   }

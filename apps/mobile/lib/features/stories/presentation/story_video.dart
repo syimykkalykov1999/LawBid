@@ -1,11 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
+import 'package:lawbid/core/media/video_cache/video_cache.dart';
 import 'package:lawbid/features/stories/domain/story_models.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 
-/// Tests: makes the player instead of the network one.
+/// Tests: makes the player instead of the network one (gets the URL the
+/// player would open: the cache's local one when the cache runs).
 @visibleForTesting
 VideoPlayerController Function(Uri url)? debugStoryPlayerFactory;
 
@@ -54,7 +56,9 @@ class _StoryVideoPlayerState extends State<StoryVideoPlayer> {
       widget.onFailed();
       return;
     }
-    final uri = Uri.parse(url);
+    // Owner 24.11 (like reels): through the video disk cache, so the bytes
+    // the viewer prefetched for the next stories are played from the phone.
+    final uri = Uri.parse(VideoCache.resolve(url, feed: true));
     final c = debugStoryPlayerFactory?.call(uri) ??
         VideoPlayerController.networkUrl(uri);
     try {

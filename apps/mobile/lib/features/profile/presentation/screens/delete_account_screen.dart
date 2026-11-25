@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -23,22 +22,13 @@ import 'package:material_ui/material_ui.dart';
 ///
 /// One screen with an internal step switch (`DeleteAccountStep`) rather
 /// than 3-4 separate routes — every step shares one piece of state (the
-/// phone number, the armed reauth token) and none of them is independently
-/// deep-linkable or resumable the way the onboarding flow's screens are
-/// (file 07 §6.5's "закрытие приложения на середине онбординга" acceptance
-/// item doesn't apply to a destructive confirmation flow — the safe
-/// default on any interruption is to start over at the warning, which a
+/// e-mail the code went to, the armed reauth token) and none of them is
+/// independently deep-linkable or resumable the way the onboarding flow's
+/// screens are (file 07 §6.5's "закрытие приложения на середине
+/// онбординга" acceptance item doesn't apply to a destructive confirmation
+/// flow — the safe default on any interruption is to start over at the
+/// warning, which a
 /// single screen gives for free).
-/// Sweep C-c13 D1 (audit 26.10): the number the reauth code goes to, in
-/// E.164. Ten digits are a US/Canada number (the field's hint); 11–15
-/// digits already carry their country code (E.164 allows up to 15), so an
-/// account from any country can confirm. Anything else: null.
-String? deleteReauthE164(String digits) {
-  if (digits.length == 10) return '+1$digits';
-  if (digits.length >= 11 && digits.length <= 15) return '+$digits';
-  return null;
-}
-
 class DeleteAccountScreen extends ConsumerStatefulWidget {
   const DeleteAccountScreen({super.key});
 
@@ -48,23 +38,7 @@ class DeleteAccountScreen extends ConsumerStatefulWidget {
 }
 
 class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
-  final _phoneController = TextEditingController();
   final _phraseController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    // Sweep C-c13 D1: the code goes to the account's own number (as in
-    // WhatsApp / Telegram), filled in — a number of any country.
-    try {
-      final phone = ref.read(currentUserControllerProvider).user?.phone;
-      if (phone != null) {
-        _phoneController.text = phone.replaceAll(RegExp(r'\D'), '');
-      }
-    } on Object {
-      // no user loaded yet: the field stays empty
-    }
-  }
 
   @override
   void deactivate() {
@@ -80,13 +54,9 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
 
   @override
   void dispose() {
-    _phoneController.dispose();
     _phraseController.dispose();
     super.dispose();
   }
-
-  String get _phoneDigits =>
-      _phoneController.text.replaceAll(RegExp(r'\D'), '');
 
   @override
   Widget build(BuildContext context) {
@@ -156,11 +126,7 @@ class _DeleteAccountScreenState extends ConsumerState<DeleteAccountScreen> {
                         DeleteAccountStep.warning => _WarningStep(t: t),
                         DeleteAccountStep.reauthPassword =>
                           _ReauthPasswordStep(t: t),
-                        DeleteAccountStep.reauthPhone => _ReauthPhoneStep(
-                            t: t,
-                            controller: _phoneController,
-                            digits: _phoneDigits,
-                          ),
+                        DeleteAccountStep.reauthPhone => _ReauthPhoneStep(t: t),
                         DeleteAccountStep.reauthCode => _ReauthCodeStep(t: t),
                         DeleteAccountStep.confirmPhrase => _ConfirmPhraseStep(
                             t: t,
@@ -321,16 +287,14 @@ class _ReauthPasswordStep extends ConsumerWidget {
   }
 }
 
+/// Pack E (25.11, ROUND1 #12): the code goes to the verified e-mail (no
+/// SMS: the server sends one only at registration and «Забыл пароль»), so
+/// there is no number to type — the step says where the code goes, like the
+/// case-history gate.
 class _ReauthPhoneStep extends ConsumerWidget {
-  const _ReauthPhoneStep({
-    required this.t,
-    required this.controller,
-    required this.digits,
-  });
+  const _ReauthPhoneStep({required this.t});
 
   final Translator t;
-  final TextEditingController controller;
-  final String digits;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -338,6 +302,10 @@ class _ReauthPhoneStep extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final state = ref.watch(deleteAccountControllerProvider);
     final notifier = ref.read(deleteAccountControllerProvider.notifier);
+    final contact = ref.watch(
+      currentUserControllerProvider
+          .select((s) => s.user?.reauthIdentifier?.identifier),
+    );
 
     Future<void> useBiometric() async {
       final ok = await notifier.tryBiometric(
@@ -383,26 +351,26 @@ class _ReauthPhoneStep extends ConsumerWidget {
           const SizedBox(height: AppSpacing.md),
         ],
         Text(
-          t.t('deleteAccount.reauth.phoneHint'),
-          style: typography.bodySmall.copyWith(color: colors.textSecondary),
+          contact == null
+              ? t.t('history.reauth.noPhone')
+              : t.t('history.reauth.message', {'phone': contact}),
+          style: typography.body.copyWith(color: colors.textSecondary),
         ),
-        const SizedBox(height: AppSpacing.xs),
-        AppTextField(
-          controller: controller,
-          hintText: '(555) 123-4567',
-          keyboardType: TextInputType.phone,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          errorText: errorText,
-        ),
+        if (errorText != null) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            errorText,
+            style: typography.bodySmall.copyWith(color: colors.dangerText),
+          ),
+        ],
       ],
       action: AppButton(
+        key: const ValueKey('delete-reauth-send-code'),
         label: t.t('deleteAccount.reauth.sendCode'),
         isLoading: state.isSubmitting,
         disabledHint: t.t('form.disabled.required'),
-        isEnabled: deleteReauthE164(digits) != null,
-        onPressed: deleteReauthE164(digits) == null
-            ? null
-            : () => notifier.submitPhone(deleteReauthE164(digits)!),
+        isEnabled: contact != null,
+        onPressed: contact == null ? null : notifier.sendCode,
       ),
     );
   }
@@ -443,7 +411,7 @@ class _ReauthCodeStepState extends ConsumerState<_ReauthCodeStep> {
         Text(
           t.t(
             'deleteAccount.reauth.codeSubtitle',
-            {'phone': state.phoneNumber ?? ''},
+            {'phone': state.codeTarget ?? ''},
           ),
           style: typography.body.copyWith(color: colors.textSecondary),
         ),
@@ -453,7 +421,7 @@ class _ReauthCodeStepState extends ConsumerState<_ReauthCodeStep> {
           onChanged: (value) => setState(() => _currentCode = value),
           onCompleted: notifier.submitCode,
           errorText: state.errorMessage == 'invalid'
-              ? t.t('deleteAccount.reauth.error.invalid')
+              ? t.t('history.reauth.invalid')
               : null,
         ),
       ],

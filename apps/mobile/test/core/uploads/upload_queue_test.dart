@@ -6,6 +6,7 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/core/uploads/storage_uploader.dart';
 import 'package:lawbid/core/uploads/upload_files_io.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/core/uploads/upload_queue_database.dart';
@@ -269,6 +270,31 @@ void main() {
       );
     }
     expect(UploadQueue.temporary(_refused), isFalse);
+    // Owner 24.11: a scan still running (ours or the server's 409) waits;
+    // an infected / failed file stays refused.
+    expect(UploadQueue.temporary(StorageUploader.scanPending), isTrue);
+    expect(
+      UploadQueue.temporary(
+        const ApiException(
+          code: ApiErrorCodes.fileNotAttachable,
+          message: 'x',
+          statusCode: 409,
+          details: {'scanStatus': 'pending'},
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      UploadQueue.temporary(
+        const ApiException(
+          code: ApiErrorCodes.fileNotAttachable,
+          message: 'x',
+          statusCode: 409,
+          details: {'scanStatus': 'infected'},
+        ),
+      ),
+      isFalse,
+    );
     expect(ClientTuning.outboxBackoff(1), const Duration(seconds: 1));
     expect(ClientTuning.outboxBackoff(10), const Duration(seconds: 30));
   });
