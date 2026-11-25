@@ -121,6 +121,89 @@ void main() {
     await tester.pump(const Duration(minutes: 6));
   });
 
+  // ROUND1 25.11 row 13 (the 1:1 chat's row 189): picking a second message
+  // to edit while one is open kept the FIRST message's text as the draft —
+  // the real draft was gone after the edit closed.
+  testWidgets('editing a second message in a row keeps the real draft',
+      (tester) async {
+    await pump(
+      tester,
+      app(
+        FakeGroupRepository(
+          const [],
+          groupDetail(withPinned: false),
+          [
+            message('m2', body: 'Second note', mine: true),
+            message('m1', body: 'My old note', mine: true),
+          ],
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextField).last, 'Draft text');
+    await tester.pump(const Duration(milliseconds: 500));
+    for (final body in ['My old note', 'Second note']) {
+      await tester.longPress(find.text(body).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(_en.t('group.conv.edit')));
+      await tester.pumpAndSettle();
+    }
+    expect(
+      tester.widget<TextField>(find.byType(TextField).last).controller!.text,
+      'Second note',
+    );
+
+    await tester.tap(find.bySemanticsLabel(_en.t('common.close')).last);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField).last).controller!.text,
+      'Draft text',
+    );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 6));
+  });
+
+  // ROUND1 25.11 row 30 (as the 1:1 chat, message_actions.dart): «Изменить»
+  // hides an open «Ответить», closing the edit brings it back.
+  testWidgets('an open reply comes back when the edit is closed',
+      (tester) async {
+    await pump(
+      tester,
+      app(
+        FakeGroupRepository(
+          const [],
+          groupDetail(withPinned: false),
+          [
+            message('m2', body: 'Their question'),
+            message('m1', body: 'My old note', mine: true),
+          ],
+        ),
+      ),
+    );
+    await tester.longPress(find.text('Their question'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(_en.t('group.conv.reply')));
+    await tester.pumpAndSettle();
+    expect(find.text('Their question'), findsNWidgets(2));
+
+    await tester.longPress(find.text('My old note'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(_en.t('group.conv.edit')));
+    await tester.pumpAndSettle();
+    expect(find.text(_en.t('group.conv.editing')), findsOneWidget);
+    expect(find.text('Their question'), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel(_en.t('common.close')).last);
+    await tester.pumpAndSettle();
+    expect(find.text(_en.t('group.conv.editing')), findsNothing);
+    expect(
+      find.text('Their question'),
+      findsNWidgets(2),
+      reason: 'the bubble and the «Ответить» bar again',
+    );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(minutes: 6));
+  });
+
   // Final pass 18.11 (FA4): a GIF from the keyboard while an old message
   // is edited goes without that text as its caption; the edit stays.
   testWidgets('a keyboard GIF during an edit leaves the edited text alone',

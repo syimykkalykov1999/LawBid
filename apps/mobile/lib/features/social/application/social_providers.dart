@@ -862,6 +862,7 @@ class CommentsNotifier extends PagedNotifier<Comment> with CommentRows {
     final realtime = ref.watch(realtimeClientProvider);
     realtime?.watchPost(postId);
     final sub = ref.watch(realtimeEventsProvider).listen((e) {
+      if (e.name == 'comment:deleted') return _deleted(e.data);
       if (e.name != 'comment:new') return;
       final data = e.data;
       if (data is! Map || data['postId'] != postId) return;
@@ -883,6 +884,39 @@ class CommentsNotifier extends PagedNotifier<Comment> with CommentRows {
       realtime?.unwatchPost(postId);
     });
     return super.build();
+  }
+
+  /// Pack B (ROUND2 25.11 #6): a comment deleted by someone else while
+  /// this post is open goes from the list at once (a reply: its parent's
+  /// count drops, an open thread of it loses the row); the post's count
+  /// drops where the app holds the post.
+  void _deleted(Object? data) {
+    if (data is! Map || data['postId'] != postId) return;
+    final id = data['commentId'];
+    if (id is! String) return;
+    final parent = data['parentCommentId'];
+    if (parent is String) {
+      final current = state.value;
+      final p = current?.items.where((x) => x.id == parent).firstOrNull;
+      if (p != null && p.replyCount > 0) {
+        replace(p.copyWith(replyCount: p.replyCount - 1));
+      }
+      if (ref.read(repliesProvider(parent).exists)) {
+        ref.read(repliesProvider(parent).notifier).remove(id);
+      }
+    } else {
+      remove(id);
+    }
+    final gone = (data['removed'] as num?)?.toInt() ?? 0;
+    final post = ref.read(postOverridesProvider)[postId];
+    if (gone > 0 && post != null) {
+      ref.read(postOverridesProvider.notifier).put(
+            post.copyWith(
+              commentCount:
+                  post.commentCount > gone ? post.commentCount - gone : 0,
+            ),
+          );
+    }
   }
 
   // Owner 2026-11-11 (speed, Instagram / Telegram): opens at once on the

@@ -139,6 +139,8 @@ class RealtimeClient {
     'channel:post',
     'channel:update',
     'comment:new',
+    // Pack B (25.11): a comment under the open post was deleted.
+    'comment:deleted',
   ];
 
   /// Owner 2026-10-23 (part C2): `reconnected` reaches each listener after
