@@ -644,6 +644,16 @@ variable "waf_bot_control_block" {
   default     = false
   description = "Block the Bot Control verdicts instead of counting them (only with waf_bot_control_enabled)."
 }
+# Item 13 (L4, 2026-11-25): AWS WAF Account Takeover Prevention on the
+# password sign-in (modules/alb). Paid, off by default, counts first.
+variable "waf_atp_enabled" {
+  type    = bool
+  default = false
+}
+variable "waf_atp_action" {
+  type    = string
+  default = "count"
+}
 variable "waf_enabled" {
   type        = bool
   default     = true
@@ -803,6 +813,17 @@ variable "backup_restore_test_enabled" {
   type        = bool
   default     = false
   description = "Monthly automatic restore test of the newest database backup (AWS Backup restore testing; cents per month). Result: admin «Здоровье системы» → «Учебное восстановление»; a failure rings the critical topic."
+}
+
+variable "backup_restore_validation_min_users" {
+  type        = number
+  default     = 1
+  description = "Item 20 (D7): the monthly restore test also runs a query on the restored copy (migrations applied, users table readable, at least this many users, copy writable). 0 for an empty staging."
+}
+variable "ecs_fault_injection_enabled" {
+  type        = bool
+  default     = false
+  description = "Item 20 (X3): AWS FIS SSM sidecar + pidMode=task + enableFaultInjection on the API task, for the API-latency drill. Staging only (refused for a prod name). docs/runbooks/chaos-and-restore-drills.md."
 }
 
 variable "backup_age_missing_data" {
@@ -1186,6 +1207,8 @@ module "alb" {
   slow_start_seconds        = var.alb_slow_start_seconds
   waf_bot_control_enabled   = var.waf_bot_control_enabled
   waf_bot_control_block     = var.waf_bot_control_block
+  waf_atp_enabled           = var.waf_atp_enabled
+  waf_atp_action            = var.waf_atp_action
 
   # The load-balancer log goes to the locked audit bucket (prefix `alb`).
   access_logs_bucket = one(module.audit_logs[*].bucket)
@@ -1573,6 +1596,14 @@ module "backup" {
   restore_test_db_subnet_group    = var.create_database ? "" : one(data.aws_db_instance.existing[*].db_subnet_group)
   restore_test_security_group_ids = var.create_database ? [module.postgres[0].security_group_id] : flatten(data.aws_db_instance.existing[*].vpc_security_groups)
   tags                            = local.tags
+
+  # Item 20 (D7): the validation query runs as a one-off migrate task.
+  restore_validation_cluster_name       = module.ecs.cluster_name
+  restore_validation_task_family        = module.ecs.migrate_task_family
+  restore_validation_task_role_arns     = module.ecs.migrate_task_role_arns
+  restore_validation_subnet_ids         = module.network.private_subnet_ids
+  restore_validation_security_group_ids = [aws_security_group.tasks.id]
+  restore_validation_min_users          = var.backup_restore_validation_min_users
 
   vault_lock_mode             = var.backup_vault_lock_mode
   vault_lock_cooling_off_days = var.backup_vault_lock_cooling_off_days
@@ -2256,6 +2287,7 @@ module "ecs" {
   source                          = "../ecs"
   name                            = local.name
   readonly_root_filesystem        = var.ecs_readonly_root_filesystem
+  fault_injection_enabled         = var.ecs_fault_injection_enabled
   private_subnet_ids              = module.network.private_subnet_ids
   tasks_security_group_id         = aws_security_group.tasks.id
   api_target_group_arn            = module.alb.api_target_group_arn
@@ -3289,6 +3321,7 @@ output "turn_instance_ids" { value = one(module.turn[*].instance_ids) }
 output "livekit_instance_id" { value = one(module.livekit[*].instance_id) }
 output "livekit_security_group_id" { value = one(module.livekit[*].security_group_id) }
 output "alb_arn_suffix" { value = module.alb.arn_suffix }
+output "api_5xx_alarm_arn" { value = module.monitoring.api_5xx_alarm_arn }
 output "api_target_group_arn_suffix" { value = module.alb.api_target_group_arn_suffix }
 output "pgbouncer_service_name" { value = one(module.pgbouncer[*].service_name) }
 output "db_pooler_endpoint" { value = one(module.pgbouncer[*].endpoint) }

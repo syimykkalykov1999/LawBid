@@ -119,6 +119,36 @@ module "stack" {
 
   # Load audit 6: growth switches (growth.tf).
   growth = var.growth
+
+  # Item 20 (X3 + D7): API-latency drill support and the monthly restore test.
+  ecs_fault_injection_enabled         = var.ecs_fault_injection_enabled
+  backup_restore_test_enabled         = var.backup_restore_test_enabled
+  backup_restore_validation_min_users = var.backup_restore_validation_min_users
 }
 
+# Item 20 (X3): AWS FIS GameDay templates for STAGING. Nothing runs by
+# itself: an experiment starts only by hand (docs/runbooks/chaos-and-restore-drills.md).
+# Stop conditions: this module's two alarms + the existing «users see
+# errors» alarm (api-5xx-ratio).
+module "gameday" {
+  count                       = var.gameday_enabled ? 1 : 0
+  source                      = "../../modules/fis-gameday"
+  name                        = module.stack.name
+  cluster_name                = module.stack.cluster_name
+  api_service_name            = module.stack.api_service_name
+  db_instance_id              = module.stack.database_instance_id
+  redis_replication_group_id  = module.stack.redis_replication_group_id
+  alb_arn_suffix              = module.stack.alb_arn_suffix
+  api_target_group_arn_suffix = module.stack.api_target_group_arn_suffix
+  extra_stop_alarm_arns       = [module.stack.api_5xx_alarm_arn]
+  rds_failover_enabled        = var.database_multi_az
+  api_latency_enabled         = var.ecs_fault_injection_enabled
+  az_impairment_enabled       = true
+  vpc_id                      = module.stack.vpc_id
+  impaired_az                 = var.gameday_impaired_az != "" ? var.gameday_impaired_az : var.azs[0]
+  tags                        = { Project = "lawbid", Env = "staging", Purpose = "gameday" }
+}
+
+output "gameday_templates" { value = one(module.gameday[*].template_ids) }
+output "gameday_log_group" { value = one(module.gameday[*].experiment_log_group) }
 output "stack" { value = module.stack }

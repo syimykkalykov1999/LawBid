@@ -62,6 +62,28 @@ and the read is asked again of the primary (rows 8 / 9, 15.11). License:
 Apache License 2.0, https://www.apache.org/licenses/LICENSE-2.0 (full text in
 the package's LICENSE file). Changed: camelCase delegate, raw SELECT replay.
 
+## Netflix concurrency-limits (Gradient2Limit, ExpAvgMeasurement) — Apache-2.0 (ported)
+
+https://github.com/Netflix/concurrency-limits (Copyright 2018 Netflix, Inc.) —
+`src/common/resilience/gradient2-limit.ts` is a TypeScript port of
+`concurrency-limits-core/.../limit/Gradient2Limit.java` (the `_update`
+formula, defaults 20 / 20 / 200, smoothing 0.2, queue size 4, long window
+600, RTT tolerance 1.5) and `limit/measurement/ExpAvgMeasurement.java`, used
+as the adaptive concurrency limit of prioritized load shedding (item 21).
+Changed: Java → TypeScript, metrics listeners and debug logging dropped,
+bounds settable at run time from the admin settings. The npm port
+`adaptive-concurrency` was not used: its licence is listed as Proprietary.
+License: Apache License 2.0, https://www.apache.org/licenses/LICENSE-2.0
+(full text in the repository's LICENSE file).
+
+## @fastify/under-pressure — MIT (idea only)
+
+https://github.com/fastify/under-pressure — the event-loop utilization signal
+in `src/common/resilience/load-shedding.ts` is measured the way its
+`interval` mode does (`performance.eventLoopUtilization(now, previous)` once
+a sampling interval). No code copied; the package is for Fastify, the API
+runs on Express.
+
 ## async-mutex — MIT
 
 `src/common/vendor/async-mutex/` (Semaphore.ts, SemaphoreInterface.ts, errors.ts), tag v0.5.0, https://github.com/DirtyHairy/async-mutex — copied whole, reformatted only. Used by the byte budget of full file reads (`modules/files/read-budget.ts`, security audit 2026-11-08 L6).
@@ -115,6 +137,37 @@ Copyright (c) 2025 GrowthBook, Inc.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
+
+## ONNX Runtime Web (onnxruntime-web 1.31.1, onnxruntime-common 1.31.1) — MIT
+
+https://github.com/microsoft/onnxruntime — npm dependency, unmodified.
+Runs the learned posts ranker (F2) inside the API:
+`src/modules/recommendations/ranker/post-ranker.service.ts`. The WebAssembly
+build is used because the native `onnxruntime-node` does not load on the
+Alpine (musl) API image. Its own dependencies: flatbuffers 25.x
+(Apache-2.0), guid-typescript 1.x (ISC), platform 1.3.x (MIT); long and
+protobufjs were already in the tree.
+
+```
+MIT License
+
+Copyright (c) Microsoft Corporation
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+## Offline ranker training (ml/feed-ranker) — not shipped in the API image
+
+Python tools run by hand to train the posts ranker, pinned in
+`ml/feed-ranker/requirements.txt`, used unmodified: LightGBM 4.7.0 (MIT,
+Copyright (c) Microsoft Corporation, Copyright (c) The LightGBM developers),
+onnxmltools 1.16.0 and onnx 1.23.2 (Apache-2.0), onnxruntime 1.32.0 (MIT),
+numpy 2.5.5 and scikit-learn 1.9.1 (BSD-3-Clause), pg8000 1.31.6
+(BSD-3-Clause). Only the model they produce (an ONNX file) reaches the API.
 
 ## Sentry JavaScript SDK 11.11.0 migration guide — MIT
 

@@ -78,6 +78,28 @@ variable "waf_auth_rate_action" {
     error_message = "waf_auth_rate_action: count or block."
   }
 }
+# Item 13 (L4, 2026-11-25): AWS WAF Fraud Control — Account Takeover
+# Prevention (managed rule group AWSManagedRulesATPRuleSet) on the password
+# sign-in only: stolen-credential lists, password spraying, volumetric
+# sign-ins per IP / session. Paid (AWS WAF pricing: a monthly subscription
+# plus per 1 000 sign-in requests analyzed), so off by default; when on it
+# COUNTS until waf_atp_action = "block" (labels in the WAF metric first, a
+# real person is never cut off blind). The scope-down keeps it to the login
+# path, so only sign-ins are billed.
+variable "waf_atp_enabled" {
+  type        = bool
+  default     = false
+  description = "Item 13 (L4): AWS WAF Account Takeover Prevention on POST /api/v1/auth/password/login. Paid; off by default."
+}
+variable "waf_atp_action" {
+  type        = string
+  default     = "count"
+  description = "count (only labels and the WAF metric) or block (the rule group's own actions) for Account Takeover Prevention."
+  validation {
+    condition     = contains(["count", "block"], var.waf_atp_action)
+    error_message = "waf_atp_action: count or block."
+  }
+}
 variable "deletion_protection" {
   type        = bool
   default     = false
@@ -675,6 +697,66 @@ resource "aws_wafv2_web_acl" "this" {
       visibility_config {
         cloudwatch_metrics_enabled = true
         metric_name                = "${var.name}-auth-refresh-rate-per-device"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  # Item 13 (L4): Account Takeover Prevention on the password sign-in
+  # (variables above). Request inspection reads the JSON body the app and
+  # the website send (`identifier`, `password`); the ALB has no response
+  # inspection (CloudFront only), so the rule group judges by request only.
+  dynamic "rule" {
+    for_each = var.waf_atp_enabled ? [1] : []
+    content {
+      name     = "auth-account-takeover"
+      priority = 7
+      override_action {
+        dynamic "none" {
+          for_each = var.waf_atp_action == "block" ? [1] : []
+          content {}
+        }
+        dynamic "count" {
+          for_each = var.waf_atp_action == "block" ? [] : [1]
+          content {}
+        }
+      }
+      statement {
+        managed_rule_group_statement {
+          name        = "AWSManagedRulesATPRuleSet"
+          vendor_name = "AWS"
+          managed_rule_group_configs {
+            aws_managed_rules_atp_rule_set {
+              login_path = "/api/v1/auth/password/login"
+              request_inspection {
+                payload_type = "JSON"
+                username_field {
+                  identifier = "/identifier"
+                }
+                password_field {
+                  identifier = "/password"
+                }
+              }
+            }
+          }
+          scope_down_statement {
+            byte_match_statement {
+              search_string         = "/api/v1/auth/password/login"
+              positional_constraint = "EXACTLY"
+              field_to_match {
+                uri_path {}
+              }
+              text_transformation {
+                priority = 0
+                type     = "NONE"
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.name}-auth-account-takeover"
         sampled_requests_enabled   = true
       }
     }

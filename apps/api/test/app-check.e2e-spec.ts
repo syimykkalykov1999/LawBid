@@ -6,6 +6,7 @@ import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { ErrorCode } from '../src/common/errors/error-code.enum';
 import { SecretsService } from '../src/common/secrets/secrets.service';
+import { pendingKey } from '../src/common/security/bot-check-stats';
 import { AppCheckService } from '../src/modules/auth/app-check/app-check.service';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
@@ -152,6 +153,66 @@ describe('App Check (e2e)', () => {
     await setMode('off');
     const res = await otp({ channel: 'phone', identifier: phone() });
     expect(res.status).toBe(200);
+  });
+
+  // Item 13 (L2, 2026-11-25): Выкл / Вкл / Авто per route group, through the
+  // global guard, the real config and the real Redis counts.
+  describe('route groups (item 13)', () => {
+    async function setKey(key: string, value: unknown): Promise<void> {
+      if (value === null) await prisma.appConfig.deleteMany({ where: { key } });
+      else
+        await prisma.appConfig.upsert({
+          where: { key },
+          create: { key, value: value as never },
+          update: { value: value as never },
+        });
+      await dropAppConfigCache(redis);
+    }
+    afterEach(async () => {
+      for (const k of [
+        'security.app_check.sms.mode',
+        'security.app_check.auto_min_requests',
+        'security.app_check.auto_pass_rate_pct',
+      ])
+        await setKey(k, null);
+      await setMode(null);
+    });
+
+    it('sms = on refuses a tokenless SMS code while the general mode is monitor', async () => {
+      await setMode('monitor');
+      await setKey('security.app_check.sms.mode', 'on');
+      const res = await otp({ channel: 'phone', identifier: phone() });
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe(ErrorCode.DEVICE_ATTESTATION_REQUIRED);
+      const ok = await otp(
+        { channel: 'phone', identifier: phone() },
+        { 'X-Firebase-AppCheck': 'good-token' },
+      );
+      expect(ok.status).toBe(200);
+    });
+
+    it('sms = auto stays log-only without proven-real numbers', async () => {
+      await setMode('monitor');
+      await setKey('security.app_check.sms.mode', 'auto');
+      const res = await otp({ channel: 'phone', identifier: phone() });
+      expect(res.status).toBe(200);
+    });
+
+    it('a code request leaves its verdict in Redis for the code check', async () => {
+      await setMode('monitor');
+      const n = phone();
+      const res = await otp(
+        { channel: 'phone', identifier: n },
+        { 'X-Firebase-AppCheck': 'good-token', 'X-Platform': 'ios' },
+      );
+      expect(res.status).toBe(200);
+      const raw = await redis.get(pendingKey('sms', n));
+      expect(JSON.parse(raw!)).toMatchObject({
+        pass: true,
+        valid: true,
+        platform: 'ios',
+      });
+    });
   });
 
   it('the real verifier reports "unconfigured" without Firebase keys', async () => {

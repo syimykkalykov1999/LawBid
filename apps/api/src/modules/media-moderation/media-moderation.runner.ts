@@ -16,6 +16,7 @@ import {
 import type { MediaCheckJobData } from './media-moderation.queue';
 import { MediaModerationService } from './media-moderation.service';
 import { bullOptions } from '../../redis/redis-connection';
+import { keepJobScheduler } from '../../common/queues/keep-scheduler';
 import {
   closeWorker,
   workerTuning,
@@ -32,6 +33,7 @@ export class MediaModerationRunner
 {
   private worker?: Worker<MediaCheckJobData>;
   private queue?: Queue<MediaCheckJobData>;
+  private stopKeep?: () => void;
 
   constructor(
     @Inject(MEDIA_MODERATION_OPTIONS)
@@ -69,25 +71,25 @@ export class MediaModerationRunner
       MEDIA_MODERATION_QUEUE,
       bullOptions(MEDIA_MODERATION_QUEUE, url),
     );
-    void this.queue
-      .upsertJobScheduler(
-        MEDIA_REHIDE_SWEEP_JOB,
-        { every: 60 * 60_000 },
-        {
-          name: MEDIA_REHIDE_SWEEP_JOB,
-          data: { kind: 'rehide_sweep' },
-          opts: {
-            removeOnComplete: { count: 24 },
-            removeOnFail: { count: 50 },
-          },
+    // Pack C (round 2 #11): re-checked every heartbeat, not only at boot.
+    this.stopKeep = keepJobScheduler(
+      this.queue,
+      MEDIA_REHIDE_SWEEP_JOB,
+      { every: 60 * 60_000 },
+      {
+        name: MEDIA_REHIDE_SWEEP_JOB,
+        data: { kind: 'rehide_sweep' },
+        opts: {
+          removeOnComplete: { count: 24 },
+          removeOnFail: { count: 50 },
         },
-      )
-      .catch((error: unknown) =>
+      },
+      (error: unknown) =>
         this.logger.warn(
           { err: error instanceof Error ? error.message : String(error) },
           'media rehide sweep not scheduled',
         ),
-      );
+    );
     this.worker.on('failed', (job, error) => {
       this.logger.error(
         { job: job?.id, attempts: job?.attemptsMade, err: error.message },
@@ -114,6 +116,7 @@ export class MediaModerationRunner
   }
 
   async onApplicationShutdown(): Promise<void> {
+    this.stopKeep?.();
     await closeWorker(this.worker);
     await this.queue?.close();
   }

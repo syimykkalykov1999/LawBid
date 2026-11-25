@@ -12,6 +12,7 @@ import {
   targetUnits,
   unitsFor,
   unspentShare,
+  withKnownActions,
 } from './promotions.settings';
 
 describe('boost settings (owner 2026-10-15)', () => {
@@ -184,5 +185,50 @@ describe('boost pricing per way to pay (owner 2026-10-27)', () => {
         0,
       ),
     ).toBe(0);
+  });
+});
+
+describe('pack C (round 2 #24): a saved action list does not hide a new default action', () => {
+  it('a default action the save did not know yet is switched on', () => {
+    // Saved when `message` did not exist yet; the admin kept only `follow`.
+    const p = parsePricing(
+      {
+        post: {
+          actions: ['follow'],
+          known: ['follow', 'save', 'profile_open', 'call'],
+        },
+      },
+      500,
+    );
+    expect(p.post.actions).toEqual(['follow', 'message']);
+  });
+
+  it('a default action the admin unticked stays off', () => {
+    const p = parsePricing(
+      {
+        post: {
+          actions: ['follow'],
+          known: ['follow', 'message', 'save', 'profile_open', 'call'],
+        },
+      },
+      500,
+    );
+    expect(p.post.actions).toEqual(['follow']);
+  });
+
+  it('a value saved before this fix reads as the list of 25.11 (nothing changes)', () => {
+    const p = parsePricing({ post: { actions: ['follow'] } }, 500);
+    expect(p.post.actions).toEqual(['follow']);
+  });
+
+  it('the stored form remembers every action of the save; reading drops it', () => {
+    const p = parsePricing(null, 500);
+    const stored = withKnownActions(p);
+    expect(stored.post.known).toEqual(
+      expect.arrayContaining(['follow', 'message', 'save']),
+    );
+    const back = parsePricing(JSON.parse(JSON.stringify(stored)), 500);
+    expect(back).toEqual(p);
+    expect('known' in back.post).toBe(false);
   });
 });

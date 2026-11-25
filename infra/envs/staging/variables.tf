@@ -332,3 +332,30 @@ variable "anomaly_to_alerts_topic" {
   default     = true
   description = "Cost Anomaly findings also to the alerts topic (free)."
 }
+
+# Item 20 (X3 + D7, 25.11): chaos drills and the monthly restore test on
+# staging. docs/runbooks/chaos-and-restore-drills.md.
+variable "gameday_enabled" {
+  type        = bool
+  default     = true
+  description = "AWS FIS experiment templates for staging (stop API tasks, API latency, Valkey/RDS failover, AZ power interruption). A template costs nothing; an experiment runs only when started by hand."
+}
+variable "ecs_fault_injection_enabled" {
+  type        = bool
+  default     = true
+  description = "SSM-agent sidecar + pidMode=task + enableFaultInjection on the staging API task (the API-latency template needs it)."
+}
+variable "gameday_impaired_az" {
+  type        = string
+  default     = ""
+  description = "Zone the AZ power-interruption template takes down. Empty = the first of azs."
+}
+variable "backup_restore_test_enabled" {
+  type        = bool
+  default     = true
+  description = "Monthly AWS Backup restore test of the staging database + validation query (only with backup_enabled)."
+}
+variable "backup_restore_validation_min_users" {
+  type    = number
+  default = 0
+}

@@ -1,0 +1,34 @@
+{
+  "feature_spec_version": "posts-ranker-features-v1",
+  "features": [
+    "hot",
+    "interest",
+    "social",
+    "fresh",
+    "language",
+    "authorQuality",
+    "state",
+    "affinity",
+    "seen",
+    "kind_photo",
+    "kind_reel",
+    "kind_brief"
+  ],
+  "input_name": "features",
+  "libs": {
+    "lightgbm": "4.7.0",
+    "onnxmltools": "1.16.0"
+  },
+  "metrics": {
+    "judged_lists": 12,
+    "k": 10,
+    "ndcg_formula": 0.482055,
+    "ndcg_model": 0.966837
+  },
+  "onnx_max_abs_diff": 2.0402238165573294e-07,
+  "rows": 720,
+  "sha256": "c30fc584619570a5aa09381a10dbbfcef111b3b3458f5682f49debf168b8b0e9",
+  "trained_at": "2026-11-25T00:00:00Z",
+  "trees": 8,
+  "version": "fixture"
+}

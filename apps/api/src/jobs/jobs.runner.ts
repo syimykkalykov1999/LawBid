@@ -5,15 +5,17 @@ import {
   OnApplicationShutdown,
   Optional,
 } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import type Redis from 'ioredis';
 import { OPS_KEYS, WORKER_HEARTBEAT_FILE } from '../common/ops/ops.constants';
 import { REDIS_CLIENT } from '../redis/redis.constants';
 import { ConfigService } from '@nestjs/config';
-import { Queue, Worker, type Job } from 'bullmq';
+import { DelayedError, Queue, Worker, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import {
+  CRON_JOBS,
   CRON_LANES,
   CRON_LANE_CONCURRENCY,
   CRON_QUEUE,
@@ -77,6 +79,31 @@ export const CRON_LANE_CONCURRENCY_SETTING: Record<CronLane, AppSettingKey> = {
  * connection of the pool). */
 export const CRON_LANE_CONCURRENCY_MAX = 20;
 
+/**
+ * Pack C (round 2 #12, 25.11): during a deploy the old and the new release
+ * run side by side, and each deleted every scheduler it did not know — the
+ * other one's — and failed the other one's jobs as «Unknown cron job»
+ * (attempts 1: that run was lost). Each process now writes the
+ * `lane:name` list of its release into one Redis hash every heartbeat; a
+ * scheduler or job that a live release (seen in the last
+ * [CRON_RELEASE_TTL_MS]) still has is left to it: the scheduler stays and
+ * the job goes back to the queue for that release's worker. Names no live
+ * release has are cleaned as before.
+ */
+export const CRON_RELEASES_KEY = 'cron:releases';
+/** A release not seen for this long is gone (the worker heartbeat's TTL). */
+export const CRON_RELEASE_TTL_MS = 180_000;
+/** A job of another live release waits this long before it is offered again. */
+export const CRON_HANDOFF_DELAY_MS = 5_000;
+const KNOWN_CRON_JOBS = new Set<string>(Object.values(CRON_JOBS));
+export const MY_CRON_SCHEDULES = CRON_SCHEDULES.map(
+  (x) => `${cronLaneOf(x.name)}:${x.name}`,
+).sort();
+export const MY_CRON_RELEASE = createHash('sha1')
+  .update(MY_CRON_SCHEDULES.join(','))
+  .digest('hex')
+  .slice(0, 12);
+
 /** Job options of one schedule (template for the scheduler, `runNow`). */
 export function cronJobOpts(pattern: string) {
   return isSubHourly(pattern) ? CRON_FREQUENT_JOB_OPTS : CRON_JOB_TEMPLATE_OPTS;
@@ -105,6 +132,8 @@ export class JobsRunner
   private starting?: Promise<void>;
   private stopping = false;
   private heartbeat?: NodeJS.Timeout;
+  /** `lane:name` of the schedules other live releases have (pack C). */
+  private otherReleases = new Set<string>();
 
   constructor(
     @Inject(JOBS_OPTIONS) private readonly options: JobsModuleOptions,
@@ -153,6 +182,7 @@ export class JobsRunner
 
   private async start(): Promise<void> {
     const url = this.config.getOrThrow<string>('REDIS_URL');
+    await this.refreshReleases();
     for (const lane of CRON_LANES) {
       const queue = new Queue(lane, bullOptions(lane, url));
       this.queues.set(lane, queue);
@@ -175,7 +205,15 @@ export class JobsRunner
         // Batch D (14.11): three declared parameters — BullMQ hands a
         // processor its per-job AbortSignal only when `processor.length`
         // is ≥ 3 (worker.js `processorAcceptsSignal`).
-        (job: Job, _token?: string, signal?: AbortSignal) => run(job, signal),
+        async (job: Job, token?: string, signal?: AbortSignal) => {
+          // Pack C (round 2 #12): another live release's job goes back to
+          // the queue for its worker instead of failing here.
+          if (token && this.belongsToOtherRelease(lane, job.name)) {
+            await job.moveToDelayed(Date.now() + CRON_HANDOFF_DELAY_MS, token);
+            throw new DelayedError();
+          }
+          return run(job, signal);
+        },
         {
           // Required by BullMQ for the worker's blocking connection.
           ...bullOptions(lane, url, { worker: true }),
@@ -259,6 +297,7 @@ export class JobsRunner
         ) {
           return;
         }
+        await this.refreshReleases();
         await this.reconcileSchedules();
         await this.applyLaneConcurrency();
         const at = new Date().toISOString();
@@ -344,7 +383,13 @@ export class JobsRunner
           (await queue.getJobSchedulers()).map((x) => x.key),
         );
         const found = mine.filter((x) => keys.has(x.name)).length;
-        if (found < mine.length) {
+        // Pack C: a scheduler of a release that is gone (a name neither
+        // this release nor a live one has) is cleaned without a redeploy.
+        const orphan = [...keys].some(
+          (k) =>
+            !KNOWN_CRON_JOBS.has(k) && !this.otherReleases.has(`${lane}:${k}`),
+        );
+        if (found < mine.length || orphan) {
           this.logger.warn(
             { lane, found, expected: mine.length },
             'cron schedules missing in Redis; re-registering',
@@ -375,7 +420,8 @@ export class JobsRunner
   }
 
   /** Idempotent: upserts the schedules of [lane], removes stale ones (a
-   * job renamed or moved to another lane leaves its old scheduler here). */
+   * job renamed or moved to another lane leaves its old scheduler here)
+   * unless another live release still has it (pack C, round 2 #12). */
   async ensureSchedules(
     queue: Queue,
     lane: CronLane = CRON_QUEUE,
@@ -391,9 +437,67 @@ export class JobsRunner
     }
     const existing = await queue.getJobSchedulers();
     for (const scheduler of existing) {
-      if (!wanted.has(scheduler.key)) {
+      if (
+        !wanted.has(scheduler.key) &&
+        !this.otherReleases.has(`${lane}:${scheduler.key}`)
+      ) {
         await queue.removeJobScheduler(scheduler.key);
       }
+    }
+  }
+
+  /** A job this release does not know that a live release schedules. */
+  belongsToOtherRelease(lane: CronLane, name: string): boolean {
+    return (
+      !isOneOffJob(name) &&
+      !KNOWN_CRON_JOBS.has(name) &&
+      this.otherReleases.has(`${lane}:${name}`)
+    );
+  }
+
+  /**
+   * Pack C (round 2 #12): writes this release's schedules into
+   * [CRON_RELEASES_KEY] and reads the other live releases' (one hash, one
+   * key: no cross-slot call); drops releases not seen for
+   * [CRON_RELEASE_TTL_MS]. Without Redis, or when it fails: no other
+   * release is known (the old clean-everything behaviour). Never throws.
+   */
+  async refreshReleases(now = Date.now()): Promise<void> {
+    if (!this.redis) return;
+    try {
+      await this.redis.hset(
+        CRON_RELEASES_KEY,
+        MY_CRON_RELEASE,
+        JSON.stringify({ at: now, names: MY_CRON_SCHEDULES }),
+      );
+      const all = await this.redis.hgetall(CRON_RELEASES_KEY);
+      const other = new Set<string>();
+      for (const [release, raw] of Object.entries(all ?? {})) {
+        if (release === MY_CRON_RELEASE) continue;
+        let entry: { at?: unknown; names?: unknown } | null = null;
+        try {
+          entry = JSON.parse(raw) as { at?: unknown; names?: unknown };
+        } catch {
+          entry = null;
+        }
+        if (
+          !entry ||
+          typeof entry.at !== 'number' ||
+          now - entry.at > CRON_RELEASE_TTL_MS ||
+          !Array.isArray(entry.names)
+        ) {
+          await this.redis.hdel(CRON_RELEASES_KEY, release);
+          continue;
+        }
+        for (const n of entry.names) if (typeof n === 'string') other.add(n);
+      }
+      this.otherReleases = other;
+    } catch (error) {
+      this.otherReleases = new Set();
+      this.logger.warn(
+        { err: error instanceof Error ? error.message : String(error) },
+        'cron release list not read',
+      );
     }
   }
 

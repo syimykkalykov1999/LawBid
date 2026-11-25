@@ -4,7 +4,7 @@ import { ServerTextsModule } from './common/i18n/server-texts.service';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import {
   LoadSheddingMiddleware,
-  LoadSheddingService,
+  LoadSheddingModule,
 } from './common/resilience/load-shedding';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
@@ -304,6 +304,10 @@ const isDev =
     SeoGeneratorModule,
     // Owner 2026-10-05: plans + the entitlements gate (global).
     PlansCoreModule,
+    // Item 21 (A3 / AU2): prioritized load shedding. Its APP_GUARD runs
+    // before ThrottlerGuard, AppVersionGuard and JwtAuthGuard, so a shed
+    // request costs no rate-limit lookup and no token check.
+    LoadSheddingModule,
     ThrottlerModule,
     HealthModule,
     // Registered after ThrottlerModule and before AuthModule so global
@@ -498,7 +502,6 @@ const isDev =
     StaffModule,
   ],
   providers: [
-    LoadSheddingService,
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ViewerContextInterceptor },
@@ -528,7 +531,8 @@ export class AppModule implements NestModule {
       .apply(RequestIdMiddleware, DemoHeaderMiddleware)
       .forRoutes(ALL_ROUTES);
     // Owner 2026-10-23: an overloaded instance answers 503 + Retry-After
-    // instead of timing out (limits in app_config, 0 = off).
+    // instead of timing out. Item 21: this counts requests in flight and
+    // samples their time; LoadSheddingGuard decides by route priority.
     consumer.apply(LoadSheddingMiddleware).forRoutes(ALL_ROUTES);
     // Owner 2026-10-22: error rate and p95 for «Состояние системы».
     consumer.apply(HttpStatsMiddleware).forRoutes(ALL_ROUTES);

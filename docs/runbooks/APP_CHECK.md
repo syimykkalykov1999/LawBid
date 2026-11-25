@@ -199,3 +199,25 @@ Console дополнительно поставьте Messaging Geo Permissions 
 ## Website Turnstile widget (batch D, 2026-10-24)
 
 The Flutter web build asks Cloudflare Turnstile for a token (invisible, `interaction-only`: the box shows only if a person must click) before `/auth/otp/request`, `/auth/password/reset/request`, `/auth/social`, `/auth/phone/status` and sends it as `X-Turnstile-Token`. The public site key comes in `GET /config/bootstrap` -> `app_config["turnstile.site_key"]`, published only while `security.turnstile.mode` is `monitor` or `enforce` and a site key is saved (Интеграции -> Cloudflare Turnstile). With the mode `off` or no key the page loads nothing from Cloudflare. Phones never run this code (conditional import). The web CSP (infra/modules/web) allows `https://challenges.cloudflare.com` for scripts and frames: **apply the web module (terraform) before switching the mode on**, else the browser blocks the widget.
+
+## Выкл / Вкл / Авто по группам, защита от повтора, WAF (пункт 13, 2026-11-25)
+
+Как у Google (порядок включения App Check: сначала смотреть долю проверенных запросов, потом включать) и Cloudflare (Turnstile в невидимом режиме, проверка на сервере с повтором по `idempotency_key`).
+
+**Группы** (Админка → Настройки, каждая `off` / `on` / `auto`, по умолчанию `off`):
+- `security.app_check.sms.mode` — SMS-код (вход и регистрация) и «есть ли такой номер»;
+- `security.app_check.login.mode` — вход по паролю, проверка кода (там же открывается новый аккаунт), Google / Apple;
+- `security.app_check.password_reset.mode` — «Забыл пароль»;
+- `security.app_check.payments.mode` — начало оплаты (тарифы, значок клиента, звёзды, пакеты ставок; люди уже вошли).
+
+`off` = как общий `security.app_check.mode` (сейчас `monitor`: только журнал). `on` = без действительного токена App Check (на сайте — или Turnstile) отказ 403. `auto` = `on`, когда числа это позволяют, иначе как `off`.
+
+**Числа для «Авто» — только настоящие люди.** Сервер считает в Redis (`botcheck:stats:<группа>:<день>`) только тех, кто прошёл шаг, который скрипт не пройдёт: ввёл код из SMS, верный пароль, токен Google / Apple, или уже вошёл и платит. Для каждого записано, прошёл ли его запрос проверку. Поток ботов сюда не попадает, поэтому не может держать «Авто» выключенным. «Авто» включает проверку, когда за `security.app_check.auto_days` (7) дней таких людей не меньше `security.app_check.auto_min_requests` (200) и проходят не меньше `security.app_check.auto_pass_rate_pct` (99 %) — и так на каждой платформе (iOS, Android, сайт), где людей набралось столько же. Числа видны: Админка → Запуск → «App Check».
+
+**Защита от повтора** (`security.app_check.replay.mode`, `off` / `on` / `auto`): на SMS-коде, сбросе пароля, проверке номера и оплате токен принимается один раз, пока там включена проверка. С этого выпуска телефоны шлют там одноразовый токен (`getLimitedUseToken`) и заголовок `X-Firebase-AppCheck-Limited: 1`. `auto` включает защиту, когда не меньше 99 % действительных токенов там одноразовые (старые сборки ещё шлют обычный токен — их не отрежет). Старый `security.app_check.replay_protection = true` по-прежнему значит «вкл».
+
+**Turnstile:** сайт называет группу как `action` виджета, сервер отказывает токену, решённому для другой формы (старая страница без `action` проходит). Ожидание Cloudflare — `security.turnstile.timeout_ms` (5000), при сбое сети один повтор с тем же `idempotency_key`. В приложениях Turnstile нет: Cloudflare для телефонов предлагает только WebView со страницей, а у нас там App Check (Play Integrity / App Attest) — проверка устройства сильнее.
+
+**WAF (Terraform, применяет владелец):** правила частоты на вход и SMS уже в `infra/modules/alb` и включаются в Админке → Инфраструктура → `aws.waf_extra_rules` (on = только считать, block = блокировать). Новое: `waf_atp_enabled` / `waf_atp_action` — AWS WAF Account Takeover Prevention на `POST /api/v1/auth/password/login` (украденные пароли, перебор). Платно (подписка + за каждую 1 000 проверенных входов), по умолчанию выкл; сначала `count`, через неделю чистых чисел — `block`.
+
+**Порядок для владельца:** неделю смотреть «Запуск → App Check»; когда у группы 99 %+ и людей хватает — поставить ей `auto` (или `on`). Потом `security.app_check.replay.mode = auto`.

@@ -9,19 +9,32 @@ import { AppEventsController } from './app-events.controller';
 import { AppEventsService } from './app-events.service';
 import { AnalyticsService } from './analytics.service';
 
+/**
+ * Pack C (round 2 #8/#22, 25.11): the analytics services, provided ONCE.
+ * JobsModule used to list AnalyticsService again — a second copy in the API
+ * process, without the consent check (AnalyticsConsentService was not in
+ * its providers).
+ */
+@Module({
+  imports: [FeatureFlagsModule],
+  providers: [AnalyticsService, AppEventsService, AnalyticsConsentService],
+  exports: [AnalyticsService, AppEventsService, AnalyticsConsentService],
+})
+export class AnalyticsCoreModule {}
+
 /** Owner 2026-10-15: own analytics (free, in our database). */
 @Module({
   // Owner 2026-10-22: TokenService (stateless) reads the optional bearer
   // of the public events endpoint — AuthModule itself is not imported
   // (UsersModule imports this module; no cycle).
-  imports: [AdminAccessModule, FeatureFlagsModule, JwtModule.register({})],
-  controllers: [AnalyticsController, AppEventsController],
-  providers: [
-    AnalyticsService,
-    AppEventsService,
-    AnalyticsConsentService,
-    TokenService,
+  imports: [
+    AnalyticsCoreModule,
+    AdminAccessModule,
+    FeatureFlagsModule,
+    JwtModule.register({}),
   ],
-  exports: [AnalyticsService, AppEventsService, AnalyticsConsentService],
+  controllers: [AnalyticsController, AppEventsController],
+  providers: [TokenService],
+  exports: [AnalyticsCoreModule],
 })
 export class AnalyticsModule {}

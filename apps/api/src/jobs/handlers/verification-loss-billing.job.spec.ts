@@ -32,6 +32,7 @@ describe('VerificationLossBillingJob', () => {
       lost?: string[];
       redis?: unknown;
       numbers?: Record<string, number>;
+      unsent?: Record<string, unknown>[];
     } = {},
   ) {
     const now = Date.now();
@@ -85,6 +86,9 @@ describe('VerificationLossBillingJob', () => {
         aggregate: jest.fn().mockResolvedValue({ _sum: { amount_cents: 0 } }),
         create: jest.fn().mockResolvedValue({ id: 'r1' }),
         update: jest.fn().mockResolvedValue({}),
+        // Pack C: the retry pass (no unsent loss refunds by default).
+        findMany: jest.fn().mockResolvedValue(opts.unsent ?? []),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
       },
       casePromotion: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -132,7 +136,12 @@ describe('VerificationLossBillingJob', () => {
         ),
       ),
     };
-    const logger = { setContext: jest.fn(), info: jest.fn(), error: jest.fn() };
+    const logger = {
+      setContext: jest.fn(),
+      info: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+    };
     const job = new VerificationLossBillingJob(
       prisma as never,
       settings as never,
@@ -141,7 +150,7 @@ describe('VerificationLossBillingJob', () => {
       logger as never,
       opts.redis as never,
     );
-    return { job, prisma, provider, sync };
+    return { job, prisma, provider, sync, logger };
   }
 
   it('cancels the subscription now and refunds the unused two thirds of the period', async () => {
@@ -187,6 +196,127 @@ describe('VerificationLossBillingJob', () => {
     expect(prisma.bidCredit.findUnique).toHaveBeenCalledTimes(1);
     expect(provider.cancelNow).toHaveBeenCalledTimes(1);
     expect(out.attorneys).toBe(1);
+  });
+
+  describe('pack C (round 2 #7): a refund a Stripe error stopped is never lost', () => {
+    it('a provider error keeps the row reserved (pending) and logs an error, not a silent failed', async () => {
+      const { job, prisma, provider, logger } = make();
+      provider.refund.mockRejectedValueOnce(new Error('Stripe timeout'));
+      const out = await job.run();
+      expect(provider.cancelNow).toHaveBeenCalledWith('sub_1');
+      expect(prisma.refund.update).toHaveBeenCalledWith({
+        where: { id: 'r1' },
+        data: { status: 'pending', failure_reason: 'Stripe timeout' },
+      });
+      expect(prisma.refund.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: 'failed' }),
+        }),
+      );
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.objectContaining({ refundId: 'r1' }),
+        expect.stringContaining('retried'),
+      );
+      // Still owed: it counts as going back, nothing else re-refunds it.
+      expect(out.refundedCents).toBe(20000);
+    });
+
+    it('the next run sends it again with the same key and amount (Stripe dedupes the key)', async () => {
+      const { job, prisma, provider } = make({
+        unsent: [
+          {
+            id: 'r1',
+            payment_id: 'pay1',
+            amount_cents: 20000,
+            status: 'pending',
+          },
+        ],
+      });
+      // The subscription is already canceled: nothing else to stop.
+      prisma.subscription.findMany.mockResolvedValue([]);
+      const out = await job.run();
+      expect(prisma.refund.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            admin_id: null,
+            stripe_refund_id: null,
+            reason: { startsWith: 'Verification lost:' },
+            status: { in: ['pending', 'failed'] },
+          }),
+        }),
+      );
+      expect(provider.refund).toHaveBeenCalledTimes(1);
+      expect(provider.refund).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymentIntentId: 'pi_1',
+          amountCents: 20000,
+          idempotencyKey: 'refund:r1',
+        }),
+      );
+      expect(prisma.refund.update).toHaveBeenCalledWith({
+        where: { id: 'r1' },
+        data: {
+          status: 'succeeded',
+          stripe_refund_id: 're_1',
+          failure_reason: null,
+        },
+      });
+      expect(out.refundedCents).toBe(20000);
+    });
+
+    it('also retries while switched off: the subscription is already gone', async () => {
+      const { job, provider } = make({
+        enabled: false,
+        unsent: [
+          {
+            id: 'r1',
+            payment_id: 'pay1',
+            amount_cents: 500,
+            status: 'pending',
+          },
+        ],
+      });
+      await job.run();
+      expect(provider.cancelNow).not.toHaveBeenCalled();
+      expect(provider.refund).toHaveBeenCalledTimes(1);
+    });
+
+    it('a row the old code marked failed goes again only if the payment still has room', async () => {
+      const { job, prisma, provider } = make({
+        enabled: false,
+        unsent: [
+          {
+            id: 'r1',
+            payment_id: 'pay1',
+            amount_cents: 20000,
+            status: 'failed',
+          },
+        ],
+      });
+      prisma.refund.aggregate.mockResolvedValueOnce({
+        _sum: { amount_cents: 15000 },
+      });
+      await job.run();
+      expect(provider.refund).not.toHaveBeenCalled();
+    });
+
+    it('past the key window an unsent row turns failed with an error line for a person', async () => {
+      const { job, prisma, logger } = make({ enabled: false });
+      prisma.refund.updateMany.mockResolvedValueOnce({ count: 2 });
+      await job.run();
+      expect(prisma.refund.updateMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          status: 'pending',
+          stripe_refund_id: null,
+          created_at: { lt: new Date(Date.now() - 23 * 3_600_000) },
+        }),
+        data: { status: 'failed' },
+      });
+      expect(logger.error).toHaveBeenCalledWith(
+        { count: 2 },
+        expect.any(String),
+      );
+    });
   });
 
   it('does nothing when switched off', async () => {

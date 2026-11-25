@@ -22,6 +22,12 @@ export const APP_CHECK_HEADER = 'x-firebase-appcheck';
  * for any decision. */
 export const APP_CHECK_STATUS_HEADER = 'x-firebase-appcheck-status';
 
+/** Item 13 (2026-11-25): `1` when the app sent a limited-use token
+ * (`getLimitedUseToken()`, made for replay protection) on this request. Only
+ * counted, to show when replay protection can go on without refusing older
+ * app builds; never trusted for a decision. */
+export const APP_CHECK_LIMITED_HEADER = 'x-firebase-appcheck-limited';
+
 /** What the server concluded about one request's token. */
 export type AppCheckVerdict =
   /** A current token signed by Firebase for our project. */

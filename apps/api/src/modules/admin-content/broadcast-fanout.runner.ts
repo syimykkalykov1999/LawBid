@@ -8,6 +8,8 @@ import { ConfigService } from '@nestjs/config';
 import { Queue, Worker, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
+import { hashShard } from '../../sharding/shard-id';
+import { shardContext } from '../../sharding/shard-context';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   broadcastAudienceWhere,
@@ -24,8 +26,6 @@ export const BROADCAST_QUEUE = 'admin-broadcast';
 export const BROADCAST_OPTIONS = Symbol('BROADCAST_OPTIONS');
 /** Users per job; each job queues the next one (keyset on users.id). */
 export const BROADCAST_BATCH = 500;
-/** Parallel emits inside a batch (each is one row + one push job). */
-const EMIT_CONCURRENCY = 20;
 const JOB_OPTS = {
   attempts: 3,
   backoff: { type: 'exponential', delay: 5_000 },
@@ -150,19 +150,28 @@ export class BroadcastFanoutRunner
       take: BROADCAST_BATCH,
       select: { id: true },
     });
-    for (let i = 0; i < batch.length; i += EMIT_CONCURRENCY) {
-      await Promise.all(
-        batch.slice(i, i + EMIT_CONCURRENCY).map((u) =>
-          this.notifications.emit({
-            type: 'admin_broadcast',
-            recipientId: u.id,
-            payload: {
-              title: data.title,
-              body: data.body,
-              broadcastId: data.broadcastId,
-            },
-          }),
-        ),
+    // Pack C (round 2 #9): one row per person and broadcast, however often
+    // a batch is retried (attempts: 3, a deploy restart) — the same
+    // idempotency key as the channel fan-out (channel-fanout.runner.ts).
+    // Grouped by the recipient's shard: a notification lives in its
+    // recipient's database (one database: one group, as before).
+    const byShard = new Map<number, string[]>();
+    for (const u of batch) {
+      const shard = hashShard(u.id);
+      byShard.set(shard, [...(byShard.get(shard) ?? []), u.id]);
+    }
+    for (const ids of byShard.values()) {
+      await shardContext.runForUser(ids[0], () =>
+        this.notifications.emitMany({
+          type: 'admin_broadcast',
+          recipientIds: ids,
+          payload: {
+            title: data.title,
+            body: data.body,
+            broadcastId: data.broadcastId,
+          },
+          dedupeKey: `admin_broadcast:${data.broadcastId}`,
+        }),
       );
     }
     return batch.length === BROADCAST_BATCH ? batch[batch.length - 1].id : null;
