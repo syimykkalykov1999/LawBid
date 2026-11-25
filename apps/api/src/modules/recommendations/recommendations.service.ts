@@ -785,6 +785,10 @@ export class RecommendationsService implements HomeFeedRanker {
           take: POST_CANDIDATES,
           select: {
             ...POST_CANDIDATE_SELECT,
+            // Written here, not in the shared select: the cross-family
+            // include guard (sharding/cross-family-include.spec.ts) must
+            // see this Post -> PracticeArea read.
+            practice_area: { select: { id: true, parent_id: true } },
             // Owner 25.11: the reels model reads the reel's length.
             ...(feed === 'reel'
               ? { video_asset: { select: { duration_sec: true } } }
@@ -990,7 +994,11 @@ export class RecommendationsService implements HomeFeedRanker {
     if (ids.length === 0) return { rows, scored: [] };
     const read = await this.prisma.post.findMany({
       where: { id: { in: [...new Set(ids)] } },
-      select: POST_CANDIDATE_SELECT,
+      select: {
+        ...POST_CANDIDATE_SELECT,
+        // Inline for the cross-family include guard (as in postsFor).
+        practice_area: { select: { id: true, parent_id: true } },
+      },
     });
     const byId = new Map(read.map((r) => [r.id, toPostCandidate(r)]));
     const candidates = ids.flatMap((id) => {
@@ -1500,12 +1508,15 @@ const POST_CANDIDATE_SELECT = {
   view_count: true,
   language: true,
   video_asset_id: true,
-  practice_area: { select: { id: true, parent_id: true } },
   _count: { select: { media: true } },
 } satisfies Prisma.PostSelect;
+// Each read adds `practice_area: { select: { id, parent_id } }` itself, so
+// the cross-family include guard sees it (a spread hides a relation).
 
 type PostCandidateRow = Prisma.PostGetPayload<{
-  select: typeof POST_CANDIDATE_SELECT;
+  select: typeof POST_CANDIDATE_SELECT & {
+    practice_area: { select: { id: true; parent_id: true } };
+  };
 }>;
 
 function toPostCandidate(r: PostCandidateRow): PostCandidate {

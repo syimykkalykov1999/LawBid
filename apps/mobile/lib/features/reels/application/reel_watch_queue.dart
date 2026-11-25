@@ -4,20 +4,11 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart'
     show debugPrint, immutable, visibleForTesting;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/cache/event_queue_store.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/idempotency_interceptor.dart'
     show generateIdempotencyKey;
-import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/features/reels/application/watch_time_meter.dart';
-import 'package:lawbid/features/social/application/post_insights_providers.dart'
-    show postInsightsRepositoryProvider;
-import 'package:lawbid/features/social/application/social_providers.dart'
-    show currentUserIdProvider;
-import 'package:lawbid/features/team/application/team_providers.dart'
-    show isAssistantProvider;
 
 /// One ended reel view as `POST /posts/watch` takes it.
 @immutable
@@ -67,7 +58,8 @@ const int kReelWatchMsMax = 3600000;
 /// request for a scroll, not one per reel). Each view carries its own id,
 /// so a batch retried after a lost answer is counted once. With a store
 /// the waiting reports survive a restart. A guest or an assistant sends
-/// nothing. A server that does not know the route (older than this app)
+/// nothing (`reelWatchQueueProvider`, next to the post events queue). A
+/// server that does not know the route (older than this app)
 /// answers 4xx: those reports are dropped, never retried forever.
 class ReelWatchQueue {
   ReelWatchQueue({
@@ -211,17 +203,3 @@ class _Row {
   final ReelWatchReport report;
   int? rowId;
 }
-
-final reelWatchQueueProvider = Provider<ReelWatchQueue>((ref) {
-  final repo = ref.watch(postInsightsRepositoryProvider);
-  final owner = ref.watch(currentUserIdProvider);
-  final q = ReelWatchQueue(
-    send: repo.recordWatch,
-    enabled: !ref.watch(isAssistantProvider) && !ref.watch(isGuestProvider),
-    store: owner == null
-        ? null
-        : DriftEventQueueStore(ref.watch(cacheDatabaseProvider), owner),
-  );
-  ref.onDispose(q.dispose);
-  return q;
-});

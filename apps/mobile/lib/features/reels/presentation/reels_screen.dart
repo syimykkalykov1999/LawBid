@@ -21,6 +21,8 @@ import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/reels/application/watch_time_meter.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/reels/presentation/reel_web_stepper.dart';
+import 'package:lawbid/features/social/application/post_insights_providers.dart'
+    show reelWatchQueueProvider;
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
