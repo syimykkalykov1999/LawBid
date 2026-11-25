@@ -47,6 +47,28 @@ class LabelsTest(unittest.TestCase):
         self.assertNotIn("bids", train.label_sql("posts"))
         self.assertEqual(train.SQL, train.label_sql("posts"))
 
+    def test_reels_completion_is_the_top_label(self):
+        # Owner 25.11: completion > share > save > like > 3 s view.
+        reels = train.label_sql("reels")
+        order = [
+            reels.index("kind = 'watch'"),
+            reels.index("post_shares"),
+            reels.index("saved_items"),
+            reels.index("post_likes"),
+            reels.index("post_view_events"),
+        ]
+        self.assertEqual(order, sorted(order))
+        self.assertIn("(w.features->>'completed') = '1'", reels)
+        self.assertIn("THEN 5", reels)
+        self.assertNotIn("kind = 'watch'", train.label_sql("posts"))
+
+    def test_posts_model_learns_from_the_home_feed_too(self):
+        self.assertEqual(train.surfaces_for("posts"), ["posts", "home_feed"])
+        self.assertEqual(train.surfaces_for("reels"), ["reels"])
+        self.assertEqual(train.surfaces_for("posts", "posts"), ["posts"])
+        self.assertIn("surface = ANY(%s)", train.label_sql("posts"))
+        self.assertEqual(train.parse_args(["--input", "x"]).surface, ["posts", "home_feed"])
+
 
 class TrainTest(unittest.TestCase):
     def _export(self, d: str, n_lists: int) -> str:

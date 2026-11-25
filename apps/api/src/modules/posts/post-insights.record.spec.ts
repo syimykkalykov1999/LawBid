@@ -67,3 +67,74 @@ describe('PostInsightsService.record (batched views)', () => {
     expect(record).not.toHaveBeenCalled();
   });
 });
+
+/** Owner 25.11: ended reel views (watch time) for the reels model. */
+describe('PostInsightsService.recordWatch', () => {
+  function setup(posts: { id: string; author_id: string }[], kept = true) {
+    const logWatch = jest.fn().mockResolvedValue(undefined);
+    const events = {
+      keepsImpressionsOf: jest.fn().mockResolvedValue(kept),
+      logWatch,
+    };
+    const findMany = jest.fn().mockResolvedValue(posts);
+    const service = new PostInsightsService(
+      { post: { findMany } } as never,
+      { record: jest.fn() } as never,
+      events as never,
+    );
+    return { service, logWatch, findMany };
+  }
+  const me = { sub: 'me', role: 'client' } as never;
+  const w = (postId: string, viewId: string, completed = false) => ({
+    postId,
+    viewId,
+    watchedMs: 4200,
+    durationMs: 9000,
+    completed,
+  });
+
+  it('one watch per view id; only visible videos of other people', async () => {
+    const { service, logWatch, findMany } = setup([
+      { id: 'r1', author_id: 'a1' },
+      { id: 'mine', author_id: 'me' },
+    ]);
+    await service.recordWatch(me, [
+      w('r1', 'v1'),
+      w('r1', 'v1', true), // the same view reported again (a retry)
+      w('r1', 'v2', true),
+      w('mine', 'v3'),
+      w('gone', 'v4'),
+    ]);
+    expect(findMany.mock.calls[0][0].where).toMatchObject({
+      video_asset_id: { not: null },
+    });
+    expect(
+      logWatch.mock.calls.map((c) => [
+        (c[1] as { viewId: string }).viewId,
+        (c[1] as { completed: boolean }).completed,
+      ]),
+    ).toEqual([
+      ['v1', true],
+      ['v2', true],
+    ]);
+    expect(logWatch).toHaveBeenCalledWith('me', {
+      postId: 'r1',
+      viewId: 'v2',
+      watchedMs: 4200,
+      durationMs: 9000,
+      completed: true,
+    });
+  });
+
+  it('outside the impression sample, or an assistant: nothing is read', async () => {
+    const out = setup([{ id: 'r1', author_id: 'a1' }], false);
+    await out.service.recordWatch(me, [w('r1', 'v1')]);
+    expect(out.findMany).not.toHaveBeenCalled();
+    const asst = setup([{ id: 'r1', author_id: 'a1' }]);
+    await asst.service.recordWatch(
+      { sub: 'x', assistant: { attorneyId: 'a' } } as never,
+      [w('r1', 'v1')],
+    );
+    expect(asst.logWatch).not.toHaveBeenCalled();
+  });
+});
