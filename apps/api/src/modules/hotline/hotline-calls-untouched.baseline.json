@@ -87,7 +87,7 @@
   "b136edf18cda64fc4fb6043e07a899e46b981f126f33d4da6bd70adca3b85f59 apps/mobile/lib/features/calls/presentation/call_invite_bar.dart",
   "476d3f366f89de5d8c4e0d292814070e0e4a189d20588608ff88dc64876ed629 apps/mobile/lib/features/calls/presentation/call_log_entry.dart",
   "8d1cc7efa9563f4e9ec975b0b93defd8e79e23ebfd6e22979e6017f8e7a6c158 apps/mobile/lib/features/calls/presentation/call_pip_window.dart",
-  "378a970ac4f4fbec34833eda076c67374d29e739e18ffc1ce26e0caf43b01647 apps/mobile/lib/features/calls/presentation/call_screen.dart",
+  "3a965a4f2df1fb9546ac800bcbd972ebbb5d860710dbc3df3bf38b6811473bab apps/mobile/lib/features/calls/presentation/call_screen.dart",
   "d91941d01da6b4366004e5837bbfcba699c7a77cb66a509f80c924a1bfd0e6cc apps/mobile/lib/features/calls/presentation/call_stage.dart",
   "4560487d92aa074bb562fff0ea4e329f9715153c8b880b5e4966917548d60a72 apps/mobile/lib/features/calls/presentation/call_vote.dart",
   "0950084db9c585cf7190fad3e1dd5cc1d42e70b73d99b620fae9d8fcef0d8cbb apps/mobile/lib/features/calls/presentation/call_waiting_banner.dart",

@@ -139,6 +139,11 @@ class RealtimeClient {
     'channel:post',
     'channel:update',
     'comment:new',
+    // Owner row 87 (hotline plan step 5): the client's request moved,
+    // «Адвокат на линии». `hotline:connected` / `hotline:ended` come with
+    // the attorney / server PR (each name once in this list).
+    'hotline:request',
+    'hotline:notify',
     // Owner row 87 (hotline plan step 6): the attorney's line — an offer and
     // its end, the line on / off, the case the client offered from the
     // call, the banded counters; both sides: connected / ended.
