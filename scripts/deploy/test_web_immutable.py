@@ -3,6 +3,7 @@ v/<engineRevision>/ and the app under v/<release>/.
 
     python3 -m unittest discover -s scripts/deploy -p 'test_*.py'
 """
+import hashlib
 import os
 import subprocess
 import sys
@@ -19,13 +20,14 @@ BOOT = (
     '_flutter.buildConfig = {"engineRevision":"%s","builds":[]};\n'
     '_flutter.loader.load({});\n'
 )
-HEAD = "var V = '__LB_V__';\nvar E = '__LB_E__';\n"
+HEAD = "var V = '__LB_V__';\nvar E = '__LB_E__';\nvar D = '__LB_D__';\n"
 
 
 def build(root, rev=REV, head=HEAD):
     os.makedirs(os.path.join(root, "canvaskit", "chromium"))
     os.makedirs(os.path.join(root, "assets", "shaders"))
-    for f in ("main.dart.wasm", "main.dart.mjs", "main.dart.js", "main.dart.js_1.part.js", "index.html"):
+    for f in ("main.dart.wasm", "main.dart.mjs", "main.dart.js", "main.dart.js_1.part.js", "index.html",
+              "drift_worker.js", "sqlite3.wasm"):
         open(os.path.join(root, f), "w").write(f)
     for f in ("canvaskit.js", "canvaskit.wasm", "skwasm.js", "skwasm.wasm", "chromium/canvaskit.wasm"):
         open(os.path.join(root, "canvaskit", f), "w").write(f)
@@ -95,6 +97,34 @@ class EngineFolder(unittest.TestCase):
         r = run(self.root)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("__LB_E__", r.stderr)
+
+    def test_database_files_get_content_hash_names_and_keep_the_plain_ones(self):
+        # Pack F (25.11, ROUND5 F8): immutable names for the drift worker and
+        # sqlite3.wasm, handed to the app through boot_head.js.
+        build(self.root)
+        r = run(self.root)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        w = "drift_worker." + hashlib.sha256(b"drift_worker.js").hexdigest()[:16] + ".js"
+        s = "sqlite3." + hashlib.sha256(b"sqlite3.wasm").hexdigest()[:16] + ".wasm"
+        for name in (w, s, "drift_worker.js", "sqlite3.wasm"):
+            self.assertTrue(os.path.isfile(os.path.join(self.root, name)), name)
+        self.assertEqual(read(self.root, w), "drift_worker.js")
+        self.assertIn(f"var D = '{w}|{s}';", read(self.root, "boot_head.js"))
+        self.assertIn(f"db={w} {s}", r.stdout)
+
+    def test_missing_database_file_or_placeholder_fails(self):
+        build(self.root)
+        os.remove(os.path.join(self.root, "drift_worker.js"))
+        r = run(self.root)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("drift_worker.js", r.stderr)
+        self.tmp.cleanup()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = self.tmp.name
+        build(self.root, head="var V = '__LB_V__';\nvar E = '__LB_E__';\n")
+        r = run(self.root)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("__LB_D__", r.stderr)
 
     def test_missing_engine_file_fails(self):
         build(self.root)

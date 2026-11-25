@@ -47,6 +47,17 @@
 (function () {
   var V = '__LB_V__';
   var E = '__LB_E__';
+  /* Pack F (25.11, ROUND5 F8): the local database's files under their
+     content-hash names (web-immutable.py fills D with
+     "drift_worker.<hash>.js|sqlite3.<hash>.wasm"; the deploy stores them
+     immutable for a year). The app reads them here (base_uri_web.dart), so
+     the browser no longer asks for drift_worker.js again on every database
+     open; a local build keeps the plain names. */
+  var D = '__LB_D__';
+  if (D.indexOf('__') !== 0) {
+    var dp = D.split('|');
+    window.__lbDb = { worker: dp[0], sqlite: dp[1] };
+  }
   var B = window.__lbBoot = { last: Date.now(), bytes: 0, retries: 0, early: 0, jsPending: false, failed: false };
   function touch(n) { B.bytes += n; B.last = Date.now(); }
   try {

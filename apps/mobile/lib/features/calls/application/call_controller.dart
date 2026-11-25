@@ -999,6 +999,10 @@ class CallController extends Notifier<CallSession> {
   Future<void> accept() async {
     final call = state.call;
     if (call == null || state.phase != CallPhase.incoming) return;
+    final hotline = _hotlineRing;
+    if (hotline != null && call.id == hotline.ringId) {
+      return _acceptHotline(hotline, call);
+    }
     // The system sheet's answer and the start-up scan can both ask: once.
     if (_accepting == call.id) return;
     _accepting = call.id;
@@ -1077,9 +1081,165 @@ class CallController extends Notifier<CallSession> {
     }
   }
 
+  // --- Hotline (plan steps 5–6, owner 18.11 mockup a4) -----------------
+  //
+  // Hotline-only: nothing below runs for a 1:1 or group call. The hotline
+  // call row is opened ANSWERED by «Взять» on the server
+  // (hotline-call-bridge.ts), so there is no ringing call to accept: the
+  // offer rings here under a placeholder id, «Ответить» asks the line for
+  // the call ([HotlineRing.take]) and then joins it like an answered call.
+
+  HotlineRing? _hotlineRing;
+
+  /// An offer from the line rings on the call screen (incoming phase, our
+  /// own ringtone; no system call screen — the attorney is in the app, on
+  /// the line screen). False when a call is already on: the line shows the
+  /// «Клиент ждёт» banner instead.
+  bool ringHotline(HotlineRing ring, CallPeer peer) {
+    if (state.busy) return false;
+    callTrace('hotline ring ${ring.ringId}');
+    _reset();
+    _hotlineRing = ring;
+    state = CallSession(
+      phase: CallPhase.incoming,
+      call: AppCall(
+        id: ring.ringId,
+        conversationId: null,
+        status: CallStatus.ringing,
+        outgoing: false,
+        peer: peer,
+        createdAt: DateTime.now(),
+      ),
+      peer: peer,
+    );
+    unawaited(AppHaptics.heavy());
+    unawaited(ref.read(appSoundsProvider).startRingtone());
+    unawaited(_iceServers().then<void>((_) {}, onError: (Object _) {}));
+    return true;
+  }
+
+  /// The offer is over before «Ответить» (its time ran out, the client
+  /// left): the ringing stops, the screen closes.
+  void dropHotlineRing(String ringId) {
+    if (_hotlineRing?.ringId != ringId ||
+        state.call?.id != ringId ||
+        state.phase != CallPhase.incoming) {
+      return;
+    }
+    _hotlineRing = null;
+    _finish(CallStatus.missed);
+  }
+
+  Future<void> _acceptHotline(HotlineRing ring, AppCall placeholder) async {
+    _hotlineRing = null;
+    final gen = _gen;
+    unawaited(ref.read(appSoundsProvider).stopRingtone());
+    if (!await ref.read(callMicPermissionProvider)()) {
+      if (!ref.mounted || gen != _gen) return;
+      state = state.copyWith(errorCode: kMicDenied);
+      _finish(CallStatus.failed);
+      unawaited(ring.skip().then<void>((_) {}, onError: (Object _) {}));
+      return;
+    }
+    if (!ref.mounted || gen != _gen) return;
+    state = state.copyWith(phase: CallPhase.connecting);
+    String? callId;
+    try {
+      callId = await ring.take();
+    } on Object catch (e) {
+      callTrace('hotline take ${placeholder.id} failed: $e');
+    }
+    if (!ref.mounted || gen != _gen) return;
+    if (callId == null) {
+      // Too late, or another attorney got the client: nothing to join.
+      _finish(CallStatus.missed);
+      return;
+    }
+    // The client's offer may arrive before GET /calls/:id answers: under
+    // the real id it is kept with the early signals.
+    state = state.copyWith(
+      call: AppCall(
+        id: callId,
+        conversationId: null,
+        status: CallStatus.active,
+        outgoing: false,
+        peer: placeholder.peer,
+        createdAt: placeholder.createdAt,
+      ),
+    );
+    await _enterAnswered(callId, caller: false);
+  }
+
+  /// Hotline: joins the 1:1 voice call the line opened on «Взять» — the
+  /// client is the caller (sends the WebRTC offer, as after
+  /// `call:accepted`), the attorney the callee. The client side calls it on
+  /// `hotline:connected` with [caller] true.
+  Future<void> enterHotlineCall(String callId, {required bool caller}) async {
+    if (state.busy && state.call?.id != callId) {
+      callTrace('hotline enter $callId: busy with ${state.call?.id}');
+      return;
+    }
+    if (state.call?.id == callId && state.phase != CallPhase.idle) return;
+    _reset();
+    state = const CallSession(phase: CallPhase.connecting);
+    await _enterAnswered(callId, caller: caller);
+  }
+
+  Future<void> _enterAnswered(String callId, {required bool caller}) async {
+    final gen = _gen;
+    try {
+      await _requireSupportedProvider();
+      final call = await _repo.get(callId);
+      if (!ref.mounted || gen != _gen) return;
+      if (call.status != CallStatus.active) {
+        _finish(call.status, call: call);
+        return;
+      }
+      // the signals of this call are kept from here (media not open yet)
+      state = state.copyWith(
+        phase: CallPhase.connecting,
+        call: call,
+        peer: call.peer,
+        video: false,
+      );
+      unawaited(ref.read(systemCallUiProvider).showOngoing(call));
+      _startSync();
+      await _openMedia(call.id, peer: call.peer.id);
+      if (!ref.mounted || gen != _gen) return;
+      _armConnectTimeout();
+      if (caller) {
+        await _sendOffer(call);
+      } else {
+        final early = List.of(_earlySignals);
+        _earlySignals.clear();
+        for (final e in early) {
+          await _onSignal(e.data, from: e.from);
+        }
+      }
+      if (_sfu == null) unawaited(_nudgeSignals(call.id));
+    } on Object catch (e) {
+      callTrace('hotline enter $callId failed: $e');
+      if (gen != _gen) return;
+      if (_isMicDenied(e)) state = state.copyWith(errorCode: kMicDenied);
+      _finish(CallStatus.failed);
+      unawaited(_endQuietly(callId, CallEndReason.failed));
+    }
+  }
+
   Future<void> decline() async {
     final call = state.call;
     if (call == null || state.phase != CallPhase.incoming) return;
+    final hotline = _hotlineRing;
+    if (hotline != null && call.id == hotline.ringId) {
+      _hotlineRing = null;
+      _finish(CallStatus.declined);
+      try {
+        await hotline.skip();
+      } on Object {
+        // The line moves the offer on by its own timeout anyway.
+      }
+      return;
+    }
     // Owner 2026-11-08: a declined call never rings here again.
     noteDeclinedHere(call.id);
     unawaited(markDeclinedHere(call.id));
@@ -1726,7 +1886,7 @@ class CallController extends Notifier<CallSession> {
   Future<void> toggleCamera() async {
     if (!state.video) return;
     final on = !state.cameraOn;
-    if (on && videoBlocked) return;
+    if (on && (videoBlocked || !videoAllowed)) return;
     state = state.copyWith(cameraOn: on);
     try {
       await _media?.setCameraOn(on);
@@ -1763,9 +1923,20 @@ class CallController extends Notifier<CallSession> {
         call.channelId != null) {
       return false;
     }
+    // Owner 18.11: with `video_calls` off a voice call never turns video;
+    // a camera that is on (switched on before the flag went off) can still
+    // go off.
+    if (!videoAllowed && !(state.video && state.cameraOn)) return false;
     return call.participants.where((m) => m.joined).length <=
         (call.viaSfu ? kSfuVideoSwitchMaxPeople : kVideoSwitchMaxPeople);
   }
+
+  /// Owner 18.11 («звонки с видео временно выключены»): our camera may be
+  /// switched on only while the admin's `video_calls` flag is on — or in a
+  /// call that began as video (it was allowed when it started, its picture
+  /// is already negotiated; it keeps its camera button as before).
+  bool get videoAllowed =>
+      (state.call?.video ?? false) || ref.read(videoCallsEnabledProvider);
 
   /// Owner 2026-10-22 (WhatsApp / Zoom): the camera button. A voice call
   /// becomes a video call: the camera opens, every link gets a new offer
@@ -1786,6 +1957,8 @@ class CallController extends Notifier<CallSession> {
     // Owner 2026-10-24: too many people for the camera while Cloudflare is
     // down — the screen says so; the camera stays off.
     if (on && videoBlocked) return;
+    // Owner 18.11: video calls are off in the admin — the camera stays off.
+    if (on && !videoAllowed) return;
     if (on) {
       final speaker = state.speaker;
       state = state.copyWith(
@@ -1886,7 +2059,8 @@ class CallController extends Notifier<CallSession> {
           unawaited(toggleSpeaker());
         }
       }
-      if (fresh && mineOff) {
+      // Owner 18.11: no «Turn on yours?» while our camera may not go on.
+      if (fresh && mineOff && videoAllowed) {
         state = state.copyWith(videoPrompt: peer);
         // Owner 2026-10-22 (R-007): the sound has its own switch.
         if (ref.read(callVideoSoundProvider)) {
@@ -3495,3 +3669,22 @@ final callInviteProvider =
 
 final callControllerProvider =
     NotifierProvider<CallController, CallSession>(CallController.new);
+
+/// Hotline (plan step 6): one offer from the line ringing on the call
+/// screen. [take] = «Ответить» (POST /hotline/offers/:id/accept → the call
+/// id, null when it is too late); [skip] = «Отклонить» (next attorney).
+@immutable
+class HotlineRing {
+  const HotlineRing({
+    required this.requestId,
+    required this.take,
+    required this.skip,
+  });
+
+  final String requestId;
+  final Future<String?> Function() take;
+  final Future<void> Function() skip;
+
+  /// The id the offer rings under (no call row exists before «Ответить»).
+  String get ringId => 'hotline:$requestId';
+}

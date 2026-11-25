@@ -10,6 +10,7 @@ import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/deferred_screen.dart';
 import 'package:lawbid/core/navigation/guards/app_router_guard.dart';
+import 'package:lawbid/core/navigation/last_page_guard.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
 import 'package:lawbid/core/navigation/router_error_screen.dart';
 import 'package:lawbid/core/navigation/shell/desktop_layouts.dart';
@@ -24,6 +25,7 @@ import 'package:lawbid/features/blocks/presentation/blocked_users_screen.dart'
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/deals/deal_record_screen.dart'
     deferred as d_deal_record_screen;
+import 'package:lawbid/features/cases/domain/bid_from_call.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/desktop_cases.dart';
 import 'package:lawbid/features/cases/presentation/screens/bid_detail_screen.dart'
@@ -56,6 +58,8 @@ import 'package:lawbid/features/deadlines/deadlines_routes.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
 import 'package:lawbid/features/feed/presentation/widgets/desktop_feed_pane.dart';
 import 'package:lawbid/features/groups/group_router.dart';
+import 'package:lawbid/features/hotline/hotline_attorney_routes.dart';
+import 'package:lawbid/features/hotline/hotline_routes.dart';
 import 'package:lawbid/features/legal/presentation/dmca_notice_screen.dart'
     deferred as d_dmca_notice_screen;
 import 'package:lawbid/features/legal/presentation/legal_accept_screen.dart';
@@ -152,7 +156,7 @@ GoRouter appRouter(Ref ref) {
   final refresh = _GuardRefresh(ref);
   ref.onDispose(refresh.dispose);
 
-  return GoRouter(
+  final router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.splash,
     // Owner 2026-10-15 (web): a typed or shared address (/lawyer/anna) first
@@ -511,8 +515,15 @@ GoRouter appRouter(Ref ref) {
             load: d_bid_form_screen.loadLibrary,
             builder: (_) => d_bid_form_screen.BidFormScreen(
               caseId: state.pathParameters['id'] ?? '',
-              initialAmountCents:
-                  state.extra is int ? state.extra! as int : null,
+              initialAmountCents: switch (state.extra) {
+                final int cents => cents,
+                // hotline «Дело из звонка» (mockup a8)
+                final BidFromCall call => call.budgetCents,
+                _ => null,
+              },
+              fromCall: state.extra is BidFromCall
+                  ? state.extra! as BidFromCall
+                  : null,
             ),
           ),
         ),
@@ -954,6 +965,8 @@ GoRouter appRouter(Ref ref) {
       ...socialRoutes(_rootNavigatorKey),
       // docs/05 chats, notifications, notification settings.
       ...chatRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
+      // Owner row 87: the attorney's call hotline (mockup a2–a3).
+      ...hotlineAttorneyRoutes(_rootNavigatorKey),
       // Owner 2026-10-20: group chats, polls, join links.
       ...groupRoutes(_rootNavigatorKey),
       // docs/06 §1.7: Settings → Подписка, payments, gate paywall.
@@ -966,6 +979,7 @@ GoRouter appRouter(Ref ref) {
       ...deadlinesRoutes(_rootNavigatorKey),
       // Owner 2026-10-20: «Вопрос юристу».
       ...legalQaRoutes(_rootNavigatorKey),
+      ...hotlineRoutes(_rootNavigatorKey),
       // Owner 2026-10-05 (plan builder): Settings → «Подписка клиента».
       ...clientPlanRoutes(_rootNavigatorKey),
       // OQ-048: Team, new task, assistant joining.
@@ -978,6 +992,10 @@ GoRouter appRouter(Ref ref) {
       ...privacyRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
     ],
   );
+  // KNOWN_ERRORS 230: go_router (third_party patch) refuses a pop that
+  // would leave no page; each such pop is reported with its stack.
+  LastPageGuard.install();
+  return router;
 }
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();

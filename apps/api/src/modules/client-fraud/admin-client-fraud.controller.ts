@@ -21,6 +21,7 @@ import {
   SkipAutoAudit,
   type AdminActor,
 } from '../admin-auth/admin-auth.decorators';
+import { AdminAuthService } from '../admin-auth/admin-auth.service';
 import { AdminClientFraudService } from './admin-client-fraud.service';
 import {
   FraudBanDto,
@@ -56,7 +57,10 @@ const ERRORS = {
 @SkipAutoAudit()
 @Controller('admin/fraud')
 export class AdminClientFraudController {
-  constructor(private readonly admin: AdminClientFraudService) {}
+  constructor(
+    private readonly admin: AdminClientFraudService,
+    private readonly auth: AdminAuthService,
+  ) {}
 
   @Get('settings')
   @ApiOperation({ summary: 'Repeat-account rules and score thresholds' })
@@ -168,12 +172,17 @@ export class AdminClientFraudController {
     summary: '«Заблокировать» (optionally every linked account)',
   })
   @ApiEnvelopeResponse(FraudBanResultDto)
-  @ApiErrors(ERRORS)
-  banFraud(
+  @ApiErrors({ ...ERRORS, 403: [E.FORBIDDEN, E.ADMIN_STEP_UP_REQUIRED] })
+  async banFraud(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: FraudUserIdParamDto,
     @Body() dto: FraudBanDto,
   ): Promise<FraudBanResultDto> {
+    // Round 4 (25.11, С5): a ban of every linked account is a bulk action —
+    // a fresh code. One account stays one click (owner: switch off fast).
+    if (dto.includeLinked === true) {
+      await this.auth.assertStepUp(admin.sessionId);
+    }
     return this.admin.ban(admin, p.userId, dto);
   }
 

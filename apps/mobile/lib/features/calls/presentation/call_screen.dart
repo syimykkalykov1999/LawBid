@@ -10,11 +10,13 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/platform/app_settings_opener.dart';
+import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/features/calls/application/call_audio_route.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_media.dart';
 import 'package:lawbid/features/calls/application/call_quality.dart';
+import 'package:lawbid/features/calls/application/call_screen_addon.dart';
 import 'package:lawbid/features/calls/application/call_video_layout.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_add_panel.dart';
@@ -129,6 +131,16 @@ class _CallScreenState extends ConsumerState<CallScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _visible.set(visible: true);
+      // Owner 18.11: the admin's `video_calls` switch is read again when a
+      // call opens, so the camera button follows it without a restart
+      // (the app is already running: its start controller exists).
+      if (ref.read(appStartupProvider.exists)) {
+        unawaited(
+          ref
+              .read(appStartupProvider.notifier)
+              .refreshConfigIfOlderThan(kCallConfigFresh),
+        );
+      }
       // Opened (a stale tap) with no call at all: nothing to show.
       if (ref.read(callControllerProvider).phase == CallPhase.idle) _close();
     });
@@ -373,6 +385,12 @@ class _CallScreenState extends ConsumerState<CallScreen>
     // The other member stays on screen until it closes (never a «?»).
     final peer = s.peer ?? s.call?.peer ?? _lastPeer;
     _lastPeer = peer;
+    // Owner row 87 (hotline mockup v4 a4–a7): a call another feature adds
+    // to (the hotline's chips, «⋯», «Клиент ждёт»). Every other call — every
+    // 1:1 and group call: unchanged.
+    final slot = ref.watch(callScreenAddonProvider);
+    final addon =
+        !group && slot != null && s.call?.id == slot.callId ? slot : null;
     final peerCameraOff = ref.watch(callCamerasOffProvider).contains(peer?.id);
     // Row 166 (WhatsApp «X muted»): their microphone is off (1:1 only; a
     // group shows it in the people list).
@@ -481,6 +499,33 @@ class _CallScreenState extends ConsumerState<CallScreen>
           ],
         ),
       );
+    } else if (addon?.stage case final stage?) {
+      picture = Stack(
+        fit: StackFit.expand,
+        children: [
+          const CallAudioBackdrop(),
+          CallPhotoBackdrop(url: peer?.avatarUrl),
+          stage(
+            context,
+            peer: peer,
+            bottomInset: sheetHeight,
+            clock: _CallClock(
+              session: s,
+              builder: (context, status) => Text(
+                status,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: type.body.copyWith(
+                  color: AppCallColors.onStage,
+                  fontSize: CallTextSizes.bigStatus,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
     } else {
       picture = Stack(
         fit: StackFit.expand,
@@ -497,6 +542,7 @@ class _CallScreenState extends ConsumerState<CallScreen>
             type: type,
             bottomInset: sheetHeight,
             peerMuted: peerMuted,
+            extra: addon?.below?.call(context),
           ),
         ],
       );
@@ -511,11 +557,15 @@ class _CallScreenState extends ConsumerState<CallScreen>
       onMinimize: () => unawaited(Navigator.of(context).maybePop()),
       // Owner 2026-11-04 (R-376): no «Add participant» while group calls
       // are off.
-      onAdd: active && ref.watch(groupCallsEnabledProvider)
+      onAdd: addon == null && active && ref.watch(groupCallsEnabledProvider)
           ? () => unawaited(showAddToCallPanel(context))
           : null,
       minimizeLabel: t.t('call.minimize'),
       addLabel: t.t('call.addParticipant'),
+      onMore: addon?.onMore != null && s.busy
+          ? () => addon!.onMore!(context, ref)
+          : null,
+      moreLabel: addon?.moreLabel ?? '',
     );
 
     // Row 166 (WhatsApp «Poor connection», Telegram «Weak network signal»):
@@ -554,9 +604,12 @@ class _CallScreenState extends ConsumerState<CallScreen>
         ),
       if (group && s.call?.vote != null)
         CallVoteStrip(vote: s.call!.vote!, call: s.call!),
+      // Row 87 (hotline mockup a7): «Клиент ждёт · язык» while he talks.
+      if (addon?.banner != null && s.busy) addon!.banner!(context),
     ];
 
     final audio = ref.watch(callAudioRouterProvider);
+    final videoCallsOn = ref.watch(videoCallsEnabledProvider);
     // Row 166 (WhatsApp «No answer» · Cancel · Call again; iOS mic alert
     // with Settings): an ended call that leaves something to do.
     final endedActions =
@@ -601,6 +654,14 @@ class _CallScreenState extends ConsumerState<CallScreen>
                       : null,
                   // Owner 2026-10-22: switches video on / off mid-call; a
                   // channel's video call keeps the plain camera pause.
+                  // Owner 18.11: no camera button while video calls are
+                  // off (`video_calls`) — unless this call began as video or
+                  // our camera is still on (it can go off). Row 87: a call
+                  // with an add-on (the hotline) is voice only.
+                  showVideo: addon == null &&
+                      (videoCallsOn ||
+                          (s.call?.video ?? false) ||
+                          (s.video && s.cameraOn)),
                   onVideo: c.canSwitchVideo
                       ? () => _videoTap(c, s, c.toggleVideo)
                       : s.video && s.busy
@@ -774,6 +835,10 @@ const double kCallTopRowHeight = 52 + 2 * AppSpacing.xs;
 /// The top scrim's height (REFERENCE.md: 160 px, black 45 % → 0).
 const double kCallScrimHeight = 160;
 
+/// Owner 18.11: a call screen re-reads the admin's switches unless they
+/// were read this recently (a second screen for the same call asks nothing).
+const Duration kCallConfigFresh = Duration(seconds: 30);
+
 /// UI-06: a soft black gradient (45 % → 0) from the top or the bottom edge.
 class _Scrim extends StatelessWidget {
   const _Scrim({required this.top});
@@ -906,7 +971,13 @@ class _TopBar extends StatelessWidget {
     required this.onAdd,
     required this.minimizeLabel,
     required this.addLabel,
+    this.onMore,
+    this.moreLabel = '',
   });
+
+  /// Hotline only (mockup a5): «⋯» in place of «+».
+  final VoidCallback? onMore;
+  final String moreLabel;
 
   final String title;
 
@@ -970,14 +1041,21 @@ class _TopBar extends StatelessWidget {
             ),
             SizedBox(
               width: 48,
-              child: onAdd == null
-                  ? null
-                  : _TopIcon(
-                      key: const Key('call-btn-add'),
-                      icon: AppIcons.personAddAlt1Rounded,
-                      label: addLabel,
-                      onTap: onAdd!,
-                    ),
+              child: onMore != null
+                  ? _TopIcon(
+                      key: const Key('hotline-call-more'),
+                      icon: AppIcons.moreHorizRounded,
+                      label: moreLabel,
+                      onTap: onMore!,
+                    )
+                  : onAdd == null
+                      ? null
+                      : _TopIcon(
+                          key: const Key('call-btn-add'),
+                          icon: AppIcons.personAddAlt1Rounded,
+                          label: addLabel,
+                          onTap: onAdd!,
+                        ),
             ),
           ],
         ),
@@ -1066,7 +1144,11 @@ class _BigPerson extends StatelessWidget {
     required this.type,
     required this.bottomInset,
     this.peerMuted = false,
+    this.extra,
   });
+
+  /// Hotline only: the topic and chips under the status (mockup a4 / a5).
+  final Widget? extra;
 
   /// Row 166: their microphone is off — «X muted» under the status.
   final bool peerMuted;
@@ -1145,6 +1227,11 @@ class _BigPerson extends StatelessWidget {
               ),
             ),
           ),
+          if (extra != null)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpacing.md),
+              child: extra,
+            ),
           if (peerMuted)
             Padding(
               padding: const EdgeInsets.only(top: AppSpacing.md),

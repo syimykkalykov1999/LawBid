@@ -3106,6 +3106,16 @@ model HotlineCall {
   duration_sec    Int?
   /// The direct chat opened (or reused) after the call, WhatsApp-style.
   conversation_id String?   @db.Uuid
+  /// «О чём звонок» — kept for «Дело из звонка» after Valkey forgets it.
+  topic           String?   @db.VarChar(200)
+  /// «Предложить дело»: the case made from this call (one per call) and
+  /// its invite to the attorney (bare pointers: cases live in their family).
+  case_id         String?   @db.Uuid
+  case_invite_id  String?   @db.Uuid
+  /// «Как прошёл разговор?»: 1–5 (CHECK in the migration), first answer wins.
+  review_stars    Int?      @db.SmallInt
+  review_comment  String?   @db.VarChar(300)
+  reviewed_at     DateTime? @db.Timestamptz
   created_at      DateTime  @default(now()) @db.Timestamptz
 
   /// Logical shard (docs/architecture/SHARDING_READY.md); 0 = DB default.

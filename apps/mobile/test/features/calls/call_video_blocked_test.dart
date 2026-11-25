@@ -63,6 +63,7 @@ Future<void> _pump(WidgetTester tester, CallSession s) async {
       overrides: [
         ...uxOverrides(),
         callMyIdProvider.overrideWithValue('u0'),
+        videoCallsEnabledProvider.overrideWithValue(true),
         callControllerProvider.overrideWith(() => _Fixed(s)),
       ],
       child: MaterialApp(

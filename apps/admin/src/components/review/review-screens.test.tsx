@@ -299,6 +299,39 @@ describe('complaints review screen', () => {
     expect(push).not.toHaveBeenCalled();
     expect(window.location.search).toBe('?type=post&id=p2');
   });
+
+  // Round 4 admin check (25.11, В2): the lease of a complaint is the bare
+  // object id (the API takes a UUID); `post:p1` made «Пропустить» a 400 and
+  // left the lease open after «Готово».
+  const leaseNext = async (path: string) => {
+    if (path === '/admin/desk/lease/next') return { ok: true, data: { status: 'leased', lease: { kind: 'report', itemId: 'p2', targetType: 'post', takenAt: '', leasedUntil: '', attempt: 1 } } };
+    return { ok: true, data: { ok: true, limited: false } };
+  };
+
+  it('with the lease engine on: a decision closes the lease by the object id', async () => {
+    switches = { 'staff.lease_enabled': true, 'staff.lease_report_enabled': true };
+    deskPost.mockImplementation(leaseNext);
+    show(<ModerationReview />);
+    expect(await screen.findByText('Первый пост')).toBeTruthy();
+    await act(async () => {
+      fireEvent.keyDown(window, { key: 'r', code: 'KeyR' });
+    });
+    expect(await screen.findByText('Второй пост')).toBeTruthy();
+    const paths = deskPost.mock.calls.map(([p]) => p as string);
+    expect(paths).toContain('/admin/desk/lease/report/p1/done');
+    expect(paths.some((p) => p.includes('post:'))).toBe(false);
+  });
+
+  it('with the lease engine on: «Пропустить» skips by the object id', async () => {
+    switches = { 'staff.lease_enabled': true, 'staff.lease_report_enabled': true };
+    deskPost.mockImplementation(leaseNext);
+    show(<ModerationReview />);
+    expect(await screen.findByText('Первый пост')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Пропустить/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Не моя тема' }));
+    expect(await screen.findByText('Второй пост')).toBeTruthy();
+    expect(deskPost).toHaveBeenCalledWith('/admin/desk/lease/report/p1/skip', { reason: 'not_my_topic' });
+  });
 });
 
 describe('review rules', () => {

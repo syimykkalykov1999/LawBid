@@ -71,23 +71,38 @@ export class AdminPayrollController {
   @Post('employees')
   @ApiOperation({ summary: 'Add a person to payroll' })
   @ApiEnvelopeResponse(PayrollEmployeeDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR] })
-  createPayrollEmployee(
+  @ApiErrors({ 400: [E.VALIDATION_ERROR], 403: [E.ADMIN_STEP_UP_REQUIRED] })
+  async createPayrollEmployee(
     @CurrentAdmin() admin: AdminActor,
     @Body() dto: CreatePayrollEmployeeDto,
   ): Promise<PayrollEmployeeDto> {
+    // Round 4 (25.11, С4): a new salary is money — a fresh 2FA code.
+    await this.auth.assertStepUp(admin.sessionId);
     return this.payroll.create(admin, dto);
   }
 
   @Patch('employees/:id')
   @ApiOperation({ summary: 'Change amount, details or take off payroll' })
   @ApiEnvelopeResponse(PayrollEmployeeDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  updatePayrollEmployee(
+  @ApiErrors({
+    400: [E.VALIDATION_ERROR],
+    403: [E.ADMIN_STEP_UP_REQUIRED],
+    404: [E.NOT_FOUND],
+  })
+  async updatePayrollEmployee(
     @CurrentAdmin() admin: AdminActor,
     @Param() p: AdminIdParamDto,
     @Body() dto: UpdatePayrollEmployeeDto,
   ): Promise<PayrollEmployeeDto> {
+    // Round 4 (25.11, С4): the amount, currency or where the money goes.
+    if (
+      dto.amountCents !== undefined ||
+      dto.currency !== undefined ||
+      dto.email !== undefined ||
+      dto.methodNote !== undefined
+    ) {
+      await this.auth.assertStepUp(admin.sessionId);
+    }
     return this.payroll.update(admin, p.id, dto);
   }
 

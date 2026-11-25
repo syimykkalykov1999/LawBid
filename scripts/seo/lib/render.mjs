@@ -85,7 +85,7 @@ ${body}
 </main>
 <footer>
 <p>LawBid is a marketplace where people post their legal matter and attorneys licensed in their state respond. LawBid is not a law firm, does not give legal advice and does not guarantee any result. Information on this page is general and not a substitute for advice from a licensed attorney.</p>
-<p><a href="${APP}/legal/terms">Terms</a> · <a href="${APP}/legal/privacy">Privacy</a></p>
+<p><a href="/terms/">Terms</a> · <a href="/privacy/">Privacy</a></p>
 </footer>
 </body></html>
 `;
@@ -268,7 +268,7 @@ export function renderSite(attorneys, opts) {
     title: 'Find a licensed lawyer by state and practice area | LawBid',
     description: 'Browse licensed attorneys by state and practice area, or post your legal matter on LawBid and let attorneys licensed in your state respond.',
     path: '/lawyers/',
-    crumbs: [{ name: 'Home', path: '/lawyers/' }],
+    crumbs: [{ name: 'Home', path: '/' }, { name: 'Lawyers', path: '/lawyers/' }],
     body: `<h1>Find a licensed lawyer</h1>
 <p class="lead">Choose your state or the kind of legal help you need. Attorneys on LawBid are verified before they are listed.</p>
 ${cta('Post your case — free')}

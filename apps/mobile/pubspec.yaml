@@ -319,6 +319,15 @@ dependency_overrides:
   passkeys_web:
     path: third_party/passkeys_web
 
+  # KNOWN_ERRORS 230 (owner 18.11, «the screen goes empty, nothing responds»):
+  # go_router 18.1.4 (BSD-3, flutter/packages) with one patch — a pop that
+  # would leave no page is refused instead of emptying the router (upstream
+  # only asserts in debug; release built SizedBox.shrink() for the whole
+  # app). Same version as `go_router:` above; re-copy on every update and
+  # keep the patch (test/core/navigation/last_page_guard_test.dart).
+  go_router:
+    path: third_party/go_router
+
 # Owner 2026-10-22 (audit #11): `dart run sentry_dart_plugin` after a prod
 # release build (fastlane `sentry_symbols`) uploads the Dart symbols of
 # `--split-debug-info=build/symbols/<platform>` and the native debug files

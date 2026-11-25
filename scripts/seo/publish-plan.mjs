@@ -6,7 +6,14 @@
 //
 //   node scripts/seo/publish-plan.mjs --dir dist-seo --prev prev-manifest.json \
 //        --plan plan [--max-invalidations 30] [--date 2026-10-27] [--dry-run]
-//        [--allow-mass-delete]
+//        [--allow-mass-delete] [--live live-etags.tsv]
+//
+// --live (pack F, 25.11): the bucket's real ETags (`aws s3api
+// list-objects-v2 --query 'Contents[].[Key,ETag]' --output text` of the
+// published prefixes). A file whose object in the bucket is not the built
+// one (or is missing) is uploaded again even when the previous manifest
+// says it was published: the manifest alone let 392 stale index,follow
+// pages stay live as "unchanged" (ROUND5 F4).
 //
 // Writes into --plan: upload.txt (one path per line), delete-<n>.json
 // (batches for `aws s3api delete-objects`), invalidate.txt (one path per
@@ -18,7 +25,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_MAX_INVALIDATIONS, MANIFEST_NAME, deleteBatches, hashDir, planPublish } from './lib/manifest.mjs';
+import { DEFAULT_MAX_INVALIDATIONS, MANIFEST_NAME, deleteBatches, hashDir, liveDrift, md5, parseLiveEtags, planPublish } from './lib/manifest.mjs';
 
 const readJson = async (f) => {
   if (!f) return null;
@@ -29,12 +36,26 @@ const readJson = async (f) => {
   }
 };
 
-export async function makePlan({ dir, prev, today, maxInvalidations = DEFAULT_MAX_INVALIDATIONS }) {
+export async function makePlan({ dir, prev, today, maxInvalidations = DEFAULT_MAX_INVALIDATIONS, live = null }) {
   const files = await hashDir(dir);
   const built = (await readJson(join(dir, MANIFEST_NAME))) ?? {};
+  // `_next/` is content-hashed and immutable (never listed); the app links
+  // are uploaded on every run anyway.
+  const drift = live
+    ? liveDrift({ md5s: await hashDir(dir, md5), live }).filter((p) => !p.startsWith('_next/') && !p.startsWith('.well-known/'))
+    : [];
   // Exact paths only: wildcards would hit CloudFront's limit of 15 running wildcard resets.
-  return planPublish({ files, prev, today, maxInvalidations, built, exactOnly: true });
+  return planPublish({ files, prev, today, maxInvalidations, built, exactOnly: true, drift });
 }
+
+const readLive = async (f) => {
+  if (!f) return null;
+  try {
+    return parseLiveEtags(await readFile(f, 'utf8'));
+  } catch {
+    return null; // no listing: the manifest alone decides, as before
+  }
+};
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const argv = process.argv.slice(2);
@@ -48,7 +69,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const dry = argv.includes('--dry-run');
   const max = Number.parseInt(arg('max-invalidations', String(DEFAULT_MAX_INVALIDATIONS)), 10);
   const prev = await readJson(arg('prev', ''));
-  const r = await makePlan({ dir, prev, today, maxInvalidations: Number.isFinite(max) ? max : DEFAULT_MAX_INVALIDATIONS });
+  const live = await readLive(arg('live', ''));
+  const r = await makePlan({ dir, prev, today, maxInvalidations: Number.isFinite(max) ? max : DEFAULT_MAX_INVALIDATIONS, live });
   await mkdir(planDir, { recursive: true });
   if (r.massDelete && !dry && !argv.includes('--allow-mass-delete')) {
     console.error(`publish plan REFUSED: it would remove ${r.remove.length} files (over 30% of the published ones). Look at the data, then run again with --allow-mass-delete.`);
@@ -58,8 +80,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   await writeFile(join(planDir, 'invalidate.txt'), r.invalidate.length ? `${r.invalidate.join('\n')}\n` : '');
   const batches = deleteBatches(r.remove);
   for (const [i, b] of batches.entries()) await writeFile(join(planDir, `delete-${i + 1}.json`), JSON.stringify(b));
-  const summary = { upload: r.upload.length, unchanged: r.unchanged, remove: r.remove.length, invalidate: r.invalidate, skippedInvalidations: r.skippedInvalidations, massDelete: r.massDelete, firstRun: !prev, dryRun: dry };
+  const summary = { upload: r.upload.length, drift: r.drift, unchanged: r.unchanged, remove: r.remove.length, invalidate: r.invalidate, skippedInvalidations: r.skippedInvalidations, massDelete: r.massDelete, firstRun: !prev, dryRun: dry };
   await writeFile(join(planDir, 'plan.json'), JSON.stringify(summary, null, 2));
   if (!dry) await writeFile(join(dir, MANIFEST_NAME), JSON.stringify(r.manifest));
-  console.log(`publish plan${dry ? ' (dry run)' : ''}: upload ${summary.upload}, unchanged ${summary.unchanged}, remove ${summary.remove}, reset ${r.invalidate.length} path(s)${r.skippedInvalidations ? `, ${r.skippedInvalidations} left to the cache lifetime` : ''}`);
+  console.log(`publish plan${dry ? ' (dry run)' : ''}: upload ${summary.upload}${r.drift ? ` (${r.drift} not as built in the bucket)` : ''}, unchanged ${summary.unchanged}, remove ${summary.remove}, reset ${r.invalidate.length} path(s)${r.skippedInvalidations ? `, ${r.skippedInvalidations} left to the cache lifetime` : ''}`);
 }

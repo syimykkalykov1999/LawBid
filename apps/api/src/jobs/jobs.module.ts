@@ -79,6 +79,7 @@ import { AppEventsService } from '../modules/analytics/app-events.service';
 import { SearchReindexService } from '../modules/search/search-reindex.service';
 import { DashboardService } from '../modules/admin/dashboard.service';
 import { AdminOverviewService } from '../modules/admin-content/admin-overview.service';
+import { HotlineStatsService } from '../modules/hotline/hotline-stats.service';
 import { BillingOverviewService } from '../modules/admin-billing/billing-overview.service';
 import { OpsGuardJob } from './handlers/ops-guard.job';
 import { StatusWatchdogJob } from './handlers/status-watchdog.job';
@@ -257,6 +258,8 @@ export class JobsModule {
         DashboardService,
         // Row 78: the admin overview snapshot, recounted daily.
         AdminOverviewService,
+        // the hotline admin page's nightly snapshot
+        HotlineStatsService,
         AnalyticsService,
         AppEventsService,
         BillingOverviewService,

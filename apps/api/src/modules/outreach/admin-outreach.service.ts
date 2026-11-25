@@ -1,8 +1,11 @@
+import { readDailySnapshot } from '../../common/admin-summary/snapshot-gate';
+import { AdminSummaryService } from '../../common/admin-summary/admin-summary.service';
 import {
   BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   Prisma,
@@ -112,6 +115,7 @@ export class AdminOutreachService {
     private readonly core: OutreachService,
     private readonly audit: AuditLogService,
     private readonly registry: NyRegistrySource,
+    @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
   // ---- context & settings ---------------------------------------------------
@@ -1109,11 +1113,23 @@ export class AdminOutreachService {
 
   // ---- stats --------------------------------------------------------------------
 
+  /** Round 4 admin check (25.11, С11): these totals scan whole tables, so the
+   * page reads the daily snapshot (snapshot-gate.ts), not a live count. */
   async stats(
     admin: AdminActor,
     q: OutreachStatsQueryDto,
   ): Promise<OutreachStatsDto> {
     const scope = await this.core.scopeFor(admin);
+    const key = `outreach:stats:${scope.partner?.id ?? 'all'}:${q.from ?? '30d'}:${q.to ?? 'now'}`;
+    return readDailySnapshot(this.summary, key, () =>
+      this.computeStats(scope, q),
+    );
+  }
+
+  private async computeStats(
+    scope: Awaited<ReturnType<OutreachService['scopeFor']>>,
+    q: OutreachStatsQueryDto,
+  ): Promise<OutreachStatsDto> {
     const to = q.to ? new Date(q.to) : new Date();
     const from = q.from
       ? new Date(q.from)

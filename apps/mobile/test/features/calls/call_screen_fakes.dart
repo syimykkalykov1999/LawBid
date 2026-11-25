@@ -234,6 +234,7 @@ List<Override> callScreenFakeOverrides(
   CallVideoSurface surface = fakeVideo,
   DateTime Function()? clock,
   bool groupCalls = true,
+  bool videoCalls = true,
 }) =>
     [
       callMyIdProvider.overrideWithValue('u0'),
@@ -244,4 +245,6 @@ List<Override> callScreenFakeOverrides(
       callVideoSurfaceProvider.overrideWithValue(surface),
       // The pictures show «Add participant» (group calls on, R-376).
       groupCallsEnabledProvider.overrideWithValue(groupCalls),
+      // The pictures show the camera button (`video_calls` on, owner 18.11).
+      videoCallsEnabledProvider.overrideWithValue(videoCalls),
     ];

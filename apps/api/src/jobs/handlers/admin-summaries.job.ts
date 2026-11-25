@@ -16,6 +16,7 @@ import { BillingOverviewService } from '../../modules/admin-billing/billing-over
 import { AdminAccessReportService } from '../../modules/admin/admin-access-report.service';
 import { DashboardService } from '../../modules/admin/dashboard.service';
 import { AdminOverviewService } from '../../modules/admin-content/admin-overview.service';
+import { HotlineStatsService } from '../../modules/hotline/hotline-stats.service';
 import {
   AttorneyTrustService,
   TRUST_SCAN_SUMMARY_KEY,
@@ -76,6 +77,8 @@ export class AdminSummariesJob {
     @Optional() private readonly economy?: EconomyService,
     // Row 78: GET /admin/overview reads only this daily snapshot.
     @Optional() private readonly overview?: AdminOverviewService,
+    // Hotline admin page: the last 30 days of calls, once a day (04 UTC).
+    @Optional() private readonly hotlineStats?: HotlineStatsService,
   ) {
     this.logger.setContext(AdminSummariesJob.name);
   }
@@ -125,6 +128,12 @@ export class AdminSummariesJob {
         'admin-overview',
         async () => {
           await this.overview?.refreshDaily();
+        },
+      ],
+      [
+        'hotline-stats',
+        async () => {
+          await this.hotlineStats?.refreshDaily();
         },
       ],
       [

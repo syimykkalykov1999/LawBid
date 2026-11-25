@@ -20,9 +20,11 @@ import 'package:sqlite3/common.dart' show CommonDatabase;
 /// in the bar: a link such as /lawyer/anna must find the same files): drift hands these to a
 /// shared worker, which cannot be trusted to resolve a relative path the
 /// same way the page does.
+/// Pack F (ROUND5 F8): the deployed copies under content-hash names, cached
+/// for a year (see [appDriftWorkerUri]).
 final appDriftWebOptions = DriftWebOptions(
-  sqlite3Wasm: appBaseUri.resolve('sqlite3.wasm'),
-  driftWorker: appBaseUri.resolve('drift_worker.js'),
+  sqlite3Wasm: appSqlite3WasmUri,
+  driftWorker: appDriftWorkerUri,
 );
 
 /// S15-9: `auto_vacuum = INCREMENTAL` on every NEW database file (it only

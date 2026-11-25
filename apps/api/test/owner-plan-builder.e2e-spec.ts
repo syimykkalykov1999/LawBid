@@ -9,7 +9,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
 import { EntitlementsService } from '../src/modules/plans/entitlements.service';
 import { FeatureFlagsService } from '../src/modules/feature-flags/services/feature-flags.service';
-import { adminSession } from './support/admin-login';
+import { adminSession, adminStepUp } from './support/admin-login';
 
 /**
  * Owner 2026-10-05: the plan builder. The admin assembles plans out of
@@ -89,7 +89,10 @@ describe('Plan builder (e2e, owner 2026-10-05)', () => {
       update: {},
     });
     practiceAreaId = area.id;
-    admin = (await adminSession(baseUrl, prisma, 'super_admin')).auth;
+    const owner = await adminSession(baseUrl, prisma, 'super_admin');
+    // Round 4 (С2): prices and «apply to subscribers» ask a fresh 2FA code.
+    await adminStepUp(baseUrl, owner);
+    admin = owner.auth;
   });
 
   afterAll(async () => {

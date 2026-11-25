@@ -55,7 +55,7 @@ describe('country partner team permissions (owner 2026-10-06)', () => {
     ).toBe(false);
     for (const p of [
       '/api/v1/admin/feature-flags',
-      '/api/v1/admin/legal-documents',
+      '/api/v1/admin/legal/documents',
       '/api/v1/admin/i18n/import',
       '/api/v1/admin/countries/CA',
       '/api/v1/admin/broadcasts',

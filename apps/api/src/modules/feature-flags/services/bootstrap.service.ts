@@ -129,6 +129,33 @@ export const BOOTSTRAP_ETAG_BUCKET_MS = 300_000;
  * A Redis error on this service's own cache/overlay reads degrades to
  * the DB-derived values rather than failing the splash screen.
  */
+/**
+ * Round 4 admin check (25.11, С9): browsing without an account had two
+ * master switches — the flag `guest_browsing` (read by the app only) and
+ * `guest.browsing_enabled` (read by the API only), so switching the flag off
+ * hid the screens while the API stayed open to guests. Now both mean the
+ * same: guests browse only while BOTH are on; the API gate (JwtAuthGuard)
+ * and everything the app is told follow this one rule.
+ */
+export function guestBrowsingOn(
+  flags: Record<string, boolean | undefined>,
+  appConfig: Record<string, unknown>,
+): boolean {
+  return (
+    flags['guest_browsing'] !== false &&
+    appConfig['guest.browsing_enabled'] !== false
+  );
+}
+
+/** The flag the app reads, set to the one rule above. */
+export function withGuestGate(
+  flags: Record<string, boolean>,
+  appConfig: Record<string, unknown>,
+): Record<string, boolean> {
+  if (!('guest_browsing' in flags)) return flags;
+  return { ...flags, guest_browsing: guestBrowsingOn(flags, appConfig) };
+}
+
 /** app_config keys the public bootstrap may expose (by prefix). */
 export const PUBLIC_CONFIG_PREFIXES = [
   'min_app_version_',
@@ -173,6 +200,10 @@ export const PUBLIC_CONFIG_PREFIXES = [
   // Owner row 173 (2026-11-14): the website's cross-origin isolation switch
   // (apps/mobile core/platform/web_isolation.dart keeps it for boot_head.js).
   'web.cross_origin_isolation',
+  // Round 4 (25.11, С8): how many legal topics one case may carry. The
+  // server enforces it (cases.service) and the case wizard reads it, but it
+  // never reached the app, so the app always allowed 3.
+  'case.max_practices',
   // Detective R2-A #17 (14.11): the app counts «Resend in 0:59» down from
   // the same SMS wait the server enforces (code screen, «Forgot password»).
   'sms.resend_cooldown_seconds',
@@ -398,8 +429,9 @@ export class BootstrapService {
 
   private guestBrowseKeys(
     appConfig: Record<string, unknown>,
+    flags: Record<string, boolean>,
   ): Record<string, boolean> {
-    const master = appConfig['guest.browsing_enabled'] !== false;
+    const master = guestBrowsingOn(flags, appConfig);
     const pick = (
       key:
         'client.guest_browse_app_enabled' | 'client.guest_browse_web_enabled',
@@ -546,11 +578,14 @@ export class BootstrapService {
     );
 
     return {
-      flags: await this.withVideoCallsGate(
-        await this.withTranslateGate(
-          await this.withVideoGate(flags),
-          appConfig,
+      flags: withGuestGate(
+        await this.withVideoCallsGate(
+          await this.withTranslateGate(
+            await this.withVideoGate(flags),
+            appConfig,
+          ),
         ),
+        appConfig,
       ),
       // Audit 2026-10-02: only what the app needs — never the moderation
       // term lists, budgets or reserved names (this endpoint is public).
@@ -582,6 +617,8 @@ export class BootstrapService {
         // on hears "off" after a fresh database too.
         'web.cross_origin_isolation':
           APP_SETTINGS['web.cross_origin_isolation'],
+        // Round 4 (С8): always present, so the wizard matches the server.
+        'case.max_practices': APP_SETTINGS['case.max_practices'],
         // R2-A #17: always present, so «Resend in …» matches the server.
         'sms.resend_cooldown_seconds':
           APP_SETTINGS['sms.resend_cooldown_seconds'],
@@ -594,7 +631,7 @@ export class BootstrapService {
         // also the server's gate for token-less reads). The apps are told
         // "browse as guest" only while it is on, so an app never offers what
         // the API would answer with 401.
-        ...this.guestBrowseKeys(appConfig),
+        ...this.guestBrowseKeys(appConfig, flags),
         ...this.smsDisclosureKeys(appConfig),
         // Owner 2026-10-07 (bug 17): the app shows and checks the admin's
         // upload limits (always present, inside the safe ceilings).

@@ -734,9 +734,59 @@ export class ChatService {
   }
 
   async get(user: RequestUser, id: string): Promise<ConversationDto> {
-    const conv = await this.load(user, id);
+    const conv = await this.openForWorkingPair(await this.load(user, id));
     const [dto] = await this.present([conv], user.sub);
     return dto;
+  }
+
+  /**
+   * Owner 24.11 (Upwork / Fiverr order chats, Telegram «one person = one
+   * chat»): a client and an attorney with an accepted case between them
+   * (its chat's contacts unlocked) already work together — every chat of
+   * the two is a full chat (files, photos, voice, calls), not a message
+   * request. Since R-404 the Chats row of such a person opens the direct
+   * chat, which used to start as a request with contacts locked.
+   */
+  private async worksTogether(pair: {
+    client_id: string;
+    attorney_id: string;
+  }): Promise<boolean> {
+    const accepted = await this.prisma.conversation.findFirst({
+      where: {
+        client_id: pair.client_id,
+        attorney_id: pair.attorney_id,
+        case_id: { not: null },
+        contacts_unlocked: true,
+      },
+      select: { id: true },
+    });
+    return accepted !== null;
+  }
+
+  /** A pending direct request of a pair that works together (see
+   * [worksTogether]) — opened before or after the bid was accepted —
+   * becomes a full chat the moment either side opens or writes to it. */
+  private async openForWorkingPair(conv: Conversation): Promise<Conversation> {
+    if (
+      conv.case_id !== null ||
+      conv.pair_kind !== 'attorney_client' ||
+      conv.contacts_unlocked ||
+      conv.request_status !== 'pending' ||
+      !(await this.worksTogether(conv))
+    ) {
+      return conv;
+    }
+    const opened = await this.prisma.conversation.update({
+      where: { id: conv.id },
+      data: { request_status: 'accepted', contacts_unlocked: true },
+    });
+    // It leaves «Requests» for the main list on both sides.
+    this.realtime.toUsers(
+      [conv.client_id, conv.attorney_id],
+      'conversation:update',
+      { conversationId: conv.id },
+    );
+    return opened;
   }
 
   /** Owner 2026-10-05: counts and bytes of the files in a chat. */
@@ -1314,7 +1364,7 @@ export class ChatService {
         details: { max: maxChars },
       });
     }
-    const conv = await this.load(user, id);
+    const conv = await this.openForWorkingPair(await this.load(user, id));
     // A retry of an already stored message: same answer, no new row and
     // no rate-limit charge.
     const existing = await this.findOwn(id, user.sub, dto.clientMessageId);
@@ -1743,8 +1793,13 @@ export class ChatService {
       where: { ...pair, case_id: null },
     });
     if (existing) return this.get(user, existing.id);
+    // Owner 24.11: a pair working on an accepted case is already connected.
+    const working =
+      pair.pair_kind === 'attorney_client' && (await this.worksTogether(pair));
     // Owner 2026-10-20: a first message needs the person's permission.
-    await this.privacy?.assertAllowed(user.sub, other.id, 'message');
+    if (!working) {
+      await this.privacy?.assertAllowed(user.sub, other.id, 'message');
+    }
     const followsMe = await this.prisma.follow.findUnique({
       where: {
         follower_id_followee_id: {
@@ -1760,8 +1815,8 @@ export class ChatService {
         data: {
           ...pair,
           status: 'active',
-          contacts_unlocked: followsMe !== null,
-          request_status: followsMe ? 'accepted' : 'pending',
+          contacts_unlocked: working || followsMe !== null,
+          request_status: working || followsMe ? 'accepted' : 'pending',
           requested_by: user.sub,
           participants: {
             create: [

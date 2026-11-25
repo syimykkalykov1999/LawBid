@@ -9,13 +9,10 @@ import '../models/budget_limit_envelope.dart';
 import '../models/budget_limit_list_envelope.dart';
 import '../models/config_entry_envelope.dart';
 import '../models/config_entry_list_envelope.dart';
-import '../models/create_legal_document_dto.dart';
 import '../models/feature_flag_admin_envelope.dart';
 import '../models/feature_flag_admin_list_envelope.dart';
 import '../models/language_admin_envelope.dart';
 import '../models/language_admin_list_envelope.dart';
-import '../models/legal_document_admin_envelope.dart';
-import '../models/legal_document_admin_list_envelope.dart';
 import '../models/provider.dart';
 import '../models/update_budget_limit_dto.dart';
 import '../models/update_config_dto.dart';
@@ -83,33 +80,6 @@ abstract class AdminConfigClient {
   Future<LanguageAdminEnvelope> updateAdminLanguage({
     @Path('code') required String code,
     @Body() required UpdateLanguageDto body,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// Every version of terms / privacy / disclaimer / client_contact_sharing
-  @GET('/admin/legal-documents')
-  Future<LegalDocumentAdminListEnvelope> listLegalDocuments({
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// Create a draft version
-  @POST('/admin/legal-documents')
-  Future<LegalDocumentAdminEnvelope> createLegalDocument({
-    @Body() required CreateLegalDocumentDto body,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// One version with the full text
-  @GET('/admin/legal-documents/{id}')
-  Future<LegalDocumentAdminEnvelope> getLegalDocument({
-    @Path('id') required String id,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// Make the version current: users re-accept on their next sign-in
-  @POST('/admin/legal-documents/{id}/publish')
-  Future<LegalDocumentAdminEnvelope> publishLegalDocument({
-    @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });
 }

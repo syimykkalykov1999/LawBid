@@ -122,10 +122,6 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
   @override
   void initState() {
     super.initState();
-    // Owner 24.11 (Instagram / TikTok keep 2–3 reels ready on open): a
-    // reel opened from the feed warms its next ones at once, not only after
-    // the first swipe.
-    if (_items.isNotEmpty) _warmAhead(_items, _index.value);
     _load();
     if (!widget.embedded) {
       _counted = true;
@@ -166,6 +162,27 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
       ..prefetchAll(step.warm);
   }
 
+  /// The reels on screen, as build() lists them.
+  List<Post> _shown() {
+    final deleted = ref.read(deletedPostsProvider);
+    return [
+      for (final p in _items)
+        if (!deleted.contains(p.id) && (widget.filter?.call(p) ?? true)) p,
+    ];
+  }
+
+  /// 24.11 (owner: «предзагрузки тоже не работают»): the reels after the
+  /// one the player opens on are warmed at once, not after the first swipe.
+  /// [_warmAhead] ran only from onPageChanged, which a PageView never calls
+  /// for the page it starts on, so reels 2–4 of a fresh list (or after a
+  /// pull to refresh) were fetched cold when the finger got there.
+  void _warmShown() {
+    if (!mounted) return;
+    final items = _shown();
+    final i = _index.value;
+    if (i < items.length) _warmAhead(items, i);
+  }
+
   @override
   void dispose() {
     if (kIsWeb) WebVideoWarm.instance.clear();
@@ -202,11 +219,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
       ];
       if (fresh.isEmpty) return;
       // After the reel on screen and the next one (already warmed).
-      final deleted = ref.read(deletedPostsProvider);
-      final shown = [
-        for (final p in _items)
-          if (!deleted.contains(p.id) && (widget.filter?.call(p) ?? true)) p,
-      ];
+      final shown = _shown();
       final i = _index.value;
       final current = i < shown.length ? shown[i] : null;
       final at = current == null
@@ -226,13 +239,13 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
     unawaited(_mixFresh());
     if (!mounted) return;
     setState(() => _loading = true);
-    final first = _cursor == null;
     try {
       final page = await ref.read(reelsRepositoryProvider).reels(
             cursor: _cursor,
             practice: widget.practice,
           );
       if (!mounted) return;
+      final firstPage = _cursor == null;
       // One rebuild per page: the items, the cursor and the spinner.
       setState(() {
         for (final p in page.items) {
@@ -243,9 +256,7 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
         _error = null;
         _loading = false;
       });
-      // Owner 24.11: the next reels are warmed as soon as the first page is
-      // there (before, only from the first swipe).
-      if (first) _warmAhead(_items, _index.value);
+      if (firstPage) _warmShown();
     } on Object catch (e) {
       if (mounted) {
         setState(() {
@@ -283,10 +294,28 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
         _freshAt = DateTime.now();
       });
       if (_pages.hasClients) _pages.jumpToPage(0);
+      _warmShown();
     } on Object catch (e) {
       if (mounted) setState(() => _error = e);
     }
   }
+
+  /// 18.11 (owner: «Пока нет рилсов» stayed after his reels were ready):
+  /// the empty state had no pull-to-refresh, and after an empty first page
+  /// nothing loaded again. Now it pulls down like the player (same look:
+  /// the text stays centred in a scrollable as tall as the screen).
+  Widget _refreshableEmpty(Widget child) => _refreshable(
+        LayoutBuilder(
+          builder: (context, box) => SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: SizedBox(
+              width: box.maxWidth,
+              height: box.maxHeight,
+              child: child,
+            ),
+          ),
+        ),
+      );
 
   /// The player under a pull-to-refresh (white on the dark video).
   Widget _refreshable(Widget child) => AppRefreshIndicator(
@@ -328,17 +357,19 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
         child: Padding(
           padding: EdgeInsets.zero,
           child: items.isEmpty
-              ? Center(
-                  child: _loading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(
-                          _error != null
-                              ? errorText(t, _error!)
-                              : t.t('reels.empty'),
-                          textAlign: TextAlign.center,
-                          style: type.body
-                              .copyWith(color: AppMediaOverlay.inkMuted),
-                        ),
+              ? _refreshableEmpty(
+                  Center(
+                    child: _loading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : Text(
+                            _error != null
+                                ? errorText(t, _error!)
+                                : t.t('reels.empty'),
+                            textAlign: TextAlign.center,
+                            style: type.body
+                                .copyWith(color: AppMediaOverlay.inkMuted),
+                          ),
+                  ),
                 )
               : _refreshable(
                   ReelWebPager(
@@ -399,32 +430,34 @@ class _ReelsScreenState extends ConsumerState<ReelsScreen> {
           body: Stack(
             children: [
               if (items.isEmpty)
-                Center(
-                  child: _loading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Padding(
-                          padding: const EdgeInsets.all(AppSpacing.xl),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const AppIcon(
-                                AppIcons.filmReelOutlined,
-                                size: 48,
-                                color: AppMediaOverlay.inkMuted,
-                              ),
-                              const SizedBox(height: AppSpacing.md),
-                              Text(
-                                _error != null
-                                    ? errorText(t, _error!)
-                                    : t.t('reels.empty'),
-                                textAlign: TextAlign.center,
-                                style: type.body.copyWith(
+                _refreshableEmpty(
+                  Center(
+                    child: _loading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : Padding(
+                            padding: const EdgeInsets.all(AppSpacing.xl),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const AppIcon(
+                                  AppIcons.filmReelOutlined,
+                                  size: 48,
                                   color: AppMediaOverlay.inkMuted,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: AppSpacing.md),
+                                Text(
+                                  _error != null
+                                      ? errorText(t, _error!)
+                                      : t.t('reels.empty'),
+                                  textAlign: TextAlign.center,
+                                  style: type.body.copyWith(
+                                    color: AppMediaOverlay.inkMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
+                  ),
                 )
               else
                 _refreshable(

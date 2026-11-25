@@ -405,32 +405,29 @@ describe('stage 6.6 — flags, config, localization, legal documents (e2e)', () 
     const me1 = await api().get('/api/v1/users/me').set(auth).expect(200);
     expect((me1.body as Body).data.requiredConsentsGranted).toBe(true);
 
-    // New ToS version: draft → publish.
-    const version = `9.${Date.now() % 100000}`;
-    const draft = await api()
-      .post('/api/v1/admin/legal-documents')
+    // New ToS version: draft → publish. Round 4 (25.11, Н7): through the one
+    // legal-documents API the panel uses (/admin/legal/documents/*); the old
+    // duplicate /admin/legal-documents was removed.
+    await api()
+      .put('/api/v1/admin/legal/documents/terms/en/draft')
       .set(sup.auth)
-      .send({
-        docType: 'terms',
-        locale: 'en',
-        version,
-        contentMd: '# Terms\n\nUpdated wording.',
-      })
-      .expect(201);
-    const draftId = (draft.body as Body).data.id as string;
-    expect((draft.body as Body).data).toMatchObject({
-      isCurrent: false,
-      publishedAt: null,
-    });
+      .send({ contentMd: `# Terms\n\nUpdated wording ${Date.now()}.` })
+      .expect(200);
     const me2 = await api().get('/api/v1/users/me').set(auth).expect(200);
     expect((me2.body as Body).data.requiredConsentsGranted).toBe(true); // drafts don't count
-    await api()
-      .post(`/api/v1/admin/legal-documents/${draftId}/publish`)
+    const published = await api()
+      .post('/api/v1/admin/legal/documents/terms/en/publish')
       .set(sup.auth)
+      .send({ requiresReacceptance: true })
       .expect(200);
+    const draftId = (published.body as Body).data.id as string;
+    const version = (published.body as Body).data.version as string;
+    expect((published.body as Body).data).toMatchObject({ isCurrent: true });
+    // Nothing left to publish.
     await api()
-      .post(`/api/v1/admin/legal-documents/${draftId}/publish`)
+      .post('/api/v1/admin/legal/documents/terms/en/publish')
       .set(sup.auth)
+      .send({})
       .expect(409);
 
     const me3 = await api().get('/api/v1/users/me').set(auth).expect(200);
@@ -457,13 +454,12 @@ describe('stage 6.6 — flags, config, localization, legal documents (e2e)', () 
     const me4 = await api().get('/api/v1/users/me').set(auth).expect(200);
     expect((me4.body as Body).data.requiredConsentsGranted).toBe(true);
 
-    const list = await api()
-      .get('/api/v1/admin/legal-documents')
+    const history = await api()
+      .get('/api/v1/admin/legal/documents/terms/en/history')
       .set(sup.auth)
       .expect(200);
-    const rows = (
-      list.body as { data: Array<Record<string, unknown>> }
-    ).data.filter((d) => d.docType === 'terms' && d.locale === 'en');
+    const rows = (history.body as { data: Array<Record<string, unknown>> })
+      .data;
     expect(rows.filter((d) => d.isCurrent).map((d) => d.id)).toEqual([draftId]);
     expect(rows.find((d) => d.id === draftId)).toMatchObject({ consents: 1 });
     const audit = await prisma.auditLog.findMany({
@@ -471,8 +467,8 @@ describe('stage 6.6 — flags, config, localization, legal documents (e2e)', () 
       orderBy: { created_at: 'asc' },
     });
     expect(audit.map((a) => a.action)).toEqual([
-      'legal.create',
-      'legal.publish',
+      'legal.document.draft',
+      'legal.document.publish',
     ]);
   });
 });

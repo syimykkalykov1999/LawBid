@@ -31,6 +31,7 @@ import {
 import { SessionRevocationService } from '../services/session-revocation.service';
 import type { RequestUser } from '../decorators/current-user.decorator';
 import { demoContext } from '../../../common/demo/demo-context';
+import { FeatureFlagsService } from '../../feature-flags/feature-flags.public';
 
 /**
  * Global guard (registered as APP_GUARD inside AuthModule, see auth.module
@@ -61,6 +62,9 @@ export class JwtAuthGuard implements CanActivate {
     // kill switch of token-less reads.
     @Optional() private readonly settings?: AppSettingsService,
     @Optional() private readonly limiter?: RateLimitService,
+    // Round 4 (25.11, С9): the admin's «Гостевой просмотр» flag closes the
+    // API for guests too (it used to hide only the app's screens).
+    @Optional() private readonly flags?: FeatureFlagsService,
   ) {}
 
   /** A token-less call to an `@OptionalAuth()` read route: the guest viewer,
@@ -70,8 +74,9 @@ export class JwtAuthGuard implements CanActivate {
     req: Request & { user?: RequestUser; userId?: string },
   ): Promise<void> {
     if (
-      this.settings &&
-      !(await this.settings.boolean('guest.browsing_enabled'))
+      (this.settings &&
+        !(await this.settings.boolean('guest.browsing_enabled'))) ||
+      (this.flags && !(await this.flags.isEnabled('guest_browsing', true)))
     ) {
       throw new UnauthorizedException({
         code: ErrorCode.UNAUTHORIZED,
