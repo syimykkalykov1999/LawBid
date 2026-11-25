@@ -279,7 +279,7 @@ export class AppCheckGuard implements CanActivate {
       return;
     }
     const b = body as Record<string, unknown>;
-    let remember = false;
+    let remember: boolean;
     try {
       remember = options.rememberWhen(b) === true;
     } catch {

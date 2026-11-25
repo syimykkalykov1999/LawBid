@@ -22,7 +22,7 @@ class TurnstileInterceptor extends Interceptor {
   final String? Function() siteKey;
 
   /// Asks the browser for a fresh single-use token for the site key; the
-  /// widget names [action] (item 13: the server refuses a token solved for
+  /// widget names the `action` (item 13: the server refuses a token solved for
   /// another form).
   final Future<String?> Function(String siteKey, {String? action}) token;
 
