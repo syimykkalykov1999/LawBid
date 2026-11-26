@@ -1378,6 +1378,11 @@ export const OWNER_E2EE_SETTINGS = {
   'chat.e2ee_report_messages': 5,
   /** Undelivered Welcomes are dropped after this many days. */
   'chat.e2ee_welcome_keep_days': 30,
+  /** MB of one end-to-end encrypted chat file (WhatsApp: 2 GB documents;
+   * ours start at the chat's own 100). */
+  'chat.e2ee_file_max_mb': 100,
+  /** MB of one person's encrypted chat backup. */
+  'chat.e2ee_backup_max_mb': 500,
 } as const;
 
 /** Owner 2026-10-20 (WhatsApp): how long a sent message can still be edited

@@ -249,6 +249,21 @@ export default function ModerationCardPage() {
                 </Td>
                 <Td>
                   <StatusPill map={REPORT_STATUS} value={r.status} />
+                  {/* Item 25: what the reporter's phone handed over from an
+                      end-to-end encrypted chat (WhatsApp: the last messages). */}
+                  {r.e2eeEvidence.length > 0 ? (
+                    <ul className="mt-2 space-y-1 text-xs">
+                      {r.e2eeEvidence.map((e) => (
+                        <li key={e.messageId}>
+                          <span className="text-muted">{formatDateTime(e.sentAt)} · </span>
+                          <span className={e.verified ? 'text-success' : 'text-danger'}>
+                            {e.verified ? 'подлинное' : 'не подтверждено'}
+                          </span>
+                          <span> — {e.text || '(файл или пустое сообщение)'}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </Td>
               </MotionRow>
             ))}
