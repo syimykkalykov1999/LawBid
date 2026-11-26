@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/network/api_error.dart';
 
 import 'package:lawbid/features/settings/active_devices/active_devices_providers.dart';
 import 'package:lawbid/features/settings/active_devices/domain/active_devices_repository.dart';
@@ -79,19 +80,25 @@ class ActiveDevicesController
   /// that would throw away pages already loaded). If it is the current
   /// session, the caller must also clear local session state and route to
   /// Welcome. Errors propagate to the caller.
-  Future<void> revoke(String sessionId) async {
-    await _repo.revoke(sessionId);
+  Future<void> revoke(String sessionId, {String? reauthToken}) async {
+    await _repo.revoke(sessionId, reauthToken: reauthToken);
     final current = state.value;
     if (current != null) {
       state = AsyncData(current.without((s) => s.sessionId == sessionId));
     }
   }
 
+  /// STAGE2_SECURITY #12: the server wants a fresh re-auth for this call.
+  static bool isReauthError(Object e) =>
+      e is ApiException &&
+      (e.code == ApiErrorCodes.reauthRequired ||
+          e.code == ApiErrorCodes.reauthInvalid);
+
   /// R2-A #9 (Telegram «Terminate all other sessions»): ends every session
   /// but this one (`POST /auth/logout-others`) and leaves only this device
   /// in the list. Errors propagate to the caller.
-  Future<void> logoutOthers() async {
-    await _repo.logoutOthers();
+  Future<void> logoutOthers({String? reauthToken}) async {
+    await _repo.logoutOthers(reauthToken: reauthToken);
     final current = state.value;
     if (current != null) {
       state = AsyncData(

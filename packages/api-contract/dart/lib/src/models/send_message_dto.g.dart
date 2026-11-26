@@ -9,6 +9,10 @@ part of 'send_message_dto.dart';
 SendMessageDto _$SendMessageDtoFromJson(Map<String, dynamic> json) =>
     SendMessageDto(
       clientMessageId: json['clientMessageId'] as String,
+      ciphertext: json['ciphertext'] as String?,
+      mlsEpoch: (json['mlsEpoch'] as num?)?.toInt(),
+      mlsDeviceId: json['mlsDeviceId'] as String?,
+      frankingTag: json['frankingTag'] as String?,
       giftId: json['giftId'] as String?,
       contactUserId: json['contactUserId'] as String?,
       postId: json['postId'] as String?,
@@ -32,6 +36,10 @@ Map<String, dynamic> _$SendMessageDtoToJson(SendMessageDto instance) =>
     <String, dynamic>{
       'clientMessageId': instance.clientMessageId,
       'type': instance.type.toJson(),
+      'ciphertext': ?instance.ciphertext,
+      'mlsEpoch': ?instance.mlsEpoch,
+      'mlsDeviceId': ?instance.mlsDeviceId,
+      'frankingTag': ?instance.frankingTag,
       'giftId': ?instance.giftId,
       'contactUserId': ?instance.contactUserId,
       'postId': ?instance.postId,

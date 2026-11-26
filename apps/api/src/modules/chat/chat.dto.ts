@@ -3,8 +3,10 @@ import { GiftSendDto } from '../stars/stars.dto';
 import { SharedPostCardDto } from '../posts/shared-post-cards.service';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
+import { MLS_MESSAGE_MAX_B64 } from './e2ee/e2ee.dto';
 import {
   ArrayMaxSize,
+  IsBase64,
   IsBoolean,
   IsIn,
   IsInt,
@@ -261,6 +263,7 @@ export class SendMessageDto {
       'contact',
       'place',
       'post',
+      'mls',
     ],
     enumName: 'SendMessageType',
     default: 'text',
@@ -275,6 +278,7 @@ export class SendMessageDto {
     'contact',
     'place',
     'post',
+    'mls',
   ])
   type?:
     | 'text'
@@ -284,7 +288,38 @@ export class SendMessageDto {
     | 'gift'
     | 'contact'
     | 'place'
-    | 'post';
+    | 'post'
+    | 'mls';
+
+  /** Item 25 (E2EE, type=mls): base64 of the MLS PrivateMessage (an
+   * application message of the chat's group). The server stores only this. */
+  @ApiPropertyOptional({ maxLength: MLS_MESSAGE_MAX_B64 })
+  @IsOptional()
+  @IsBase64()
+  @MaxLength(MLS_MESSAGE_MAX_B64)
+  ciphertext?: string;
+
+  /** Item 25 (type=mls): the group epoch the message was encrypted in. */
+  @ApiPropertyOptional({ type: 'integer', minimum: 0 })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  mlsEpoch?: number;
+
+  /** Item 25 (type=mls): the sending MLS device (POST /e2ee/devices). */
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID('all')
+  mlsDeviceId?: string;
+
+  /** Item 25 (type=mls, message franking): base64 of HMAC-SHA256(k, P)
+   * where P is the message's plaintext and k the 32-byte key inside it. A
+   * report reveals P; the server checks it against this tag. */
+  @ApiPropertyOptional({ maxLength: 64 })
+  @IsOptional()
+  @IsBase64()
+  @MaxLength(64)
+  frankingTag?: string;
 
   /** Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is
    * the optional note (≤200). */
@@ -685,6 +720,7 @@ export class MessageDto {
       'contact',
       'place',
       'post',
+      'mls',
     ],
   })
   type!:
@@ -697,7 +733,39 @@ export class MessageDto {
     | 'gift'
     | 'contact'
     | 'place'
-    | 'post';
+    | 'post'
+    | 'mls';
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Item 25 (type=mls): base64 MLS PrivateMessage; the app decrypts it. Null for other types.',
+  })
+  ciphertext!: string | null;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'Item 25 (type=mls): the group epoch of the message.',
+  })
+  mlsEpoch!: number | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      "Item 25 (type=mls with an encrypted file): a short link to the file's ciphertext (its key is inside the message).",
+  })
+  blobUrl!: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Item 25 (type=mls, message franking): base64 HMAC-SHA256(k, P) the sender stored; the receiver checks it against the plaintext it decrypted.',
+  })
+  frankingTag!: string | null;
 
   /** Owner 2026-10-20: the gift of a gift message. */
   @ApiPropertyOptional({ type: () => GiftSendDto, nullable: true })
@@ -871,6 +939,14 @@ export class ConversationDto {
       'Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off.',
   })
   disappearAfterS!: number | null;
+
+  @ApiPropertyOptional({
+    type: Date,
+    nullable: true,
+    description:
+      'Item 25: since when the chat is end-to-end encrypted (MLS); null = server-side encryption. GET /e2ee/conversations/:id has the details.',
+  })
+  e2eeSince!: Date | null;
 
   @ApiPropertyOptional({ type: Date, nullable: true })
   mutedUntil!: Date | null;

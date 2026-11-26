@@ -169,6 +169,17 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
         removeOnFail: { count: 5_000 },
       },
     );
+    // Foreman re-check 25.11 (item 8): the stored row is marked dead, so the
+    // every-minute requeue sweep stops reading it (the admin «Повторить»
+    // clears the mark). Best effort: the DLQ job above is what matters.
+    await this.prisma.stripeWebhookEvent
+      .updateMany({
+        where: { stripe_event_id: eventId, processed_at: null },
+        data: { dead_at: new Date() },
+      })
+      .catch((e: unknown) =>
+        this.logger.warn(`dead_at of ${eventId} not set: ${String(e)}`),
+      );
   }
 
   private async processWebhook(job: Job<StripeWebhookJobData>): Promise<void> {

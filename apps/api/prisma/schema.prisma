@@ -185,6 +185,11 @@ enum FilePurpose {
   // technician / AI employee; private bucket, owner-only, deleted
   // ai.retention_images_days after the task or item closes.
   ai_attachment
+  // Item 25 (E2EE): a chat file encrypted on the phone (the server keeps
+  // only ciphertext; its key travels inside the MLS message).
+  chat_e2ee
+  // Item 25: a person's encrypted chat backup (key: their 64-digit code).
+  chat_backup_e2ee
 
   @@map("file_purpose")
 }
@@ -497,6 +502,10 @@ enum MessageType {
   // Owner 2026-10-21 (Instagram «Поделиться»): a shared post (body = the
   // post's id; the app draws the card).
   post
+  // Item 25 (docs/architecture/E2EE_MLS_PLAN_2026-11-25.md): an end-to-end
+  // encrypted message — an MLS PrivateMessage in messages.ciphertext; the
+  // text columns stay empty, the server never sees the content.
+  mls
 
   @@map("message_type")
 }
@@ -975,6 +984,8 @@ model User {
   notification_settings       NotificationSetting[]
   quiet_hours                 NotificationQuietHours?
   push_tokens                 PushToken[]
+  mls_devices                 MlsDevice[]
+  e2ee_backup                 E2eeBackup?
   voip_tokens                 VoipToken[]
   stripe_customer             StripeCustomer?
   subscription                Subscription?
@@ -1218,6 +1229,9 @@ model Session {
   // logic anymore (see session_chain_id above), kept as a bare pointer
   // (not an enforced FK) purely for forensic "what replaced what" queries.
   replaced_by_session_id String?   @db.Uuid
+  /// STAGE2_SECURITY #13: the sign-in that opened this chain (copied on
+  /// rotation); the absolute lifetime auth.session_absolute_days counts from it.
+  chain_started_at       DateTime? @db.Timestamptz
   created_at             DateTime  @default(now()) @db.Timestamptz
   updated_at             DateTime  @updatedAt @db.Timestamptz
 
@@ -2946,6 +2960,10 @@ model Conversation {
   /// this many seconds (24 h / 7 d / 90 d); null = off. Only messages sent
   /// after it was switched on carry an `expires_at`.
   disappear_after_s Int?
+  /// Item 25 (E2EE, MLS): when this chat switched to end-to-end encryption
+  /// (its MLS group was created); null = server-side encryption as before.
+  /// Older messages keep their server-side encryption and stay readable.
+  e2ee_since        DateTime?            @db.Timestamptz
   // Bare uuid: an FK here would make conversations <-> messages a cycle
   // on every insert; it's a denormalized pointer for the chat list.
   last_message_id   String?              @db.Uuid
@@ -3254,6 +3272,15 @@ model Message {
   forwarded             Boolean            @default(false)
   /// "Forwarded from <name>": the first author, kept through re-forwards.
   forwarded_from_name   String?            @db.VarChar(120)
+  /// Item 25 (E2EE): type = mls — the encoded MLS PrivateMessage (opaque to
+  /// the server) and the group epoch it was sent in.
+  ciphertext            Bytes?
+  mls_epoch             Int?
+  /// Item 25 (message franking, as Messenger): HMAC-SHA256 of the
+  /// message's plaintext under a key that is inside the plaintext. A report
+  /// reveals both and the server checks them against this, so a report can
+  /// be neither forged nor denied.
+  franking_tag          Bytes?
   hidden_for            MessageHidden[]
   reactions             MessageReaction[]
   edits                 MessageEdit[]
@@ -3298,6 +3325,160 @@ model MessageSearchToken {
   @@id([conversation_id, token, message_id])
   @@index([message_id])
   @@map("message_search_tokens")
+}
+
+/// Item 25 (E2EE on MLS, RFC 9420 / RFC 9750; docs/architecture/
+/// E2EE_MLS_PLAN_2026-11-25.md §3): one MLS client = one device of a user
+/// (WhatsApp / Wire multi-device: every device is its own member). The
+/// server keeps only the PUBLIC signature key; the private keys never leave
+/// the device. The MLS identity is "<user_id>:<id>" (BasicCredential).
+/// The MLS tables are global and carry no foreign key to the chat:
+/// conversations are case-family rows that may live on another database
+/// (like message_search_tokens).
+model MlsDevice {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String          @db.Uuid
+  user          User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  /// Ed25519 public key of the device's MLS credential (32 bytes).
+  signature_key Bytes
+  /// ios | android | macos | web — what the app reported.
+  platform      String          @db.VarChar(16)
+  created_at    DateTime        @default(now()) @db.Timestamptz
+  last_seen_at  DateTime        @default(now()) @db.Timestamptz
+  /// Signed out / replaced: no key packages are handed out any more and the
+  /// device must be removed from its groups (MLS messages wait until then).
+  revoked_at    DateTime?       @db.Timestamptz
+  key_packages  MlsKeyPackage[]
+
+  @@unique([user_id, signature_key])
+  @@index([user_id, revoked_at])
+  @@map("mls_devices")
+}
+
+/// Item 25: the KeyPackage directory (RFC 9420 §10, §16.8). A device uploads
+/// many one-time packages and one last-resort package; a claim hands out a
+/// one-time package and deletes it in the same statement, the last-resort
+/// one only when none is left (a claim never deletes it).
+model MlsKeyPackage {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  device_id   String    @db.Uuid
+  device      MlsDevice @relation(fields: [device_id], references: [id], onDelete: Cascade)
+  /// Encoded MLSMessage (wire format mls_key_package), as the client sent it.
+  data        Bytes
+  last_resort Boolean   @default(false)
+  created_at  DateTime  @default(now()) @db.Timestamptz
+
+  @@index([device_id, last_resort, created_at])
+  @@map("mls_key_packages")
+}
+
+/// Item 25: the MLS group of one conversation. The server is the strongly
+/// consistent Delivery Service (RFC 9750 §5.2, as Wire): `epoch` moves only
+/// by an accepted commit, and a commit is accepted only for the current
+/// epoch (compare-and-set), so the group never forks.
+model MlsGroup {
+  conversation_id   String   @id @db.Uuid
+  /// The MLS group_id the creating device chose (≤ 64 bytes).
+  group_id          Bytes    @unique
+  epoch             Int      @default(0)
+  created_by_device String   @db.Uuid
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @updatedAt @db.Timestamptz
+
+  @@map("mls_groups")
+}
+
+/// Item 25: the accepted commits of a group in order (one per epoch). A
+/// device that was offline reads the commits after its own epoch.
+model MlsCommit {
+  conversation_id  String   @db.Uuid
+  /// The epoch the commit was made in; the group is in epoch + 1 after it.
+  epoch            Int
+  sender_device_id String   @db.Uuid
+  /// Encoded MLSMessage (PublicMessage or PrivateMessage with the commit).
+  data             Bytes
+  /// The devices the commit adds / removes (declared by the sender, checked
+  /// against the conversation's participants and the commit's own adds).
+  added_devices    String[] @default([]) @db.Uuid
+  removed_devices  String[] @default([]) @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamptz
+
+  @@id([conversation_id, epoch])
+  @@map("mls_commits")
+}
+
+/// Item 25: which devices are members of a conversation's MLS group now
+/// (kept by the accepted commits). Delivery, the "who still has to be
+/// added / removed" lists and the security code read it.
+model MlsGroupDevice {
+  conversation_id String   @db.Uuid
+  device_id       String   @db.Uuid
+  user_id         String   @db.Uuid
+  joined_epoch    Int
+  created_at      DateTime @default(now()) @db.Timestamptz
+  /// The device could not join from its Welcome (RFC 9420 §12.4.3.1): the
+  /// members remove its leaf and add it again from a new KeyPackage.
+  rejoin_at       DateTime? @db.Timestamptz
+
+  @@id([conversation_id, device_id])
+  @@index([device_id])
+  @@index([conversation_id, user_id])
+  @@map("mls_group_devices")
+}
+
+/// Item 25 (docs/architecture/E2EE_MLS_PLAN_2026-11-25.md §6): a person's
+/// end-to-end encrypted chat backup — the file (chat_backup_e2ee) the phone
+/// encrypted with a key from the 64-digit code only the person knows. One
+/// per person; a new backup replaces the old one.
+model E2eeBackup {
+  user_id    String   @id @db.Uuid
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  file_id    String   @db.Uuid
+  /// Which 64-digit key locks it (HMAC id of the key; the key stays on the
+  /// phone). The same key serves every backup until the person makes a new one.
+  key_id     String?  @db.VarChar(24)
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  @@map("e2ee_backups")
+}
+
+/// Item 25 (WhatsApp «Пожаловаться» in an encrypted chat): the messages the
+/// reporter's phone handed over with the report — the plaintext (sealed at
+/// rest like message bodies) and whether its franking tag matched the one
+/// stored when the message was sent.
+model E2eeReportEvidence {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  report_id       String   @db.Uuid
+  report          Report   @relation(fields: [report_id], references: [id], onDelete: Cascade)
+  message_id      String   @db.Uuid
+  conversation_id String   @db.Uuid
+  sender_id       String?  @db.Uuid
+  /// The message text (sealed with MESSAGE_ENC_KEYS like body_original).
+  body            String
+  verified        Boolean
+  sent_at         DateTime @db.Timestamptz
+  created_at      DateTime @default(now()) @db.Timestamptz
+
+  @@index([report_id])
+  @@map("e2ee_report_evidence")
+}
+
+/// Item 25: a Welcome for one device (it joins the group from it). Kept
+/// until the device takes it or chat.e2ee_welcome_keep_days pass.
+model MlsWelcome {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String   @db.Uuid
+  device_id       String   @db.Uuid
+  /// The epoch the device joins into.
+  epoch           Int
+  data            Bytes
+  created_at      DateTime @default(now()) @db.Timestamptz
+
+  @@index([device_id, created_at])
+  @@index([conversation_id])
+  @@index([created_at])
+  @@map("mls_welcomes")
 }
 
 /// "Delete for me": the message stays for the other side.
@@ -4133,6 +4314,8 @@ model StripeWebhookEvent {
   processed_at    DateTime? @db.Timestamptz
   attempts        Int       @default(0)
   created_at      DateTime  @default(now()) @db.Timestamptz
+  /// Item 8 (25.11): set when the job went to the DLQ; the requeue sweep skips it.
+  dead_at         DateTime? @db.Timestamptz
 
   @@map("stripe_webhook_events")
 }
@@ -4160,6 +4343,7 @@ model Report {
 
   actions      ModerationAction[]
   dmca_notices DmcaNotice[]
+  e2ee_evidence E2eeReportEvidence[]
 
   @@index([status, created_at])
   // Duplicate-report lookup per target and "my reports" (stage 4.1

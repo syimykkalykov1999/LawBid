@@ -13,6 +13,12 @@ export { newFileKey } from './files.policy';
 export { AVATAR_VARIANT_PX, variantKey } from './files.policy';
 // The decode cap every sharp reader uses (a decompression bomb is refused).
 export { MAX_INPUT_PIXELS } from './files.policy';
+// Item 25: the antivirus for the decrypted file of an encrypted-chat report.
+export {
+  VIRUS_SCANNER,
+  type ScanVerdict,
+  type VirusScanner,
+} from './scanning/virus-scanner';
 // M3 (owner 25.11): chats hear that the check of a file in a message ended.
 export {
   CHAT_FILE_SCAN_LISTENER,

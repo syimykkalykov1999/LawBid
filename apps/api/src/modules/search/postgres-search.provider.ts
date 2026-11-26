@@ -984,8 +984,11 @@ export class PostgresSearchProvider implements SearchProvider {
     // text) has no index for `body ILIKE` and walks the questions and
     // answers, so it runs inside the same time budget as every other
     // full-text step: out of time = nothing found, not a busy database.
-    const rows = await this.budget(SEARCH_BUDGET_MS, () =>
-      this.questionsFallback(text, like, topics),
+    // Loose: the typo arm's `<%` reads the trigram index at TYPO_THRESHOLD.
+    const rows = await this.budget(
+      SEARCH_BUDGET_MS,
+      () => this.questionsFallback(text, like),
+      true,
     );
     return rows.map((r) => r.id);
   }
@@ -994,28 +997,10 @@ export class PostgresSearchProvider implements SearchProvider {
   private questionsFallback(
     text: string,
     like: string,
-    topics: string[],
   ): Promise<{ id: string }[]> {
-    return this.db.$queryRaw<{ id: string }[]>`
-      SELECT q.id::TEXT AS id
-      FROM legal_questions q
-      WHERE q.status = 'published' AND q.deleted_at IS NULL
-        AND (
-          to_tsvector('simple', f_unaccent(q.title || ' ' || q.body))
-            @@ websearch_to_tsquery('simple', f_unaccent(${text}))
-          OR word_similarity(f_unaccent(lower(${text})), f_unaccent(lower(q.title))) > 0.45
-          OR q.title ILIKE ${like} OR q.body ILIKE ${like}
-          OR (${topics.length > 0} AND q.practice_area_id = ANY(${topics}::UUID[]))
-          OR EXISTS (
-            SELECT 1 FROM legal_answers a
-            WHERE a.question_id = q.id AND a.status = 'published'
-              AND a.deleted_at IS NULL
-              AND (to_tsvector('simple', f_unaccent(a.body))
-                     @@ websearch_to_tsquery('simple', f_unaccent(${text}))
-                   OR a.body ILIKE ${like}))
-        )
-      ORDER BY q.created_at DESC
-      LIMIT 500`;
+    return this.db.$queryRaw<{ id: string }[]>(
+      questionsFallbackSql(text, like),
+    );
   }
 
   /** Search-engine step: only questions that are still published, newest
@@ -1389,3 +1374,43 @@ export class PostgresSearchProvider implements SearchProvider {
 }
 
 export { escapeLike, nameMatchSql };
+
+/**
+ * Foreman re-check 25.11 (item 9 #16, ROUND2 #16): the fallback of the Q&A
+ * search (a typo, a fragment inside a text). It was ONE `WHERE … OR …`
+ * whose arms PostgreSQL could not all read through an index
+ * (`word_similarity(…) > 0.45`, `body ILIKE`), so every run read every
+ * published question and, per question, its answers — a full scan. Now
+ * each arm is its own indexed query (the GitLab / Discourse pattern for
+ * trigram search: one indexable predicate per branch, UNION):
+ *  - a title typo: `<%` over legal_questions_title_trgm_idx (threshold
+ *    TYPO_THRESHOLD = 0.42, set by the budget), re-checked at > 0.45;
+ *  - a fragment of the title or the text: LIKE over
+ *    legal_questions_title_trgm_idx / legal_questions_body_trgm_idx;
+ *  - a fragment of an answer: legal_answers_body_trgm_idx.
+ * The full-text and topic arms of the old fallback are the fast query's,
+ * which already found nothing when this runs, so they are not repeated.
+ * Exported for the EXPLAIN check (test/questions-fallback-index.e2e-spec.ts).
+ */
+export function questionsFallbackSql(text: string, like: string): Prisma.Sql {
+  return Prisma.sql`
+    SELECT t.id::TEXT AS id FROM (
+      SELECT q.id, q.created_at FROM legal_questions q
+      WHERE q.status = 'published' AND q.deleted_at IS NULL
+        AND f_unaccent(lower(${text})) <% f_unaccent(lower(q.title))
+        AND word_similarity(f_unaccent(lower(${text})), f_unaccent(lower(q.title))) > 0.45
+      UNION
+      SELECT q.id, q.created_at FROM legal_questions q
+      WHERE q.status = 'published' AND q.deleted_at IS NULL
+        AND (f_unaccent(lower(q.title)) LIKE f_unaccent(lower(${like}))
+             OR q.body ILIKE ${like})
+      UNION
+      SELECT q.id, q.created_at FROM legal_answers a
+      JOIN legal_questions q ON q.id = a.question_id
+      WHERE a.status = 'published' AND a.deleted_at IS NULL
+        AND q.status = 'published' AND q.deleted_at IS NULL
+        AND a.body ILIKE ${like}
+    ) t
+    ORDER BY t.created_at DESC
+    LIMIT 500`;
+}

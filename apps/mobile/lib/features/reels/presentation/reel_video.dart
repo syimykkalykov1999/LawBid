@@ -16,6 +16,7 @@ import 'package:lawbid/core/media/playback_visibility.dart';
 import 'package:lawbid/core/media/video_cache/video_cache.dart';
 import 'package:lawbid/features/reels/application/played_view_gate.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
+import 'package:lawbid/features/reels/application/watch_time_meter.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:material_ui/material_ui.dart';
@@ -91,6 +92,10 @@ void debugResetReelFocus() => _ReelVideoState._focusRefusedAt = null;
 VideoPlayerController Function(Uri url, VideoPlayerOptions options)?
     debugReelPlayerFactory;
 
+/// Tests: the clock the watch-time meter reads (null = the wall clock).
+@visibleForTesting
+DateTime Function()? debugReelWatchClock;
+
 /// Owner 2026-10-01 — one reel video filling its box (cover), looping.
 /// Plays only while [active] and on screen (its tab, its route, the app in
 /// the foreground — [PlaybackVisibility]); an inactive reel or one that
@@ -113,6 +118,7 @@ class ReelVideo extends StatefulWidget {
     this.zoomable = false,
     this.onProgress,
     this.onViewed,
+    this.onWatched,
     super.key,
   });
 
@@ -145,6 +151,11 @@ class ReelVideo extends StatefulWidget {
 
   /// Owner 2026-10-20: called once after 3 s of real, unbroken playback.
   final VoidCallback? onViewed;
+
+  /// Owner 25.11 (TikTok / YouTube watch time): a view of this reel ended
+  /// (scrolled away, covered, closed) — how long it really played, whether
+  /// it played to the end, and the clip's length in ms (0 = unknown).
+  final void Function(ReelWatchTotals totals, int clipMs)? onWatched;
 
   @override
   State<ReelVideo> createState() => _ReelVideoState();
@@ -189,6 +200,20 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   bool get _silent => _silentMix || _inCall;
   late final PlayedViewGate _viewGate =
       PlayedViewGate(() => widget.onViewed?.call());
+
+  /// Owner 25.11: the real playing time of the current view.
+  final WatchTimeMeter _watch =
+      WatchTimeMeter(now: () => (debugReelWatchClock ?? DateTime.now)());
+
+  /// The clip's length (ms) of the last opened player, 0 = not known yet.
+  int _clipMs = 0;
+
+  /// Ends the current view and reports it (nothing when it never played).
+  void _endView() {
+    final totals = _watch.end();
+    if (totals != null) widget.onWatched?.call(totals, _clipMs);
+  }
+
   bool _ready = false;
   bool _failed = false;
 
@@ -320,6 +345,8 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
   @override
   void didUpdateWidget(ReelVideo old) {
     super.didUpdateWidget(old);
+    // Owner 25.11: scrolled away — this view of the reel is over.
+    if (old.active && !widget.active) _endView();
     if (!kReleaseMode) {
       if (widget.active && !old.active) {
         _sinceActive
@@ -379,7 +406,15 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
       widget.video.playerUrl(web: kIsWeb, hlsOnly: _hlsOnly) != null;
 
   @override
-  void didChangePlaybackVisibility({required bool visible}) => _apply();
+  void didChangePlaybackVisibility({required bool visible}) {
+    // Owner 25.11: covered (another route, the app in the background) —
+    // the view ends here; coming back starts a new one.
+    if (!visible) {
+      _watch.playing(value: false);
+      _endView();
+    }
+    _apply();
+  }
 
   @override
   void didChangePlaybackOffstage({required bool offstage}) {
@@ -439,6 +474,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
       await c.setLooping(true);
       final clip = ReelClip.of(widget.video, c.value.duration);
       _clip = clip;
+      _clipMs = (clip.end - clip.start).inMilliseconds.clamp(0, 3600000);
       final at = _recentSpot(url) ?? _resumeAt;
       _resumeAt = null;
       if (at != null && !clip.outside(at)) {
@@ -469,15 +505,15 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final clip = _clip;
     if (c == null || clip == null || !c.value.isInitialized) return;
     final pos = c.value.position;
-    _viewGate.playing(
-      value: _ready &&
-          _rendered &&
-          c.value.isPlaying &&
-          !c.value.isBuffering &&
-          widget.active &&
-          !widget.paused &&
-          playbackVisible,
-    );
+    final live = _ready &&
+        _rendered &&
+        c.value.isPlaying &&
+        !c.value.isBuffering &&
+        widget.active &&
+        !widget.paused &&
+        playbackVisible;
+    _viewGate.playing(value: live);
+    _watch.playing(value: live);
     if (!_rendered && _ready && c.value.isPlaying && pos != _openedAt) {
       setState(() => _rendered = true);
       if (_sinceActive.isRunning) {
@@ -499,6 +535,11 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     }
     final looped = pos + const Duration(milliseconds: 500) < _lastPos;
     _lastPos = pos;
+    // Owner 25.11: back at the start (the player's loop) or past the
+    // trimmed end — the clip played to its end in this view.
+    if (looped || (clip.end > clip.start && pos >= clip.end)) {
+      _watch.completed();
+    }
     if (c.value.isPlaying) {
       final url = widget.video.playerUrl(web: kIsWeb, hlsOnly: _hlsOnly);
       if (url != null) _lastSpot[url] = (at: pos, when: DateTime.now());
@@ -527,7 +568,10 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     final c = _c;
     if (c == null || !_ready) return;
     final play = widget.active && !widget.paused && playbackVisible;
-    if (!play) _viewGate.playing(value: false);
+    if (!play) {
+      _viewGate.playing(value: false);
+      _watch.playing(value: false);
+    }
     // Exactly one reel is heard: the one playing. It starts silent and the
     // sound rises; before a pause it falls first (no click either way).
     if (play && !c.value.isPlaying) {
@@ -624,6 +668,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     _lastPos = Duration.zero;
     _endFaded = false;
     _viewGate.playing(value: false);
+    _watch.playing(value: false);
     c?.removeListener(_tick);
     // Silent before it goes (a playing player cut off clicks).
     if (c != null) {
@@ -655,6 +700,7 @@ class _ReelVideoState extends State<ReelVideo> with PlaybackVisibility {
     _release?.cancel();
     _callSub?.close();
     _close();
+    _endView();
     _viewGate.dispose();
     super.dispose();
   }

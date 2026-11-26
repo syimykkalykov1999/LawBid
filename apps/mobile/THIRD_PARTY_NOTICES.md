@@ -292,6 +292,15 @@ is (https://developer.android.com/topic/performance/graphics/load-bitmap,
 read 2026-11-13). Code samples on that site are licensed under the Apache
 License, Version 2.0, as for livekit_client above.
 
+## Android developer guide «Optimize network data usage» — Apache-2.0
+
+The Data Saver check in `android/.../DataSaverChannel.kt`
+(`isActiveNetworkMetered`, then `restrictBackgroundStatus ==
+RESTRICT_BACKGROUND_STATUS_ENABLED`, and the in-code receiver for
+`ACTION_RESTRICT_BACKGROUND_CHANGED`) is the guide's Kotlin sample
+(https://developer.android.com/develop/connectivity/network-ops/data-saver,
+read 2026-11-25), Apache License, Version 2.0, as above.
+
 ## tus-js-client — MIT
 
 The parallel reel upload in `lib/features/reels/data/reels_repository.dart`
@@ -946,6 +955,52 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
+## ts-mls 1.6.4 with @hpke/core 1.9.0, @hpke/common, @noble/hashes 2.4.0, @noble/curves 2.0.1, @noble/ciphers 2.4.0 — MIT
+
+Item 25 (end-to-end encrypted chats on MLS, RFC 9420): the web app's MLS
+client. `web/vendor/ts-mls-1.6.4/ts-mls.min.js` is the npm package
+`ts-mls@1.6.4` (https://github.com/LukaJCB/ts-mls) and its dependencies
+bundled **unmodified** into one ES module by esbuild 0.28.2
+(`tool/web_mls/build.sh`, entry `tool/web_mls/entry.mjs`); sha256
+e2fdcabfb4e05195fa7f9735602240e221ef5c9802c924c13f19f3403a2982f4. Our own
+glue is `web/js/mls.js`. The phones use OpenMLS through the `openmls` pub
+package (MIT; Flutter adds its LICENSE to the app's licence list itself).
+
+Encrypted chat files and the encrypted backup (item 25, PR 4) use AES-256-GCM
+and HKDF-SHA256 from the `cryptography` pub package 2.9.0 (Apache-2.0,
+https://github.com/dint-dev/cryptography; the browser's WebCrypto on the web;
+Flutter adds its LICENSE to the app's licence list). The segmented file format
+follows the idea of Google Tink's AES-GCM-HKDF streaming AEAD (Apache-2.0;
+idea only, no code copied — there is no Dart port of Tink).
+
+The preview inside an encrypted photo's message is a BlurHash made on the
+phone by the `blurhash_dart` pub package 1.2.1 (MIT, Copyright (c) 2020
+Tobias Schwackenhofer, https://github.com/justacid/blurhash-dart), used
+unmodified; the bubble draws it with `flutter_blurhash` as before.
+
+ts-mls — Copyright (c) 2025 Luka Jacobowitz.
+@hpke/core, @hpke/common — Copyright (c) 2023–2024 Ajitomi Daisuke.
+@noble/hashes, @noble/curves, @noble/ciphers — Copyright (c) 2022–2023 Paul
+Miller (paulmillr.com).
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
 ## coi-serviceworker — MIT
 
 The mechanism of `web/coi_sw.js` (a service worker that serves the page's
@@ -1119,6 +1174,41 @@ Redistribution and use in source and binary forms, with or without modification,
 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+## SQLite3MultipleCiphers (prebuilt by sqlite3.dart 3.9.1) — MIT
+
+S13 #26 (26.11): on Android and iOS the `sqlite3` build hook links
+SQLite3MultipleCiphers instead of plain SQLite (`hooks: user_defines:
+sqlite3: source: sqlite3mc` in `pubspec.yaml`, drift «Encryption»), so the
+account's local databases are encrypted. Unmodified prebuilt libraries of the
+release `sqlite3-3.9.1` (https://github.com/simolus3/sqlite3.dart/releases),
+checked by the SHA-256 list in sqlite3's `lib/src/hook/asset_hashes.dart`;
+sources https://github.com/utelle/SQLite3MultipleCiphers (SQLite itself is in
+the public domain; sqlite3.dart's MIT licence is above).
+
+```
+MIT License
+
+Copyright (c) 2019-2026 Ulrich Telle
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```
 
 ## Native iOS / Android SDKs linked by the Flutter plugins (licence audit 2026-11-17)

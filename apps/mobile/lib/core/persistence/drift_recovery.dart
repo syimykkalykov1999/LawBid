@@ -18,6 +18,13 @@ enum DriftRecovery {
   quarantine,
 }
 
+/// An open failure that says the files are fine and must stay as they are
+/// (S13: the database key cannot be read before the first unlock, the
+/// one-time encryption could not finish on a full disk). The recovery then
+/// skips clearing the files and works in memory for this process; the next
+/// start opens them again.
+abstract interface class DatabaseFilesKept implements Exception {}
+
 /// Reports a recovery (Sentry, via `SentryReporter`). Never throws.
 typedef DriftRecoveryReporter = void Function(
   String database,
@@ -111,6 +118,13 @@ class RecoveringExecutor extends QueryExecutor {
     } on Object {
       // Already broken; the files go next.
     }
+    if (error is DatabaseFilesKept) {
+      final memory = await _memory?.call();
+      if (memory == null) Error.throwWithStackTrace(error, stack);
+      debugPrint('local database "$name" stays in memory this run: $error');
+      _current = memory;
+      return memory.ensureOpen(user);
+    }
     try {
       await _clearFiles();
     } on Object catch (e) {
@@ -131,12 +145,13 @@ class RecoveringExecutor extends QueryExecutor {
   Future<void> _clearFiles() async {
     final files = await _files();
     final stamp = _now().millisecondsSinceEpoch ~/ 1000;
-    for (var i = 0; i < files.length; i++) {
-      final file = files[i];
+    for (final file in files) {
       if (!file.existsSync()) continue;
-      // files[0] is the database itself; the rest are its -wal / -shm /
-      // -journal companions, useless without it.
-      if (i == 0 && recovery == DriftRecovery.quarantine) {
+      // A `.sqlite` file is a database itself (S13: the encrypted one and
+      // the plaintext one it replaces); the rest are -wal / -shm / -journal
+      // companions and an unfinished `.tmp` copy, useless without it.
+      if (recovery == DriftRecovery.quarantine &&
+          file.path.endsWith('.sqlite')) {
         _dropOldQuarantine(file);
         file.renameSync('${file.path}.corrupt-$stamp');
       } else {

@@ -20,6 +20,7 @@ import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/disappearing.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_notice.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
@@ -437,6 +438,15 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
                   showChevron: false,
                   onTap: () => _disappearing(c),
                 ),
+              // Item 25 (WhatsApp «Шифрование»): the security code.
+              if (c.e2eeSince != null)
+                AppListRow(
+                  key: const ValueKey('contact-e2ee'),
+                  icon: AppIcons.lockOutlineRounded,
+                  label: t.t('chat.e2ee.encryption'),
+                  subtitle: t.t('chat.e2ee.encryptionHint'),
+                  onTap: () => openE2eeInfo(context, ref, c),
+                ),
               AppListRow(
                 key: const ValueKey('contact-calls-mute'),
                 icon: AppIcons.notificationsOffOutlined,
@@ -501,8 +511,22 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
                   label: t.t('contact.reportName', {'name': blockName}),
                   destructive: true,
                   showChevron: false,
-                  onTap: () =>
-                      showReportSheet(context, ref, ReportTarget.user, p.id!),
+                  onTap: () => showReportSheet(
+                    context,
+                    ref,
+                    ReportTarget.user,
+                    p.id!,
+                    // Item 25 (WhatsApp): from an encrypted chat the report
+                    // carries this person's last messages from the phone.
+                    submit: c.e2eeSince == null
+                        ? null
+                        : (reason) => reportE2eeChat(
+                              ref,
+                              widget.conversationId,
+                              p.id!,
+                              reason,
+                            ),
+                  ),
                 ),
               ],
             ),

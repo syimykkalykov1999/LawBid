@@ -369,6 +369,26 @@ describe('BootstrapService.build: case topics limit (round 4, С8)', () => {
   });
 });
 
+// Item 25 (owner switch rule): the app hides the encrypted-backup row while
+// chat.e2ee_mode is Выкл, so the switch reaches it, always as off/on/auto.
+describe('BootstrapService.build: chat.e2ee_mode', () => {
+  it('carries the admin value, an old boolean read as off / on', async () => {
+    const off = await build({
+      config: { 'chat.e2ee_mode': 'off' },
+    }).service.build();
+    expect(off.app_config['chat.e2ee_mode']).toBe('off');
+    const old = await build({
+      config: { 'chat.e2ee_mode': false },
+    }).service.build();
+    expect(old.app_config['chat.e2ee_mode']).toBe('off');
+  });
+
+  it('is auto on a fresh database', async () => {
+    const r = await build().service.build();
+    expect(r.app_config['chat.e2ee_mode']).toBe('auto');
+  });
+});
+
 describe('BootstrapService.build', () => {
   it('aggregates flags, app_config, active languages, translation versions, and current legal documents', async () => {
     const { service, prisma } = build();
@@ -388,6 +408,8 @@ describe('BootstrapService.build', () => {
     });
     expect(result.app_config).toEqual({
       min_app_version_ios: '0.1.0',
+      // Owner 25.11: where a confirmation code goes (SMS by default).
+      'auth.code_channel': 'sms',
       // Owner 2026-10-07 (bug 17): always sent, defaults when unset.
       'uploads.limits': sanitizeUploadLimits(undefined),
       // Owner 2026-10-22 (client economy plan §5): the on-device cache
@@ -413,6 +435,8 @@ describe('BootstrapService.build', () => {
       'case.max_practices': 3,
       // R2-A #17: the SMS wait the app counts down, always sent.
       'sms.resend_cooldown_seconds': 60,
+      // Item 25: the end-to-end encryption switch, always sent.
+      'chat.e2ee_mode': 'auto',
       // S20-9: the reel warm-up the app obeys (Wi-Fi / mobile data).
       'client.video_prefetch_ahead': 3,
       'client.video_prefetch_cellular': 3,

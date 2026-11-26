@@ -32,6 +32,7 @@ import 'package:lawbid/core/l10n/strings/deadline_strings.dart';
 import 'package:lawbid/core/l10n/strings/deal_record_strings.dart';
 import 'package:lawbid/core/l10n/strings/demo_strings.dart';
 import 'package:lawbid/core/l10n/strings/disappearing_strings.dart';
+import 'package:lawbid/core/l10n/strings/e2ee_strings.dart';
 import 'package:lawbid/core/l10n/strings/email_flows_strings.dart';
 import 'package:lawbid/core/l10n/strings/feed_content_strings.dart';
 import 'package:lawbid/core/l10n/strings/feed_fresh_strings.dart';
@@ -190,6 +191,7 @@ const Map<String, String> compiledStringsRu = {
   'deleteAccount.reauth.biometric.prompt':
       'Подтвердите личность, чтобы продолжить',
   'deleteAccount.reauth.useCode': 'Использовать код на почту',
+  'deleteAccount.reauth.useCode.sms': 'Использовать код по SMS',
   'deleteAccount.reauth.sendCode': 'Отправить код',
   'deleteAccount.reauth.codeSubtitle': 'Мы отправили код на {phone}',
   'deleteAccount.reauth.submit': 'Подтвердить код',
@@ -1119,6 +1121,7 @@ const Map<String, String> compiledStringsRu = {
   ...casesFilterRu,
   ...storageRu,
   ...storageScreenRu,
+  ...e2eeRu,
   ...supportRu,
   ...caseCoverRu,
   ...caseUrgencyRu,
@@ -1265,6 +1268,7 @@ const Map<String, String> compiledStringsEn = {
   'deleteAccount.reauth.biometric.button': 'Use Face ID / Touch ID',
   'deleteAccount.reauth.biometric.prompt': "Confirm it's you to continue",
   'deleteAccount.reauth.useCode': 'Use an email code instead',
+  'deleteAccount.reauth.useCode.sms': 'Use a text message code instead',
   'deleteAccount.reauth.sendCode': 'Send code',
   'deleteAccount.reauth.codeSubtitle': 'We sent a code to {phone}',
   'deleteAccount.reauth.submit': 'Confirm code',
@@ -1819,6 +1823,8 @@ const Map<String, String> compiledStringsEn = {
   'history.reauth.title': "Confirm it's you",
   'history.reauth.message': "We'll send a code to {phone}.",
   'history.reauth.noPhone': 'Add a verified email in settings to continue.',
+  'history.reauth.noPhone.sms':
+      'Add a verified phone in settings to open the history.',
   'history.reauth.send': 'Get code',
   'history.reauth.resend': 'Send the code again',
   'history.reauth.code': 'Confirmation code',
@@ -2544,6 +2550,7 @@ const Map<String, String> compiledStringsEn = {
   ...casesFilterEn,
   ...storageEn,
   ...storageScreenEn,
+  ...e2eeEn,
   ...supportEn,
   ...caseCoverEn,
   ...caseUrgencyEn,

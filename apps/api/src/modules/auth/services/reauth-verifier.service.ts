@@ -126,6 +126,17 @@ export class ReauthVerifier {
     return legacyClientAllowed(req.header('x-app-version'), minVersion);
   }
 
+  /** R2B-12 rule without a token check: true while the caller's app
+   * version is below the admin's [minVersionKey] (empty = every version). */
+  async legacyClient(
+    req: Request,
+    minVersionKey: AppSettingKey,
+  ): Promise<boolean> {
+    const minVersion =
+      (await this.settings?.string(minVersionKey).catch(() => '')) ?? '';
+    return legacyClientAllowed(req.header('x-app-version'), minVersion);
+  }
+
   async assertAndConsume(req: Request & { user?: RequestUser }): Promise<void> {
     const claims = this.verify(req);
     const usedKey = `reauth:used:${claims.jti}`;

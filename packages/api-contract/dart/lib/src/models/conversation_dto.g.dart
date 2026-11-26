@@ -33,6 +33,9 @@ ConversationDto _$ConversationDtoFromJson(
       ? null
       : DateTime.parse(json['lastMessageAt'] as String),
   disappearAfterS: json['disappearAfterS'] as num?,
+  e2eeSince: json['e2eeSince'] == null
+      ? null
+      : DateTime.parse(json['e2eeSince'] as String),
   mutedUntil: json['mutedUntil'] == null
       ? null
       : DateTime.parse(json['mutedUntil'] as String),
@@ -66,6 +69,7 @@ Map<String, dynamic> _$ConversationDtoToJson(
   'lastMessageAt': ?instance.lastMessageAt?.toIso8601String(),
   'unreadCount': instance.unreadCount,
   'disappearAfterS': ?instance.disappearAfterS,
+  'e2eeSince': ?instance.e2eeSince?.toIso8601String(),
   'mutedUntil': ?instance.mutedUntil?.toIso8601String(),
   'callsMuted': instance.callsMuted,
   'counterpartLastReadMessageId': ?instance.counterpartLastReadMessageId,

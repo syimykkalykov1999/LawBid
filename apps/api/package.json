@@ -95,6 +95,8 @@
     "@smithy/signature-v4": "^5.7.4",
     "@socket.io/redis-adapter": "^8.3.0",
     "@socket.io/redis-emitter": "^5.1.0",
+    "@zxcvbn-ts/core": "^4.3.0",
+    "@zxcvbn-ts/language-common": "^4.2.0",
     "archiver": "^8.0.0",
     "bidi-js": "^1.1.0",
     "blurhash": "2.0.5",
@@ -128,6 +130,7 @@
     "sharp": "^0.35.5",
     "socket.io": "^4.8.4",
     "stripe": "^23.1.0",
+    "ts-mls": "1.6.4",
     "twilio": "^6.3.0",
     "undici": "^8.12.4",
     "zod": "^4.6.7"

@@ -77,3 +77,7 @@ f664e10bea6316ed309c03b4d6dd573523bd63e3:apps/api/src/modules/files/files.servic
 # commit 0719282 (PR #1300): an e2e practice i18n key, not a secret;
 # replaced by a low-entropy key in the next commit (3da6a1b).
 0719282d0470ee9f9b98b3e94f64a59fc71cc17f:apps/api/test/owner-chat-scan-later.e2e-spec.ts:generic-api-key:164
+# commit 251520b (PR 2, item 25 E2EE): e2e practice i18n keys, not secrets;
+# replaced by low-entropy keys in the next commit.
+251520bfa069bbb30e7abd09ec6348289175a157:apps/api/test/owner-chat-e2ee-mls.e2e-spec.ts:generic-api-key:137
+251520bfa069bbb30e7abd09ec6348289175a157:apps/api/test/owner-chat-e2ee-mls.e2e-spec.ts:generic-api-key:148
