@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
+<!-- Stage 2 SRE (Б4): the copy outside AWS (Cloudflare R2), read when this host's own
+     status.json does not answer. Filled in by terraform (status_backup_url); empty = none.
+     On the R2 copy itself the relative status.json already is the backup. -->
+<meta name="status-backup" content="__STATUS_BACKUP_URL__">
 <title>LawBid Status</title>
 <style>
   :root { --bg:#fff; --fg:#14181f; --muted:#5b6472; --line:#e3e6eb; --ok:#1a8f4c; --warn:#b7791f; --bad:#c0392b; --info:#2b6cb0; }
@@ -102,9 +106,25 @@
     });
     $("updated").textContent = t.updated + ": " + fmt(data.updatedAt);
   }
+  // The backup copy outside AWS (R2). Only an https URL counts; the placeholder
+  // left by a build without terraform is ignored.
+  var BACKUP = (function () {
+    var m = document.querySelector('meta[name="status-backup"]');
+    var v = m ? m.getAttribute("content") || "" : "";
+    return /^https:\/\//.test(v) ? v : "";
+  })();
+  function get(url) {
+    return fetch(url + (url.indexOf("?") < 0 ? "?" : "&") + "t=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+  }
+  function age(j) { return (Date.now() - new Date(j.updatedAt).getTime()) / 60000; }
+  // Own file first. When it does not answer, or is stale, the R2 copy; the newer one wins.
   function load() {
-    fetch("status.json?t=" + Date.now(), { cache: "no-store" })
-      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+    get("status.json")
+      .then(function (j) {
+        if (!BACKUP || age(j) < STALE_MIN) return j;
+        return get(BACKUP).then(function (b) { return age(b) < age(j) ? b : j; }, function () { return j; });
+      }, function (e) { if (!BACKUP) throw e; return get(BACKUP); })
       .then(function (j) { data = j; failed = false; render(); })
       .catch(function () { failed = true; render(); });
   }

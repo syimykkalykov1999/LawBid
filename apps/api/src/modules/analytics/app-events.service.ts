@@ -6,6 +6,7 @@ import type {
   AppEventCountDto,
   AppEventInDto,
 } from './app-events.dto';
+import { ClientSliMetricsService } from './client-sli-metrics.service';
 
 const TOP = 15;
 
@@ -20,6 +21,8 @@ export class AppEventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly flags: FeatureFlagsService,
+    // Б6: client SLIs / web vitals go to the minute metric line, not the table.
+    private readonly clientSli: ClientSliMetricsService,
   ) {}
 
   async ingest(events: AppEventInDto[]): Promise<void> {
@@ -29,6 +32,7 @@ export class AppEventsService {
       { name: string; screen: string; n: number }
     >();
     for (const e of events.slice(0, 50)) {
+      if (this.clientSli.record(e.name)) continue;
       const screen = e.screen ?? '';
       const k = `${e.name}\u0000${screen}`;
       const cur = counts.get(k) ?? { name: e.name, screen, n: 0 };

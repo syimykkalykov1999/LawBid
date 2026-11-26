@@ -28,7 +28,18 @@ import type { AppEnv } from '../../config/env.schema';
  * (the real account stays there while the demo token is parked in the tab).
  */
 export const WEB_SESSION_HEADER = 'x-lawbid-web-session';
-export const WEB_SESSION_COOKIE = 'lb_rt';
+/**
+ * ASVS 5.0 V3.3.1 (STAGE2_SECURITY #1): on https the cookie carries the
+ * `__Secure-` prefix, so the browser accepts it only with `Secure` and from a
+ * secure origin (a sibling http page cannot plant or overwrite it). `__Host-`
+ * is ruled out: it demands `Path=/`, and this cookie is scoped to the auth
+ * routes. Plain-http local development keeps the bare name (a prefixed
+ * cookie without `Secure` is rejected by the browser).
+ */
+export const WEB_SESSION_COOKIE = '__Secure-lb_rt';
+/** The pre-prefix name. Read for one release so open browser sessions keep
+ * working, cleared on the next answer that sets the new one. */
+export const LEGACY_WEB_SESSION_COOKIE = 'lb_rt';
 export const WEB_SESSION_COOKIE_PATH = '/api/v1/auth';
 
 /** Value of one cookie from a raw `Cookie` header (no cookie-parser). */
@@ -101,27 +112,56 @@ export class WebSessionCookies {
     return (await this.cors.classify(req.header('origin'))) === 'web';
   }
 
-  /** The refresh token from the cookie, only for a web-session request. */
+  /** The refresh token from the cookie, only for a web-session request.
+   * The prefixed name wins; the legacy name is the one-release migration. */
   async fromRequest(req: Request): Promise<string | null> {
     if (!(await this.isWebSession(req))) return null;
-    return readCookie(req.header('cookie'), WEB_SESSION_COOKIE);
+    const header = req.header('cookie');
+    return (
+      readCookie(header, WEB_SESSION_COOKIE) ??
+      readCookie(header, LEGACY_WEB_SESSION_COOKIE)
+    );
   }
 
   set(req: Request, res: Response, refreshToken: string): void {
-    res.cookie(WEB_SESSION_COOKIE, refreshToken, this.options(req));
+    const name = this.name(req);
+    res.cookie(name, refreshToken, this.options(req));
+    // Migration: the browser still holds the old unprefixed cookie; drop it
+    // so the two never disagree after the next rotation.
+    if (
+      name !== LEGACY_WEB_SESSION_COOKIE &&
+      readCookie(req.header('cookie'), LEGACY_WEB_SESSION_COOKIE) !== null
+    ) {
+      this.expire(req, res, LEGACY_WEB_SESSION_COOKIE);
+    }
   }
 
   clear(req: Request, res: Response): void {
-    res.cookie(WEB_SESSION_COOKIE, '', { ...this.options(req), maxAge: 0 });
+    this.expire(req, res, this.name(req));
+    if (this.name(req) !== LEGACY_WEB_SESSION_COOKIE) {
+      this.expire(req, res, LEGACY_WEB_SESSION_COOKIE);
+    }
+  }
+
+  private expire(req: Request, res: Response, name: string): void {
+    res.cookie(name, '', { ...this.options(req), maxAge: 0 });
+  }
+
+  /** `__Secure-` needs `Secure`; plain-http dev keeps the bare name. */
+  private name(req: Request): string {
+    return this.secure(req) ? WEB_SESSION_COOKIE : LEGACY_WEB_SESSION_COOKIE;
+  }
+
+  private secure(req: Request): boolean {
+    return (
+      this.nodeEnv === 'production' || this.nodeEnv === 'staging' || req.secure
+    );
   }
 
   private options(req: Request) {
     return {
       httpOnly: true,
-      secure:
-        this.nodeEnv === 'production' ||
-        this.nodeEnv === 'staging' ||
-        req.secure,
+      secure: this.secure(req),
       sameSite: 'strict' as const,
       path: WEB_SESSION_COOKIE_PATH,
       // No maxAge: a browser-session cookie, like the sessionStorage it

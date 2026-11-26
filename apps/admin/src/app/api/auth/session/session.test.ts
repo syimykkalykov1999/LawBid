@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/api/server', () => ({
-  SESSION_COOKIE: 'lawbid_admin',
+  SESSION_COOKIE: '__Host-lawbid_admin',
+  LEGACY_SESSION_COOKIE: 'lawbid_admin',
   SESSION_MAX_AGE_SECONDS: 8 * 3600,
   apiBaseUrl: () => 'http://api.test/api/v1',
   cookieOptions: (maxAge: number) => ({
@@ -36,7 +37,9 @@ describe('admin session route (S18-12)', () => {
     );
     const res = await POST(post());
     const cookie = res.headers.get('set-cookie')!;
-    expect(cookie).toContain('lawbid_admin=jwt-secret');
+    expect(cookie).toContain('__Host-lawbid_admin=jwt-secret');
+    // #1: a pre-prefix cookie is dropped at sign-in.
+    expect(res.headers.getSetCookie()).toContainEqual(expect.stringMatching(/^lawbid_admin=;.*Max-Age=0/));
     expect(cookie).toMatch(/HttpOnly/i);
     expect(cookie).toMatch(/SameSite=strict/i);
     expect(cookie).toMatch(/Secure/i);
@@ -75,7 +78,8 @@ describe('admin session route (S18-12)', () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(res.headers.get('set-cookie')).toMatch(/lawbid_admin=;/);
-    expect(res.headers.get('set-cookie')).toMatch(/Max-Age=0/);
+    const set = res.headers.getSetCookie();
+    expect(set).toContainEqual(expect.stringMatching(/^__Host-lawbid_admin=;.*Max-Age=0/));
+    expect(set).toContainEqual(expect.stringMatching(/^lawbid_admin=;.*Max-Age=0/));
   });
 });

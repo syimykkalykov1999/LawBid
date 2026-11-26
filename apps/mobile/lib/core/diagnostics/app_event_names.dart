@@ -1,3 +1,5 @@
+import 'package:lawbid/core/diagnostics/client_sli.dart';
+
 /// Owner 2026-10-22 (checklist §18): every product event the app sends,
 /// named exactly as docs/analytics_events.md lists them. The test
 /// test/core/diagnostics/app_event_names_test.dart compares this list with
@@ -41,6 +43,47 @@ abstract final class AppEventNames {
   static const hotlineReview = 'hotline_review';
   static const hotlineOfferCase = 'hotline_offer_case';
 
+  /// Б6 (25.11): the six SLO flows as the person sees them
+  /// (core/diagnostics/client_sli.dart): `sli_<flow>_<ok|slow|fail>`.
+  static String sli(SliFlow flow, SliOutcome outcome) =>
+      'sli_${flow.name}_${outcome.name}';
+
+  /// Every `sli_*` name [sli] can give (login, pay, call and push have no
+  /// «slow»: only the feed and sending a message have a time goal).
+  static const sliNames = <String>{
+    'sli_login_ok',
+    'sli_login_fail',
+    'sli_feed_ok',
+    'sli_feed_slow',
+    'sli_feed_fail',
+    'sli_message_ok',
+    'sli_message_slow',
+    'sli_message_fail',
+    'sli_pay_ok',
+    'sli_pay_fail',
+    'sli_call_ok',
+    'sli_call_fail',
+    'sli_push_ok',
+    'sli_push_fail',
+  };
+
+  /// Б6 / G8: the website's Core Web Vitals rating, sent by
+  /// web/js/web_vitals_beacon.js (web-vitals 6.2.3), not by Dart code.
+  static const webVitalNames = <String>{
+    'web_vital_lcp_good',
+    'web_vital_lcp_ni',
+    'web_vital_lcp_poor',
+    'web_vital_inp_good',
+    'web_vital_inp_ni',
+    'web_vital_inp_poor',
+    'web_vital_cls_good',
+    'web_vital_cls_ni',
+    'web_vital_cls_poor',
+    'web_vital_ttfb_good',
+    'web_vital_ttfb_ni',
+    'web_vital_ttfb_poor',
+  };
+
   /// Every name the app can send (the document must list each one).
   static const all = <String>{
     hotlineRequest,
@@ -67,5 +110,7 @@ abstract final class AppEventNames {
     appUpdatePrompted,
     reviewPrompted,
     postNotInterested,
+    ...sliNames,
+    ...webVitalNames,
   };
 }
