@@ -8,6 +8,7 @@ import { AnalyticsController } from './analytics.controller';
 import { AppEventsController } from './app-events.controller';
 import { AppEventsService } from './app-events.service';
 import { AnalyticsService } from './analytics.service';
+import { ClientSliMetricsService } from './client-sli-metrics.service';
 
 /**
  * Pack C (round 2 #8/#22, 25.11): the analytics services, provided ONCE.
@@ -17,7 +18,13 @@ import { AnalyticsService } from './analytics.service';
  */
 @Module({
   imports: [FeatureFlagsModule],
-  providers: [AnalyticsService, AppEventsService, AnalyticsConsentService],
+  providers: [
+    AnalyticsService,
+    AppEventsService,
+    AnalyticsConsentService,
+    // Б6: client SLIs and web vitals (minute log line, no table).
+    ClientSliMetricsService,
+  ],
   exports: [AnalyticsService, AppEventsService, AnalyticsConsentService],
 })
 export class AnalyticsCoreModule {}

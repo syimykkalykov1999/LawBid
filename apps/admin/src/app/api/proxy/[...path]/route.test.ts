@@ -7,6 +7,7 @@ vi.mock('@/lib/api/server', () => ({
   apiBaseUrl: () => 'http://api.test',
   cookieOptions: () => ({ path: '/', maxAge: 0 }),
   sessionToken: async () => 'tok',
+  sessionCookie: async () => ({ token: 'tok', legacy: false }),
 }));
 
 const UPSTREAM_TIMEOUT_MS = 120_000;

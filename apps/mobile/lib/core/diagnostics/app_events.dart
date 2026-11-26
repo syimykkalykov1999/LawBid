@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/diagnostics/app_event_names.dart';
+import 'package:lawbid/core/diagnostics/client_sli.dart';
 import 'package:lawbid/core/network/request_priority.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -69,6 +70,15 @@ class AppEvents {
       }
     }
     if (granted != true) instance?._write([]);
+    _syncWebVitals();
+  }
+
+  /// Б6 / G8: the website's Core Web Vitals glue may send only with the
+  /// same consent and switches as these events (a no-op off the web).
+  static void _syncWebVitals() {
+    final self = instance;
+    if (self == null) return;
+    ClientSli.syncWebVitals(apiBaseUrl: self._dio.options.baseUrl);
   }
 
   /// The saved answer of this device (null = never answered).
@@ -117,6 +127,8 @@ class AppEvents {
     if (_consent != true) events._write([]);
     events._observer = _Lifecycle(events);
     WidgetsBinding.instance.addObserver(events._observer!);
+    ClientTuning.onApplied = _syncWebVitals;
+    _syncWebVitals();
     track(AppEventNames.appOpen);
   }
 
