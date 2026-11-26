@@ -1071,9 +1071,13 @@ export class AdminAuthService {
     );
     if (ip) await this.limit(['admin-recover-q', 'ip', ip], 20);
     const cred = await this.findSuperCredential(normalized);
+    // Review of #1340: no question set = nothing to recover with. Check it
+    // BEFORE the second factor, so a recovery code is never spent on a
+    // request that is refused anyway.
     const ok =
       cred !== null &&
       cred.totp_enabled_at !== null &&
+      Boolean(cred.security_question) &&
       (await this.secondFactorForRecovery(cipher, cred, code.trim()));
     if (cred) {
       await this.audit.record({

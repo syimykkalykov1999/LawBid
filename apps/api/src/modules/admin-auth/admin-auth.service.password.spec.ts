@@ -10,7 +10,12 @@ const SECRET = 'JBSWY3DPEHPK3PXP';
 const cipher = new SecretCipher(KEY);
 
 async function build(
-  opts: { role?: string; status?: string; totp?: boolean } = {},
+  opts: {
+    role?: string;
+    status?: string;
+    totp?: boolean;
+    question?: boolean;
+  } = {},
 ) {
   const passwordHash = await hashSecret('Right-pass-2026');
   const answerHash = await hashSecret('мой ответ');
@@ -30,8 +35,9 @@ async function build(
           return Promise.resolve({
             user_id: 'u1',
             password_hash: passwordHash,
-            security_question: 'Кого ты любил?',
-            security_answer_hash: answerHash,
+            security_question:
+              opts.question === false ? null : 'Кого ты любил?',
+            security_answer_hash: opts.question === false ? null : answerHash,
             totp_enabled_at: opts.totp === false ? null : new Date(),
             totp_secret_enc: cipher.encrypt(SECRET, 'u1'),
             user,
@@ -191,6 +197,16 @@ describe('AdminAuthService recovery by security question', () => {
     await expect(
       svc.recoverQuestion('boss', 'abcd-efgh-ijkl', null),
     ).rejects.toMatchObject({ response: { code: 'ADMIN_RECOVERY_FAILED' } });
+  });
+
+  it('O2: no question set = refused BEFORE the recovery code is spent', async () => {
+    const { svc, prisma } = await build({ question: false });
+    const spend = jest.fn().mockResolvedValue([{ left: 9 }]);
+    (prisma as unknown as { $queryRaw: jest.Mock }).$queryRaw = spend;
+    await expect(
+      svc.recoverQuestion('boss', 'abcd-efgh-ijkl', null),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_RECOVERY_FAILED' } });
+    expect(spend).not.toHaveBeenCalled();
   });
 
   it('O2: no authenticator set up = no recovery at all', async () => {
