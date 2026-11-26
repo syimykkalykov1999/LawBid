@@ -6,13 +6,13 @@ import {
   OnModuleInit,
   Optional,
 } from '@nestjs/common';
-import { Prisma, PrismaClient } from '../generated/prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { queryTap } from './query-tap';
 import {
   newSecretOmittingClient,
   SECRET_COLUMNS_OMIT,
   SecretOmittingClient,
-  SecretOmittingOptions,
+  SecretOmittingPrismaClient,
 } from './secret-columns';
 import { demoContext } from '../common/demo/demo-context';
 import { withPoolerRouting } from './pooler-url';
@@ -185,14 +185,13 @@ export const PRISMA_ENV = Symbol('PRISMA_ENV');
 
 /**
  * S10 (#17): the class is the Prisma client typed with the global omit of
- * secret-columns.ts (the construct signature's own `Options` type argument,
- * the same inference `new PrismaClient({ omit })` does), so every delegate,
+ * secret-columns.ts (SecretOmittingPrismaClient), so every delegate,
  * `$transaction` client and extension knows those columns are absent unless
  * a query selects them.
  */
 @Injectable()
 export class PrismaService
-  extends PrismaClient<SecretOmittingOptions>
+  extends SecretOmittingPrismaClient
   implements OnModuleInit, OnApplicationShutdown
 {
   /**
@@ -456,7 +455,7 @@ export class PrismaService
         if (prop === ROUTING) return control;
         if (prop === 'onModuleInit') {
           return async () => {
-            await (real as unknown as PrismaClient).$connect();
+            await (real as unknown as SecretOmittingClient).$connect();
             // F7 (14.11): open the pool before the task listens (main.ts
             // calls listen() only after every onModuleInit), so the ALB
             // /health/live check and the first requests find connections.
@@ -482,7 +481,7 @@ export class PrismaService
         if (prop === 'onModuleDestroy') return undefined;
         if (prop === 'onApplicationShutdown') {
           return async () => {
-            await (real as unknown as PrismaClient).$disconnect();
+            await (real as unknown as SecretOmittingClient).$disconnect();
             await control.disconnectShardDatabases();
             await control.disconnectDemo();
           };

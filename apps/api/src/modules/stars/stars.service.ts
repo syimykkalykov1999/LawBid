@@ -262,7 +262,7 @@ export class StarsService {
     if (readsAreSplit(this.prisma)) {
       return shardContext.runOnPrimary(() =>
         this.prisma.$transaction((g) =>
-          this.creditIn(g as Tx, userId, amount, kind, idemKey, opts),
+          this.creditIn(g, userId, amount, kind, idemKey, opts),
         ),
       );
     }
@@ -323,7 +323,7 @@ export class StarsService {
     if (readsAreSplit(this.prisma)) {
       return shardContext.runOnPrimary(() =>
         this.prisma.$transaction((g) =>
-          this.debitIn(g as Tx, userId, amount, kind, idemKey, opts),
+          this.debitIn(g, userId, amount, kind, idemKey, opts),
         ),
       );
     }
@@ -766,7 +766,7 @@ export class StarsService {
     // global — one primary transaction, so a refused charge leaves no gift.
     if (readsAreSplit(this.prisma)) {
       return shardContext.runOnPrimary(() =>
-        this.prisma.$transaction((g) => this.giveGiftIn(g as Tx, a)),
+        this.prisma.$transaction((g) => this.giveGiftIn(g, a)),
       );
     }
     return this.giveGiftIn(tx, a);
@@ -823,7 +823,7 @@ export class StarsService {
    */
   async undoGift(sendId: string): Promise<boolean> {
     const run = () =>
-      this.prisma.$transaction((g) => this.undoGiftIn(g as Tx, sendId));
+      this.prisma.$transaction((g) => this.undoGiftIn(g, sendId));
     return readsAreSplit(this.prisma) ? shardContext.runOnPrimary(run) : run();
   }
 

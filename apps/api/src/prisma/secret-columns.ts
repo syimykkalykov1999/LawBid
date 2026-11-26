@@ -1,5 +1,8 @@
-import type { ITXClientDenyList } from '@prisma/client/runtime/client';
-import { PrismaClient } from '../generated/prisma/client';
+import type {
+  ITXClientDenyList,
+  UnwrapTuple,
+} from '@prisma/client/runtime/client';
+import { Prisma, PrismaClient } from '../generated/prisma/client';
 import type {
   AdminCredential,
   AssistantMembership,
@@ -53,20 +56,42 @@ export const SECRET_COLUMNS_OMIT = {
   outreachLead: { unsubscribe_token_hash: true },
 } as const;
 
-/** The options type every application client is built with. */
-export type SecretOmittingOptions = {
-  adapter: ReturnType<typeof pgAdapter>;
-  omit: typeof SECRET_COLUMNS_OMIT;
+/** Prisma's own client type with the global omit (delegates, `$extends`). */
+type OmittingBase = PrismaClient<never, typeof SECRET_COLUMNS_OMIT>;
+
+type TxOptions = {
+  maxWait?: number;
+  timeout?: number;
+  isolationLevel?: Prisma.TransactionIsolationLevel;
 };
 
-/** A Prisma client that leaves the secret columns out unless asked. */
-export type SecretOmittingClient = PrismaClient<
-  never,
-  typeof SECRET_COLUMNS_OMIT
->;
+/**
+ * A Prisma client that leaves the secret columns out unless asked.
+ *
+ * Prisma 7's generated `$transaction(fn)` hands `fn` the DEFAULT client type
+ * (`Omit<PrismaClient, ITXClientDenyList>`, no global omit), so a callback's
+ * `tx` would claim the secret columns are there, and every `tx` passed on to
+ * a `DbTx` helper made tsc build and compare a second full copy of the
+ * generated delegate types (#1345: 2.4M -> 4.8M types, lint OOM). The one
+ * method is re-typed here so every client, transaction and helper uses this
+ * single omit-typed tree.
+ */
+export interface SecretOmittingClient extends Omit<
+  OmittingBase,
+  '$transaction'
+> {
+  $transaction<P extends Prisma.PrismaPromise<unknown>[]>(
+    arg: [...P],
+    options?: TxOptions,
+  ): Promise<UnwrapTuple<P>>;
+  $transaction<R>(
+    fn: (tx: DbTx) => Promise<R>,
+    options?: TxOptions,
+  ): Promise<R>;
+}
 
 /**
- * The client a `$transaction(async (tx) => ...)` callback gets from it: the
+ * The client a `$transaction(async (tx) => ...)` callback gets: the
  * application's own `Prisma.TransactionClient`. Prisma's generated
  * `Prisma.TransactionClient` is typed WITHOUT the global omit, so it would
  * claim a secret column is in a result it is not in (secret-columns.spec.ts
@@ -75,13 +100,26 @@ export type SecretOmittingClient = PrismaClient<
 export type DbTx = Omit<SecretOmittingClient, ITXClientDenyList>;
 
 /**
+ * The PrismaClient class typed as SecretOmittingClient. Cast through
+ * `unknown` on purpose: a checked cast would make tsc compare the omit-typed
+ * and the default delegate trees structurally, the cost this file avoids.
+ * The runtime class is Prisma's own; only the type is narrowed.
+ */
+export const SecretOmittingPrismaClient = PrismaClient as unknown as new (
+  options: Prisma.PrismaClientOptions & {
+    adapter: ReturnType<typeof pgAdapter>;
+    omit: typeof SECRET_COLUMNS_OMIT;
+  },
+) => SecretOmittingClient;
+
+/**
  * A raw client of one physical database with the secret columns omitted
  * (the primary's shard and demo clients, the read copies).
  */
 export function newSecretOmittingClient(
   adapter: ReturnType<typeof pgAdapter>,
 ): SecretOmittingClient {
-  return new PrismaClient({ adapter, omit: SECRET_COLUMNS_OMIT });
+  return new SecretOmittingPrismaClient({ adapter, omit: SECRET_COLUMNS_OMIT });
 }
 
 type Omitted<M extends keyof typeof SECRET_COLUMNS_OMIT> =

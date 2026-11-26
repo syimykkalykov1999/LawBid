@@ -45,6 +45,8 @@ const NOT_SECRET_COLUMNS: Readonly<Record<string, string>> = {
   'CrossFamilyInbox.idempotency_key': 'idempotency id of an outbox message',
   'CrossFamilyOutbox.idempotency_key': 'idempotency id of an outbox message',
   'DomainEvent.idempotency_key': 'idempotency id of a domain event',
+  'E2eeBackup.key_id':
+    'HMAC id of the backup key (the key itself stays on the phone); sent back to its owner',
   'EmailTemplate.key': 'name of an e-mail template',
   'Experiment.hash_version': 'bucketing version number',
   'Experiment.key': 'name of an experiment',
