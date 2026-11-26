@@ -29,6 +29,10 @@ import {
   PostFanoutService,
   type PostFanoutJob,
 } from './post-fanout.service';
+import {
+  queueConcurrency,
+  trackConcurrency,
+} from '../../common/queues/queue-concurrency';
 
 export const POST_FANOUT_OPTIONS = Symbol('POST_FANOUT_OPTIONS');
 
@@ -76,9 +80,10 @@ export class PostFanoutWorker
       {
         ...bullOptions(POST_FANOUT_QUEUE, url, { worker: true }),
         ...workerTuning(POST_FANOUT_QUEUE),
-        concurrency: 4,
+        concurrency: queueConcurrency(POST_FANOUT_QUEUE),
       },
     );
+    trackConcurrency(this.worker);
     this.worker.on('failed', (job, error) => {
       this.logger.error(
         { postId: job?.data.postId, err: error.message },

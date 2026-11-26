@@ -1952,6 +1952,24 @@ export const OWNER_OPS_SETTINGS = {
   'ops.cron_lane_concurrency_default': 1,
   'ops.cron_lane_concurrency_heavy_frequent': 1,
   'ops.cron_lane_concurrency_heavy': 1,
+  // THIRD_PASS_A Q5 (26.11): jobs each queue worker runs at once in one
+  // process (common/queues/queue-concurrency.ts), applied to the running
+  // workers within 30 s; whole number >= 1, no ceiling (owner 26.11).
+  // Defaults = the built-in values.
+  'ops.queue_concurrency_account_deletion': 2,
+  'ops.queue_concurrency_admin_broadcast': 1,
+  'ops.queue_concurrency_case_fanout': 4,
+  'ops.queue_concurrency_case_history_export': 2,
+  'ops.queue_concurrency_channel_fanout': 4,
+  'ops.queue_concurrency_data_export': 2,
+  'ops.queue_concurrency_deal_record': 2,
+  'ops.queue_concurrency_files': 2,
+  'ops.queue_concurrency_media_moderation': 4,
+  'ops.queue_concurrency_post_fanout': 4,
+  'ops.queue_concurrency_push': 20,
+  'ops.queue_concurrency_registry_checks': 4,
+  'ops.queue_concurrency_stripe_webhooks': 4,
+  'ops.queue_concurrency_subscriptions': 2,
   // S20-8: ceiling of the message re-encryption pass, rows per minute
   // (0 = paused; the pass keeps its place).
   'ops.reencrypt_rows_per_min': 800,

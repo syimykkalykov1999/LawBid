@@ -19,6 +19,10 @@ import {
 } from './privacy.constants';
 import { bullOptions } from '../../redis/redis-connection';
 import { closeWorker, workerTuning } from '../../common/queues/queue-hardening';
+import {
+  queueConcurrency,
+  trackConcurrency,
+} from '../../common/queues/queue-concurrency';
 
 interface DeletionJobData {
   userId: string;
@@ -90,9 +94,10 @@ export class AccountDeletionRunner
       {
         ...bullOptions(ACCOUNT_DELETION_QUEUE, url, { worker: true }),
         ...workerTuning(ACCOUNT_DELETION_QUEUE),
-        concurrency: 2,
+        concurrency: queueConcurrency(ACCOUNT_DELETION_QUEUE),
       },
     );
+    trackConcurrency(this.worker);
     this.worker.on('failed', (job, error) => {
       if (!job) return;
       this.logger.error(

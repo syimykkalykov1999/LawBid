@@ -22,6 +22,10 @@ import {
   workerTuning,
   outageProof,
 } from '../../common/queues/queue-hardening';
+import {
+  queueConcurrency,
+  trackConcurrency,
+} from '../../common/queues/queue-concurrency';
 
 /** Owner 2026-10-22: the consumer of the `media-moderation` queue (the
  * worker process; the API too while JOBS_ENABLED, like the other queues).
@@ -61,9 +65,10 @@ export class MediaModerationRunner
       {
         ...bullOptions(MEDIA_MODERATION_QUEUE, url, { worker: true }),
         ...workerTuning(MEDIA_MODERATION_QUEUE),
-        concurrency: 4,
+        concurrency: queueConcurrency(MEDIA_MODERATION_QUEUE),
       },
     );
+    trackConcurrency(this.worker);
     // S10-6: the DB row (status hidden, not decided) is the truth; the
     // delayed rehide job is only a trigger. An hourly scheduler (one per id)
     // re-applies whatever a lost job would have.

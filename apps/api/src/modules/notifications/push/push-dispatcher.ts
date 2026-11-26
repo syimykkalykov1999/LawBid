@@ -90,6 +90,10 @@ import {
   closeWorker,
   workerTuning,
 } from '../../../common/queues/queue-hardening';
+import {
+  queueConcurrency,
+  trackConcurrency,
+} from '../../../common/queues/queue-concurrency';
 
 export interface PushModuleOptions {
   mode: 'api' | 'worker';
@@ -368,12 +372,13 @@ export class PushDispatcher
       {
         ...bullOptions(PUSH_QUEUE, url, { worker: true }),
         ...workerTuning(PUSH_QUEUE),
-        concurrency: 20,
+        concurrency: queueConcurrency(PUSH_QUEUE),
         // S10-5: ceiling under FCM's 10 000/s project quota; the admin
         // switch refreshes it every minute.
         limiter: { max: 8000, duration: 1000 },
       },
     );
+    trackConcurrency(this.worker);
     void this.applyRatePolicy();
     this.rateTimer = setInterval(() => void this.applyRatePolicy(), 60_000);
     this.rateTimer.unref();

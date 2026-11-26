@@ -32,6 +32,10 @@ import {
   isStalledFailure,
   workerTuning,
 } from '../../common/queues/queue-hardening';
+import {
+  queueConcurrency,
+  trackConcurrency,
+} from '../../common/queues/queue-concurrency';
 
 /** `{export}` hash tag: cluster-safe if more keys of this family appear. */
 const progressKey = (id: string) => `{export}:progress:${id}`;
@@ -92,9 +96,10 @@ export class DataExportRunner
       {
         ...bullOptions(DATA_EXPORT_QUEUE, url, { worker: true }),
         ...workerTuning(DATA_EXPORT_QUEUE),
-        concurrency: 2,
+        concurrency: queueConcurrency(DATA_EXPORT_QUEUE),
       },
     );
+    trackConcurrency(this.worker);
     this.worker.on('failed', (job: Job<ExportJobData> | undefined, error) => {
       if (!job) return;
       this.logger.error(
