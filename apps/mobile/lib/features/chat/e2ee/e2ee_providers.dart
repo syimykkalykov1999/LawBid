@@ -55,6 +55,7 @@ final e2eeServiceProvider = Provider<E2eeService?>((ref) {
   final owner = ref.watch(currentUserIdProvider);
   if (owner == null) {
     ChatMappers.e2eeOpen = null;
+    ChatMappers.e2eeLinkCard = null;
     return null;
   }
   final service = E2eeService(
@@ -88,10 +89,14 @@ final e2eeServiceProvider = Provider<E2eeService?>((ref) {
     },
   );
   ChatMappers.e2eeOpen = service.openCached;
+  ChatMappers.e2eeLinkCard = service.linkCardOf;
   // PR 4: the players and image loaders read encrypted files locally.
   E2eeMedia.resolve = service.mediaOf;
   ref.onDispose(() {
     if (ChatMappers.e2eeOpen == service.openCached) ChatMappers.e2eeOpen = null;
+    if (ChatMappers.e2eeLinkCard == service.linkCardOf) {
+      ChatMappers.e2eeLinkCard = null;
+    }
     if (E2eeMedia.resolve == service.mediaOf) E2eeMedia.resolve = null;
     E2eeMedia.clear();
     unawaited(service.close());

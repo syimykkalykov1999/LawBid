@@ -6,7 +6,17 @@
      data type is linked to the account and used only to run the app.
      OtherDataTypes = attorney license / ID document images and the
      verification selfie. Contacts = SHA-256 hashes of phone-book numbers
-     uploaded by the optional "Find people from your contacts" sync. Plugins (Flutter, Firebase, Stripe, …) ship
+     uploaded by the optional "Find people from your contacts" sync.
+     Third pass M15 (2026-11-26): PreciseLocation = the chat «Send my
+     location» card (core/addresses/current_location.dart, only when the
+     person taps it); CrashData / PerformanceData / OtherDiagnosticData =
+     the app's own crash reports (CrashReporter → /crash-reports, with the
+     X-Device-Key) and Sentry's native SDK (crashes, ANRs / app hangs,
+     sampled performance traces; sendDefaultPii off). Linked because the
+     reports carry the device key that is tied to the account; purpose App
+     Functionality (Apple: «minimize app crashes, improve scalability and
+     performance»). Sentry docs «Apple Privacy Manifest»: the app declares
+     what the SDK collects. Plugins (Flutter, Firebase, Stripe, …) ship
      their own manifests for the APIs they call. -->
 <plist version="1.0">
 <dict>
@@ -175,6 +185,54 @@
 		<dict>
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeOtherDataTypes</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePreciseLocation</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeCrashData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePerformanceData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherDiagnosticData</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
 			<true/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>

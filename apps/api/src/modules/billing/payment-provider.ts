@@ -456,6 +456,8 @@ export interface PaymentProvider {
     email: string | null;
     name: string | null;
     metadata: Record<string, string>;
+    /** Same key = the same customer (a parallel or retried create). */
+    idempotencyKey?: string;
   }): Promise<string>;
   /** The charge behind a connected payment (receipt, refunds, dispute). */
   retrieveConnectedCharge?(

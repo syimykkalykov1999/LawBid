@@ -22,7 +22,10 @@ import {
   type CaseListSort,
 } from './case-stages';
 import { ClientFraudService } from '../client-fraud/client-fraud.service';
-import { SubscriptionAlertsService } from '../notifications/subscription-alerts.service';
+import {
+  SubscriptionAlertsService,
+  type CaseAlertsTicket,
+} from '../notifications/subscription-alerts.service';
 import type {
   BudgetMode,
   Case,
@@ -504,6 +507,8 @@ export class CasesService {
 
     const tickets: Array<OutboxTicket | null> = [];
     const eventTickets: Array<DomainEventTicket | null | undefined> = [];
+    // THIRD_PASS_A X1: the alert round is recorded with the case.
+    let alertTicket: CaseAlertsTicket | undefined;
     // S3-5: the id is chosen here so the sealed details are bound to it.
     const newCaseId = randomUUID();
     const created = await withTxRetry(this.prisma, async (tx) => {
@@ -576,6 +581,13 @@ export class CasesService {
           { actorId: user.sub, key: `case.created:${kase.id}` },
         ),
       );
+      // Owner 2026-09-30: attorneys who turned "New cases" alerts on. A
+      // durable record in this transaction (X1), started after the commit.
+      alertTicket = await this.alerts?.recordCaseAlerts(
+        tx,
+        kase.id,
+        kase.alert_generation,
+      );
       if (!consentGranted) {
         // Shard-ready step 7: the consent is a global-family row written
         // next to a sharded one. On the primary database the outbox runs it
@@ -626,11 +638,9 @@ export class CasesService {
       user.sub,
       `${dto.title}\n${dto.description}`,
     );
-    // Owner 2026-09-30: attorneys who turned "New cases" alerts on.
-    const alerts = this.alerts;
-    alerts?.later(() => alerts.attorneysForCase(created.id), {
-      caseId: created.id,
-    });
+    // Owner 2026-09-30: attorneys who turned "New cases" alerts on (the
+    // round recorded in the transaction above, X1).
+    if (alertTicket) this.alerts?.flushCaseAlerts(alertTicket);
     try {
       await this.referrals?.onQualifyingEvent(user.sub, 'case_published');
     } catch {
@@ -946,7 +956,7 @@ export class CasesService {
 
       return { afterCase, realert };
     }).then((r) => {
-      if (r.realert) this.realertLater(caseId);
+      if (r.realert) this.realertLater(r.realert);
       return r.afterCase;
     });
 
@@ -1117,7 +1127,8 @@ export class CasesService {
     };
     if (urgent(before.urgency, before.deadlineAt)) return;
     if (!urgent(after.urgency, after.deadline_at)) return;
-    alerts.later(() => alerts.urgentTopUp(after.id), { caseId: after.id });
+    // X1: a durable record of the extra round, then started after it.
+    await alerts.recordAndFlushCaseAlerts(after.id, 'urgent_top_up');
   }
 
   /** PATCH /cases/:id/private-details — audit 2026-10-19: the client's
@@ -1235,7 +1246,7 @@ export class CasesService {
         (await this.bumpAlertGeneration(tx, caseId));
       return { afterCase, realert };
     });
-    if (updated.realert) this.realertLater(caseId);
+    if (updated.realert) this.realertLater(updated.realert);
     return this.toFullDto(updated.afterCase);
   }
 
@@ -1308,7 +1319,7 @@ export class CasesService {
         (await this.bumpAlertGeneration(tx, caseId));
       return { afterCase, realert };
     });
-    if (updated.realert) this.realertLater(caseId);
+    if (updated.realert) this.realertLater(updated.realert);
     return this.toFullDto(updated.afterCase);
   }
 
@@ -1334,21 +1345,28 @@ export class CasesService {
   }
 
   /** Bumps `cases.alert_generation` inside the change's transaction, so
-   * the new alert round has its own dedupe key and job id (M-2). */
+   * the new alert round has its own dedupe key and job id (M-2), and
+   * records that round in the same transaction (X1, transactional outbox). */
   private async bumpAlertGeneration(
     tx: DbTx,
     caseId: string,
-  ): Promise<boolean> {
-    await tx.case.update({
+  ): Promise<CaseAlertsTicket> {
+    const row = await tx.case.update({
       where: { id: caseId },
       data: { alert_generation: { increment: 1 } },
+      select: { alert_generation: true },
     });
-    return true;
+    return (
+      (await this.alerts?.recordCaseAlerts(
+        tx,
+        caseId,
+        row.alert_generation,
+      )) ?? { caseId, mode: 'start', ticket: null }
+    );
   }
 
-  private realertLater(caseId: string): void {
-    const alerts = this.alerts;
-    alerts?.later(() => alerts.attorneysForCase(caseId), { caseId });
+  private realertLater(ticket: CaseAlertsTicket): void {
+    this.alerts?.flushCaseAlerts(ticket);
   }
 
   /** The shared body of «Да, нужен» / «Жду…» / «Сменить на «Не срочно»»:

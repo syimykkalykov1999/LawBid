@@ -105,6 +105,44 @@ void main() {
     );
   });
 
+  /// Third pass M15: every data type the app sends is declared — the chat
+  /// «Send my location» card and the crash / diagnostics reports.
+  test('iOS: privacy manifest declares location and diagnostics', () {
+    final manifest = read('ios/Runner/PrivacyInfo.xcprivacy');
+    for (final type in [
+      'PreciseLocation',
+      'CrashData',
+      'PerformanceData',
+      'OtherDiagnosticData',
+    ]) {
+      expect(manifest, contains('NSPrivacyCollectedDataType$type<'));
+    }
+  });
+
+  /// Third pass M16 (ITMS-91053 covers app extensions too): the push
+  /// extension reads the App Group defaults, so it ships its own manifest
+  /// with reason 1C8F.1, bundled in the extension's Resources phase.
+  test('iOS: the push extension has its own privacy manifest', () {
+    final manifest = read('ios/NotificationService/PrivacyInfo.xcprivacy');
+    expect(manifest, contains('NSPrivacyAccessedAPICategoryUserDefaults'));
+    expect(manifest, contains('<string>1C8F.1</string>'));
+    final project = read('ios/Runner.xcodeproj/project.pbxproj');
+    final phase = RegExp(
+      r'C9946C6343C9994F1B9C40FB /\* Resources \*/ = \{[^}]*\}',
+    ).firstMatch(project);
+    expect(phase, isNotNull);
+    expect(phase!.group(0), contains('PrivacyInfo.xcprivacy in Resources'));
+  });
+
+  /// Third pass M20: one line per permission.
+  test('Android: no duplicate uses-permission lines', () {
+    final names = RegExp('<uses-permission android:name="([^"]+)"')
+        .allMatches(read('android/app/src/main/AndroidManifest.xml'))
+        .map((m) => m.group(1))
+        .toList();
+    expect(names.toSet().length, names.length);
+  });
+
   test('iOS: push entitlement present', () {
     expect(
       read('ios/Runner/Runner.entitlements'),

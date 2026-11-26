@@ -86,9 +86,12 @@ Review notes (paste as is, codes filled in):
 - Purchases: Purchase History
 - Usage Data: Product Interaction
 - Other Data: Other Data Types (attorney license / ID images, verification selfie)
+- Location: **Precise Location** (chat «Send my location» card, only when the person taps it)
+- Diagnostics: **Crash Data**, **Performance Data**, **Other Diagnostic Data** (the app's own crash reports and Sentry's native SDK: crashes, ANRs / app hangs, sampled performance traces; no user name, no IP from the SDK)
 
-Not collected: location, health, financial info, browsing/search
-history, advertising data, diagnostics (the app has no analytics or crash SDK).
+Not collected: coarse location, health, financial info, browsing/search
+history, advertising data. (Third pass M15, 2026-11-26: location and
+diagnostics were missing here and in PrivacyInfo.xcprivacy.)
 
 ## 5. Google Play Data safety
 
@@ -104,7 +107,9 @@ history, advertising data, diagnostics (the app has no analytics or crash SDK).
   - App activity: App interactions, Other user-generated content — optional
   - Contacts — optional (hashed phone numbers, App functionality)
   - Device or other IDs — required
-- Not collected: location, calendar, health, web browsing, crash logs, diagnostics.
+  - Location: Precise location — optional (chat «Send my location»)
+  - App info and performance: Crash logs, Diagnostics — required (App functionality)
+- Not collected: approximate location, calendar, health, web browsing.
 
 ## 6. Age rating
 

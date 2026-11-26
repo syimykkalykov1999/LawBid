@@ -1,5 +1,8 @@
-import { Inject, Injectable } from '@nestjs/common';
-import type { ThrottlerStorage } from '@nestjs/throttler';
+import { Inject, Injectable, type OnApplicationShutdown } from '@nestjs/common';
+import {
+  ThrottlerStorageService,
+  type ThrottlerStorage,
+} from '@nestjs/throttler';
 import type { ThrottlerStorageRecord } from '@nestjs/throttler/dist/throttler-storage-record.interface';
 import type Redis from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
@@ -30,10 +33,18 @@ import { ck } from '../redis/redis-cluster-safe';
  * A block key with more time left than the current blockDuration is
  * dropped and the request is counted normally.
  *
- * Fails OPEN: if Redis is unreachable the request is let through with a
- * warning (alert `throttler_unavailable`) instead of turning a Redis blip
- * into a full API outage. Paid provider calls stay protected by
- * CostGuardService, which fails closed.
+ * Redis unreachable: the request is NOT turned into an error (a Redis blip
+ * must not become a full API outage) and is NOT let through unlimited
+ * either. THIRD_PASS_A R2 (26.11): before, it was fully open (`totalHits:
+ * 0`), so during a Redis outage login, OTP and password reset had no
+ * brute-force limit at all. Now the same limit is counted in this task's
+ * memory by @nestjs/throttler's own `ThrottlerStorageService` (MIT, already
+ * a dependency): the local + global pattern of Envoy (a local token bucket
+ * in every proxy next to the shared global limiter). Per task the limit can
+ * only be looser than the shared one (each task sees a part of a client's
+ * requests), so no legitimate user is limited more than with Redis. The
+ * warning (alert `throttler_unavailable`) stays. Paid provider calls stay
+ * protected by CostGuardService, which fails closed.
  */
 /**
  * Load audit 6 (2026-10-23): the check used to be two round trips and six
@@ -102,7 +113,13 @@ export function slidingRate(
 }
 
 @Injectable()
-export class RedisThrottlerStorageService implements ThrottlerStorage {
+export class RedisThrottlerStorageService
+  implements ThrottlerStorage, OnApplicationShutdown
+{
+  /** R2: the per-task limit while Redis is unreachable. */
+  private readonly local = new ThrottlerStorageService();
+  private lastWarnAt = 0;
+
   constructor(
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
     private readonly logger: PinoLogger,
@@ -126,21 +143,39 @@ export class RedisThrottlerStorageService implements ThrottlerStorage {
         throttlerName,
       );
     } catch (err) {
+      // One warning a minute per task while Redis is down (like
+      // RateLimitService): not one log line per request of an outage.
+      const now = Date.now();
+      if (now - this.lastWarnAt < 60_000) {
+        return this.local.increment(
+          key,
+          ttl,
+          limit,
+          blockDuration,
+          throttlerName,
+        );
+      }
+      this.lastWarnAt = now;
       this.logger.warn(
         {
           err,
           throttlerName,
           alert: 'throttler_unavailable',
         },
-        'Throttler cannot reach Redis — allowing request (fail open)',
+        'Throttler cannot reach Redis — counting in this task (in-memory limit)',
       );
-      return {
-        totalHits: 0,
-        timeToExpire: Math.ceil(ttl / 1000),
-        isBlocked: false,
-        timeToBlockExpire: 0,
-      };
+      return this.local.increment(
+        key,
+        ttl,
+        limit,
+        blockDuration,
+        throttlerName,
+      );
     }
+  }
+
+  onApplicationShutdown(): void {
+    this.local.onApplicationShutdown();
   }
 
   /** The one-call script; undefined on a client without defineCommand
