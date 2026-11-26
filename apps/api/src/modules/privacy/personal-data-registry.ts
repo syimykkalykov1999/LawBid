@@ -58,9 +58,9 @@ export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   PushToken: ['user_id'],
   VoipToken: ['user_id'],
   // Item 25 (E2EE): the person's MLS devices (their KeyPackages go with
-  // them, FK cascade) and their places in chat groups.
+  // them, FK cascade). Their places in chat groups are NOT swept: see
+  // MlsGroupDevice under `pseudonymize`.
   MlsDevice: ['user_id'],
-  MlsGroupDevice: ['user_id'],
   SavedItem: ['user_id'],
   SavedChatMessage: ['user_id'],
   QuickReply: ['user_id'],
@@ -192,6 +192,12 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'DemoAccount',
     ),
     pseudonymize: list(
+      // Item 25 (E2EE): a place in a chat's MLS group holds only ids. It
+      // stays (pointing at the pseudonymized user) until a member's commit
+      // removes that device (RFC 9420 §12.1.3 Remove); deleting the row
+      // first would leave the device in the group for good, because the
+      // Delivery Service refuses a Remove of a device it does not know.
+      'MlsGroupDevice',
       'StickerPack',
       'CallParticipant',
       'ConversationParticipant',

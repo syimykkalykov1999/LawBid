@@ -348,6 +348,18 @@ describe('End-to-end encrypted chats on MLS (e2e, item 25)', () => {
     );
   });
 
+  it('KeyPackages: a device already in the group cannot be claimed (RFC 9750 §6.3 exhaustion)', async () => {
+    const { chat, alice, bob } = await encryptedPair();
+    const res = await alice.http.post(
+      `/api/v1/e2ee/conversations/${chat.id}/key-packages/claim`,
+      { deviceIds: [bob.deviceId] },
+    );
+    expect(res.status).toBe(400);
+    expect((res.body as { error: { code: string } }).error.code).toBe(
+      'E2EE_MEMBERSHIP_INVALID',
+    );
+  });
+
   it('KeyPackages: only for the device’s own identity; one claim takes one, the last resort stays', async () => {
     const chat = await caseChat();
     const alice = new MlsDeviceClient(

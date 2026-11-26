@@ -1,3 +1,4 @@
+import { Throttle } from '@nestjs/throttler';
 import {
   Body,
   Controller,
@@ -160,6 +161,9 @@ export class E2eeController {
   }
 
   @Post('conversations/:id/key-packages/claim')
+  // RFC 9750 §6.3: a per-person limit on claims (a real add takes one
+  // claim per commit), so nobody drains another person's KeyPackages.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @HttpCode(200)
   @ApiOperation({ summary: 'One KeyPackage per device to add' })
   @ApiEnvelopeResponse(ClaimedKeyPackageDto, { isArray: true })
