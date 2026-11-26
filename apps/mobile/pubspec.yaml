@@ -208,6 +208,10 @@ dependencies:
   # Item 25: the blurhash preview inside an encrypted photo's message
   # (WhatsApp sends a thumbnail inside the encryption; MIT, encoder only).
   blurhash_dart: ^1.2.1
+  # Third pass S3 (26.11): the sender's phone reads a link's Open Graph tags
+  # for an end-to-end encrypted chat (WhatsApp whitepaper «Link previews»);
+  # dart-lang's HTML5 parser (BSD-3), already in the tree.
+  html: ^0.15.7
   fl_chart: ^1.3.0
   desktop_drop: ^0.8.4
   battery_plus: ^7.1.2
