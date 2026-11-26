@@ -27,11 +27,7 @@ LOCK=${HEAVY_LOCK_DIR:-/tmp/lawbid-heavy.lock}
 # a job may run in LOCK2 when lane 1 is busy, free RAM >= LANE2_MIN_RAM %, and
 # neither job is a `git commit` (pre-commit lint uses an 8 GB heap).
 LOCK2=${LOCK}2
-<<<<<<< origin/main
 LANE2_MIN_RAM=${HEAVY_LANE2_MIN_RAM:-101} # 25.11: Mac dipped to 33 % with two lanes; one heavy lane only
-=======
-LANE2_MIN_RAM=${HEAVY_LANE2_MIN_RAM:-65}
->>>>>>> 8433f6221
 STALE_MIN=${HEAVY_STALE_MIN:-120}
 POLL=${HEAVY_POLL_SECONDS:-3}
 
@@ -142,12 +138,9 @@ start=$(date +%s)
 lastsay=0
 while :; do
   sweep
-<<<<<<< origin/main
   # Self-heal: if another process removed our live ticket, put it back with the
   # same name so we keep our place instead of waiting forever.
   [ -e "$TICKET" ] || printf '%s\n%s\n' "$$" "$*" > "$TICKET"
-=======
->>>>>>> 8433f6221
   me=$(basename "$TICKET"); first=$(first_ticket); second=$(ls "$Q" 2>/dev/null | sort | sed -n 2p)
   if [ "$first" = "$me" ] && mkdir "$LOCK" 2>/dev/null; then
     HAVE_LOCK=1

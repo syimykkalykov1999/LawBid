@@ -43,9 +43,7 @@ class ContactActions extends ConsumerWidget {
         }
         return;
       }
-      await ref
-          .read(callControllerProvider.notifier)
-          .call(
+      await ref.read(callControllerProvider.notifier).call(
             conv.id,
             peer: CallPeer(
               id: contact.userId,

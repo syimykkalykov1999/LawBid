@@ -26,10 +26,6 @@
 | 8 | Уведомления и push (notifications, counters) · Контакты (contacts-sync) · Рефералы/награды/промо/партнёры (referrals, rewards, promotions, partners, country-partners) | ⏳ |
 | 9 | Оплата (billing, subscriptions, plans, case-payments, ledger, treasury) · Отзывы и доверие (reviews, client-reviews, attorney-trust, client-badge) · Фирмы (firms, workspace) | ⏳ |
 | 10 | Поддержка (support) · Жалобы и модерация (reports, moderation, media-moderation, client-fraud) · Приватность (privacy: выгрузка/удаление), crash-reports, analytics, journal | ⏳ |
-<<<<<<< origin/main
 | 11 | Админка — только проверка остальных разделов (кроме 23 «Авто» — их не трогать) | готово: [`VERIFY_batch11_admin_2026-11-18.md`](VERIFY_batch11_admin_2026-11-18.md) |
-=======
-| 11 | Админка — только проверка остальных разделов (кроме 23 «Авто» — их не трогать) | ⏳ |
->>>>>>> 8433f6221
 | 12 | Версии всего + лицензии всех библиотек (пункт 232) | ⏳ |
 | 13 | В целом: база (дубликаты, индексы, размер), кэш, серверы, очереди — итог | ⏳ |

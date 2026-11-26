@@ -172,8 +172,7 @@ class ContactsBookSync {
         a,
         math.min(a + size - rPart.length, added.length),
       );
-      final last =
-          r + rPart.length >= removed.length &&
+      final last = r + rPart.length >= removed.length &&
           a + aPart.length >= added.length;
       final ContactsSyncAnswer ans;
       try {

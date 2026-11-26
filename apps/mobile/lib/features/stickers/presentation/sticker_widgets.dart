@@ -45,10 +45,8 @@ class StickerImage extends StatelessWidget {
       dimension: size,
       child: url == null
           ? Center(
-              child: Text(
-                sticker.emoji,
-                style: TextStyle(fontSize: size * 0.55),
-              ),
+              child:
+                  Text(sticker.emoji, style: TextStyle(fontSize: size * 0.55)),
             )
           : CachedNetworkImage(
               imageUrl: url,
@@ -116,9 +114,6 @@ class StickerPanel extends ConsumerStatefulWidget {
 
   static const height = 300.0;
 
-  /// The keyboard's height when known, so the swap does not jump.
-  final double? panelHeight;
-
   @override
   ConsumerState<StickerPanel> createState() => _StickerPanelState();
 }
@@ -173,8 +168,8 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
                 child: _gifts && widget.onGift != null
                     ? GiftPicker(onGift: widget.onGift!)
                     : _stickers
-                    ? _stickerView(t, colors, type)
-                    : _emojiView(),
+                        ? _stickerView(t, colors, type)
+                        : _emojiView(),
               ),
               Container(
                 height: 44,
@@ -237,53 +232,54 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
     VoidCallback tap,
     AppColorTokens colors,
     AppTypographyTokens type,
-  ) => AppPressable(
-    onTap: tap,
-    child: Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppSpacing.md,
-        vertical: 6,
-      ),
-      decoration: BoxDecoration(
-        color: on ? colors.goldTint : null,
-        borderRadius: BorderRadius.circular(AppRadii.pill),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: type.bodySmall.copyWith(
-          color: on ? colors.goldDark : colors.textSecondary,
-          fontWeight: on ? FontWeight.w700 : FontWeight.w500,
+  ) =>
+      AppPressable(
+        onTap: tap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: 6,
+          ),
+          decoration: BoxDecoration(
+            color: on ? colors.goldTint : null,
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: type.bodySmall.copyWith(
+              color: on ? colors.goldDark : colors.textSecondary,
+              fontWeight: on ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
         ),
-      ),
-    ),
-  );
+      );
 
   Widget _emojiView() => CustomScrollView(
-    slivers: [
-      for (final (_, list) in kEmojiGroups)
-        SliverPadding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-            vertical: AppSpacing.xs,
-          ),
-          sliver: SliverGrid.count(
-            crossAxisCount: 8,
-            children: [
-              for (final e in list)
-                InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () => widget.onEmoji(e),
-                  child: Center(
-                    child: Text(e, style: const TextStyle(fontSize: 26)),
-                  ),
-                ),
-            ],
-          ),
-        ),
-    ],
-  );
+        slivers: [
+          for (final (_, list) in kEmojiGroups)
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xs,
+              ),
+              sliver: SliverGrid.count(
+                crossAxisCount: 8,
+                children: [
+                  for (final e in list)
+                    InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: () => widget.onEmoji(e),
+                      child: Center(
+                        child: Text(e, style: const TextStyle(fontSize: 26)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      );
 
   Widget _stickerView(
     Translator t,
@@ -300,24 +296,24 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
     final items = searching
         ? searchStickers(data, _query!)
         : section == -1
-        ? data.recent
-        : data.packs[section].stickers;
+            ? data.recent
+            : data.packs[section].stickers;
     final pack = searching || section == -1 ? null : data.packs[section];
 
     // ignore: avoid_positional_boolean_parameters
     Widget strip(Widget child, bool on, VoidCallback tap) => AppPressable(
-      onTap: tap,
-      child: Container(
-        width: 44,
-        height: 44,
-        margin: const EdgeInsets.symmetric(horizontal: 2),
-        decoration: BoxDecoration(
-          color: on ? colors.goldTint : null,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Center(child: child),
-      ),
-    );
+          onTap: tap,
+          child: Container(
+            width: 44,
+            height: 44,
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: BoxDecoration(
+              color: on ? colors.goldTint : null,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(child: child),
+          ),
+        );
 
     final searchBar = Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -415,15 +411,14 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
                         Text(
                           searching
                               ? ((_query ?? '').trim().isEmpty
-                                    ? t.t('stickers.search.prompt')
-                                    : t.t('stickers.search.empty'))
+                                  ? t.t('stickers.search.prompt')
+                                  : t.t('stickers.search.empty'))
                               : pack != null && pack.isMine
-                              ? t.t('stickers.packEmpty')
-                              : t.t('stickers.empty'),
+                                  ? t.t('stickers.packEmpty')
+                                  : t.t('stickers.empty'),
                           textAlign: TextAlign.center,
-                          style: type.bodySmall.copyWith(
-                            color: colors.textSecondary,
-                          ),
+                          style: type.bodySmall
+                              .copyWith(color: colors.textSecondary),
                         ),
                         if (!searching) const SizedBox(height: AppSpacing.sm),
                         if (!searching)
@@ -470,17 +465,17 @@ class StickerMessageBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GestureDetector(
-    onTap: () => showStickerPackSheet(context, sticker.packId),
-    child: StickerImage(sticker: sticker, size: 150),
-  );
+        onTap: () => showStickerPackSheet(context, sticker.packId),
+        child: StickerImage(sticker: sticker, size: 150),
+      );
 }
 
 /// "+" in the panel: my packs (create one), and popular official packs.
 Future<void> showStickerHub(BuildContext context) => showAppBottomSheet<void>(
-  context: context,
-  isScrollControlled: true,
-  builder: (_) => const _StickerHub(),
-);
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _StickerHub(),
+    );
 
 class _StickerHub extends ConsumerWidget {
   const _StickerHub();
@@ -494,29 +489,29 @@ class _StickerHub extends ConsumerWidget {
     final featured = ref.watch(featuredStickerPacksProvider).value ?? const [];
 
     Widget row(StickerPack p) => ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: p.cover == null
-          ? AppIcon(AppIcons.stickerOutlined, color: colors.textSecondary)
-          : StickerImage(sticker: p.cover!, size: 44),
-      title: Text(
-        packTitle(t, p.shortName, p.title),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: type.body.copyWith(color: colors.text),
-      ),
-      subtitle: Text(
-        [
-          t.t('stickers.count', {'count': '${p.stickers.length}'}),
-          if (p.isPaid && !p.installed) '${p.priceStars} ⭐',
-        ].join(' · '),
-        style: type.caption.copyWith(color: colors.textSecondary),
-      ),
-      trailing: AppIcon(
-        AppIcons.chevronRightRounded,
-        color: colors.textSecondary,
-      ),
-      onTap: () => showStickerPackSheet(context, p.id),
-    );
+          contentPadding: EdgeInsets.zero,
+          leading: p.cover == null
+              ? AppIcon(AppIcons.stickerOutlined, color: colors.textSecondary)
+              : StickerImage(sticker: p.cover!, size: 44),
+          title: Text(
+            packTitle(t, p.shortName, p.title),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: type.body.copyWith(color: colors.text),
+          ),
+          subtitle: Text(
+            [
+              t.t('stickers.count', {'count': '${p.stickers.length}'}),
+              if (p.isPaid && !p.installed) '${p.priceStars} ⭐',
+            ].join(' · '),
+            style: type.caption.copyWith(color: colors.textSecondary),
+          ),
+          trailing: AppIcon(
+            AppIcons.chevronRightRounded,
+            color: colors.textSecondary,
+          ),
+          onTap: () => showStickerPackSheet(context, p.id),
+        );
 
     return DraggableScrollableSheet(
       expand: false,
@@ -692,41 +687,42 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
   }
 
   Future<String?> _pickEmoji() => showAppBottomSheet<String>(
-    context: context,
-    builder: (ctx) {
-      final t = ref.read(translatorProvider);
-      final type = Theme.of(ctx).extension<AppTypographyTokens>()!;
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.md),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const AppSheetHandle(),
-              const SizedBox(height: AppSpacing.sm),
-              Text(t.t('stickers.pickEmoji'), style: type.body),
-              const SizedBox(height: AppSpacing.sm),
-              SizedBox(
-                height: 220,
-                child: GridView.count(
-                  crossAxisCount: 8,
-                  children: [
-                    for (final e in kEmojiGroups.first.$2)
-                      InkWell(
-                        onTap: () => Navigator.of(ctx).pop(e),
-                        child: Center(
-                          child: Text(e, style: const TextStyle(fontSize: 26)),
-                        ),
-                      ),
-                  ],
-                ),
+        context: context,
+        builder: (ctx) {
+          final t = ref.read(translatorProvider);
+          final type = Theme.of(ctx).extension<AppTypographyTokens>()!;
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const AppSheetHandle(),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(t.t('stickers.pickEmoji'), style: type.body),
+                  const SizedBox(height: AppSpacing.sm),
+                  SizedBox(
+                    height: 220,
+                    child: GridView.count(
+                      crossAxisCount: 8,
+                      children: [
+                        for (final e in kEmojiGroups.first.$2)
+                          InkWell(
+                            onTap: () => Navigator.of(ctx).pop(e),
+                            child: Center(
+                              child:
+                                  Text(e, style: const TextStyle(fontSize: 26)),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       );
-    },
-  );
 
   @override
   Widget build(BuildContext context) {
@@ -774,9 +770,8 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                               packTitle(t, pack.shortName, pack.title),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: type.titleMedium.copyWith(
-                                color: colors.text,
-                              ),
+                              style:
+                                  type.titleMedium.copyWith(color: colors.text),
                             ),
                             Text(
                               pack.isOfficial
@@ -784,9 +779,8 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                                   : t.t('stickers.count', {
                                       'count': '${pack.stickers.length}',
                                     }),
-                              style: type.caption.copyWith(
-                                color: colors.textSecondary,
-                              ),
+                              style: type.caption
+                                  .copyWith(color: colors.textSecondary),
                             ),
                           ],
                         ),
@@ -913,10 +907,11 @@ class _PackSheetState extends ConsumerState<_PackSheet> {
                     label: pack.installed
                         ? t.t('stickers.remove')
                         : pack.isPaid
-                        ? t.t('stars.pack.add', {'n': '${pack.priceStars}'})
-                        : t.t('stickers.install', {
-                            'count': '${pack.stickers.length}',
-                          }),
+                            ? t.t('stars.pack.add', {'n': '${pack.priceStars}'})
+                            : t.t(
+                                'stickers.install',
+                                {'count': '${pack.stickers.length}'},
+                              ),
                     variant: pack.installed
                         ? AppButtonVariant.secondary
                         : AppButtonVariant.primary,

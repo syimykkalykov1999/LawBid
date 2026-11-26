@@ -53,9 +53,8 @@ class LawBidContactRow extends ConsumerWidget {
           children: [
             GoldRingAvatar(
               url: p.avatarUrl,
-              initials: contact.title.isEmpty
-                  ? '?'
-                  : avatarInitials(contact.title),
+              initials:
+                  contact.title.isEmpty ? '?' : avatarInitials(contact.title),
               size: 44,
             ),
             const SizedBox(width: AppSpacing.md),
@@ -195,9 +194,8 @@ class ContactCheck extends StatelessWidget {
         ),
       ),
       alignment: Alignment.center,
-      child: on
-          ? AppIcon(AppIcons.check, color: colors.onAccent, size: 14)
-          : null,
+      child:
+          on ? AppIcon(AppIcons.check, color: colors.onAccent, size: 14) : null,
     );
   }
 }
