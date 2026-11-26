@@ -1272,6 +1272,7 @@ erDiagram
     Boolean local_reminders
     Boolean chat_style
     Boolean actor_style
+    Bytes preview_key "nullable"
     DateTime last_seen_at
     DateTime created_at
     Int shard_id
