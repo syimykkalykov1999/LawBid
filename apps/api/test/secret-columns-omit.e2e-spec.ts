@@ -95,6 +95,13 @@ describe('secret columns are omitted by default (real PostgreSQL)', () => {
       omit: { password_hash: false },
     });
     expect(withOmit?.password_hash).toBe('test-password-hash-value');
+    // The sign-in path (password-auth.service.ts findUser): the identifier
+    // with its user, the hash asked for inside the include.
+    const signIn = await prisma.userIdentifier.findFirst({
+      where: { provider: 'phone', provider_uid: phone },
+      include: { user: { omit: { password_hash: false } } },
+    });
+    expect(signIn?.user.password_hash).toBe('test-password-hash-value');
     const selected = await prisma.adminCredential.findUnique({
       where: { user_id: userId },
       select: { totp_secret_enc: true, recovery_codes_hash: true },
