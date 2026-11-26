@@ -5,6 +5,9 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { pgAdapter, pgAdapterConfig } from './pg-adapter';
 import { withPoolerRouting } from './pooler-url';
 import { withPoolDefaults } from './prisma.service';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const BASE = 'postgresql://app:p%40ss@db.example:5432/lawbid';
 
@@ -79,9 +82,9 @@ describe('pgAdapterConfig (Prisma 6 URL → node-pg, Prisma 7)', () => {
       { rejectUnauthorized: false },
     ],
     [
-      'sslmode=verify-full (v6: unknown mode = prefer, not checked)',
+      'sslmode=verify-full (#14: certificate and host checked; no CA file here = system CAs)',
       '?sslmode=verify-full',
-      { rejectUnauthorized: false },
+      { rejectUnauthorized: true },
     ],
     [
       'sslaccept=accept_invalid_certs',
@@ -158,5 +161,51 @@ describe('pgAdapterConfig (Prisma 6 URL → node-pg, Prisma 7)', () => {
   it('pgAdapter: a PrismaPg adapter; no URL fails only on the first query (like Prisma 6)', () => {
     expect(pgAdapter(`${BASE}?schema=public`)).toBeInstanceOf(PrismaPg);
     expect(() => pgAdapter(undefined)).not.toThrow();
+  });
+});
+
+/** ASVS 5.0 V12.3.2 / V12.3.4 (STAGE2_SECURITY #14): the API verifies the
+ * database certificate when the URL says verify-full / verify-ca. */
+describe('database TLS: verify-full / verify-ca', () => {
+  const BASE_URL = 'postgresql://app:pw@db.x.rds.amazonaws.com:5432/lawbid';
+  let dir: string;
+  let ca: string;
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'pg-ca-'));
+    ca = join(dir, 'rds-ca.pem');
+    writeFileSync(ca, 'TEST-CA-PEM');
+  });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('verify-full + sslrootcert: certificate checked against that CA, host checked', async () => {
+    const url = `${BASE_URL}?sslmode=verify-full&sslrootcert=${encodeURIComponent(ca)}`;
+    const want = { rejectUnauthorized: true, ca: 'TEST-CA-PEM' };
+    expect(pgAdapterConfig(url).pool.ssl).toEqual(want);
+    const { pgClientConfig } = await import('../../prisma/pg-client.mjs');
+    expect(pgClientConfig(url).ssl).toEqual(want);
+    // The TLS parameters never reach node-pg's own URL parser.
+    expect(pgAdapterConfig(url).pool.connectionString).not.toMatch(/ssl/);
+  });
+
+  it('verify-ca: the chain is checked, the host name is not', async () => {
+    const url = `${BASE_URL}?sslmode=verify-ca&sslrootcert=${encodeURIComponent(ca)}`;
+    const ssl = pgAdapterConfig(url).pool.ssl as {
+      rejectUnauthorized: boolean;
+      ca: string;
+      checkServerIdentity: () => undefined;
+    };
+    expect(ssl.rejectUnauthorized).toBe(true);
+    expect(ssl.ca).toBe('TEST-CA-PEM');
+    expect(ssl.checkServerIdentity()).toBeUndefined();
+    const { pgClientConfig } = await import('../../prisma/pg-client.mjs');
+    const c = pgClientConfig(url).ssl as typeof ssl;
+    expect(c.rejectUnauthorized).toBe(true);
+    expect(c.checkServerIdentity()).toBeUndefined();
+  });
+
+  it('sslmode=require stays encrypted-but-unchecked until the URL is switched (owner step)', () => {
+    expect(pgAdapterConfig(`${BASE_URL}?sslmode=require`).pool.ssl).toEqual({
+      rejectUnauthorized: false,
+    });
   });
 });

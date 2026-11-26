@@ -49,6 +49,18 @@ RUN addgroup -S app && adduser -S app -G app
 # it the note stays WebM only (alert `voice_transcode_unavailable`).
 ARG WITH_FFMPEG=0
 RUN if [ "$WITH_FFMPEG" = "1" ]; then apk add --no-cache ffmpeg; fi
+# ASVS 5.0 V12.3.2 (STAGE2_SECURITY #14): the RDS global CA bundle, so the
+# API, worker and migrate task verify the database certificate
+# (sslmode=verify-full, src/prisma/pg-adapter.ts RDS_CA_BUNDLE). The same
+# pinned download as infra/pgbouncer/Dockerfile: a tampered file fails the
+# build; when AWS publishes a new bundle the build stops here — check the
+# new file at https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem
+# and pass --build-arg RDS_CA_SHA256=<its sha256> (or update both defaults).
+ARG RDS_CA_SHA256=90a6f1a7978a1b1b096dca6c57511ca48d3b8cf052f8e704baf358f34ea2f21b
+RUN wget -q -O /etc/ssl/rds-global-bundle.pem https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
+ && echo "${RDS_CA_SHA256}  /etc/ssl/rds-global-bundle.pem" | sha256sum -c - \
+ && test "$(grep -c 'BEGIN CERTIFICATE' /etc/ssl/rds-global-bundle.pem)" -ge 50 \
+ && chmod 0644 /etc/ssl/rds-global-bundle.pem
 WORKDIR /repo
 COPY --from=build /repo/node_modules ./node_modules
 COPY --from=build /repo/apps/api/node_modules ./apps/api/node_modules

@@ -6,12 +6,15 @@
 // run-concurrent's `connection_limit=1` gave: its SET lock_timeout must hold
 // for the statements after it) with the three calls they used.
 //
-// TLS keeps the Prisma 6 behaviour, exactly as src/prisma/pg-adapter.ts:
+// TLS exactly as src/prisma/pg-adapter.ts:
 // `sslmode=disable`, or none on a local host → no TLS; none on a remote
-// host → TLS without certificate check; any other sslmode → TLS without
-// certificate check; `sslaccept=strict` → certificate and host checked, CA
-// from `sslcert`. pg-adapter.spec.ts checks both stay the same.
-import { readFileSync } from 'node:fs';
+// host → TLS without certificate check; `sslmode=verify-full` → certificate
+// and host checked, CA from `sslrootcert` or the baked RDS bundle
+// (STAGE2_SECURITY #14); `verify-ca` → the same without the host check; any
+// other sslmode → TLS without certificate check; `sslaccept=strict` →
+// certificate and host checked, CA from `sslcert`. pg-adapter.spec.ts checks
+// both stay the same.
+import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 import pg from 'pg';
 
@@ -33,6 +36,20 @@ const PRISMA_ONLY = [
   'sslkey',
   'sslrootcert',
 ];
+
+/** Same file as RDS_CA_BUNDLE in src/prisma/pg-adapter.ts. */
+export const RDS_CA_BUNDLE = '/etc/ssl/rds-global-bundle.pem';
+
+function verifyCa(rootCert) {
+  const file = rootCert
+    ? isAbsolute(rootCert)
+      ? rootCert
+      : resolve('prisma', rootCert)
+    : existsSync(RDS_CA_BUNDLE)
+      ? RDS_CA_BUNDLE
+      : undefined;
+  return file ? readFileSync(file, 'utf8') : undefined;
+}
 
 /** Same rule as isLocalHost in src/prisma/pg-adapter.ts. */
 export function isLocalHost(host) {
@@ -58,6 +75,13 @@ export function pgClientConfig(raw) {
     // 14.11 (KE 146): a remote server without sslmode keeps Prisma 6
     // "prefer" — TLS, certificate not checked (RDS refuses clear text).
     ssl = { rejectUnauthorized: false };
+  } else if (mode === 'verify-full' || mode === 'verify-ca') {
+    const ca = verifyCa(q.get('sslrootcert')?.trim() || undefined);
+    ssl = {
+      rejectUnauthorized: true,
+      ...(ca ? { ca } : {}),
+      ...(mode === 'verify-ca' ? { checkServerIdentity: () => undefined } : {}),
+    };
   } else if (mode && mode !== 'disable') {
     if (q.get('sslaccept')?.trim().toLowerCase() === 'strict') {
       const cert = q.get('sslcert')?.trim();

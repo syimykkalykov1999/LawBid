@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -34,6 +34,13 @@ import type { PoolConfig } from 'pg';
  *                                    service names without a dot)
  *   no sslmode, remote host        → TLS, certificate not checked (Prisma 6
  *                                    "prefer"; RDS refuses clear connections)
+ *   sslmode=verify-full            → TLS, certificate AND host name checked
+ *                                    (ASVS 5.0 V12.3.2, STAGE2_SECURITY #14);
+ *                                    CA = `sslrootcert`, else the RDS global
+ *                                    bundle baked into the image
+ *                                    (RDS_CA_BUNDLE), else the system CAs
+ *   sslmode=verify-ca              → the same, without the host name check
+ *                                    (libpq semantics)
  *   any other sslmode              → TLS, certificate not checked
  *   … + sslaccept=strict           → TLS, certificate and host name checked;
  *                                    `sslcert` = the CA file (Prisma resolved a
@@ -41,6 +48,22 @@ import type { PoolConfig } from 'pg';
  * The TLS parameters are removed from the URL handed to node-pg, because
  * the parsed URL would override the `ssl` object.
  */
+/** The RDS global CA bundle apps/api/Dockerfile bakes in (pinned SHA-256,
+ * the same file infra/pgbouncer/Dockerfile ships). */
+export const RDS_CA_BUNDLE = '/etc/ssl/rds-global-bundle.pem';
+
+/** The CA for sslmode=verify-*: `sslrootcert`, else the baked bundle. */
+function verifyCa(rootCert: string | undefined): string | undefined {
+  const file = rootCert
+    ? isAbsolute(rootCert)
+      ? rootCert
+      : resolve('prisma', rootCert)
+    : existsSync(RDS_CA_BUNDLE)
+      ? RDS_CA_BUNDLE
+      : undefined;
+  return file ? readFileSync(file, 'utf8') : undefined;
+}
+
 export interface PgAdapterConfig {
   pool: PoolConfig;
   schema?: string;
@@ -120,6 +143,14 @@ export function pgAdapterConfig(raw: string): PgAdapterConfig {
     // default on PostgreSQL 16) would refuse it. A remote host without
     // sslmode keeps Prisma 6's behaviour: TLS, certificate not checked.
     ssl = { rejectUnauthorized: false };
+  } else if (mode === 'verify-full' || mode === 'verify-ca') {
+    const ca = verifyCa(q.get('sslrootcert')?.trim() || undefined);
+    ssl = {
+      rejectUnauthorized: true,
+      ...(ca ? { ca } : {}),
+      // verify-ca: the chain is checked, the host name is not (libpq).
+      ...(mode === 'verify-ca' ? { checkServerIdentity: () => undefined } : {}),
+    };
   } else if (mode && mode !== 'disable') {
     if (q.get('sslaccept')?.trim().toLowerCase() === 'strict') {
       const cert = q.get('sslcert')?.trim();
