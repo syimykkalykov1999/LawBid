@@ -162,6 +162,8 @@ Every `security.*` and `auth.*` admin setting (defaults in `apps/api/src/common/
 | `security.new_country_alert_enabled` | alert on a session from a new country (needs the CDN's country header + `EDGE_ORIGIN_SECRET`) |
 | `security.google_nonce_min_app_version` | from this app version Google sign-in needs a server nonce |
 | `security.export_reauth_min_app_version` | from this app version the data export needs re-authentication |
+| `security.session_end_reauth_min_app_version` | from this app version ending another session or «sign out others» needs re-authentication on phones (the website always; STAGE2_SECURITY #12) |
+| `security.phone_status_min_ms` | «is this number registered?» answers take at least this long, so timing does not tell (STAGE2_SECURITY O4) |
 | `security.attorney_strong_auth` | attorneys must keep a strong sign-in |
 | `security.seal_case_metadata` | encrypt case private details |
 | `security.seal_journal_text` | encrypt case journal free text |
