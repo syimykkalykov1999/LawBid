@@ -1,7 +1,9 @@
 #!/usr/bin/env sh
 # docs/06 §7.3: `prisma migrate deploy` as a one-off ECS task (task
 # definition `<cluster>-migrate`, DATABASE_URL = the MIGRATOR_DATABASE_URL
-# secret: user lawbid_admin today, lawbid_migrator is planned — infra/postgres/migration-role.txt),
+# secret = the master user; the schema steps run as lawbid_migrator when the
+# admin switch aws.db_migrator_role is on, else as lawbid_admin —
+# docs/runbooks/db-migrator-role.md),
 # before the services roll. Fails the pipeline unless the task exits 0.
 #
 # With a TAG (second argument) the migrate task definition is first
@@ -38,7 +40,12 @@ if [ -n "$TAG" ]; then
       // Owner 2026-11-11: then every extra database server of the admin
       // switch aws.db_shards (DB_SHARD_HOSTS from the Terraform task
       // definition; nothing to do without it) — prisma/migrate-shards.mjs.
-      c.command = ["sh", "-c", "npx prisma migrate deploy && node prisma/run-concurrent.mjs && node prisma/ensure-partition-login.mjs && node prisma/verify-schema.mjs && node prisma/migrate-shards.mjs"];
+      // D8 (26.11): first prisma/ensure-migrator-role.mjs as the master user;
+      // it prints the URL of the schema steps (lawbid_migrator when the task
+      // has MIGRATOR_ROLE_PASSWORD and the role is ready, else the master URL
+      // unchanged). Role logins and the extra servers stay on the master user.
+      // An older image without the script (a rollback tag) = the master user.
+      c.command = ["sh", "-c", "MIGRATE_URL=\"$DATABASE_URL\"; if [ -f prisma/ensure-migrator-role.mjs ]; then MIGRATE_URL=\"$(node prisma/ensure-migrator-role.mjs)\"; fi && [ -n \"$MIGRATE_URL\" ] && DATABASE_URL=\"$MIGRATE_URL\" npx prisma migrate deploy && DATABASE_URL=\"$MIGRATE_URL\" node prisma/run-concurrent.mjs && node prisma/ensure-partition-login.mjs && DATABASE_URL=\"$MIGRATE_URL\" node prisma/verify-schema.mjs && node prisma/migrate-shards.mjs"];
       const mode = process.env.SCHEMA_DRIFT_CHECK || "fail";
       c.environment = (c.environment || []).filter((e) => e.name !== "SCHEMA_DRIFT_CHECK").concat([{ name: "SCHEMA_DRIFT_CHECK", value: mode }]);
     }
@@ -120,6 +127,11 @@ if [ "$EXIT" != "0" ] && printf '%s' "$LOGS" | grep -Eqi '55P03|lock timeout'; t
   echo "migration hit lock_timeout (55P03); retrying once in 20 s"
   sleep 20
   run_once
+fi
+# D8: the switch aws.db_migrator_role is on but the role was not ready, so
+# this run used the master user (prisma/ensure-migrator-role.mjs). Loud, not red.
+if printf '%s' "$LOGS" | grep -q 'migrator role: FALLBACK'; then
+  echo "::warning::switch aws.db_migrator_role is on, but migrations ran as the master user, not lawbid_migrator: $(printf '%s' "$LOGS" | grep -o 'migrator role: FALLBACK[^;]*' | head -n 1). docs/runbooks/db-migrator-role.md"
 fi
 if [ "$EXIT" != "0" ]; then
   echo "::error::migration failed (exit $EXIT). If the log says P3009 / 'failed migrations': docs/runbooks/migrate-resolve.md" >&2

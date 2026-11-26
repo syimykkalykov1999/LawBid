@@ -108,6 +108,7 @@ module "stack" {
   db_pooler_enabled               = var.db_pooler_enabled
   db_shards                       = var.db_shards
   partition_role_enabled          = var.partition_role_enabled
+  db_migrator_role_enabled        = var.db_migrator_role_enabled
   contacts_pepper_enabled         = var.contacts_pepper_enabled
   pgbouncer_image                 = var.pgbouncer_image
   pgbouncer_max_tasks             = var.pgbouncer_max_tasks

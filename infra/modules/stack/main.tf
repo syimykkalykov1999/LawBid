@@ -1906,6 +1906,37 @@ resource "aws_secretsmanager_secret_version" "partition_db_password" {
   secret_string = random_password.partition[0].result
 }
 
+# D8 (26.11, docs/dev/SECOND_PASS_2026-11-26.md; AWS Well-Architected
+# SEC03-BP02, Amazon RDS «Master user account privileges»): migrations run as
+# the narrow role lawbid_migrator, not as the RDS master user. Terraform
+# generates its login password (only in Terraform state, encrypted S3, and this
+# secret), the same way as PARTITION_DB_PASSWORD. The secret always exists
+# (about $0,40 a month): switching off only takes it out of the migrate task,
+# so the switch back is one step and the admin plan guard never sees a secret
+# destroyed (FORBIDDEN_DESTROY). docs/runbooks/db-migrator-role.md.
+variable "db_migrator_role_enabled" {
+  type        = bool
+  default     = false
+  description = "Admin switch aws.db_migrator_role: the migrate task gets MIGRATOR_ROLE_PASSWORD, makes lawbid_migrator ready as the master user (apps/api/prisma/migrator-role.sql: least privileges, owns the schema) and runs the migrations as that role; anything not ready = the master user for that run, with a warning. false = migrations run as the master user exactly as before (one-step rollback)."
+}
+
+resource "random_password" "migrator" {
+  length  = 40
+  special = false
+}
+
+resource "aws_secretsmanager_secret" "migrator_role_password" {
+  name                    = "${local.name}/MIGRATOR_ROLE_PASSWORD"
+  kms_key_id              = module.kms.key_arn
+  recovery_window_in_days = var.ephemeral ? 0 : 30
+  tags                    = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "migrator_role_password" {
+  secret_id     = aws_secretsmanager_secret.migrator_role_password.id
+  secret_string = random_password.migrator.result
+}
+
 module "secrets" {
   source      = "../secrets"
   name        = local.name
@@ -2629,6 +2660,7 @@ module "ecs" {
   # hand-filled PARTITION_DATABASE_URL secret is no longer injected.
   partition_database_url_secret_arn = ""
   partition_db_password_secret_arn  = var.partition_role_enabled ? aws_secretsmanager_secret_version.partition_db_password[0].arn : ""
+  migrator_role_password_secret_arn = var.db_migrator_role_enabled ? aws_secretsmanager_secret_version.migrator_role_password.arn : ""
   migrate_extra_secrets             = local.db_shard_migrate_secrets
   alb_resource_label                = "${module.alb.arn_suffix}/${module.alb.api_target_group_arn_suffix}"
   api_max_tasks                     = var.api_max_tasks

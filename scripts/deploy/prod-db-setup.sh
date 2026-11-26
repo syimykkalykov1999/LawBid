@@ -2,7 +2,7 @@
 # First launch, database side — run once from the owner's Mac
 # (docs/runbooks/PROD_LAUNCH.md, step «База»). Needs: AWS CLI logged in to
 # the prod account, the prod Terraform applied (the secrets exist), and the
-# connection string of the migration user (`lawbid_admin`, the master user; `lawbid_migrator` is planned, not in use) created in the managed
+# connection string of the master user (`lawbid_admin`; migrations switch to `lawbid_migrator` only via the admin switch aws.db_migrator_role) created in the managed
 # PostgreSQL 16 console (e.g. AWS RDS / Neon / Supabase — the owner picks
 # one; on RDS it can be the master user). That user must be allowed to
 # create databases and roles (CREATEDB, CREATEROLE).
@@ -21,7 +21,7 @@ PREFIX="${SECRET_PREFIX:-lawbid-prod}"
 # until it looks like one; never print what was typed (it holds the password).
 while :; do
   if [ -z "${MIGRATOR_URL:-}" ]; then
-    read -rsp "Строка подключения пользователя миграций (lawbid_admin; lawbid_migrator — план, не используется) из консоли PostgreSQL целиком, начинается с postgresql:// (не будет видна): " MIGRATOR_URL
+    read -rsp "Строка подключения пользователя миграций (мастер lawbid_admin; lawbid_migrator включается переключателем aws.db_migrator_role) из консоли PostgreSQL целиком, начинается с postgresql:// (не будет видна): " MIGRATOR_URL
     echo
   fi
   case "$MIGRATOR_URL" in
