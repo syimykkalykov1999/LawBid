@@ -9,10 +9,21 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('the web CSP lets the app read picked files', () {
     final tf = File('../../infra/modules/web/main.tf').readAsStringSync();
+    // Since STAGE2_SECURITY #3 (#1323) connect-src is built from
+    // `connect_exact` (enforced as is, or with the wide hosts in the first
+    // week); blob: must be in that base list.
     final connect = tf
         .split('\n')
-        .firstWhere((l) => l.trimLeft().startsWith('"connect-src'));
+        .firstWhere((l) => l.trimLeft().startsWith('connect_exact'));
     expect(connect, contains('"blob:"'));
+    expect(
+      tf,
+      contains(
+        r'connect-src ${join(" ", var.csp_exact_connect_enforced '
+        '? local.connect_exact : local.connect_wide)}',
+      ),
+    );
+    expect(tf, contains(r'connect-src ${join(" ", local.connect_exact)}'));
   });
 
   // Holes re-check (25.11, item 13): App Check on the web is reCAPTCHA
@@ -50,7 +61,7 @@ void main() {
     // www.gstatic.com/recaptcha/ is covered by the whole gstatic origin
     // (Firebase JS is served from there too).
     expect(script, contains('"https://www.gstatic.com"'));
-    expect(line('"connect-src'), contains('local.app_check_connect'));
+    expect(line('connect_exact'), contains('local.app_check_connect'));
     expect(line('"frame-src'), contains('local.recaptcha_frame_src'));
   });
 }
