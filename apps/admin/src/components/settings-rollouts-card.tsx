@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api/client";
 import { useMe } from "@/lib/hooks";
+import { livePoll } from "@/lib/live";
 import { formatDateTime } from "@/lib/utils";
 
 type Rollout = {
@@ -48,8 +49,9 @@ export function SettingsRolloutsCard() {
     queryFn: async () =>
       ((await api.GET("/admin/settings-rollouts")).data?.data ??
         []) as Rollout[],
-    refetchInterval: (query) =>
-      (query.state.data?.length ?? 0) > 0 ? 30_000 : false,
+    refetchInterval: livePoll((data) =>
+      ((data as Rollout[] | undefined)?.length ?? 0) > 0 ? 30_000 : false,
+    ),
   });
   const done = () => {
     void qc.invalidateQueries({ queryKey: SETTINGS_ROLLOUTS_KEY });
