@@ -186,7 +186,9 @@ class E2eePlaintexts extends Table {
 }
 
 /// The cache database (`lawbid_cache`). On phones it is a file the OS
-/// protects; on the web build the browser's storage (owner 2026-11-08, speed
+/// protects, encrypted with SQLite3MultipleCiphers since S13 #26 (with the
+/// E2EE plaintexts in it; `core/persistence/encrypted_database.dart`); on
+/// the web build the browser's storage (owner 2026-11-08, speed
 /// everywhere; it lived only in the tab's memory before), wiped on sign-out
 /// like every account row (`CacheMaintenance.clearAccountData`).
 @DriftDatabase(

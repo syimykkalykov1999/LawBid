@@ -156,7 +156,10 @@ function metaFor(model: string): ModelMeta | undefined {
         idField.name === 'id' &&
         idField.type === 'String' &&
         def?.name === 'dbgenerated' &&
-        (def.args ?? []).some((a) => String(a).includes('gen_random_uuid'));
+        // G4 (25.11): the hot tables default to uuidv7() (PostgreSQL 18);
+        // a create through Prisma still gets the UUIDv8 that carries the
+        // shard (also time ordered), the default serves raw SQL inserts.
+        (def.args ?? []).some((a) => /gen_random_uuid|uuidv7/.test(String(a)));
       metaCache.set(m.name, { keys: spec.keys, relationOf, generateId });
     }
   }

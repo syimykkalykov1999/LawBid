@@ -43,6 +43,46 @@ Rules
 | `hotline_review` | the review after a hotline call was sent | — |
 | `hotline_offer_case` | «Предложить дело» in a hotline call | — |
 
+## Service level as the person sees it (Б6, 25.11)
+
+Counted after the app's own retries (`lib/core/diagnostics/client_sli.dart`), only while `client.sli_enabled` is on, and only with the usage statistics consent like every event here. The server does not store them per day: it adds them to its minute line `{metric:"slo_client"}` for the SLO alarms (`infra/modules/monitoring/user-slis.tf`).
+
+| Event | When | Properties |
+|---|---|---|
+| `sli_login_ok` | sign-in (code, password, Google / Apple): worked | — |
+| `sli_login_fail` | sign-in (code, password, Google / Apple): failed for the person: a 5xx or a timeout after the app's own retries (a 4xx or an offline phone is not counted) | — |
+| `sli_feed_ok` | opening the feed: worked | — |
+| `sli_feed_slow` | opening the feed: worked, but slower than its goal (`client.sli_feed_slow_ms` / `client.sli_message_slow_ms`) | — |
+| `sli_feed_fail` | opening the feed: failed for the person: a 5xx or a timeout after the app's own retries (a 4xx or an offline phone is not counted) | — |
+| `sli_message_ok` | sending a chat message: worked | — |
+| `sli_message_slow` | sending a chat message: worked, but slower than its goal (`client.sli_feed_slow_ms` / `client.sli_message_slow_ms`) | — |
+| `sli_message_fail` | sending a chat message: failed for the person: a 5xx or a timeout after the app's own retries (a 4xx or an offline phone is not counted) | — |
+| `sli_pay_ok` | starting a payment (subscription checkout, pay session): worked | — |
+| `sli_pay_fail` | starting a payment (subscription checkout, pay session): failed for the person: a 5xx or a timeout after the app's own retries (a 4xx or an offline phone is not counted) | — |
+| `sli_call_ok` | starting, accepting or joining a call: worked | — |
+| `sli_call_fail` | starting, accepting or joining a call: failed for the person: a 5xx or a timeout after the app's own retries (a 4xx or an offline phone is not counted) | — |
+| `sli_push_ok` | opening a push (ok = it led to its screen): worked | — |
+| `sli_push_fail` | opening a push (ok = it led to its screen): failed for the person: a 5xx or a timeout after the app's own retries (a 4xx or an offline phone is not counted) | — |
+
+## Website speed: Core Web Vitals (Б6 / G8, 25.11)
+
+Sent by `web/js/web_vitals_beacon.js` (web-vitals 6.2.3, Apache-2.0) with `navigator.sendBeacon` when the page is hidden; only the rating, no value, no address; only with the usage statistics consent and `client.web_vitals_enabled`. Not stored per day either (minute line `{metric:"slo_client"}`; alarm when fewer than 75 % of visits are «good»).
+
+| Event | When | Properties |
+|---|---|---|
+| `web_vital_lcp_good` | the website's LCP of this visit was rated good (web.dev thresholds), sent once when the page is hidden | — |
+| `web_vital_lcp_ni` | the website's LCP of this visit was rated needs improvement (web.dev thresholds), sent once when the page is hidden | — |
+| `web_vital_lcp_poor` | the website's LCP of this visit was rated poor (web.dev thresholds), sent once when the page is hidden | — |
+| `web_vital_inp_good` | the website's INP of this visit was rated good (web.dev thresholds), sent once when the page is hidden | — |
+| `web_vital_inp_ni` | the website's INP of this visit was rated needs improvement (web.dev thresholds), sent once when the page is hidden | — |
+| `web_vital_inp_poor` | the website's INP of this visit was rated poor (web.dev thresholds), sent once when the page is hidden | — |
+| `web_vital_cls_good` | the website's CLS of this visit was rated good (web.dev thresholds), sent once when the page is hidden | — |
+| `web_vital_cls_ni` | the website's CLS of this visit was rated needs improvement (web.dev thresholds), sent once when the page is hidden | — |
+| `web_vital_cls_poor` | the website's CLS of this visit was rated poor (web.dev thresholds), sent once when the page is hidden | — |
+| `web_vital_ttfb_good` | the website's TTFB of this visit was rated good (web.dev thresholds), sent once when the page is hidden | — |
+| `web_vital_ttfb_ni` | the website's TTFB of this visit was rated needs improvement (web.dev thresholds), sent once when the page is hidden | — |
+| `web_vital_ttfb_poor` | the website's TTFB of this visit was rated poor (web.dev thresholds), sent once when the page is hidden | — |
+
 ## Authentication and onboarding (file 01)
 
 | Event | When | Properties |

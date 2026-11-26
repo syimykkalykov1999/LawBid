@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:lawbid/core/app_update/app_version.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
@@ -119,6 +120,36 @@ class SentryNative {
       return null;
     }
   }
+
+  /// Б6 / G7 (25.11, docs/dev/STAGE2_ARCH_PERF_2026-11-25.md): screen
+  /// transactions with frame tracking (slow / frozen frames) and time to
+  /// initial / full display, from `sentry_flutter`'s own
+  /// [SentryNavigatorObserver] — one per navigator (the root and each tab).
+  /// The observer is created only once the SDK runs with tracing on for
+  /// this session (consent + `client.sentry_traces_percent`); before that,
+  /// and on the web (no SDK there), it does nothing. Route names keep no
+  /// ids and no arguments.
+  static List<NavigatorObserver> navigatorObservers() =>
+      kIsWeb ? const [] : [_LazyNavigatorObserver()];
+
+  /// Б6 / G7: the screen the person waits for now shows its content (the
+  /// feed's first post, the chat's messages): ends that screen's
+  /// time-to-full-display span. Cheap and safe to call on every build; a
+  /// screen is reported once.
+  static void reportFullyDisplayed() {
+    final raw = _sdk;
+    final sdk = raw is SentryDisplaySdk ? raw as SentryDisplaySdk : null;
+    if (!running || _rate <= 0 || sdk == null) return;
+    try {
+      unawaited(sdk.reportFullyDisplayed().catchError((Object _) {}));
+    } catch (_) {
+      // Telemetry must never be the next crash.
+    }
+  }
+
+  /// Whether screen tracing is on for this session (the SDK runs, consent,
+  /// `client.sentry_traces_percent` > 0).
+  static bool get screenTracing => running && _rate > 0;
 
   /// Test hook: a fake SDK, whether this build counts as a release, and
   /// whether this platform has a native SDK.
@@ -297,6 +328,57 @@ abstract class SentryTracingSdk {
   Future<void> reportSpan(String name, String op, DateTime start, DateTime end);
 }
 
+/// Б6 / G7: the time-to-full-display half of the SDK (kept apart so test
+/// fakes of [SentryNativeSdk] stay valid).
+// ignore: one_member_abstracts
+abstract class SentryDisplaySdk {
+  Future<void> reportFullyDisplayed();
+}
+
+/// Б6 / G7: forwards to a real [SentryNavigatorObserver] once screen
+/// tracing is on (the SDK may start after the router is built).
+class _LazyNavigatorObserver extends NavigatorObserver {
+  SentryNavigatorObserver? _inner;
+
+  SentryNavigatorObserver? get _on {
+    if (!SentryNative.screenTracing) return null;
+    return _inner ??= SentryNavigatorObserver(
+      // Ids out of the route name, arguments never leave the phone.
+      routeNameExtractor: (settings) => settings == null
+          ? null
+          : RouteSettings(name: _routeName(settings.name ?? '')),
+    );
+  }
+
+  static final _uuid = RegExp(
+    '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
+    caseSensitive: false,
+  );
+
+  /// `/cases/<uuid>?tab=2` → `/cases/:id` (no ids, no query).
+  static String _routeName(String route) => route
+      .split('?')
+      .first
+      .replaceAll(_uuid, ':id')
+      .replaceAll(RegExp(r'/\d+'), '/:id');
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _on?.didPush(route, previousRoute);
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _on?.didPop(route, previousRoute);
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) =>
+      _on?.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      _on?.didRemove(route, previousRoute);
+}
+
 /// One open API-call span.
 // ignore: one_member_abstracts
 abstract class SentryHttpSpan {
@@ -339,7 +421,8 @@ class _NoSdk implements SentryNativeSdk {
   }) async {}
 }
 
-class _FlutterSdk implements SentryNativeSdk, SentryTracingSdk {
+class _FlutterSdk
+    implements SentryNativeSdk, SentryTracingSdk, SentryDisplaySdk {
   const _FlutterSdk();
 
   @override
@@ -361,6 +444,17 @@ class _FlutterSdk implements SentryNativeSdk, SentryTracingSdk {
           ..sendDefaultPii = false
           // S12-5: 0 unless consent + admin percent (see tracesRate).
           ..tracesSampleRate = SentryNative.currentTracesRate
+          // Б6 / G7: screen transactions (navigator observer) carry slow /
+          // frozen frames and the app start; the feed and the chats also
+          // end a time-to-full-display span when their content is shown.
+          // All of it only within tracesSampleRate (consent + percent).
+          ..enableAutoPerformanceTracing = true
+          ..enableFramesTracking = true
+          ..enableTimeToFullDisplayTracing = true
+          // iOS: app hangs (main thread blocked > 2 s), the SDK default,
+          // written down here (MetricKit and hang tracking V2 are not
+          // exposed by sentry_flutter 10.5).
+          ..enableAppHangTracking = true
           ..attachScreenshot = false
           ..attachViewHierarchy = false
           // D1-46: no request breadcrumbs from the phone's side (on iOS
@@ -383,6 +477,16 @@ class _FlutterSdk implements SentryNativeSdk, SentryTracingSdk {
 
   @override
   Future<void> close() => Sentry.close();
+
+  static SentryDisplay? _reported;
+
+  @override
+  Future<void> reportFullyDisplayed() async {
+    final display = SentryFlutter.currentDisplay();
+    if (display == null || identical(display, _reported)) return;
+    _reported = display;
+    await display.reportFullyDisplayed();
+  }
 
   @override
   SentryHttpSpan startHttpSpan(String method, String path) => _TxSpan(
