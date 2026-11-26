@@ -288,6 +288,11 @@ variable "status_create_certificate" {
   type    = bool
   default = false
 }
+# Stage 2 SRE (Б4): the status.json copy outside AWS (public R2 bucket, status/ folder).
+variable "status_backup_url" {
+  type    = string
+  default = ""
+}
 variable "hosted_zone_id" {
   type    = string
   default = null
@@ -1298,6 +1303,7 @@ module "status_page" {
   certificate_arn    = var.status_certificate_arn
   create_certificate = var.status_create_certificate
   hosted_zone_id     = var.hosted_zone_id == null ? "" : var.hosted_zone_id
+  status_backup_url  = var.status_backup_url
   tags               = local.tags
 }
 
@@ -2521,14 +2527,16 @@ module "ecs" {
   api_admin_deployment_alarm_names = module.monitoring.api_admin_deployment_alarm_names
 
   # X1: ECS built-in canary / linear for the api (var.api_native_deploy).
-  api_deployment_strategy          = local.api_native_ecs_strategy
-  api_alternate_target_group_arn   = module.alb.api_green_target_group_arn
-  api_production_listener_rule_arn = module.alb.api_production_listener_rule_arn
-  api_canary_percent               = var.api_canary_percent
-  api_canary_bake_minutes          = var.api_canary_bake_minutes
-  api_linear_step_percent          = var.api_linear_step_percent
-  api_linear_step_bake_minutes     = var.api_linear_step_bake_minutes
-  api_deploy_bake_minutes          = var.api_deploy_bake_minutes
+  api_deployment_strategy             = local.api_native_ecs_strategy
+  api_alternate_target_group_arn      = module.alb.api_green_target_group_arn
+  api_production_listener_rule_arn    = module.alb.api_production_listener_rule_arn
+  api_ws_alternate_target_group_arn   = module.alb.api_ws_green_target_group_arn
+  api_ws_production_listener_rule_arn = module.alb.api_ws_production_listener_rule_arn
+  api_canary_percent                  = var.api_canary_percent
+  api_canary_bake_minutes             = var.api_canary_bake_minutes
+  api_linear_step_percent             = var.api_linear_step_percent
+  api_linear_step_bake_minutes        = var.api_linear_step_bake_minutes
+  api_deploy_bake_minutes             = var.api_deploy_bake_minutes
   # 25.11: request + predictive scaling read both api target groups once the
   # green group exists (a literal: its ARN is unknown while it is created).
   api_two_target_groups             = var.api_native_deploy != "off"
@@ -3211,6 +3219,12 @@ module "monitoring" {
   alarm_incident_hook_url           = "https://${var.api_host}/api/v1/internal/alarm-events"
   alarm_incident_hook_token         = var.alarm_incident_hook_enabled ? random_password.alarm_hook[0].result : null
   tags                              = local.tags
+
+  # Stage 2 SRE (Б4): a rule removed from the database / pooler group pages (11.11).
+  db_security_group_ids = concat(
+    var.create_database ? [module.postgres[0].security_group_id] : [],
+    var.db_pooler_enabled ? [module.pgbouncer[0].security_group_id] : [],
+  )
 }
 
 # Owner 2026-10-24: database size follows the load (up fast, down at night).

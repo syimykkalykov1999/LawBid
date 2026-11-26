@@ -123,8 +123,11 @@ abstract class AuthClient {
   /// R2-A #9 (Telegram «Terminate all other sessions»): every other session.
   /// of the account ends; the caller's stays, so its web cookie stays too.
   /// `logout-all` keeps its old meaning for the apps already out there.
+  ///
+  /// [xReauthToken] - ASVS V7.5.2 (STAGE2_SECURITY #12): a fresh single-use token from POST /auth/reauth, unless this session signed in within the last 10 minutes.
   @POST('/auth/logout-others')
   Future<LoggedOutEnvelope> logoutOthers({
+    @Header('X-Reauth-Token') String? xReauthToken,
     @Extras() Map<String, dynamic>? extras,
   });
 
@@ -138,9 +141,11 @@ abstract class AuthClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
+  /// [xReauthToken] - ASVS V7.5.2 (STAGE2_SECURITY #12): ending ANOTHER session needs a fresh single-use token from POST /auth/reauth, unless this session signed in within the last 10 minutes. Ending this very session needs none.
   @DELETE('/auth/sessions/{id}')
   Future<SessionEndedEnvelope> endSession({
     @Path('id') required String id,
+    @Header('X-Reauth-Token') String? xReauthToken,
     @Extras() Map<String, dynamic>? extras,
   });
 

@@ -64,6 +64,9 @@ COPY --from=build /repo/apps/api/package.json ./apps/api/package.json
 # (scripts/seo/lib + data), loaded as ES modules by the `seo.generate` job.
 COPY scripts/seo/lib ./scripts/seo/lib
 COPY scripts/seo/data ./scripts/seo/data
+# Stage 2 SRE (Б4): the public status page; the worker copies it to the R2
+# backup (status/index.html) next to status.json (public-status.service.ts).
+COPY apps/status-page/index.html ./apps/status-page/index.html
 # readonlyRootFilesystem on ECS: /tmp is a task volume. Declaring it as a
 # VOLUME makes Fargate/Docker seed the mount from the image (mode 1777),
 # so the `app` user can write the worker heartbeat and sharp/pdf temp files.

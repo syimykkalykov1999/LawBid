@@ -452,6 +452,10 @@ export const GLOBAL_MODELS: readonly string[] = [
   'MlsCommit',
   'MlsGroupDevice',
   'MlsWelcome',
+  // Item 25, PR 4: the backup pointer (per user) and report evidence (with
+  // the global reports).
+  'E2eeBackup',
+  'E2eeReportEvidence',
 ];
 
 const GLOBAL_SET: ReadonlySet<string> = new Set(GLOBAL_MODELS);

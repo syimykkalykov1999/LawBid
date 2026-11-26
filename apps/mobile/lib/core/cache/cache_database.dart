@@ -186,7 +186,9 @@ class E2eePlaintexts extends Table {
 }
 
 /// The cache database (`lawbid_cache`). On phones it is a file the OS
-/// protects; on the web build the browser's storage (owner 2026-11-08, speed
+/// protects, encrypted with SQLite3MultipleCiphers since S13 #26 (with the
+/// E2EE plaintexts in it; `core/persistence/encrypted_database.dart`); on
+/// the web build the browser's storage (owner 2026-11-08, speed
 /// everywhere; it lived only in the tab's memory before), wiped on sign-out
 /// like every account row (`CacheMaintenance.clearAccountData`).
 @DriftDatabase(
@@ -865,6 +867,10 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
       (select(e2eePlaintexts)
             ..where((r) => r.owner.equals(owner) & r.id.equals(id)))
           .getSingleOrNull();
+
+  /// Every decrypted message of [owner] (the encrypted backup).
+  Future<List<E2eePlaintextRow>> e2eePlaintextsAll(String owner) =>
+      (select(e2eePlaintexts)..where((r) => r.owner.equals(owner))).get();
 
   Future<List<E2eePlaintextRow>> e2eePlaintextsOf(
     String owner,

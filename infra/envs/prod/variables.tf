@@ -426,6 +426,11 @@ variable "status_create_certificate" {
   type    = bool
   default = false
 }
+variable "status_backup_url" {
+  type        = string
+  default     = ""
+  description = "Stage 2 SRE (Б4): https URL of the status.json copy in the public R2 bucket, e.g. https://media.lawbid.dev/status/status.json (docs/runbooks/STATUS_PAGE.md)."
+}
 variable "create_database" {
   type    = bool
   default = false
@@ -984,6 +989,16 @@ variable "alb_deletion_protection" {
   type    = bool
   default = true
 }
+# G2 (STAGE2_ARCH_PERF_2026-11-25): prod balances REST by outstanding requests
+# with no stickiness (AWS ELB "Edit target group attributes": least outstanding
+# requests for requests of unequal cost); only /socket.io/* stays sticky on its
+# own target group. The first apply with these ON re-registers the api service
+# in the second group, so both stay OFF here: otherwise every admin «Авто» /
+# «Масштаб» infra plan would carry that ALB + ECS change before the owner's
+# night apply. Owner: set both true in tfvars and apply at night
+# (docs/runbooks/infra-hardening.md, section 6). Works with the ECS built-in
+# canary (api_native_deploy): the socket group gets its own green pair
+# (api-ws-green, weighted rule 7) on `prepare`.
 variable "alb_least_outstanding_requests" {
   type    = bool
   default = false

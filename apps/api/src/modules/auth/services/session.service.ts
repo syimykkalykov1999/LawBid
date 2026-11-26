@@ -17,6 +17,11 @@ import { SessionRevocationService } from './session-revocation.service';
 import { AuthEventService, AUTH_EVENT_TYPES } from './auth-event.service';
 import { RateLimitService } from './rate-limit.service';
 import { AccountBansService } from '../../account-bans/account-bans.service';
+import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+
+/** STAGE2_SECURITY #13: default of `auth.session_absolute_days`. */
+export const DEFAULT_SESSION_ABSOLUTE_DAYS = 365;
+const DAY_MS = 86_400_000;
 
 export interface DeviceInfo {
   deviceId?: string;
@@ -82,6 +87,8 @@ export class SessionService {
     @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
     // Verify batch 7 (BA1): phone / e-mail / device bans on refresh.
     @Optional() private readonly bans?: AccountBansService,
+    // STAGE2_SECURITY #13: auth.session_absolute_days.
+    @Optional() private readonly settings?: AppSettingsService,
   ) {}
 
   private readonly logger = new Logger(SessionService.name);
@@ -165,7 +172,8 @@ export class SessionService {
             user_agent: meta.userAgent,
             refresh_hash: hash,
             last_used_at: new Date(),
-            expires_at: this.tokenService.refreshExpiryDate(),
+            chain_started_at: new Date(),
+            expires_at: await this.chainExpiry(new Date()),
           },
         });
         return { session, ended };
@@ -297,6 +305,19 @@ export class SessionService {
       return { status: 'expired' };
     }
 
+    // STAGE2_SECURITY #13 (ASVS 5.0 V7.3.2 / V10.4.8): an absolute lifetime
+    // counted from the sign-in, whatever the refreshes. Past it the chain
+    // ends and the person signs in again (a passkey makes it one tap).
+    const chainStartedAt =
+      found.chain_started_at ?? (await this.chainStart(found));
+    if (await this.pastAbsoluteLifetime(chainStartedAt)) {
+      await this.revocation.revokeChain(
+        found.session_chain_id,
+        'session_expired',
+      );
+      return { status: 'expired' };
+    }
+
     // docs/01 §10.3: a suspended/deleted account gets ACCOUNT_SUSPENDED/
     // ACCOUNT_DELETED on every way in — refresh included. Blocking or
     // deleting normally revokes every chain already
@@ -396,7 +417,8 @@ export class SessionService {
             user_agent: meta.userAgent ?? found.user_agent,
             refresh_hash: newHash,
             last_used_at: new Date(),
-            expires_at: this.tokenService.refreshExpiryDate(),
+            chain_started_at: chainStartedAt,
+            expires_at: await this.chainExpiry(chainStartedAt),
           },
         });
         await tx.session.update({
@@ -441,6 +463,42 @@ export class SessionService {
       .catch(() => undefined);
 
     return { status: 'ok', session, refreshTokenRaw: raw };
+  }
+
+  /** The admin's absolute lifetime in days (0 = off; settings unreadable
+   * → the default 365). */
+  private async absoluteDays(): Promise<number> {
+    try {
+      const v = await this.settings?.number('auth.session_absolute_days');
+      if (v !== undefined && Number.isFinite(v) && v >= 0) return Math.floor(v);
+    } catch {
+      // settings unreachable: keep the default
+    }
+    return DEFAULT_SESSION_ABSOLUTE_DAYS;
+  }
+
+  private async pastAbsoluteLifetime(startedAt: Date): Promise<boolean> {
+    const days = await this.absoluteDays();
+    return days > 0 && Date.now() - startedAt.getTime() > days * DAY_MS;
+  }
+
+  /** The refresh expiry, never past the chain's absolute end. */
+  private async chainExpiry(startedAt: Date): Promise<Date> {
+    const sliding = this.tokenService.refreshExpiryDate();
+    const days = await this.absoluteDays();
+    if (days <= 0) return sliding;
+    const absolute = new Date(startedAt.getTime() + days * DAY_MS);
+    return absolute < sliding ? absolute : sliding;
+  }
+
+  /** A chain opened before #13: its oldest row is the sign-in. */
+  private async chainStart(found: Session): Promise<Date> {
+    const first = await this.prisma.session.findFirst({
+      where: { session_chain_id: found.session_chain_id },
+      orderBy: { created_at: 'asc' },
+      select: { created_at: true },
+    });
+    return first?.created_at ?? found.created_at ?? new Date();
   }
 
   async listActiveChains(userId: string): Promise<Session[]> {

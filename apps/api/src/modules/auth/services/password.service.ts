@@ -9,6 +9,20 @@ import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { COMMON_PASSWORDS } from '../data/common-passwords';
+import {
+  CONTEXT_COVERAGE_LIMIT,
+  contextCoverage,
+  contextWords,
+  type PasswordContext,
+} from './password-context';
+
+/** Default of `security.password_context_words` (the admin can edit it). */
+export const DEFAULT_PASSWORD_CONTEXT_WORDS = [
+  'lawbid',
+  'law bid',
+  'attorney',
+  'lawyer',
+];
 
 const COMMON_SET: ReadonlySet<string> = new Set(COMMON_PASSWORDS);
 const HIBP_RANGE_URL = 'https://api.pwnedpasswords.com/range/';
@@ -178,9 +192,19 @@ export class PasswordService {
    * the SHA-1 leave the server, with `Add-Padding`). A hit is refused with
    * the reason (AUTH_PASSWORD_COMPROMISED). If the breach service is slow
    * or down the check is skipped (logged): sign-up never depends on it.
+   *
+   * ASVS 5.0 V6.1.2 / V6.2.11 (STAGE2_SECURITY #11): also refused when at
+   * least half of it is a context word — the admin's list
+   * `security.password_context_words` («lawbid», …) and [context] (the
+   * person's name, username, e-mail local part, phone digits); zxcvbn-ts
+   * finds them reversed, in l33t and in any case (password-context.ts).
+   * Same error code, `details.reason = 'context'`.
    */
-  async assertNotCompromised(password: string): Promise<void> {
-    const reject = (reason: 'common' | 'breached'): never => {
+  async assertNotCompromised(
+    password: string,
+    context: PasswordContext = {},
+  ): Promise<void> {
+    const reject = (reason: 'common' | 'breached' | 'context'): never => {
       throw new HttpException(
         {
           code: ErrorCode.AUTH_PASSWORD_COMPROMISED,
@@ -197,11 +221,28 @@ export class PasswordService {
     ) {
       reject('common');
     }
+    const words = contextWords(await this.contextWordList(), context);
+    if (contextCoverage(password, words) >= CONTEXT_COVERAGE_LIMIT) {
+      reject('context');
+    }
     // No settings service (a bare unit test): never reach the network.
     if (!this.settings) return;
     if (!(await this.readFlag('security.password_breach_check_enabled')))
       return;
     if (await this.isBreached(password)) reject('breached');
+  }
+
+  /** The admin's context words; unreadable settings → the default list. */
+  private async contextWordList(): Promise<string[]> {
+    try {
+      const v = await this.settings?.stringList(
+        'security.password_context_words',
+      );
+      if (Array.isArray(v)) return v;
+    } catch {
+      // settings unreachable: keep the default
+    }
+    return DEFAULT_PASSWORD_CONTEXT_WORDS;
   }
 
   private async isBreached(password: string): Promise<boolean> {

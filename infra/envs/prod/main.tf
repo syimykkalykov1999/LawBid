@@ -84,6 +84,7 @@ module "stack" {
   status_certificate_arn         = var.status_certificate_arn
   status_create_certificate      = var.status_create_certificate
   secrets_replica_enabled        = var.secrets_replica_enabled
+  status_backup_url              = var.status_backup_url
   hosted_zone_id                 = var.hosted_zone_id
   dmarc_rua                      = var.dmarc_rua
   ses_from_address               = var.ses_from_address
