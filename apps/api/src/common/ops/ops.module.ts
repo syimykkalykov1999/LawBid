@@ -24,6 +24,7 @@ import { StatusProbesService } from './status/status-probes.service';
 import { SsmParamGateway } from './ssm-param.gateway';
 import { UsageHardStopService } from './usage/usage-hard-stop.service';
 import { BotCheckStatsService } from '../security/bot-check-stats';
+import { QueueConcurrencyService } from '../queues/queue-concurrency.service';
 
 /** Owner 2026-10-05: zero-maintenance operations, shared by the API and
  * the worker (RedisModule and ConfigModule are global). */
@@ -31,6 +32,8 @@ import { BotCheckStatsService } from '../security/bot-check-stats';
 @Module({
   controllers: [AlarmEventsController],
   providers: [
+    // THIRD_PASS_A Q5: queue worker concurrency from admin settings.
+    QueueConcurrencyService,
     AwsOpsService,
     AwsCapacityService,
     HaAutoService,

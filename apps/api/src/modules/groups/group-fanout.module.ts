@@ -25,7 +25,11 @@ const PARTITIONS_RECHECK_MS = 60_000;
 import { GroupsModule } from './groups.module';
 import { GroupsService } from './groups.service';
 import { bullOptions } from '../../redis/redis-connection';
-import { closeWorker, outageProof } from '../../common/queues/queue-hardening';
+import {
+  closeWorker,
+  outageProof,
+  workerTuning,
+} from '../../common/queues/queue-hardening';
 
 export const GROUP_FANOUT_OPTIONS = Symbol('GROUP_FANOUT_OPTIONS');
 
@@ -86,6 +90,9 @@ export class GroupFanoutWorker
         outageProof((job: Job<GroupFanoutJob>) => this.process(job.data)),
         {
           ...bullOptions(fanoutQueueName(i), url, { worker: true }),
+          // THIRD_PASS_A Q3: lock / stall / metrics like the other fan-outs.
+          ...workerTuning('group-fanout'),
+          // Stays 1: a group's messages keep their order per partition.
           concurrency: 1,
         },
       );

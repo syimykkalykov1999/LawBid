@@ -18,6 +18,10 @@ import {
   workerTuning,
 } from '../../../common/queues/queue-hardening';
 import { incrWithTtl } from '../../../redis/incr-with-ttl';
+import {
+  queueConcurrency,
+  trackConcurrency,
+} from '../../../common/queues/queue-concurrency';
 
 /** BullMQ queue of the upload pipeline (docs/06 §6 `worker` service). */
 export const FILES_QUEUE = 'files';
@@ -87,9 +91,10 @@ export class FileScanRunner
         ...bullOptions(FILES_QUEUE, url, { worker: true }),
         ...workerTuning(FILES_QUEUE),
         // Scans + sharp are CPU/memory heavy (10 MB files).
-        concurrency: 2,
+        concurrency: queueConcurrency(FILES_QUEUE),
       },
     );
+    trackConcurrency(this.worker);
     this.worker.on('failed', (job, error) => {
       this.logger.error(
         { job: job?.name, attempts: job?.attemptsMade, err: error.message },

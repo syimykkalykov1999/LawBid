@@ -1650,6 +1650,67 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'ops.cron_lane_concurrency_heavy',
     'Background jobs the nightly heavy lane (retention, recounts, session cleanup, staff nightlies) runs at once in one worker task. Default 1. Each extra job is one more long database query at the same time.',
   );
+  // THIRD_PASS_A Q5 (26.11): queue worker concurrency; no ceiling (owner
+  // 26.11 «лимиты для меня вообще не ставь»).
+  const queueConcurrency = (key: string, description: string) => {
+    out[key] = { ...out[key], description, min: 1, max: undefined };
+  };
+  queueConcurrency(
+    'ops.queue_concurrency_account_deletion',
+    'Jobs the queue of deleting accounts (Stripe, files, video per account) runs at once in one server task. Default 2. Applied to the running workers within 30 s.',
+  );
+  queueConcurrency(
+    'ops.queue_concurrency_admin_broadcast',
+    'Jobs the queue of admin broadcasts to many people runs at once in one server task. Default 1. Applied to the running workers within 30 s.',
+  );
+  queueConcurrency(
+    'ops.queue_concurrency_case_fanout',
+    'Jobs the queue of new-case alert waves to attorneys runs at once in one server task. Default 4. Applied to the running workers within 30 s.',
+  );
+  queueConcurrency(
+    'ops.queue_concurrency_case_history_export',
+    'Jobs the queue of case history PDF exports runs at once in one server task. Default 2. Applied to the running workers within 30 s.',
+  );
+  queueConcurrency(
+    'ops.queue_concurrency_channel_fanout',
+    'Jobs the queue of channel post deliveries runs at once in one server task. Default 4. Applied to the running workers within 30 s.',
+  );
+  queueConcurrency(
+    'ops.queue_concurrency_data_export',
+    'Jobs the queue of personal data exports («Мои данные») runs at once in one server task. Default 2. Applied to the running workers within 30 s.',
+  );
+  queueConcurrency(
+    'ops.queue_concurrency_deal_record',
+    'Jobs the queue of deal record PDFs runs at once in one server task. Default 2. Applied to the running workers within 30 s.',
+  );
+  queueConcurrency(
+    'ops.queue_concurrency_files',
+    'Jobs the queue of file scans and image processing runs at once in one server task. Default 2. Applied to the running workers within 30 s.',
+  );
+  queueConcurrency(
+    'ops.queue_concurrency_media_moderation',
+    'Jobs the queue of photo and video moderation checks runs at once in one server task. Default 4. Applied to the running workers within 30 s.',
+  );
+  queueConcurrency(
+    'ops.queue_concurrency_post_fanout',
+    'Jobs the queue of post deliveries to followers runs at once in one server task. Default 4. Applied to the running workers within 30 s.',
+  );
+  queueConcurrency(
+    'ops.queue_concurrency_push',
+    'Jobs the queue of push notification sends runs at once in one server task. Default 20. Applied to the running workers within 30 s.',
+  );
+  queueConcurrency(
+    'ops.queue_concurrency_registry_checks',
+    'Jobs the queue of bar registry checks of attorney licences runs at once in one server task. Default 4. Applied to the running workers within 30 s.',
+  );
+  queueConcurrency(
+    'ops.queue_concurrency_stripe_webhooks',
+    'Jobs the queue of Stripe webhook events runs at once in one server task. Default 4. Applied to the running workers within 30 s.',
+  );
+  queueConcurrency(
+    'ops.queue_concurrency_subscriptions',
+    'Jobs the queue of subscription jobs (renewals, trial reminders) runs at once in one server task. Default 2. Applied to the running workers within 30 s.',
+  );
   out['ops.reencrypt_rows_per_min'] = {
     ...out['ops.reencrypt_rows_per_min'],
     description:

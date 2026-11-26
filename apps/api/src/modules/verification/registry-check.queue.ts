@@ -14,6 +14,10 @@ import { closeWorker, workerTuning } from '../../common/queues/queue-hardening';
 import { bullOptions } from '../../redis/redis-connection';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { delSafe } from '../../redis/redis-cluster-safe';
+import {
+  queueConcurrency,
+  trackConcurrency,
+} from '../../common/queues/queue-concurrency';
 
 /**
  * Owner 2026-11-04 (R-394): a state-registry lookup never runs inside the
@@ -206,9 +210,10 @@ export class RegistryCheckWorker
         ...bullOptions(REGISTRY_CHECK_QUEUE, url, { worker: true }),
         ...workerTuning(REGISTRY_CHECK_QUEUE),
         // Lookups wait on other sites, not on our CPU.
-        concurrency: 4,
+        concurrency: queueConcurrency(REGISTRY_CHECK_QUEUE),
       },
     );
+    trackConcurrency(this.worker);
     this.worker.on('failed', (job, error) => {
       this.logger.error(
         { job: job?.name, licenseId: job?.data.licenseId, err: error.message },

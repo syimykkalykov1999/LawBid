@@ -69,3 +69,9 @@ that run more often than hourly — and `cron-heavy`), `push`, `files`,
   the new number up within 30 s (`metric: cron_lane_concurrency`); the same
   job never runs twice at once (per-job Redis lock). Lower it again if the
   database gets busy.
+- Another queue is behind (push, fan-outs, exports, scans, Stripe events):
+  raise its `ops.queue_concurrency_<queue>` setting (whole number ≥ 1, no
+  ceiling; defaults are the old built-in numbers, push 20). The running
+  workers pick it up within 30 s (`metric: queue_concurrency`). The
+  `group-fanout-<n>` partitions stay at 1 each (message order); add
+  partitions with `groups.fanout_partitions` instead.

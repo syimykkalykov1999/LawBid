@@ -82,6 +82,9 @@ const TUNING: Record<string, Partial<Omit<WorkerTuning, 'metrics'>>> = {
   'channel-fanout': { lockDuration: 90_000, stalledInterval: 60_000 },
   'post-fanout': { lockDuration: 90_000, stalledInterval: 60_000 },
   'case-fanout': { lockDuration: 90_000, stalledInterval: 60_000 },
+  // THIRD_PASS_A Q3 (26.11): the `group-fanout-<n>` partitions (one tuning
+  // for all of them) were the only workers without a row here.
+  'group-fanout': { lockDuration: 90_000, stalledInterval: 60_000 },
   'admin-broadcast': { lockDuration: 90_000, stalledInterval: 60_000 },
   'media-moderation': { lockDuration: 60_000, maxStalledCount: 2 },
 };

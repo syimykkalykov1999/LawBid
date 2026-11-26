@@ -36,6 +36,10 @@ import { DealRecordTexts, type SignedConsent } from './deal-record-texts';
 import { DealRecordPdfCache } from './deal-record-pdf-cache';
 import { dealRecordVerifyUrl, publicApiBase } from './deal-record.verify';
 import type { DbTx } from '../../prisma/secret-columns';
+import {
+  queueConcurrency,
+  trackConcurrency,
+} from '../../common/queues/queue-concurrency';
 
 export const DEAL_RECORD_QUEUE = 'deal-record';
 export const DEAL_RECORD_OPTIONS = Symbol('DEAL_RECORD_OPTIONS');
@@ -112,9 +116,10 @@ export class DealRecordRunner
       {
         ...bullOptions(DEAL_RECORD_QUEUE, url, { worker: true }),
         ...workerTuning(DEAL_RECORD_QUEUE),
-        concurrency: 2,
+        concurrency: queueConcurrency(DEAL_RECORD_QUEUE),
       },
     );
+    trackConcurrency(this.worker);
     this.worker.on(
       'failed',
       (job: Job<RenderJob> | undefined, error) =>
