@@ -102,6 +102,12 @@ abstract final class ApiErrorCodes {
   static const notImplemented = 'NOT_IMPLEMENTED';
   // Admin «send a test e-mail to myself»: the mail provider refused (502).
   static const emailSendFailed = 'EMAIL_SEND_FAILED';
+  // Item 25: end-to-end encrypted chats (MLS).
+  static const e2eeOff = 'E2EE_OFF';
+  static const e2eeRequired = 'E2EE_REQUIRED';
+  static const e2eeEpochConflict = 'E2EE_EPOCH_CONFLICT';
+  static const e2eeDeviceLimit = 'E2EE_DEVICE_LIMIT';
+  static const e2eeMembershipInvalid = 'E2EE_MEMBERSHIP_INVALID';
 
   // i18n (docs/01 §9, stage 1.6)
   static const i18nLanguageNotFound = 'I18N_LANGUAGE_NOT_FOUND';
@@ -422,6 +428,11 @@ abstract final class ApiErrorCodes {
     roleSwitchNotAllowed,
     notImplemented,
     emailSendFailed,
+    e2eeOff,
+    e2eeRequired,
+    e2eeEpochConflict,
+    e2eeDeviceLimit,
+    e2eeMembershipInvalid,
     i18nLanguageNotFound,
     i18nImportInvalid,
     providerBudgetExceeded,

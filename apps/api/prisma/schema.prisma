@@ -497,6 +497,10 @@ enum MessageType {
   // Owner 2026-10-21 (Instagram «Поделиться»): a shared post (body = the
   // post's id; the app draws the card).
   post
+  // Item 25 (docs/architecture/E2EE_MLS_PLAN_2026-11-25.md): an end-to-end
+  // encrypted message — an MLS PrivateMessage in messages.ciphertext; the
+  // text columns stay empty, the server never sees the content.
+  mls
 
   @@map("message_type")
 }
@@ -975,6 +979,7 @@ model User {
   notification_settings       NotificationSetting[]
   quiet_hours                 NotificationQuietHours?
   push_tokens                 PushToken[]
+  mls_devices                 MlsDevice[]
   voip_tokens                 VoipToken[]
   stripe_customer             StripeCustomer?
   subscription                Subscription?
@@ -2946,6 +2951,10 @@ model Conversation {
   /// this many seconds (24 h / 7 d / 90 d); null = off. Only messages sent
   /// after it was switched on carry an `expires_at`.
   disappear_after_s Int?
+  /// Item 25 (E2EE, MLS): when this chat switched to end-to-end encryption
+  /// (its MLS group was created); null = server-side encryption as before.
+  /// Older messages keep their server-side encryption and stay readable.
+  e2ee_since        DateTime?            @db.Timestamptz
   // Bare uuid: an FK here would make conversations <-> messages a cycle
   // on every insert; it's a denormalized pointer for the chat list.
   last_message_id   String?              @db.Uuid
@@ -3254,6 +3263,10 @@ model Message {
   forwarded             Boolean            @default(false)
   /// "Forwarded from <name>": the first author, kept through re-forwards.
   forwarded_from_name   String?            @db.VarChar(120)
+  /// Item 25 (E2EE): type = mls — the encoded MLS PrivateMessage (opaque to
+  /// the server) and the group epoch it was sent in.
+  ciphertext            Bytes?
+  mls_epoch             Int?
   hidden_for            MessageHidden[]
   reactions             MessageReaction[]
   edits                 MessageEdit[]
@@ -3298,6 +3311,119 @@ model MessageSearchToken {
   @@id([conversation_id, token, message_id])
   @@index([message_id])
   @@map("message_search_tokens")
+}
+
+/// Item 25 (E2EE on MLS, RFC 9420 / RFC 9750; docs/architecture/
+/// E2EE_MLS_PLAN_2026-11-25.md §3): one MLS client = one device of a user
+/// (WhatsApp / Wire multi-device: every device is its own member). The
+/// server keeps only the PUBLIC signature key; the private keys never leave
+/// the device. The MLS identity is "<user_id>:<id>" (BasicCredential).
+/// The MLS tables are global and carry no foreign key to the chat:
+/// conversations are case-family rows that may live on another database
+/// (like message_search_tokens).
+model MlsDevice {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id       String          @db.Uuid
+  user          User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  /// Ed25519 public key of the device's MLS credential (32 bytes).
+  signature_key Bytes
+  /// ios | android | macos | web — what the app reported.
+  platform      String          @db.VarChar(16)
+  created_at    DateTime        @default(now()) @db.Timestamptz
+  last_seen_at  DateTime        @default(now()) @db.Timestamptz
+  /// Signed out / replaced: no key packages are handed out any more and the
+  /// device must be removed from its groups (MLS messages wait until then).
+  revoked_at    DateTime?       @db.Timestamptz
+  key_packages  MlsKeyPackage[]
+
+  @@unique([user_id, signature_key])
+  @@index([user_id, revoked_at])
+  @@map("mls_devices")
+}
+
+/// Item 25: the KeyPackage directory (RFC 9420 §10, §16.8). A device uploads
+/// many one-time packages and one last-resort package; a claim hands out a
+/// one-time package and deletes it in the same statement, the last-resort
+/// one only when none is left (a claim never deletes it).
+model MlsKeyPackage {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  device_id   String    @db.Uuid
+  device      MlsDevice @relation(fields: [device_id], references: [id], onDelete: Cascade)
+  /// Encoded MLSMessage (wire format mls_key_package), as the client sent it.
+  data        Bytes
+  last_resort Boolean   @default(false)
+  created_at  DateTime  @default(now()) @db.Timestamptz
+
+  @@index([device_id, last_resort, created_at])
+  @@map("mls_key_packages")
+}
+
+/// Item 25: the MLS group of one conversation. The server is the strongly
+/// consistent Delivery Service (RFC 9750 §5.2, as Wire): `epoch` moves only
+/// by an accepted commit, and a commit is accepted only for the current
+/// epoch (compare-and-set), so the group never forks.
+model MlsGroup {
+  conversation_id   String   @id @db.Uuid
+  /// The MLS group_id the creating device chose (≤ 64 bytes).
+  group_id          Bytes    @unique
+  epoch             Int      @default(0)
+  created_by_device String   @db.Uuid
+  created_at        DateTime @default(now()) @db.Timestamptz
+  updated_at        DateTime @updatedAt @db.Timestamptz
+
+  @@map("mls_groups")
+}
+
+/// Item 25: the accepted commits of a group in order (one per epoch). A
+/// device that was offline reads the commits after its own epoch.
+model MlsCommit {
+  conversation_id  String   @db.Uuid
+  /// The epoch the commit was made in; the group is in epoch + 1 after it.
+  epoch            Int
+  sender_device_id String   @db.Uuid
+  /// Encoded MLSMessage (PublicMessage or PrivateMessage with the commit).
+  data             Bytes
+  /// The devices the commit adds / removes (declared by the sender, checked
+  /// against the conversation's participants and the commit's own adds).
+  added_devices    String[] @default([]) @db.Uuid
+  removed_devices  String[] @default([]) @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamptz
+
+  @@id([conversation_id, epoch])
+  @@map("mls_commits")
+}
+
+/// Item 25: which devices are members of a conversation's MLS group now
+/// (kept by the accepted commits). Delivery, the "who still has to be
+/// added / removed" lists and the security code read it.
+model MlsGroupDevice {
+  conversation_id String   @db.Uuid
+  device_id       String   @db.Uuid
+  user_id         String   @db.Uuid
+  joined_epoch    Int
+  created_at      DateTime @default(now()) @db.Timestamptz
+
+  @@id([conversation_id, device_id])
+  @@index([device_id])
+  @@index([conversation_id, user_id])
+  @@map("mls_group_devices")
+}
+
+/// Item 25: a Welcome for one device (it joins the group from it). Kept
+/// until the device takes it or chat.e2ee_welcome_keep_days pass.
+model MlsWelcome {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String   @db.Uuid
+  device_id       String   @db.Uuid
+  /// The epoch the device joins into.
+  epoch           Int
+  data            Bytes
+  created_at      DateTime @default(now()) @db.Timestamptz
+
+  @@index([device_id, created_at])
+  @@index([conversation_id])
+  @@index([created_at])
+  @@map("mls_welcomes")
 }
 
 /// "Delete for me": the message stays for the other side.
