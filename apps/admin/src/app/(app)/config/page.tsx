@@ -1288,6 +1288,34 @@ const KEY_TEXT: Record<string, string> = {
     "Копия базы для чтения (работает, только если она подключена): off — всё читается с главной базы, on — копия всегда, auto — копия, пока она не отстаёт больше порога. Ключ: db.replica_reads.",
   "db.replica_max_lag_ms":
     "Порог режима auto: если копия базы отстаёт от главной больше чем на столько миллисекунд, чтение идёт с главной. Ключ: db.replica_max_lag_ms.",
+  "scale.db_replica_first.mode":
+    "Сначала копия для чтения, потом размер базы (как Instagram и AWS): когда база занята только по процессору, автомасштаб ждёт копию для чтения и только потом увеличивает главную базу. off — увеличивать сразу, как раньше; on — всегда сначала ждать копию; auto — ждать, только если копия правда может появиться (копии и чтение с копии не выключены). Ключ: scale.db_replica_first.mode.",
+  "scale.db_replica_first.wait_minutes":
+    "Сколько минут ждать копию для чтения, прежде чем всё-таки увеличить главную базу (по умолчанию 60). Ключ: scale.db_replica_first.wait_minutes.",
+  "scale.db_replica_first.max_replicas":
+    "Если копий для чтения уже столько, базу увеличивают без ожидания (по умолчанию 5 — больше «Авто» не добавляет). Ключ: scale.db_replica_first.max_replicas.",
+  "infra.predictive_scaling_mode":
+    "Прогноз нагрузки для серверов API (как Netflix и AWS): forecast — это «Выкл»: только прогноз, серверы не трогает; on — добавляет серверы заранее, до часа пик; auto — сначала только прогноз, а когда прогноз столько дней подряд точный (ошибка не больше порога), сам начинает добавлять серверы; после плохого дня снова только прогноз. Обычное «Авто» по процессору и запросам работает всегда, потолок серверов не превышается. Ключ: infra.predictive_scaling_mode.",
+  "infra.predictive_max_error_pct":
+    "Режим auto: насколько прогноз может ошибиться за сутки (в %, сравнение с настоящими запросами), чтобы день считался хорошим. По умолчанию 20. Ключ: infra.predictive_max_error_pct.",
+  "infra.predictive_good_days":
+    "Режим auto: сколько хороших дней подряд нужно, прежде чем прогноз начнёт добавлять серверы. По умолчанию 14 (AWS: две недели истории — лучше всего), не больше 29. Ключ: infra.predictive_good_days.",
+  "infra.predictive_check_minutes":
+    "Как часто сверять прогноз с настоящей нагрузкой, в минутах (по умолчанию 60: прогноз почасовой). Ключ: infra.predictive_check_minutes.",
+  "infra.valkey_serverless_mode":
+    "Valkey: обычные узлы или ElastiCache Serverless — что дешевле при нашей настоящей нагрузке. off — не сравнивать; auto — раз в несколько часов считать цену обоих вариантов и писать в «Расходы → Реестр», что дешевле. Сам Valkey не переключает: переход по инструкции docs/runbooks/valkey-serverless.md (без потери данных). Ключ: infra.valkey_serverless_mode.",
+  "infra.valkey_serverless_min_saving_pct":
+    "На сколько % Serverless должен быть дешевле каждый день окна, чтобы появилось «пора переходить» (по умолчанию 10). Ключ: infra.valkey_serverless_min_saving_pct.",
+  "infra.valkey_serverless_days":
+    "За сколько дней брать настоящую нагрузку Valkey для сравнения (по умолчанию 7). Ключ: infra.valkey_serverless_days.",
+  "infra.valkey_serverless_check_hours":
+    "Как часто сравнивать цену, в часах (по умолчанию 6). Ключ: infra.valkey_serverless_check_hours.",
+  "infra.valkey_serverless_ecpu_factor":
+    "Сколько ECPU (единиц оплаты Serverless) берёт одна наша команда: AWS считает 1 ECPU за простую команду до 1 КБ, скрипты очередей дороже. По умолчанию 1,5. Ключ: infra.valkey_serverless_ecpu_factor.",
+  "infra.valkey_serverless_gb_hour_usd":
+    "Цена Serverless Valkey за ГБ в час, $ (AWS, us-east-1, 25.11.2026: 0,084). Поменяйте, если AWS сменит цену. Ключ: infra.valkey_serverless_gb_hour_usd.",
+  "infra.valkey_serverless_million_ecpu_usd":
+    "Цена Serverless Valkey за миллион ECPU, $ (AWS, us-east-1, 25.11.2026: 0,0023). Ключ: infra.valkey_serverless_million_ecpu_usd.",
   "db.health_table_size_gb":
     "Ежедневная проверка базы: письмо-предупреждение, если одна таблица стала больше этого числа гигабайт (0 — не проверять). Ключ: db.health_table_size_gb.",
   "db.health_dead_ratio_percent":
