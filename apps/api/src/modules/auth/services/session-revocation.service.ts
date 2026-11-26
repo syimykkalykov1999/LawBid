@@ -32,7 +32,9 @@ export type RevokeReason =
   // Owner 2026-11-05: the account switched between the attorney and the
   // client profile — other sessions end (their tokens carry the old role),
   // this one refreshes.
-  | 'role_switched';
+  | 'role_switched'
+  // STAGE2_SECURITY #13: the chain outlived auth.session_absolute_days.
+  | 'session_expired';
 
 /**
  * Single choke point for every way a session can end (logout, logout-all,

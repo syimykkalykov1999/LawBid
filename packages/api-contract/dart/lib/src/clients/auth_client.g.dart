@@ -341,12 +341,16 @@ class _AuthClient implements AuthClient {
   }
 
   @override
-  Future<LoggedOutEnvelope> logoutOthers({Map<String, dynamic>? extras}) async {
+  Future<LoggedOutEnvelope> logoutOthers({
+    String? xReauthToken,
+    Map<String, dynamic>? extras,
+  }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'X-Reauth-Token': xReauthToken};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<LoggedOutEnvelope>(
       Options(method: 'POST', headers: _headers, extra: _extra)
@@ -432,13 +436,15 @@ class _AuthClient implements AuthClient {
   @override
   Future<SessionEndedEnvelope> endSession({
     required String id,
+    String? xReauthToken,
     Map<String, dynamic>? extras,
   }) async {
     final _extra = <String, dynamic>{};
     _extra.addAll(extras ?? <String, dynamic>{});
     final queryParameters = <String, dynamic>{};
     queryParameters.removeWhere((k, v) => v == null);
-    final _headers = <String, dynamic>{};
+    final _headers = <String, dynamic>{r'X-Reauth-Token': xReauthToken};
+    _headers.removeWhere((k, v) => v == null);
     const Map<String, dynamic>? _data = null;
     final _options = _setStreamType<SessionEndedEnvelope>(
       Options(method: 'DELETE', headers: _headers, extra: _extra)

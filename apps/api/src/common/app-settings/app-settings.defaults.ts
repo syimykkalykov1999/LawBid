@@ -1408,6 +1408,14 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   /** R2B-12: from this app version on, the data-export link is given only
    * with a fresh X-Reauth-Token. Empty = not enforced yet. */
   'security.export_reauth_min_app_version': '',
+  /** STAGE2_SECURITY #12: from this app version on, ending another session or
+   * «sign out others» needs re-authentication on phones (the website always).
+   * Empty = phones not held to it yet. */
+  'security.session_end_reauth_min_app_version': '',
+  /** STAGE2_SECURITY #13 (ASVS V7.3.2): a sign-in lasts at most this many
+   * days, however often it refreshes; then the person signs in again
+   * (0 = no absolute limit). */
+  'auth.session_absolute_days': 365,
   /** R2B-7: a Persona webhook signed more than this many seconds from now
    * is refused (0 = no check). */
   'verification.persona_webhook_tolerance_sec': 300,
