@@ -1210,6 +1210,13 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * an adaptive concurrency limit (Netflix Gradient2) that only sheds once
    * CPU is above `shed_cpu_start_pct` (above the autoscaling target). */
   'realtime.server.shed_mode': 'auto',
+  /** G6 (25.11, Discord «How Discord Reduced Websocket Traffic by 40%»):
+   * permessage-deflate on the socket for frames of
+   * `realtime.server.ws_compression_threshold_bytes` and more. off = none;
+   * on = every new socket; auto (default) = new sockets while this server
+   * holds fewer than `realtime.server.ws_compression_auto_max_sockets`
+   * compressed ones (memory, modules/realtime/ws-compression.ts). */
+  'realtime.server.ws_compression_mode': 'auto',
   /** Owner 2026-10-25: password screening (NIST SP 800-63B-4 §3.1.1.2). */
   'security.password_breach_check_enabled': true,
   /** Milliseconds to wait for the breached-password service; later = skip. */
