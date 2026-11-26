@@ -53,4 +53,43 @@ void main() {
     expect(stars, isNull);
     expect(tester.takeException(), isNull);
   });
+
+  /// Third pass M22 (WCAG 2.2 1.4.4): the chip labels follow the system
+  /// text size (up to 1.3x) and the row never overflows, even with the
+  /// longest translation at 2x on a narrow phone.
+  for (final scale in const [1.0, 1.3, 2.0]) {
+    testWidgets('chips scale without overflow at ${scale}x', (tester) async {
+      await tester.pumpWidget(
+        uxApp(
+          const Scaffold(
+            body: ReviewSummaryPanel(
+              summary: ReviewSummary(
+                average: 4.5,
+                count: 123456,
+                distribution: {5: 99999, 4: 2000, 3: 1, 2: 1, 1: 0},
+              ),
+              onStarsTap: _noop,
+            ),
+          ),
+          theme: AppTheme.dark(),
+          size: narrowPhone,
+          textScale: scale,
+          disableAnimations: true,
+          overrides: uxOverrides(translator: LongestTranslator()),
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      final label = tester.widget<Text>(
+        find.descendant(
+          of: find.byKey(const ValueKey('reviews-filter-all')),
+          matching: find.byType(Text),
+        ),
+      );
+      final applied = label.textScaler!.scale(10) / 10;
+      expect(applied, closeTo(scale > 1.3 ? 1.3 : scale, 0.001));
+    });
+  }
 }
+
+void _noop(int _) {}
