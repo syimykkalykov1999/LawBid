@@ -274,6 +274,12 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
   waf_device_header: choice('waf_device_header', ['', 'x-device-id']),
   waf_auth_rules_enabled: bool('waf_auth_rules_enabled'),
   waf_auth_rate_action: choice('waf_auth_rate_action', ['count', 'block']),
+  // S10 (owner 26.11 «включить»): the DNS Firewall of the app VPC
+  // (modules/dns-firewall). On in prod from the start in ALERT (log only);
+  // scripts/infra/rights-gate.mjs holds it off in a plan until the bootstrap
+  // gives the deploy role the route53resolver rights. BLOCK is its own row.
+  dns_firewall_enabled: bool('dns_firewall_enabled'),
+  dns_firewall_mode: choice('dns_firewall_mode', ['ALERT', 'BLOCK']),
   nat_per_az: bool('nat_per_az'),
   api_min_tasks: int(['api_min_tasks'], 1, 4),
   rds_cross_region_backups: bool('rds_cross_region_backups'),
@@ -686,6 +692,28 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     autoOn: { waf_bot_control_enabled: true, waf_bot_control_block: true },
     impact:
       'Без перерыва. «Вкл» — только считает; «Авто» во время атаки блокирует ботов.',
+  },
+  {
+    // S10 (owner 26.11): Вкл = the filter in ALERT (only the journal, nothing
+    // is refused). Выкл removes it; BLOCK is the separate row below.
+    id: 'aws.dns_firewall',
+    values: {
+      off: { dns_firewall_enabled: false, dns_firewall_mode: 'ALERT' },
+      on: { dns_firewall_enabled: true, dns_firewall_mode: 'ALERT' },
+    },
+    impact:
+      'Без перерыва: фильтр только пишет в журнал чужие адреса, ничего не блокирует. Если служба фильтра сломается, запросы проходят.',
+  },
+  {
+    // S10 (owner 26.11): BLOCK is the owner's own decision after the journal
+    // shows no needed address outside the list (admin «Защита от ботов»).
+    id: 'aws.dns_firewall_block',
+    values: {
+      off: { dns_firewall_enabled: true, dns_firewall_mode: 'ALERT' },
+      on: { dns_firewall_enabled: true, dns_firewall_mode: 'BLOCK' },
+    },
+    impact:
+      'Без перерыва, но серверы перестанут соединяться с адресами не из списка (например, превью ссылок на чужие сайты). Включать, только когда в журнале нет нужных адресов.',
   },
   {
     id: 'aws.ha_extras',

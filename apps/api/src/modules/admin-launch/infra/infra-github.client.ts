@@ -17,10 +17,14 @@ export const SEO_WORKFLOW_FILE = 'seo-deploy.yml';
 /** 12.11.2026 (owner): the AI assistant, started at once by an alarm or a
  * new Sentry error (modules/ai-assistant, reason + alarm/issue inputs). */
 export const AI_ASSISTANT_WORKFLOW_FILE = 'ai-assistant.yml';
+/** 26.11 (D10): the nightly R2 -> S3 copy of the public media; the admin
+ * starts its dry run when the read-only R2 key is switched on. */
+export const MEDIA_BACKUP_DISPATCH_FILE = 'media-backup.yml';
 /** Other workflows the API may start (the caller picks the inputs). */
 export const DISPATCHABLE_WORKFLOWS: readonly string[] = [
   SEO_WORKFLOW_FILE,
   AI_ASSISTANT_WORKFLOW_FILE,
+  MEDIA_BACKUP_DISPATCH_FILE,
 ];
 /** Audience the workflow asks GitHub for when it calls the API. */
 export const INFRA_OIDC_AUDIENCE = 'lawbid-infra-apply';

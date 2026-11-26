@@ -9,12 +9,14 @@
 # media_backup_noncurrent_days (30 = the same as the S3 media bucket), then it
 # is gone, so a removed photo does not live on forever.
 #
-# Off by default (media_backup_enabled = false). Owner: docs/runbooks/backups.md
-# section "Публичные фото (R2) и видео (Bunny)".
+# On (owner 26.11 «Хорошо, включить сейчас»): the next bootstrap apply creates
+# the bucket, its key and the role. The copy itself runs only once the read-only
+# R2 key is saved in the admin (provider r2_backup; the workflow gets it from the
+# API). Owner: docs/runbooks/backups.md, section "Публичные фото (R2) и видео (Bunny)".
 
 variable "media_backup_enabled" {
   type        = bool
-  default     = false
+  default     = true
   description = "Bucket + OIDC role for the nightly R2 -> S3 copy of public media (media-backup.yml)."
 }
 variable "media_backup_noncurrent_days" {

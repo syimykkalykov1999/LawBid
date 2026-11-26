@@ -39,7 +39,8 @@ class FirebaseAppCheckClient {
   static const _debugToken = String.fromEnvironment('APP_CHECK_DEBUG_TOKEN');
 
   /// Web: the reCAPTCHA Enterprise site key of the web app (Firebase →
-  /// App Check → the web app). Empty = App Check off on the web.
+  /// App Check → the web app) given at build time. Empty = the admin's key
+  /// from the bootstrap is used (26.11); neither = App Check off on the web.
   static const webRecaptchaKey = String.fromEnvironment(
     'FIREBASE_WEB_RECAPTCHA_KEY',
   );
@@ -49,10 +50,33 @@ class FirebaseAppCheckClient {
 
   Future<bool>? _activation;
 
+  /// 26.11: on the web the keys may come from the admin (bootstrap) after
+  /// launch. What the last activation attempt saw; a failed attempt is
+  /// tried again once these change (the admin's keys arrived).
+  String? _webKeysTried;
+
+  /// The reCAPTCHA Enterprise key: the build's, else the admin's.
+  static String get _recaptchaKey => webRecaptchaKey.isNotEmpty
+      ? webRecaptchaKey
+      : WebPushConfig.remoteRecaptchaKey;
+
+  static String _webKeys() =>
+      '${WebPushConfig.configured}|${WebPushConfig.projectId}|$_recaptchaKey';
+
   /// Starts Firebase (when this build has its files) and App Check. Called
   /// once at launch (core/config/run_app.dart), never awaited there: the
-  /// first request that needs a token waits for it in [token].
-  Future<bool> start() => _activation ??= _activate();
+  /// first request that needs a token waits for it in [token]. On the web a
+  /// start that found no keys is retried when the bootstrap brings them.
+  Future<bool> start() {
+    if (kIsWeb &&
+        !_activated &&
+        _activation != null &&
+        _webKeysTried != null &&
+        _webKeysTried != _webKeys()) {
+      _activation = null;
+    }
+    return _activation ??= _activate();
+  }
 
   bool get activated => _activated;
   bool _activated = false;
@@ -66,14 +90,16 @@ class FirebaseAppCheckClient {
 
   Future<bool> _activate() async {
     try {
-      // App Check starts at launch, before the bootstrap: build keys only.
-      if (kIsWeb && !WebPushConfig.configuredAtBuild) {
-        debugPrint('app check: no Firebase web keys in this build');
+      // App Check starts at launch, before the bootstrap: the build's keys,
+      // else the admin's once the bootstrap brought them (start() retries).
+      if (kIsWeb) _webKeysTried = _webKeys();
+      if (kIsWeb && !WebPushConfig.configured) {
+        debugPrint('app check: no Firebase web keys yet');
         _status = 'off: no-firebase-web-keys';
         return false;
       }
-      if (kIsWeb && webRecaptchaKey.isEmpty && !debugProviders) {
-        debugPrint('app check: no FIREBASE_WEB_RECAPTCHA_KEY in this build');
+      if (kIsWeb && _recaptchaKey.isEmpty && !debugProviders) {
+        debugPrint('app check: no reCAPTCHA Enterprise key yet');
         _status = 'off: no-recaptcha-key';
         return false;
       }
@@ -89,7 +115,7 @@ class FirebaseAppCheckClient {
                 ? WebDebugProvider(
                     debugToken: _debugToken.isEmpty ? null : _debugToken,
                   )
-                : ReCaptchaEnterpriseProvider(webRecaptchaKey),
+                : ReCaptchaEnterpriseProvider(_recaptchaKey),
         providerAndroid: debugProviders
             ? AndroidDebugProvider(
                 debugToken: _debugToken.isEmpty ? null : _debugToken,

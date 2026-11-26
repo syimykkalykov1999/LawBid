@@ -2315,6 +2315,9 @@ locals {
     OPS_POOLER_MAX     = tostring(var.pgbouncer_max_tasks)
     OPS_BUDGET_NAME    = "${local.name}-monthly"
     OPS_AWS_ACCOUNT_ID = data.aws_caller_identity.current.account_id
+    # 26.11 (D10): the stack name the bootstrap names the media-backup role
+    # and bucket after (infra/bootstrap/media-backup.tf, local.name).
+    OPS_STACK_NAME = local.name
     # Owner 2026-10-24 (admin «Запуск», «Масштаб», «Расходы»): the critical
     # SNS topic the admin subscribes PagerDuty to (built from the name so the
     # app env does not depend on the monitoring module), the obsolete budget
@@ -2932,8 +2935,10 @@ data "aws_iam_policy_document" "ops_read" {
   # Item 27 (AU1): the real hourly api requests for the forecast error;
   # item 29 (AU5): the Valkey load for the Serverless cost estimate. Metrics
   # have no resource-level scope.
+  # 26.11: admin «Защита от ботов» lists the DNS Firewall metrics (one per
+  # unknown domain, modules/dns-firewall) to count them. Also no resource scope.
   statement {
-    actions   = ["cloudwatch:GetMetricData"]
+    actions   = ["cloudwatch:GetMetricData", "cloudwatch:ListMetrics"]
     resources = ["*"]
   }
   dynamic "statement" {

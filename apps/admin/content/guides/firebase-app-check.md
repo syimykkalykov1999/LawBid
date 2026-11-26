@@ -6,12 +6,14 @@ cost: Бесплатно в рамках нашего объёма (у Firebase 
 time: 40 минут на регистрацию, потом неделя наблюдения
 launch: app_check
 runbook: APP_CHECK.md
-verified: 2026-10-25
+verified: 2026-11-26
 sources:
   - Firebase - обзор App Check | https://firebase.google.com/docs/app-check
   - Firebase - App Attest на iOS | https://firebase.google.com/docs/app-check/ios/app-attest-provider
   - Firebase - Play Integrity на Android | https://firebase.google.com/docs/app-check/android/play-integrity-provider
   - Firebase - включение Enforce | https://firebase.google.com/docs/app-check/enable-enforcement
+  - Firebase - reCAPTCHA Enterprise на вебе | https://firebase.google.com/docs/app-check/web/recaptcha-enterprise-provider
+  - Google Cloud - ключи reCAPTCHA для сайта | https://cloud.google.com/recaptcha/docs/create-key-website
 ---
 
 ## Что это и зачем
@@ -31,7 +33,7 @@ App Check доказывает серверу, что запрос пришёл 
 3. Вкладка **Apps**. Для iPhone: найдите iOS-приложение, нажмите регистрацию и выберите провайдера **App Attest**. Запасной провайдер для старых iOS (до 14) - **DeviceCheck**, его включает код приложения. Можно задать время жизни токена (TTL), по умолчанию 1 час.
 4. Для Android: сначала в [Google Play Console](https://play.google.com/console/developers/) откройте приложение → **Release** → **App integrity**. В блоке **Play Integrity API** нажмите **Link Cloud project** и выберите ваш проект Firebase (нужна роль Owner).
 5. Затем в Firebase на вкладке **Apps** зарегистрируйте Android-приложение с провайдером **Play Integrity**. Укажите **SHA-256 fingerprint** подписи.
-6. Для веба зарегистрируйте сайт с провайдером **reCAPTCHA Enterprise** (нужен ключ сайта reCAPTCHA Enterprise).
+6. Для веба зарегистрируйте сайт с провайдером **reCAPTCHA Enterprise**. Ключ создаётся в Google Cloud → **Security** → **reCAPTCHA** → **Create key** (тип Web, домены `lawbid.dev`, `www.lawbid.dev`). Тот же ключ вставьте в админке: «Ключи и сервисы» → «Firebase Cloud Messaging (push)» → «Сайт: ключ reCAPTCHA Enterprise». Сайт берёт его при открытии, пересборка не нужна.
 7. Зарегистрируйте все приложения проекта: после включения принуждения незарегистрированные блокируются.
 8. Приложение должно отправлять токен в заголовке `X-Firebase-AppCheck`. Это уже сделано в нашем коде, нужен свежий выпуск приложения.
 
@@ -58,4 +60,4 @@ App Check доказывает серверу, что запрос пришёл 
 - Android без SHA-256 в регистрации или без связи с Play Console: токен не выдаётся.
 - Переключили на `enforce` слишком рано: старые версии приложения не смогут просить код входа. Выжидайте неделю.
 - После включения Enforce в Firebase изменение действует до 15 минут.
-- (не удалось проверить: как именно в Console называется ключ reCAPTCHA Enterprise для веба в 2026 году - в документации это отдельный раздел reCAPTCHA Enterprise)
+- Ключ reCAPTCHA вставлен в админке, но не в Firebase → App Check: на «Запуске» строка «Защита сайта: reCAPTCHA Enterprise» станет красной «ошибка проверки».

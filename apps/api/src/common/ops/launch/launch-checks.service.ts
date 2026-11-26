@@ -1,6 +1,17 @@
 import { promises as dns } from 'node:dns';
 import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import {
+  CloudWatchClient,
+  ListMetricsCommand,
+} from '@aws-sdk/client-cloudwatch';
+import { AWS_API_REQUEST_HANDLER } from '../../http/aws-request-handler';
+import { opsCredentials } from '../ops-credentials';
+import {
+  humanBytes,
+  MEDIA_BACKUP_STATE_KEY,
+  parseState,
+} from '../media-backup.logic';
 import { AppSettingsService } from '../../app-settings/app-settings.service';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { SecretsService } from '../../secrets/secrets.service';
@@ -54,6 +65,22 @@ type Draft = Omit<LaunchItem, 'manualTick' | 'ticked' | 'action'> &
 
 const RU_DATE = (iso: string) => iso.slice(0, 10);
 
+/** One CloudWatch metric as ListMetrics returns it: its dimensions. */
+export type MetricDims = Record<string, string>;
+
+/** modules/dns-firewall: one metric per unknown domain (metric filter on the
+ * Resolver query log) and AWS's own rule-group volume metric. */
+export const DNS_UNKNOWN_NAMESPACE = 'LawBid/DnsFirewall';
+export const DNS_UNKNOWN_METRIC = 'UnknownDomainQueries';
+export const DNS_FIREWALL_NAMESPACE = 'AWS/Route53Resolver';
+export const DNS_FIREWALL_METRIC = 'FirewallRuleGroupQueryVolume';
+/** At most this many ListMetrics pages (500 metrics each) per reading. */
+const LIST_METRICS_PAGES = 4;
+/** Fewer web requests than this with no proof passing is still «not yet». */
+const WEB_PROOF_MIN_REQUESTS = 20;
+/** The nightly copy is late after this many days without a passed run. */
+const MEDIA_BACKUP_LATE_DAYS = 2;
+
 /**
  * Owner 2026-10-24: «Запуск» — the owner's launch steps with a live light
  * each. Everything is read-only and cheap: secrets state and settings come
@@ -66,6 +93,13 @@ export class LaunchChecksService {
   private auto?: { at: number; items: Draft[] };
   /** Replaceable in tests. */
   resolveNs: (domain: string) => Promise<string[]> = (d) => dns.resolveNs(d);
+  /** CloudWatch ListMetrics (metrics with data in the last two weeks, AWS
+   * docs); replaceable in tests. */
+  listMetrics: (namespace: string, metric: string) => Promise<MetricDims[]> = (
+    ns,
+    m,
+  ) => this.cloudWatchMetrics(ns, m);
+  private cw?: CloudWatchClient;
 
   constructor(
     private readonly config: ConfigService,
@@ -247,6 +281,9 @@ export class LaunchChecksService {
       ],
       ['stripe', () => this.stripe()],
       ['app_check', () => this.appCheck()],
+      ['web_app_check', () => this.webAppCheck()],
+      ['dns_firewall', () => this.dnsFirewall()],
+      ['media_backup', () => this.mediaBackup(now)],
       ['arm_spot', () => this.armSpot()],
       ['sign_required', () => this.signRequired()],
     ];
@@ -757,6 +794,19 @@ export class LaunchChecksService {
       title: 'App Check (защита от ботов в приложении)',
       runbook: 'docs/runbooks/APP_CHECK.md',
     };
+    // 26.11 (owner: «ключ не вставлен / работает / ошибка проверки»): the
+    // server verifies App Check tokens with the Firebase project of the FCM
+    // keys; without its Project ID nothing can be checked (fail-open).
+    const fcm = (await this.secrets.get('fcm'))?.fields;
+    if (!fcm?.projectId) {
+      return {
+        ...base,
+        status: 'red',
+        detail:
+          'Ключ не вставлен: нет Project ID Firebase, сервер не может проверить приложение (все проходят без проверки).',
+        hint: 'Ключи и сервисы → Firebase Cloud Messaging (push) → «Сохранить» → «Проверить» → «Включить».',
+      };
+    }
     const mode = await this.settings.string('security.app_check.mode');
     // Item 13 (2026-11-25): the proven-real pass rate per group, the number
     // the owner decides by (and «Авто» enforces by).
@@ -781,6 +831,257 @@ export class LaunchChecksService {
       detail: `Выключен.${rates}`,
       hint: 'Настройки → security.app_check.mode = monitor, потом enforce.',
     };
+  }
+
+  /** 26.11: the website's App Check (reCAPTCHA Enterprise). The key is
+   * public and reaches the page through the bootstrap (fcm.web.recaptcha_key),
+   * so it works without a new web build; «работает» = proven-real visitors of
+   * the website passed the bot check over the Auto window. */
+  private async webAppCheck(): Promise<Draft> {
+    const base = {
+      id: 'web_app_check',
+      group: 'safety' as const,
+      title: TITLES.web_app_check,
+      runbook: 'docs/runbooks/APP_CHECK.md',
+    };
+    const hint =
+      'Ключи и сервисы → Firebase Cloud Messaging (push) → поле «Web: reCAPTCHA Enterprise site key» → «Сохранить» → «Включить». Инструкция: «Защита от ботов: какие ключи вставить».';
+    const f = (await this.secrets.get('fcm'))?.fields ?? {};
+    if (!f.webRecaptchaKey) {
+      return {
+        ...base,
+        status: 'red',
+        detail:
+          'Ключ не вставлен: на сайте App Check выключен (сайт защищает только Turnstile, если его ключи есть).',
+        hint,
+      };
+    }
+    if (
+      !f.projectId ||
+      !f.webApiKey ||
+      !f.webAppId ||
+      !f.webSenderId ||
+      !f.webVapidKey
+    ) {
+      return {
+        ...base,
+        status: 'red',
+        detail:
+          'Ключ reCAPTCHA вставлен, но нет веб-ключей Firebase (Web: apiKey, appId, messagingSenderId, VAPID key): сайт не может запустить App Check.',
+        hint,
+      };
+    }
+    let pass = 0;
+    let total = 0;
+    let days = 7;
+    if (this.botStats) {
+      days = await this.settings.number('security.app_check.auto_days');
+      for (const g of BOT_CHECK_GROUPS) {
+        const web = (await this.botStats.counts(g, days)).byPlatform.web;
+        pass += web?.pass ?? 0;
+        total += web?.total ?? 0;
+      }
+    }
+    if (pass > 0) {
+      return {
+        ...base,
+        status: 'green',
+        detail: `Работает: за ${days} дн. проверку на сайте прошли ${pass} из ${total} настоящих посетителей.`,
+        hint: null,
+      };
+    }
+    if (total >= WEB_PROOF_MIN_REQUESTS) {
+      return {
+        ...base,
+        status: 'red',
+        detail: `Ошибка проверки: за ${days} дн. с сайта было ${total} входов и кодов, ни одна проверка не прошла.`,
+        hint: 'Проверьте, что этот ключ указан в Firebase → App Check → веб-приложение → reCAPTCHA Enterprise, и что в Google Cloud в ключе разрешён домен сайта.',
+      };
+    }
+    return {
+      ...base,
+      status: 'yellow',
+      detail:
+        'Ключи вставлены, проверок с сайта ещё не было: свет станет зелёным после первых входов на сайте.',
+      hint: null,
+    };
+  }
+
+  /** 26.11 (S10): the DNS Firewall of the app VPC. Mode from the admin's
+   * own switches (the last finished «Масштаб» request), whether it runs and
+   * which unknown domains it saw from CloudWatch metrics (no log reads). */
+  private async dnsFirewall(): Promise<Draft> {
+    const base = {
+      id: 'dns_firewall',
+      group: 'safety' as const,
+      title: TITLES.dns_firewall,
+      runbook: 'docs/runbooks/dns-firewall.md',
+    };
+    const last = async (item: string) =>
+      (
+        await this.prisma.infraChangeRequest.findFirst({
+          where: { item_id: item, status: 'done' },
+          orderBy: { finished_at: 'desc' },
+          select: { to_state: true },
+        })
+      )?.to_state ?? null;
+    const [onRow, blockRow] = await Promise.all([
+      last('aws.dns_firewall'),
+      last('aws.dns_firewall_block'),
+    ]);
+    if (onRow === 'off') {
+      return {
+        ...base,
+        status: 'yellow',
+        detail: 'Выключен кнопкой «Выкл» на странице «Масштаб».',
+        hint: 'Масштаб → «Фильтр исходящих адресов» → «Вкл» → код 2FA.',
+      };
+    }
+    const mode = blockRow === 'on' ? 'BLOCK' : 'ALERT';
+    const [running, unknown] = await Promise.all([
+      this.listMetrics(DNS_FIREWALL_NAMESPACE, DNS_FIREWALL_METRIC),
+      this.listMetrics(DNS_UNKNOWN_NAMESPACE, DNS_UNKNOWN_METRIC),
+    ]);
+    if (running.length === 0 && unknown.length === 0) {
+      return {
+        ...base,
+        status: 'yellow',
+        detail: `Включён в коде (режим ${mode}), но в AWS ещё не создан.`,
+        hint: 'Создастся сам при следующем применении облака (Масштаб → «Применить изменения из кода» → код 2FA). Если в плане написано, что он ждёт прав bootstrap, нужен один шаг владельца из инструкции «Защита от ботов: какие ключи вставить».',
+      };
+    }
+    const domains = [
+      ...new Set(
+        unknown.map((d) => d.Domain).filter((d): d is string => Boolean(d)),
+      ),
+    ].sort();
+    const list =
+      domains.length === 0
+        ? ''
+        : ` Например: ${domains.slice(0, 5).join(', ')}${domains.length > 5 ? ' и другие' : ''}.`;
+    const what =
+      mode === 'BLOCK'
+        ? 'Работает, режим BLOCK: адреса не из списка не открываются.'
+        : 'Работает, режим ALERT: только журнал, ничего не блокируется.';
+    return {
+      ...base,
+      status: 'green',
+      detail: `${what} Чужих адресов за 2 недели: ${domains.length}.${list}`,
+      hint:
+        mode === 'ALERT' && domains.length > 0
+          ? 'Пришлите список Claude: нужные адреса добавим в список. Блокировку включает отдельная кнопка: Масштаб → «Фильтр исходящих адресов: блокировать чужие (BLOCK)».'
+          : null,
+    };
+  }
+
+  /** 26.11 (D10): «последняя копия: дата / объём / ошибка» of the nightly
+   * R2 -> S3 copy (.github/workflows/media-backup.yml reports to the API). */
+  private async mediaBackup(now: Date): Promise<Draft> {
+    const base = {
+      id: 'media_backup',
+      group: 'media' as const,
+      title: TITLES.media_backup,
+      runbook: 'docs/runbooks/backups.md',
+    };
+    const f = (await this.secrets.get('r2_backup'))?.fields;
+    if (!f?.accessKeyId || !f.secretAccessKey) {
+      return {
+        ...base,
+        status: 'red',
+        detail: 'Ключ не вставлен: ночной копии фото нет.',
+        hint: 'Ключи и сервисы → «Копия фото R2 → S3» → ключ R2 только на чтение → «Сохранить» → «Проверить» → «Включить».',
+      };
+    }
+    const row = await this.prisma.appConfig.findUnique({
+      where: { key: MEDIA_BACKUP_STATE_KEY },
+    });
+    const s = parseState(row?.value);
+    const size = (o: number | null, b: number | null) =>
+      o === null || b === null ? '' : ` ${o} файлов, ${humanBytes(b)}.`;
+    const last = s.last;
+    if (!last) {
+      return {
+        ...base,
+        status: 'yellow',
+        detail:
+          'Ключ вставлен, пробного запуска ещё не было: он идёт сразу после «Включить» или этой ночью.',
+        hint: null,
+      };
+    }
+    if (!last.ok) {
+      return {
+        ...base,
+        status: 'red',
+        detail:
+          `Ошибка ${last.dryRun ? 'пробного запуска' : 'копии'} ${RU_DATE(last.at)}: ${last.error ?? 'без подробностей'}`.slice(
+            0,
+            300,
+          ),
+        hint: 'Если написано про роль или корзину AWS — нужен один шаг владельца: terraform apply в infra/bootstrap (инструкция «Защита от ботов и копии: какие ключи вставить»). Иначе проверьте ключ в «Ключи и сервисы».',
+      };
+    }
+    if (!s.lastOkRunAt) {
+      return {
+        ...base,
+        status: 'yellow',
+        detail: `Пробный запуск прошёл ${RU_DATE(last.at)}: будет скопировано${size(last.objects, last.bytes) || ' всё содержимое.'} Первая настоящая копия этой ночью.`,
+        hint: null,
+      };
+    }
+    const days = Math.floor(
+      (now.getTime() - Date.parse(s.lastOkRunAt)) / 86_400_000,
+    );
+    const copy = last.dryRun ? null : last;
+    if (days > MEDIA_BACKUP_LATE_DAYS) {
+      return {
+        ...base,
+        status: 'red',
+        detail: `Последняя копия ${RU_DATE(s.lastOkRunAt)}: прошло ${days} дн.`,
+        hint: 'Откройте GitHub → Actions → «Media backup»: ночной запуск не прошёл или не запускался.',
+      };
+    }
+    return {
+      ...base,
+      status: 'green',
+      detail: `Последняя копия ${RU_DATE(s.lastOkRunAt)}.${copy ? size(copy.objects, copy.bytes) : ''}`,
+      hint: null,
+    };
+  }
+
+  private async cloudWatchMetrics(
+    namespace: string,
+    metric: string,
+  ): Promise<MetricDims[]> {
+    const region =
+      this.config.get<string>('AWS_REGION') ||
+      this.config.get<string>('S3_REGION') ||
+      'us-east-1';
+    this.cw ??= new CloudWatchClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
+      region,
+      credentials: opsCredentials((n) => this.config.get<string>(n), region),
+    });
+    const out: MetricDims[] = [];
+    let next: string | undefined;
+    for (let page = 0; page < LIST_METRICS_PAGES; page++) {
+      const res = await this.cw.send(
+        new ListMetricsCommand({
+          Namespace: namespace,
+          MetricName: metric,
+          NextToken: next,
+        }),
+      );
+      for (const m of res.Metrics ?? []) {
+        const dims: MetricDims = {};
+        for (const d of m.Dimensions ?? []) {
+          if (d.Name && d.Value) dims[d.Name] = d.Value;
+        }
+        out.push(dims);
+      }
+      next = res.NextToken;
+      if (!next) break;
+    }
+    return out;
   }
 
   /** « Настоящие люди за 7 дн. (прошли / всего): SMS 99,3 % (412/415) …» or
@@ -886,6 +1187,9 @@ const TITLES: Record<string, string> = {
   twilio: 'SMS-коды: ключи Twilio и проверка',
   stripe: 'Платежи: боевой ключ Stripe и цены',
   app_check: 'App Check',
+  web_app_check: 'Защита сайта: reCAPTCHA Enterprise (App Check на сайте)',
+  dns_firewall: 'Фильтр исходящих адресов серверов (DNS Firewall)',
+  media_backup: 'Копия фото R2 → S3 (каждую ночь)',
   arm_spot: 'Серверы дешевле: ARM64 и Spot',
   sign_required: 'SIGN_REQUIRED (обязательная подпись образов)',
 };

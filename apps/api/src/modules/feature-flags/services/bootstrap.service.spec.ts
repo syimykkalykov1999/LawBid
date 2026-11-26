@@ -649,6 +649,18 @@ describe('BootstrapService.fcmWebConfig', () => {
     expect(Object.keys(without)).not.toContain('fcm.web.auth_domain');
   });
 
+  // 26.11: the website's App Check key reaches the page without a rebuild.
+  it('adds the reCAPTCHA Enterprise key (website App Check) only when it is saved', async () => {
+    const key = '6Lc' + 'a'.repeat(37);
+    const withKey = await make({
+      ...full,
+      webRecaptchaKey: key,
+    }).fcmWebConfig();
+    expect(withKey['fcm.web.recaptcha_key']).toBe(key);
+    const without = await make(full).fcmWebConfig();
+    expect(Object.keys(without)).not.toContain('fcm.web.recaptcha_key');
+  });
+
   it('takes the first key set that carries the whole group', async () => {
     const svc = new BootstrapService(
       {} as never,

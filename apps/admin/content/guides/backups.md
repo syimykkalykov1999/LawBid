@@ -47,11 +47,11 @@ sources:
 8. AWS Console → **AWS Backup → Jobs** → строка с FAILED → **Status message**. Частая причина: копия попала в окно бэкапа или обслуживания RDS. Следующая ночь обычно проходит сама.
 9. Два дня подряд FAILED: напишите Claude «бэкап» и приложите текст из Status message. До исправления выкладки с миграциями блокируются сами (проверка «копия не старше 26 часов»).
 
-Копия публичных фото (R2) и видео (Bunny), по умолчанию выключена (подробно: `docs/runbooks/backups.md`, раздел «Публичные фото (R2) и видео (Bunny)»):
+Копия публичных фото (R2) и оригиналы видео (Bunny), включено (подробно: `docs/runbooks/backups.md`, раздел «Публичные фото (R2) и видео (Bunny)»):
 10. Cloudflare → **R2 → Manage R2 API Tokens → Create API token**: права **Object Read only**, только корзина публичных фото.
-11. `infra/bootstrap`: `media_backup_enabled = true` → `terraform apply`; записать `media_backup_role_arn` и `media_backup_bucket`.
-12. GitHub → **Settings → Environments → New environment** `media-backup`: secrets `AWS_MEDIA_BACKUP_ROLE`, `R2_BACKUP_ACCESS_KEY_ID`, `R2_BACKUP_SECRET_ACCESS_KEY`; variables `MEDIA_BACKUP_BUCKET`, `R2_ACCOUNT_ID`, `R2_MEDIA_BUCKET`. Затем в **Actions → Variables** `MEDIA_BACKUP_ENABLED = true`.
-13. **Actions → Media backup → Run workflow**: сначала Dry run, потом обычный прогон. Дальше копия идёт каждую ночь; удалённое или заменённое фото можно вернуть 30 дней.
+11. «Ключи и сервисы» → «Копия фото R2 → S3» → вставьте Account ID, имя корзины, Access Key ID и Secret Access Key → «Сохранить» (код 2FA) → «Проверить» → «Включить». Сразу идёт пробная копия, дальше каждую ночь сама. В GitHub ничего вставлять не нужно.
+12. Один раз: `terraform apply` в `infra/bootstrap` (корзина, её ключ и роль копии). Подробно: инструкция «Защита от ботов и копия фото: какие ключи вставить», шаг 4.5.
+13. Оригиналы видео Bunny включает сам следующий выкат. Удалённое или заменённое фото можно вернуть 30 дней.
 
 Восстановление данных (только по вашему явному «да», делает Claude по runbook): всегда в **новый** сервер базы, никогда поверх живой; потом проверка журнала кейсов, повторная отправка событий Stripe и обязательное повторное удаление данных людей, которые просили удалить аккаунт после точки восстановления.
 
@@ -61,7 +61,7 @@ sources:
 - Команда из шага 7 показывает `LatestRestorableTime` не старше 5 минут.
 - AWS Console → **AWS Backup → Backup vaults → `lawbid-prod-db-dr`** (регион us-west-2): есть точка восстановления за прошлую ночь.
 - На **Система → Запуск** строка «Учебное восстановление базы (раз в 90 дней)» зелёная.
-- Если копия фото включена: **Actions → Media backup** ночной прогон зелёный; в S3 корзина `lawbid-prod-media-backup-…` → **Show versions** показывает старые версии.
+- **Система → Запуск** → «Копия фото R2 → S3 (каждую ночь)» зелёная: дата последней копии, файлы и объём. В S3 корзина `lawbid-prod-media-backup-…` → **Show versions** показывает старые версии.
 
 ## Частые ошибки
 

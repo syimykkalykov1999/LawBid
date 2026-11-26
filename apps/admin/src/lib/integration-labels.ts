@@ -46,7 +46,12 @@ const PROVIDER_RU: Record<string, { label: string; description: string; warning?
   turnstile: {
     label: 'Cloudflare Turnstile (защита сайта от ботов)',
     description:
-      'Проверка «вы не робот» на веб-версии при регистрации и входе по коду. Режим включается в Настройках: security.turnstile.mode (off / monitor / enforce). Телефоны защищает App Check.',
+      'Проверка «вы не робот» на веб-версии при регистрации, входе и запросе кода. Включается сама, когда оба ключа сохранены и включены: сначала только наблюдает, блокирует ботов, когда почти все настоящие люди проходят. Телефоны защищает App Check.',
+  },
+  r2_backup: {
+    label: 'Копия фото R2 → S3 (ключ R2 только на чтение)',
+    description:
+      'Каждую ночь копирует аватары, фото постов и отзывов и стикеры из Cloudflare R2 в отдельную корзину S3 с версиями: удалённое фото можно вернуть 30 дней. После «Включить» сразу идёт пробный запуск, дальше всё само. Результат на странице «Запуск».',
   },
   cloudflare_sfu: {
     label: 'Cloudflare SFU (групповые видеозвонки)',
@@ -259,6 +264,7 @@ const FIELD_BY_PROVIDER: Record<string, string> = {
   'fcm.webSenderId': 'Сайт: messagingSenderId (публичный)',
   'fcm.webAuthDomain': 'Сайт: authDomain (необязательно)',
   'fcm.webVapidKey': 'Сайт: VAPID-ключ (Web Push certificate)',
+  'fcm.webRecaptchaKey': 'Сайт: ключ reCAPTCHA Enterprise (защита сайта от ботов, App Check)',
   'sentry.mobileDsn': 'Адрес для отчётов приложения (DSN)',
   'sentry.adminDsn': 'Адрес для отчётов админки (DSN)',
   'sentry.orgSlug': 'Имя организации (для статистики)',
@@ -346,6 +352,7 @@ const FIELD_EN: Record<string, string> = {
   'fcm.webSenderId': 'messagingSenderId',
   'fcm.webAuthDomain': 'authDomain',
   'fcm.webVapidKey': 'Web Push certificates → Key pair',
+  'fcm.webRecaptchaKey': 'reCAPTCHA Enterprise → Keys → ID',
   'turn.urls': 'TURN URLs',
   'turn.secret': 'static-auth-secret',
   'turn.stunUrls': 'STUN URLs',
@@ -458,6 +465,7 @@ export const FIELD_ENV: Record<string, string> = {
   'fcm.webSenderId': 'FCM_WEB_SENDER_ID',
   'fcm.webAuthDomain': 'FCM_WEB_AUTH_DOMAIN',
   'fcm.webVapidKey': 'FCM_WEB_VAPID_KEY',
+  'fcm.webRecaptchaKey': 'FCM_WEB_RECAPTCHA_KEY',
   'apns.keyId': 'APNS_KEY_ID',
   'apns.teamId': 'APNS_TEAM_ID',
   'apns.privateKey': 'APNS_PRIVATE_KEY',

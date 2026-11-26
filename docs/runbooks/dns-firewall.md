@@ -1,6 +1,6 @@
 # DNS Firewall: исходящие адреса серверов API (S10)
 
-owner: владелец (terraform apply)
+owner: владелец (один раз infra/bootstrap, дальше кнопки в админке)
 
 Код: `infra/modules/dns-firewall`, переключатели в `infra/envs/prod/variables.tf`
 (`dns_firewall_enabled`, `dns_firewall_mode`, `dns_firewall_extra_domains`).
@@ -35,21 +35,30 @@ $0,60 за миллион DNS-запросов, $0,0005 за адрес в сп�
 
 ## Шаги владельца
 
-1. В файле `infra/envs/prod/terraform.tfvars` на своём Mac добавить строку `dns_firewall_enabled = true`.
-2. В папке `infra/envs/prod` выполнить `terraform plan`: должны появиться только ресурсы
-   `module.stack.module.dns_firewall` (около 9 штук: 2 списка, группа, 2 правила, привязка к VPC, настройка fail-open, журнал), ничего не удаляется.
-3. Выполнить `terraform apply`.
-4. Через 2 недели открыть CloudWatch Logs Insights по группе `/aws/route53resolver/lawbid-prod` с запросом
-   `fields query_name | filter firewall_rule_action = "ALERT" | stats count() by query_name | sort count() desc`
-   и прислать Claude список имён. Нужные добавим в список, после этого решение про `BLOCK`.
+Owner 26.11 «включить»: on in code (`infra/envs/prod/growth.auto.tfvars.json`: `dns_firewall_enabled = true`,
+`dns_firewall_mode = "ALERT"`), switched from the admin like every other Terraform row
+(rows `aws.dns_firewall` and `aws.dns_firewall_block` on «Масштаб» / «Расходы»).
+
+1. Once: `terraform apply` in `infra/bootstrap` (gives the `infra-apply` role `route53resolver:*Firewall*`,
+   `*ResolverQueryLogConfig*`, tags and `iam:SimulatePrincipalPolicy`). Until then
+   `scripts/infra/rights-gate.mjs` plans every admin apply with `-var=dns_firewall_enabled=false`
+   (the run summary says «Waits for the bootstrap rights»), so no apply fails with AccessDenied.
+2. «Масштаб» → «Применить изменения из кода» → 2FA (or any next infra request): the plan adds only
+   `module.stack.module.dns_firewall` (2 lists, group, 2 rules, VPC link, fail-open, query log, metric filter).
+3. Status: admin «Запуск» → «Фильтр исходящих адресов серверов (DNS Firewall)»: mode (last done request of
+   `aws.dns_firewall_block`), running (`AWS/Route53Resolver` `FirewallRuleGroupQueryVolume` exists) and the unknown
+   domains of the last 2 weeks (one metric per domain, `LawBid/DnsFirewall` `UnknownDomainQueries`, dimension
+   `Domain`, from the metric filter on the query log; read with `cloudwatch:ListMetrics`).
+4. After 2 weeks: send the list to Claude; needed names go to `base_domains` / `dns_firewall_extra_domains`.
+   BLOCK = row «Фильтр исходящих адресов: блокировать чужие (BLOCK)» → Вкл → 2FA.
 
 ## Как проверить
 
-- AWS Console → VPC → DNS Firewall → Rule groups: есть `lawbid-prod-egress` с двумя правилами, привязан к VPC `lawbid-prod`.
-- CloudWatch Logs → `/aws/route53resolver/lawbid-prod`: через несколько минут после apply появляются записи.
-- Приложение и сайт работают как раньше (вход, сообщения, оплата, загрузка фото и видео).
+- Admin «Запуск»: the filter row is green «Работает, режим ALERT».
+- AWS Console → VPC → DNS Firewall → Rule groups: `lawbid-prod-egress` with two rules, linked to VPC `lawbid-prod`.
+- CloudWatch Logs → `/aws/route53resolver/lawbid-prod`: records a few minutes after the apply.
+- The app and the site work as before (sign-in, messages, payments, photo and video uploads).
 
 ## Откат
 
-`dns_firewall_enabled = false` и `terraform apply`: всё созданное удаляется, DNS работает как раньше.
-
+«Масштаб» → «Фильтр исходящих адресов» → «Выкл» → 2FA: everything it created is removed, DNS works as before.

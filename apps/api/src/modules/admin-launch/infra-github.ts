@@ -7,6 +7,7 @@ export {
   GithubMergeError,
   InfraAuthError,
   InfraGithubClient,
+  MEDIA_BACKUP_DISPATCH_FILE,
   type GithubPull,
   type GithubPullFile,
   type WorkflowCaller,

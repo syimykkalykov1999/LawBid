@@ -47,10 +47,22 @@ abstract final class WebPushConfig {
   static String get authDomain => _pick(_authDomain, 'fcm.web.auth_domain');
   static String get vapidKey => _pick(_vapidKey, 'fcm.web.vapid_key');
 
+  /// 26.11: the reCAPTCHA Enterprise site key of the website's App Check,
+  /// saved in Admin → Integrations → FCM («Web: reCAPTCHA Enterprise site
+  /// key») and delivered by the bootstrap like the push keys. Empty while
+  /// not saved. A build-time FIREBASE_WEB_RECAPTCHA_KEY wins
+  /// (FirebaseAppCheckClient).
+  static String get remoteRecaptchaKey =>
+      _remote['fcm.web.recaptcha_key'] ?? '';
+
   /// What the bootstrap's `fcm.web.*` values add up to: changes whenever the
   /// admin's keys change, so a listener starts the push again only for that.
   static String fingerprintOf(Map<String, String> appConfig) {
-    final keys = appConfig.keys.where((k) => k.startsWith('fcm.web.')).toList()
+    // The App Check key (26.11) is not a push key: changing it must not
+    // restart the push.
+    final keys = appConfig.keys
+        .where((k) => k.startsWith('fcm.web.') && k != 'fcm.web.recaptcha_key')
+        .toList()
       ..sort();
     return [for (final k in keys) '$k=${appConfig[k]}'].join('|');
   }

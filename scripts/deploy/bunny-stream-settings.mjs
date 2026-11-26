@@ -13,6 +13,10 @@
 //          until the owner adds the secrets).
 //   apply  The owner's explicit command: shows the drift, and only with --yes
 //          POSTs the wanted values to the same URL, then checks again.
+//   keep-originals  26.11 (owner «Хорошо» to D10): writes ONLY
+//          KeepOriginalFiles = true when the file asks for it and Bunny has
+//          false; nothing else is ever written by CI. exit 0 = done or nothing
+//          to do (also without keys), 1 = Bunny refused / unreadable.
 // Keys come from the environment only, under the names the API already uses
 // (apps/api/src/common/secrets/provider-registry.ts): BUNNY_LIBRARY_ID and
 // BUNNY_ACCOUNT_API_KEY (the Core API takes the ACCOUNT key, not the library
@@ -212,8 +216,8 @@ export async function run(argv, env = process.env, fetchFn = fetch, out = consol
   const summary = (text) => {
     if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${text}\n`);
   };
-  if (cmd !== 'check' && cmd !== 'apply') {
-    out.error('usage: bunny-stream-settings.mjs check [--soft] | apply [--yes] [--file=path]');
+  if (cmd !== 'check' && cmd !== 'apply' && cmd !== 'keep-originals') {
+    out.error('usage: bunny-stream-settings.mjs check [--soft] | apply [--yes] | keep-originals [--file=path]');
     return 64;
   }
   const d = loadDesired(file);
@@ -229,6 +233,7 @@ export async function run(argv, env = process.env, fetchFn = fetch, out = consol
       'ℹ️ Bunny Stream settings not checked: BUNNY_LIBRARY_ID / BUNNY_ACCOUNT_API_KEY are not set (report only).';
     out.log(msg);
     summary(msg);
+    if (cmd === 'keep-originals') return 0;
     return soft && cmd === 'check' ? 0 : 2;
   }
   let live;
@@ -239,6 +244,28 @@ export async function run(argv, env = process.env, fetchFn = fetch, out = consol
     out.error(msg);
     summary(msg);
     return 1;
+  }
+  if (cmd === 'keep-originals') {
+    if (d.backup?.keepOriginals !== true || live?.KeepOriginalFiles === true) {
+      out.log('Bunny keeps the uploaded originals as the file asks: nothing to write.');
+      return 0;
+    }
+    try {
+      await bunny('POST', libraryId, key, { KeepOriginalFiles: true }, fetchFn);
+      const after = await bunny('GET', libraryId, key, null, fetchFn);
+      const ok = after?.KeepOriginalFiles === true;
+      const msg = ok
+        ? '✅ Bunny now keeps the uploaded originals (KeepOriginalFiles = true).'
+        : '❌ Bunny did not take KeepOriginalFiles = true.';
+      out.log(msg);
+      summary(msg);
+      return ok ? 0 : 1;
+    } catch (e) {
+      const msg = `❌ KeepOriginalFiles could not be written: ${e.message}`;
+      out.error(msg);
+      summary(msg);
+      return 1;
+    }
   }
   const drift = compare(d, live);
   // Read-only facts for the backup runbook: Bunny sets storage replication

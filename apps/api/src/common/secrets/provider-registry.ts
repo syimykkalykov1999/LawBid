@@ -7,6 +7,7 @@
  * NOT here — a wrong value there would take the whole app down.
  */
 import { ncmecStatusTest } from './ncmec-cybertipline';
+import { r2BackupTest } from './r2-backup-test';
 import { r2SelfTest } from './r2-self-test';
 
 export interface ProviderField {
@@ -562,6 +563,22 @@ export const PROVIDERS: ProviderDefinition[] = [
         patternHint: 'B…',
         env: 'FCM_WEB_VAPID_KEY',
       },
+      // 26.11 (owner: «вставить ключи в админке, и всё заработает»): the
+      // reCAPTCHA Enterprise site key the website's App Check runs on
+      // (Google Cloud → Security → reCAPTCHA → Keys; registered in Firebase →
+      // App Check → the web app). Public by design (it sits in the page); the
+      // bootstrap hands it to the web build at start (fcm.web.recaptcha_key),
+      // so pasting it needs no rebuild. A build-time
+      // FIREBASE_WEB_RECAPTCHA_KEY still wins when given.
+      {
+        name: 'webRecaptchaKey',
+        label: 'Web: reCAPTCHA Enterprise site key (App Check)',
+        secret: false,
+        required: false,
+        pattern: /^[0-9A-Za-z_-]{30,60}$/,
+        patternHint: '6Lc…',
+        env: 'FCM_WEB_RECAPTCHA_KEY',
+      },
     ],
   },
   {
@@ -867,7 +884,7 @@ export const PROVIDERS: ProviderDefinition[] = [
     id: 'turnstile',
     label: 'Cloudflare Turnstile (защита сайта от ботов)',
     description:
-      'Проверка «не бот» на сайте при регистрации и запросе кода. В приложении не используется (там App Check). Включается в Система → Настройки: security.turnstile.mode (off / monitor / enforce).',
+      'Проверка «не бот» на сайте при регистрации, входе и запросе кода. В приложении не используется (там App Check). Включается сама, когда оба ключа сохранены и включены (security.turnstile.mode = auto: сначала только наблюдает, блокирует, когда почти все настоящие люди проходят).',
     fields: [
       {
         name: 'secretKey',
@@ -882,7 +899,9 @@ export const PROVIDERS: ProviderDefinition[] = [
         name: 'siteKey',
         label: 'Ключ сайта (Site key, публичный)',
         secret: false,
-        required: false,
+        // 26.11: the page cannot show the widget without it, so a set with
+        // only the secret key would look «включено» and protect nothing.
+        required: true,
         pattern: /^[0-9A-Za-z_-]{10,80}$/,
         patternHint: '0x4AAAAAAA…',
         env: 'TURNSTILE_SITE_KEY',
@@ -1365,6 +1384,53 @@ export const PROVIDERS: ProviderDefinition[] = [
       },
     ],
     test: (f) => r2SelfTest(f),
+  },
+  {
+    // 26.11 (owner: «Хорошо, включить сейчас», D10): the READ-ONLY R2 token
+    // of the nightly copy of the public media into S3
+    // (.github/workflows/media-backup.yml). The workflow gets these values from
+    // the API with its GitHub OIDC token (modules/admin-launch/media-backup),
+    // so nothing is pasted into GitHub. «Включить» starts a dry run at once.
+    id: 'r2_backup',
+    label: 'Копия фото R2 → S3 (ключ R2 только на чтение)',
+    description:
+      'Ночная копия аватаров, фото постов и отзывов и стикеров из Cloudflare R2 в отдельную корзину S3 с версиями. После «Включить» сразу идёт пробный запуск, потом копия каждую ночь сама. Результат: страница «Запуск», строка «Копия фото R2 → S3».',
+    fields: [
+      {
+        name: 'accountId',
+        label: 'Cloudflare account ID (как в карточке R2)',
+        secret: false,
+        required: true,
+        pattern: /^[a-f0-9]{32}$/,
+        patternHint: '32 hex characters',
+        normalize: (v) => cleanPasted(v).toLowerCase(),
+      },
+      {
+        name: 'bucket',
+        label: 'Имя корзины R2 с фото (как в карточке R2)',
+        secret: false,
+        required: true,
+        pattern: /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/,
+        normalize: cleanPasted,
+      },
+      {
+        name: 'accessKeyId',
+        label: 'Access Key ID токена R2 (Object Read only)',
+        secret: false,
+        required: true,
+        pattern: /^[A-Za-z0-9]{20,64}$/,
+        normalize: cleanPasted,
+      },
+      {
+        name: 'secretAccessKey',
+        label: 'Secret Access Key токена R2',
+        secret: true,
+        required: true,
+        pattern: /^[A-Za-z0-9/+=]{32,}$/,
+        normalize: cleanPasted,
+      },
+    ],
+    test: (f) => r2BackupTest(f),
   },
   {
     id: 'sentry',
