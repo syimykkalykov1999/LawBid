@@ -205,6 +205,24 @@ void main() {
     const amazonRoot1 = '++MBgDH5WGvL9Bcn5Be30cRcL0f5O+NyoXuWtQdX1aI=';
     expect(nsc, contains(amazonRoot1));
     expect(plist, contains(amazonRoot1));
+    // Every Android pin is on iOS too (each host there lists them all), and
+    // Let's Encrypt's Gen Y roots are in (their chains can end at Root YE /
+    // YR without X1/X2 once phones trust them).
+    final androidPins = RegExp('<pin digest="SHA-256">([^<]+)</pin>')
+        .allMatches(nsc)
+        .map((m) => m.group(1)!)
+        .toSet();
+    expect(androidPins.length, greaterThanOrEqualTo(18));
+    for (final pin in androidPins) {
+      expect(
+        '<string>$pin</string>'.allMatches(plist).length,
+        2,
+        reason: pin,
+      );
+    }
+    const rootYe = 'sCkq5UWXjg+7mKu9lMhhYF5bGLsy7VI/UNW3tccdR7w=';
+    const rootYr = 'fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=';
+    expect(androidPins, containsAll([rootYe, rootYr]));
   });
 
   test('secure screen: tapjacking guards and app-switcher cover (S12)', () {
