@@ -3,6 +3,7 @@
 //   API_URL    https://<alb-dns>/api/v1 or http://localhost:3055/api/v1
 //   WS_URL     wss://<alb-dns> or ws://localhost:3055   (Socket.IO host)
 //   HOST_HEADER  optional Host header (the ALB routes by host name)
+//   WS_COMPRESSION  'deflate' = sockets offer permessage-deflate (G6), empty = none
 //   CDN_URL    https://<cloudfront>.cloudfront.net (static assets), empty = skip
 //   PROFILE    local | smoke | m1 | m10 | calls-smoke | calls-full
 //   SHARD, SHARDS  this generator is number SHARD (0-based) of SHARDS; every
@@ -16,6 +17,8 @@
 export const API_URL = (__ENV.API_URL || '').replace(/\/$/, '');
 export const WS_URL = (__ENV.WS_URL || '').replace(/\/$/, '');
 export const HOST_HEADER = __ENV.HOST_HEADER || '';
+// G6: 'deflate' = the sockets offer permessage-deflate (as the app does).
+export const WS_COMPRESSION = __ENV.WS_COMPRESSION || '';
 export const CDN_URL = (__ENV.CDN_URL || '').replace(/\/$/, '');
 export const PROFILE = __ENV.PROFILE || 'local';
 export const SHARDS = Math.max(1, Number(__ENV.SHARDS || 1));

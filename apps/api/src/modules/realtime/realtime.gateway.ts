@@ -22,6 +22,7 @@ import type { Namespace, Socket } from 'socket.io';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import { isIP } from 'node:net';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
+import { WsCompressionGate } from './ws-compression';
 import type { AppSettingKey } from '../../common/app-settings/app-settings.defaults';
 import { RealtimeStatsService } from '../../common/ops/realtime-stats.service';
 import { RuntimeStatsService } from '../../common/ops/runtime-stats.service';
@@ -293,6 +294,8 @@ export class RealtimeGateway
   private readonly wsStorm = new WsStormDetector();
   /** SIGTERM / `startDraining()`: no new sockets, going-away sent. */
   private draining = false;
+  /** G6: who may negotiate websocket compression (admin Выкл / Вкл / Авто). */
+  readonly wsCompression = new WsCompressionGate();
 
   /**
    * S20-4: one connect / disconnect / reconnect line, sampled like the HTTP
@@ -364,6 +367,20 @@ export class RealtimeGateway
     } catch {
       // keep the previous values
     }
+    try {
+      const [mode, threshold, autoMax] = await Promise.all([
+        this.settings.raw('realtime.server.ws_compression_mode'),
+        this.settings.number('realtime.server.ws_compression_threshold_bytes'),
+        this.settings.number('realtime.server.ws_compression_auto_max_sockets'),
+      ]);
+      this.wsCompression.configure({
+        mode,
+        thresholdBytes: threshold,
+        autoMaxSockets: autoMax,
+      });
+    } catch {
+      // keep the previous values
+    }
   }
 
   get isDraining(): boolean {
@@ -374,11 +391,23 @@ export class RealtimeGateway
    * the instances). */
   private gauge(): void {
     const count = this.nsp?.sockets?.size ?? 0;
-    this.logger.info({ metric: 'ws_connections', count }, 'ws connections');
+    this.logger.info(
+      {
+        metric: 'ws_connections',
+        count,
+        // G6: sockets of this instance with permessage-deflate.
+        compressed: this.wsCompression.compressed,
+      },
+      'ws connections',
+    );
   }
 
   afterInit(nsp: Namespace): void {
     this.nsp = nsp;
+    // G6: decide per upgrade who may compress (before engine.io reads it).
+    this.wsCompression.attach(
+      nsp.server as unknown as Parameters<WsCompressionGate['attach']>[0],
+    );
     // One number a minute for the ECS socket-count scaling policy.
     this.runtime?.registerSocketGauge(() => this.nsp?.sockets.size ?? 0);
     void this.loadTiming();

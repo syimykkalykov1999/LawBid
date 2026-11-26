@@ -1210,12 +1210,22 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * an adaptive concurrency limit (Netflix Gradient2) that only sheds once
    * CPU is above `shed_cpu_start_pct` (above the autoscaling target). */
   'realtime.server.shed_mode': 'auto',
+  /** G6 (25.11, Discord «How Discord Reduced Websocket Traffic by 40%»):
+   * permessage-deflate on the socket for frames of
+   * `realtime.server.ws_compression_threshold_bytes` and more. off = none;
+   * on = every new socket; auto (default) = new sockets while this server
+   * holds fewer than `realtime.server.ws_compression_auto_max_sockets`
+   * compressed ones (memory, modules/realtime/ws-compression.ts). */
+  'realtime.server.ws_compression_mode': 'auto',
   /** Owner 2026-10-25: password screening (NIST SP 800-63B-4 §3.1.1.2). */
   'security.password_breach_check_enabled': true,
   /** Milliseconds to wait for the breached-password service; later = skip. */
   'security.password_breach_timeout_ms': 1500,
   /** Refuse passwords from the bundled list of the most common ones. */
   'security.password_common_list_enabled': true,
+  /** O4 (ASVS V6.3.8): «is this number registered?» answers after at least
+   * this many ms, registered or not (0 = no floor, at most 2000). */
+  'security.phone_status_min_ms': 150,
   /** ASVS V6.2.11 (STAGE2_SECURITY #11): words a password may not be built
    * from (half or more of it); the person's own name, username, e-mail and
    * phone are added per check. */

@@ -119,5 +119,11 @@ test("site CSP paths: exact /attorneys/ and /practice-areas/, no for-attorneys",
   assert.match(tf, /for_each = concat\(\[for p in local\.site_paths : "\/\$\{p\}\*"\], local\.site_exact_paths\)/);
   const app = /\n\s+app\s+= join\(([^\n]*)\n/.exec(tf)[1];
   assert.doesNotMatch(app, /unsafe-inline/);
-  assert.match(app, /flutterfire_script_hashes/);
+  // The app's script-src is built once in local.script_app (S2: the
+  // enforced and the Report-Only policy share it); it must carry the
+  // FlutterFire loader hashes and never 'unsafe-inline'.
+  assert.match(app, /local\.script_app/);
+  const scriptApp = /\n\s+script_app\s+= ([^\n]*)\n/.exec(tf)[1];
+  assert.match(scriptApp, /flutterfire_script_hashes/);
+  assert.doesNotMatch(scriptApp, /unsafe-inline/);
 });

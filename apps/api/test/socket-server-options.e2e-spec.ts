@@ -90,4 +90,11 @@ describe('Socket.IO server options on the real AppModule (e2e)', () => {
     await new Promise((r) => setTimeout(r, 200));
     expect(small.ws.readyState).toBe(WebSocket.OPEN);
   });
+
+  it('G6: websocket compression is negotiated (admin default «Авто»)', async () => {
+    // Before, HotlineGateway created the server without perMessageDeflate,
+    // so no socket could ever negotiate it, whatever the admin switch said.
+    const { ws } = await connect();
+    expect(ws.extensions).toContain('permessage-deflate');
+  });
 });

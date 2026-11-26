@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { isAbsolute, resolve } from 'node:path';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -34,6 +34,15 @@ import type { PoolConfig } from 'pg';
  *                                    service names without a dot)
  *   no sslmode, remote host        → TLS, certificate not checked (Prisma 6
  *                                    "prefer"; RDS refuses clear connections)
+ *   sslmode=verify-full            → TLS, certificate AND host name checked
+ *                                    (ASVS 5.0 V12.3.2, STAGE2_SECURITY #14);
+ *                                    CA = `sslrootcert`, else the RDS global
+ *                                    bundle baked into the image
+ *                                    (RDS_CA_BUNDLE) for an RDS endpoint;
+ *                                    no CA = unchecked as before + a warning
+ *                                    (verifyCa)
+ *   sslmode=verify-ca              → the same, without the host name check
+ *                                    (libpq semantics)
  *   any other sslmode              → TLS, certificate not checked
  *   … + sslaccept=strict           → TLS, certificate and host name checked;
  *                                    `sslcert` = the CA file (Prisma resolved a
@@ -41,6 +50,54 @@ import type { PoolConfig } from 'pg';
  * The TLS parameters are removed from the URL handed to node-pg, because
  * the parsed URL would override the `ssl` object.
  */
+/** The RDS global CA bundle apps/api/Dockerfile bakes in (pinned SHA-256,
+ * the same file infra/pgbouncer/Dockerfile ships). */
+export const RDS_CA_BUNDLE = '/etc/ssl/rds-global-bundle.pem';
+
+/** RDS endpoints: the only hosts the baked RDS bundle can vouch for. */
+export const RDS_HOST = /\.rds\.amazonaws\.com$/i;
+
+/**
+ * Review of #1336 (prod safety): the CA for sslmode=verify-*, or null when
+ * this connection cannot be verified safely:
+ *  - `sslrootcert` given → that file (an explicit CA, any host);
+ *  - an RDS endpoint (*.rds.amazonaws.com) and the baked bundle present
+ *    (the API / worker / migrate image) → the bundle;
+ *  - anything else (an alias or internal name, a non-RDS provider, or the
+ *    owner's Mac running scripts/deploy/prod-db-setup.sh without the
+ *    bundle) → null: the connection keeps the behaviour it had before
+ *    #1336 (TLS, certificate not checked) and one warning is written.
+ * prod-db-setup.sh writes `sslmode=verify-full` into every connection
+ * secret; before #1336 that mode was not checked at all, so turning the
+ * check on for a host it cannot pass would take the database away at the
+ * next deploy (docs/runbooks/DB_POOLER.md §8 has the same RDS-host rule).
+ */
+export function verifyCa(
+  rootCert: string | undefined,
+  host: string,
+  bundle: string = process.env.RDS_CA_BUNDLE_PATH?.trim() || RDS_CA_BUNDLE,
+): string | null {
+  if (rootCert) {
+    return readFileSync(
+      isAbsolute(rootCert) ? rootCert : resolve('prisma', rootCert),
+      'utf8',
+    );
+  }
+  if (RDS_HOST.test(host) && existsSync(bundle)) {
+    return readFileSync(bundle, 'utf8');
+  }
+  return null;
+}
+
+const warned = new Set<string>();
+function warnUnverified(host: string): void {
+  if (warned.has(host)) return;
+  warned.add(host);
+  process.stderr.write(
+    `database TLS: sslmode=verify-* for ${host} but no CA to check it with (not an RDS endpoint with the baked bundle, no sslrootcert); the certificate is NOT checked, as before #1336. Add sslrootcert or use the *.rds.amazonaws.com endpoint.\n`,
+  );
+}
+
 export interface PgAdapterConfig {
   pool: PoolConfig;
   schema?: string;
@@ -120,6 +177,24 @@ export function pgAdapterConfig(raw: string): PgAdapterConfig {
     // default on PostgreSQL 16) would refuse it. A remote host without
     // sslmode keeps Prisma 6's behaviour: TLS, certificate not checked.
     ssl = { rejectUnauthorized: false };
+  } else if (mode === 'verify-full' || mode === 'verify-ca') {
+    const ca = verifyCa(
+      q.get('sslrootcert')?.trim() || undefined,
+      url.hostname,
+    );
+    if (ca === null) {
+      warnUnverified(url.hostname);
+      ssl = { rejectUnauthorized: false };
+    } else {
+      ssl = {
+        rejectUnauthorized: true,
+        ca,
+        // verify-ca: the chain is checked, the host name is not (libpq).
+        ...(mode === 'verify-ca'
+          ? { checkServerIdentity: () => undefined }
+          : {}),
+      };
+    }
   } else if (mode && mode !== 'disable') {
     if (q.get('sslaccept')?.trim().toLowerCase() === 'strict') {
       const cert = q.get('sslcert')?.trim();

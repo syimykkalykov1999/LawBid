@@ -25,6 +25,21 @@ import { SOCKET_SERVER_ORIGIN_OPTIONS } from './socket-origin';
  * /qr and /staff never took effect (the shared server had 1 MB); now all of
  * them get 64 KB, 16x tighter than what ran on prod.
  */
+/**
+ * G6 (STAGE2_ARCH_PERF): permessage-deflate (RFC 7692) for websocket frames
+ * of at least `threshold` bytes, level 1, at most 10 zlib jobs at once.
+ * Which new sockets may negotiate it is the admin switch
+ * realtime.server.ws_compression_mode (modules/realtime/ws-compression.ts
+ * strips the client's offer per upgrade; it also moves the threshold).
+ * It must be in the server options: a socket the server was not created
+ * with deflate for can never negotiate it.
+ */
+export const WS_PER_MESSAGE_DEFLATE = {
+  threshold: 1024,
+  zlibDeflateOptions: { level: 1 },
+  concurrencyLimit: 10,
+};
+
 export const SOCKET_SERVER_OPTIONS = {
   // ASVS V4.4.2 (#6): the HTTP CORS allowlist, also for the handshake.
   ...SOCKET_SERVER_ORIGIN_OPTIONS,
@@ -36,4 +51,6 @@ export const SOCKET_SERVER_OPTIONS = {
   pingInterval: 25_000,
   pingTimeout: 20_000,
   connectTimeout: 10_000,
+  // engine.io copies this object; ws-compression.ts updates its copy.
+  perMessageDeflate: { ...WS_PER_MESSAGE_DEFLATE },
 };

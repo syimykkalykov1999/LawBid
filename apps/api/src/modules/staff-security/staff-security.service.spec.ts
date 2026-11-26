@@ -332,8 +332,15 @@ describe('StaffSecurityService — session rules', () => {
   const UA = 'Mozilla/5.0 (Windows NT 10.0) Chrome/130.0 Safari/537.36';
   const bound = { ip: '203.0.113.5', fp: deviceFingerprint(UA) };
   const on = { 'staff.session_binding_enforce_enabled': true };
+  // #8: the CDN's country header counts only with our edge secret.
+  const EDGE = 'test-edge-origin-secret-0123456789';
+  beforeAll(() => (process.env.EDGE_ORIGIN_SECRET = EDGE));
+  afterAll(() => delete process.env.EDGE_ORIGIN_SECRET);
   const r = (headers: Record<string, string> = {}, ip = '203.0.113.9') =>
-    req({ ip, headers: { 'user-agent': UA, ...headers } });
+    req({
+      ip,
+      headers: { 'user-agent': UA, 'x-lawbid-edge': EDGE, ...headers },
+    });
 
   it('switch off: nothing is checked, not even Redis', async () => {
     const { svc, sessions } = setup(

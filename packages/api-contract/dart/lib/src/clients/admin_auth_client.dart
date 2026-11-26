@@ -163,7 +163,7 @@ abstract class AdminAuthClient {
     @Extras() Map<String, dynamic>? extras,
   });
 
-  /// Show the super admin security question
+  /// Super admin recovery, step 1: login + authenticator (or recovery) code → the security question and a ticket
   @POST('/admin/auth/recover/question')
   Future<AdminRecoverQuestionResultEnvelope> adminRecoverQuestion({
     @Body() required AdminRecoverQuestionDto body,

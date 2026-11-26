@@ -72,6 +72,8 @@ jobs:
           bash scripts/deploy/run-migrations.test.sh
           bash scripts/infra/pooler-roll.test.sh
           bash scripts/deploy/roll-services.test.sh
+          bash scripts/deploy/canary.test.sh
+          node --test scripts/deploy/canary-compare.test.mjs
           bash scripts/deploy/budget-gate.test.sh
           bash scripts/deploy/i18n-needed.test.sh
           bash scripts/deploy/wait-data-stores-idle.test.sh

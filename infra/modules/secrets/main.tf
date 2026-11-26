@@ -23,6 +23,23 @@ variable "tags" {
   type    = map(string)
   default = {}
 }
+# Stage 2 SRE (Б8, AWS Well-Architected REL13-BP02 backup & restore): a copy of
+# every secret in the disaster-recovery region, kept in sync by Secrets Manager
+# itself ("Replicate an AWS Secrets Manager secret to other AWS Regions",
+# docs.aws.amazon.com/secretsmanager/latest/userguide/create-manage-multi-region-secrets.html).
+# A lost main region then still has the keys the stack in envs/dr needs
+# (JWT_KEYS, MESSAGE_ENC_KEYS: without them old chats cannot be read).
+# Cost: $0.40 per replica per month.
+variable "replica_region" {
+  type        = string
+  default     = ""
+  description = "Region of the replica of every secret (e.g. us-west-2). Empty = no replica."
+}
+variable "replica_kms_key_arn" {
+  type        = string
+  default     = null
+  description = "Customer key in replica_region for the replicas (null = the AWS-managed aws/secretsmanager key of that region)."
+}
 
 resource "aws_secretsmanager_secret" "this" {
   for_each                = toset(var.names)
@@ -30,8 +47,18 @@ resource "aws_secretsmanager_secret" "this" {
   kms_key_id              = var.kms_key_arn
   recovery_window_in_days = var.recovery_window_in_days
   tags                    = var.tags
+
+  dynamic "replica" {
+    for_each = var.replica_region == "" ? [] : [var.replica_region]
+    content {
+      region     = replica.value
+      kms_key_id = var.replica_kms_key_arn
+    }
+  }
 }
 
 output "arns" {
   value = { for k, s in aws_secretsmanager_secret.this : k => s.arn }
 }
+
+output "replica_region" { value = var.replica_region }
