@@ -2,13 +2,26 @@
 // 0.16.0 is younger than the 7-day npm cooldown (.npmrc min-release-age) —
 // Apache-2.0). Three heavy pages against the CI API stand (admin-ci.yml job
 // `lighthouse`): the users list, the audit journal, the cases desk. Desktop
-// form factor with the CPU slowed 4x (a weak laptop), three runs, median.
+// form factor with the CPU slowed to a weak laptop: x4 on the median runner,
+// calibrated to this runner's benchmarkIndex (lighthouse-cpu.cjs, KNOWN_ERRORS
+// 260), nine runs, median.
 // The admin's session is the httpOnly cookie `lawbid_admin` = the admin JWT
 // that apps/api/scripts/lhci-admin.ts prints (LHCI_ADMIN_TOKEN).
 //
 // Budgets (assert): Total Blocking Time is an error (fails the job); the other
 // levels are "warn" while their baseline settles, then flip to "error".
+// lhci loads this CommonJS file with require(); the helper is CommonJS too.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { cpuSlowdownMultiplier, REFERENCE_MULTIPLIER } = require('./lighthouse-cpu.cjs');
+
 const token = process.env.LHCI_ADMIN_TOKEN ?? '';
+// The calibration step (admin-ci.yml) measures the runner first. In CI it is
+// required — a missing value must not quietly fall back to a fixed x4.
+const benchmarkIndex = process.env.LHCI_BENCHMARK_INDEX;
+if (process.env.CI && !benchmarkIndex) {
+  throw new Error('LHCI_BENCHMARK_INDEX is not set: run the calibration step first (admin-ci.yml)');
+}
+const cpuMultiplier = benchmarkIndex ? cpuSlowdownMultiplier(benchmarkIndex) : REFERENCE_MULTIPLIER;
 const base = process.env.LHCI_ADMIN_URL ?? 'http://localhost:3001';
 
 module.exports = {
@@ -25,7 +38,7 @@ module.exports = {
         formFactor: 'desktop',
         screenEmulation: { mobile: false, width: 1366, height: 768, deviceScaleFactor: 1, disabled: false },
         throttlingMethod: 'simulate',
-        throttling: { cpuSlowdownMultiplier: 4, rttMs: 40, throughputKbps: 10 * 1024 },
+        throttling: { cpuSlowdownMultiplier: cpuMultiplier, rttMs: 40, throughputKbps: 10 * 1024 },
         extraHeaders: token ? { Cookie: `lawbid_admin=${token}` } : undefined,
         onlyCategories: ['performance', 'accessibility', 'best-practices'],
         chromeFlags: '--no-sandbox --disable-dev-shm-usage',

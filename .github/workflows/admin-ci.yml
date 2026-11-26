@@ -101,7 +101,8 @@ jobs:
   # three heavy admin pages (users, audit journal, cases) against a real API
   # stand: postgres + redis services, migrated schema, the API from this commit,
   # one admin signed in (apps/api/scripts/lhci-admin.ts), the admin built and
-  # started like production. Desktop, CPU x4, budgets in apps/admin/lighthouserc.cjs.
+  # started like production. Desktop, CPU x4 on the median runner, calibrated to
+  # this runner's benchmarkIndex (KNOWN_ERRORS 260), budgets in apps/admin/lighthouserc.cjs.
   # The stand steps are `continue-on-error` at STEP level (a job-level flag
   # still reports the check red to the deploy gate): an infra hiccup skips the
   # measurement. The Lighthouse step itself blocks on the TBT budget (error).
@@ -207,6 +208,33 @@ jobs:
           # Warm-up: the first request of each route loads its server chunk; the
           # measured runs must not include that one-off cost.
           for p in users audit-log cases; do curl -fsS -o /dev/null -H "Cookie: lawbid_admin=$LHCI_ADMIN_TOKEN" "http://localhost:3001/$p" || true; done
+      # KNOWN_ERRORS 260: the shared runner's CPU differs job to job
+      # (benchmarkIndex 2390-4020 on 26 jobs, the same code gave TBT 150 vs 334),
+      # and a fixed x4 multiplied that. Lighthouse docs/throttling.md
+      # «Calibrating the CPU slowdown»: measure the host's benchmarkIndex first,
+      # then pick cpuSlowdownMultiplier from it (apps/admin/lighthouse-cpu.cjs).
+      # Three short runs of the same Lighthouse as lhci 0.15.1 (12.6.1), median.
+      # Blocking: without a measured runner the Lighthouse step must not run.
+      - name: Calibrate the CPU slowdown to this runner (benchmarkIndex)
+        if: steps.admin.outcome == 'success'
+        id: calibrate
+        working-directory: apps/admin
+        run: |
+          set -eu
+          dir="$RUNNER_TEMP/lh-calibrate"
+          mkdir -p "$dir"
+          for i in 1 2 3; do
+            npx --yes --package=@lhci/cli@0.15.1 -- lighthouse http://localhost:3001/login \
+              --preset=desktop --only-audits=first-contentful-paint \
+              --output=json --output-path="$dir/run-$i.json" --quiet \
+              --chrome-flags="--headless=new --no-sandbox --disable-dev-shm-usage"
+          done
+          out=$(node lighthouse-cpu.cjs "$dir"/run-*.json)
+          bi=${out% *}
+          mult=${out#* }
+          echo "benchmarkIndex $bi -> cpuSlowdownMultiplier $mult"
+          echo "LHCI_BENCHMARK_INDEX=$bi" >> "$GITHUB_ENV"
+          { echo "benchmark_index=$bi"; echo "multiplier=$mult"; } >> "$GITHUB_OUTPUT"
       # Blocking: the Total Blocking Time budget is an error (lighthouserc.cjs);
       # the stand steps above stay non-blocking (an infra hiccup skips this).
       - name: Lighthouse (9 runs per page, median)
@@ -220,13 +248,14 @@ jobs:
         working-directory: apps/admin
         run: |
           {
-            echo "## Admin Lighthouse (desktop, CPU x4)"
+            echo "## Admin Lighthouse (desktop, CPU calibrated to the runner)"
             echo "stand: api=${{ steps.api.outcome }} token=${{ steps.admin_token.outcome }} admin=${{ steps.admin.outcome }} (non-blocking first runs)"
-            echo "| page | performance | accessibility | LCP ms | TBT ms | CLS |"
-            echo "|---|---|---|---|---|---|"
+            echo "calibration: benchmarkIndex **${{ steps.calibrate.outputs.benchmark_index }}** -> cpuSlowdownMultiplier **${{ steps.calibrate.outputs.multiplier }}** (x4 at benchmarkIndex 2950, Lighthouse CPU throttling calculator, KNOWN_ERRORS 260)"
+            echo "| page | performance | accessibility | LCP ms | TBT ms | CLS | benchmarkIndex | CPU x |"
+            echo "|---|---|---|---|---|---|---|---|"
             for f in .lighthouseci/lhr-*.json; do
               [ -f "$f" ] || continue
-              jq -r '"| \(.finalDisplayedUrl | sub("https?://[^/]+"; "")) | \((.categories.performance.score*100)|round) | \((.categories.accessibility.score*100)|round) | \(.audits["largest-contentful-paint"].numericValue|round) | \(.audits["total-blocking-time"].numericValue|round) | \(.audits["cumulative-layout-shift"].numericValue*1000|round/1000) |"' "$f"
+              jq -r '"| \(.finalDisplayedUrl | sub("https?://[^/]+"; "")) | \((.categories.performance.score*100)|round) | \((.categories.accessibility.score*100)|round) | \(.audits["largest-contentful-paint"].numericValue|round) | \(.audits["total-blocking-time"].numericValue|round) | \(.audits["cumulative-layout-shift"].numericValue*1000|round/1000) | \(.environment.benchmarkIndex|round) | \(.configSettings.throttling.cpuSlowdownMultiplier) |"' "$f"
             done
           } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Upload the Lighthouse reports
