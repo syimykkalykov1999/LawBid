@@ -109,36 +109,33 @@ media). R2 только читается: токен R2 только на чте
 
 **Видео.** Bunny сам хранит загруженные оригиналы (настройка библиотеки
 `KeepOriginalFiles`, Bunny берёт плату за их хранение). В коде она объявлена в
-`scripts/deploy/bunny-stream-settings.json` → `backup.keepOriginals` (сейчас
-`false` = не проверяется). Копию хранилища Bunny в других регионах (storage
+`scripts/deploy/bunny-stream-settings.json` → `backup.keepOriginals` (владелец
+26.11 «Хорошо»: `true`; выкат сам ставит только это поле командой
+`bunny-stream-settings.mjs keep-originals`). Копию хранилища Bunny в других регионах (storage
 replication) Bunny включает только в своей панели; проверка при каждом
 деплое пишет в отчёт, какие регионы включены.
 
 ### Шаги владельца
 
-1. Cloudflare → R2 → **Manage R2 API Tokens → Create API token**:
-   Permissions **Object Read only**, Apply to specific buckets only → корзина
-   публичных фото. Сохранить Access Key ID и Secret Access Key.
-2. В `infra/bootstrap`: `media_backup_enabled = true` → `terraform plan`
-   (только новые: ключ KMS, корзина и её настройки, роль) → `terraform apply`.
-   Записать `terraform output media_backup_role_arn` и `media_backup_bucket`.
-3. GitHub → Settings → **Environments → New environment** `media-backup`:
-   secrets `AWS_MEDIA_BACKUP_ROLE` (роль из шага 2), `R2_BACKUP_ACCESS_KEY_ID`,
-   `R2_BACKUP_SECRET_ACCESS_KEY` (из шага 1); variables `MEDIA_BACKUP_BUCKET`
-   (корзина из шага 2), `R2_ACCOUNT_ID` (Cloudflare → R2 → Account ID),
-   `R2_MEDIA_BUCKET` (имя корзины публичных фото).
-4. GitHub → Settings → Secrets and variables → Actions → **Variables**:
-   `MEDIA_BACKUP_ENABLED = true`.
-5. Actions → **Media backup → Run workflow** (сначала с галочкой Dry run, потом
-   без неё). Первый прогон копирует всё и может идти несколько часов; дальше
-   каждую ночь только изменения.
-6. Видео, по желанию (Bunny берёт плату за хранение оригиналов): в
-   `bunny-stream-settings.json` поставить `backup.keepOriginals = true`
-   (скажите Claude), затем `node scripts/deploy/bunny-stream-settings.mjs apply --yes`.
-   Регионы копии Bunny включаются в панели Bunny, в настройках хранения библиотеки Stream (replication); проверка при деплое покажет, какие включены.
+Owner 26.11 «Хорошо, включить сейчас»: everything is on in code; the owner only pastes a key.
+
+1. Cloudflare → R2 → **Manage R2 API Tokens → Create API token**: Permissions **Object Read only**,
+   Apply to specific buckets only → the public media bucket. Keep Access Key ID and Secret Access Key.
+2. Admin → «Ключи и сервисы» → «Копия фото R2 → S3» (provider `r2_backup`): Account ID, bucket, Access Key ID,
+   Secret Access Key → Save (2FA) → Проверить (HeadBucket + ListObjectsV2, read only) → Включить. «Включить»
+   dispatches `media-backup.yml` with `dry_run=true` through the GitHub App of the infra pipeline.
+3. Once: `terraform apply` in `infra/bootstrap` (`media_backup_enabled` now defaults to `true`): KMS key, bucket
+   `lawbid-prod-media-backup-<account>`, role `lawbid-prod-github-media-backup`. Nothing else for GitHub: the
+   environment `media-backup` is created by the first run; the workflow gets the R2 token and the role / bucket
+   names from the API (`POST /api/v1/infra/workflow/media-backup/job`, GitHub OIDC audience `lawbid-media-backup`,
+   repository + this workflow file + main checked), masks them, and reports the result
+   (`…/report` → app_config `ops.media_backup`). The first run without a passed dry run is always a dry run.
+4. Videos: `backup.keepOriginals = true`; the deploy writes KeepOriginalFiles only (`keep-originals`).
+   Bunny storage replication regions are set in the Bunny panel only; the deploy check lists them.
 
 ### Как проверить и вернуть файл
 
+- Admin «Запуск» → «Копия фото R2 → S3 (каждую ночь)»: last copy date, files, size or the error.
 - Actions → Media backup: ночной прогон зелёный; в отчёте последние строки rclone.
 - S3 → корзина `lawbid-prod-media-backup-…` → `r2/<корзина>/` → те же пути, что в R2.
   **Show versions** показывает удалённые и заменённые файлы.

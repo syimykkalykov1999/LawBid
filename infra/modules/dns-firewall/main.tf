@@ -53,6 +53,10 @@ variable "tags" {
 locals {
   on = var.enabled ? 1 : 0
 
+  # Read by the admin (apps/api/src/modules/admin-security/bot-protection.service.ts).
+  metric_namespace = "LawBid/DnsFirewall"
+  unknown_metric   = "UnknownDomainQueries"
+
   # Registrable domains the API and worker call (grep of apps/api/src for
   # external hosts on 26.11, plus docs/security/ASVS_DOCUMENTATION.md part 7).
   # Each becomes d and *.d. Documentation links that the code only prints
@@ -179,6 +183,29 @@ resource "aws_route53_resolver_query_log_config_association" "vpc" {
   resource_id                  = var.vpc_id
 }
 
+# 26.11 (owner: admin row «ALERT/BLOCK, сколько чужих адресов»): one CloudWatch
+# metric per unknown domain, counted from the query log by a metric filter
+# (CloudWatch Logs "Creating metrics from log events using a filter", JSON
+# selectors + dimensions). The admin lists the metrics of this namespace
+# (cloudwatch:ListMetrics) to show how many and which domains were outside the
+# allowlist in the last two weeks; nothing is read from the log itself. A
+# metric filter with dimensions is switched off by CloudWatch itself when it
+# would make more than 1000 dimension values an hour, so a flood of random
+# names cannot run up the metric bill.
+resource "aws_cloudwatch_log_metric_filter" "unknown_domains" {
+  count          = local.on
+  name           = "${var.name}-dns-unknown-domains"
+  log_group_name = aws_cloudwatch_log_group.queries[0].name
+  pattern        = "{ ($.firewall_rule_action = \"ALERT\") || ($.firewall_rule_action = \"BLOCK\") }"
+  metric_transformation {
+    name       = local.unknown_metric
+    namespace  = local.metric_namespace
+    value      = "1"
+    unit       = "Count"
+    dimensions = { Domain = "$.query_name" }
+  }
+}
+
 output "rule_group_id" {
   value = one(aws_route53_resolver_firewall_rule_group.egress[*].id)
 }
@@ -187,4 +214,7 @@ output "query_log_group" {
 }
 output "allowed_domain_count" {
   value = length(local.allowed_domains)
+}
+output "metric_namespace" {
+  value = local.metric_namespace
 }

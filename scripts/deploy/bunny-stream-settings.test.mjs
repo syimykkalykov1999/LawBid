@@ -137,6 +137,7 @@ test('update body: Bunny field names, comma lists, read-only fields left out', (
     EnabledResolutions: '240p,360p,480p,720p,1080p',
     EnableMP4Fallback: true,
     JitEncodingEnabled: false,
+    KeepOriginalFiles: true,
   });
 });
 
@@ -220,9 +221,10 @@ test('an invalid declared file stops before any call', async () => {
   assert.equal(await run(['nope'], ENV, f, silent), 64);
 });
 
-test('backup block: off by default, keepOriginals true is compared and written', () => {
-  const d = desired();
-  assert.equal(d.backup.keepOriginals, false);
+test('backup block: on (owner 26.11), keepOriginals true is compared and written', () => {
+  const file = desired();
+  assert.equal(file.backup.keepOriginals, true);
+  const d = { ...file, backup: { keepOriginals: false } };
   assert.deepEqual(compare(d, same), []);
   const on = { ...d, backup: { keepOriginals: true } };
   assert.deepEqual(validateDesired(on), []);
@@ -240,10 +242,40 @@ test('backup block: a non-boolean keepOriginals is rejected', () => {
 
 test('check shows the storage replication regions and never the keys', async () => {
   const out = capture();
-  const live = { ...same, ReplicationRegions: ['NY', 'LA'], KeepOriginalFiles: false, ApiKey: 'test-library-key' };
+  const live = { ...same, ReplicationRegions: ['NY', 'LA'], KeepOriginalFiles: true, ApiKey: 'test-library-key' };
   const code = await run(['check'], ENV, fakeFetch(live), out);
   assert.equal(code, 0);
   const text = out.lines.join('\n');
-  assert.match(text, /replication regions: NY, LA; keep originals: no/);
+  assert.match(text, /replication regions: NY, LA; keep originals: yes/);
   assert.doesNotMatch(text, /test-library-key|test-account-api-key/);
+});
+
+// 26.11 (owner «Хорошо» to D10): the deploy writes ONLY KeepOriginalFiles.
+test('keep-originals: writes only that field when Bunny has false', async () => {
+  const f = fakeFetch({ ...same, KeepOriginalFiles: false }, { ...same, KeepOriginalFiles: true });
+  assert.equal(await run(['keep-originals'], ENV, f, silent), 0);
+  const posts = f.calls.filter((c) => c.method === 'POST');
+  assert.equal(posts.length, 1);
+  assert.deepEqual(JSON.parse(posts[0].body), { KeepOriginalFiles: true });
+});
+
+test('keep-originals: nothing to write when Bunny already keeps them, or without keys', async () => {
+  const f = fakeFetch(same);
+  assert.equal(await run(['keep-originals'], ENV, f, silent), 0);
+  assert.equal(f.calls.filter((c) => c.method === 'POST').length, 0);
+  const none = fakeFetch(same);
+  assert.equal(await run(['keep-originals'], {}, none, silent), 0);
+  assert.equal(none.calls.length, 0);
+});
+
+test('keep-originals: Bunny not taking it is red', async () => {
+  const f = fakeFetch({ ...same, KeepOriginalFiles: false }, { ...same, KeepOriginalFiles: false });
+  assert.equal(await run(['keep-originals'], ENV, f, silent), 1);
+});
+
+test('the deploy writes KeepOriginalFiles before the read-only check', () => {
+  const wf = readFileSync(join(here, '../../.github/workflows/deploy.yml'), 'utf8');
+  const write = wf.indexOf('bunny-stream-settings.mjs keep-originals');
+  const check = wf.indexOf('bunny-stream-settings.mjs check --soft');
+  assert.ok(write > 0 && check > write);
 });

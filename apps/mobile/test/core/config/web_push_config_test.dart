@@ -86,4 +86,18 @@ void main() {
     });
     expect(WebPushConfig.matches(started), isFalse);
   });
+
+  // 26.11: the website's App Check key comes from the admin like the push
+  // keys, and changing it does not restart the push.
+  test('the admin reCAPTCHA key is read, not in the push fingerprint', () {
+    WebPushConfig.applyRemote(const {'fcm.web.recaptcha_key': '6LcKEY'});
+    expect(WebPushConfig.remoteRecaptchaKey, '6LcKEY');
+    WebPushConfig.applyRemote(const {});
+    expect(WebPushConfig.remoteRecaptchaKey, '');
+    const keys = {'fcm.web.api_key': 'a', 'fcm.web.vapid_key': 'v'};
+    expect(
+      WebPushConfig.fingerprintOf({...keys, 'fcm.web.recaptcha_key': 'k'}),
+      WebPushConfig.fingerprintOf(keys),
+    );
+  });
 }

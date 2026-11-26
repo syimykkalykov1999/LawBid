@@ -9,6 +9,8 @@ import { InfraAutoService } from './infra/infra-auto.service';
 import { InfraChangeService } from './infra/infra-change.service';
 import { InfraGithubClient } from './infra/infra-github.client';
 import { InfraWorkflowController } from './infra/infra-workflow.controller';
+import { MediaBackupWorkflowController } from './media-backup/media-backup-workflow.controller';
+import { MediaBackupService } from './media-backup/media-backup.service';
 
 /**
  * Owner 2026-10-24: «Запуск» (launch checklist, PagerDuty, AWS budgets) and
@@ -24,6 +26,8 @@ import { InfraWorkflowController } from './infra/infra-workflow.controller';
     AdminSpendController,
     AdminInfraController,
     InfraWorkflowController,
+    // 26.11 (D10): the nightly R2 -> S3 copy asks and reports here.
+    MediaBackupWorkflowController,
   ],
   // Automation audit 2026-11-08: InfraAutoService turns «Авто» signals into
   // the same change requests by itself (infra/infra-auto.service.ts).
@@ -32,6 +36,7 @@ import { InfraWorkflowController } from './infra/infra-workflow.controller';
     InfraChangeService,
     InfraGithubClient,
     InfraAutoService,
+    MediaBackupService,
   ],
   // Owner 2026-10-27: «Продвижение» starts a SEO dry run through the same App.
   exports: [InfraGithubClient],

@@ -133,9 +133,23 @@ jobs:
           terraform_version: ">=1.9"
           terraform_wrapper: false
 
+      # 26.11: a part whose AWS rights only infra/bootstrap gives (DNS
+      # Firewall) waits in this plan instead of failing the whole apply.
+      - name: Rights gate (parts the deploy role may not create yet)
+        id: gate
+        run: |
+          node scripts/infra/rights-gate.mjs infra/envs/prod/growth.auto.tfvars.json > gate.txt
+          cat gate.txt >> "$GITHUB_OUTPUT"
+          HELD="$(sed -n 's/^held=//p' gate.txt)"
+          if [ -n "$HELD" ]; then
+            echo "Waits for the bootstrap rights (owner: terraform apply in infra/bootstrap), off in this plan: $HELD" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Plan (output stays in files, never in the log)
         id: plan
         working-directory: infra/envs/prod
+        env:
+          GATE_ARGS: ${{ steps.gate.outputs.args }}
         run: |
           set +x
           set -u
@@ -146,7 +160,8 @@ jobs:
           cp backend.hcl.example backend.hcl
           terraform init -input=false -backend-config=backend.hcl > init.log 2>&1 \
             || { grep -E '^(Error|│ Error)' init.log | cut -c1-200 | head -5; exit 1; }
-          terraform plan -input=false -no-color -out=plan.bin > plan.log 2>&1 \
+          # shellcheck disable=SC2086 # GATE_ARGS is empty or -var=<name>=false words
+          terraform plan -input=false -no-color ${GATE_ARGS} -out=plan.bin > plan.log 2>&1 \
             || { grep -E '^(Error|│ Error)' plan.log | cut -c1-200 | head -10; exit 1; }
           terraform show -json plan.bin > plan.json
           # KNOWN_ERRORS 182: does this plan remove or add our PgBouncer, and

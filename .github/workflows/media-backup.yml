@@ -6,17 +6,20 @@
 # S3 and stay recoverable for media_backup_noncurrent_days (30), then expire.
 # R2 is only READ (an R2 API token with Object Read only).
 #
-# Off until the owner switches it on: repository variable
-# MEDIA_BACKUP_ENABLED = true (docs/runbooks/backups.md, section
-# "Публичные фото (R2) и видео (Bunny)"). Videos stay in Bunny Stream: their
-# originals are kept by Bunny itself (KeepOriginalFiles in
-# scripts/deploy/bunny-stream-settings.json, backup block).
+# 26.11 (owner: «вставить ключ в админке — и всё»): nothing is stored in
+# GitHub. The run asks the API (GitHub OIDC token, audience
+# lawbid-media-backup; the API checks the repository, this file and main) what
+# to do: nothing (no key saved in Admin → Ключи и сервисы → «Копия фото R2 →
+# S3»), a dry run (the first run, or the one «Включить» starts), or the copy.
+# The read-only R2 token and the AWS role / bucket names come in that answer
+# and are masked at once. The result goes back to the API: admin «Запуск»,
+# row «Копия фото R2 → S3» (date, files, size or the error).
 #
-# GitHub environment media-backup:
-#   secrets  AWS_MEDIA_BACKUP_ROLE (terraform output media_backup_role_arn),
-#            R2_BACKUP_ACCESS_KEY_ID, R2_BACKUP_SECRET_ACCESS_KEY (read-only R2 token)
-#   variables MEDIA_BACKUP_BUCKET (terraform output media_backup_bucket),
-#            R2_ACCOUNT_ID, R2_MEDIA_BUCKET
+# The AWS role trusts only the GitHub environment media-backup (GitHub creates
+# it on the first run); its bucket and role come from infra/bootstrap
+# (media_backup_enabled = true; the owner's one bootstrap apply).
+# Videos stay in Bunny Stream: their originals are kept by Bunny itself
+# (KeepOriginalFiles, scripts/deploy/bunny-stream-settings.json, backup block).
 name: Media backup
 
 on:
@@ -25,7 +28,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Dry run: only list what would be copied or removed"
+        description: "Dry run: only count what would be copied or removed"
         type: boolean
         default: false
 
@@ -40,11 +43,12 @@ env:
   # rclone 1.76.0 (2026-11-06): newest release at least 7 days old
   # (STRICT_RULES 10), pinned by digest so a moved tag cannot change what runs.
   RCLONE_IMAGE: rclone/rclone:1.76.0@sha256:7cbeec24a44f206067597c0368be4de90ae19a64d5113c7d1938bd737a81e466
+  LAWBID_API_URL: ${{ vars.LAWBID_API_URL || 'https://api.lawbid.dev' }}
 
 jobs:
   r2-to-s3:
     name: Copy R2 public media to S3 (rclone sync)
-    if: ${{ vars.MEDIA_BACKUP_ENABLED == 'true' }}
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # The first run copies everything; later runs only the changes.
     timeout-minutes: 350
@@ -54,25 +58,58 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          role-to-assume: ${{ secrets.AWS_MEDIA_BACKUP_ROLE }}
+          sparse-checkout: scripts/infra
+
+      - name: Ask the API what to do (keys saved in the admin)
+        id: job
+        env:
+          DRY_RUN_ASKED: ${{ inputs.dry_run == true }}
+        run: |
+          set -eu
+          jq -n --argjson d "$DRY_RUN_ASKED" '{dryRun:$d}' > ask.json
+          scripts/infra/media-backup-api.sh job @ask.json > job.json
+          RUN=$(jq -r '.data.plan.run' job.json)
+          echo "run=$RUN" >> "$GITHUB_OUTPUT"
+          if [ "$RUN" != "true" ]; then
+            echo "Nothing to do: $(jq -r '.data.plan.reason' job.json) (Admin → Ключи и сервисы → «Копия фото R2 → S3»)." >> "$GITHUB_STEP_SUMMARY"
+            rm -f job.json
+            exit 0
+          fi
+          for k in accessKeyId secretAccessKey; do
+            echo "::add-mask::$(jq -r ".data.source.$k" job.json)"
+          done
+          {
+            echo "DRY_RUN=$(jq -r '.data.plan.dryRun' job.json)"
+            echo "SRC_BUCKET=$(jq -r '.data.source.bucket' job.json)"
+            echo "DEST_BUCKET=$(jq -r '.data.target.bucket' job.json)"
+            echo "RCLONE_CONFIG_R2_ENDPOINT=https://$(jq -r '.data.source.accountId' job.json).r2.cloudflarestorage.com"
+            echo "RCLONE_CONFIG_R2_ACCESS_KEY_ID=$(jq -r '.data.source.accessKeyId' job.json)"
+            echo "RCLONE_CONFIG_R2_SECRET_ACCESS_KEY=$(jq -r '.data.source.secretAccessKey' job.json)"
+          } >> "$GITHUB_ENV"
+          echo "role=$(jq -r '.data.target.roleArn' job.json)" >> "$GITHUB_OUTPUT"
+          echo "Plan: $(jq -r '.data.plan.reason' job.json), dry run $(jq -r '.data.plan.dryRun' job.json)" >> "$GITHUB_STEP_SUMMARY"
+          rm -f job.json ask.json
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        id: aws
+        if: steps.job.outputs.run == 'true'
+        with:
+          role-to-assume: ${{ steps.job.outputs.role }}
           aws-region: us-east-1
           # The first full copy can take hours: 6 h = the role max_session_duration
           # (infra/bootstrap/media-backup.tf) and the job timeout.
           role-duration-seconds: 21600
+
       - name: rclone sync R2 -> S3
+        id: sync
+        if: steps.job.outputs.run == 'true'
         env:
-          DRY_RUN: ${{ inputs.dry_run && '--dry-run' || '' }}
-          SRC_BUCKET: ${{ vars.R2_MEDIA_BUCKET }}
-          DEST_BUCKET: ${{ vars.MEDIA_BACKUP_BUCKET }}
           # rclone remotes from the environment (rclone docs: "Config file"
           # -> environment variables RCLONE_CONFIG_<REMOTE>_<OPTION>).
           RCLONE_CONFIG_R2_TYPE: s3
           RCLONE_CONFIG_R2_PROVIDER: Cloudflare
-          RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
-          RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
-          RCLONE_CONFIG_R2_ENDPOINT: https://${{ vars.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
           RCLONE_CONFIG_S3_TYPE: s3
           RCLONE_CONFIG_S3_PROVIDER: AWS
           RCLONE_CONFIG_S3_ENV_AUTH: "true"
@@ -81,32 +118,71 @@ jobs:
           RCLONE_CONFIG_S3_NO_CHECK_BUCKET: "true"
         run: |
           set -eu
-          for v in SRC_BUCKET DEST_BUCKET RCLONE_CONFIG_R2_ACCESS_KEY_ID RCLONE_CONFIG_R2_SECRET_ACCESS_KEY; do
-            [ -n "$(printenv "$v")" ] || { echo "::error::$v is not set in the media-backup environment (docs/runbooks/backups.md)"; exit 1; }
-          done
           mkdir -p "$RUNNER_TEMP/rclone"
-          # shellcheck disable=SC2086 # DRY_RUN is empty or one flag
-          docker run --rm \
-            -e RCLONE_CONFIG_R2_TYPE -e RCLONE_CONFIG_R2_PROVIDER -e RCLONE_CONFIG_R2_ACCESS_KEY_ID \
-            -e RCLONE_CONFIG_R2_SECRET_ACCESS_KEY -e RCLONE_CONFIG_R2_ENDPOINT \
-            -e RCLONE_CONFIG_S3_TYPE -e RCLONE_CONFIG_S3_PROVIDER -e RCLONE_CONFIG_S3_ENV_AUTH \
-            -e RCLONE_CONFIG_S3_REGION -e RCLONE_CONFIG_S3_NO_CHECK_BUCKET \
-            -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN \
-            -v "$RUNNER_TEMP/rclone:/out" \
-            "$RCLONE_IMAGE" sync "r2:$SRC_BUCKET" "s3:$DEST_BUCKET/r2/$SRC_BUCKET" \
+          RC() {
+            docker run --rm \
+              -e RCLONE_CONFIG_R2_TYPE -e RCLONE_CONFIG_R2_PROVIDER -e RCLONE_CONFIG_R2_ACCESS_KEY_ID \
+              -e RCLONE_CONFIG_R2_SECRET_ACCESS_KEY -e RCLONE_CONFIG_R2_ENDPOINT \
+              -e RCLONE_CONFIG_S3_TYPE -e RCLONE_CONFIG_S3_PROVIDER -e RCLONE_CONFIG_S3_ENV_AUTH \
+              -e RCLONE_CONFIG_S3_REGION -e RCLONE_CONFIG_S3_NO_CHECK_BUCKET \
+              -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN \
+              -v "$RUNNER_TEMP/rclone:/out" \
+              "$RCLONE_IMAGE" "$@"
+          }
+          FLAG=""
+          [ "$DRY_RUN" = "true" ] && FLAG="--dry-run"
+          # shellcheck disable=SC2086 # FLAG is empty or one flag
+          RC sync "r2:$SRC_BUCKET" "s3:$DEST_BUCKET/r2/$SRC_BUCKET" \
             --fast-list --transfers 16 --checkers 32 --retries 5 \
             --stats 60s --stats-one-line --log-level NOTICE \
-            --log-file /out/rclone.log $DRY_RUN
-      - name: Summary
-        if: always()
+            --log-file /out/rclone.log $FLAG
+          # Files and bytes: of the copy after a real run, of the source in a dry run.
+          if [ "$DRY_RUN" = "true" ]; then
+            RC size "r2:$SRC_BUCKET" --fast-list --json > "$RUNNER_TEMP/rclone/size.json"
+          else
+            RC size "s3:$DEST_BUCKET/r2/$SRC_BUCKET" --fast-list --json > "$RUNNER_TEMP/rclone/size.json"
+          fi
+
+      - name: Report the result to the admin
+        if: always() && steps.job.outputs.run == 'true'
+        env:
+          AWS_OK: ${{ steps.aws.outcome }}
+          SYNC_OK: ${{ steps.sync.outcome }}
         run: |
+          set -u
+          DRY_RUN=${DRY_RUN:-false}
+          DEST_BUCKET=${DEST_BUCKET:-lawbid-prod-media-backup-}
+          SIZE="$RUNNER_TEMP/rclone/size.json"
+          LOG="$RUNNER_TEMP/rclone/rclone.log"
+          OK=false; ERR=""
+          if [ "$AWS_OK" != "success" ]; then
+            ERR="AWS: роль ${DEST_BUCKET%-media-backup-*}-github-media-backup не открылась (нет корзины или прав в AWS: нужен terraform apply в infra/bootstrap)"
+          elif [ "$SYNC_OK" != "success" ]; then
+            ERR="rclone: $(grep -E 'ERROR|Failed' "$LOG" 2>/dev/null | tail -1 | cut -c1-250)"
+          else
+            OK=true
+          fi
+          OBJ=$(jq -r '.count // empty' "$SIZE" 2>/dev/null || true)
+          BYTES=$(jq -r '.bytes // empty' "$SIZE" 2>/dev/null || true)
+          jq -n --argjson dry "$DRY_RUN" --argjson ok "$OK" --arg err "$ERR" \
+            --arg obj "$OBJ" --arg bytes "$BYTES" \
+            '{dryRun:$dry, ok:$ok}
+             + (if $err != "" then {error:$err} else {} end)
+             + (if $obj != "" then {objects:($obj|tonumber)} else {} end)
+             + (if $bytes != "" then {bytes:($bytes|tonumber)} else {} end)' > report.json
+          scripts/infra/media-backup-api.sh report @report.json > /dev/null \
+            || echo "::warning::the result could not be sent to the API"
           {
             echo "## Media backup (R2 -> S3)"
+            echo "dry run: $DRY_RUN, ok: $OK ${ERR:+, $ERR}"
+            echo "files: ${OBJ:-?}, bytes: ${BYTES:-?}"
             echo "last lines of the rclone log:"
             echo '```'
-            tail -20 "$RUNNER_TEMP/rclone/rclone.log" 2>/dev/null || echo "(no log)"
+            tail -20 "$LOG" 2>/dev/null || echo "(no log)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          rm -f report.json
+          [ "$OK" = "true" ]
 
   # A failed nightly copy reaches the owner (notify-failure.yml).
   notify:

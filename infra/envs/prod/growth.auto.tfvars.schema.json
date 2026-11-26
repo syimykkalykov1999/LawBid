@@ -64,6 +64,16 @@
       "minimum": 0,
       "maximum": 15
     },
+    "dns_firewall_enabled": {
+      "type": "boolean"
+    },
+    "dns_firewall_mode": {
+      "type": "string",
+      "enum": [
+        "ALERT",
+        "BLOCK"
+      ]
+    },
     "growth_switches": {
       "type": "object",
       "additionalProperties": false,

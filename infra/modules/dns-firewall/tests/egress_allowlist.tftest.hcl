@@ -21,6 +21,10 @@ run "off_by_default" {
     condition     = length(aws_route53_resolver_query_log_config.vpc) == 0 && length(aws_cloudwatch_log_group.queries) == 0
     error_message = "no query log when off"
   }
+  assert {
+    condition     = length(aws_cloudwatch_log_metric_filter.unknown_domains) == 0
+    error_message = "no metric filter when off"
+  }
 }
 
 run "alert_mode_allowlist" {
@@ -55,6 +59,14 @@ run "alert_mode_allowlist" {
   assert {
     condition     = aws_route53_resolver_query_log_config_association.vpc[0].resource_id == "vpc-0123456789abcdef0"
     error_message = "ALERT hits are visible: the query log covers the VPC"
+  }
+  assert {
+    condition     = aws_cloudwatch_log_metric_filter.unknown_domains[0].metric_transformation[0].namespace == "LawBid/DnsFirewall" && aws_cloudwatch_log_metric_filter.unknown_domains[0].metric_transformation[0].name == "UnknownDomainQueries" && aws_cloudwatch_log_metric_filter.unknown_domains[0].metric_transformation[0].dimensions["Domain"] == "$.query_name"
+    error_message = "the admin counts unknown domains from one metric per domain (namespace and name are read by the API)"
+  }
+  assert {
+    condition     = strcontains(aws_cloudwatch_log_metric_filter.unknown_domains[0].pattern, "ALERT") && strcontains(aws_cloudwatch_log_metric_filter.unknown_domains[0].pattern, "BLOCK")
+    error_message = "both ALERT and BLOCK hits are counted"
   }
 }
 

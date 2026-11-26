@@ -334,6 +334,10 @@ export class BootstrapService {
           ...(f.webAuthDomain
             ? { 'fcm.web.auth_domain': f.webAuthDomain }
             : {}),
+          // 26.11: the website's App Check key (reCAPTCHA Enterprise), public.
+          ...(f.webRecaptchaKey
+            ? { 'fcm.web.recaptcha_key': f.webRecaptchaKey }
+            : {}),
         };
       }
       return {};

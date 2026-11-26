@@ -1268,14 +1268,16 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     purpose:
       'Каждую ночь копирует аватары, фото постов и отзывов и стикеры из Cloudflare R2 в отдельную корзину S3 с версиями: удалённое или заменённое фото можно вернуть 30 дней.',
     kind: 'aws',
-    // D10 (SECOND_PASS_2026-11-26): the bucket and the role live in
-    // infra/bootstrap (media_backup_enabled, owner applies); the copy itself is
-    // .github/workflows/media-backup.yml behind MEDIA_BACKUP_ENABLED.
+    // D10 (SECOND_PASS_2026-11-26), owner 26.11 «Хорошо, включить сейчас»:
+    // the bucket and the role live in infra/bootstrap (media_backup_enabled =
+    // true, the owner's one bootstrap apply); the copy is
+    // .github/workflows/media-backup.yml, which runs once the read-only R2 key
+    // is saved in «Ключи и сервисы» (provider r2_backup).
     control: fixed(
-      'Переключатель media_backup_enabled в infra/bootstrap (применяет владелец) и переменная MEDIA_BACKUP_ENABLED в GitHub; по умолчанию выключено.',
+      'Включено: корзина и роль из infra/bootstrap (media_backup_enabled = true), копия идёт сама, когда в «Ключи и сервисы» сохранён ключ «Копия фото R2 → S3». Выключить: «Отключить» этот ключ.',
     ),
-    states: ['off'],
-    defaultState: 'off',
+    states: ['on'],
+    defaultState: 'on',
     ceiling: null,
     price: price(
       'unit',
@@ -1291,6 +1293,35 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'письмо и задача в GitHub, если ночная копия не прошла (notify-failure.yml)',
     ceService: 'Amazon Simple Storage Service',
     note: 'SECOND_PASS_2026-11-26 D10',
+    providers: ['r2_backup'],
+  },
+  {
+    id: 'vendor.bunny_keep_originals',
+    name: 'Оригиналы видео в Bunny (KeepOriginalFiles)',
+    purpose:
+      'Bunny хранит загруженный оригинал каждого видео рядом с готовыми копиями: видео можно перекодировать или восстановить из оригинала.',
+    kind: 'vendor',
+    // Owner 26.11 «Хорошо»: on. The deploy writes this one field itself
+    // (scripts/deploy/bunny-stream-settings.mjs keep-originals).
+    control: fixed(
+      'Включено: scripts/deploy/bunny-stream-settings.json, backup.keepOriginals = true; выкат сам ставит это в Bunny. Выключить: false в этом файле и «Выкл» в Bunny → Stream → библиотека → Encoding.',
+    ),
+    states: ['on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'unit',
+      'Хранение $0,01 за ГБ в месяц: оригинал весит примерно как все готовые копии вместе, то есть хранение видео растёт примерно вдвое',
+      U.bunny,
+    ),
+    usd: { launch: R(0, 1), k100: R(20, 100), m1: R(500, 2000) },
+    needed: 'yes',
+    neededNote:
+      'Без оригинала видео нельзя перекодировать в новый формат или восстановить после сбоя кодирования.',
+    alarm: 'тревоги хранилища Bunny (usage-bunny-*)',
+    spendVendor: { id: 'bunny' },
+    providers: ['bunny_stream'],
+    note: 'SECOND_PASS_2026-11-26 D10, владелец 26.11',
   },
   {
     id: 'aws.ses',
@@ -2140,11 +2171,13 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       ],
       {
         off: 'dns_firewall_enabled = false',
-        on: 'dns_firewall_enabled = true  # dns_firewall_mode = "ALERT", через 2 недели "BLOCK"',
+        on: 'dns_firewall_enabled = true\ndns_firewall_mode = "ALERT"',
       },
     ),
     states: ['off', 'on'],
-    defaultState: 'off',
+    // Owner 26.11 «включить»: on in growth.auto.tfvars.json (ALERT). The
+    // plan holds it until the bootstrap rights exist (rights-gate.mjs).
+    defaultState: 'on',
     ceiling: null,
     price: price(
       'unit',
@@ -2168,6 +2201,34 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'aws_route53_resolver_query_log_config_association',
     ],
     note: 'SECOND_PASS_2026-11-26 S10',
+  },
+  {
+    id: 'aws.dns_firewall_block',
+    name: 'Фильтр исходящих адресов: блокировать чужие (BLOCK)',
+    purpose:
+      'Второй шаг фильтра: адреса не из списка не открываются совсем. Включает владелец, когда в «Защита от ботов» видно, что чужих нужных адресов нет.',
+    kind: 'aws',
+    control: tf(['dns_firewall_mode'], {
+      off: 'dns_firewall_mode = "ALERT"',
+      on: 'dns_firewall_mode = "BLOCK"',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    // Same service and price as the filter itself: BLOCK adds nothing.
+    price: price(
+      'unit',
+      'Без доплаты к фильтру: те же $0,60 за миллион DNS-запросов',
+      U.r53,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0),
+    needed: 'later',
+    neededNote:
+      'После двух недель журнала без нужных чужих адресов (превью ссылок идут на любые сайты: сначала решить их путь).',
+    alarm: null,
+    ceService: 'Amazon Route 53',
+    note: 'SECOND_PASS_2026-11-26 S10, шаг 2',
   },
   {
     id: 'aws.inspector',

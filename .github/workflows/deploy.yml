@@ -749,7 +749,10 @@ jobs:
   # (GET api.bunny.net/videolibrary/{id}); drift turns this job red and `notify`
   # tells the owner, the release itself is not held. Until the repository secrets
   # BUNNY_LIBRARY_ID / BUNNY_ACCOUNT_API_KEY exist it only writes a notice.
-  # Fixing drift is the owner's explicit command (`... apply --yes`), never CI.
+  # Fixing drift is the owner's explicit command (`... apply --yes`), never CI,
+  # with ONE exception the owner said yes to on 26.11 (D10, «Хорошо»):
+  # KeepOriginalFiles = true (Bunny keeps the uploaded originals), written by
+  # `keep-originals` first and nothing else.
   bunny-settings:
     # «Deploy: …»: the CI gates of deploy.yml and web-deploy.yml skip «^Deploy»
     # checks, mobile-release.yml names it, so drift never closes a release gate.
@@ -764,6 +767,11 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "26.13.1"
+      - name: Bunny keeps the uploaded originals (KeepOriginalFiles only, D10)
+        env:
+          BUNNY_LIBRARY_ID: ${{ secrets.BUNNY_LIBRARY_ID }}
+          BUNNY_ACCOUNT_API_KEY: ${{ secrets.BUNNY_ACCOUNT_API_KEY }}
+        run: node scripts/deploy/bunny-stream-settings.mjs keep-originals
       - name: Compare the live library with bunny-stream-settings.json (read-only)
         env:
           BUNNY_LIBRARY_ID: ${{ secrets.BUNNY_LIBRARY_ID }}

@@ -173,6 +173,14 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
       "access-analyzer:CreateAnalyzer", "access-analyzer:DeleteAnalyzer", "access-analyzer:UpdateAnalyzer",
       "access-analyzer:TagResource", "access-analyzer:UntagResource",
       "ce:UpdateCostAllocationTagsStatus",
+      # 26.11 (S10, owner: «включить»): the DNS Firewall of the app VPC and its
+      # query log (modules/dns-firewall). Until this bootstrap is applied,
+      # scripts/infra/rights-gate.mjs keeps dns_firewall_enabled off in the plan.
+      "route53resolver:*Firewall*", "route53resolver:*ResolverQueryLogConfig*",
+      "route53resolver:TagResource", "route53resolver:UntagResource", "route53resolver:ListTagsForResource",
+      # rights-gate.mjs asks IAM whether this role may create a part before the
+      # plan includes it (ReadOnlyAccess covers it too; explicit for clarity).
+      "iam:SimulatePrincipalPolicy",
     ]
     resources = ["*"]
   }

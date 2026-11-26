@@ -135,7 +135,8 @@ export const GUIDES: Record<string, ProviderGuide> = {
     },
     enable: [
       'Загрузите .json или вставьте три значения (FCM_PROJECT_ID, FCM_CLIENT_EMAIL, FCM_PRIVATE_KEY) → «Сохранить» → «Проверить» → «Включить».',
-      'Пуши на сайте: заполните ещё четыре поля «Сайт: …» (apiKey, appId, messagingSenderId и VAPID-ключ), все четыре нужны вместе, иначе сайт пуши не включит; authDomain можно пропустить. Нужен и project_id из файла выше: без него сайт ключей не получит. Эти значения сайт берёт при старте, пересборка для них не нужна. Но App Check в браузере и фоновый обработчик пушей настраиваются сборкой: без секретов GitHub FIREBASE_WEB_* App Check на сайте выключен, а обработчик показывает пуши сам, без Firebase SDK.',
+      'Пуши на сайте: заполните ещё четыре поля «Сайт: …» (apiKey, appId, messagingSenderId и VAPID-ключ), все четыре нужны вместе, иначе сайт пуши не включит; authDomain можно пропустить. Нужен и project_id из файла выше: без него сайт ключей не получит. Эти значения сайт берёт при старте, пересборка для них не нужна. Фоновый обработчик пушей без секретов GitHub FIREBASE_WEB_* показывает пуши сам, без Firebase SDK.',
+      'Защита сайта от ботов (App Check): вставьте ещё поле «Сайт: ключ reCAPTCHA Enterprise». Сайт берёт его при старте, пересборка не нужна. Нужны и четыре поля «Сайт: …» выше. Состояние видно на странице «Запуск»: «Защита сайта: reCAPTCHA Enterprise».',
       'В приложении пуши включаются сами. Для iPhone ещё загрузите ключ APNs в Firebase: Project settings → Cloud Messaging → Apple app configuration → APNs Authentication Key.',
     ],
     fields: {
@@ -159,6 +160,10 @@ export const GUIDES: Record<string, ProviderGuide> = {
       webVapidKey: {
         how: 'Project settings → Cloud Messaging → Web Push certificates → Generate key pair → скопируйте «Key pair» (публичный ключ).',
         example: 'B…',
+      },
+      webRecaptchaKey: {
+        how: 'console.cloud.google.com → Security → reCAPTCHA → Create key: тип Website, домены lawbid.dev и www.lawbid.dev, без галочки «checkbox» → скопируйте ID ключа. Потом Firebase → App Check → Apps → веб-приложение → reCAPTCHA Enterprise → вставьте тот же ключ → Save. Это не секрет.',
+        example: '6Lc…',
       },
     },
   },
@@ -341,19 +346,43 @@ export const GUIDES: Record<string, ProviderGuide> = {
     steps: [
       'Cloudflare → Turnstile → Add widget. Имя: lawbid-web. Домены: lawbid.dev, www.lawbid.dev. Тип: Managed.',
       'Cloudflare покажет Site key (публичный) и Secret key — скопируйте оба.',
-      'Вставьте их в поля ниже, домены — через запятую → «Сохранить» (код 2FA) → «Проверить».',
-      'Режим включается отдельно: Админка → Настройки → security.turnstile.mode = monitor (только запись в журнал), через неделю — enforce (блокировать ботов).',
+      'Вставьте их в поля ниже, домены — через запятую → «Сохранить» (код 2FA) → «Проверить» → «Включить».',
+      'Дальше всё само (security.turnstile.mode = auto): сайт сразу показывает проверку, сервер сначала только записывает результат, а блокирует ботов, когда почти все настоящие люди проходят. Состояние: страница «Запуск», строка «Защита сайта от ботов (Turnstile)».',
       'Работает только на веб-версии. Телефоны защищает App Check. Цена: бесплатно.',
     ],
     links: [{ label: 'Cloudflare Turnstile', url: 'https://developers.cloudflare.com/turnstile/' }],
     enable: [
       'Заполните ключи → «Сохранить» → «Проверить» → «Включить».',
-      'Сама карточка ничего не блокирует: режим — в Настройках, security.turnstile.mode.',
+      'Нужны оба ключа: без ключа сайта проверка на странице не появится. Выключить: Настройки → security.turnstile.mode = off.',
     ],
     fields: {
       secretKey: { how: 'Turnstile → ваш виджет → Settings → Secret key.' },
       siteKey: { how: 'Turnstile → ваш виджет → Site key (публичный, попадает в веб-приложение).' },
       hostnames: { how: 'Домены сайта через запятую. Пусто — принимать любой домен.', example: 'lawbid.dev,www.lawbid.dev' },
+    },
+  },
+
+  r2_backup: {
+    steps: [
+      'Cloudflare → R2 Object Storage → Manage R2 API Tokens (справа вверху) → Create API token.',
+      'Token name: lawbid-media-backup. Permissions: Object Read only. Specify bucket: только корзина с фото (её имя есть в карточке «Cloudflare R2» выше). TTL: Forever → Create API Token.',
+      'Cloudflare покажет Access Key ID и Secret Access Key (секрет показывается один раз): скопируйте оба.',
+      'Вставьте сюда их и ещё два значения из карточки «Cloudflare R2»: Account ID и имя корзины → «Сохранить» (код 2FA) → «Проверить» → «Включить».',
+    ],
+    links: [
+      { label: 'Cloudflare R2: API tokens', url: 'https://developers.cloudflare.com/r2/api/tokens/' },
+      { label: 'Cloudflare Dashboard', url: 'https://dash.cloudflare.com/' },
+    ],
+    enable: [
+      'После «Включить» сразу запускается пробная копия (ничего не копирует, только считает файлы). Через несколько минут на странице «Запуск» строка «Копия фото R2 → S3» покажет, сколько файлов и гигабайт будет скопировано.',
+      'Дальше копия идёт каждую ночь сама. Если ночь не прошла, придёт письмо и задача в GitHub, а строка на «Запуске» станет красной с причиной.',
+      'Корзину и права в AWS создаёт один шаг владельца: terraform apply в infra/bootstrap (инструкция «Защита от ботов и копии: какие ключи вставить»). Пока его нет, строка покажет «нет корзины или прав в AWS».',
+    ],
+    fields: {
+      accountId: { how: 'Как в карточке «Cloudflare R2»: Cloudflare → R2 → справа «Account ID» (32 символа).', example: '0123456789abcdef0123456789abcdef' },
+      bucket: { how: 'Имя корзины с публичными фото, как в карточке «Cloudflare R2».', example: 'lawbid-public-media' },
+      accessKeyId: { how: 'Из нового токена R2 с правом Object Read only: Access Key ID.' },
+      secretAccessKey: { how: 'Из того же токена: Secret Access Key (виден один раз).' },
     },
   },
 

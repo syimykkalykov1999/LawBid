@@ -228,10 +228,251 @@ describe('LaunchChecksService', () => {
 
   it('App Check: enforce green, monitor yellow, off red', async () => {
     const mk = (m: string) =>
-      make({ setting: { 'security.app_check.mode': m } }).svc;
+      make({
+        setting: { 'security.app_check.mode': m },
+        fields: { fcm: { projectId: 'lawbid-test' } },
+      }).svc;
     expect((await item(mk('enforce'), 'app_check')).status).toBe('green');
     expect((await item(mk('monitor'), 'app_check')).status).toBe('yellow');
     expect((await item(mk('off'), 'app_check')).status).toBe('red');
+  });
+
+  // 26.11 (owner: «ключ не вставлен / работает / ошибка проверки»).
+  it('App Check without the Firebase project: red «ключ не вставлен», even in enforce', async () => {
+    const r = await item(
+      make({ setting: { 'security.app_check.mode': 'enforce' } }).svc,
+      'app_check',
+    );
+    expect(r.status).toBe('red');
+    expect(r.detail).toContain('Ключ не вставлен');
+  });
+
+  describe('website App Check (reCAPTCHA Enterprise)', () => {
+    const web = {
+      projectId: 'lawbid-test',
+      webApiKey: 'test-web-api-key',
+      webAppId: '1:2:web:3',
+      webSenderId: '123456',
+      webVapidKey: 'test-vapid',
+    };
+    const withStats = (
+      fields: Record<string, string>,
+      perGroup: { pass: number; total: number },
+    ) => {
+      const { svc } = make({ fields: { fcm: fields } });
+      (svc as unknown as { settings: unknown }).settings = {
+        string: jest.fn().mockResolvedValue(''),
+        number: jest.fn().mockResolvedValue(7),
+      };
+      (svc as unknown as { botStats: unknown }).botStats = {
+        counts: jest.fn().mockResolvedValue({
+          total: perGroup.total,
+          pass: perGroup.pass,
+          limited: 0,
+          valid: 0,
+          byPlatform: { web: perGroup },
+        }),
+      };
+      return svc;
+    };
+
+    it('no key: red «ключ не вставлен»', async () => {
+      const r = await item(
+        withStats(web, { pass: 0, total: 0 }),
+        'web_app_check',
+      );
+      expect(r.status).toBe('red');
+      expect(r.detail).toContain('Ключ не вставлен');
+    });
+
+    it('key without the Firebase web keys: red', async () => {
+      const r = await item(
+        withStats({ webRecaptchaKey: 'test-recaptcha' }, { pass: 0, total: 0 }),
+        'web_app_check',
+      );
+      expect(r.status).toBe('red');
+      expect(r.detail).toContain('веб-ключей Firebase');
+    });
+
+    it('keys, no visitors yet: yellow; visitors passing: green «работает»; only failures: red «ошибка проверки»', async () => {
+      const keys = { ...web, webRecaptchaKey: 'test-recaptcha' };
+      expect(
+        (await item(withStats(keys, { pass: 0, total: 0 }), 'web_app_check'))
+          .status,
+      ).toBe('yellow');
+      const ok = await item(
+        withStats(keys, { pass: 5, total: 6 }),
+        'web_app_check',
+      );
+      expect(ok.status).toBe('green');
+      expect(ok.detail).toContain('Работает');
+      const bad = await item(
+        withStats(keys, { pass: 0, total: 10 }),
+        'web_app_check',
+      );
+      expect(bad.status).toBe('red');
+      expect(bad.detail).toContain('Ошибка проверки');
+    });
+  });
+
+  describe('media backup R2 -> S3 (D10)', () => {
+    const keys = {
+      r2_backup: {
+        accountId: 'a'.repeat(32),
+        bucket: 'lawbid-media',
+        accessKeyId: 'test-access-key-id-000',
+        secretAccessKey: 'test-secret-access-key-0000000000000',
+      },
+    };
+    const res = (over: Record<string, unknown>) => ({
+      at: '2026-10-25T05:50:00.000Z',
+      dryRun: false,
+      ok: true,
+      objects: 1200,
+      bytes: 3 * 1024 ** 3,
+      error: null,
+      runUrl: null,
+      ...over,
+    });
+    const mk = (state?: unknown) => {
+      const { svc, store } = make({ fields: keys });
+      if (state) store.set('ops.media_backup', state);
+      return svc;
+    };
+
+    it('no key: red «ключ не вставлен»', async () => {
+      const r = await item(make().svc, 'media_backup');
+      expect(r.status).toBe('red');
+      expect(r.detail).toContain('Ключ не вставлен');
+    });
+
+    it('key, nothing ran yet: yellow', async () => {
+      expect((await item(mk(), 'media_backup')).status).toBe('yellow');
+    });
+
+    it('dry run passed: yellow with what will be copied', async () => {
+      const r = await item(
+        mk({
+          last: res({ dryRun: true }),
+          lastOkDryRunAt: '2026-10-25T05:50:00.000Z',
+          lastOkRunAt: null,
+        }),
+        'media_backup',
+      );
+      expect(r.status).toBe('yellow');
+      expect(r.detail).toContain('1200 файлов, 3,0 ГБ');
+    });
+
+    it('copy passed last night: green «последняя копия: дата / объём»', async () => {
+      const r = await item(
+        mk({
+          last: res({}),
+          lastOkDryRunAt: null,
+          lastOkRunAt: '2026-10-25T05:50:00.000Z',
+        }),
+        'media_backup',
+      );
+      expect(r.status).toBe('green');
+      expect(r.detail).toContain('Последняя копия 2026-10-25');
+      expect(r.detail).toContain('3,0 ГБ');
+    });
+
+    it('a failed night: red with the error; an old copy: red', async () => {
+      const bad = await item(
+        mk({
+          last: res({ ok: false, error: 'AccessDenied: role not found' }),
+          lastOkDryRunAt: null,
+          lastOkRunAt: '2026-10-24T05:50:00.000Z',
+        }),
+        'media_backup',
+      );
+      expect(bad.status).toBe('red');
+      expect(bad.detail).toContain('AccessDenied');
+      const old = await item(
+        mk({
+          last: res({ at: '2026-10-20T05:50:00.000Z' }),
+          lastOkDryRunAt: null,
+          lastOkRunAt: '2026-10-20T05:50:00.000Z',
+        }),
+        'media_backup',
+      );
+      expect(old.status).toBe('red');
+      expect(old.detail).toContain('прошло 5 дн.');
+    });
+  });
+
+  describe('DNS Firewall', () => {
+    const mk = (
+      rows: Record<string, string>,
+      metrics: Record<string, Record<string, string>[]>,
+    ) => {
+      const { svc } = make();
+      const prisma = (svc as unknown as { prisma: Record<string, unknown> })
+        .prisma;
+      prisma.infraChangeRequest = {
+        findFirst: jest.fn(({ where }: { where: { item_id: string } }) =>
+          Promise.resolve(
+            rows[where.item_id] ? { to_state: rows[where.item_id] } : null,
+          ),
+        ),
+      };
+      svc.listMetrics = jest.fn((ns: string) =>
+        Promise.resolve(metrics[ns] ?? []),
+      );
+      return svc;
+    };
+
+    it('not created yet: yellow, says it is created by the next apply', async () => {
+      const r = await item(mk({}, {}), 'dns_firewall');
+      expect(r.status).toBe('yellow');
+      expect(r.detail).toContain('ещё не создан');
+    });
+
+    it('running in ALERT: green with the count and names of unknown domains', async () => {
+      const r = await item(
+        mk(
+          {},
+          {
+            'AWS/Route53Resolver': [{ FirewallRuleGroupId: 'rslvr-frg-1' }],
+            'LawBid/DnsFirewall': [
+              { Domain: 'evil.example.' },
+              { Domain: 'cdn.other.example.' },
+            ],
+          },
+        ),
+        'dns_firewall',
+      );
+      expect(r.status).toBe('green');
+      expect(r.detail).toContain('ALERT');
+      expect(r.detail).toContain('Чужих адресов за 2 недели: 2');
+      expect(r.detail).toContain('evil.example.');
+      expect(r.hint).toContain('BLOCK');
+    });
+
+    it('BLOCK after the owner switched it; Выкл shows as off', async () => {
+      const block = await item(
+        mk(
+          { 'aws.dns_firewall_block': 'on' },
+          { 'AWS/Route53Resolver': [{ FirewallRuleGroupId: 'rslvr-frg-1' }] },
+        ),
+        'dns_firewall',
+      );
+      expect(block.detail).toContain('BLOCK');
+      const off = await item(
+        mk({ 'aws.dns_firewall': 'off' }, {}),
+        'dns_firewall',
+      );
+      expect(off.status).toBe('yellow');
+      expect(off.detail).toContain('Выключен');
+    });
+
+    it('AWS not answering: only this row says it could not check', async () => {
+      const svc = mk({}, {});
+      svc.listMetrics = jest.fn().mockRejectedValue(new Error('timeout'));
+      const r = await item(svc, 'dns_firewall');
+      expect(r.status).toBe('manual');
+      expect(r.detail).toContain('Не удалось проверить');
+    });
   });
 
   it('restore drill: none red, recent green, older than 90 days red; recording it turns it green', async () => {

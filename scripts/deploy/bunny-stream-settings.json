@@ -18,7 +18,7 @@
   },
   "readOnly": ["HasWatermark"],
   "backup": {
-    "$comment": "D10 (SECOND_PASS_2026-11-26): keepOriginals = true makes check expect KeepOriginalFiles = true and apply --yes write it (Bunny then stores and bills the uploaded originals). false = not compared. Off until the owner says yes (docs/runbooks/backups.md).",
-    "keepOriginals": false
+    "$comment": "D10 (SECOND_PASS_2026-11-26): keepOriginals = true makes check expect KeepOriginalFiles = true; the deploy writes this ONE field itself (keep-originals), every other field stays the owner's apply --yes. Bunny then stores and bills the uploaded originals ($0.01 per GB a month, cost registry vendor.bunny_keep_originals). Owner 26.11: «Хорошо» = on. false = not compared.",
+    "keepOriginals": true
   }
 }

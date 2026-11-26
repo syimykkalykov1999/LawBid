@@ -23,6 +23,10 @@ import { PagerDutySnsService } from '../../common/ops/launch/aws-launch.service'
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import {
+  InfraGithubClient,
+  MEDIA_BACKUP_DISPATCH_FILE,
+} from '../admin-launch/infra-github';
+import {
   AdminEndpoint,
   CurrentAdmin,
   SkipAutoAudit,
@@ -65,6 +69,9 @@ export class AdminIntegrationsController {
     private readonly auth: AdminAuthService,
     // Owner 2026-10-24: a changed PagerDuty link is re-subscribed at once.
     @Optional() private readonly paging?: PagerDutySnsService,
+    // 26.11 (D10): «Включить» on the read-only R2 key starts the media
+    // backup's dry run at once (the result shows on «Запуск»).
+    @Optional() private readonly github?: InfraGithubClient,
   ) {}
 
   @Get()
@@ -333,6 +340,14 @@ export class AdminIntegrationsController {
    * old one. Best effort — the card shows the real state afterwards.
    */
   private async afterChange(provider: string): Promise<void> {
+    if (provider === 'r2_backup' && this.github) {
+      // Best effort: without the GitHub App the nightly run makes the dry
+      // run itself (MediaBackupService.job: no passed dry run yet).
+      await this.github
+        .dispatchWorkflow(MEDIA_BACKUP_DISPATCH_FILE, { dry_run: 'true' })
+        .catch(() => undefined);
+      return;
+    }
     if (provider !== 'pagerduty' || !this.paging) return;
     await this.paging.sync().catch(() => undefined);
   }
