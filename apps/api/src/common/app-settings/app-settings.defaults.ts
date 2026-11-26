@@ -1216,6 +1216,15 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   'security.password_breach_timeout_ms': 1500,
   /** Refuse passwords from the bundled list of the most common ones. */
   'security.password_common_list_enabled': true,
+  /** ASVS V6.2.11 (STAGE2_SECURITY #11): words a password may not be built
+   * from (half or more of it); the person's own name, username, e-mail and
+   * phone are added per check. */
+  'security.password_context_words': [
+    'lawbid',
+    'law bid',
+    'attorney',
+    'lawyer',
+  ],
   /** Password hashes (scrypt) running at once on one server; the rest wait,
    * so a sign-in flood cannot starve the server's file / DNS work. 2 (not 4):
    * each scrypt is 64 MiB and about 100-200 ms of CPU, and the launch task
@@ -1408,6 +1417,14 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
   /** R2B-12: from this app version on, the data-export link is given only
    * with a fresh X-Reauth-Token. Empty = not enforced yet. */
   'security.export_reauth_min_app_version': '',
+  /** STAGE2_SECURITY #12: from this app version on, ending another session or
+   * «sign out others» needs re-authentication on phones (the website always).
+   * Empty = phones not held to it yet. */
+  'security.session_end_reauth_min_app_version': '',
+  /** STAGE2_SECURITY #13 (ASVS V7.3.2): a sign-in lasts at most this many
+   * days, however often it refreshes; then the person signs in again
+   * (0 = no absolute limit). */
+  'auth.session_absolute_days': 365,
   /** R2B-7: a Persona webhook signed more than this many seconds from now
    * is refused (0 = no check). */
   'verification.persona_webhook_tolerance_sec': 300,
@@ -1824,6 +1841,12 @@ export const OWNER_STORAGE_SETTINGS = {
 /** Owner 2026-10-05: zero-maintenance operations (admin Система →
  * Здоровье системы). Every automatic reaction has a switch, default on. */
 export const OWNER_OPS_SETTINGS = {
+  /** Stage 2 SRE (Б4, SRE Workbook ch. 9): the worker also writes the
+   * public status (status.json + the page) to the Cloudflare R2 bucket,
+   * `status/` folder, so people still see it when AWS is down. Needs the
+   * R2 keys (Интеграции → Cloudflare R2); without them nothing happens.
+   * About 45 000 small writes a month = inside the R2 free tier. */
+  'ops.status_page_backup_enabled': true,
   /** DB answers slower than ops.db_slow_ms → heavy background jobs pause
    * for 15 minutes on their own (renewed while it stays slow). */
   'ops.auto_pause_heavy_jobs': true,
@@ -2321,6 +2344,12 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   /** S3-11: push notifications show the message text. Off = «Новое
    * сообщение»; Google and Apple then never see the text. */
   'push.chat_preview': true,
+  /** G10 (25.11, Firebase «Best practices for FCM registration token
+   * management»): a push token whose device has not checked in for this
+   * many days is deleted by the nightly `push.tokens-stale` job (FCM itself
+   * drops an Android token after 270 days offline). The app re-registers
+   * every 7 days while used. 0 = never delete. */
+  'push.token_stale_days': 270,
 };
 
 /** Owner 2026-10-25: case tools (invoices, signing, case comments). Every

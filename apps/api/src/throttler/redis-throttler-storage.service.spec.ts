@@ -72,13 +72,19 @@ describe('RedisThrottlerStorageService', () => {
   it('expires the window after ttl milliseconds (v6 passes ms)', async () => {
     const redis = new FakeRedis();
     const storage = new RedisThrottlerStorageService(redis as never, logger());
+    // At the start of a window (the counters are aligned to whole windows).
+    const window = 28_000_000;
+    jest.spyOn(Date, 'now').mockReturnValue(window * 60_000);
 
     const rec = await storage.increment('client-e', 60_000, 5, 0, 'default');
 
     expect(rec.timeToExpire).toBe(60);
-    expect(await redis.pttl('throttle:default:client-e')).toBeLessThanOrEqual(
-      60_000,
-    );
+    // G5 sliding window: a window's counter is the "previous" one of the
+    // next window, so it lives two windows.
+    const ttl = await redis.pttl(`throttle:default:client-e:w${window}`);
+    expect(ttl).toBeLessThanOrEqual(120_000);
+    expect(ttl).toBeGreaterThan(60_000);
+    jest.restoreAllMocks();
   });
 
   it('drops a stale block longer than the current blockDuration', async () => {
