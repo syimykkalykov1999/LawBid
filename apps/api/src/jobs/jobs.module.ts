@@ -55,6 +55,7 @@ import { CrashReportsCoreModule } from '../modules/crash-reports/crash-reports.m
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { TopicCoversJob } from '../modules/search/topic-covers.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
+import { PushTokensStaleJob } from './handlers/push-tokens-stale.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import { PartitionCoreModule } from '../partitioning/partition.module';
@@ -238,6 +239,8 @@ export class JobsModule {
         TrendingTagsJob,
         TopicCoversJob,
         NotificationsRetentionJob,
+        // G10 (25.11): `push.tokens-stale`.
+        PushTokensStaleJob,
         OpsMetricsJob,
         // Owner 2026-10-23: `admin.summaries` (admin economy pass).
         AdminSummariesJob,

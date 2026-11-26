@@ -6,6 +6,7 @@ import type { Socket } from 'socket.io';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { QR_LOGIN_TTL_SEC, RateLimitService } from '../auth/auth.public';
 import { QR_LOGIN_NAMESPACE, qrRoom } from './realtime-publisher.service';
+import { SOCKET_SERVER_OPTIONS } from '../../common/cors/socket-server-options';
 
 /** Same shape as the REST DTO (`qrId`: 16–64 URL-safe chars). */
 const QR_ID = /^[A-Za-z0-9_-]{16,64}$/;
@@ -26,12 +27,9 @@ const QR_SOCKETS_PER_IP_PER_HOUR = 300;
  */
 @WebSocketGateway({
   namespace: QR_LOGIN_NAMESPACE,
-  cors: { origin: true },
-  transports: ['websocket', 'polling'],
-  maxHttpBufferSize: 4 * 1024,
-  pingInterval: 25_000,
-  pingTimeout: 20_000,
-  connectTimeout: 10_000,
+  // One Socket.IO server for all namespaces: the same options on every
+  // gateway, whichever starts first (common/cors/socket-server-options.ts).
+  ...SOCKET_SERVER_OPTIONS,
 })
 export class QrLoginGateway implements OnGatewayConnection {
   constructor(

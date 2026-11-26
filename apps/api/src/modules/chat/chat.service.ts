@@ -1401,6 +1401,8 @@ export class ChatService implements FileScanListener {
     // message only into this chat's group in its current epoch; plain words
     // are refused once the chat is end-to-end encrypted.
     const ciphertext = mls ? Buffer.from(dto.ciphertext!, 'base64') : null;
+    const frankingTag =
+      mls && dto.frankingTag ? Buffer.from(dto.frankingTag, 'base64') : null;
     if (mls) {
       if (!this.e2ee) throw notFound();
       await this.e2ee.assertMlsSend(user, conv, {
@@ -1408,6 +1410,31 @@ export class ChatService implements FileScanListener {
         epoch: dto.mlsEpoch!,
         ciphertext: new Uint8Array(ciphertext!),
       });
+      // Message franking (Messenger): every MLS message carries its
+      // 32-byte tag, so a report of it can be checked and its receivers
+      // check it too (a message whose tag does not match is dropped).
+      if (!frankingTag || frankingTag.length !== 32) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'An MLS message needs its 32-byte franking tag.',
+          details: { field: 'frankingTag' },
+        });
+      }
+      // Item 25 (plan §5): an encrypted file goes as ciphertext the phone
+      // uploaded (chat_e2ee), its key inside the MLS message.
+      if (dto.fileId) {
+        await this.files.assertAttachable(user.sub, dto.fileId, ['chat_e2ee']);
+        const used = await this.prisma.message.findFirst({
+          where: { file_id: dto.fileId },
+          select: { id: true },
+        });
+        if (used) {
+          throw new ConflictException({
+            code: ErrorCode.FILE_NOT_ATTACHABLE,
+            message: 'This file was already sent.',
+          });
+        }
+      }
     } else {
       await this.e2ee?.assertPlainAllowed(conv, dto.type ?? 'text');
     }
@@ -1730,7 +1757,12 @@ export class ChatService implements FileScanListener {
               forwarded: dto.forwarded === true,
               forwarded_from_name: dto.forwardedFromName ?? null,
               ...(ciphertext
-                ? { ciphertext, mls_epoch: dto.mlsEpoch ?? null }
+                ? {
+                    ciphertext,
+                    mls_epoch: dto.mlsEpoch ?? null,
+                    franking_tag: frankingTag,
+                    file_id: dto.fileId ?? null,
+                  }
                 : {}),
               ...(voice
                 ? {
@@ -2782,7 +2814,7 @@ export class ChatService implements FileScanListener {
   ): Promise<MediaLinks> {
     const ids = (type: Message['type']) =>
       rows.flatMap((m) => (m.type === type && m.file_id ? [m.file_id] : []));
-    const [voice, attachments, stickers, gifts, contacts, posts] =
+    const [voice, attachments, stickers, gifts, contacts, posts, blobs] =
       await Promise.all([
         this.files.voiceLinks(ids('voice')),
         this.files.attachmentUrls(ids('attachment')),
@@ -2804,6 +2836,8 @@ export class ChatService implements FileScanListener {
             return m.type === 'post' && UUID_RE.test(postId) ? [postId] : [];
           }),
         ) ?? Promise.resolve(new Map<string, SharedPostCardDto>()),
+        // Item 25: the ciphertext of encrypted files.
+        this.files.e2eeBlobUrls(ids('mls')),
       ]);
     // M3: files still checked or removed (no query when all are clean).
     const [unscannedAttachments, unscannedVoice] = await Promise.all([
@@ -2826,6 +2860,7 @@ export class ChatService implements FileScanListener {
       gifts,
       contacts,
       posts,
+      blobs,
       extras,
       unscanned: { attachments: unscannedAttachments, voice: unscannedVoice },
     };
@@ -3063,6 +3098,15 @@ export class ChatService implements FileScanListener {
           ? Buffer.from(m.ciphertext).toString('base64')
           : null,
       mlsEpoch: m.type === 'mls' ? m.mls_epoch : null,
+      // Message franking: the receivers check HMAC(k, P) against it.
+      frankingTag:
+        m.type === 'mls' && m.franking_tag && !revoked
+          ? Buffer.from(m.franking_tag).toString('base64')
+          : null,
+      blobUrl:
+        m.type === 'mls' && m.file_id && !revoked
+          ? (media?.blobs?.get(m.file_id)?.url ?? null)
+          : null,
       clientMessageId: m.sender_id === viewerId ? m.client_message_id : null,
       seq: m.seq,
       createdAt: m.created_at,
@@ -3312,6 +3356,8 @@ export class ChatService implements FileScanListener {
 
 /** OQ-047: links of a page's voice notes and attachments. */
 interface MediaLinks {
+  /** Item 25: links to the ciphertext of encrypted chat files. */
+  blobs?: Map<string, { url: string | null }>;
   extras?: MessageExtras;
   /** M3: chat files still being checked, or removed, by file id. */
   unscanned?: {

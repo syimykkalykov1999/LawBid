@@ -124,6 +124,8 @@ export const CRON_JOBS = {
   crashesPurge: 'crashes.purge',
   /** docs/05 stage 5.8: notifications older than retention_days. */
   notificationsRetention: 'notifications.retention',
+  /** G10 (25.11): push tokens unseen for push.token_stale_days (Firebase). */
+  pushTokensStale: 'push.tokens-stale',
   /** Item 25 (E2EE): Welcomes no device took within chat.e2ee_welcome_keep_days. */
   chatE2eeWelcomeSweep: 'chat.e2ee-welcome-sweep',
   /** docs/06 §5.1: anonymize accounts past the 14-day grace period. */
@@ -383,6 +385,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.experimentsMetrics, pattern: '20 2 * * *' },
   { name: CRON_JOBS.crashesPurge, pattern: '40 3 * * *' },
   { name: CRON_JOBS.notificationsRetention, pattern: '40 4 * * *' },
+  { name: CRON_JOBS.pushTokensStale, pattern: '55 4 * * *' },
   { name: CRON_JOBS.chatE2eeWelcomeSweep, pattern: '43 4 * * *' },
   { name: CRON_JOBS.privacyAnonymize, pattern: '10 2 * * *' },
   { name: CRON_JOBS.journalRetention, pattern: '30 2 1 * *' },

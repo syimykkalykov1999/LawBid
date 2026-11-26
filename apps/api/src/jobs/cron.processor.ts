@@ -50,6 +50,7 @@ import { SearchSynonymsService } from '../modules/search/search-synonyms.service
 import { TrendingTagsJob } from '../modules/search/trending-tags.job';
 import { TopicCoversJob } from '../modules/search/topic-covers.job';
 import { NotificationsRetentionJob } from './handlers/notifications-retention.job';
+import { PushTokensStaleJob } from './handlers/push-tokens-stale.job';
 import { OpsMetricsJob } from './handlers/ops-metrics.job';
 import { AdminSummariesJob } from './handlers/admin-summaries.job';
 import {
@@ -313,6 +314,7 @@ export class CronProcessor {
     @Optional() private readonly replyTime?: AttorneyReplyTimeJob,
     // Verify 5b (C4): `presence.settle` one-off jobs.
     @Optional() private readonly presenceSettle?: PresenceSettleJob,
+    @Optional() private readonly pushTokensStale?: PushTokensStaleJob,
   ) {}
 
   /**
@@ -604,6 +606,8 @@ export class CronProcessor {
         return this.e2ee?.sweepWelcomes();
       case CRON_JOBS.notificationsRetention:
         return this.notificationsRetention.run();
+      case CRON_JOBS.pushTokensStale:
+        return this.pushTokensStale?.run();
       case CRON_JOBS.privacyAnonymize:
         return this.accountDeletion
           ? this.accountDeletion.scheduleDue()
