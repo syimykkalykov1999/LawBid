@@ -1074,3 +1074,23 @@ variable "alarm_incident_hook_enabled" {
   default     = true
   description = "Lambda: CloudWatch alarm state changes become incident rows in the admin and start the AI assistant."
 }
+
+# STAGE2_SECURITY #4 / #3 (25.11): CSP reporting to Sentry and the exact
+# connect-src of the web app. Owner step: paste the Sentry «Security Headers»
+# report URI (Project → Settings → Security Headers) into both, apply; after a
+# week without reports set web_csp_exact_connect_enforced = true, apply.
+variable "web_csp_report_uri" {
+  type        = string
+  default     = ""
+  description = "Sentry security endpoint for the web app's CSP reports; empty = off."
+}
+variable "admin_csp_report_uri" {
+  type        = string
+  default     = ""
+  description = "Sentry security endpoint for the admin's CSP reports; empty = off."
+}
+variable "web_csp_exact_connect_enforced" {
+  type        = bool
+  default     = false
+  description = "Enforce the exact storage hosts in the web CSP (after a week of Report-Only)."
+}

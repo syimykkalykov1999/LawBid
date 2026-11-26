@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { NextRequest } from 'next/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { proxy } from './proxy';
 
 const at = (path: string, cookie?: string) =>
@@ -42,4 +42,19 @@ describe('admin proxy (S18-12)', () => {
     expect(at('/login').status).toBe(200);
     expect(at('/invite/abc').status).toBe(200);
   });
+
+  it('#4: with ADMIN_CSP_REPORT_URI the page names the report endpoint', () => {
+    vi.stubEnv('ADMIN_CSP_REPORT_URI', 'https://o1.ingest.us.sentry.io/api/2/security/?sentry_key=testpublickey');
+    const res = at('/login');
+    expect(res.headers.get('content-security-policy')).toContain('report-to csp-endpoint');
+    expect(res.headers.get('reporting-endpoints')).toBe(
+      'csp-endpoint="https://o1.ingest.us.sentry.io/api/2/security/?sentry_key=testpublickey"',
+    );
+  });
+
+  it('#4: without it no Reporting-Endpoints header', () => {
+    expect(at('/login').headers.get('reporting-endpoints')).toBeNull();
+  });
 });
+
+afterEach(() => vi.unstubAllEnvs());

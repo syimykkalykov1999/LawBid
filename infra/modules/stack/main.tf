@@ -251,6 +251,21 @@ variable "web_cross_origin_isolation" {
   default     = false
   description = "COOP/COEP headers on the web app (the engine renders on a worker thread)."
 }
+variable "web_csp_report_uri" {
+  type        = string
+  default     = ""
+  description = "CSP violation reports of the web app (Sentry security endpoint URL); empty = off."
+}
+variable "admin_csp_report_uri" {
+  type        = string
+  default     = ""
+  description = "CSP violation reports of the admin (Sentry security endpoint URL); empty = off."
+}
+variable "web_csp_exact_connect_enforced" {
+  type        = bool
+  default     = false
+  description = "Enforce the exact storage hosts in the web CSP connect-src (after a week of Report-Only without reports)."
+}
 variable "web_api_proxy" {
   type        = bool
   default     = false
@@ -1296,8 +1311,20 @@ module "web" {
     ["https://${module.s3.media_cdn_domain}"],
     var.web_host != "" ? ["https://media.${var.web_host}"] : [],
   )
-  tags          = local.tags
-  force_destroy = var.ephemeral
+  # #3: the same exact bucket hosts the admin CSP lists (ADMIN_CONNECT_SRC).
+  storage_connect_src = concat(
+    [
+      "https://${module.s3.media_bucket}.s3.${data.aws_region.current.region}.amazonaws.com",
+      "https://${module.s3.media_bucket}.s3.amazonaws.com",
+      "https://${module.s3.documents_bucket}.s3.${data.aws_region.current.region}.amazonaws.com",
+      "https://${module.s3.documents_bucket}.s3.amazonaws.com",
+    ],
+    module.s3.documents_cdn_domain == null ? [] : ["https://${module.s3.documents_cdn_domain}"],
+  )
+  csp_report_uri             = var.web_csp_report_uri
+  csp_exact_connect_enforced = var.web_csp_exact_connect_enforced
+  tags                       = local.tags
+  force_destroy              = var.ephemeral
 }
 
 module "status_page" {
@@ -2490,6 +2517,8 @@ module "ecs" {
       "https://${module.s3.documents_bucket}.s3.amazonaws.com",
       "https://${module.s3.media_cdn_domain}",
     ])
+    # #4: CSP violation reports (apps/admin/src/lib/csp.ts); empty = off.
+    ADMIN_CSP_REPORT_URI = var.admin_csp_report_uri
   }
   secret_arns                      = local.app_secret_arns
   migrator_database_url_secret_arn = module.secrets.arns["MIGRATOR_DATABASE_URL"]
