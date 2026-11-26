@@ -73,6 +73,7 @@ import {
   type LeadStatus,
   type OutreachSettings,
 } from './outreach.settings';
+import { csvCell } from '../../common/csv/csv-cell';
 
 const PAGE = 50;
 
@@ -1339,11 +1340,4 @@ export function templateDto(t: OutreachTemplate): OutreachTemplateDto {
     active: t.active,
     updatedAt: t.updated_at.toISOString(),
   };
-}
-
-function csvCell(v: string | number | null | undefined): string {
-  if (v === null || v === undefined) return '';
-  const s = typeof v === 'number' ? String(v) : v;
-  const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
-  return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }

@@ -47,6 +47,7 @@ import type {
 } from './admin-content.dto';
 import { broadcastAudienceWhere } from './broadcast-audience';
 import { BroadcastFanoutRunner } from './broadcast-fanout.runner';
+import { csvCell } from '../../common/csv/csv-cell';
 
 const PAGE = 50;
 type Page<T> = { items: T[]; nextCursor: string | null };
@@ -158,26 +159,8 @@ function page<T extends { id: string; created_at: Date }, R>(
   };
 }
 
-/** First character of a text cell that Excel / Sheets would run as a formula. */
-const FORMULA_START = /^[=+\-@\t\r]/;
-
-/**
- * S18-2 (OWASP CSV injection): a text cell starting with = + - @ tab or CR
- * gets a leading apostrophe so a spreadsheet shows it as text. Numbers and
- * booleans are never prefixed (a negative amount stays a number).
- */
-export const csvCell = (v: unknown): string => {
-  let s = '';
-  if (typeof v === 'string') s = FORMULA_START.test(v) ? `'${v}` : v;
-  else if (typeof v === 'number' || typeof v === 'boolean') s = `${v}`;
-  else if (typeof v === 'bigint') s = v.toString();
-  else if (v instanceof Date) s = v.toISOString();
-  else if (v !== null && v !== undefined) {
-    s = JSON.stringify(v);
-    if (FORMULA_START.test(s)) s = `'${s}`;
-  }
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};
+/** S18-2 (OWASP CSV injection): the shared rule (common/csv/csv-cell.ts). */
+export { csvCell };
 
 const csvLine = (cells: unknown[]): string =>
   cells.map(csvCell).join(',') + '\n';
