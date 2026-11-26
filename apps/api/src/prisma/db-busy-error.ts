@@ -31,6 +31,12 @@ export function isDbBusyError(error: unknown): boolean {
   return (
     error.code === 'P2024' ||
     (error.code === 'P2028' &&
-      error.message.includes('Unable to start a transaction'))
+      error.message.includes('Unable to start a transaction')) ||
+    // DAST 26.11: P2034 (SQLSTATE 40001/40P01, write conflict or deadlock)
+    // that reaches here has already used up withTxRetry's attempts. PostgreSQL
+    // rolled the whole transaction back, nothing of it was stored, and its
+    // documentation prescribes «retry the transaction»: the same answer as a
+    // full pool, not a 500 (seen on settings PUTs racing on the audit chain).
+    error.code === 'P2034'
   );
 }

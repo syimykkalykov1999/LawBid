@@ -12,8 +12,35 @@ import {
   Matches,
   Max,
   Min,
+  ValidateBy,
   ValidateNested,
+  type ValidationOptions,
 } from 'class-validator';
+
+/** DAST 26.11: `terms` of an imported group must map each language to a list
+ * of strings; a number or an object in the list reached the service and was
+ * a 500 (`term.normalize is not a function`). */
+function IsTermsByLang(options?: ValidationOptions): PropertyDecorator {
+  return ValidateBy(
+    {
+      name: 'isTermsByLang',
+      validator: {
+        validate: (value: unknown): boolean =>
+          typeof value === 'object' &&
+          value !== null &&
+          !Array.isArray(value) &&
+          Object.values(value).every(
+            (list: unknown) =>
+              Array.isArray(list) &&
+              list.every((term: unknown) => typeof term === 'string'),
+          ),
+        defaultMessage: (): string =>
+          'terms must map each language code to a list of strings',
+      },
+    },
+    options,
+  );
+}
 
 export class SynonymTermDto {
   @ApiProperty({ example: 'ru', description: 'Language code of the phrase.' })
@@ -155,6 +182,7 @@ export class ImportSynonymGroupDto {
     example: { en: ['divorce'], ru: ['развод', 'расторжение брака'] },
   })
   @IsObject()
+  @IsTermsByLang()
   terms!: Record<string, string[]>;
 }
 

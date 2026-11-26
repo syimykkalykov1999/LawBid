@@ -19,6 +19,7 @@ import {
 import {
   IsArray,
   IsBoolean,
+  IsDefined,
   IsIn,
   IsInt,
   IsOptional,
@@ -72,10 +73,12 @@ export class NewEntitlementDto {
   @IsIn(['team', 'cases', 'visibility', 'features', 'billing'])
   group!: 'team' | 'cases' | 'visibility' | 'features' | 'billing';
   @ApiProperty({ type: NewTextDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => NewTextDto)
   label!: NewTextDto;
   @ApiProperty({ type: NewTextDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => NewTextDto)
   description!: NewTextDto;
