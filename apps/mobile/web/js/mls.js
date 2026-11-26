@@ -8,6 +8,11 @@
 // plain bytes). State stays in this browser: IndexedDB, every record sealed
 // with AES-256-GCM under a non-extractable CryptoKey that never leaves the
 // browser (the same scheme the `openmls` package uses on the web).
+//
+// Several tabs of the app share this state. Every function that reads and
+// writes it runs under one Web Lock per account (navigator.locks, the
+// browsers' cross-tab mutex), so two tabs never interleave a read-modify-
+// write of a group, of the KeyPackage list or of a pending commit.
 let lib;
 let cfg;
 const SUITE = 'MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519';
@@ -42,9 +47,16 @@ function idb() {
 async function raw(op, key, value) {
   const db = await idb();
   return new Promise((ok, fail) => {
-    const tx = db.transaction('kv', op === 'get' ? 'readonly' : 'readwrite');
+    const tx = db.transaction('kv', op === 'get' || op === 'keys' ? 'readonly' : 'readwrite');
     const s = tx.objectStore('kv');
-    const r = op === 'get' ? s.get(key) : op === 'put' ? s.put(value, key) : s.delete(key);
+    const r =
+      op === 'get'
+        ? s.get(key)
+        : op === 'put'
+          ? s.put(value, key)
+          : op === 'keys'
+            ? s.getAllKeys(IDBKeyRange.bound(key, `${key}￿`))
+            : s.delete(key);
     r.onsuccess = () => ok(r.result);
     r.onerror = () => fail(r.error);
   });
@@ -77,11 +89,21 @@ async function get(key) {
   );
 }
 const del = (key) => raw('delete', key);
+const keysWith = (prefix) => raw('keys', prefix);
+
+// ---- one writer at a time across tabs --------------------------------------
+/** Runs [fn] under the account's Web Lock (all tabs of this browser). */
+function locked(fn, name = () => me.userId) {
+  return (...args) => {
+    const locks = globalThis.navigator?.locks;
+    if (!locks) return fn(...args);
+    return locks.request(`lawbid-mls:${name(...args)}`, () => fn(...args));
+  };
+}
 
 // ---- the client ------------------------------------------------------------
 let cs;
 const me = {};
-const pending = new Map(); // group hex -> state after our own commit
 
 async function suite() {
   const t = await m();
@@ -90,44 +112,60 @@ async function suite() {
   return cs;
 }
 const identity = () => enc.encode(`${me.userId}:${me.deviceId ?? ''}`);
+const groupKey = (gid) => `group:${me.userId}:${hex(gid)}`;
+const pendingKey = (gid) => `pending:${me.userId}:${hex(gid)}`;
 
 async function loadState(gid) {
   const t = await m();
-  const bytes = await get(`group:${me.userId}:${hex(gid)}`);
+  const bytes = await get(groupKey(gid));
   if (!bytes) return null;
   const [gs] = t.decodeGroupState(bytes, 0);
   return { ...gs, clientConfig: cfg };
 }
 async function saveState(state) {
   const t = await m();
-  await put(`group:${me.userId}:${hex(state.groupContext.groupId)}`, t.encodeGroupState(state));
+  await put(groupKey(state.groupContext.groupId), t.encodeGroupState(state));
 }
 
 /** Opens (or makes) this browser's device keys of [userId]; returns the
  * base64 public signature key and the remembered device id. */
-export async function open(userId) {
-  await suite();
-  me.userId = userId;
-  let keys = await get(`keys:${userId}`);
-  if (!keys) {
-    const pair = await cs.signature.keygen();
-    keys = enc.encode(JSON.stringify({ sign: b64(pair.signKey), pub: b64(pair.publicKey) }));
-    await put(`keys:${userId}`, keys);
-    await del(`device:${userId}`);
-  }
-  const k = JSON.parse(dec.decode(keys));
-  me.sign = { signKey: unb64(k.sign), publicKey: unb64(k.pub) };
-  const d = await get(`device:${userId}`);
-  me.deviceId = d ? dec.decode(d) : null;
-  return JSON.stringify({ publicKey: k.pub, deviceId: me.deviceId });
-}
+export const open = locked(
+  async (userId) => {
+    await suite();
+    me.userId = userId;
+    let keys = await get(`keys:${userId}`);
+    if (!keys) {
+      const pair = await cs.signature.keygen();
+      keys = enc.encode(JSON.stringify({ sign: b64(pair.signKey), pub: b64(pair.publicKey) }));
+      await put(`keys:${userId}`, keys);
+      await del(`device:${userId}`);
+    }
+    const k = JSON.parse(dec.decode(keys));
+    me.sign = { signKey: unb64(k.sign), publicKey: unb64(k.pub) };
+    const d = await get(`device:${userId}`);
+    me.deviceId = d ? dec.decode(d) : null;
+    return JSON.stringify({ publicKey: k.pub, deviceId: me.deviceId });
+  },
+  (userId) => userId,
+);
 
-export async function setDeviceId(id) {
+export const setDeviceId = locked(async (id) => {
   me.deviceId = id;
   await put(`device:${me.userId}`, enc.encode(id));
-}
+});
 
-async function makeKeyPackage() {
+/** Signs this browser's device out: keys, KeyPackages, groups, pending
+ * commits and the decrypted messages of the account are deleted. */
+export const wipe = locked(async () => {
+  for (const prefix of [`keys:`, `device:`, `kps:`, `kplast:`]) await del(`${prefix}${me.userId}`);
+  for (const prefix of [`group:${me.userId}:`, `pending:${me.userId}:`, `pt:${me.userId}:`]) {
+    for (const k of await keysWith(prefix)) await del(k);
+  }
+  me.deviceId = null;
+  me.sign = null;
+});
+
+async function makeKeyPackage(lastResort = false) {
   const t = await m();
   const kp = await t.generateKeyPackageWithKey(
     { credentialType: 'basic', identity: identity() },
@@ -139,31 +177,42 @@ async function makeKeyPackage() {
   );
   const bytes = t.encodeMlsMessage({ keyPackage: kp.publicPackage, wireformat: 'mls_key_package', version: 'mls10' });
   const priv = kp.privatePackage;
-  // The private half is needed to join from a Welcome made for it.
-  const list = JSON.parse(dec.decode((await get(`kps:${me.userId}`)) ?? enc.encode('[]')));
-  list.push({
+  const row = {
     kp: b64(bytes),
     init: b64(priv.initPrivateKey),
     hpke: b64(priv.hpkePrivateKey),
     sig: b64(priv.signaturePrivateKey),
-  });
+  };
+  if (lastResort) {
+    // RFC 9420 §16.8: the last-resort package may be used by several
+    // Welcomes, so its private half stays after a join (only a newer
+    // last-resort package replaces it).
+    await put(`kplast:${me.userId}`, enc.encode(JSON.stringify(row)));
+    return { bytes, kp };
+  }
+  // The private half is needed to join from a Welcome made for it.
+  const list = JSON.parse(dec.decode((await get(`kps:${me.userId}`)) ?? enc.encode('[]')));
+  list.push(row);
   await put(`kps:${me.userId}`, enc.encode(JSON.stringify(list.slice(-300))));
   return { bytes, kp };
 }
 
 /** [n] one-time KeyPackages, base64 MLSMessages, as a JSON array. */
-export async function newKeyPackages(n) {
+export const newKeyPackages = locked(async (n) => {
   const out = [];
   for (let i = 0; i < n; i++) out.push(b64((await makeKeyPackage()).bytes));
   return JSON.stringify(out);
-}
+});
 
-export async function createGroup(gidB64) {
+/** The device's last-resort KeyPackage (base64 MLSMessage). */
+export const newLastResortKeyPackage = locked(async () => b64((await makeKeyPackage(true)).bytes));
+
+export const createGroup = locked(async (gidB64) => {
   const t = await m();
   const own = await makeKeyPackage();
   const state = await t.createGroup(unb64(gidB64), own.kp.publicPackage, own.kp.privatePackage, [], cs);
   await saveState(state);
-}
+});
 
 export async function hasGroup(gidB64) {
   return (await loadState(unb64(gidB64))) !== null;
@@ -185,10 +234,14 @@ function leafOf(state, deviceId) {
 }
 
 /** A commit adding the KeyPackages / removing the devices (JSON arrays);
- * returns JSON {commit, welcome}. Applied only by merge(). */
-export async function commit(gidB64, kpsJson, removeJson) {
+ * returns JSON {commit, welcome, epoch}. Applied only by merge(). The state
+ * after it waits in IndexedDB (a reload or another tab still finds it);
+ * one pending commit per group: while one waits, another is refused. */
+export const commit = locked(async (gidB64, kpsJson, removeJson) => {
   const t = await m();
-  const state = await loadState(unb64(gidB64));
+  const gid = unb64(gidB64);
+  if (await get(pendingKey(gid))) throw new Error('mls: a commit of this group is pending');
+  const state = await loadState(gid);
   const proposals = [];
   for (const k of JSON.parse(kpsJson)) {
     const msg = t.decodeMlsMessage(unb64(k), 0)[0];
@@ -202,45 +255,69 @@ export async function commit(gidB64, kpsJson, removeJson) {
     { state, cipherSuite: cs },
     { extraProposals: proposals, wireAsPublicMessage: true, ratchetTreeExtension: true },
   );
-  pending.set(gidB64, out.newState);
+  const commitB64 = b64(t.encodeMlsMessage(out.commit));
+  await put(
+    pendingKey(gid),
+    enc.encode(
+      JSON.stringify({
+        base: Number(state.groupContext.epoch),
+        commit: commitB64,
+        state: b64(t.encodeGroupState(out.newState)),
+      }),
+    ),
+  );
   return JSON.stringify({
-    commit: b64(t.encodeMlsMessage(out.commit)),
+    commit: commitB64,
+    epoch: Number(state.groupContext.epoch),
     welcome: out.welcome
       ? b64(t.encodeMlsMessage({ welcome: out.welcome, wireformat: 'mls_welcome', version: 'mls10' }))
       : null,
   });
-}
+});
 
-export async function merge(gidB64) {
-  const s = pending.get(gidB64);
-  pending.delete(gidB64);
-  if (s) await saveState(s);
-}
+export const merge = locked(async (gidB64) => {
+  const t = await m();
+  const gid = unb64(gidB64);
+  const p = await get(pendingKey(gid));
+  if (!p) return;
+  const rec = JSON.parse(dec.decode(p));
+  const now = await loadState(gid);
+  // The group moved on in the meantime (another tab): nothing to merge.
+  if (now && Number(now.groupContext.epoch) === rec.base) {
+    const [gs] = t.decodeGroupState(unb64(rec.state), 0);
+    await saveState({ ...gs, clientConfig: cfg });
+  }
+  await del(pendingKey(gid));
+});
 
-export async function discard(gidB64) {
-  pending.delete(gidB64);
-}
+export const discard = locked(async (gidB64) => {
+  await del(pendingKey(unb64(gidB64)));
+});
 
 /** Joins from a Welcome (base64); returns the base64 group id. */
-export async function join(welcomeB64) {
+export const join = locked(async (welcomeB64) => {
   const t = await m();
   const msg = t.decodeMlsMessage(unb64(welcomeB64), 0)[0];
   const list = JSON.parse(dec.decode((await get(`kps:${me.userId}`)) ?? enc.encode('[]')));
-  for (const k of list) {
+  const last = await get(`kplast:${me.userId}`);
+  const tries = [...list, ...(last ? [{ ...JSON.parse(dec.decode(last)), lastResort: true }] : [])];
+  for (const k of tries) {
     const pub = t.decodeMlsMessage(unb64(k.kp), 0)[0].keyPackage;
     const priv = { initPrivateKey: unb64(k.init), hpkePrivateKey: unb64(k.hpke), signaturePrivateKey: unb64(k.sig) };
     try {
       const state = await t.joinGroup(msg.welcome, pub, priv, t.emptyPskIndex, cs);
       await saveState(state);
-      // A one-time KeyPackage is used once.
-      await put(`kps:${me.userId}`, enc.encode(JSON.stringify(list.filter((x) => x !== k))));
+      // A one-time KeyPackage is used once; the last-resort one stays.
+      if (!k.lastResort) {
+        await put(`kps:${me.userId}`, enc.encode(JSON.stringify(list.filter((x) => x !== k))));
+      }
       return b64(state.groupContext.groupId);
     } catch {
       // Not the KeyPackage this Welcome was made for.
     }
   }
   throw new Error('no KeyPackage of this device fits the Welcome');
-}
+});
 
 async function process(gidB64, msgB64) {
   const t = await m();
@@ -251,11 +328,11 @@ async function process(gidB64, msgB64) {
   return r;
 }
 
-export async function applyCommit(gidB64, commitB64) {
+export const applyCommit = locked(async (gidB64, commitB64) => {
   await process(gidB64, commitB64);
-}
+});
 
-export async function encrypt(gidB64, plainB64) {
+export const encrypt = locked(async (gidB64, plainB64) => {
   const t = await m();
   const state = await loadState(unb64(gidB64));
   const out = await t.createApplicationMessage(state, unb64(plainB64), cs);
@@ -263,13 +340,13 @@ export async function encrypt(gidB64, plainB64) {
   return b64(
     t.encodeMlsMessage({ privateMessage: out.privateMessage, wireformat: 'mls_private_message', version: 'mls10' }),
   );
-}
+});
 
 /** The base64 plaintext of an application message, or null. */
-export async function decrypt(gidB64, msgB64) {
+export const decrypt = locked(async (gidB64, msgB64) => {
   const r = await process(gidB64, msgB64);
   return r.kind === 'applicationMessage' ? b64(r.message) : null;
-}
+});
 
 /** JSON [{identity, key}] of the members now. */
 export async function members(gidB64) {
@@ -283,6 +360,40 @@ export async function members(gidB64) {
   return JSON.stringify(out);
 }
 
-export async function deleteGroup(gidB64) {
-  await del(`group:${me.userId}:${hex(unb64(gidB64))}`);
+export const deleteGroup = locked(async (gidB64) => {
+  const gid = unb64(gidB64);
+  await del(groupKey(gid));
+  await del(pendingKey(gid));
+});
+
+// ---- decrypted messages (E2eePlaintexts on the web) -------------------------
+// An MLS message opens once; what it said stays on the device. In the
+// browser that copy is sealed like the MLS state (not in the plain cache).
+const ptKey = (id) => `pt:${me.userId}:${id}`;
+
+/** The JSON payload of message [id], or null. */
+export async function ptGet(id) {
+  const v = await get(ptKey(id));
+  return v ? JSON.parse(dec.decode(v)).p : null;
+}
+
+export async function ptPut(id, conversationId, payload) {
+  await put(ptKey(id), enc.encode(JSON.stringify({ c: conversationId, p: payload })));
+}
+
+export async function ptDel(id) {
+  await del(ptKey(id));
+}
+
+/** JSON {id: [conversationId, payload]} of every decrypted message. */
+export async function ptAll() {
+  const out = {};
+  const prefix = ptKey('');
+  for (const k of await keysWith(prefix)) {
+    const v = await get(k);
+    if (!v) continue;
+    const r = JSON.parse(dec.decode(v));
+    out[k.slice(prefix.length)] = [r.c, r.p];
+  }
+  return JSON.stringify(out);
 }

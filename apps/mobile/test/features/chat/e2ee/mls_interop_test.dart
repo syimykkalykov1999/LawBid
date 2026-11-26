@@ -63,6 +63,21 @@ void main() {
         base64Decode(fromWeb['message'] as String),
       );
       expect(utf8.decode(back!), 'Из браузера');
+
+      // RFC 9420 §16.8: the phone's last-resort KeyPackage (OpenMLS's
+      // last_resort extension) is accepted by ts-mls — the browser and the
+      // Delivery Service decode it the same way — and the phone joins.
+      final last = await phone.newLastResortKeyPackage();
+      final started = await ask({
+        'op': 'groupWith',
+        'keyPackage': base64Encode(last),
+        'identity': 'ub:web',
+      });
+      final g2 = await phone.join(base64Decode(started['welcome'] as String));
+      final hi = await ask({'op': 'encrypt', 'text': 'Последний ключ'});
+      final got =
+          await phone.decrypt(g2, base64Decode(hi['message'] as String));
+      expect(utf8.decode(got!), 'Последний ключ');
       peer.kill();
     },
     skip: node ? false : 'node is not installed',

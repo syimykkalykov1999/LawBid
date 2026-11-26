@@ -7,6 +7,7 @@ import type Redis from 'ioredis';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { TokenService } from '../src/modules/auth/services/token.service';
+import { RealtimePublisher } from '../src/modules/realtime/realtime-publisher.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 import { MlsDeviceClient, type Http } from './support/mls-client';
@@ -271,6 +272,98 @@ describe('End-to-end encrypted chats on MLS (e2e, item 25)', () => {
     const c = (fromWeb.body.data as { ciphertext: string }).ciphertext;
     expect(await alice.decrypt(chat.id, c)).toBe('sent from the browser');
     expect(await bob.decrypt(chat.id, c)).toBe('sent from the browser');
+  });
+
+  it('rejoin: a device that cannot join from its Welcome is removed and added again from a new KeyPackage (RFC 9420 §12.4.3.1)', async () => {
+    const { chat, alice, bob } = await encryptedPair();
+    const bobWeb = new MlsDeviceClient(
+      http(chat.client.auth),
+      chat.client.id,
+      'web',
+    );
+    await bobWeb.register(1);
+    expect((await alice.commit(chat.id, [bobWeb.deviceId])).status).toBe(201);
+    await bob.catchUp(chat.id);
+    // The browser lost the private half of its KeyPackage: it cannot join.
+    const rejoin = (deviceId: string, auth = chat.client.auth) =>
+      request(base)
+        .post(`/api/v1/e2ee/conversations/${chat.id}/rejoin`)
+        .set('Authorization', auth)
+        .send({ deviceId });
+    expect((await rejoin(bobWeb.deviceId)).status).toBe(204);
+    // Its Welcome of this chat is gone, and the members are asked to
+    // remove its leaf first (no member could add it while it is there).
+    const ws = await bobWeb.http.get(
+      `/api/v1/e2ee/welcomes?deviceId=${bobWeb.deviceId}`,
+    );
+    expect(ws.body.data).toEqual([]);
+    expect((await alice.state(chat.id)).removeDevices).toEqual([
+      bobWeb.deviceId,
+    ]);
+    // Somebody else's device cannot be marked.
+    expect((await rejoin(bobWeb.deviceId, chat.attorney.auth)).status).toBe(
+      404,
+    );
+    expect((await alice.commit(chat.id, [], [bobWeb.deviceId])).status).toBe(
+      201,
+    );
+    await bob.catchUp(chat.id);
+    const st = await alice.state(chat.id);
+    expect(st.removeDevices).toEqual([]);
+    expect(
+      st.devices.find((d) => d.deviceId === bobWeb.deviceId)?.inGroup,
+    ).toBe(false);
+    // Added again from a fresh KeyPackage: a new Welcome, and it reads.
+    expect((await bobWeb.upload(1)).status).toBe(200);
+    expect((await alice.commit(chat.id, [bobWeb.deviceId])).status).toBe(201);
+    await bob.catchUp(chat.id);
+    expect(await bobWeb.takeWelcomes()).toEqual([chat.id]);
+    const sent = await alice.send(chat.id, 'back in the chat');
+    const c = (sent.body.data as { ciphertext: string }).ciphertext;
+    expect(await bobWeb.decrypt(chat.id, c)).toBe('back in the chat');
+    // A device that is not in the group has nothing to mark.
+    const pad = new MlsDeviceClient(http(chat.client.auth), chat.client.id);
+    await pad.register(1);
+    expect((await rejoin(pad.deviceId)).status).toBe(204);
+    expect((await alice.state(chat.id)).removeDevices).toEqual([]);
+  });
+
+  it('a new device: its first upload (with the last-resort package) tells the person’s encrypted chats to add it', async () => {
+    const { chat } = await encryptedPair();
+    const publisher = app.get(RealtimePublisher);
+    const spy = jest.spyOn(publisher, 'toUsers');
+    try {
+      const pad = new MlsDeviceClient(http(chat.client.auth), chat.client.id);
+      await pad.register(1);
+      // One-time packages alone (a top-up) announce nothing.
+      expect(
+        spy.mock.calls.some(
+          (c) =>
+            c[1] === 'e2ee:commit' &&
+            (c[2] as { conversationId: string }).conversationId === chat.id,
+        ),
+      ).toBe(false);
+      const last = await pad.makeKeyPackage();
+      const up = await pad.http.post(
+        `/api/v1/e2ee/devices/${pad.deviceId}/key-packages`,
+        {
+          keyPackages: [],
+          lastResort: MlsDeviceClient.encodeKeyPackage(last.pub),
+        },
+      );
+      expect(up.status).toBe(200);
+      const told = spy.mock.calls.find(
+        (c) =>
+          c[1] === 'e2ee:commit' &&
+          (c[2] as { conversationId: string }).conversationId === chat.id,
+      );
+      expect(told).toBeDefined();
+      expect([...told![0]].sort()).toEqual(
+        [chat.attorney.id, chat.client.id].sort(),
+      );
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('add / remove a member moves the epoch; a removed device cannot read on, and messages wait until it is removed', async () => {

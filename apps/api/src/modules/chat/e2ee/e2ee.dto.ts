@@ -140,6 +140,16 @@ export class CreateMlsGroupDto {
   groupId!: string;
 }
 
+/** RFC 9420 §12.4.3.1: a Welcome this device could not join from (its
+ * KeyPackage's private half is gone, the Welcome is damaged) — the other
+ * members remove the device's leaf and add it again from a new KeyPackage,
+ * so it gets a fresh Welcome (Wire's "re-add on failed Welcome"). */
+export class MlsRejoinDto {
+  @ApiProperty({ format: 'uuid', description: 'My device that cannot join.' })
+  @IsUUID('all')
+  deviceId!: string;
+}
+
 export class MlsCommitDto {
   @ApiProperty({ format: 'uuid', description: 'The committing device.' })
   @IsUUID('all')

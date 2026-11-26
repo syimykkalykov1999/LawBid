@@ -3,6 +3,8 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:lawbid/features/chat/e2ee/e2ee_service.dart'
+    show E2eePlaintextStore;
 import 'package:lawbid/features/chat/e2ee/mls_engine.dart';
 import 'package:lawbid/features/chat/e2ee/mls_key_vault.dart';
 import 'package:openmls/openmls.dart' as om;
@@ -22,6 +24,10 @@ Future<MlsEngine> openMlsEngine(String userId) async {
   );
 }
 
+/// The phones keep the decrypted messages in the cache database, a file the
+/// OS protects (E2eePlaintexts); only the web seals them itself.
+E2eePlaintextStore? sealedPlaintextStore(String userId) => null;
+
 const _suite = om.MlsCiphersuite.mls128DhkemX25519Aes128GcmSha256Ed25519;
 
 class OpenMlsEngine implements MlsEngine {
@@ -29,9 +35,11 @@ class OpenMlsEngine implements MlsEngine {
     this._engine,
     this._vault,
     this._userId,
+    this._dbPath,
     this._signer,
     this.signaturePublicKey,
     this._deviceId,
+    this._previousDeviceId,
   );
 
   /// [dbPath] ":memory:" keeps everything in memory (tests).
@@ -42,6 +50,17 @@ class OpenMlsEngine implements MlsEngine {
   }) async {
     await om.Openmls.init();
     final prefix = 'mls.$userId';
+    // iOS keeps the Keychain across a reinstall, the database goes with the
+    // app: a vault that names a device but has no database = that device's
+    // groups are gone here, its server id and key must not be used again.
+    final freshDb = dbPath == ':memory:' || !File(dbPath).existsSync();
+    final known = await vault.read('$prefix.device');
+    if (freshDb && known != null) {
+      await vault.write('$prefix.previous', known);
+      await vault.delete('$prefix.device');
+      await vault.delete('$prefix.signer');
+      await vault.delete('$prefix.public');
+    }
     var dbKey = await vault.read('$prefix.db_key');
     if (dbKey == null) {
       final rng = Random.secure();
@@ -74,23 +93,56 @@ class OpenMlsEngine implements MlsEngine {
       engine,
       vault,
       userId,
+      dbPath,
       base64Decode(signer),
       base64Decode(public),
       await vault.read('$prefix.device'),
+      await vault.read('$prefix.previous'),
     );
   }
 
   final om.MlsEngine _engine;
   final MlsKeyVault _vault;
   final String _userId;
+  final String _dbPath;
   final Uint8List _signer;
   String? _deviceId;
+  String? _previousDeviceId;
 
   @override
   final Uint8List signaturePublicKey;
 
   @override
   String? get deviceId => _deviceId;
+
+  @override
+  String? get previousDeviceId => _previousDeviceId;
+
+  @override
+  Future<void> forgetPreviousDevice() async {
+    _previousDeviceId = null;
+    await _vault.delete('mls.$_userId.previous');
+  }
+
+  @override
+  Future<void> wipe() async {
+    final prefix = 'mls.$_userId';
+    for (final k in ['device', 'signer', 'public', 'previous', 'db_key']) {
+      await _vault.delete('$prefix.$k');
+    }
+    _deviceId = null;
+    await close();
+    if (_dbPath == ':memory:') return;
+    for (final suffix in ['', '-wal', '-shm', '-journal']) {
+      final f = File('$_dbPath$suffix');
+      if (f.existsSync()) await f.delete();
+    }
+  }
+
+  @override
+  Future<void> close() async {
+    if (!_engine.isClosed()) await _engine.close();
+  }
 
   Uint8List get _identity =>
       Uint8List.fromList(utf8.encode('$_userId:${_deviceId ?? ''}'));
@@ -102,8 +154,12 @@ class OpenMlsEngine implements MlsEngine {
     wireFormatPolicy: om.MlsWireFormatPolicy.plaintext,
     // The Welcome carries the tree, so joining needs nothing else.
     useRatchetTreeExtension: true,
-    // Forward secrecy: no message keys of past epochs are kept.
-    maxPastEpochs: 0,
+    // RFC 9420 §15.2 / RFC 9750 §5.3: a message sent just before a commit
+    // can arrive after it (another device's commit, an offline catch-up),
+    // so the message secrets of the last 4 epochs are kept — the same
+    // window as ts-mls on the web (retainKeysForEpochs 4). Older ones are
+    // deleted (forward secrecy).
+    maxPastEpochs: 4,
     paddingSize: 32,
     senderRatchetMaxOutOfOrder: 100,
     senderRatchetMaxForwardDistance: 1000,
@@ -129,6 +185,20 @@ class OpenMlsEngine implements MlsEngine {
       out.add(wrapKeyPackage(kp.keyPackageBytes));
     }
     return out;
+  }
+
+  @override
+  Future<Uint8List> newLastResortKeyPackage() async {
+    final kp = await _engine.createKeyPackageWithOptions(
+      ciphersuite: _suite,
+      signerBytes: _signer,
+      credentialIdentity: _identity,
+      signerPublicKey: signaturePublicKey,
+      // The last_resort extension: OpenMLS keeps the private keys of such a
+      // package after a join (one-time ones are deleted).
+      options: const om.KeyPackageOptions(lastResort: true),
+    );
+    return wrapKeyPackage(kp.keyPackageBytes);
   }
 
   @override
@@ -158,6 +228,7 @@ class OpenMlsEngine implements MlsEngine {
     List<Uint8List> keyPackages = const [],
     List<String> removeDeviceIds = const [],
   }) async {
+    final at = await epoch(groupId);
     final members = removeDeviceIds.isEmpty
         ? const <om.MlsMemberInfo>[]
         : await _engine.groupMembers(groupIdBytes: groupId);
@@ -165,7 +236,8 @@ class OpenMlsEngine implements MlsEngine {
       for (final m in members)
         if (removeDeviceIds.contains(_deviceOf(m.credential))) m.index,
     ];
-    // Kept pending: the Delivery Service decides (201 merge, 409 discard).
+    // Kept pending (in OpenMLS's database, so it survives a restart): the
+    // Delivery Service decides (201 merge, refused / another commit discard).
     final r = await _engine.flexibleCommit(
       groupIdBytes: groupId,
       signerBytes: _signer,
@@ -179,7 +251,7 @@ class OpenMlsEngine implements MlsEngine {
         keepPending: true,
       ),
     );
-    return MlsCommitOut(commit: r.commit, welcome: r.welcome);
+    return MlsCommitOut(commit: r.commit, epoch: at, welcome: r.welcome);
   }
 
   @override

@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:lawbid/features/chat/e2ee/e2ee_service.dart'
+    show E2eePlaintextStore;
 import 'package:lawbid/features/chat/e2ee/mls_engine_stub.dart'
     if (dart.library.ffi) 'package:lawbid/features/chat/e2ee/mls_engine_io.dart'
     if (dart.library.js_interop) 'package:lawbid/features/chat/e2ee/mls_engine_web.dart'
@@ -21,6 +23,12 @@ abstract class MlsEngine {
   /// non-extractable key in the browser).
   static Future<MlsEngine> open(String userId) => impl.openMlsEngine(userId);
 
+  /// Where this platform keeps the decrypted messages when it seals them
+  /// itself (the web: in mls.js's sealed IndexedDB); null = the cache
+  /// database.
+  static E2eePlaintextStore? sealedPlaintexts(String userId) =>
+      impl.sealedPlaintextStore(userId);
+
   /// Ed25519 public key of this device (registered at POST /e2ee/devices).
   Uint8List get signaturePublicKey;
 
@@ -31,8 +39,30 @@ abstract class MlsEngine {
   /// "<userId>:<deviceId>".
   Future<void> setDeviceId(String deviceId);
 
+  /// The server's id of the device these keys used to be, when the app's
+  /// MLS data was lost but the keys survived (iOS: the Keychain outlives a
+  /// reinstall, the database does not). That device's groups think it is
+  /// still in them, so it is signed out and this one registers afresh
+  /// (WhatsApp: a reinstalled phone is a new device). Null normally.
+  String? get previousDeviceId;
+
+  /// The previous device was signed out on the server.
+  Future<void> forgetPreviousDevice();
+
   /// [count] one-time KeyPackages of this device.
   Future<List<Uint8List>> newKeyPackages(int count);
+
+  /// The device's last-resort KeyPackage (RFC 9420 §16.8, the `last_resort`
+  /// extension): handed out when the one-time ones run out, so it may be
+  /// used by several Welcomes; its private half is kept after a join.
+  Future<Uint8List> newLastResortKeyPackage();
+
+  /// Signs this device out of end-to-end encryption here: its keys, groups
+  /// and KeyPackages are deleted (the next sign-in is a new device).
+  Future<void> wipe();
+
+  /// Lets go of the state (the account's session ended); nothing deleted.
+  Future<void> close();
 
   /// Creates [groupId] with only this device in it (epoch 0).
   Future<void> createGroup(Uint8List groupId);
@@ -43,7 +73,10 @@ abstract class MlsEngine {
 
   /// A commit that adds the devices of [keyPackages] and removes the
   /// devices [removeDeviceIds]. Nothing changes until [mergeCommit]
-  /// (after the server accepted it) or [discardCommit] (409).
+  /// (after the server accepted it) or [discardCommit] (the server refused
+  /// it, or took another commit for this epoch). The pending commit
+  /// survives a restart: a send whose answer was lost is decided on the
+  /// next catch-up (RFC 9420 §12.4).
   Future<MlsCommitOut> commit(
     Uint8List groupId, {
     List<Uint8List> keyPackages = const [],
@@ -74,9 +107,16 @@ abstract class MlsEngine {
 }
 
 class MlsCommitOut {
-  const MlsCommitOut({required this.commit, this.welcome});
+  const MlsCommitOut({
+    required this.commit,
+    required this.epoch,
+    this.welcome,
+  });
 
   final Uint8List commit;
+
+  /// The epoch the commit was made in (the group moves to epoch + 1).
+  final int epoch;
   final Uint8List? welcome;
 }
 

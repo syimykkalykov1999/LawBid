@@ -29,6 +29,29 @@ const handlers = {
       ),
     };
   },
+  // The browser starts a group and adds a phone from its KeyPackage (the
+  // phone's last-resort one included: ts-mls must accept its extension).
+  async groupWith({ keyPackage, identity }) {
+    const sign = await cs.signature.keygen();
+    kp = await t.generateKeyPackageWithKey(
+      { credentialType: 'basic', identity: new TextEncoder().encode(identity) },
+      t.defaultCapabilities(),
+      t.defaultLifetime,
+      [],
+      sign,
+      cs,
+    );
+    state = await t.createGroup(new TextEncoder().encode('lawbid:web-first'), kp.publicPackage, kp.privatePackage, [], cs);
+    const other = t.decodeMlsMessage(unb64(keyPackage), 0)[0].keyPackage;
+    const out = await t.createCommit(
+      { state, cipherSuite: cs },
+      { extraProposals: [{ proposalType: 'add', add: { keyPackage: other } }], ratchetTreeExtension: true },
+    );
+    state = out.newState;
+    return {
+      welcome: b64(t.encodeMlsMessage({ welcome: out.welcome, wireformat: 'mls_welcome', version: 'mls10' })),
+    };
+  },
   async join({ welcome }) {
     const m = t.decodeMlsMessage(unb64(welcome), 0)[0];
     state = await t.joinGroup(m.welcome, kp.publicPackage, kp.privatePackage, t.emptyPskIndex, cs);

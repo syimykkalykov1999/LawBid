@@ -856,6 +856,11 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
   Future<void> putE2eePlaintext(E2eePlaintextsCompanion row) =>
       into(e2eePlaintexts).insertOnConflictUpdate(row);
 
+  Future<void> deleteE2eePlaintext(String owner, String id) =>
+      (delete(e2eePlaintexts)
+            ..where((r) => r.owner.equals(owner) & r.id.equals(id)))
+          .go();
+
   Future<E2eePlaintextRow?> e2eePlaintext(String owner, String id) =>
       (select(e2eePlaintexts)
             ..where((r) => r.owner.equals(owner) & r.id.equals(id)))

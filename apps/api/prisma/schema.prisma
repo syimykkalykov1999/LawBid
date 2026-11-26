@@ -3402,6 +3402,9 @@ model MlsGroupDevice {
   user_id         String   @db.Uuid
   joined_epoch    Int
   created_at      DateTime @default(now()) @db.Timestamptz
+  /// The device could not join from its Welcome (RFC 9420 §12.4.3.1): the
+  /// members remove its leaf and add it again from a new KeyPackage.
+  rejoin_at       DateTime? @db.Timestamptz
 
   @@id([conversation_id, device_id])
   @@index([device_id])

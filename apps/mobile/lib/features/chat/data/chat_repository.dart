@@ -670,19 +670,30 @@ class ApiChatRepository implements ChatRepository {
         forwarded: forwarded,
       ),
     );
-    final sent = (await guardApiCall(
-      () => _chat.sendMessage(
-        id: id,
-        body: sealed ??
-            api.SendMessageDto(
-              clientMessageId: clientMessageId,
-              body: body,
-              replyToId: replyToId,
-              forwarded: forwarded ? true : null,
-            ),
-      ),
-    ))
-        .data;
+    final api.MessageDto sent;
+    try {
+      sent = (await guardApiCall(
+        () => _chat.sendMessage(
+          id: id,
+          body: sealed ??
+              api.SendMessageDto(
+                clientMessageId: clientMessageId,
+                body: body,
+                replyToId: replyToId,
+                forwarded: forwarded ? true : null,
+              ),
+        ),
+      ))
+          .data;
+    } on ApiException catch (e) {
+      // The chat's encryption moved on / it became encrypted / a device
+      // must go first: the cached state is stale; the outbox tries again
+      // and the next seal catches up (no state request on every send).
+      if (e.statusCode == 409 && e.code.startsWith('E2EE_')) {
+        e2ee?.invalidate(id);
+      }
+      rethrow;
+    }
     return _m((await _open([sent])).single);
   }
 

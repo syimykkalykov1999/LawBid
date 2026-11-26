@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_database.dart';
@@ -33,6 +35,9 @@ class DbE2eePlaintextStore implements E2eePlaintextStore {
           createdAt: Value(DateTime.now()),
         ),
       );
+
+  @override
+  Future<void> remove(String id) => _db.deleteE2eePlaintext(_owner, id);
 }
 
 /// The signed-in account's end-to-end encryption (null signed out).
@@ -45,12 +50,16 @@ final e2eeServiceProvider = Provider<E2eeService?>((ref) {
   final service = E2eeService(
     client: api.E2eeClient(ref.watch(dioProvider)),
     ownerId: owner,
-    plaintexts: DbE2eePlaintextStore(ref.watch(cacheDatabaseProvider), owner),
+    // The web seals them like the MLS state (mls.js), the phones keep them
+    // in the cache database (a file the OS protects).
+    plaintexts: MlsEngine.sealedPlaintexts(owner) ??
+        DbE2eePlaintextStore(ref.watch(cacheDatabaseProvider), owner),
     openEngine: MlsEngine.open,
   );
   ChatMappers.e2eeOpen = service.openCached;
   ref.onDispose(() {
     if (ChatMappers.e2eeOpen == service.openCached) ChatMappers.e2eeOpen = null;
+    unawaited(service.close());
   });
   return service;
 });
