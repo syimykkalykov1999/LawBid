@@ -1359,6 +1359,34 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
  * - auto_retention: technical logs older than N days are removed;
  * - growth alert: one log alert (CloudWatch → e-mail) when files or the
  *   database grew more than `growth_alert_percent` in a day. */
+/** Item 25 (owner 25.11; docs/architecture/E2EE_MLS_PLAN_2026-11-25.md §3.2):
+ * end-to-end encrypted chats on MLS. Limits that the big platforms have are
+ * settings (WhatsApp: phone + 4 linked devices, 100 one-time prekeys,
+ * groups of 1024, the last 5 messages go with a report). */
+export const OWNER_E2EE_SETTINGS = {
+  /** off | on | auto. auto = a chat is encrypted once every member has at
+   * least one device with MLS keys; on = every chat that may be encrypted
+   * (members without keys must update the app); off = no new MLS groups and
+   * no MLS messages (the app writes as before). */
+  'chat.e2ee_mode': 'auto',
+  /** MLS devices per account (0 = no cap). */
+  'chat.e2ee_max_devices': 5,
+  /** How many one-time KeyPackages a device keeps on the server (the app
+   * tops up below half). Also the upload cap per call. */
+  'chat.e2ee_key_packages_target': 100,
+  /** People in an encrypted conversation (0 = no cap). */
+  'chat.e2ee_max_group_members': 1024,
+  /** A case chat is encrypted only after its contacts are unlocked (the
+   * marketplace rule: contact masking before a bid is accepted needs the
+   * server to see the text, as Airbnb / Upwork). */
+  'chat.e2ee_after_unlock': true,
+  /** How many of the reported person's last messages a report carries
+   * (WhatsApp: 5). */
+  'chat.e2ee_report_messages': 5,
+  /** Undelivered Welcomes are dropped after this many days. */
+  'chat.e2ee_welcome_keep_days': 30,
+} as const;
+
 /** Owner 2026-10-20 (WhatsApp): how long a sent message can still be edited
  * and deleted for everyone. 0 = never. */
 export const OWNER_CHAT_ACTION_SETTINGS = {
@@ -1962,6 +1990,54 @@ export const OWNER_OPS_SETTINGS = {
    * on = hold every service on regular Fargate now; off = hands off. The
    * economy job copies it to ops/scale-controls.json. */
   'scale.spot_fallback.mode': 'auto',
+  /** Item 27 (AU1, owner 25.11): ECS predictive scaling of the api
+   * (modules/ecs api_predictive; AWS: start in forecast only, keep the
+   * target-tracking policies). forecast (= Выкл) = the policy only forecasts,
+   * never adds a task; on = it adds tasks ahead of the forecast hour; auto
+   * (default) = on once the forecast error (WAPE of a day, forecast vs the
+   * real requests) stayed at or under infra.predictive_max_error_pct for
+   * infra.predictive_good_days whole days, back to forecast after a worse
+   * day. Never above scale.max_tasks.api (HonorMaxCapacity). */
+  'infra.predictive_scaling_mode': 'auto',
+  'infra.predictive_max_error_pct': 20,
+  'infra.predictive_good_days': 14,
+  /** How often the forecast is compared, minutes (the forecast is hourly). */
+  'infra.predictive_check_minutes': 60,
+  /** Item 28 (AU4, owner 25.11; Instagram / AWS RDS: scale reads out first,
+   * up second): while the database is busy only on CPU (not memory, not
+   * connections, not the 90 % fast lane), the size autoscaler Lambda waits
+   * up to scale.db_replica_first.wait_minutes for a read copy («Авто»
+   * aws.rds_replicas / _2.._5) before it resizes the primary, as long as
+   * fewer than scale.db_replica_first.max_replicas copies run. off = resize
+   * as before; on = always wait; auto (default) = wait only while a copy can
+   * really come (infra.mode.rds_replicas not off, db.replica_reads not off,
+   * infra.auto_mode not off). The economy job copies it to
+   * ops/scale-controls.json (db_replica_first). */
+  'scale.db_replica_first.mode': 'auto',
+  'scale.db_replica_first.wait_minutes': 60,
+  'scale.db_replica_first.max_replicas': 5,
+  /** Item 29 (AU5, owner 25.11): ElastiCache Serverless for Valkey vs the
+   * node-based Valkey. auto (default) = every
+   * infra.valkey_serverless_check_hours the measured load of the last
+   * infra.valkey_serverless_days days is priced both ways
+   * (valkey-serverless.logic.ts) and «Расходы → Реестр» says which is
+   * cheaper; when Serverless is cheaper by at least
+   * infra.valkey_serverless_min_saving_pct every day of that window the row
+   * says «пора переходить» (docs/runbooks/valkey-serverless.md: Terraform
+   * redis_serverless_mode standby → on, a short write pause, zero data
+   * loss). The cluster in use is never changed by itself. off = no
+   * measurement. Prices: AWS ElastiCache pricing, us-east-1, 25.11.2026. */
+  'infra.valkey_serverless_mode': 'auto',
+  'infra.valkey_serverless_min_saving_pct': 10,
+  'infra.valkey_serverless_days': 7,
+  'infra.valkey_serverless_check_hours': 6,
+  /** ECPU per command of our load: AWS bills 1 ECPU per KB moved for simple
+   * GET / SET and more for commands that use more CPU (Lua: BullMQ). 1.5 =
+   * a margin for the Lua scripts; the estimate also takes bytes / 1 KB when
+   * that is larger. */
+  'infra.valkey_serverless_ecpu_factor': 1.5,
+  'infra.valkey_serverless_gb_hour_usd': 0.084,
+  'infra.valkey_serverless_million_ecpu_usd': 0.0023,
   /** Own coturn box (owner 2026-11-02): auto = the API starts it only while
    * Cloudflare is down and stops it after 30 quiet minutes; on = always
    * running; off = never (stopped at once when no call runs). Only counts
@@ -2623,6 +2699,7 @@ export const APP_SETTINGS = {
   ...OWNER_STORAGE_SETTINGS,
   ...OWNER_SEO_SETTINGS,
   ...OWNER_CHAT_ACTION_SETTINGS,
+  ...OWNER_E2EE_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
   ...OWNER_STRIPE_OPS_SETTINGS,
   ...OWNER_OPS_SETTINGS,

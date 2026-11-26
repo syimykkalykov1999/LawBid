@@ -40,6 +40,8 @@ import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/disappearing.dart';
 import 'package:lawbid/features/chat/domain/message_groups.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_notice.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_service.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
 import 'package:lawbid/features/chat/presentation/chat_bubble_parts.dart';
@@ -1408,6 +1410,20 @@ class _MessageListState extends ConsumerState<_MessageList> {
                     children: [
                       if (newDay)
                         ChatDateChip(label: _dayLabel(t, f, m.createdAt)),
+                      // Item 25 (WhatsApp): where the chat became end-to-
+                      // end encrypted, the yellow notice.
+                      if (e2eeStartsAt(
+                        state.conversation?.e2eeSince,
+                        entry.oldest.createdAt,
+                        older?.createdAt,
+                      ))
+                        E2eeNotice(
+                          onTap: () => openE2eeInfo(
+                            context,
+                            ref,
+                            state.conversation!,
+                          ),
+                        ),
                       if (i == unreadEntry)
                         UnreadDivider(count: state.unreadCount),
                       if (m.kind == MessageKind.system &&
@@ -1961,6 +1977,30 @@ class _Bubble extends ConsumerWidget {
                             Flexible(
                               child: Text(
                                 t.t(mine ? 'chat.deletedMine' : 'chat.deleted'),
+                                style: type.body.copyWith(
+                                  color: meta,
+                                  fontStyle: FontStyle.italic,
+                                  height: 1.35,
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      else if (E2eeService.isWaiting(m.id) && m.body.isEmpty)
+                        // Item 25 (WhatsApp «Ожидание сообщения»): this
+                        // device could not open it (yet).
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AppIcon(
+                              AppIcons.lockOutlineRounded,
+                              size: 15,
+                              color: meta,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                t.t('chat.e2ee.waiting'),
                                 style: type.body.copyWith(
                                   color: meta,
                                   fontStyle: FontStyle.italic,

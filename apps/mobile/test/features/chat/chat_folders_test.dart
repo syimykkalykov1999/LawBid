@@ -87,14 +87,15 @@ class _Chats implements ChatRepository {
             _conv('p', caseTitle: 'Custody', folder: ChatFolder.primary),
           ],
         _ => [
+            _conv('p', mineLast: true, read: true),
             _conv(
-              'p',
-              caseTitle: 'Custody',
-              folder: ChatFolder.primary,
+              'w',
+              note: 'Send him the retainer documents',
               mineLast: true,
-              read: true,
+              waitingSince: DateTime.now().subtract(const Duration(hours: 3)),
             ),
-            _conv('w', note: 'Send him the retainer documents', mineLast: true),
+            // Owner 2026-11-25: a case chat — only in the «Кейсы» tab.
+            _conv('k', caseTitle: 'Custody', folder: ChatFolder.primary),
           ],
       },
     );
@@ -160,10 +161,16 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    // All · Primary · General · Waiting (1) · Requests (2).
+    // Owner 2026-11-25: All · Groups · Requests (2) — no «Waiting».
     expect(find.text('All'), findsOneWidget);
-    expect(find.text('Waiting'), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat-folder-groups')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat-folder-requests')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat-folder-waiting')), findsNothing);
+    expect(find.text('Waiting'), findsNothing);
     expect(find.text('2'), findsOneWidget);
+    // Owner 2026-11-25: «All» has no case chat.
+    expect(find.text('Person k'), findsNothing);
+    expect(find.byKey(const ValueKey('chat-organize-k')), findsNothing);
     // The note is visible without opening the chat; time bottom-right.
     expect(find.text('Send him the retainer documents'), findsOneWidget);
     expect(find.text('10h'), findsNWidgets(2));
@@ -186,10 +193,9 @@ void main() {
     expect(find.byKey(const ValueKey('chat-read-p')), findsOneWidget);
     expect(find.byKey(const ValueKey('chat-sent-w')), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('chat-folder-waiting')));
-    await tester.pumpAndSettle();
-    expect(repo.folders, contains(ChatListFolder.waiting));
+    // The «waiting for my answer» mark still shows on the row in «All».
     expect(find.byKey(const ValueKey('chat-waiting-w')), findsOneWidget);
+    expect(repo.folders, isNot(contains(ChatListFolder.waiting)));
 
     // ⋯ → waiting on + a note → saved. Row 95: the long press is the chat
     // preview with its quick actions; the note is one tap further.
@@ -212,6 +218,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('organize-move')), findsNothing);
     expect(find.byKey(const ValueKey('organize-auto')), findsNothing);
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+    // Owner 2026-11-25: no «Move to: Waiting» on any chat — that chip is
+    // gone.
+    await tester.longPress(find.byKey(const ValueKey('chat-organize-p')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('chat-peek-p')), findsOneWidget);
+    expect(find.byKey(const ValueKey('organize-pin')), findsOneWidget);
+    expect(find.byKey(const ValueKey('organize-move')), findsNothing);
   });
 
   testWidgets('⋮ → Select chats → pick all → delete hides them',

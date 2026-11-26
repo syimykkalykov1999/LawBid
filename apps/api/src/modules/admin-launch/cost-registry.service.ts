@@ -8,6 +8,8 @@ import {
 import { INFRA_MODE_KEYS, infraMode } from '../../common/ops/infra-modes';
 import type Redis from 'ioredis';
 import { OpsStateService } from '../../common/ops/ops-state.service';
+import { PREDICTIVE_NOTE_KEY } from '../../common/ops/predictive-scaling.service';
+import { VALKEY_SERVERLESS_NOTE_KEY } from '../../common/ops/valkey-serverless.service';
 import { pressures } from '../../common/economy/economy.rules';
 import {
   computeRowStatus,
@@ -128,6 +130,12 @@ export interface RegistryReport {
 }
 
 const EDITABLE: CostEntry['control']['type'][] = ['app-setting', 'ssm-mode'];
+
+/** Items 27 / 29: registry rows whose «now» line is what «Авто» measured. */
+const LIVE_NOTE_KEYS: Readonly<Record<string, string>> = {
+  'aws.ecs_predictive': PREDICTIVE_NOTE_KEY,
+  'aws.redis_serverless': VALKEY_SERVERLESS_NOTE_KEY,
+};
 
 /** R-370 (owner 2026-11-04 «все страницы так открываются»): every open of
  * «Расходы → Реестр» rebuilt the registry live — the spend snapshot, an SSM
@@ -310,7 +318,13 @@ export class CostRegistryService implements OnModuleInit, OnModuleDestroy {
       const stored = await this.settings.raw(c.key);
       const fallback = (APP_SETTINGS as Record<string, unknown>)[c.key];
       const r = stateFromStored(e, stored, fallback);
-      return { state: r.state, known: r.known, note: r.note };
+      // Items 27 / 29 (owner 25.11): what «Авто» measured (forecast error,
+      // nodes vs Serverless price), written by the advisor services.
+      const liveKey = LIVE_NOTE_KEYS[e.id];
+      const measured = liveKey
+        ? await this.redis.get(liveKey).catch(() => null)
+        : null;
+      return { state: r.state, known: r.known, note: r.note ?? measured };
     }
     if (c.type === 'ssm-mode') {
       try {
