@@ -123,6 +123,20 @@ export class FcmPushSender implements PushSender {
     // 2026-11-07: FCM HTTP v1 `message.fid` for a Firebase Installation ID,
     // the deprecated `message.token` for a legacy registration token.
     const fids = new Set(rows.filter((r) => r.fid).map((r) => r.token));
+    // M12: the sealed push preview of each device (by its key's id).
+    const sealedOf = new Map<string, string>();
+    if (message.sealedPreviews) {
+      for (const r of rows) {
+        const blob = r.previewKeyId
+          ? message.sealedPreviews[r.previewKeyId]
+          : undefined;
+        if (blob) sealedOf.set(r.token, blob);
+      }
+    }
+    const dataOf = (device: string): Record<string, string> => {
+      const blob = sealedOf.get(device);
+      return blob ? { ...message.data, sealed: blob } : message.data;
+    };
     const target = (device: string) =>
       fids.has(device) ? { fid: device } : { token: device };
     const sentKey = `push:sent:${dedupeKey}`;
@@ -195,7 +209,7 @@ export class FcmPushSender implements PushSender {
                     }),
                 data: dataOnly
                   ? {
-                      ...message.data,
+                      ...dataOf(device),
                       title: message.title,
                       body: message.body,
                       // Owner 2026-10-22 (inbox 29): the app draws this
@@ -205,7 +219,7 @@ export class FcmPushSender implements PushSender {
                         ? { iconBadge: '0' }
                         : {}),
                     }
-                  : message.data,
+                  : dataOf(device),
                 android: message.call
                   ? { priority: 'high', ttl: `${CALL_TTL_SEC}s` }
                   : ownChat

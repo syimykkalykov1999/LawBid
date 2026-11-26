@@ -3,6 +3,15 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:cryptography/cryptography.dart'
+    show
+        Chacha20,
+        KeyPairType,
+        Mac,
+        SecretBox,
+        SecretKey,
+        SimplePublicKey,
+        X25519;
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
@@ -14,6 +23,7 @@ import 'package:lawbid/features/chat/e2ee/e2ee_scratch_mem.dart' as mem;
 import 'package:lawbid/features/chat/e2ee/e2ee_service.dart';
 import 'package:lawbid/features/chat/e2ee/mls_engine_io.dart';
 import 'package:lawbid/features/chat/e2ee/mls_key_vault.dart';
+import 'package:lawbid/features/chat/e2ee/push_preview.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Item 25: the app's end-to-end encryption against an in-memory Delivery
@@ -150,6 +160,66 @@ void main() {
     final r = delivered(reply!, 'ub');
     expect((await alice.open(r)).body, 'Принято');
     expect((await bobWeb.open(r)).body, 'Принято');
+  });
+
+  // M12 (owner 26.11, WhatsApp): the send carries the push preview sealed
+  // to each recipient phone; only that phone's key opens it.
+  test('a send seals the push preview to each recipient phone', () async {
+    final phone = await X25519().newKeyPair();
+    final pk = (await phone.extractPublicKey()).bytes;
+    ds.previewKeys = [
+      api.PushPreviewKeyDto(
+        userId: 'ub',
+        keyId: 'kB_0123456789abc',
+        publicKey: base64Encode(pk),
+      ),
+    ];
+    final alice = await device('ua');
+    final bob = await device('ub');
+    await alice.engine();
+    await bob.engine();
+    final s = await alice.seal(
+      'c1',
+      'cmpp',
+      const E2eePayload(kind: 'text', body: 'Встреча в 15:00'),
+    );
+    expect(s!.pushPreviews, hasLength(1));
+    final p = s.pushPreviews!.single;
+    expect(p.keyId, 'kB_0123456789abc');
+    final blob = base64Decode(p.sealedValue);
+    final enc = blob.sublist(0, 32);
+    final dh = await (await X25519().sharedSecretKey(
+      keyPair: phone,
+      remotePublicKey: SimplePublicKey(enc, type: KeyPairType.x25519),
+    ))
+        .extractBytes();
+    final ctx = Hpke.keySchedule(
+      sharedSecret: Hpke.sharedSecret(dh, enc, pk),
+      info: PushPreview.info('c1'),
+    );
+    final body = blob.sublist(32);
+    final plain = await Chacha20.poly1305Aead().decrypt(
+      SecretBox(
+        body.sublist(0, body.length - 16),
+        nonce: ctx.baseNonce,
+        mac: Mac(body.sublist(body.length - 16)),
+      ),
+      secretKey: SecretKey(ctx.key),
+    );
+    expect(jsonDecode(utf8.decode(plain)), {
+      'v': 1,
+      'k': 'text',
+      't': 'Встреча в 15:00',
+    });
+    // The server-side ciphertext and the push preview are separate: the
+    // message still opens for Bob.
+    expect((await bob.open(delivered(s, 'ua'))).body, 'Встреча в 15:00');
+  });
+
+  test('no recipient keys: nothing extra is sent', () async {
+    final (alice, _) = await pair();
+    final s = await say(alice, 'plain push');
+    expect(s.pushPreviews, isNull);
   });
 
   test('switch off / chat not encrypted: the text goes as before', () async {
@@ -741,6 +811,8 @@ class _FakeDs {
   final Map<String, api.FilePurpose> purposes = {};
   final List<api.E2eeReportDto> reports = [];
   int reportMax = 5;
+  // M12: the recipient phones' push-preview keys the state lists.
+  List<api.PushPreviewKeyDto> previewKeys = [];
   String? backup;
   String? backupKeyId;
 
@@ -784,6 +856,7 @@ class _FakeDs {
         for (final d in inGroup)
           if (rejoin.contains(d) || revoked.contains(d)) d,
       ],
+      previewKeys: previewKeys,
     );
   }
 

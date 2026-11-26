@@ -76,6 +76,8 @@ const NOT_SECRET_COLUMNS: Readonly<Record<string, string>> = {
   'PromotionView.day_key': 'calendar day bucket',
   'PushToken.fcm_token':
     'push address of a device; sending needs our server credentials, read by every push',
+  'PushToken.preview_key':
+    'public X25519 push-preview key of a phone (M12), handed to senders by design',
   'PushToken.token_kind': 'kind of push address',
   'RankingEvent.experiment_key': 'name of an experiment',
   'RecoQaSnapshot.key': 'name of a QA snapshot',

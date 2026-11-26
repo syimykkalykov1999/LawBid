@@ -7,6 +7,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'conversation_e2ee_off_reason.dart';
 import 'conversation_e2ee_state.dart';
 import 'mls_group_member_device_dto.dart';
+import 'push_preview_key_dto.dart';
 
 part 'conversation_e2ee_dto.g.dart';
 
@@ -20,6 +21,7 @@ class ConversationE2eeDto {
     this.groupId,
     this.epoch,
     this.since,
+    this.previewKeys,
   });
 
   factory ConversationE2eeDto.fromJson(Map<String, Object?> json) =>
@@ -39,6 +41,9 @@ class ConversationE2eeDto {
 
   /// Devices still in the group that must be removed first (signed out, or their person left the chat). MLS messages are refused until a commit removes them.
   final List<String> removeDevices;
+
+  /// M12: the other members’ phones a sender seals the push preview of each message to (empty when message previews in pushes are off).
+  final List<PushPreviewKeyDto>? previewKeys;
 
   Map<String, Object?> toJson() => _$ConversationE2eeDtoToJson(this);
 }

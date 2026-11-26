@@ -22,6 +22,9 @@ ConversationE2eeDto _$ConversationE2eeDtoFromJson(
   groupId: json['groupId'] as String?,
   epoch: json['epoch'] as num?,
   since: json['since'] == null ? null : DateTime.parse(json['since'] as String),
+  previewKeys: (json['previewKeys'] as List<dynamic>?)
+      ?.map((e) => PushPreviewKeyDto.fromJson(e as Map<String, dynamic>))
+      .toList(),
 );
 
 Map<String, dynamic> _$ConversationE2eeDtoToJson(
@@ -34,4 +37,5 @@ Map<String, dynamic> _$ConversationE2eeDtoToJson(
   'since': ?instance.since?.toIso8601String(),
   'devices': instance.devices.map((e) => e.toJson()).toList(),
   'removeDevices': instance.removeDevices,
+  'previewKeys': ?instance.previewKeys?.map((e) => e.toJson()).toList(),
 };

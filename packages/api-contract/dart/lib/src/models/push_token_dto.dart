@@ -18,6 +18,7 @@ class PushTokenDto {
     this.localReminders,
     this.chatStyle,
     this.actorStyle,
+    this.previewKey,
   });
 
   factory PushTokenDto.fromJson(Map<String, Object?> json) =>
@@ -38,6 +39,9 @@ class PushTokenDto {
 
   /// Owner 2026-10-26: this app draws notifications with a person (bid, comment, like, missed call …) itself, with the person's round photo, from a data-only push (Android).
   final bool? actorStyle;
+
+  /// M12 (owner 26.11): base64 of this device’s push-preview public key (X25519, 32 bytes). Senders seal the text of an end-to-end encrypted message to it (HPKE, RFC 9180); the phone opens it in the push. Omitted = no key (an older app; the stored key is cleared).
+  final String? previewKey;
 
   Map<String, Object?> toJson() => _$PushTokenDtoToJson(this);
 }

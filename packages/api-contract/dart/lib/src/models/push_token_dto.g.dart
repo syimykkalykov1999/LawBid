@@ -15,6 +15,7 @@ PushTokenDto _$PushTokenDtoFromJson(Map<String, dynamic> json) => PushTokenDto(
   localReminders: json['localReminders'] as bool?,
   chatStyle: json['chatStyle'] as bool?,
   actorStyle: json['actorStyle'] as bool?,
+  previewKey: json['previewKey'] as String?,
 );
 
 Map<String, dynamic> _$PushTokenDtoToJson(PushTokenDto instance) =>
@@ -25,4 +26,5 @@ Map<String, dynamic> _$PushTokenDtoToJson(PushTokenDto instance) =>
       'localReminders': ?instance.localReminders,
       'chatStyle': ?instance.chatStyle,
       'actorStyle': ?instance.actorStyle,
+      'previewKey': ?instance.previewKey,
     };

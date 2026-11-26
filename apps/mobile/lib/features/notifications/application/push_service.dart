@@ -342,7 +342,7 @@ class PushService {
     return registrar.register(token);
   }
 
-  Future<void> _post(String token) => _ref
+  Future<void> _post(String token) async => _ref
       .read(notificationsRepositoryProvider)
       .registerPushToken(
         token,
@@ -357,6 +357,9 @@ class PushService {
         // round photo: bids, comments, likes, missed calls).
         actorStyle: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
         fid: _usesFid,
+        // M12 (owner 26.11): the key senders seal the text of an
+        // end-to-end encrypted message to, so its push shows it.
+        previewKey: await chatNotificationsChannel.pushPreviewKey(),
       );
 
   String? _voipToken;

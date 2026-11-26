@@ -4,11 +4,13 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBase64,
   IsBoolean,
   IsIn,
   IsOptional,
   IsString,
   IsUUID,
+  Length,
   Matches,
   MaxLength,
   MinLength,
@@ -352,6 +354,15 @@ export class PushTokenDto {
   @IsOptional()
   @IsBoolean()
   actorStyle?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'M12 (owner 26.11): base64 of this device’s push-preview public key (X25519, 32 bytes). Senders seal the text of an end-to-end encrypted message to it (HPKE, RFC 9180); the phone opens it in the push. Omitted = no key (an older app; the stored key is cleared).',
+  })
+  @IsOptional()
+  @IsBase64()
+  @Length(44, 44)
+  previewKey?: string;
 }
 
 /** Owner 2026-10-20: the planner reminders an iPhone has armed locally. */

@@ -35,6 +35,15 @@ class ChatPushReceiver : BroadcastReceiver() {
         val app = context.applicationContext
         executor.execute {
             try {
+                // M12 (owner 26.11, WhatsApp): an end-to-end encrypted
+                // message — the preview its sender sealed to this phone;
+                // anything that fails keeps «Новое сообщение».
+                if (chat) {
+                    PushPreviewKeys.line(app, data)?.let {
+                        data["text"] = it
+                        data["body"] = it
+                    }
+                }
                 if (chat) ChatNotifications.show(app, data) else ActorNotifications.show(app, data)
             } catch (e: Exception) {
                 // A broken push must never crash the app.

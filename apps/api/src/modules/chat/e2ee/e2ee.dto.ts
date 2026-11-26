@@ -261,6 +261,23 @@ export class MlsGroupMemberDeviceDto {
   inGroup!: boolean;
 }
 
+/** M12 (owner 26.11): a recipient phone's push-preview key — the sender
+ * HPKE-seals a short preview of each message to it (RFC 9180, X25519 /
+ * HKDF-SHA256 / ChaCha20Poly1305), the phone opens it in the push. */
+export class PushPreviewKeyDto {
+  @ApiProperty({ format: 'uuid' })
+  userId!: string;
+
+  @ApiProperty({
+    description:
+      'The key’s id (base64url of the first 12 bytes of its SHA-256); a sealed preview is sent under it.',
+  })
+  keyId!: string;
+
+  @ApiProperty({ description: 'Base64 X25519 public key (32 bytes).' })
+  publicKey!: string;
+}
+
 export const E2EE_STATES = ['off', 'pending', 'on'] as const;
 export type E2eeState = (typeof E2EE_STATES)[number];
 export const E2EE_OFF_REASONS = [
@@ -315,6 +332,13 @@ export class ConversationE2eeDto {
       'Devices still in the group that must be removed first (signed out, or their person left the chat). MLS messages are refused until a commit removes them.',
   })
   removeDevices!: string[];
+
+  @ApiPropertyOptional({
+    type: [PushPreviewKeyDto],
+    description:
+      'M12: the other members’ phones a sender seals the push preview of each message to (empty when message previews in pushes are off).',
+  })
+  previewKeys?: PushPreviewKeyDto[];
 }
 
 // ------------------------------------------------------------------ PR 4

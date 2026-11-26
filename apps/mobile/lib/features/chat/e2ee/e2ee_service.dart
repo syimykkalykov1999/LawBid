@@ -16,6 +16,7 @@ import 'package:lawbid/features/chat/e2ee/e2ee_media.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_payload.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_scratch.dart';
 import 'package:lawbid/features/chat/e2ee/mls_engine.dart';
+import 'package:lawbid/features/chat/e2ee/push_preview.dart';
 import 'package:lawbid/features/chat/e2ee/safety_number.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -813,6 +814,7 @@ class E2eeService {
           utf8.decode(plain),
         );
         _memory['c:$clientMessageId'] = franked;
+        final previews = await _pushPreviews(conversationId, s, payload);
         return api.SendMessageDto(
           clientMessageId: clientMessageId,
           type: api.SendMessageType.mls,
@@ -824,8 +826,45 @@ class E2eeService {
           // Which message it answers is metadata the server already orders
           // by (the quoted text stays inside the encryption).
           replyToId: payload.replyToId,
+          pushPreviews: previews.isEmpty ? null : previews,
         );
       });
+
+  /// M12 (owner 26.11, WhatsApp): the push preview of [payload] sealed to
+  /// each recipient phone's push-preview key (PushPreview), so the push
+  /// shows the text while the server still sees none. Empty when the chat
+  /// lists no keys (previews in pushes off, older phones) or on any error:
+  /// a preview never holds a message back.
+  Future<List<api.SealedPushPreviewDto>> _pushPreviews(
+    String conversationId,
+    api.ConversationE2eeDto s,
+    E2eePayload payload,
+  ) async {
+    final keys = s.previewKeys ?? const <api.PushPreviewKeyDto>[];
+    if (keys.isEmpty) return const [];
+    final plain = PushPreview.plaintextOf(payload);
+    if (plain == null) return const [];
+    final info = PushPreview.info(conversationId);
+    final out = <api.SealedPushPreviewDto>[];
+    for (final k in keys.take(PushPreview.maxKeys)) {
+      try {
+        final sealed = await PushPreview.seal(
+          recipientPublicKey: base64Decode(k.publicKey),
+          info: info,
+          plaintext: plain,
+        );
+        out.add(
+          api.SealedPushPreviewDto(
+            keyId: k.keyId,
+            sealedValue: base64Encode(sealed),
+          ),
+        );
+      } on Object catch (x) {
+        debugPrint('push preview for ${k.keyId}: $x');
+      }
+    }
+    return out;
+  }
 
   /// The message as the app shows it: an `mls` message becomes the text it
   /// carries (decrypted once, then from the device's store).

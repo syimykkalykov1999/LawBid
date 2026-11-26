@@ -312,3 +312,43 @@ describe('PushDispatcher chat pushes like WhatsApp', () => {
     });
   });
 });
+
+/** M12 (owner 26.11, WhatsApp): an end-to-end encrypted message — the
+ * server has no text, the phone opens the preview its sender sealed. */
+describe('PushDispatcher end-to-end encrypted message (M12)', () => {
+  const mls = { ...base, type: 'mls', body_display: '', body: '' };
+  const sealed = { kA: 'SEALED-A' };
+
+  it('carries the sealed previews and the words for files', async () => {
+    const { d, sent, job } = setup(mls);
+    expect(await d.dispatch({ ...job, sealed }, 'j')).toBe('sent');
+    expect(sent[0].sealedPreviews).toEqual(sealed);
+    // The server's own text stays the fallback («Новое сообщение»).
+    expect(sent[0].body).toBe('Новое');
+    expect(JSON.parse(sent[0].data.labels)).toEqual({
+      photo: 'Фото',
+      video: 'Видео',
+      file: 'Файл',
+      voice: 'Голосовое сообщение',
+    });
+  });
+
+  it('message text in pushes off: nothing sealed goes out', async () => {
+    const { d, sent, job } = setup(mls, false, { preview: false });
+    await d.dispatch({ ...job, sealed }, 'j');
+    expect(sent[0].sealedPreviews).toBeUndefined();
+    expect(sent[0].data.labels).toBeUndefined();
+  });
+
+  it('a plain message never carries sealed previews', async () => {
+    const { d, sent, job } = setup(base);
+    await d.dispatch({ ...job, sealed }, 'j');
+    expect(sent[0].sealedPreviews).toBeUndefined();
+  });
+
+  it('an edit does not reuse the message preview', async () => {
+    const { d, sent, job } = setup(mls);
+    await d.dispatch({ ...job, sealed, event: 'edit' as const }, 'j');
+    expect(sent[0].sealedPreviews).toBeUndefined();
+  });
+});

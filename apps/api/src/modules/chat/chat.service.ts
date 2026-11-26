@@ -96,6 +96,7 @@ import {
 } from './chat.dto';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { E2eeService } from './e2ee/e2ee.service';
+import { sealedPreviewMap } from '../notifications/push-preview';
 import { fileNameAad } from '../../common/secrets/field-aad';
 import { MessageSearchIndex } from '../../common/secrets/message-search-index';
 import { searchTokenRows, writeSearchTokenRows } from './chat-search-tokens';
@@ -1836,6 +1837,8 @@ export class ChatService implements FileScanListener {
     const urls = await this.deliverEffects(conv, message, user.sub, {
       silent: opts.silent === true,
       requestFirst,
+      // M12: the sealed push previews of an end-to-end encrypted message.
+      sealed: mls ? sealedPreviewMap(dto.pushPreviews) : undefined,
     });
     await this.clearEffectsPending(pending);
     return this.toMessage(message, user.sub, undefined, urls);
@@ -2683,7 +2686,13 @@ export class ChatService implements FileScanListener {
     conv: Conversation,
     message: Message,
     senderId: string,
-    flags: { silent: boolean; requestFirst: boolean; recount?: boolean },
+    flags: {
+      silent: boolean;
+      requestFirst: boolean;
+      recount?: boolean;
+      /** M12: key id → sealed push preview (only this push job keeps it). */
+      sealed?: Record<string, string>;
+    },
   ): Promise<MediaLinks> {
     // Firms audit 16.11 (PR-5): the firm's team on the bid gets the chat's
     // messages like its attorney does ([] for every other chat).
@@ -2718,7 +2727,11 @@ export class ChatService implements FileScanListener {
         await this.notifications.emit({
           type: 'new_message',
           recipientId: other,
-          payload: { conversationId: conv.id, messageId: message.id },
+          payload: {
+            conversationId: conv.id,
+            messageId: message.id,
+            ...(flags.sealed ? { sealed: flags.sealed } : {}),
+          },
         });
       }
     }

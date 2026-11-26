@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import {
+  pushPreviewKeyId,
+  readPreviewKeys,
+  type PushPreviewKey,
+} from '../push-preview';
 import { resolveChains } from './sign-in-chain';
 
 /** At most this many devices get a push per user (newest first). */
@@ -15,6 +20,9 @@ export type PushTokenKind = 'token' | 'fid';
 export interface PushDevice {
   token: string;
   fid: boolean;
+  /** M12: the id of the device's push-preview key (a sealed preview for
+   * it goes into its push), absent without one. */
+  previewKeyId?: string;
 }
 
 /**
@@ -42,6 +50,9 @@ export class PushTokensService {
     chatStyle = false,
     actorStyle = false,
     kind: PushTokenKind = 'token',
+    /** M12: the device's push-preview public key (32 bytes); null clears
+     * it (an app that no longer has one). */
+    previewKey: Buffer | null = null,
   ): Promise<void> {
     const session = await this.prisma.session.findFirst({
       where: {
@@ -65,6 +76,7 @@ export class PushTokensService {
         local_reminders: localReminders,
         chat_style: chatStyle,
         actor_style: actorStyle,
+        preview_key: previewKey ? new Uint8Array(previewKey) : null,
       },
       update: {
         user_id: userId,
@@ -75,6 +87,7 @@ export class PushTokensService {
         local_reminders: localReminders,
         chat_style: chatStyle,
         actor_style: actorStyle,
+        preview_key: previewKey ? new Uint8Array(previewKey) : null,
         last_seen_at: new Date(),
       },
     });
@@ -165,6 +178,7 @@ export class PushTokensService {
         token_kind: true,
         session_id: true,
         session_chain_id: true,
+        preview_key: true,
       },
     });
     const { chainOf, live } = await resolveChains(this.prisma, userId, rows);
@@ -180,9 +194,20 @@ export class PushTokensService {
         where: { user_id: userId, fcm_token: { in: dead } },
       });
     }
-    return rows
-      .filter(isAlive)
-      .map((r) => ({ token: r.fcm_token, fid: r.token_kind === 'fid' }));
+    return rows.filter(isAlive).map((r) => ({
+      token: r.fcm_token,
+      fid: r.token_kind === 'fid',
+      ...(r.preview_key
+        ? { previewKeyId: pushPreviewKeyId(r.preview_key) }
+        : {}),
+    }));
+  }
+
+  /** M12: the push-preview keys of [userIds]' phones (newest devices
+   * first, at most MAX_DEVICES each) — what a sender seals a preview to.
+   * The id is a hash of the key, never the push token. */
+  previewKeys(userIds: string[]): Promise<PushPreviewKey[]> {
+    return readPreviewKeys(this.prisma, userIds, MAX_DEVICES);
   }
 
   /** Browser tokens: a browser push must show something, so silent
