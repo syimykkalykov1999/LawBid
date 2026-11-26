@@ -259,7 +259,30 @@ export class E2eeService {
         data: { last_seen_at: new Date() },
       });
     });
+    // A device's first upload carries its last-resort package (right after
+    // registering): from now on it can be added, so the person's encrypted
+    // chats are told to bring it in (WhatsApp: a newly linked device shows
+    // up in every chat without anyone writing first).
+    if (dto.lastResort) await this.announceNewDevice(user.sub, d.id);
     return this.keyPackageCount(user, deviceId);
+  }
+
+  /** Every encrypted chat of [userId] that [deviceId] is not in yet. */
+  private async announceNewDevice(
+    userId: string,
+    deviceId: string,
+  ): Promise<void> {
+    const rows = await this.prisma.global().$queryRaw<
+      { conversation_id: string }[]
+    >`
+      SELECT DISTINCT g.conversation_id::TEXT AS conversation_id
+      FROM mls_group_devices g
+      WHERE g.user_id = ${userId}::UUID
+        AND NOT EXISTS (
+          SELECT 1 FROM mls_group_devices x
+          WHERE x.conversation_id = g.conversation_id
+            AND x.device_id = ${deviceId}::UUID)`;
+    for (const r of rows) await this.announce(r.conversation_id);
   }
 
   async keyPackageCount(
@@ -374,8 +397,15 @@ export class E2eeService {
         signatureKey: b64(d.signature_key),
         inGroup: members.has(d.id),
       })),
+      // Also a device that could not join from its Welcome: removed, then
+      // added again from a new KeyPackage (requestRejoin).
       removeDevices: inGroup
-        .filter((g) => !active.has(g.device_id) || !users.includes(g.user_id))
+        .filter(
+          (g) =>
+            !active.has(g.device_id) ||
+            !users.includes(g.user_id) ||
+            g.rejoin_at !== null,
+        )
         .map((g) => g.device_id),
     };
   }
@@ -669,6 +699,37 @@ export class E2eeService {
       total += n;
       if (n < 1000) return total;
     }
+  }
+
+  /**
+   * RFC 9420 §12.4.3.1 / Wire: my device could not join from the Welcome
+   * made for it (the KeyPackage's private half is gone, the Welcome does not
+   * parse). It cannot read or write in the group, and no member could add
+   * it again while its old leaf is still there. So its place is marked:
+   * the chat's state lists it in `removeDevices`, the next member online
+   * removes the leaf with a commit and then adds the device from a new
+   * KeyPackage — the device gets a fresh Welcome. Its old Welcomes of this
+   * chat go. A device that is not in the group has nothing to mark (the
+   * members add it anyway).
+   */
+  async requestRejoin(
+    user: RequestUser,
+    id: string,
+    deviceId: string,
+  ): Promise<void> {
+    await this.member(user, id);
+    const d = await this.ownDevice(user, deviceId);
+    const marked = await this.prisma.global().$transaction(async (tx) => {
+      const n = await tx.mlsGroupDevice.updateMany({
+        where: { conversation_id: id, device_id: d.id, rejoin_at: null },
+        data: { rejoin_at: new Date() },
+      });
+      await tx.mlsWelcome.deleteMany({
+        where: { conversation_id: id, device_id: d.id },
+      });
+      return n.count;
+    });
+    if (marked > 0) await this.announce(id);
   }
 
   async welcomes(

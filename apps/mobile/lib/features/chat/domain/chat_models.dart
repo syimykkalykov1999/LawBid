@@ -78,6 +78,7 @@ class Conversation {
     this.blocked = false,
     this.matchedMessage,
     this.disappearAfterS,
+    this.e2eeSince,
   });
 
   /// The same chat with the other side's receipts moved (a socket event):
@@ -115,6 +116,7 @@ class Conversation {
         markedUnread: markedUnread,
         matchedMessage: matchedMessage,
         disappearAfterS: disappearAfterS,
+        e2eeSince: e2eeSince,
       );
 
   /// Owner 2026-10-22 (load audit finding 2): the same chat after a socket
@@ -155,6 +157,7 @@ class Conversation {
         markedUnread: markedUnread ?? this.markedUnread,
         matchedMessage: matchedMessage,
         disappearAfterS: disappearAfterS,
+        e2eeSince: e2eeSince,
       );
 
   /// Owner 2026-10-18: in a search by text, the message that matched —
@@ -164,6 +167,10 @@ class Conversation {
   /// Owner 2026-10-21 (WhatsApp): seconds a new message lives here
   /// (86400 / 604800 / 7776000); null = disappearing messages are off.
   final int? disappearAfterS;
+
+  /// Item 25 (WhatsApp «Сообщения защищены сквозным шифрованием»): since
+  /// when this chat is end-to-end encrypted (MLS); null = it is not.
+  final DateTime? e2eeSince;
 
   /// Audit 2026-10-04: either side blocked the other. An accepted case
   /// chat that is not closed keeps working (see [blockedHere]).

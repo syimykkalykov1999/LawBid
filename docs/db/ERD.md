@@ -1023,6 +1023,7 @@ erDiagram
     String user_id
     Int joined_epoch
     DateTime created_at
+    DateTime rejoin_at "nullable"
   }
   mls_welcomes {
     String id PK

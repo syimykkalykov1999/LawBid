@@ -34,6 +34,7 @@ import {
   MlsCommitsQueryDto,
   MlsDeviceDto,
   MlsEpochDto,
+  MlsRejoinDto,
   MlsWelcomeDto,
   MlsWelcomesQueryDto,
   RegisterMlsDeviceDto,
@@ -177,6 +178,23 @@ export class E2eeController {
     @Body() dto: ClaimKeyPackagesDto,
   ): Promise<ClaimedKeyPackageDto[]> {
     return this.e2ee.claimKeyPackages(user, p.id, dto.deviceIds);
+  }
+
+  @Post('conversations/:id/rejoin')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'My device could not join from its Welcome: re-add it',
+  })
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    404: [ErrorCode.CONVERSATION_NOT_FOUND, ErrorCode.NOT_FOUND],
+  })
+  requestMlsRejoin(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+    @Body() dto: MlsRejoinDto,
+  ): Promise<void> {
+    return this.e2ee.requestRejoin(user, p.id, dto.deviceId);
   }
 
   @Post('conversations/:id/commits')
