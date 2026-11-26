@@ -114,7 +114,9 @@ jobs:
       - name: Fuzz the contract (anonymous, then admin)
         run: |
           set -u
-          mkdir -p "$RUNNER_TEMP/dast"
+          # The image runs as its own non-root user: it must be able to write
+          # the report folder of the runner (KNOWN_ERRORS 256).
+          mkdir -p "$RUNNER_TEMP/dast" && chmod 0777 "$RUNNER_TEMP/dast"
           run_pass() {
             name="$1"; shift
             echo "::group::Schemathesis pass: $name"
