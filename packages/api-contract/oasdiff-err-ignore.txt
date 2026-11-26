@@ -721,3 +721,12 @@ GET /admin/legal-documents api path removed without deprecation
 POST /admin/legal-documents api path removed without deprecation
 GET /admin/legal-documents/{id} api path removed without deprecation
 POST /admin/legal-documents/{id}/publish api path removed without deprecation
+GET /conversations/{id}/messages added the new `mls` enum value to the `data/items/type` response property for the response status `200`
+POST /conversations/{id}/messages added the new `mls` enum value to the `data/type` response property for the response status `201`
+PATCH /conversations/{id}/messages/{messageId} added the new `mls` enum value to the `data/type` response property for the response status `200`
+POST /conversations/{id}/messages/{messageId}/listened added the new `mls` enum value to the `data/type` response property for the response status `200`
+DELETE /conversations/{id}/messages/{messageId}/pin added the new `mls` enum value to the `data/type` response property for the response status `200`
+POST /conversations/{id}/messages/{messageId}/pin added the new `mls` enum value to the `data/type` response property for the response status `200`
+PUT /conversations/{id}/messages/{messageId}/reaction added the new `mls` enum value to the `data/type` response property for the response status `200`
+GET /conversations/{id}/pins added the new `mls` enum value to the `data/items/items/type` response property for the response status `200`
+GET /saved-chat added the new `mls` enum value to the `data/items/message/type` response property for the response status `200`
