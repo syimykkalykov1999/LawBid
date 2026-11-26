@@ -1263,6 +1263,36 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     awsTypes: ['aws_ecr_replication_configuration'],
   },
   {
+    id: 'aws.media_backup',
+    name: 'Копия публичных фото из R2 в S3 (ночная)',
+    purpose:
+      'Каждую ночь копирует аватары, фото постов и отзывов и стикеры из Cloudflare R2 в отдельную корзину S3 с версиями: удалённое или заменённое фото можно вернуть 30 дней.',
+    kind: 'aws',
+    // D10 (SECOND_PASS_2026-11-26): the bucket and the role live in
+    // infra/bootstrap (media_backup_enabled, owner applies); the copy itself is
+    // .github/workflows/media-backup.yml behind MEDIA_BACKUP_ENABLED.
+    control: fixed(
+      'Переключатель media_backup_enabled в infra/bootstrap (применяет владелец) и переменная MEDIA_BACKUP_ENABLED в GitHub; по умолчанию выключено.',
+    ),
+    states: ['off'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      '$0,023 за ГБ в месяц (файлы больше 128 КБ дешевеют сами, Intelligent-Tiering) + $0,005 за 1000 записей + $1 за ключ KMS; чтение из R2 без платы за трафик',
+      U.s3,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(1, 25),
+    needed: 'yes',
+    neededNote:
+      'Нужно: сейчас у фото в R2 нет ни копии, ни версий (AWS WA REL09-BP01).',
+    alarm:
+      'письмо и задача в GitHub, если ночная копия не прошла (notify-failure.yml)',
+    ceService: 'Amazon Simple Storage Service',
+    note: 'SECOND_PASS_2026-11-26 D10',
+  },
+  {
     id: 'aws.ses',
     name: 'Почта (Amazon SES)',
     purpose: 'Письма входа, чеки, уведомления.',

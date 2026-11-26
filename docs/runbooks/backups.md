@@ -13,6 +13,8 @@
 | PostgreSQL — isolated copies | AWS Backup plan `lawbid-prod-db-daily` (modules/backup): 06:00 UTC daily, copy to vault `lawbid-prod-db-dr` in **us-west-2**; optional copy to a separate backup account | 35 days (`backup_retention_days`) | AWS Backup console → Jobs / Backup vaults |
 | S3 documents | versioning + cross-region replication (`*-documents-replica`) | old versions 90 days | S3 console, replication metrics |
 | S3 media | versioning | old versions 30 days | S3 console |
+| Public media in Cloudflare R2 (avatars, post / review photos, stickers) | nightly `rclone sync` R2 -> versioned S3 bucket `lawbid-prod-media-backup-<account>` (`.github/workflows/media-backup.yml`, `infra/bootstrap/media-backup.tf`); **off until the owner switches it on** | deleted / replaced files 30 days (`media_backup_noncurrent_days`) | GitHub Actions → Media backup; S3 console |
+| Videos and reels in Bunny Stream | Bunny keeps the uploaded originals (`KeepOriginalFiles`, declared in `scripts/deploy/bunny-stream-settings.json` → `backup.keepOriginals`, checked on every deploy); storage replication regions are a Bunny dashboard setting, shown by the same check | as long as the video exists | deploy job «Bunny Stream settings match the code» |
 | Redis | none (not a source of truth; rebuilt from DB/queues re-enqueue) | — | — |
 | Terraform state | S3 versioned bucket + DynamoDB lock | — | state bucket |
 
@@ -91,6 +93,59 @@ failed`), если что-то выключено. Для этого в `terrafo
 4. В `terraform.tfvars` прода: `backup_copy_account_id = "<12 цифр>"` →
    `plan` / `apply`. Terraform добавит перенос в план и откроет ключ базы
    этому аккаунту (только если база на нашем ключе KMS, см. выше).
+
+## Публичные фото (R2) и видео (Bunny)
+
+SECOND_PASS_2026-11-26 D10 (AWS WA REL09-BP01 «back up all data», SRE ch. 26
+«replication is not backup»). Публичные фото лежат в Cloudflare R2, видео в
+Bunny Stream; раньше у них не было ни копии, ни версий.
+
+**Почему копия, а не замок R2.** В R2 нет версий файлов, а замок корзины (R2
+bucket lock) запрещает удалять файлы, и тогда приложение не сможет удалить
+фото, которое человек убрал. Поэтому каждую ночь rclone (MIT) копирует R2 в
+отдельную корзину S3 с версиями: новое и изменённое копируется, удалённое в R2
+остаётся в S3 старой версией 30 дней и потом стирается само (как в корзине S3
+media). R2 только читается: токен R2 только на чтение.
+
+**Видео.** Bunny сам хранит загруженные оригиналы (настройка библиотеки
+`KeepOriginalFiles`, Bunny берёт плату за их хранение). В коде она объявлена в
+`scripts/deploy/bunny-stream-settings.json` → `backup.keepOriginals` (сейчас
+`false` = не проверяется). Копию хранилища Bunny в других регионах (storage
+replication) Bunny включает только в своей панели; проверка при каждом
+деплое пишет в отчёт, какие регионы включены.
+
+### Шаги владельца
+
+1. Cloudflare → R2 → **Manage R2 API Tokens → Create API token**:
+   Permissions **Object Read only**, Apply to specific buckets only → корзина
+   публичных фото. Сохранить Access Key ID и Secret Access Key.
+2. В `infra/bootstrap`: `media_backup_enabled = true` → `terraform plan`
+   (только новые: ключ KMS, корзина и её настройки, роль) → `terraform apply`.
+   Записать `terraform output media_backup_role_arn` и `media_backup_bucket`.
+3. GitHub → Settings → **Environments → New environment** `media-backup`:
+   secrets `AWS_MEDIA_BACKUP_ROLE` (роль из шага 2), `R2_BACKUP_ACCESS_KEY_ID`,
+   `R2_BACKUP_SECRET_ACCESS_KEY` (из шага 1); variables `MEDIA_BACKUP_BUCKET`
+   (корзина из шага 2), `R2_ACCOUNT_ID` (Cloudflare → R2 → Account ID),
+   `R2_MEDIA_BUCKET` (имя корзины публичных фото).
+4. GitHub → Settings → Secrets and variables → Actions → **Variables**:
+   `MEDIA_BACKUP_ENABLED = true`.
+5. Actions → **Media backup → Run workflow** (сначала с галочкой Dry run, потом
+   без неё). Первый прогон копирует всё и может идти несколько часов; дальше
+   каждую ночь только изменения.
+6. Видео, по желанию (Bunny берёт плату за хранение оригиналов): в
+   `bunny-stream-settings.json` поставить `backup.keepOriginals = true`
+   (скажите Claude), затем `node scripts/deploy/bunny-stream-settings.mjs apply --yes`.
+   Регионы копии Bunny включаются в панели Bunny, в настройках хранения библиотеки Stream (replication); проверка при деплое покажет, какие включены.
+
+### Как проверить и вернуть файл
+
+- Actions → Media backup: ночной прогон зелёный; в отчёте последние строки rclone.
+- S3 → корзина `lawbid-prod-media-backup-…` → `r2/<корзина>/` → те же пути, что в R2.
+  **Show versions** показывает удалённые и заменённые файлы.
+- Вернуть файл: выбрать версию → Download, затем загрузить в R2 по тому же пути
+  (Cloudflare → R2 → корзина → Upload) или
+  `rclone copy s3:<корзина>/r2/<корзина-R2>/<путь> r2:<корзина-R2>/<папка>`.
+- Сбой ночной копии создаёт задачу `ci-alert` в GitHub и письмо (notify-failure.yml).
 
 ## Restore procedure (database)
 

@@ -100,6 +100,13 @@ export function validateDesired(d) {
   for (const f of d.readOnly ?? []) {
     if (!(f in s)) errors.push(`readOnly field ${f} is not in settings`);
   }
+  // D10 (SECOND_PASS_2026-11-26): the backup block. keepOriginals = false means
+  // "no opinion" (the field is not compared), true = Bunny must keep originals.
+  if (d.backup !== undefined) {
+    if (!d.backup || typeof d.backup.keepOriginals !== 'boolean') {
+      errors.push('backup.keepOriginals must be true or false');
+    }
+  }
   return errors;
 }
 
@@ -123,6 +130,9 @@ export function expected(d) {
     EnableMP4Fallback: d.settings.EnableMP4Fallback,
     JitEncodingEnabled: d.settings.JitEncodingEnabled,
     HasWatermark: d.settings.HasWatermark,
+    // Bunny keeps the uploaded original next to the encoded copies (VideoLibrary
+    // KeepOriginalFiles): a video can be re-encoded or restored from it.
+    ...(d.backup?.keepOriginals === true ? { KeepOriginalFiles: true } : {}),
   };
 }
 
@@ -231,6 +241,12 @@ export async function run(argv, env = process.env, fetchFn = fetch, out = consol
     return 1;
   }
   const drift = compare(d, live);
+  // Read-only facts for the backup runbook: Bunny sets storage replication
+  // only in its dashboard (not in the update API), so it is shown, not compared.
+  const regions = Array.isArray(live?.ReplicationRegions) ? live.ReplicationRegions : [];
+  const backupLine = `Bunny storage replication regions: ${regions.length ? regions.join(', ') : 'none'}; keep originals: ${live?.KeepOriginalFiles === true ? 'yes' : 'no'}`;
+  out.log(backupLine);
+  summary(backupLine);
   const text = report(drift, d);
   out.log(text);
   summary(text);
