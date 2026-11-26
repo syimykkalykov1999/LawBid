@@ -9,6 +9,7 @@ import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/config/web_push_config.dart';
+import 'package:lawbid/core/diagnostics/client_sli.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/permissions/permission_primer.dart';
@@ -434,6 +435,7 @@ class PushService {
   void _openData(Map<String, dynamic> data) {
     if (data['type'] == 'group_call') _showCallInvite(data);
     if (data['type'] == 'incoming_call' && data['callId'] is String) {
+      ClientSli.record(SliFlow.push, SliOutcome.ok);
       unawaited(
         _ref
             .read(callControllerProvider.notifier)
@@ -455,6 +457,14 @@ class PushService {
     if (route != null) {
       openNotificationRoute(_ref.read(appRouterProvider), route);
     }
+    // Б6: opening a push is one of the six SLO flows; a push that leads
+    // nowhere (and is not a group call invite) failed for the person.
+    ClientSli.record(
+      SliFlow.push,
+      route != null || data['type'] == 'group_call'
+          ? SliOutcome.ok
+          : SliOutcome.fail,
+    );
   }
 
   Future<void> _markRead(String id) async {

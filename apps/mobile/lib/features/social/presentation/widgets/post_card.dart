@@ -11,6 +11,7 @@ import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart
 import 'package:lawbid/core/design_system/widgets/display/pinch_to_zoom.dart';
 import 'package:lawbid/core/design_system/widgets/display/progressive_photo.dart';
 import 'package:lawbid/core/diagnostics/perf_marks.dart';
+import 'package:lawbid/core/diagnostics/sentry_native.dart';
 import 'package:lawbid/core/diagnostics/startup_signals.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -273,6 +274,8 @@ class PostCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     PerfMarks.feedCardBuilt();
+    // Б6 / G7: the feed's content is on the screen (time to full display).
+    SentryNative.reportFullyDisplayed();
     StartupSignals.feedPainted();
     final p =
         ref.watch(postOverridesProvider.select((m) => m[post.id])) ?? post;

@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { buildCsp, newNonce } from '@/lib/csp';
 
-const SESSION_COOKIE = 'lawbid_admin';
+// The middleware runs on the edge runtime and must not import the
+// `server-only` module; the names mirror lib/api/server.ts (#1 cookie prefix).
+const LEGACY_SESSION_COOKIE = 'lawbid_admin';
+const SESSION_COOKIE =
+  process.env.COOKIE_SECURE !== 'false' ? '__Host-lawbid_admin' : LEGACY_SESSION_COOKIE;
 
 /** Cheap gate: no session cookie → /login. The real check (signature,
  * Redis session, role) is the API's on every proxied call.
@@ -22,7 +26,9 @@ export function proxy(req: NextRequest) {
     return res;
   };
 
-  const hasSession = Boolean(req.cookies.get(SESSION_COOKIE)?.value);
+  const hasSession = Boolean(
+    req.cookies.get(SESSION_COOKIE)?.value || req.cookies.get(LEGACY_SESSION_COOKIE)?.value,
+  );
   const { pathname } = req.nextUrl;
   const pass = () => {
     const headers = new Headers(req.headers);
