@@ -12,8 +12,10 @@ Run workflow, поле `stage`.
 | `promote` | поднимает долю Play до `rollout` (0.2, потом 0.5, потом 1.0) | нет |
 | `halt` | останавливает выкатку в Play | нет |
 
-Между ступенями смотрим Sentry / Crashlytics (крэши и ANR). Остановка в App Store:
-App Store Connect -> версия -> Pause phased release (API-команды нет).
+Между ступенями выкатку сторожит **страж** (раздел «Store release» ниже): каждый час он
+сравнивает версию на выкатке с прошлой и при ухудшении сам останавливает Play (`halt`) и ставит
+на паузу поэтапный выпуск App Store (Spaceship `AppStoreVersionPhasedRelease`). Вручную:
+App Store Connect -> версия -> Pause phased release.
 
 Правила безопасности:
 - сборка по тегу `v*.*.*` ждёт зелёного CI этого коммита;
@@ -41,12 +43,18 @@ GitHub -> Actions -> **Store release** -> Run workflow. Поля: `platform` (bo
 | `rollout` 100 | страж + **подтверждение владельца** (environment `production`), потом 100 % | страж + подтверждение, потом всем сразу |
 | `halt` | остановить выкатку | пауза поэтапного выпуска |
 
-**Страж** (`scripts/ci/rollout-guard.mjs`): сравнивает новую версию с прошлой — доля сессий без падений
-в Sentry (не ниже 99 % и не хуже прошлой больше чем на 0,5 п.п.) и средняя оценка новых отзывов
-(Play — по номеру сборки, App Store — 3 последних дня против 14 до них; падение больше чем на ползвезды).
-Хуже — выкатка **останавливается сама**. Мало данных — ничего не меняет. Нет токена Sentry —
-отказ (можно `skip_guard`, но не поверх «хуже»). Если переменная репозитория `STORE_WATCH = true`,
-страж сам проверяет идущую выкатку каждые 6 часов и останавливает её.
+**Страж** (`scripts/ci/rollout-guard.mjs`): сначала спрашивает магазин, какая сборка сейчас
+на выкатке (Play: релиз `inProgress` дорожки production; App Store: поэтапный выпуск в состоянии
+ACTIVE), и сравнивает в Sentry Release Health именно её с прошлой сборкой (`lawbid@X.Y.Z+<сборка>`),
+а не самую новую тестовую из TestFlight / Internal. Сравнивается доля сессий **и** людей без падений
+(не ниже 99 % и не хуже прошлой больше чем на `ROLLOUT_MAX_DROP` п.п., по умолчанию 0,5) и средняя
+оценка новых отзывов (Play — по номеру сборки, App Store — 3 последних дня против 14 до них; падение
+больше чем на ползвезды). Хуже — выкатка **останавливается сама**. Меньше `ROLLOUT_MIN_SESSIONS`
+сессий (по умолчанию 500) — ничего не меняет. Нет токена Sentry — отказ (можно `skip_guard`, но не
+поверх «хуже»). Если переменная репозитория `STORE_WATCH = true`, страж сам проверяет идущую выкатку
+**каждый час**; на выкатке ничего нет — `idle`, ничего не делает. Всё хорошо — в отчёте запуска строка
+«следующая ступень: rollout 50 / 100» (нажимает владелец, сам страж выкатку не поднимает). Метод:
+SRE Workbook гл. 16 «Canarying Releases», SRE Book гл. 27 «Reliable Product Launches at Scale».
 
 **Тексты «Что нового»** лежат рядом с описаниями магазинов (87 языков Play, 42 App Store):
 `android/fastlane/metadata/android/<язык>/changelogs/default.txt` и
@@ -66,6 +74,9 @@ GitHub -> Actions -> **Store release** -> Run workflow. Поля: `platform` (bo
 3. Для стража: секрет `SENTRY_AUTH_TOKEN` (права project:read, org:read) и переменная `SENTRY_ORG`;
    для оценок App Store — переменная `APP_STORE_ID` (номер приложения в App Store Connect).
 4. Когда выйдет первая версия: переменная `STORE_WATCH = true`.
+5. По желанию, свои пороги: переменные репозитория `ROLLOUT_MAX_DROP` (п.п., по умолчанию 0.5)
+   и `ROLLOUT_MIN_SESSIONS` (по умолчанию 500): GitHub -> Settings -> Secrets and variables ->
+   Actions -> Variables -> New repository variable.
 
 Честно: lanes и шаги написаны по документации fastlane (`supply`, `deliver`, Spaceship
 `AppStoreVersionPhasedRelease`) и проверены `fastlane lanes` и actionlint, без живой выгрузки.
