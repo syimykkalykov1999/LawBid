@@ -18,7 +18,7 @@ variables {
 run "redis_today_unchanged" {
   command = plan
   assert {
-    condition     = aws_elasticache_replication_group.this.engine == "redis" && aws_elasticache_replication_group.this.engine_version == "7.1"
+    condition     = aws_elasticache_replication_group.this[0].engine == "redis" && aws_elasticache_replication_group.this[0].engine_version == "7.1"
     error_message = "Default stays Redis OSS 7.1."
   }
   assert {
@@ -26,7 +26,7 @@ run "redis_today_unchanged" {
     error_message = "Default group stays t-redis7."
   }
   assert {
-    condition     = aws_elasticache_replication_group.this.apply_immediately == false
+    condition     = aws_elasticache_replication_group.this[0].apply_immediately == false
     error_message = "Redis OSS keeps changes for the Sunday window, as before."
   }
 }
@@ -37,7 +37,7 @@ run "valkey_in_one_apply" {
     engine = "valkey"
   }
   assert {
-    condition     = aws_elasticache_replication_group.this.engine == "valkey" && aws_elasticache_replication_group.this.engine_version == "9.1"
+    condition     = aws_elasticache_replication_group.this[0].engine == "valkey" && aws_elasticache_replication_group.this[0].engine_version == "9.1"
     error_message = "valkey = Valkey 9.1 (the provider needs engine_version set explicitly when moving to valkey)."
   }
   assert {
@@ -45,7 +45,7 @@ run "valkey_in_one_apply" {
     error_message = "valkey9 group with the same (only, dynamic) parameter: maxmemory-policy noeviction for BullMQ."
   }
   assert {
-    condition     = aws_elasticache_replication_group.this.apply_immediately == true
+    condition     = aws_elasticache_replication_group.this[0].apply_immediately == true
     error_message = "The engine change must apply now: with false AWS waits for Sunday while the same apply deletes the redis7 group still in use."
   }
 }

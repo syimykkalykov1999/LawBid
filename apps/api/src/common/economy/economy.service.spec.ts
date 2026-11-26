@@ -403,12 +403,12 @@ describe('EconomyService.tick', () => {
       'docs-bucket',
       'ops/scale-controls.json',
       Buffer.from(
-        '{"endpoints":{"mode":"auto","ceiling":4},"spot_fallback":{"mode":"auto"}}',
+        '{"endpoints":{"mode":"auto","ceiling":4},"spot_fallback":{"mode":"auto"},"db_replica_first":{"mode":"auto","wait_minutes":60,"max_replicas":5,"possible":true}}',
       ),
       'application/json',
     );
     (t.redis.get as jest.Mock).mockResolvedValue(
-      '{"endpoints":{"mode":"auto","ceiling":4},"spot_fallback":{"mode":"auto"}}',
+      '{"endpoints":{"mode":"auto","ceiling":4},"spot_fallback":{"mode":"auto"},"db_replica_first":{"mode":"auto","wait_minutes":60,"max_replicas":5,"possible":true}}',
     );
     t.storage.put.mockClear();
     await t.svc.tick(NOW);
@@ -431,10 +431,45 @@ describe('EconomyService.tick', () => {
       'docs-bucket',
       'ops/scale-controls.json',
       Buffer.from(
-        '{"endpoints":{"mode":"auto","ceiling":4},"spot_fallback":{"mode":"auto","want":{"api":{"base":1,"fargate":1,"spot":0}}}}',
+        '{"endpoints":{"mode":"auto","ceiling":4},"spot_fallback":{"mode":"auto","want":{"api":{"base":1,"fargate":1,"spot":0}}},"db_replica_first":{"mode":"auto","wait_minutes":60,"max_replicas":5,"possible":true}}',
       ),
       'application/json',
     );
+  });
+
+  it('item 28 (AU4): «read copy first» reaches the database Lambda; auto waits only while a copy can come', async () => {
+    const t = setup({ awsActual: 50, awsForecast: 100 });
+    const vals: Record<string, string | number> = {
+      'scale.db_replica_first.mode': 'auto',
+      'scale.db_replica_first.wait_minutes': 45,
+      'scale.db_replica_first.max_replicas': 2,
+      'infra.mode.rds_replicas': 'off',
+      'db.replica_reads': 'auto',
+      'infra.auto_mode': 'auto',
+    };
+    const s = (
+      t.svc as unknown as {
+        settingsSvc: { string: jest.Mock; number: jest.Mock };
+      }
+    ).settingsSvc;
+    const str = s.string.getMockImplementation()!;
+    const num = s.number.getMockImplementation()!;
+    s.string = jest.fn(async (k: string) =>
+      k in vals ? (vals[k] as string) : (str(k) as Promise<string>),
+    );
+    s.number = jest.fn(async (k: string) =>
+      k in vals ? (vals[k] as number) : (num(k) as Promise<number>),
+    );
+    await t.svc.publishScaleControls();
+    const body = JSON.parse(
+      String((t.storage.put as jest.Mock).mock.calls[0][2]),
+    ) as { db_replica_first: unknown };
+    expect(body.db_replica_first).toEqual({
+      mode: 'auto',
+      wait_minutes: 45,
+      max_replicas: 2,
+      possible: false, // copies switched off: nothing to wait for
+    });
   });
 
   it('S9-4: publishes the daily money brake from the allowance', async () => {
