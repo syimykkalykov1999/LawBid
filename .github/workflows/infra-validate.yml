@@ -54,7 +54,8 @@ jobs:
           export TF_PLUGIN_CACHE_DIR="$RUNNER_TEMP/tf-plugin-cache"
           mkdir -p "$TF_PLUGIN_CACHE_DIR"
           fail=0
-          for f in infra/modules/*/tests/*.tftest.hcl; do dirname "$(dirname "$f")"; done | sort -u > "$RUNNER_TEMP/tf-test-dirs"
+          # + infra/bootstrap (C5/C4 26.11: the CI roles can not change themselves).
+          for f in infra/modules/*/tests/*.tftest.hcl infra/bootstrap/tests/*.tftest.hcl; do dirname "$(dirname "$f")"; done | sort -u > "$RUNNER_TEMP/tf-test-dirs"
           while read -r t; do
             echo "::group::test $t"
             ( cd "$t" && terraform init -backend=false -input=false -no-color >/dev/null && terraform test -no-color ) || { echo "::error::terraform test failed in $t"; fail=1; }

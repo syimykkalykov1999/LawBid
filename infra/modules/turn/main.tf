@@ -210,9 +210,10 @@ data "aws_iam_policy_document" "assume" {
 }
 
 resource "aws_iam_role" "this" {
-  name               = "${var.name}-turn"
-  assume_role_policy = data.aws_iam_policy_document.assume.json
-  tags               = var.tags
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-turn"
+  assume_role_policy   = data.aws_iam_policy_document.assume.json
+  tags                 = var.tags
 }
 
 # Session Manager instead of SSH.

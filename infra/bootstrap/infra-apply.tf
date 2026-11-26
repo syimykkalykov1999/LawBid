@@ -1,28 +1,31 @@
 # Owner 2026-10-26: infra switches from the admin (docs/runbooks/
 # infra-from-admin.md). The workflow `infra-apply.yml` runs `terraform plan`
-# and `terraform apply` on prod with the EXISTING OIDC deploy role. This file
-# gives that role what the apply needs, and only when the owner turns it on:
+# and `terraform apply` on prod with its OWN OIDC role (C4, 26.11; until then
+# it was the deploy role). This file gives that role what the apply needs, and
+# only when the owner turns it on:
 #
 #   infra_apply_enabled = true   ->  terraform apply in infra/bootstrap (owner)
 #
-# What it adds to `lawbid-prod-github-deploy`:
-#   * trust for jobs in the GitHub environment `infra-apply` (main.tf);
+# What `lawbid-prod-github-infra-apply` gets:
+#   * trust ONLY for jobs of infra-apply.yml on main in the GitHub environment
+#     `infra-apply` (below);
+#   * the deploy role's own document (it rolls services, runs migrations);
+#   * role writes only for roles with the ci-boundary, never the bootstrap
+#     roles (ci-guard.tf, C5);
 #   * AWS ReadOnlyAccess (Terraform reads every resource it manages);
 #   * read/write of the prod state + lock, the prod tfvars backup;
 #   * create / change / delete in the services the WHITELISTED switches touch
 #     (apps/api/src/common/ops/infra-switches.ts): WAF, GuardDuty, Security Hub,
 #     Inspector, Config, Macie, CloudTrail/Athena/Glue, logs, alarms, Synthetics,
 #     Route 53 health checks, NAT / VPC endpoints / flow logs, ECS services,
-#     the read replica, OpenSearch, S3 replication, Lambda (canary), roles
-#     named lawbid-prod-*;
+#     the read replica, OpenSearch, S3 replication, Lambda (canary);
 #   * an explicit DENY on everything that loses data or hands out keys:
 #     deleting the primary database, any bucket, KMS key, backup vault or its
 #     recovery points, secret, DynamoDB table, Redis, ECR repository; IAM
 #     users / access keys; attaching AdministratorAccess. A Deny wins over any
 #     Allow, so even a wrong plan cannot do these.
-# Risk: while deploy_trust_main_branch = true, every main-branch workflow that
-# assumes the deploy role gets these rights too; set it to false once all of
-# them declare `environment: production` (docs/runbooks/infra-hardening.md).
+# The old risk (every main-branch workflow on the deploy role also held these
+# rights) is gone with the split: the deploy role keeps only release rights.
 
 variable "infra_apply_enabled" {
   type        = bool
@@ -30,9 +33,58 @@ variable "infra_apply_enabled" {
   description = "Let the infra-apply workflow (environment infra-apply) plan and apply prod with the deploy role. Off until the owner finishes the steps in docs/runbooks/infra-from-admin.md."
 }
 
+# C4 (THIRD_PASS_B 26.11): the infra-apply rights had lived on the deploy role,
+# so every main-branch job that could assume it (image builds, web deploy,
+# self-check ...) held them too. They are on their own role now, trusted ONLY
+# for jobs of infra-apply.yml on main in the GitHub environment `infra-apply`.
+# The workflow reads secret AWS_INFRA_APPLY_ROLE_PROD (terraform output
+# infra_apply_role_arn), falling back to AWS_DEPLOY_ROLE_PROD.
+data "aws_iam_policy_document" "infra_apply_trust" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = [for r in local.repo_spellings : "repo:${r}:environment:infra-apply"]
+    }
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:job_workflow_ref"
+      values   = [for r in local.repo_spellings : "${r}/.github/workflows/infra-apply.yml@refs/heads/main"]
+    }
+  }
+}
+
+resource "aws_iam_role" "infra_apply" {
+  count                = var.infra_apply_enabled ? 1 : 0
+  name                 = "${local.name}-github-infra-apply"
+  assume_role_policy   = data.aws_iam_policy_document.infra_apply_trust.json
+  max_session_duration = var.deploy_max_session_seconds
+  lifecycle {
+    precondition {
+      condition     = length(jsonencode(jsondecode(data.aws_iam_policy_document.infra_apply_trust.json))) <= 2048
+      error_message = "The infra-apply role trust policy is longer than AWS allows (2048 characters, ACLSizePerRole)."
+    }
+  }
+}
+
+output "infra_apply_role_arn" {
+  description = "Repository secret AWS_INFRA_APPLY_ROLE_PROD (infra-apply.yml)."
+  value       = var.infra_apply_enabled ? aws_iam_role.infra_apply[0].arn : null
+}
+
 resource "aws_iam_role_policy_attachment" "deploy_infra_readonly" {
   count      = var.infra_apply_enabled ? 1 : 0
-  role       = aws_iam_role.deploy.name
+  role       = aws_iam_role.infra_apply[0].name
   policy_arn = "arn:aws:iam::aws:policy/ReadOnlyAccess"
 }
 
@@ -184,15 +236,9 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
     ]
     resources = ["*"]
   }
-  statement {
-    sid = "OwnRolesOnly"
-    actions = [
-      "iam:CreateRole", "iam:DeleteRole", "iam:UpdateRole", "iam:TagRole", "iam:UntagRole",
-      "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:AttachRolePolicy", "iam:DetachRolePolicy",
-      "iam:UpdateAssumeRolePolicy", "iam:PassRole",
-    ]
-    resources = ["arn:aws:iam::${local.account}:role/lawbid-${var.env}-*"]
-  }
+  # C5 (26.11): the former `OwnRolesOnly` (role writes on role/lawbid-prod-*)
+  # lives in ci-guard.tf now: only roles with the ci-boundary, never the
+  # bootstrap roles (this one included).
   statement {
     sid       = "ServiceLinkedRoles"
     actions   = ["iam:CreateServiceLinkedRole"]
@@ -251,8 +297,21 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
 resource "aws_iam_role_policy" "deploy_infra_apply" {
   count  = var.infra_apply_enabled ? 1 : 0
   name   = "infra-apply"
-  role   = aws_iam_role.deploy.name
+  role   = aws_iam_role.infra_apply[0].name
   policy = data.aws_iam_policy_document.deploy_infra_apply.json
+}
+
+# The infra-apply workflow also rolls services, runs the migrate task and
+# writes the deploy SSM parameters (pooler-roll.sh, run-migrations.sh) with the
+# rights it had as the deploy role: the same document, so nothing it did
+# before is lost by the split. Inline total = today's deploy role (KNOWN_ERRORS
+# 170: inline policies of one role share 10,240 characters; the role writes
+# went to the managed ci-iam, so it is smaller than before).
+resource "aws_iam_role_policy" "infra_apply_deploy" {
+  count  = var.infra_apply_enabled ? 1 : 0
+  name   = "deploy"
+  role   = aws_iam_role.infra_apply[0].name
+  policy = data.aws_iam_policy_document.deploy.json
 }
 
 # 15.11 (KNOWN_ERRORS 170): the inline «infra-apply» policy hit the IAM limit
@@ -311,6 +370,6 @@ resource "aws_iam_policy" "deploy_infra_apply_extra" {
 
 resource "aws_iam_role_policy_attachment" "deploy_infra_apply_extra" {
   count      = var.infra_apply_enabled ? 1 : 0
-  role       = aws_iam_role.deploy.name
+  role       = aws_iam_role.infra_apply[0].name
   policy_arn = aws_iam_policy.deploy_infra_apply_extra[0].arn
 }

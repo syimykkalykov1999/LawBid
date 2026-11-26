@@ -9,7 +9,8 @@
 #   clamav_image = "<ECR_REGISTRY>/lawbid-clamav:1.4-debian"
 # in the prod tfvars (docs/runbooks/DEPLOY_PROD.md, ARM64 step). ECR tags are
 # IMMUTABLE: an existing tag is left alone (the run just says so).
-# Secrets used: AWS_DEPLOY_ROLE_PROD, AWS_REGION, ECR_REGISTRY (same as deploy.yml).
+# Secrets used: AWS_BUILD_ROLE_PROD (C4: ECR-push-only role, terraform output
+# build_role_arn in infra/bootstrap; falls back to AWS_DEPLOY_ROLE_PROD), AWS_REGION, ECR_REGISTRY.
 name: Mirror ClamAV
 
 on:
@@ -48,7 +49,7 @@ jobs:
           sparse-checkout: scripts/ci
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          role-to-assume: ${{ secrets.AWS_BUILD_ROLE_PROD || secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
       - uses: aws-actions/amazon-ecr-login@7290e214a610b32bc0eef81748948b6d466a8783 # v2.2.0
       - name: The ECR repository exists (fail now, with the fix)

@@ -58,9 +58,10 @@ data "aws_iam_policy_document" "assume" {
 }
 
 resource "aws_iam_role" "lambda" {
-  name               = local.fn_name
-  assume_role_policy = data.aws_iam_policy_document.assume.json
-  tags               = var.tags
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = local.fn_name
+  assume_role_policy   = data.aws_iam_policy_document.assume.json
+  tags                 = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "logs" {

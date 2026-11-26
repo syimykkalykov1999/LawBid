@@ -53,20 +53,33 @@ variable "env" {
   type    = string
   default = "prod"
 }
-# S11-2: the deploy role is assumable only by these workflow files, as they are
-# on main. A branch that edits deploy.yml (and an owner who clicks Approve on a
-# normal-looking prompt) gets `job_workflow_ref = ...@refs/heads/<branch>` and
-# is refused by AWS. The list is every workflow that uses AWS_DEPLOY_ROLE_PROD;
-# a NEW workflow that needs the role must be added here before its first run.
+# S11-2 / C4 (THIRD_PASS_B 26.11, GitHub docs «Configuring OpenID Connect in
+# AWS», claim `job_workflow_ref`): each GitHub OIDC role is assumable only by
+# the workflow FILES listed for it, as they are on main. A branch that edits a
+# workflow (and an owner who clicks Approve on a normal-looking prompt) gets
+# `job_workflow_ref = ...@refs/heads/<branch>` and is refused by AWS; a job in
+# any OTHER workflow file on main is refused too. Three roles, each with only
+# its own rights (AWS WA SEC03-BP02 least privilege):
+#   deploy       ECS / CloudFront / SSM release rights   (deploy_workflows)
+#   build        ECR push of the app images only         (build_workflows)
+#   infra-apply  terraform apply from the admin          (infra-apply.tf)
+# One file x 3 repository spellings per entry; the trust policy limit is 2048
+# characters (ACLSizePerRole), checked by the precondition on each role.
+# A NEW workflow that needs a role must be added here before its first run.
 variable "bind_deploy_workflows" {
   type        = bool
   default     = true
-  description = "Require the OIDC claim job_workflow_ref to be a workflow file of this repository on refs/heads/main (wildcard per repository spelling: the per-file list exceeded the 2048-character trust policy limit on 08.11)."
+  description = "Require the OIDC claim job_workflow_ref to be one of the listed workflow files of this repository on refs/heads/main."
 }
 variable "deploy_workflows" {
   type        = list(string)
-  default     = ["deploy.yml", "rollback.yml", "web-deploy.yml", "seo-deploy.yml", "self-check.yml", "build-pgbouncer.yml", "mirror-clamav.yml", "aws-inventory.yml"]
-  description = "Workflow files that use the deploy role (documentation and the deploy-role policy review; the trust binding itself is per repository, see locals.deploy_workflow_refs)."
+  default     = ["deploy.yml", "rollback.yml", "web-deploy.yml", "seo-deploy.yml", "self-check.yml"]
+  description = "Workflow files that may assume the deploy role (aws-inventory.yml uses the inventory role, image builds the build role, infra-apply.yml its own role)."
+}
+variable "build_workflows" {
+  type        = list(string)
+  default     = ["deploy.yml", "build-pgbouncer.yml", "mirror-clamav.yml"]
+  description = "Workflow files that may assume the image build role (ECR push only)."
 }
 
 provider "aws" {
@@ -83,14 +96,26 @@ locals {
   account = data.aws_caller_identity.current.account_id
   # job_workflow_ref carries the repository name in the case GitHub emits;
   # all spellings of the repository are listed like the `sub` values.
-  # 08.11 apply: one entry per workflow file x 2 spellings made the trust
-  # policy longer than AWS allows (ACLSizePerRole 2048, «LimitExceeded»), so
-  # the binding is any workflow FILE on main of this repository (a workflow
-  # edited on another branch still cannot assume the role). Size checked by
-  # the precondition on aws_iam_role.deploy.
+  repo_spellings = distinct([var.github_repo, lower(var.github_repo), var.github_repo_immutable])
+  # C4: one entry per workflow file and spelling (no `*` for the file: 08.11
+  # the wildcard was used because ONE role carried nine files and went over
+  # 2048 characters; split into three roles each list fits).
   deploy_workflow_refs = [
-    for r in distinct([var.github_repo, lower(var.github_repo), var.github_repo_immutable]) :
-    "${r}/.github/workflows/*@refs/heads/main"
+    for p in setproduct(var.deploy_workflows, local.repo_spellings) :
+    "${p[1]}/.github/workflows/${p[0]}@refs/heads/main"
+  ]
+  build_workflow_refs = [
+    for p in setproduct(var.build_workflows, local.repo_spellings) :
+    "${p[1]}/.github/workflows/${p[0]}@refs/heads/main"
+  ]
+  # Every GitHub OIDC / bootstrap role. The pipeline roles may never change
+  # them (ci-guard.tf, C5): they hold the Deny statements and the trust.
+  bootstrap_role_names = [
+    "${local.name}-github-deploy", "${local.name}-github-build", "${local.name}-github-infra-apply",
+    "${local.name}-github-notify", "${local.name}-github-inventory", "${local.name}-github-cleanup",
+    "${local.name}-github-plan", "${local.name}-github-media-backup", "${local.name}-tfstate-replication",
+    # owner-only emergency administrator (modules/break-glass), never the pipeline's
+    "${local.name}-break-glass",
   ]
 }
 
@@ -234,13 +259,8 @@ data "aws_iam_policy_document" "deploy_trust" {
           "repo:${lower(var.github_repo)}:ref:refs/heads/main",
           "repo:${var.github_repo_immutable}:ref:refs/heads/main",
         ] : [],
-        # Owner 2026-10-26: the `infra-apply` workflow (infra switches from
-        # the admin) runs in the GitHub environment `infra-apply`.
-        var.infra_apply_enabled ? [
-          "repo:${var.github_repo}:environment:infra-apply",
-          "repo:${lower(var.github_repo)}:environment:infra-apply",
-          "repo:${var.github_repo_immutable}:environment:infra-apply",
-        ] : []
+        # C4: the `infra-apply` environment trusts its own role now
+        # (infra-apply.tf aws_iam_role.infra_apply), not this one.
       )
     }
     # S11-2: bind the role to the protected workflow files on main (see
@@ -282,11 +302,12 @@ data "aws_iam_policy_document" "deploy" {
     actions   = ["ecr:GetAuthorizationToken"]
     resources = ["*"]
   }
+  # C4: pushing images is the build role's job (below); a release only reads
+  # them (cosign verify, describe-images for the digest).
   statement {
     actions = [
-      "ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage", "ecr:CompleteLayerUpload",
-      "ecr:DescribeImages", "ecr:GetDownloadUrlForLayer", "ecr:InitiateLayerUpload",
-      "ecr:PutImage", "ecr:UploadLayerPart",
+      "ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage",
+      "ecr:DescribeImages", "ecr:GetDownloadUrlForLayer",
     ]
     resources = [for r in aws_ecr_repository.app : r.arn]
   }
@@ -393,6 +414,79 @@ data "aws_iam_policy_document" "deploy" {
 resource "aws_iam_role_policy" "deploy" {
   role   = aws_iam_role.deploy.name
   policy = data.aws_iam_policy_document.deploy.json
+}
+
+# --- Image build role (C4, THIRD_PASS_B 26.11) ---------------------------------
+# The image build jobs (deploy.yml «Build & push», build-pgbouncer.yml,
+# mirror-clamav.yml) ran on the deploy role and so held its ECS / IAM-pass
+# rights on every push to main. They get this role instead: ECR push to the
+# app repositories, nothing else. Workflows: secret AWS_BUILD_ROLE_PROD
+# (terraform output build_role_arn), falling back to AWS_DEPLOY_ROLE_PROD.
+data "aws_iam_policy_document" "build_trust" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github.arn]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+    # deploy.yml builds on main; build-pgbouncer / mirror-clamav run in the
+    # `production` environment.
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values = flatten([for r in local.repo_spellings : [
+        "repo:${r}:ref:refs/heads/main",
+        "repo:${r}:environment:production",
+      ]])
+    }
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:job_workflow_ref"
+      values   = local.build_workflow_refs
+    }
+  }
+}
+
+resource "aws_iam_role" "build" {
+  name               = "${local.name}-github-build"
+  assume_role_policy = data.aws_iam_policy_document.build_trust.json
+  lifecycle {
+    precondition {
+      condition     = length(jsonencode(jsondecode(data.aws_iam_policy_document.build_trust.json))) <= 2048
+      error_message = "The build role trust policy is longer than AWS allows (2048 characters, ACLSizePerRole)."
+    }
+  }
+}
+
+data "aws_iam_policy_document" "build" {
+  statement {
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"] # no resource-level permission exists for this
+  }
+  statement {
+    actions = [
+      "ecr:BatchCheckLayerAvailability", "ecr:BatchGetImage", "ecr:CompleteLayerUpload",
+      "ecr:DescribeImages", "ecr:GetDownloadUrlForLayer", "ecr:InitiateLayerUpload",
+      "ecr:PutImage", "ecr:UploadLayerPart",
+    ]
+    resources = [for r in aws_ecr_repository.app : r.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "build" {
+  name   = "build"
+  role   = aws_iam_role.build.name
+  policy = data.aws_iam_policy_document.build.json
+}
+
+output "build_role_arn" {
+  description = "Repository secret AWS_BUILD_ROLE_PROD (deploy.yml image builds, build-pgbouncer.yml, mirror-clamav.yml)."
+  value       = aws_iam_role.build.arn
 }
 
 # --- CI failure notifications (S11-6) -------------------------------------------

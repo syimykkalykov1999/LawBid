@@ -237,9 +237,10 @@ data "aws_iam_policy_document" "perms" {
 }
 
 resource "aws_iam_role" "fis" {
-  name               = "${var.name}-fis"
-  assume_role_policy = data.aws_iam_policy_document.trust.json
-  tags               = var.tags
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-fis"
+  assume_role_policy   = data.aws_iam_policy_document.trust.json
+  tags                 = var.tags
 }
 
 resource "aws_iam_role_policy" "fis" {

@@ -607,9 +607,10 @@ data "aws_iam_policy_document" "ecs_assume" {
 
 # Execution role: pull the image, write logs, read the secrets at start.
 resource "aws_iam_role" "execution" {
-  name               = "${var.name}-ecs-execution"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
-  tags               = var.tags
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-ecs-execution"
+  assume_role_policy   = data.aws_iam_policy_document.ecs_assume.json
+  tags                 = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "execution" {
@@ -634,10 +635,11 @@ data "aws_iam_policy_document" "ecs_infra_assume" {
   }
 }
 resource "aws_iam_role" "ecs_lb_infra" {
-  count              = local.api_native ? 1 : 0
-  name               = "${var.name}-ecs-lb-infra"
-  assume_role_policy = data.aws_iam_policy_document.ecs_infra_assume.json
-  tags               = var.tags
+  count                = local.api_native ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-ecs-lb-infra"
+  assume_role_policy   = data.aws_iam_policy_document.ecs_infra_assume.json
+  tags                 = var.tags
 }
 resource "aws_iam_role_policy_attachment" "ecs_lb_infra" {
   count      = local.api_native ? 1 : 0
@@ -664,9 +666,10 @@ resource "aws_iam_role_policy" "execution_secrets" {
 # Task role: what the running app may do (S3 buckets, SES) — attached by
 # the env with the bucket ARNs; only the role is created here.
 resource "aws_iam_role" "task" {
-  name               = "${var.name}-ecs-task"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
-  tags               = var.tags
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-ecs-task"
+  assume_role_policy   = data.aws_iam_policy_document.ecs_assume.json
+  tags                 = var.tags
 }
 
 # CreateInvalidation on the media / private-media distributions only (the
@@ -729,9 +732,10 @@ resource "aws_iam_role_policy" "task_rekognition_compare_faces" {
 # Admin and migrate tasks carry no application permissions (security
 # review): the admin only talks to the API, the migrate task only to the DB.
 resource "aws_iam_role" "task_minimal" {
-  name               = "${var.name}-ecs-task-minimal"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
-  tags               = var.tags
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-ecs-task-minimal"
+  assume_role_policy   = data.aws_iam_policy_document.ecs_assume.json
+  tags                 = var.tags
 }
 
 # Row 204 (detective R4B-2): with var.task_role_split the admin panel's API
@@ -739,17 +743,19 @@ resource "aws_iam_role" "task_minimal" {
 # each role may do is attached by the stack (data.aws_iam_policy_document
 # task / task_admin / task_worker). The public api keeps aws_iam_role.task.
 resource "aws_iam_role" "task_admin" {
-  count              = var.task_role_split ? 1 : 0
-  name               = "${var.name}-ecs-task-admin"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
-  tags               = var.tags
+  count                = var.task_role_split ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-ecs-task-admin"
+  assume_role_policy   = data.aws_iam_policy_document.ecs_assume.json
+  tags                 = var.tags
 }
 
 resource "aws_iam_role" "task_worker" {
-  count              = var.task_role_split ? 1 : 0
-  name               = "${var.name}-ecs-task-worker"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
-  tags               = var.tags
+  count                = var.task_role_split ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-ecs-task-worker"
+  assume_role_policy   = data.aws_iam_policy_document.ecs_assume.json
+  tags                 = var.tags
 }
 
 locals {
@@ -1019,10 +1025,11 @@ data "aws_iam_policy_document" "ssm_assume" {
 # The "managed instance role" of the guide: attached to the task once it is
 # registered in SSM.
 resource "aws_iam_role" "fis_managed_instance" {
-  count              = var.fault_injection_enabled ? 1 : 0
-  name               = "${var.name}-fis-ssm-instance"
-  assume_role_policy = data.aws_iam_policy_document.ssm_assume.json
-  tags               = var.tags
+  count                = var.fault_injection_enabled ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-fis-ssm-instance"
+  assume_role_policy   = data.aws_iam_policy_document.ssm_assume.json
+  tags                 = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "fis_managed_instance_core" {

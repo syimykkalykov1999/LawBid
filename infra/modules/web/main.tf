@@ -397,6 +397,25 @@ locals {
   # S17-5: the card page (/pay.html + pay.js) embeds Stripe frames that do not
   # send COEP, so it keeps the app's CSP but never gets the isolation headers.
   csp_all = merge(local.csp, { pay = local.csp["app"] })
+
+  # H3 (THIRD_PASS_B 26.11, OWASP Secure Headers Project «Permissions-Policy»,
+  # W3C Permissions Policy; the admin sends one too, apps/admin/next.config.ts).
+  # Only what the web app really uses (owner 26.11): camera + microphone for
+  # calls and voice messages, geolocation for «send my location», fullscreen
+  # for video. Every other powerful feature is off. The card page lets the
+  # Stripe frame use the Payment Request API (Stripe docs: allow `payment` for
+  # https://js.stripe.com when a Permissions-Policy is set); the company site
+  # needs neither camera, microphone nor location.
+  permissions_off = [
+    "accelerometer=()", "ambient-light-sensor=()", "bluetooth=()", "browsing-topics=()",
+    "display-capture=()", "gyroscope=()", "hid=()", "magnetometer=()", "midi=()",
+    "serial=()", "usb=()", "xr-spatial-tracking=()",
+  ]
+  permissions_policy = {
+    app  = join(", ", concat(["camera=(self)", "microphone=(self)", "geolocation=(self)", "fullscreen=(self)", "payment=()"], local.permissions_off))
+    site = join(", ", concat(["camera=()", "microphone=()", "geolocation=()", "fullscreen=(self)", "payment=()"], local.permissions_off))
+    pay  = join(", ", concat(["camera=()", "microphone=()", "geolocation=()", "fullscreen=(self)", "payment=(self \"https://js.stripe.com\")"], local.permissions_off))
+  }
   # Files of the card page (top-level, no extension logic needed).
   pay_paths = ["/pay.html", "/pay.js"]
 }
@@ -413,40 +432,43 @@ resource "aws_cloudfront_response_headers_policy" "web" {
 
   # Only the app pages are cross-origin isolated (S17-5): the company site
   # (Next.js, third-party embeds) and the card page are not.
-  dynamic "custom_headers_config" {
-    for_each = local.coop_value[each.key] != "" || var.csp_report_uri != "" || lookup(local.csp_report_only, each.key, "") != "" ? [1] : []
-    content {
-      dynamic "items" {
-        for_each = local.coop_value[each.key] != "" ? [local.coop_value[each.key]] : []
-        content {
-          header   = "Cross-Origin-Opener-Policy"
-          value    = items.value
-          override = true
-        }
+  # Always present now: every page kind sends Permissions-Policy (H3).
+  custom_headers_config {
+    items {
+      header   = "Permissions-Policy"
+      value    = local.permissions_policy[each.key]
+      override = true
+    }
+    dynamic "items" {
+      for_each = local.coop_value[each.key] != "" ? [local.coop_value[each.key]] : []
+      content {
+        header   = "Cross-Origin-Opener-Policy"
+        value    = items.value
+        override = true
       }
-      dynamic "items" {
-        for_each = var.cross_origin_isolation && each.key == "app" ? [1] : []
-        content {
-          header   = "Cross-Origin-Embedder-Policy"
-          value    = "credentialless"
-          override = true
-        }
+    }
+    dynamic "items" {
+      for_each = var.cross_origin_isolation && each.key == "app" ? [1] : []
+      content {
+        header   = "Cross-Origin-Embedder-Policy"
+        value    = "credentialless"
+        override = true
       }
-      dynamic "items" {
-        for_each = var.csp_report_uri != "" ? [var.csp_report_uri] : []
-        content {
-          header   = "Reporting-Endpoints"
-          value    = "csp-endpoint=\"${items.value}\""
-          override = true
-        }
+    }
+    dynamic "items" {
+      for_each = var.csp_report_uri != "" ? [var.csp_report_uri] : []
+      content {
+        header   = "Reporting-Endpoints"
+        value    = "csp-endpoint=\"${items.value}\""
+        override = true
       }
-      dynamic "items" {
-        for_each = lookup(local.csp_report_only, each.key, "") != "" ? [local.csp_report_only[each.key]] : []
-        content {
-          header   = "Content-Security-Policy-Report-Only"
-          value    = items.value
-          override = true
-        }
+    }
+    dynamic "items" {
+      for_each = lookup(local.csp_report_only, each.key, "") != "" ? [local.csp_report_only[each.key]] : []
+      content {
+        header   = "Content-Security-Policy-Report-Only"
+        value    = items.value
+        override = true
       }
     }
   }
@@ -984,4 +1006,9 @@ output "csp_report_only" {
 output "coop" {
   value       = local.coop_value
   description = "Cross-Origin-Opener-Policy per page kind (empty = none)."
+}
+
+output "permissions_policy" {
+  value       = local.permissions_policy
+  description = "Permissions-Policy per page kind (H3)."
 }

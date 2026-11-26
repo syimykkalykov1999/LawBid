@@ -188,9 +188,10 @@ data "aws_iam_policy_document" "assume" {
 }
 
 resource "aws_iam_role" "execution" {
-  name               = "${var.name}-pgbouncer-execution"
-  assume_role_policy = data.aws_iam_policy_document.assume.json
-  tags               = var.tags
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-pgbouncer-execution"
+  assume_role_policy   = data.aws_iam_policy_document.assume.json
+  tags                 = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "execution" {
@@ -217,9 +218,10 @@ resource "aws_iam_role_policy" "execution_secret" {
 # The container itself needs no AWS permission at all (metrics travel as log
 # lines), so it has a task role with no policy.
 resource "aws_iam_role" "task" {
-  name               = "${var.name}-pgbouncer-task"
-  assume_role_policy = data.aws_iam_policy_document.assume.json
-  tags               = var.tags
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-pgbouncer-task"
+  assume_role_policy   = data.aws_iam_policy_document.assume.json
+  tags                 = var.tags
 }
 
 # --- client TLS: a private CA and a certificate for the pooler name -------------------

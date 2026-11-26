@@ -270,9 +270,10 @@ data "aws_iam_policy_document" "replication_assume" {
 }
 
 resource "aws_iam_role" "replication" {
-  name               = "${var.name}-s3-replication"
-  assume_role_policy = data.aws_iam_policy_document.replication_assume.json
-  tags               = var.tags
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-s3-replication"
+  assume_role_policy   = data.aws_iam_policy_document.replication_assume.json
+  tags                 = var.tags
 }
 
 data "aws_iam_policy_document" "replication" {
@@ -845,10 +846,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "media_replica" {
 }
 
 resource "aws_iam_role" "media_replication" {
-  count              = var.replicate_media ? 1 : 0
-  name               = "${var.name}-s3-media-replication"
-  assume_role_policy = data.aws_iam_policy_document.replication_assume.json
-  tags               = var.tags
+  count                = var.replicate_media ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-s3-media-replication"
+  assume_role_policy   = data.aws_iam_policy_document.replication_assume.json
+  tags                 = var.tags
 }
 
 data "aws_iam_policy_document" "media_replication" {

@@ -626,8 +626,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "canary" {
 }
 
 resource "aws_iam_role" "canary" {
-  count = local.canary_on ? 1 : 0
-  name  = "${var.name}-canary"
+  count                = local.canary_on ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-canary"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{

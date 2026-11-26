@@ -254,9 +254,11 @@ module "stack" {
   cdn_waf_rate_limit_per_5m      = var.cdn_waf_rate_limit_per_5m
   security_hub_enabled           = var.security_hub_enabled
   dns_firewall_enabled           = var.dns_firewall_enabled
-  dns_firewall_mode              = var.dns_firewall_mode
-  dns_firewall_extra_domains     = var.dns_firewall_extra_domains
-  guardduty_alert_severity       = var.guardduty_alert_severity
+  # C5: on by default; rights-gate.mjs holds it off until the bootstrap exists.
+  iam_permissions_boundary_enabled = var.iam_permissions_boundary_enabled
+  dns_firewall_mode                = var.dns_firewall_mode
+  dns_firewall_extra_domains       = var.dns_firewall_extra_domains
+  guardduty_alert_severity         = var.guardduty_alert_severity
 
   # Security & legal pass 2026-10-24.
   securityhub_fsbp_enabled       = var.securityhub_fsbp_enabled

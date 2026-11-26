@@ -105,9 +105,10 @@ locals {
 }
 
 module "growth" {
-  source = "../growth"
-  name   = local.name
-  tags   = local.tags
+  source                   = "../growth"
+  permissions_boundary_arn = local.permissions_boundary_arn
+  name                     = local.name
+  tags                     = local.tags
 
   vpc_id                  = module.network.vpc_id
   private_subnet_ids      = module.network.private_subnet_ids

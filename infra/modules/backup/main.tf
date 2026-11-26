@@ -256,9 +256,10 @@ data "aws_iam_policy_document" "assume" {
 }
 
 resource "aws_iam_role" "backup" {
-  name               = "${var.name}-backup"
-  assume_role_policy = data.aws_iam_policy_document.assume.json
-  tags               = var.tags
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-backup"
+  assume_role_policy   = data.aws_iam_policy_document.assume.json
+  tags                 = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "backup" {
@@ -412,10 +413,11 @@ data "aws_iam_policy_document" "lambda_assume" {
 }
 
 resource "aws_iam_role" "restore_validate" {
-  count              = local.restore_validation ? 1 : 0
-  name               = "${var.name}-restore-validate"
-  assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
-  tags               = var.tags
+  count                = local.restore_validation ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-restore-validate"
+  assume_role_policy   = data.aws_iam_policy_document.lambda_assume.json
+  tags                 = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "restore_validate_logs" {
