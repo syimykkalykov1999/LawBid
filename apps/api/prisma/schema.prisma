@@ -1081,7 +1081,7 @@ model User {
 // docs/02_DATABASE.md §4.A (stage 2.2). Binary content lives only in S3
 // (§1.6); this row is the reference. Soft delete via deleted_at.
 model File {
-  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                 String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
   owner_user_id      String             @db.Uuid
   owner              User               @relation("FileOwner", fields: [owner_user_id], references: [id], onDelete: Restrict)
   chat_group_avatars ChatGroup[]        @relation("ChatGroupAvatar")
@@ -1165,7 +1165,7 @@ model File {
 /// GET /files/:id/views.
 /// No file names or text are stored here.
 model FileAccessLog {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id             String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   file_id        String   @db.Uuid
   owner_user_id  String   @db.Uuid
   viewer_user_id String   @db.Uuid
@@ -1229,6 +1229,9 @@ model Session {
   // logic anymore (see session_chain_id above), kept as a bare pointer
   // (not an enforced FK) purely for forensic "what replaced what" queries.
   replaced_by_session_id String?   @db.Uuid
+  /// STAGE2_SECURITY #13: the sign-in that opened this chain (copied on
+  /// rotation); the absolute lifetime auth.session_absolute_days counts from it.
+  chain_started_at       DateTime? @db.Timestamptz
   created_at             DateTime  @default(now()) @db.Timestamptz
   updated_at             DateTime  @updatedAt @db.Timestamptz
 
@@ -1248,7 +1251,7 @@ model Session {
 }
 
 model AuthEvent {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   user_id         String?  @db.Uuid
   user            User?    @relation(fields: [user_id], references: [id], onDelete: Restrict)
   event_type      String
@@ -1458,7 +1461,7 @@ model ShardMap {
 // primary database, once, and marks it done. `idempotency_key` makes a
 // repeated emit a no-op; `status` is pending | done | dead (dead letter).
 model CrossFamilyOutbox {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
   event_type      String
   idempotency_key String    @unique
   payload         Json
@@ -2445,7 +2448,7 @@ model Review {
 // -----------------------------------------------------------------------
 
 model Post {
-  id                   String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                   String                   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   // Attorneys only (checked in the service, file 05).
   author_id            String                   @db.Uuid
   author               User                     @relation("PostAuthor", fields: [author_id], references: [id], onDelete: Restrict)
@@ -2635,7 +2638,7 @@ model CaseRead {
 /// The activity of a task: created, files_added, done, undone, closed,
 /// reopened. `payload` carries the note and the number of files.
 model CaseTaskEvent {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   task_id    String   @db.Uuid
   task       CaseTask @relation(fields: [task_id], references: [id], onDelete: Cascade)
   case_id    String   @db.Uuid
@@ -2671,7 +2674,7 @@ model CaseUpdate {
 }
 
 model PostMedia {
-  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id         String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
   post_id    String    @db.Uuid
   post       Post      @relation(fields: [post_id], references: [id], onDelete: Cascade)
   file_id    String    @db.Uuid
@@ -2737,7 +2740,7 @@ model PostTag {
 }
 
 model Comment {
-  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                String        @id @default(dbgenerated("uuidv7()")) @db.Uuid
   post_id           String        @db.Uuid
   post              Post          @relation(fields: [post_id], references: [id], onDelete: Restrict)
   author_id         String        @db.Uuid
@@ -3215,7 +3218,7 @@ model CallVote {
 /// conversation_id too (composite foreign keys). See
 /// docs/architecture/TABLE_PARTITIONING_READY.md.
 model Message {
-  id                    String             @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                    String             @default(dbgenerated("uuidv7()")) @db.Uuid
   conversation_id       String             @db.Uuid
   conversation          Conversation       @relation(fields: [conversation_id], references: [id], onDelete: Restrict)
   // NULL for system messages.
@@ -3514,7 +3517,7 @@ model MessageReaction {
 
 /// The text a message had before each edit (moderation / legal).
 model MessageEdit {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   message_id      String   @db.Uuid
   /// Part of the key of the message (messages are partitioned by chat).
   conversation_id String   @db.Uuid
@@ -3694,7 +3697,7 @@ model ChatGroupMember {
 /// Owner 2026-10-26: PARTITION BY HASH (group_id), 16 partitions, key
 /// (id, group_id); the poll and the reply point at (group_id, id).
 model ChatGroupMessage {
-  id                  String                     @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                  String                     @default(dbgenerated("uuidv7()")) @db.Uuid
   group_id            String                     @db.Uuid
   group               ChatGroup                  @relation(fields: [group_id], references: [id], onDelete: Cascade)
   /// NULL for system messages.
@@ -3915,7 +3918,7 @@ model ChatGroupPollVote {
 /// Owner 2026-10-26: PARTITION BY HASH (user_id), 16 partitions, key
 /// (id, user_id) (raw SQL, migration 20261107131300_partition_messages_notifications).
 model Notification {
-  id              String               @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id              String               @default(dbgenerated("uuidv7()")) @db.Uuid
   user_id         String               @db.Uuid
   user            User                 @relation(fields: [user_id], references: [id], onDelete: Restrict)
   type            NotificationType
@@ -5001,7 +5004,7 @@ model PostShare {
 // viewed after a few seconds or a tap). The view counter's source of truth
 // for the nightly reconcile; a repeat view adds nothing.
 model PostView {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   post_id    String   @db.Uuid
   post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
   user_id    String   @db.Uuid
@@ -5024,7 +5027,7 @@ model PostView {
 // deduped. posts.view_count = count(kind = 'view'). CHECK on kind in the
 // migration.
 model PostViewEvent {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   post_id    String   @db.Uuid
   post       Post     @relation(fields: [post_id], references: [id], onDelete: Cascade)
   viewer_id  String?  @db.Uuid
@@ -6479,7 +6482,7 @@ model SupportTicket {
 }
 
 model SupportMessage {
-  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id              String               @id @default(dbgenerated("uuidv7()")) @db.Uuid
   ticket_id       String               @db.Uuid
   // Exactly one of author_user_id (the app user) / author_admin_id.
   author_user_id  String?              @db.Uuid
@@ -7796,7 +7799,7 @@ model BarFormatMiss {
 /// stickers, visible for 24 hours (expires_at); afterwards only its author
 /// sees it, in the archive. Short string columns are validated by CHECKs.
 model Story {
-  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id             String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
   author_id      String      @db.Uuid
   author         User        @relation("StoryAuthor", fields: [author_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "stories_author_fkey")
   /// 'photo' | 'video' | 'text'.
@@ -7959,7 +7962,7 @@ model ChannelSubscription {
 }
 
 model ChannelPost {
-  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                  String             @id @default(dbgenerated("uuidv7()")) @db.Uuid
   channel_id          String             @db.Uuid
   channel             Channel            @relation(fields: [channel_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_posts_channel_fkey")
   author_id           String             @db.Uuid
@@ -8043,7 +8046,7 @@ model ChannelReaction {
 }
 
 model ChannelComment {
-  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id         String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
   post_id    String      @db.Uuid
   post       ChannelPost @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "channel_comments_post_fkey")
   author_id  String      @db.Uuid
@@ -9078,7 +9081,7 @@ model AttorneyAdArchive {
 /// no-op. `published_at` is NULL only while the `stream` sink has not yet
 /// shipped the row to Kinesis. Pruned after `events.retention_days`.
 model DomainEvent {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id              String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
   type            String
   idempotency_key String    @unique
   actor_user_id   String?   @db.Uuid
@@ -9234,7 +9237,7 @@ model WorkLease {
 
 /// [E] What happened to a lease. Kept 90 days (`staff.retention`).
 model WorkLeaseEvent {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id         String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
   kind       String   @db.VarChar(24)
   item_id    String   @db.Uuid
   admin_id   String?  @db.Uuid

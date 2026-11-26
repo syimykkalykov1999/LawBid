@@ -12,6 +12,7 @@ import 'package:lawbid/core/cache/web_storage.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/core/persistence/large_value_store.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
+import 'package:lawbid/core/platform/file_protection.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/core/startup/startup_idle_queue.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
@@ -200,6 +201,8 @@ final cacheEnforcerProvider = Provider<void>((ref) {
   // D1-44: camera temp shots an app kill left behind (ID photos, selfies);
   // a day old, so a shot another screen still holds is not touched.
   unawaited(sweepCameraShots(olderThan: const Duration(days: 1)));
+  // S13 #26: the chat media files carry iOS Data Protection explicitly.
+  unawaited(FileProtection.protectChatMedia());
   final timer = Timer.periodic(
     const Duration(hours: 24),
     (_) => unawaited(maintenance.enforce()),

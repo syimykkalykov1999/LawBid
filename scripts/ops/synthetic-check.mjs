@@ -16,6 +16,12 @@
 // rule never blocks the next run. Nothing is created or messaged (no test case
 // is posted yet: that needs a quarantined test organisation, see
 // docs/runbooks/synthetic-check.md).
+// Б6 (25.11): the website too, anonymously, when SYNTHETIC_WEB_URL is set
+// (https://lawbid.dev): the home page (the Flutter app's shell), one public
+// SEO page (/lawyers/, the static pages of scripts/seo) and, with
+// SYNTHETIC_STATUS_URL (https://status.lawbid.dev), the status page and its
+// status.json. A broken CloudFront function or S3 origin shows up here.
+// SYNTHETIC_ONLY_WEB=1 walks only these (deploy.yml's report-only step).
 // Exit 0 = healthy, 1 = at least one step failed (each failed step is printed).
 const base = (process.argv[2] ?? process.env.API_URL ?? '').replace(/\/+$/, '');
 if (!base) {
@@ -61,28 +67,56 @@ async function http(method, path, { body, token, headers = {} } = {}) {
 }
 const unwrap = (j) => (j && typeof j === 'object' && 'data' in j ? j.data : j);
 
-await step('health/ready', async () => {
-  const r = await http('GET', '/health/ready');
-  if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
-  const v = r.json?.data?.version ?? r.json?.version;
-  if (expectVersion && v !== expectVersion) throw new Error(`version ${v ?? 'none'} != ${expectVersion}`);
-  return v ? `version ${v}` : '';
-});
-await step('config/bootstrap', async () => {
-  const r = await http('GET', '/api/v1/config/bootstrap');
-  if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
-});
-await step('sign-in validation round-trip', async () => {
-  // A malformed identifier must come back as a clean 400 envelope, never 5xx.
-  const r = await http('POST', '/api/v1/auth/password/login', {
-    body: { identifier: 'not-an-identifier', password: 'x' },
+const onlyWeb = process.env.SYNTHETIC_ONLY_WEB === '1';
+if (!onlyWeb) {
+  await step('health/ready', async () => {
+    const r = await http('GET', '/health/ready');
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+    const v = r.json?.data?.version ?? r.json?.version;
+    if (expectVersion && v !== expectVersion) throw new Error(`version ${v ?? 'none'} != ${expectVersion}`);
+    return v ? `version ${v}` : '';
   });
-  if (r.status !== 400) throw new Error(`expected 400, got ${r.status}`);
-});
+  await step('config/bootstrap', async () => {
+    const r = await http('GET', '/api/v1/config/bootstrap');
+    if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
+  });
+  await step('sign-in validation round-trip', async () => {
+    // A malformed identifier must come back as a clean 400 envelope, never 5xx.
+    const r = await http('POST', '/api/v1/auth/password/login', {
+      body: { identifier: 'not-an-identifier', password: 'x' },
+    });
+    if (r.status !== 400) throw new Error(`expected 400, got ${r.status}`);
+  });
+}
+
+// Б6: the website (CloudFront web distribution) and the status page.
+async function page(url, mustContain) {
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+    headers: { accept: 'text/html,application/json', 'user-agent': 'LawBid-synthetic-check' },
+    redirect: 'follow',
+  });
+  const text = await res.text();
+  if (res.status !== 200) throw new Error(`HTTP ${res.status}`);
+  if (mustContain && !text.includes(mustContain)) throw new Error(`no ${JSON.stringify(mustContain)} in the answer`);
+}
+const web = (process.env.SYNTHETIC_WEB_URL ?? '').replace(/\/+$/, '');
+const status = (process.env.SYNTHETIC_STATUS_URL ?? '').replace(/\/+$/, '');
+if (web) {
+  await step('web home page', () => page(`${web}/`, 'flutter_bootstrap.js'));
+  await step('web SEO page (/lawyers/)', () => page(`${web}/lawyers/`, '<h1'));
+}
+if (status) {
+  await step('status page', () => page(`${status}/`, 'status.json'));
+  await step('status page data (status.json)', () => page(`${status}/status.json?t=${Date.now()}`));
+}
+if (!web && !status) log.push('skip website (SYNTHETIC_WEB_URL / SYNTHETIC_STATUS_URL not set)');
 
 const ident = process.env.SYNTHETIC_IDENTIFIER;
 const pass = process.env.SYNTHETIC_PASSWORD;
-if (ident && pass) {
+if (onlyWeb) {
+  log.push('only the website (SYNTHETIC_ONLY_WEB=1)');
+} else if (ident && pass) {
   let token;
   await step('password login', async () => {
     const r = await http('POST', '/api/v1/auth/password/login', {

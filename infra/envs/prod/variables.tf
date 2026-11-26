@@ -311,8 +311,8 @@ variable "guardduty_ebs_malware" {
 }
 variable "guardduty_runtime_monitoring" {
   type        = bool
-  default     = false
-  description = "GuardDuty Runtime Monitoring on Fargate, $1.50/vCPU/month (about $5-50). Changes task start (sidecar): staging first."
+  default     = true
+  description = "GuardDuty Runtime Monitoring on Fargate, $1.50/vCPU/month (about $5-50). GuardDuty adds its agent as a non-essential sidecar to every NEW task (max 128 MB of the task memory at 0.25-4 vCPU); needs ECR pull in the execution role (AmazonECSTaskExecutionRolePolicy), egress to ECR/S3 (NAT, tasks SG allows all out). false = off."
 }
 variable "create_anomaly_monitor" {
   type        = bool
@@ -415,6 +415,11 @@ variable "status_certificate_arn" {
 variable "status_create_certificate" {
   type    = bool
   default = false
+}
+variable "status_backup_url" {
+  type        = string
+  default     = ""
+  description = "Stage 2 SRE (Б4): https URL of the status.json copy in the public R2 bucket, e.g. https://media.lawbid.dev/status/status.json (docs/runbooks/STATUS_PAGE.md)."
 }
 variable "create_database" {
   type    = bool
@@ -694,9 +699,13 @@ variable "cdn_waf_rate_limit_per_5m" {
   type    = number
   default = 10000
 }
+# Б9 (25.11, AWS Well-Architected SEC04-BP01/BP03, SEC06-BP01, SEC03-BP04):
+# the threat-detection set is ON by default in prod (STRICT_RULES №6). About
+# $10-70 a month for all five switches together (each description has its line).
 variable "security_hub_enabled" {
-  type    = bool
-  default = false
+  type        = bool
+  default     = true
+  description = "Security Hub on (CIS 1.4 checks; FSBP with securityhub_fsbp_enabled). About $0.001 per check, a few dollars a month."
 }
 variable "guardduty_alert_severity" {
   type    = number
@@ -760,18 +769,31 @@ variable "dmarc_policy" {
 # approximate us-east-1 list prices.
 variable "securityhub_fsbp_enabled" {
   type        = bool
-  default     = false
+  default     = true
   description = "Security Hub: AWS Foundational Security Best Practices (needs security_hub_enabled). ~$5-15/month."
 }
 variable "inspector_enabled" {
   type        = bool
-  default     = false
+  default     = true
   description = "Amazon Inspector for ECR images. ~$1-6/month."
 }
+# OFF until the owner applies infra/bootstrap: the apply role gets the
+# access-analyzer:* rights only there (infra-apply.tf). Defaulting it to true
+# before that makes every admin «Infra apply» stop with AccessDenied
+# (KNOWN_ERRORS 75/105). Owner order: apply bootstrap -> true here -> apply prod.
 variable "unused_access_analyzer_enabled" {
   type        = bool
   default     = false
-  description = "IAM Access Analyzer unused access. ~$0.20 per role/user per month."
+  description = "IAM Access Analyzer unused access. ~$0.20 per role/user per month. Needs infra/bootstrap applied first (access-analyzer rights)."
+}
+# Б9: the cost allocation tags are activated by code (aws_ce_cost_allocation_tag
+# in modules/budget), not by hand in the Billing console (docs/runbooks/cost.md).
+# Empty until the owner applies infra/bootstrap (ce:UpdateCostAllocationTagsStatus
+# is only added there); then set ["Project", "Env", "Component", "ManagedBy"] and apply.
+variable "cost_allocation_tags" {
+  type        = list(string)
+  default     = []
+  description = "Tag keys activated as cost allocation tags (Billing -> Cost allocation tags). Free. A key must already be on a resource (AWS lists it within 24 h). [] = leave the console as is."
 }
 variable "s3_account_block_public_access" {
   type        = bool
@@ -974,6 +996,16 @@ variable "alb_deletion_protection" {
   type    = bool
   default = true
 }
+# G2 (STAGE2_ARCH_PERF_2026-11-25): prod balances REST by outstanding requests
+# with no stickiness (AWS ELB "Edit target group attributes": least outstanding
+# requests for requests of unequal cost); only /socket.io/* stays sticky on its
+# own target group. The first apply with these ON re-registers the api service
+# in the second group, so both stay OFF here: otherwise every admin «Авто» /
+# «Масштаб» infra plan would carry that ALB + ECS change before the owner's
+# night apply. Owner: set both true in tfvars and apply at night
+# (docs/runbooks/infra-hardening.md, section 6). Works with the ECS built-in
+# canary (api_native_deploy): the socket group gets its own green pair
+# (api-ws-green, weighted rule 7) on `prepare`.
 variable "alb_least_outstanding_requests" {
   type    = bool
   default = false

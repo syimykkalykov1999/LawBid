@@ -303,6 +303,11 @@ variable "status_create_certificate" {
   type    = bool
   default = false
 }
+# Stage 2 SRE (Б4): the status.json copy outside AWS (public R2 bucket, status/ folder).
+variable "status_backup_url" {
+  type    = string
+  default = ""
+}
 variable "hosted_zone_id" {
   type    = string
   default = null
@@ -970,6 +975,11 @@ variable "backup_age_missing_data" {
   default     = "breaching"
   description = "breaching (steady state) or notBreaching ONLY until the first backup job completes, so the backup-age alarm cannot fire falsely (docs/runbooks/restore-drill.md)."
 }
+variable "cost_allocation_tags" {
+  type        = list(string)
+  default     = []
+  description = "Б9: tag keys activated as cost allocation tags by code (modules/budget). Account-wide, so only prod sets it. [] = not managed."
+}
 variable "service_budgets" {
   type = map(number)
   default = {
@@ -1224,7 +1234,7 @@ module "s3" {
 variable "cdn_additional_metrics" {
   type        = bool
   default     = true
-  description = "S8-6: CloudFront additional metrics + 2 alarms on the media CDN (cache-hit ratio, origin latency). ~$0.16 + $0.20 a month, fixed. Off on load-test stacks."
+  description = "S8-6: CloudFront additional metrics + 2 alarms on the media CDN (cache-hit ratio, origin latency); Б6: also the web distribution, with OriginLatency p95 alarms for web and documents. ~$0.25 + $0.40 a month, fixed. Off on load-test stacks."
 }
 
 variable "replicate_media" {
@@ -1325,6 +1335,7 @@ module "status_page" {
   certificate_arn    = var.status_certificate_arn
   create_certificate = var.status_create_certificate
   hosted_zone_id     = var.hosted_zone_id == null ? "" : var.hosted_zone_id
+  status_backup_url  = var.status_backup_url
   tags               = local.tags
 }
 
@@ -2535,14 +2546,16 @@ module "ecs" {
   api_admin_deployment_alarm_names = module.monitoring.api_admin_deployment_alarm_names
 
   # X1: ECS built-in canary / linear for the api (var.api_native_deploy).
-  api_deployment_strategy          = local.api_native_ecs_strategy
-  api_alternate_target_group_arn   = module.alb.api_green_target_group_arn
-  api_production_listener_rule_arn = module.alb.api_production_listener_rule_arn
-  api_canary_percent               = var.api_canary_percent
-  api_canary_bake_minutes          = var.api_canary_bake_minutes
-  api_linear_step_percent          = var.api_linear_step_percent
-  api_linear_step_bake_minutes     = var.api_linear_step_bake_minutes
-  api_deploy_bake_minutes          = var.api_deploy_bake_minutes
+  api_deployment_strategy             = local.api_native_ecs_strategy
+  api_alternate_target_group_arn      = module.alb.api_green_target_group_arn
+  api_production_listener_rule_arn    = module.alb.api_production_listener_rule_arn
+  api_ws_alternate_target_group_arn   = module.alb.api_ws_green_target_group_arn
+  api_ws_production_listener_rule_arn = module.alb.api_ws_production_listener_rule_arn
+  api_canary_percent                  = var.api_canary_percent
+  api_canary_bake_minutes             = var.api_canary_bake_minutes
+  api_linear_step_percent             = var.api_linear_step_percent
+  api_linear_step_bake_minutes        = var.api_linear_step_bake_minutes
+  api_deploy_bake_minutes             = var.api_deploy_bake_minutes
   # 25.11: request + predictive scaling read both api target groups once the
   # green group exists (a literal: its ARN is unknown while it is created).
   api_two_target_groups             = var.api_native_deploy != "off"
@@ -3159,6 +3172,7 @@ module "budget" {
   anomaly_extra_emails         = var.anomaly_extra_emails
   anomaly_sns_topic_arn        = var.anomaly_to_alerts_topic ? module.monitoring.alerts_topic_arn : ""
   service_budgets              = var.service_budgets
+  cost_allocation_tags         = var.cost_allocation_tags
 }
 
 module "monitoring" {
@@ -3188,7 +3202,10 @@ module "monitoring" {
   api_two_target_groups             = var.api_native_deploy != "off"
   api_green_target_group_arn_suffix = module.alb.api_green_target_group_arn_suffix
   media_cdn_distribution_id         = var.cdn_additional_metrics && !var.ephemeral && data.aws_region.current.region == "us-east-1" ? module.s3.media_distribution_id : ""
-  admin_target_group_arn_suffix     = module.alb.admin_target_group_arn_suffix
+  # Б6: the web distribution gets the additional metrics too, and web +
+  # documents get OriginLatency p95 alarms (CloudFront metrics: us-east-1 only).
+  cdn_additional_metrics        = var.cdn_additional_metrics && !var.ephemeral && data.aws_region.current.region == "us-east-1"
+  admin_target_group_arn_suffix = module.alb.admin_target_group_arn_suffix
   # D1-35: same switch as module.ecs api_admin_enabled (a literal, known at plan).
   api_admin_deploy_alarms           = true
   api_admin_target_group_arn_suffix = module.alb.api_admin_target_group_arn_suffix
@@ -3225,6 +3242,12 @@ module "monitoring" {
   alarm_incident_hook_url           = "https://${var.api_host}/api/v1/internal/alarm-events"
   alarm_incident_hook_token         = var.alarm_incident_hook_enabled ? random_password.alarm_hook[0].result : null
   tags                              = local.tags
+
+  # Stage 2 SRE (Б4): a rule removed from the database / pooler group pages (11.11).
+  db_security_group_ids = concat(
+    var.create_database ? [module.postgres[0].security_group_id] : [],
+    var.db_pooler_enabled ? [module.pgbouncer[0].security_group_id] : [],
+  )
 }
 
 # Owner 2026-10-24: database size follows the load (up fast, down at night).

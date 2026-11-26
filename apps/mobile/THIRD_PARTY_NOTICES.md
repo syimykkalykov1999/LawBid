@@ -292,6 +292,15 @@ is (https://developer.android.com/topic/performance/graphics/load-bitmap,
 read 2026-11-13). Code samples on that site are licensed under the Apache
 License, Version 2.0, as for livekit_client above.
 
+## Android developer guide «Optimize network data usage» — Apache-2.0
+
+The Data Saver check in `android/.../DataSaverChannel.kt`
+(`isActiveNetworkMetered`, then `restrictBackgroundStatus ==
+RESTRICT_BACKGROUND_STATUS_ENABLED`, and the in-code receiver for
+`ACTION_RESTRICT_BACKGROUND_CHANGED`) is the guide's Kotlin sample
+(https://developer.android.com/develop/connectivity/network-ops/data-saver,
+read 2026-11-25), Apache License, Version 2.0, as above.
+
 ## tus-js-client — MIT
 
 The parallel reel upload in `lib/features/reels/data/reels_repository.dart`
@@ -1051,6 +1060,34 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
+## web-vitals 6.2.3 (Google) — Apache-2.0
+
+Б6 / G8 (25.11): `web/vendor/web-vitals-6.2.3/web-vitals.iife.js` is the file
+`dist/web-vitals.iife.js` of the npm package `web-vitals@6.2.3`
+(https://github.com/GoogleChrome/web-vitals), copied whole and **unmodified**,
+SHA-256 `1e5e9b9af6b8d71cfef508e5a869c53b4cf2bbccad8c9b5ac664c34e93f6151a`
+(the same version the admin panel already uses through npm). It measures LCP,
+INP, CLS and TTFB of real visits of the website. Our own glue,
+`web/js/web_vitals_beacon.js`, only calls its public `onLCP` / `onINP` /
+`onCLS` / `onTTFB` and sends the good / needs-improvement / poor rating.
+Full licence text: `web/vendor/web-vitals-6.2.3/LICENSE`.
+
+NOTICE:
+
+Copyright 2020 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
 ## flutter_secure_storage 9.2.4 — BSD-3-Clause
 
 https://github.com/juliansteenbakker/flutter_secure_storage. Row 149: `android/app/src/main/kotlin/com/lawbid/lawbid/LegacySecureStorage.kt` reads what version 9 kept in EncryptedSharedPreferences with the file name, key prefix and MasterKey scheme copied from version 9's `FlutterSecureStorage.java` (and the Tink key-set names from version 11's `UpgradeInspector.java`). The reading itself is done by `androidx.security:security-crypto` 1.1.0 (Apache-2.0, Google), the library version 9 used.
@@ -1165,6 +1202,41 @@ Redistribution and use in source and binary forms, with or without modification,
 3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+## SQLite3MultipleCiphers (prebuilt by sqlite3.dart 3.9.1) — MIT
+
+S13 #26 (26.11): on Android and iOS the `sqlite3` build hook links
+SQLite3MultipleCiphers instead of plain SQLite (`hooks: user_defines:
+sqlite3: source: sqlite3mc` in `pubspec.yaml`, drift «Encryption»), so the
+account's local databases are encrypted. Unmodified prebuilt libraries of the
+release `sqlite3-3.9.1` (https://github.com/simolus3/sqlite3.dart/releases),
+checked by the SHA-256 list in sqlite3's `lib/src/hook/asset_hashes.dart`;
+sources https://github.com/utelle/SQLite3MultipleCiphers (SQLite itself is in
+the public domain; sqlite3.dart's MIT licence is above).
+
+```
+MIT License
+
+Copyright (c) 2019-2026 Ulrich Telle
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```
 
 ## Native iOS / Android SDKs linked by the Flutter plugins (licence audit 2026-11-17)
