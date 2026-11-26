@@ -4,6 +4,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { STORAGE_REQUEST_HANDLER } from '../../common/http/aws-request-handler';
 
 /** The web bucket the static pages live in (same bucket as the app). */
 export interface SeoWebStore {
@@ -36,7 +37,10 @@ export function createSeoWebStore(opts: {
   bucket: string;
   region?: string;
 }): SeoWebStore {
-  const client = new S3Client({ region: opts.region ?? 'us-east-1' });
+  const client = new S3Client({
+    region: opts.region ?? 'us-east-1',
+    requestHandler: STORAGE_REQUEST_HANDLER,
+  });
   return {
     async getText(key) {
       try {

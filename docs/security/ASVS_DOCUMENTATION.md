@@ -101,7 +101,7 @@ CSPRNG: `crypto.randomBytes` / `randomInt`; `Math.random` only for jitter and sa
 | Sentry | errors, CSP reports | scrubbing (`telemetry/scrub.ts`) |
 | link previews, bar registries | user-given URLs | SSRF-safe fetch (`link-preview/safe-fetch.ts`: DNS checked on the socket, private ranges refused, 3 redirects, 1 MB, 5 s) |
 
-All outbound HTTP goes through `common/http/outbound-agent.ts` (timeouts). Browsers may call only the hosts in the CSP `connect-src` (web: `infra/modules/web/main.tf`; admin: `apps/admin/src/lib/csp.ts`).
+Outbound `fetch` calls share the sockets of `common/http/outbound-agent.ts`. Every AWS SDK client (S3, R2, SES, Rekognition, KMS, CloudWatch, ECS and the other ops clients) passes a shared time limit from `common/http/aws-request-handler.ts` (connect 3 s; API calls end in 10 s, storage gives up after 30 s idle); `src/architecture/aws-client-timeouts.spec.ts` fails on a client without one. Browsers may call only the hosts in the CSP `connect-src` (web: `infra/modules/web/main.tf`; admin: `apps/admin/src/lib/csp.ts`).
 
 ## 8. Data classification
 
