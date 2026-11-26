@@ -3,7 +3,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService, routingOf } from '../../prisma/prisma.service';
 import { shardContext } from '../shard-context';
 import { PRIMARY_DB } from '../shard-router';
-import { EFFECTS, EffectContext } from './outbox-effects';
+import { EFFECTS, EffectContext, afterCommitEffect } from './outbox-effects';
 import type { DbTx } from '../../prisma/secret-columns';
 
 /**
@@ -115,9 +115,26 @@ export class CrossFamilyOutbox {
     payload: Record<string, unknown>,
     key: string,
   ): Promise<OutboxTicket | null> {
+    const database = this.currentDatabase();
+    if (afterCommitEffect(type)) {
+      // X1: always stored, never inline. The first attempt is `flush`
+      // right after the commit; the row is leased for LEASE_SECONDS so the
+      // sweep only takes it when that attempt did not finish.
+      await tx.crossFamilyOutbox.createMany({
+        data: [
+          {
+            event_type: type,
+            idempotency_key: key,
+            payload: payload as Prisma.InputJsonObject,
+            next_attempt_at: new Date(Date.now() + LEASE_SECONDS * 1000),
+          },
+        ],
+        skipDuplicates: true,
+      });
+      return { database, key };
+    }
     const effect = EFFECTS[type];
     if (!effect) throw new Error(`unknown cross-family event: ${type}`);
-    const database = this.currentDatabase();
     const mode = outboxMode();
     if (mode === 'inline' || (mode === 'auto' && database === PRIMARY_DB)) {
       await effect(payload as never, {
@@ -261,7 +278,18 @@ export class CrossFamilyOutbox {
   private async apply(database: string, row: OutboxRow): Promise<boolean> {
     const origin = this.client(database);
     const effect = EFFECTS[row.event_type];
+    const afterCommit = afterCommitEffect(row.event_type);
     try {
+      if (afterCommit) {
+        // X1: outside any transaction (it may wait on Redis or a queue);
+        // at-least-once, the effect itself is idempotent.
+        await afterCommit(row.payload as never);
+        await origin.$executeRaw`
+          UPDATE cross_family_outbox
+          SET status = 'done', processed_at = now(), last_error = NULL
+          WHERE id = ${row.id}::UUID`;
+        return true;
+      }
       if (!effect) throw new Error(`unknown event type ${row.event_type}`);
       const primary = this.client(PRIMARY_DB);
       const dbs = this.databases();

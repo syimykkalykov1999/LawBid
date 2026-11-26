@@ -1126,14 +1126,23 @@ export class StripePaymentProvider implements PaymentProvider {
     email: string | null;
     name: string | null;
     metadata: Record<string, string>;
+    idempotencyKey?: string;
   }): Promise<string> {
+    // THIRD_PASS_A I5: with a key two parallel first payments get the SAME
+    // customer back from Stripe (Stripe docs «Idempotent requests»), not
+    // two, one of them an orphan holding the saved card.
     const c = await this.stripe.customers.create(
       {
         ...(input.email ? { email: input.email } : {}),
         ...(input.name ? { name: input.name } : {}),
         metadata: input.metadata,
       },
-      { stripeAccount: input.accountId },
+      {
+        stripeAccount: input.accountId,
+        ...(input.idempotencyKey
+          ? { idempotencyKey: input.idempotencyKey }
+          : {}),
+      },
     );
     return c.id;
   }

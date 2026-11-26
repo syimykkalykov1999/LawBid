@@ -8,7 +8,10 @@ import {
   OutboxTicket,
   backoffSeconds,
 } from '../src/sharding/outbox/cross-family-outbox';
-import { EFFECTS } from '../src/sharding/outbox/outbox-effects';
+import {
+  EFFECTS,
+  registerAfterCommitEffect,
+} from '../src/sharding/outbox/outbox-effects';
 import { pgAdapter } from '../src/prisma/pg-adapter';
 
 /**
@@ -140,6 +143,78 @@ describe('cross-family outbox (real PostgreSQL)', () => {
     expect(await outbox.retryDead()).toBeGreaterThanOrEqual(1);
     await outbox.sweep();
     expect((await stored(key))[0].status).toBe('done');
+  });
+
+  // THIRD_PASS_A X1 (26.11): after-commit effects (queue a job) are always
+  // stored, never run inside the transaction, and survive a lost flush.
+  describe('after-commit effects', () => {
+    const runs: string[] = [];
+    let failAfter = false;
+    beforeAll(() => {
+      registerAfterCommitEffect('test.after', (p: { id: string }) => {
+        if (failAfter) return Promise.reject(new Error('queue down'));
+        runs.push(p.id);
+        return Promise.resolve();
+      });
+    });
+
+    const emitAfter = (id: string, key: string) => {
+      let ticket: OutboxTicket | null = null;
+      return shardContext
+        .runForUser(userId, () =>
+          prisma.$transaction(async (tx) => {
+            ticket = await outbox.emit(tx, 'test.after', { id }, key);
+            // Inside the transaction nothing ran yet, on any database.
+            expect(runs).not.toContain(id);
+          }),
+        )
+        .then(() => ticket);
+    };
+
+    it('stores the row in the transaction and runs it once after the commit', async () => {
+      const id = randomUUID();
+      const key = `after:${id}`;
+      const ticket = await emitAfter(id, key);
+      expect(ticket).not.toBeNull();
+      expect(await stored(key)).toMatchObject([{ status: 'pending' }]);
+      await outbox.flush([ticket]);
+      expect(runs.filter((r) => r === id)).toHaveLength(1);
+      expect(await stored(key)).toMatchObject([{ status: 'done' }]);
+      // A second flush of the same ticket runs nothing (no pending row).
+      await outbox.flush([ticket]);
+      expect(runs.filter((r) => r === id)).toHaveLength(1);
+    });
+
+    it('a flush that never happened (crash after the commit) is run by the sweep', async () => {
+      const id = randomUUID();
+      const key = `after:${id}`;
+      await emitAfter(id, key);
+      // Leased for the in-process flush: the sweep leaves it alone first.
+      await outbox.sweep();
+      expect(runs).not.toContain(id);
+      await db1Raw.$executeRaw`UPDATE cross_family_outbox
+        SET next_attempt_at = now() WHERE idempotency_key = ${key}`;
+      await outbox.sweep();
+      expect(runs.filter((r) => r === id)).toHaveLength(1);
+      expect(await stored(key)).toMatchObject([{ status: 'done' }]);
+    });
+
+    it('a failed run stays pending with backoff and is retried', async () => {
+      const id = randomUUID();
+      const key = `after:${id}`;
+      failAfter = true;
+      const ticket = await emitAfter(id, key);
+      await outbox.flush([ticket]);
+      const [row] = await stored(key);
+      expect(row).toMatchObject({ status: 'pending', attempts: 1 });
+      expect(row.last_error).toContain('queue down');
+      failAfter = false;
+      await db1Raw.$executeRaw`UPDATE cross_family_outbox
+        SET next_attempt_at = now() WHERE idempotency_key = ${key}`;
+      await outbox.sweep();
+      expect(runs.filter((r) => r === id)).toHaveLength(1);
+      expect(await stored(key)).toMatchObject([{ status: 'done' }]);
+    });
   });
 
   it('knows its databases', () => {

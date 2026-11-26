@@ -7,6 +7,7 @@ import { UseInterceptors } from '@nestjs/common';
 import {
   GlobalIdempotencyInterceptor,
   IDEMPOTENCY_PENDING_TTL_SECONDS,
+  IDEMPOTENCY_RENEW_EVERY_MS,
   IDEMPOTENCY_TTL_SECONDS,
   IdempotencyInterceptor,
 } from './idempotency.interceptor';
@@ -19,12 +20,22 @@ class TestRedis extends FakeRedis {
     this.sets.push([key, value, ...args]);
     return super.set(key, value, ...args);
   }
-  async eval(_script: string, _n: number, key: string, token: string) {
+  async eval(
+    script: string,
+    _n: number,
+    key: string,
+    token: string,
+    ttlSec?: string,
+  ) {
     const raw = await this.get(key);
     if (!raw) return 0;
     const rec = JSON.parse(raw) as { state: string; token?: string };
-    if (rec.state === 'pending' && rec.token === token) return this.del(key);
-    return 0;
+    if (rec.state !== 'pending' || rec.token !== token) return 0;
+    // RENEW_LUA (I2) extends the claim, RELEASE_LUA deletes it.
+    if (script.includes("'EXPIRE'")) {
+      return this.pexpire(key, Number(ttlSec) * 1000);
+    }
+    return this.del(key);
   }
 }
 
@@ -189,6 +200,73 @@ describe('IdempotencyInterceptor', () => {
       lastValueFrom(interceptor.intercept(context('k4', { a: 1 }).ctx, ok)),
     ).resolves.toEqual({ retried: true });
     expect(ok.handle).toHaveBeenCalledTimes(1);
+  });
+
+  it('THIRD_PASS_A I2: a handler slower than the pending TTL keeps its claim; a retry gets 409, never a second run', async () => {
+    jest.useFakeTimers();
+    try {
+      const redis = new TestRedis();
+      const interceptor = new IdempotencyInterceptor(redis as never);
+      let finish: (v: unknown) => void = () => undefined;
+      let runs = 0;
+      const slow = handler(() =>
+        defer(() => {
+          runs += 1;
+          return new Promise((r) => (finish = r));
+        }),
+      );
+      const first = lastValueFrom(
+        interceptor.intercept(context('k-slow', { a: 1 }).ctx, slow),
+      );
+      // Twice the pending TTL passes while the handler still runs.
+      for (let i = 0; i < 6; i += 1) {
+        await jest.advanceTimersByTimeAsync(IDEMPOTENCY_RENEW_EVERY_MS);
+      }
+      expect(IDEMPOTENCY_RENEW_EVERY_MS * 6).toBeGreaterThan(
+        IDEMPOTENCY_PENDING_TTL_SECONDS * 1000,
+      );
+      const { ctx, res } = context('k-slow', { a: 1 });
+      await expect(
+        lastValueFrom(interceptor.intercept(ctx, slow)),
+      ).rejects.toMatchObject({
+        response: { details: { reason: 'in_progress' } },
+      });
+      expect(res.setHeader).toHaveBeenCalledWith('Retry-After', '1');
+      expect(runs).toBe(1);
+      finish({ done: true });
+      await expect(first).resolves.toEqual({ done: true });
+      // The heartbeat stopped with the request: the done record stays 24 h.
+      expect(jest.getTimerCount()).toBe(0);
+      await expect(
+        lastValueFrom(
+          interceptor.intercept(context('k-slow', { a: 1 }).ctx, slow),
+        ),
+      ).resolves.toEqual({ done: true });
+      expect(runs).toBe(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('without the heartbeat (a dead process) the claim frees itself after the pending TTL', async () => {
+    jest.useFakeTimers();
+    try {
+      const redis = new TestRedis();
+      const interceptor = new IdempotencyInterceptor(redis as never);
+      const never = handler(() => new Observable<unknown>(() => undefined));
+      const sub = interceptor
+        .intercept(context('k-dead', {}).ctx, never)
+        .subscribe();
+      await jest.advanceTimersByTimeAsync(0);
+      sub.unsubscribe(); // the process «died»: no more renewals
+      expect(jest.getTimerCount()).toBe(0);
+      await jest.advanceTimersByTimeAsync(
+        IDEMPOTENCY_PENDING_TTL_SECONDS * 1000 + 1,
+      );
+      await expect(redis.get(redis.sets[0][0] as string)).resolves.toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('a failed result write does not turn a successful side effect into an error', async () => {
