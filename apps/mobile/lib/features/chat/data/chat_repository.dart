@@ -206,6 +206,7 @@ class ApiChatRepository implements ChatRepository {
     this.listCache,
     this.messageStore,
     this.e2ee,
+    this.sealedLinkCard,
   })  : _chat = api.ChatClient(dio),
         _uploader = StorageUploader.dio(dio, storageDio ?? dio);
 
@@ -220,6 +221,10 @@ class ApiChatRepository implements ChatRepository {
   /// MLS, incoming `mls` messages are opened (once) before anything else
   /// of the app sees them; the phone's copy holds the opened message.
   final E2eeService? e2ee;
+
+  /// Third pass S3: builds, on this phone, the card of the first link in a
+  /// text for an end-to-end encrypted chat (null = no card). Never throws.
+  final Future<SealedLinkCard?> Function(String body)? sealedLinkCard;
 
   ChatMessage _m(api.MessageDto d) {
     final shown = e2ee?.openCached(d) ?? d;
@@ -668,6 +673,17 @@ class ApiChatRepository implements ChatRepository {
     String? replyToId,
     bool forwarded = false,
   }) async {
+    // Third pass S3 (WhatsApp whitepaper «Link previews»): the link card
+    // of an encrypted chat is made here and travels inside the encryption.
+    final build = sealedLinkCard;
+    SealedLinkCard? card;
+    if (build != null && e2ee != null) {
+      try {
+        if (await e2ee!.seals(id)) card = await build(body);
+      } on Object {
+        card = null;
+      }
+    }
     // Item 25: in an end-to-end encrypted chat the text goes sealed (the
     // reply and the «Forwarded» mark inside it; the server sees neither).
     final sealed = await e2ee?.seal(
@@ -678,6 +694,7 @@ class ApiChatRepository implements ChatRepository {
         body: body,
         replyToId: replyToId,
         forwarded: forwarded,
+        extra: {if (card != null) 'lp': card.toJson()},
       ),
     );
     final api.MessageDto sent;
@@ -939,6 +956,10 @@ abstract final class ChatMappers {
   /// message reaches a screen (lists, events, the phone's copy) passes here.
   static api.MessageDto Function(api.MessageDto d)? e2eeOpen;
 
+  /// Third pass S3: the link card inside an opened end-to-end encrypted
+  /// message (E2eeService.linkCardOf), set with [e2eeOpen].
+  static SealedLinkCard? Function(api.MessageDto d)? e2eeLinkCard;
+
   static ChatMessage message(api.MessageDto raw) => _message(
         raw.type == api.MessageDtoType.mls ? (e2eeOpen?.call(raw) ?? raw) : raw,
       );
@@ -983,6 +1004,9 @@ abstract final class ChatMappers {
         contactMasked: d.contactMasked,
         clientMessageId: d.clientMessageId,
         seq: d.seq?.toInt(),
+        // Third pass S3: encrypted (the ciphertext stays on the opened DTO).
+        e2ee: d.ciphertext != null,
+        sealedLink: d.ciphertext == null ? null : e2eeLinkCard?.call(d),
         createdAt: d.createdAt,
         editedAt: d.editedAt,
         revoked: d.revoked,

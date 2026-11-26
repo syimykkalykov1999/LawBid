@@ -24,7 +24,9 @@ import 'package:lawbid/features/chat/application/chat_list_delta.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart';
 import 'package:lawbid/features/chat/application/chat_sync_ledger.dart';
 import 'package:lawbid/features/chat/application/chat_thread_memory.dart';
+import 'package:lawbid/features/chat/application/link_preview_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/chat/application/sealed_link_cards.dart';
 import 'package:lawbid/features/chat/data/chat_extras_repository.dart';
 import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
@@ -86,7 +88,17 @@ final chatRepositoryProvider = Provider<ChatRepository>(
     messageStore: ref.watch(messageStoreProvider),
     // Item 25: end-to-end encrypted chats.
     e2ee: ref.watch(e2eeServiceProvider),
+    // Third pass S3: the link card of an encrypted chat is made on this
+    // phone (only while Settings → Privacy → «Link previews» is on).
+    sealedLinkCard: (body) async => ref.read(linkPreviewsEnabledProvider)
+        ? ref.read(sealedLinkCardsProvider).build(body)
+        : null,
   ),
+);
+
+/// Third pass S3: the sender-side link cards of encrypted chats.
+final sealedLinkCardsProvider = Provider<SealedLinkCards>(
+  (ref) => SealedLinkCards(),
 );
 
 // --- Conversations list (docs/05 §8.1) ---------------------------------------

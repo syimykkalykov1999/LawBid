@@ -11,6 +11,8 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, compute, debugPrint, defaultTargetPlatform, kIsWeb;
 import 'package:image/image.dart' as img;
 import 'package:lawbid/core/uploads/upload_body.dart';
+import 'package:lawbid/features/chat/domain/chat_models.dart'
+    show SealedLinkCard;
 import 'package:lawbid/features/chat/e2ee/e2ee_file.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_media.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_payload.dart';
@@ -880,6 +882,16 @@ class E2eeService {
     if (d.type != api.MessageDtoType.mls) return d;
     return withPayload(d, _cached(d));
   }
+
+  /// Third pass S3: the link card the sender put inside [d] (null = none,
+  /// or not opened yet).
+  SealedLinkCard? linkCardOf(api.MessageDto d) =>
+      SealedLinkCard.tryParse(_cached(d)?.extra['lp']);
+
+  /// Whether a text sent now to [conversationId] goes sealed (the cached
+  /// state, as [seal] decides).
+  Future<bool> seals(String conversationId) async =>
+      (await state(conversationId)).state != api.ConversationE2eeState.off;
 
   E2eePayload? _cached(api.MessageDto d) =>
       _memory[d.id] ??
