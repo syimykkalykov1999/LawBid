@@ -832,6 +832,14 @@ export const envSchema = z
     // higher than the real number of proxies (clients could then spoof
     // their IP and escape per-IP limits).
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+    // G1 (API edge, infra/modules/api-edge): the secret CloudFront adds as
+    // `x-origin-verify` (Secrets Manager, set by Terraform with the edge).
+    // Only a request carrying it came through CloudFront, so only then is one
+    // more X-Forwarded-For hop trusted (common/net/edge-client-ip.ts). Empty =
+    // no edge: TRUST_PROXY_HOPS alone, exactly as before.
+    API_EDGE_ORIGIN_VERIFY: z
+      .union([z.literal(''), z.string().min(32)])
+      .default(''),
     // docs/06 §4.1 (stage 6.1): CORS only for the admin panel's origin(s);
     // the mobile app sends no Origin. Comma-separated.
     ADMIN_ORIGINS: z.string().default(''),

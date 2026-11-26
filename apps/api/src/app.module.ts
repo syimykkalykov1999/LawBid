@@ -213,6 +213,8 @@ export const pinoHttpOptions: PinoHttpOptions = {
       'req.headers.authorization',
       'req.headers.cookie',
       'req.headers["x-reauth-token"]',
+      // G1: the API edge secret CloudFront adds to every origin request.
+      'req.headers["x-origin-verify"]',
       'req.body.phone',
       'req.body.email',
       // Stage 1.4 (docs/CHANGELOG.md): auth/contacts DTOs use a

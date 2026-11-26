@@ -28,7 +28,7 @@ sources:
 
 1. **Staging, шаг 1.** В `terraform.tfvars` staging: `api_edge_enabled = true`. `terraform plan`: новые `module.stack.module.api_edge[0]...` (раздача, 2 тревоги, метрики), `random_password.api_edge_origin`, вторая копия WAF `...-api-edge-waf`, в WAF балансировщика новое правило `edge-verified`. Удалений быть не должно. Apply. В выводе `terraform output` смотрите `stack.api_edge_domain` (вида `d123.cloudfront.net`).
 2. **Staging, шаг 2 (DNS).** В Cloudflare (или где живёт DNS) запись `api` staging: CNAME на `d123.cloudfront.net`, **DNS only** (серое облако, иначе Cloudflare встанет перед CloudFront). TTL 60-300. С Route 53 вместо этого `api_edge_dns = true` и apply.
-3. **Staging, шаг 3 (закрыть обход).** Через 10 минут после DNS: `api_edge_origin_lock = true`, apply. Теперь балансировщик отвечает 403 всем запросам к API мимо края, а сервер берёт адрес человека из двух прокси (CloudFront + балансировщик).
+3. **Staging, шаг 3 (закрыть обход).** Через 10 минут после DNS: `api_edge_origin_lock = true`, apply. Теперь балансировщик отвечает 403 всем запросам к API мимо края. Настоящий адрес человека сервер видит уже с шага 1: запрос с секретом края (`x-origin-verify`) он узнаёт сам и берёт адрес на одну ступень левее (CloudFront + балансировщик), а прямой запрос без секрета — как раньше, от балансировщика.
 4. Проверить staging (раздел ниже), сутки посмотреть тревоги.
 5. **Прод.** Те же три шага в `infra/envs/prod`, шаг 1 и шаг 3 в тихое время. Перед шагом 3 убедитесь, что `web_api_proxy` выключен: Terraform сам откажет, если нет.
 

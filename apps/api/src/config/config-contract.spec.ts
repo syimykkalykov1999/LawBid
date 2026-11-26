@@ -98,8 +98,6 @@ const FORMATTED: Record<string, string> = {
   CLOUDFRONT_MEDIA_DISTRIBUTION_ID: 'E2QWRUHAPOMQZL',
   CLOUDFRONT_PRIVATE_DISTRIBUTION_ID: 'E3ABCDEFGHIJKL',
   FCM_CLIENT_EMAIL: 'firebase-adminsdk@lawbid.iam.gserviceaccount.com',
-  // G1: "1" (ALB) or "2" (CloudFront + ALB with api_edge_origin_lock).
-  TRUST_PROXY_HOPS: '2',
 };
 
 function standIn(name: string): string {

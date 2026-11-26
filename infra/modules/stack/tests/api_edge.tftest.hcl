@@ -82,8 +82,8 @@ variables {
 run "off_by_default" {
   command = plan
   assert {
-    condition     = length(module.api_edge) == 0 && length(random_password.api_edge_origin) == 0
-    error_message = "no edge unless the owner turns it on"
+    condition     = length(module.api_edge) == 0 && length(random_password.api_edge_origin) == 0 && !contains(keys(local.app_secret_arns), "API_EDGE_ORIGIN_VERIFY")
+    error_message = "no edge (and no edge secret for the api) unless the owner turns it on"
   }
   assert {
     condition     = local.api_env.TRUST_PROXY_HOPS == "1"
@@ -102,19 +102,23 @@ run "edge_on_lock_off_keeps_one_hop" {
   }
   assert {
     condition     = local.api_env.TRUST_PROXY_HOPS == "1"
-    error_message = "before the lock a direct request has one hop: 2 would let a client pick its address"
+    error_message = "the task trusts only the ALB; the CloudFront hop is trusted by the api per request (edge secret)"
+  }
+  assert {
+    condition     = contains(keys(local.app_secret_arns), "API_EDGE_ORIGIN_VERIFY") && length(aws_secretsmanager_secret_version.api_edge_origin) == 1
+    error_message = "the api gets the edge secret, so it can tell edge requests (real client one hop further left) from direct ones"
   }
 }
 
-run "lock_trusts_cloudfront_and_the_alb" {
+run "lock_keeps_one_hop_and_the_secret" {
   command = plan
   variables {
     api_edge_enabled     = true
     api_edge_origin_lock = true
   }
   assert {
-    condition     = local.api_env.TRUST_PROXY_HOPS == "2"
-    error_message = "with the lock every request passes CloudFront + ALB"
+    condition     = local.api_env.TRUST_PROXY_HOPS == "1" && contains(keys(local.app_secret_arns), "API_EDGE_ORIGIN_VERIFY")
+    error_message = "with the lock the client address still comes from the edge secret check, not from a second static hop"
   }
 }
 

@@ -30,6 +30,9 @@ export const SENSITIVE_KEYS: ReadonlySet<string> = new Set([
   'SECRETS_MASTER_KEYS',
   'JWT_KEYS',
   'ADMIN_TOTP_ENC_KEY',
+  // G1: the API edge secret (CloudFront x-origin-verify header, env var).
+  'x-origin-verify',
+  'API_EDGE_ORIGIN_VERIFY',
   // Message / post / chat text.
   'body',
   'body_original',

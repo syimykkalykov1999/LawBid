@@ -266,7 +266,7 @@ variable "api_edge_dns" {
 variable "api_edge_origin_lock" {
   type        = bool
   default     = false
-  description = "After the DNS switch: the ALB answers 403 to API requests that did not come through the edge, and the api trusts two proxy hops (CloudFront + ALB) for the client address. Before the switch this would cut every phone off: keep false until api.<domain> resolves to CloudFront."
+  description = "After the DNS switch: the ALB answers 403 to API requests that did not come through the edge. The client address does not depend on it: the api trusts the CloudFront hop only on requests with the edge secret (API_EDGE_ORIGIN_VERIFY). Before the switch this would cut every phone off: keep false until api.<domain> resolves to CloudFront."
   validation {
     # web_api_proxy would put a second CloudFront (the site's /api/*) in front
     # of this one: three hops, and the api would see the site's edge address.
@@ -1389,6 +1389,22 @@ resource "random_password" "api_edge_origin" {
   special = false
 }
 
+# The same value for the api (API_EDGE_ORIGIN_VERIFY): it trusts the CloudFront
+# hop of X-Forwarded-For only on requests whose x-origin-verify matches.
+resource "aws_secretsmanager_secret" "api_edge_origin" {
+  count                   = var.api_edge_enabled ? 1 : 0
+  name                    = "${local.name}/API_EDGE_ORIGIN_VERIFY"
+  kms_key_id              = module.kms.key_arn
+  recovery_window_in_days = var.ephemeral ? 0 : 30
+  tags                    = local.tags
+}
+
+resource "aws_secretsmanager_secret_version" "api_edge_origin" {
+  count         = var.api_edge_enabled ? 1 : 0
+  secret_id     = aws_secretsmanager_secret.api_edge_origin[0].id
+  secret_string = random_password.api_edge_origin[0].result
+}
+
 module "api_edge" {
   count               = var.api_edge_enabled ? 1 : 0
   source              = "../api-edge"
@@ -2090,10 +2106,13 @@ locals {
   api_env = {
     NODE_ENV     = "production"
     DB_POOL_SIZE = tostring(local.db_pool_size)
-    # G1: behind the edge with the origin lock every request passes CloudFront
-    # and the ALB (each appends one X-Forwarded-For entry); before the lock a
-    # direct request has one hop, so 2 would let a client pick its own address.
-    TRUST_PROXY_HOPS  = var.api_edge_origin_lock ? "2" : "1"
+    # One ALB in front of every task. G1: a request that came through the API
+    # edge (CloudFront adds one more X-Forwarded-For entry) is recognised by the
+    # api itself by the x-origin-verify secret (API_EDGE_ORIGIN_VERIFY below),
+    # and only then is one more hop trusted (common/net/edge-client-ip.ts). So
+    # the real client address holds in every step of api-edge.md (edge on, DNS
+    # switched, lock on or off), and a direct client can never pick its own.
+    TRUST_PROXY_HOPS  = "1"
     APP_LINK_BASE_URL = var.app_link_base_url
     ADMIN_ORIGINS     = "https://${var.admin_host}"
     ADMIN_PANEL_URL   = "https://${var.admin_host}"
@@ -2251,6 +2270,8 @@ locals {
     local.ops_split_on ? { OPS_ROLE_EXTERNAL_ID = aws_secretsmanager_secret.ops_external_id[0].arn } : {},
     var.alarm_incident_hook_enabled ? { ALARM_HOOK_TOKEN = aws_secretsmanager_secret.alarm_hook[0].arn } : {},
     var.contacts_pepper_enabled ? { CONTACTS_PEPPER = aws_secretsmanager_secret_version.contacts_pepper[0].arn } : {},
+    # G1: the edge secret, so the api trusts the CloudFront hop only for requests that carry it.
+    var.api_edge_enabled ? { API_EDGE_ORIGIN_VERIFY = aws_secretsmanager_secret_version.api_edge_origin[0].arn } : {},
   )
 }
 

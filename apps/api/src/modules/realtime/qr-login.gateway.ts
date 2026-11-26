@@ -6,6 +6,8 @@ import type { Socket } from 'socket.io';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { QR_LOGIN_TTL_SEC, RateLimitService } from '../auth/auth.public';
 import { QR_LOGIN_NAMESPACE, qrRoom } from './realtime-publisher.service';
+import { isIP } from 'node:net';
+import { socketClientIp } from './socket-ip';
 
 /** Same shape as the REST DTO (`qrId`: 16–64 URL-safe chars). */
 const QR_ID = /^[A-Za-z0-9_-]{16,64}$/;
@@ -62,7 +64,16 @@ export class QrLoginGateway implements OnGatewayConnection {
       socket.disconnect(true);
       return;
     }
-    const ip = socket.handshake.address;
+    // G1: the real client (X-Forwarded-For with TRUST_PROXY_HOPS, plus the
+    // CloudFront hop through the API edge), not the load balancer's address,
+    // which every caller shares (common/net/edge-client-ip.ts).
+    const peerIp = socketClientIp(
+      socket.handshake.headers,
+      socket.handshake.address,
+      Number(process.env.TRUST_PROXY_HOPS ?? 0) || 0,
+      process.env.API_EDGE_ORIGIN_VERIFY ?? '',
+    );
+    const ip = peerIp && isIP(peerIp) ? peerIp : socket.handshake.address;
     if (this.rateLimit && ip) {
       const r = await this.rateLimit.consumeFixedWindow(
         ['qr-socket', 'ip', ip],
