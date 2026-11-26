@@ -2,11 +2,20 @@ import { UnauthorizedException } from '@nestjs/common';
 import { AdminAuthService } from './admin-auth.service';
 import { hashSecret } from './admin-password.util';
 import type { AdminActor } from './admin-auth.decorators';
+import { SecretCipher } from './secret-cipher';
+import { totpCode } from './totp.util';
 
 const KEY = 'k'.repeat(40);
+const SECRET = 'JBSWY3DPEHPK3PXP';
+const cipher = new SecretCipher(KEY);
 
 async function build(
-  opts: { role?: string; status?: string; totp?: boolean } = {},
+  opts: {
+    role?: string;
+    status?: string;
+    totp?: boolean;
+    question?: boolean;
+  } = {},
 ) {
   const passwordHash = await hashSecret('Right-pass-2026');
   const answerHash = await hashSecret('мой ответ');
@@ -26,9 +35,11 @@ async function build(
           return Promise.resolve({
             user_id: 'u1',
             password_hash: passwordHash,
-            security_question: 'Кого ты любил?',
-            security_answer_hash: answerHash,
+            security_question:
+              opts.question === false ? null : 'Кого ты любил?',
+            security_answer_hash: opts.question === false ? null : answerHash,
             totp_enabled_at: opts.totp === false ? null : new Date(),
+            totp_secret_enc: cipher.encrypt(SECRET, 'u1'),
             user,
           });
         if (where.user_id)
@@ -56,7 +67,19 @@ async function build(
       }),
     },
   };
-  const redis = { set: jest.fn().mockResolvedValue('OK') };
+  const store = new Map<string, string>();
+  const redis = {
+    set: jest.fn((k: string, v: string, ...rest: unknown[]) => {
+      if (rest.includes('NX') && store.has(k)) return Promise.resolve(null);
+      store.set(k, v);
+      return Promise.resolve('OK');
+    }),
+    getdel: jest.fn((k: string) => {
+      const v = store.get(k) ?? null;
+      store.delete(k);
+      return Promise.resolve(v);
+    }),
+  };
   const tokens = {
     signAdminTicket: jest.fn().mockReturnValue('ticket-jwt'),
     signAdminToken: jest.fn().mockReturnValue('admin-jwt'),
@@ -83,7 +106,10 @@ async function build(
     audit as never,
     config as never,
   );
-  return { svc, prisma, sessions, audit, rateLimit };
+  /** O2: step 1 with the right authenticator code → the ticket. */
+  const ticket = async () =>
+    (await svc.recoverQuestion('boss', totpCode(SECRET), null)).ticket;
+  return { svc, prisma, sessions, audit, rateLimit, redis, ticket };
 }
 
 describe('AdminAuthService password sign-in', () => {
@@ -136,19 +162,86 @@ describe('AdminAuthService password sign-in', () => {
 });
 
 describe('AdminAuthService recovery by security question', () => {
-  it('shows a neutral question for an unknown login', async () => {
-    const { svc } = await build();
-    const q = await svc.recoverQuestion('nobody', null);
-    expect(q).not.toContain('любил');
-    expect(await svc.recoverQuestion('boss', null)).toBe('Кого ты любил?');
+  it('O2: the question is shown only after the authenticator code', async () => {
+    const { svc, audit } = await build();
+    // The bare login no longer shows anything.
+    await expect(
+      svc.recoverQuestion('boss', '000000', null),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_RECOVERY_FAILED' } });
+    await expect(svc.recoverQuestion('boss', '', null)).rejects.toMatchObject({
+      response: { code: 'ADMIN_RECOVERY_FAILED' },
+    });
+    await expect(
+      svc.recoverQuestion('nobody', totpCode(SECRET), null),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_RECOVERY_FAILED' } });
+    const r = await svc.recoverQuestion('boss', totpCode(SECRET), null);
+    expect(r.question).toBe('Кого ты любил?');
+    expect(r.ticket.length).toBeGreaterThanOrEqual(32);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'admin.recovery_question_shown' }),
+    );
+    // The same code cannot be used twice (RFC 6238 §5.2).
+    await expect(
+      svc.recoverQuestion('boss', totpCode(SECRET), null),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_RECOVERY_FAILED' } });
+  });
+
+  it('O2: a recovery code works instead and is spent', async () => {
+    const { svc, prisma } = await build();
+    (prisma as unknown as { $queryRaw: jest.Mock }).$queryRaw = jest
+      .fn()
+      .mockResolvedValueOnce([{ left: 9 }])
+      .mockResolvedValueOnce([]);
+    const r = await svc.recoverQuestion('boss', 'abcd-efgh-ijkl', null);
+    expect(r.question).toBe('Кого ты любил?');
+    await expect(
+      svc.recoverQuestion('boss', 'abcd-efgh-ijkl', null),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_RECOVERY_FAILED' } });
+  });
+
+  it('O2: no question set = refused BEFORE the recovery code is spent', async () => {
+    const { svc, prisma } = await build({ question: false });
+    const spend = jest.fn().mockResolvedValue([{ left: 9 }]);
+    (prisma as unknown as { $queryRaw: jest.Mock }).$queryRaw = spend;
+    await expect(
+      svc.recoverQuestion('boss', 'abcd-efgh-ijkl', null),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_RECOVERY_FAILED' } });
+    expect(spend).not.toHaveBeenCalled();
+  });
+
+  it('O2: no authenticator set up = no recovery at all', async () => {
+    const { svc } = await build({ totp: false });
+    await expect(
+      svc.recoverQuestion('boss', totpCode(SECRET), null),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_RECOVERY_FAILED' } });
+  });
+
+  it('O2: the new password needs the ticket of step 1, once', async () => {
+    const { svc, prisma, ticket } = await build();
+    await expect(
+      svc.recoverPassword(
+        'boss',
+        'мой ответ',
+        'New-pass-2026-x',
+        'x'.repeat(43),
+        null,
+      ),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_RECOVERY_FAILED' } });
+    const t = await ticket();
+    await svc.recoverPassword('boss', 'мой ответ', 'New-pass-2026-x', t, null);
+    expect(prisma.adminCredential.update).toHaveBeenCalledTimes(1);
+    await expect(
+      svc.recoverPassword('boss', 'мой ответ', 'New-pass-2026-x', t, null),
+    ).rejects.toMatchObject({ response: { code: 'ADMIN_RECOVERY_FAILED' } });
   });
 
   it('right answer (any case/spacing) sets the new password and ends sessions', async () => {
-    const { svc, prisma, sessions, audit } = await build();
+    const { svc, prisma, sessions, audit, ticket } = await build();
     await svc.recoverPassword(
       'boss',
       '  МОЙ   ответ ',
       'New-pass-2026-x',
+      await ticket(),
       null,
     );
     expect(prisma.adminCredential.update).toHaveBeenCalled();
@@ -161,9 +254,15 @@ describe('AdminAuthService recovery by security question', () => {
   });
 
   it('wrong answer changes nothing', async () => {
-    const { svc, prisma } = await build();
+    const { svc, prisma, ticket } = await build();
     await expect(
-      svc.recoverPassword('boss', 'не знаю', 'New-pass-2026-x', null),
+      svc.recoverPassword(
+        'boss',
+        'не знаю',
+        'New-pass-2026-x',
+        await ticket(),
+        null,
+      ),
     ).rejects.toMatchObject({ response: { code: 'ADMIN_RECOVERY_FAILED' } });
     expect(prisma.adminCredential.update).not.toHaveBeenCalled();
   });
@@ -171,22 +270,34 @@ describe('AdminAuthService recovery by security question', () => {
   it('only the super admin can recover this way', async () => {
     const { svc, prisma } = await build({ role: 'support' });
     await expect(
-      svc.recoverPassword('boss', 'мой ответ', 'New-pass-2026-x', null),
+      svc.recoverPassword(
+        'boss',
+        'мой ответ',
+        'New-pass-2026-x',
+        't'.repeat(43),
+        null,
+      ),
     ).rejects.toMatchObject({ response: { code: 'ADMIN_RECOVERY_FAILED' } });
     expect(prisma.adminCredential.update).not.toHaveBeenCalled();
   });
 
   it('sets the password but never signs in (the authenticator is still asked next)', async () => {
-    const { svc, prisma, sessions } = await build({ totp: false });
-    await svc.recoverPassword('boss', 'мой ответ', 'New-pass-2026-x', null);
+    const { svc, prisma, sessions, ticket } = await build();
+    await svc.recoverPassword(
+      'boss',
+      'мой ответ',
+      'New-pass-2026-x',
+      await ticket(),
+      null,
+    );
     expect(prisma.adminCredential.update).toHaveBeenCalled();
     expect(sessions.create).not.toHaveBeenCalled();
   });
 
   it('refuses a weak new password after a right answer', async () => {
-    const { svc, prisma } = await build();
+    const { svc, prisma, ticket } = await build();
     await expect(
-      svc.recoverPassword('boss', 'мой ответ', 'short', null),
+      svc.recoverPassword('boss', 'мой ответ', 'short', await ticket(), null),
     ).rejects.toMatchObject({ response: { code: 'VALIDATION_ERROR' } });
     expect(prisma.adminCredential.update).not.toHaveBeenCalled();
   });
@@ -287,9 +398,17 @@ describe('verify batch 11: the recovery path of the owner', () => {
       security: { assertIpAllowed: jest.fn().mockRejectedValue(denied) },
     });
     await expect(
-      svc.recoverPassword('boss', 'мой ответ', 'Another-pass-2026', '9.9.9.9'),
+      svc.recoverPassword(
+        'boss',
+        'мой ответ',
+        'Another-pass-2026',
+        't'.repeat(43),
+        '9.9.9.9',
+      ),
     ).rejects.toBe(denied);
-    await expect(svc.recoverQuestion('boss', '9.9.9.9')).rejects.toBe(denied);
+    await expect(
+      svc.recoverQuestion('boss', totpCode(SECRET), '9.9.9.9'),
+    ).rejects.toBe(denied);
     expect(prisma.adminCredential.update).not.toHaveBeenCalled();
   });
 });

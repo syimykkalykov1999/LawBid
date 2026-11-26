@@ -38,6 +38,8 @@ describe('Staff data security (e2e)', () => {
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
+    // #8: the CDN's country header counts only with our edge secret.
+    process.env.EDGE_ORIGIN_SECRET = 'test-edge-origin-secret-0123456789';
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -122,7 +124,11 @@ describe('Staff data security (e2e)', () => {
     api()
       .get(`/api/v1/admin/users/${target.id}/contacts`)
       .set(a.auth)
-      .set({ 'X-Justification': 'support check of the profile', ...headers });
+      .set({
+        'X-Justification': 'support check of the profile',
+        'X-LawBid-Edge': 'test-edge-origin-secret-0123456789',
+        ...headers,
+      });
 
   const jti = (a: AdminSession) =>
     (

@@ -1,0 +1,64 @@
+# Accepted Trivy IaC findings for `trivy config infra` (infra-validate.yml,
+# SECOND_PASS_2026-11-26 X4). Every exception names the check AND the files it
+# is accepted in, with the reason and the way out. No check is ignored for the
+# whole tree: a new finding of the same check in another file still fails CI.
+# Format: https://trivy.dev/latest/docs/configuration/filtering/#trivyignoreyaml
+misconfigurations:
+  - id: AWS-0053
+    paths:
+      - "modules/alb/main.tf"
+    statement: >-
+      The ALB is the public entry of the API and admin by design; it sits
+      behind WAF, TLS 1.3 policy and drop_invalid_header_fields.
+
+  - id: AWS-0104
+    paths:
+      - "modules/stack/main.tf"
+      - "modules/pgbouncer/main.tf"
+    statement: >-
+      API/worker and PgBouncer tasks must reach Stripe, Twilio, Bunny, R2,
+      Sentry, push services, bar registries and user link previews on 443.
+      Outbound control is DNS level (S10: Route 53 Resolver DNS Firewall,
+      ALERT then BLOCK), not a CIDR list that changes every day.
+
+  - id: AWS-0104
+    paths:
+      - "modules/alb/main.tf"
+      - "modules/redis/main.tf"
+    statement: >-
+      ALB and ElastiCache never open connections to the internet (ALB only
+      forwards to VPC targets, Redis only answers); narrowing these live prod
+      groups is done together with the S10 egress change the owner applies.
+
+  - id: AWS-0104
+    paths:
+      - "modules/loadgen/main.tf"
+    statement: >-
+      Load generators of the throw-away load-test stack must reach the ALB
+      under test and SSM over the internet; no inbound, Spot boxes gone after a run.
+
+  - id: AWS-0132
+    paths:
+      - "modules/web/main.tf"
+      - "modules/monitoring/slo.tf"
+      - "modules/cloudtrail-athena/main.tf"
+    statement: >-
+      Public website files, synthetic-canary artifacts and Athena query
+      results hold no user data; SSE-S3 (AES-256) is enough and avoids KMS
+      cost per request. Sensitive buckets (chats, case files, documents) use
+      the customer key (STRICT_RULES "Хранение").
+
+  - id: AWS-0345
+    paths:
+      - "bootstrap-loadtest/main.tf"
+    statement: >-
+      s3:* only on buckets named lawbid-loadtest-*, plus an explicit Deny on anything
+      tagged Project=lawbid (prod/staging); the loadtest role creates and
+      deletes its own buckets.
+
+  - id: DS-0002
+    paths:
+      - "selfhost/backups/Dockerfile"
+    statement: >-
+      Official postgres image: its entrypoint starts as root only to fix
+      data-dir ownership, then drops to the postgres user (gosu).

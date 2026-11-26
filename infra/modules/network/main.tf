@@ -122,11 +122,14 @@ resource "aws_security_group" "endpoints" {
     protocol    = "tcp"
     cidr_blocks = [var.cidr]
   }
+  # Endpoint network interfaces only answer callers inside the VPC (replies are
+  # stateful and need no egress rule), so nothing has to leave for the internet
+  # (trivy AWS-0104, SECOND_PASS X4).
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.cidr]
   }
   tags = var.tags
 }

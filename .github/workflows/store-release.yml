@@ -14,8 +14,15 @@
 #                   100 % waits for an approval in the `production` environment
 #                   (job "Approve 100 %"; gate ON by default, the owner may remove it).
 #   action=halt     halt now (Play: halted; App Store: phased release paused)
-# Every 6 hours (schedule, only when the repository variable STORE_WATCH is `true`) the
-# guard watches a running rollout and halts it when the new version is worse.
+# Every hour (schedule, only when the repository variable STORE_WATCH is `true`) the
+# guard watches a running rollout and halts it when the new version is worse (Stage 2 SRE
+# Б7, SRE Workbook ch. 16 / SRE Book ch. 27: a staged rollout stops by itself). It first asks
+# the store which build is really on the rollout (Play production track `inProgress`, App
+# Store phased release ACTIVE) and compares that build with the one before it in Sentry
+# Release Health (crash-free sessions AND users); nothing on a rollout = `idle`, nothing
+# happens. All well = the summary names the next step (the owner presses it).
+# Thresholds: repository variables ROLLOUT_MAX_DROP (default 0.5 pp) and
+# ROLLOUT_MIN_SESSIONS (default 500).
 # Secrets in the `release` environment: PLAY_SERVICE_ACCOUNT_JSON (not set yet: the Play
 # jobs stop with the owner's one-time steps), ASC_KEY_ID / ASC_ISSUER_ID / ASC_KEY_CONTENT,
 # APPLE_TEAM_ID, SENTRY_AUTH_TOKEN; variables SENTRY_ORG, APP_STORE_ID.
@@ -45,13 +52,18 @@ on:
         type: boolean
         default: false
   schedule:
-    - cron: "17 */6 * * *"
+    - cron: "17 * * * *"
 
 permissions:
   contents: read
 
+# One queue per trigger. GitHub keeps one running and ONE pending run per group
+# and cancels the older pending one when a newer run arrives; with one shared
+# group the hourly watch would cancel an owner's pending halt or rollout. The
+# watch only reads the store and halts, so running it next to an owner action
+# is safe (halting twice is a no-op).
 concurrency:
-  group: store-release
+  group: store-release-${{ github.event_name }}
   cancel-in-progress: false
 
 env:
@@ -152,7 +164,7 @@ jobs:
           ASC_KEY_CONTENT: ${{ secrets.ASC_KEY_CONTENT }}
         run: bundle exec fastlane ios release
 
-  # --- the guard (rollout and the 6-hour watch) ---------------------------------------------
+  # --- the guard (rollout and the hourly watch) ----------------------------------------------
   guard-android:
     name: Guard (Android)
     needs: [plan]
@@ -175,6 +187,9 @@ jobs:
       - id: g
         env:
           PLATFORM: android
+          GUARD_MODE: ${{ github.event_name == 'schedule' && 'watch' || 'rollout' }}
+          ROLLOUT_MAX_DROP: ${{ vars.ROLLOUT_MAX_DROP }}
+          ROLLOUT_MIN_SESSIONS: ${{ vars.ROLLOUT_MIN_SESSIONS }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
         run: node scripts/ci/rollout-guard.mjs
@@ -195,6 +210,9 @@ jobs:
       - id: g
         env:
           PLATFORM: ios
+          GUARD_MODE: ${{ github.event_name == 'schedule' && 'watch' || 'rollout' }}
+          ROLLOUT_MAX_DROP: ${{ vars.ROLLOUT_MAX_DROP }}
+          ROLLOUT_MIN_SESSIONS: ${{ vars.ROLLOUT_MIN_SESSIONS }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}

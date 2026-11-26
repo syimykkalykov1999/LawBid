@@ -368,6 +368,40 @@ void main() {
     );
   });
 
+  test(
+      'ASVS V14.3.2 (#1338): a no-store answer (website) stays in memory '
+      'only: the next read still gets 304, nothing reaches the disk', () async {
+    adapter = FakeHttpAdapter((o) async {
+      if (o.headers['If-None-Match'] == etag) {
+        return ResponseBody.fromString(
+          '',
+          304,
+          headers: {
+            'etag': [etag],
+          },
+        );
+      }
+      return ResponseBody.fromString(
+        jsonEncode(body),
+        200,
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+          'etag': [etag],
+          'cache-control': ['private, no-store'],
+        },
+      );
+    });
+    final dio = build();
+    final r1 = await dio.get<Map<String, dynamic>>('/auth/sessions');
+    expect(r1.data, body);
+    final r2 = await dio.get<Map<String, dynamic>>('/auth/sessions');
+    expect(adapter.requests.last.headers['If-None-Match'], etag);
+    expect(r2.data, body);
+    expect(r2.extra[kFromCacheExtra], true);
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(await db.httpBytes(), 0);
+  });
+
   test('a changed body replaces the copy', () async {
     final dio = build();
     await dio.get<dynamic>('/x');

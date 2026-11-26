@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { availableParallelism, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -79,7 +79,7 @@ describe('pgAdapterConfig (Prisma 6 URL → node-pg, Prisma 7)', () => {
       { rejectUnauthorized: false },
     ],
     [
-      'sslmode=verify-full (v6: unknown mode = prefer, not checked)',
+      'sslmode=verify-full on a non-RDS host with no sslrootcert (review #1336: no CA = unchecked as before, never a broken connection)',
       '?sslmode=verify-full',
       { rejectUnauthorized: false },
     ],
@@ -158,5 +158,86 @@ describe('pgAdapterConfig (Prisma 6 URL → node-pg, Prisma 7)', () => {
   it('pgAdapter: a PrismaPg adapter; no URL fails only on the first query (like Prisma 6)', () => {
     expect(pgAdapter(`${BASE}?schema=public`)).toBeInstanceOf(PrismaPg);
     expect(() => pgAdapter(undefined)).not.toThrow();
+  });
+});
+
+/** ASVS 5.0 V12.3.2 / V12.3.4 (STAGE2_SECURITY #14): the API verifies the
+ * database certificate when the URL says verify-full / verify-ca. */
+describe('database TLS: verify-full / verify-ca', () => {
+  const BASE_URL = 'postgresql://app:pw@db.x.rds.amazonaws.com:5432/lawbid';
+  let dir: string;
+  let ca: string;
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), 'pg-ca-'));
+    ca = join(dir, 'rds-ca.pem');
+    writeFileSync(ca, 'TEST-CA-PEM');
+  });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('verify-full + sslrootcert: certificate checked against that CA, host checked', async () => {
+    const url = `${BASE_URL}?sslmode=verify-full&sslrootcert=${encodeURIComponent(ca)}`;
+    const want = { rejectUnauthorized: true, ca: 'TEST-CA-PEM' };
+    expect(pgAdapterConfig(url).pool.ssl).toEqual(want);
+    const { pgClientConfig } = await import('../../prisma/pg-client.mjs');
+    expect(pgClientConfig(url).ssl).toEqual(want);
+    // The TLS parameters never reach node-pg's own URL parser.
+    expect(pgAdapterConfig(url).pool.connectionString).not.toMatch(/ssl/);
+  });
+
+  it('verify-ca: the chain is checked, the host name is not', async () => {
+    const url = `${BASE_URL}?sslmode=verify-ca&sslrootcert=${encodeURIComponent(ca)}`;
+    const ssl = pgAdapterConfig(url).pool.ssl as {
+      rejectUnauthorized: boolean;
+      ca: string;
+      checkServerIdentity: () => undefined;
+    };
+    expect(ssl.rejectUnauthorized).toBe(true);
+    expect(ssl.ca).toBe('TEST-CA-PEM');
+    expect(ssl.checkServerIdentity()).toBeUndefined();
+    const { pgClientConfig } = await import('../../prisma/pg-client.mjs');
+    const c = pgClientConfig(url).ssl as typeof ssl;
+    expect(c.rejectUnauthorized).toBe(true);
+    expect(c.checkServerIdentity()).toBeUndefined();
+  });
+
+  it('review #1336: an RDS endpoint uses the baked bundle; no bundle or an alias keeps the old unchecked TLS', async () => {
+    const bundle = join(dir, 'global-bundle.pem');
+    writeFileSync(bundle, 'RDS-BUNDLE-PEM');
+    const before = process.env.RDS_CA_BUNDLE_PATH;
+    const { pgClientConfig } = await import('../../prisma/pg-client.mjs');
+    try {
+      process.env.RDS_CA_BUNDLE_PATH = bundle;
+      const rds = `${BASE_URL}?sslmode=verify-full`;
+      expect(pgAdapterConfig(rds).pool.ssl).toEqual({
+        rejectUnauthorized: true,
+        ca: 'RDS-BUNDLE-PEM',
+      });
+      expect(pgClientConfig(rds).ssl).toEqual({
+        rejectUnauthorized: true,
+        ca: 'RDS-BUNDLE-PEM',
+      });
+      // An alias in front of RDS cannot pass the host check: unchecked.
+      const alias =
+        'postgresql://app:pw@db.lawbid.internal:5432/lawbid?sslmode=verify-full';
+      expect(pgAdapterConfig(alias).pool.ssl).toEqual({
+        rejectUnauthorized: false,
+      });
+      expect(pgClientConfig(alias).ssl).toEqual({ rejectUnauthorized: false });
+      // The owner's Mac (prod-db-setup.sh): no bundle file → unchecked.
+      process.env.RDS_CA_BUNDLE_PATH = join(dir, 'missing.pem');
+      expect(pgAdapterConfig(rds).pool.ssl).toEqual({
+        rejectUnauthorized: false,
+      });
+      expect(pgClientConfig(rds).ssl).toEqual({ rejectUnauthorized: false });
+    } finally {
+      if (before === undefined) delete process.env.RDS_CA_BUNDLE_PATH;
+      else process.env.RDS_CA_BUNDLE_PATH = before;
+    }
+  });
+
+  it('sslmode=require stays encrypted-but-unchecked until the URL is switched (owner step)', () => {
+    expect(pgAdapterConfig(`${BASE_URL}?sslmode=require`).pool.ssl).toEqual({
+      rejectUnauthorized: false,
+    });
   });
 });

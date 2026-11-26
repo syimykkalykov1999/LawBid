@@ -6,12 +6,15 @@
 // run-concurrent's `connection_limit=1` gave: its SET lock_timeout must hold
 // for the statements after it) with the three calls they used.
 //
-// TLS keeps the Prisma 6 behaviour, exactly as src/prisma/pg-adapter.ts:
+// TLS exactly as src/prisma/pg-adapter.ts:
 // `sslmode=disable`, or none on a local host → no TLS; none on a remote
-// host → TLS without certificate check; any other sslmode → TLS without
-// certificate check; `sslaccept=strict` → certificate and host checked, CA
-// from `sslcert`. pg-adapter.spec.ts checks both stay the same.
-import { readFileSync } from 'node:fs';
+// host → TLS without certificate check; `sslmode=verify-full` → certificate
+// and host checked, CA from `sslrootcert` or (RDS endpoint only) the baked
+// RDS bundle, no CA = unchecked as before + a warning (STAGE2_SECURITY #14); `verify-ca` → the same without the host check; any
+// other sslmode → TLS without certificate check; `sslaccept=strict` →
+// certificate and host checked, CA from `sslcert`. pg-adapter.spec.ts checks
+// both stay the same.
+import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 import pg from 'pg';
 
@@ -33,6 +36,39 @@ const PRISMA_ONLY = [
   'sslkey',
   'sslrootcert',
 ];
+
+/** Same file as RDS_CA_BUNDLE in src/prisma/pg-adapter.ts. */
+export const RDS_CA_BUNDLE = '/etc/ssl/rds-global-bundle.pem';
+
+/** Same rule as verifyCa in src/prisma/pg-adapter.ts (review of #1336):
+ * an explicit sslrootcert, or the baked bundle for an RDS endpoint, else
+ * null (TLS without the check, as before, plus one warning). */
+export const RDS_HOST = /\.rds\.amazonaws\.com$/i;
+export function verifyCa(
+  rootCert,
+  host,
+  bundle = process.env.RDS_CA_BUNDLE_PATH?.trim() || RDS_CA_BUNDLE,
+) {
+  if (rootCert) {
+    return readFileSync(
+      isAbsolute(rootCert) ? rootCert : resolve('prisma', rootCert),
+      'utf8',
+    );
+  }
+  if (RDS_HOST.test(host) && existsSync(bundle)) {
+    return readFileSync(bundle, 'utf8');
+  }
+  return null;
+}
+
+const warned = new Set();
+function warnUnverified(host) {
+  if (warned.has(host)) return;
+  warned.add(host);
+  process.stderr.write(
+    `database TLS: sslmode=verify-* for ${host} but no CA to check it with (not an RDS endpoint with the baked bundle, no sslrootcert); the certificate is NOT checked, as before #1336.\n`,
+  );
+}
 
 /** Same rule as isLocalHost in src/prisma/pg-adapter.ts. */
 export function isLocalHost(host) {
@@ -58,6 +94,18 @@ export function pgClientConfig(raw) {
     // 14.11 (KE 146): a remote server without sslmode keeps Prisma 6
     // "prefer" — TLS, certificate not checked (RDS refuses clear text).
     ssl = { rejectUnauthorized: false };
+  } else if (mode === 'verify-full' || mode === 'verify-ca') {
+    const ca = verifyCa(q.get('sslrootcert')?.trim() || undefined, url.hostname);
+    if (ca === null) {
+      warnUnverified(url.hostname);
+      ssl = { rejectUnauthorized: false };
+    } else {
+      ssl = {
+        rejectUnauthorized: true,
+        ca,
+        ...(mode === 'verify-ca' ? { checkServerIdentity: () => undefined } : {}),
+      };
+    }
   } else if (mode && mode !== 'disable') {
     if (q.get('sslaccept')?.trim().toLowerCase() === 'strict') {
       const cert = q.get('sslcert')?.trim();

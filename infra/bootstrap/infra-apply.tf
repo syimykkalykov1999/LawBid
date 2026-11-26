@@ -60,7 +60,7 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
       # 12.11 (KNOWN_ERRORS 107): + kinesis and elasticache (the events stream
       # and the cache Redis encrypt with the prod key) and RDS in any region
       # (cross-region backups use the replica key in the second region).
-      values = ["s3.${var.region}.amazonaws.com", "rds.*.amazonaws.com", "es.${var.region}.amazonaws.com", "logs.${var.region}.amazonaws.com", "secretsmanager.${var.region}.amazonaws.com", "kinesis.${var.region}.amazonaws.com", "elasticache.${var.region}.amazonaws.com"]
+      values = ["s3.${var.region}.amazonaws.com", "rds.*.amazonaws.com", "es.${var.region}.amazonaws.com", "logs.${var.region}.amazonaws.com", "secretsmanager.${var.region}.amazonaws.com", "secretsmanager.${var.dr_region}.amazonaws.com", "kinesis.${var.region}.amazonaws.com", "elasticache.${var.region}.amazonaws.com"]
     }
   }
   statement {
@@ -79,8 +79,11 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
     # 2026-11-10: switches that bring their own secret (PgBouncer TLS:
     # lawbid-prod/pgbouncer-tls) create and write it. Prod names only;
     # deleting a secret stays denied below.
-    sid     = "SwitchSecretsWrite"
-    actions = ["secretsmanager:CreateSecret", "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret", "secretsmanager:TagResource", "secretsmanager:UntagResource"]
+    sid = "SwitchSecretsWrite"
+    # Stage 2 SRE (Б8): + the replica of every secret in the DR region
+    # (secrets_replica_enabled; KNOWN_ERRORS 100: a new module is checked
+    # against this role's rights before release).
+    actions = ["secretsmanager:CreateSecret", "secretsmanager:PutSecretValue", "secretsmanager:UpdateSecret", "secretsmanager:TagResource", "secretsmanager:UntagResource", "secretsmanager:ReplicateSecretToRegions"]
     resources = [
       "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}/*",
       "arn:aws:secretsmanager:*:${local.account}:secret:lawbid-${var.env}-db*/*",

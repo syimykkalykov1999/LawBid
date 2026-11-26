@@ -11,6 +11,11 @@
 // docs/deeplinks/apple-app-site-association. Override in Secrets.xcconfig.
 DEEP_LINK_HOST = lawbid.dev
 
+// S12 #29 (25.11): NSAllowsLocalNetworking stays in the built Info.plist only
+// when this is YES (the *-dev.xcconfig files); the build phase «Strip dev-only
+// ATS (prod)» removes it everywhere else. Staging and prod: no local networking.
+LAWBID_ALLOWS_LOCAL_NET = NO
+
 // Per-developer/secret-ish build settings (docs/KEYS_SETUP.md). Default
 // first, then the gitignored Secrets.xcconfig overrides it when present.
 #include? "Secrets.xcconfig"

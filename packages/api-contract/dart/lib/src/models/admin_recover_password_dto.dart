@@ -12,6 +12,7 @@ class AdminRecoverPasswordDto {
     required this.login,
     required this.answer,
     required this.newPassword,
+    this.ticket,
   });
 
   factory AdminRecoverPasswordDto.fromJson(Map<String, Object?> json) =>
@@ -20,6 +21,9 @@ class AdminRecoverPasswordDto {
   final String login;
   final String answer;
   final String newPassword;
+
+  /// Single-use ticket from POST /admin/auth/recover/question. Required by the server.
+  final String? ticket;
 
   Map<String, Object?> toJson() => _$AdminRecoverPasswordDtoToJson(this);
 }

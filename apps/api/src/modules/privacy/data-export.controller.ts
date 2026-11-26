@@ -28,6 +28,7 @@ import { ReauthVerifier } from '../auth/services/reauth-verifier.service';
 import { DataExportRunner } from './data-export.runner';
 import { DataExportIdParamDto, DataExportJobDto } from './privacy.dto';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
+import { SensitiveNoStore } from '../../common/cache/http-cache';
 
 const E = ErrorCode;
 
@@ -39,6 +40,8 @@ const E = ErrorCode;
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
 @AttorneyOnly()
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('users/me/data-export')
 export class DataExportController {
   constructor(

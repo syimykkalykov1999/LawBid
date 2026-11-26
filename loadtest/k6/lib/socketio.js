@@ -17,7 +17,7 @@
 // the same.
 import { WebSocket } from 'k6/websockets';
 import { Trend, Rate, Counter } from 'k6/metrics';
-import { WS_URL, HOST_HEADER } from './env.js';
+import { WS_URL, HOST_HEADER, WS_COMPRESSION } from './env.js';
 
 export const wsConnectMs = new Trend('ws_connect_ms', true);
 export const wsConnected = new Rate('ws_connected');
@@ -32,7 +32,11 @@ const NS = '/realtime';
 export function openSocket(token, handlers) {
   const t0 = Date.now();
   const headers = HOST_HEADER ? { Host: HOST_HEADER } : {};
-  const ws = new WebSocket(`${WS_URL}/socket.io/?EIO=4&transport=websocket`, null, { headers });
+  // G6 (25.11): WS_COMPRESSION=deflate offers permessage-deflate like the
+  // app and the browser do (k6/websockets Params.compression), so a run can
+  // measure the server's memory and CPU with compressed sockets.
+  const params = WS_COMPRESSION === 'deflate' ? { headers, compression: 'deflate' } : { headers };
+  const ws = new WebSocket(`${WS_URL}/socket.io/?EIO=4&transport=websocket`, null, params);
   let ready = false;
   let closedByUs = false;
   let failed = false;

@@ -49,6 +49,7 @@ import {
 } from '../dto/verification-responses.dto';
 import { VerificationRequestsService } from '../services/verification-requests.service';
 import { AttorneyOnly } from '../../auth/assistant/assistant-context';
+import { SensitiveNoStore } from '../../../common/cache/http-cache';
 
 const E = ErrorCode;
 const IDEMPOTENCY_HEADER = {
@@ -71,6 +72,8 @@ const ATTORNEY_ERRORS = {
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
 @AttorneyOnly()
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('verification')
 export class VerificationController {
   constructor(private readonly requests: VerificationRequestsService) {}

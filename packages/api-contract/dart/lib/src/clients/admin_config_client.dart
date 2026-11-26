@@ -14,6 +14,9 @@ import '../models/feature_flag_admin_list_envelope.dart';
 import '../models/language_admin_envelope.dart';
 import '../models/language_admin_list_envelope.dart';
 import '../models/provider.dart';
+import '../models/settings_revert_result_envelope.dart';
+import '../models/settings_rollout_list_envelope.dart';
+import '../models/settings_rollout_ok_envelope.dart';
 import '../models/update_budget_limit_dto.dart';
 import '../models/update_config_dto.dart';
 import '../models/update_flag_dto.dart';
@@ -80,6 +83,33 @@ abstract class AdminConfigClient {
   Future<LanguageAdminEnvelope> updateAdminLanguage({
     @Path('code') required String code,
     @Body() required UpdateLanguageDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Setting changes under watch (canary window)
+  @GET('/admin/settings-rollouts')
+  Future<SettingsRolloutListEnvelope> listSettingsRollouts({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Emergency: release a change to everyone now, skipping the watch (needs step-up)
+  @POST('/admin/settings-rollouts/{id}/promote')
+  Future<SettingsRolloutOkEnvelope> promoteSettingsRollout({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Put the old values of a change under watch back for everyone (needs step-up)
+  @POST('/admin/settings-rollouts/{id}/revert')
+  Future<SettingsRolloutOkEnvelope> revertSettingsRollout({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Revert one settings change of the audit log for everyone at once (needs step-up)
+  @POST('/admin/settings-rollouts/changes/{auditId}/revert')
+  Future<SettingsRevertResultEnvelope> revertSettingsChange({
+    @Path('auditId') required String auditId,
     @Extras() Map<String, dynamic>? extras,
   });
 }

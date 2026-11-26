@@ -1236,6 +1236,33 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     awsTypes: ['aws_ecr_repository', 'aws_ecr_lifecycle_policy'],
   },
   {
+    id: 'aws.ecr_replica',
+    name: 'Копия образов во втором регионе (ECR replication)',
+    purpose:
+      'Каждый новый образ сервера ECR сам копирует в us-west-2, чтобы после потери региона поднять сервис там (docs/runbooks/region-dr.md).',
+    kind: 'aws',
+    // Б8: the switch lives in infra/bootstrap (ecr_replica_enabled), which
+    // only the owner applies; envs/prod has no variable for it.
+    control: fixed(
+      'Переключатель ecr_replica_enabled в infra/bootstrap (применяет владелец); без копии образов регион DR не поднять.',
+    ),
+    states: ['on'],
+    defaultState: 'on',
+    ceiling: null,
+    price: price(
+      'unit',
+      '$0,10 за ГБ в месяц хранения в us-west-2 + $0,02 за ГБ передачи между регионами при каждом новом образе',
+      U.ecr,
+    ),
+    usd: { launch: R(0.5, 1.5), k100: R(1, 2), m1: R(1, 3) },
+    needed: 'yes',
+    neededNote:
+      'Нужно для восстановления после потери региона. Старые образы стирает то же правило очистки, что и в основном регионе.',
+    alarm: null,
+    ceService: 'Amazon EC2 Container Registry (ECR)',
+    awsTypes: ['aws_ecr_replication_configuration'],
+  },
+  {
     id: 'aws.ses',
     name: 'Почта (Amazon SES)',
     purpose: 'Письма входа, чеки, уведомления.',

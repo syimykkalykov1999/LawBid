@@ -22,66 +22,79 @@ void main() {
   });
 
   test('first store version is 1.0.0', () {
-    final version =
-        RegExp(r'^version: (\d+)\.(\d+)\.(\d+)\+(\d+)$', multiLine: true)
-            .firstMatch(read('pubspec.yaml'))!;
+    final version = RegExp(
+      r'^version: (\d+)\.(\d+)\.(\d+)\+(\d+)$',
+      multiLine: true,
+    ).firstMatch(read('pubspec.yaml'))!;
     expect(int.parse(version.group(1)!), greaterThanOrEqualTo(1));
   });
 
-  test('build number is automatic on every path (no manual bump, no repeats)',
-      () {
-    // pubspec keeps +1 = "automatic"; Android and iOS replace it with the
-    // minutes since 2026-01-01 UTC, the same formula on both.
-    expect(
-      read('pubspec.yaml'),
-      contains(RegExp(r'^version: \d+\.\d+\.\d+\+1$', multiLine: true)),
-    );
-    final gradle = read('android/app/build.gradle.kts');
-    expect(
-      gradle,
-      contains(
-        'versionCode = flutter.versionCode.takeIf { it != 1 } ?: autoBuildNumber()',
-      ),
-    );
-    expect(
-      gradle,
-      contains('System.currentTimeMillis() / 1000 - 1767225600L) / 60'),
-    );
-    final pbx = read('ios/Runner.xcodeproj/project.pbxproj');
-    expect(pbx, contains('/* Auto build number */,'));
-    expect(
-      pbx,
-      contains(
-        r'Set :CFBundleVersion $(( ($(date -u +%s) - 1767225600) / 60 ))',
-      ),
-    );
-    // CI and fastlane must not pin a small counter that would sort below a
-    // Mac build already uploaded.
-    expect(
-      read('../../.github/workflows/mobile-release.yml'),
-      isNot(contains('run_number')),
-    );
-    for (final lane in ['ios/fastlane/Fastfile', 'android/fastlane/Fastfile']) {
+  test(
+    'build number is automatic on every path (no manual bump, no repeats)',
+    () {
+      // pubspec keeps +1 = "automatic"; Android and iOS replace it with the
+      // minutes since 2026-01-01 UTC, the same formula on both.
       expect(
-        read(lane),
-        isNot(contains("ENV.fetch('BUILD_NUMBER', '1')")),
-        reason: lane,
+        read('pubspec.yaml'),
+        contains(RegExp(r'^version: \d+\.\d+\.\d+\+1$', multiLine: true)),
       );
-    }
-  });
+      final gradle = read('android/app/build.gradle.kts');
+      expect(
+        gradle,
+        contains(
+          'versionCode = flutter.versionCode.takeIf { it != 1 } ?: autoBuildNumber()',
+        ),
+      );
+      expect(
+        gradle,
+        contains('System.currentTimeMillis() / 1000 - 1767225600L) / 60'),
+      );
+      final pbx = read('ios/Runner.xcodeproj/project.pbxproj');
+      expect(pbx, contains('/* Auto build number */,'));
+      expect(
+        pbx,
+        contains(
+          r'Set :CFBundleVersion $(( ($(date -u +%s) - 1767225600) / 60 ))',
+        ),
+      );
+      // CI and fastlane must not pin a small counter that would sort below a
+      // Mac build already uploaded.
+      expect(
+        read('../../.github/workflows/mobile-release.yml'),
+        isNot(contains('run_number')),
+      );
+      for (final lane in [
+        'ios/fastlane/Fastfile',
+        'android/fastlane/Fastfile',
+      ]) {
+        expect(
+          read(lane),
+          isNot(contains("ENV.fetch('BUILD_NUMBER', '1')")),
+          reason: lane,
+        );
+      }
+    },
+  );
 
-  test('iOS: no plain-http exception in prod, export compliance, iPhone only',
-      () {
-    final pbx = read('ios/Runner.xcodeproj/project.pbxproj');
-    expect(pbx, contains('/* Strip dev-only ATS (prod) */,'));
-    expect(pbx, contains('Delete :NSAppTransportSecurity'));
-    expect(pbx, isNot(contains('TARGETED_DEVICE_FAMILY = "1,2";')));
-    final plist = read('ios/Runner/Info.plist');
-    expect(
-      plist,
-      contains('<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>'),
-    );
-  });
+  test(
+    'iOS: no plain-http exception in prod, export compliance, iPhone only',
+    () {
+      final pbx = read('ios/Runner.xcodeproj/project.pbxproj');
+      expect(pbx, contains('/* Strip dev-only ATS (prod) */,'));
+      // S12 #29 (25.11): only the local-networking key goes, the pins stay.
+      expect(
+        pbx,
+        contains('Delete :NSAppTransportSecurity:NSAllowsLocalNetworking'),
+      );
+      expect(pbx, isNot(contains(r'Delete :NSAppTransportSecurity\"')));
+      expect(pbx, isNot(contains('TARGETED_DEVICE_FAMILY = "1,2";')));
+      final plist = read('ios/Runner/Info.plist');
+      expect(
+        plist,
+        contains('<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>'),
+      );
+    },
+  );
 
   test('iOS: privacy manifest is bundled and declares no tracking', () {
     final manifest = read('ios/Runner/PrivacyInfo.xcprivacy');
@@ -115,12 +128,11 @@ void main() {
     // and debug builds override it; the manifest flag is gone everywhere.
     expect(
       read('android/app/src/main/AndroidManifest.xml'),
-      contains(
-        'android:networkSecurityConfig="@xml/network_security_config"',
-      ),
+      contains('android:networkSecurityConfig="@xml/network_security_config"'),
     );
-    final strict =
-        read('android/app/src/main/res/xml/network_security_config.xml');
+    final strict = read(
+      'android/app/src/main/res/xml/network_security_config.xml',
+    );
     expect(strict, contains('cleartextTrafficPermitted="false"'));
     expect(strict, contains('<certificates src="system" />'));
     expect(strict, isNot(contains('src="user"')));
@@ -156,6 +168,83 @@ void main() {
     final plist = read('ios/Runner/Info.plist');
     expect(plist, isNot(contains('<key>NSAllowsArbitraryLoads</key>')));
     expect(plist, contains('<key>NSAllowsLocalNetworking</key>'));
+    // S12 #29 (25.11): the build phase keeps the key only where the
+    // configuration's xcconfig says YES — the three dev configurations.
+    expect(
+      read('ios/Flutter/Common.xcconfig'),
+      contains('LAWBID_ALLOWS_LOCAL_NET = NO'),
+    );
+    for (final config in ['Debug', 'Profile', 'Release']) {
+      expect(
+        read('ios/Flutter/$config-dev.xcconfig'),
+        contains('LAWBID_ALLOWS_LOCAL_NET = YES'),
+        reason: '$config-dev',
+      );
+      for (final flavor in ['prod', 'staging']) {
+        expect(
+          read('ios/Flutter/$config-$flavor.xcconfig'),
+          isNot(contains('LAWBID_ALLOWS_LOCAL_NET')),
+          reason: '$config-$flavor',
+        );
+      }
+    }
+  });
+
+  test('pinning: the platforms pin the api and media hosts (S12 #25)', () {
+    // The full check (same keys on both platforms, live chain) is
+    // scripts/ci/cert-pins-check.mjs; here: the pins exist and fail open.
+    final nsc = read(
+      'android/app/src/main/res/xml/network_security_config.xml',
+    );
+    expect(nsc, contains('<pin-set expiration="'));
+    expect(nsc, contains('<domain includeSubdomains="false">api.lawbid.dev'));
+    final plist = read('ios/Runner/Info.plist');
+    expect(plist, contains('<key>NSPinnedDomains</key>'));
+    expect(plist, contains('<key>NSPinnedCAIdentities</key>'));
+    // Amazon Root CA 1, the ACM root of the API.
+    const amazonRoot1 = '++MBgDH5WGvL9Bcn5Be30cRcL0f5O+NyoXuWtQdX1aI=';
+    expect(nsc, contains(amazonRoot1));
+    expect(plist, contains(amazonRoot1));
+    // Every Android pin is on iOS too (each host there lists them all), and
+    // Let's Encrypt's Gen Y roots are in (their chains can end at Root YE /
+    // YR without X1/X2 once phones trust them).
+    final androidPins = RegExp('<pin digest="SHA-256">([^<]+)</pin>')
+        .allMatches(nsc)
+        .map((m) => m.group(1)!)
+        .toSet();
+    expect(androidPins.length, greaterThanOrEqualTo(18));
+    for (final pin in androidPins) {
+      expect(
+        '<string>$pin</string>'.allMatches(plist).length,
+        2,
+        reason: pin,
+      );
+    }
+    const rootYe = 'sCkq5UWXjg+7mKu9lMhhYF5bGLsy7VI/UNW3tccdR7w=';
+    const rootYr = 'fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=';
+    expect(androidPins, containsAll([rootYe, rootYr]));
+  });
+
+  test('secure screen: tapjacking guards and app-switcher cover (S12)', () {
+    final activity = read(
+      'android/app/src/main/kotlin/com/lawbid/lawbid/MainActivity.kt',
+    );
+    expect(activity, contains('window.setHideOverlayWindows(secure)'));
+    expect(
+      activity,
+      contains('window.decorView.filterTouchesWhenObscured = secure'),
+    );
+    expect(
+      read('android/app/src/main/AndroidManifest.xml'),
+      contains('android.permission.HIDE_OVERLAY_WINDOWS'),
+    );
+    final delegate = read('ios/Runner/AppDelegate.swift');
+    expect(delegate, contains('UIScene.willDeactivateNotification'));
+    expect(delegate, contains('UIScene.didActivateNotification'));
+    expect(
+      delegate,
+      contains('secureScreen && (UIScreen.main.isCaptured || resignedActive)'),
+    );
   });
 
   test('payment pages open in Safari on iOS, in-app tab on Android', () {
@@ -221,9 +310,9 @@ void main() {
     checkDir('ios/fastlane/metadata', ios, 39);
     checkDir('android/fastlane/metadata/android', play, 80);
     expect(checked, greaterThan(0));
-    for (final dir in Directory('ios/fastlane/metadata')
-        .listSync()
-        .whereType<Directory>()) {
+    for (final dir in Directory(
+      'ios/fastlane/metadata',
+    ).listSync().whereType<Directory>()) {
       final keywords =
           File('${dir.path}/keywords.txt').readAsStringSync().trim();
       expect(keywords, isNot(contains(', ')), reason: dir.path);

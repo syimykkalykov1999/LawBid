@@ -83,7 +83,16 @@ const TICKET_MAX_ATTEMPTS = 5;
 const TOTP_REPLAY_WINDOW_SECONDS = 95;
 const RECOVERY_CODES = 10;
 const LOGIN_PASSWORD_PER_LOGIN_PER_HOUR = 10;
-const NEUTRAL_QUESTION = 'Secret question';
+/** O2: how long the recovery ticket of step 1 lives (single use). */
+const RECOVER_TICKET_TTL_SECONDS = 600;
+const recoverTicketKey = (ticket: string): string =>
+  `adm:recover:${createHash('sha256').update(ticket).digest('hex')}`;
+/** One refusal for a wrong code, a wrong answer, an unknown login. */
+const recoveryFailed = () =>
+  new UnauthorizedException({
+    code: ErrorCode.ADMIN_RECOVERY_FAILED,
+    message: 'Recovery failed: check the login, the code and the answer.',
+  });
 const TOTP_ISSUER = 'LawBid Admin';
 /** Owner 2026-10-01: a step-up stays valid for 5 minutes of the session.
  * Owner 14.11 (row 179, B8): this is only the default — the owner sets the
@@ -103,6 +112,9 @@ export const ADMIN_AUDIT = {
   credentialsChanged: 'admin.credentials_changed',
   securityQuestionSet: 'admin.security_question_set',
   passwordRecovered: 'admin.password_recovered',
+  // O2 (25.11): the recovery form's second-factor step.
+  recoveryQuestionShown: 'admin.recovery_question_shown',
+  recoveryQuestionRefused: 'admin.recovery_question_refused',
   inviteCreated: 'admin.invite_created',
   inviteAccepted: 'admin.invite_accepted',
   onCallSet: 'admin.on_call_set',
@@ -1034,8 +1046,21 @@ export class AdminAuthService {
     });
   }
 
-  /** The question to show on the recovery form. */
-  async recoverQuestion(login: string, ip: string | null): Promise<string> {
+  /**
+   * STAGE2_SECURITY O2 (ASVS 5.0 V6.4.2 / V6.4.3), decided 25.11: the
+   * owner's secret-question reset stays, but it no longer replaces the
+   * second factor and the question is no longer shown to anyone who types
+   * the login. Step 1: login + the admin's authenticator code (or one
+   * recovery code, which is spent). Only then the question is shown, with a
+   * single-use recovery ticket (10 min) that step 2 must bring. A wrong
+   * code, an unknown login and a non-super admin get the same refusal.
+   */
+  async recoverQuestion(
+    login: string,
+    code: string,
+    ip: string | null,
+  ): Promise<{ question: string; ticket: string }> {
+    const cipher = this.assertConfigured();
     // Verify batch 11 (A6): the optional IP allowlist covers the recovery
     // form like the sign-in (it was checked on sign-in only).
     await this.security?.assertIpAllowed(ip);
@@ -1046,7 +1071,65 @@ export class AdminAuthService {
     );
     if (ip) await this.limit(['admin-recover-q', 'ip', ip], 20);
     const cred = await this.findSuperCredential(normalized);
-    return cred?.security_question ?? NEUTRAL_QUESTION;
+    // Review of #1340: no question set = nothing to recover with. Check it
+    // BEFORE the second factor, so a recovery code is never spent on a
+    // request that is refused anyway.
+    const ok =
+      cred !== null &&
+      cred.totp_enabled_at !== null &&
+      Boolean(cred.security_question) &&
+      (await this.secondFactorForRecovery(cipher, cred, code.trim()));
+    if (cred) {
+      await this.audit.record({
+        adminId: cred.user_id,
+        action: ok
+          ? ADMIN_AUDIT.recoveryQuestionShown
+          : ADMIN_AUDIT.recoveryQuestionRefused,
+        targetType: 'admin',
+        targetId: cred.user_id,
+        ip,
+      });
+    }
+    if (!ok || !cred?.security_question) throw recoveryFailed();
+    const ticket = randomBytes(32).toString('base64url');
+    await this.redis.set(
+      recoverTicketKey(ticket),
+      cred.user_id,
+      'EX',
+      RECOVER_TICKET_TTL_SECONDS,
+    );
+    return { question: cred.security_question, ticket };
+  }
+
+  /** The authenticator code (single use, RFC 6238 §5.2) or one recovery
+   * code (spent atomically), for the recovery form. */
+  private async secondFactorForRecovery(
+    cipher: SecretCipher,
+    cred: { user_id: string; totp_secret_enc: string | null },
+    code: string,
+  ): Promise<boolean> {
+    if (/^\d{6}$/.test(code)) {
+      if (!cred.totp_secret_enc) return false;
+      return (
+        verifyTotp(cipher.decrypt(cred.totp_secret_enc, cred.user_id), code) &&
+        (await this.redis.set(
+          `adm:totp:used:${cred.user_id}:${code}`,
+          '1',
+          'EX',
+          TOTP_REPLAY_WINDOW_SECONDS,
+          'NX',
+        )) === 'OK'
+      );
+    }
+    if (code.length < 6 || code.length > 64) return false;
+    const hash = hashRecoveryCode(code);
+    const rows = await this.prisma.$queryRaw<{ left: number }[]>`
+      UPDATE admin_credentials
+         SET recovery_codes_hash = array_remove(recovery_codes_hash, ${hash})
+       WHERE user_id = ${cred.user_id}::uuid
+         AND ${hash} = ANY(recovery_codes_hash)
+      RETURNING cardinality(recovery_codes_hash) AS left`;
+    return rows.length > 0;
   }
 
   /**
@@ -1059,6 +1142,7 @@ export class AdminAuthService {
     login: string,
     answer: string,
     newPassword: string,
+    ticket: string,
     ip: string | null,
   ): Promise<void> {
     this.assertConfigured();
@@ -1070,6 +1154,11 @@ export class AdminAuthService {
     );
     if (ip) await this.limit(['admin-recover', 'ip', ip], 10);
     const cred = await this.findSuperCredential(normalized);
+    // O2: the ticket from step 1 (the second factor), single use.
+    const owner = ticket
+      ? await this.redis.getdel(recoverTicketKey(ticket))
+      : null;
+    if (!cred || owner !== cred.user_id) throw recoveryFailed();
     const ok = await verifySecret(
       normalizeAnswer(answer),
       cred?.security_answer_hash ?? (await dummyHash()),
@@ -1078,12 +1167,7 @@ export class AdminAuthService {
     // it never signs in: the authenticator is still asked at the next
     // sign-in (owner 2026-10-22). Rate limited (5/h per login, 10/h per
     // IP), 4-character minimum answer, every session ends, audited.
-    if (!ok || !cred?.security_answer_hash) {
-      throw new UnauthorizedException({
-        code: ErrorCode.ADMIN_RECOVERY_FAILED,
-        message: 'The answer is not right.',
-      });
-    }
+    if (!ok || !cred?.security_answer_hash) throw recoveryFailed();
     const problem = passwordProblem(newPassword, normalized);
     if (problem) throw invalid(problem);
     await this.prisma.adminCredential.update({
@@ -1111,6 +1195,7 @@ export class AdminAuthService {
         security_question: true,
         security_answer_hash: true,
         totp_enabled_at: true,
+        totp_secret_enc: true,
         user: {
           select: {
             role: true,
