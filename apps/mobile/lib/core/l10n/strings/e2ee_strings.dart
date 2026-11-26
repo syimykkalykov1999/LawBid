@@ -43,9 +43,9 @@ const e2eeEn = <String, String>{
   'chat.e2ee.backupDone': 'Backup done. Messages: {count}',
   'chat.e2ee.backupEnterKey': 'Enter the 64-digit key',
   'chat.e2ee.backupHint':
-      'Your messages from this device, locked with a 64-digit key only you have. LawBid can\'t read the backup.',
+      "Your messages from this device, locked with a 64-digit key only you have. LawBid can't read the backup.",
   'chat.e2ee.backupKeyHint':
-      'Save this key. Without it the backup can\'t be restored.',
+      "Save this key. Without it the backup can't be restored.",
   'chat.e2ee.backupLast': 'Last backup: {date}',
   'chat.e2ee.backupNewKey': 'New key',
   'chat.e2ee.backupNone': 'No backup yet',
@@ -53,7 +53,7 @@ const e2eeEn = <String, String>{
   'chat.e2ee.backupRestored': 'Restored. Messages: {count}',
   'chat.e2ee.backupSaved': 'I saved the key',
   'chat.e2ee.backupTitle': 'Encrypted backup',
-  'chat.e2ee.backupWrongKey': 'This key doesn\'t open the backup',
+  'chat.e2ee.backupWrongKey': "This key doesn't open the backup",
   'chat.e2ee.encryption': 'Encryption',
   'chat.e2ee.encryptionHint':
       'Messages are end-to-end encrypted. Tap to verify.',
