@@ -63,6 +63,7 @@ import {
 } from './case-payments.dto';
 import { CasePaymentsService } from './case-payments.service';
 import { ShedPriority } from '../../common/resilience/shed-priority';
+import { SensitiveNoStore } from '../../common/cache/http-cache';
 
 const E = ErrorCode;
 type Page<T> = { items: T[]; nextCursor: string | null };
@@ -74,6 +75,8 @@ type Page<T> = { items: T[]; nextCursor: string | null };
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
 @ShedPriority('critical')
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller()
 export class CasePaymentsController {
   constructor(private readonly payments: CasePaymentsService) {}

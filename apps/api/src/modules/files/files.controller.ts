@@ -38,6 +38,7 @@ import {
   AssistantAllowed,
   RequiresDuty,
 } from '../auth/assistant/assistant-context';
+import { SensitiveNoStore } from '../../common/cache/http-cache';
 
 const E = ErrorCode;
 
@@ -63,6 +64,8 @@ const FILE_DUTIES = [
 @ApiTags('files')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('files')
 export class FilesController {
   constructor(

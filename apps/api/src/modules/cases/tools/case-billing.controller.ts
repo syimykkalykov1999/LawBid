@@ -36,6 +36,7 @@ import {
   UpdateTimeDto,
 } from './billing.dto';
 import { RequiresDuty } from '../../auth/assistant/assistant-context';
+import { SensitiveNoStore } from '../../../common/cache/http-cache';
 
 const E = ErrorCode;
 const ERR = {
@@ -49,6 +50,8 @@ const ERR = {
 @ApiTags('case-billing')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller()
 export class CaseBillingController {
   constructor(private readonly billing: CaseBillingService) {}

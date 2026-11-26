@@ -61,6 +61,7 @@ import { ReauthGuard } from '../../auth/guards/reauth.guard';
 import { ReauthVerifier } from '../../auth/services/reauth-verifier.service';
 import type { RequestMeta } from '../../auth/services/session.service';
 import { AssistantSelf } from '../../auth/assistant/assistant-context';
+import { SensitiveNoStore } from '../../../common/cache/http-cache';
 
 const E = ErrorCode;
 /** docs/01 §11 step 3A: ReauthGuard / ReauthVerifier (header name =
@@ -93,6 +94,8 @@ const IdempotencyKeyHeader = ApiHeader({
 // OQ-048: an assistant's own account (name, contacts, onboarding) — the
 // attorney's account is reached through every other route.
 @AssistantSelf()
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('users/me')
 export class UsersController {
   constructor(

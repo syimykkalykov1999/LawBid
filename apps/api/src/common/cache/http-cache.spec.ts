@@ -1,11 +1,16 @@
 import type { Response } from 'express';
-import { enforceCacheSafety, hasCredentials } from './http-cache';
+import {
+  enforceCacheSafety,
+  hasCredentials,
+  markSensitive,
+} from './http-cache';
 
 function fakeRes(headers: Record<string, string> = {}) {
   const h = new Map(
     Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]),
   );
   return {
+    locals: {},
     getHeader: (k: string) => h.get(k.toLowerCase()),
     setHeader: (k: string, v: string) => void h.set(k.toLowerCase(), v),
     h,
@@ -84,5 +89,31 @@ describe('enforceCacheSafety', () => {
     const b = fakeRes();
     enforceCacheSafety(get(), b, 304);
     expect(b.h.get('cache-control')).toBeUndefined();
+  });
+});
+
+/** ASVS 5.0 V14.3.2 (STAGE2_SECURITY #18). */
+describe('enforceCacheSafety: sensitive answers', () => {
+  it('a sensitive GET is private, no-store and still varies by Authorization', () => {
+    const res = fakeRes({ ETag: 'W/"x"' });
+    markSensitive(res);
+    enforceCacheSafety(get({ authorization: 'Bearer t' }), res, 200);
+    expect(res.h.get('cache-control')).toBe('private, no-store');
+    expect(res.h.get('vary')).toMatch(/Authorization/);
+    // The ETag is untouched: the app's own If-None-Match still gets 304.
+    expect(res.h.get('etag')).toBe('W/"x"');
+  });
+
+  it('even a handler that set its own private max-age cannot keep a sensitive answer', () => {
+    const res = fakeRes({ 'Cache-Control': 'private, max-age=60' });
+    markSensitive(res);
+    enforceCacheSafety(get({ authorization: 'Bearer t' }), res, 200);
+    expect(res.h.get('cache-control')).toBe('private, no-store');
+  });
+
+  it('an unmarked signed-in answer stays private, no-cache', () => {
+    const res = fakeRes();
+    enforceCacheSafety(get({ authorization: 'Bearer t' }), res, 200);
+    expect(res.h.get('cache-control')).toBe('private, no-cache');
   });
 });

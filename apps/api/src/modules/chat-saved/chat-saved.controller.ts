@@ -26,6 +26,7 @@ import {
   SavedChatQueryDto,
 } from './chat-saved.dto';
 import { ChatSavedService } from './chat-saved.service';
+import { SensitiveNoStore } from '../../common/cache/http-cache';
 
 /** Owner 2026-10-20: «Сохранённое» — chat messages, files, links and voice
  * notes kept for later. */
@@ -33,6 +34,8 @@ import { ChatSavedService } from './chat-saved.service';
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
 @RequiresDuty('chats')
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('saved-chat')
 export class ChatSavedController {
   constructor(private readonly saved: ChatSavedService) {}

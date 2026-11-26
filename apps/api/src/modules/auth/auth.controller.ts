@@ -88,6 +88,7 @@ import {
   QrLoginPreviewDto,
 } from './dto/qr-login.dto';
 import { ShedPriority } from '../../common/resilience/shed-priority';
+import { SensitiveNoStore } from '../../common/cache/http-cache';
 
 const E = ErrorCode;
 /** Global JwtAuthGuard 401s, for the routes that need a bearer token. */
@@ -133,6 +134,8 @@ const IdempotencyKeyHeader = ApiHeader({
 // attorney's devices out (OWASP ASVS V4.1.3 least privilege).
 @AssistantSelf()
 @ShedPriority('critical')
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('auth')
 // Owner 2026-10-22 (audit #7): the website's refresh token goes into an
 // HttpOnly cookie on every route that issues one (see web-session-cookie).

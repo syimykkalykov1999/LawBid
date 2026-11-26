@@ -38,6 +38,7 @@ import {
   AttorneyOnly,
   RequiresDuty,
 } from '../auth/assistant/assistant-context';
+import { SensitiveNoStore } from '../../common/cache/http-cache';
 
 const E = ErrorCode;
 
@@ -45,6 +46,8 @@ const E = ErrorCode;
 @ApiTags('case-comments')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller()
 export class CaseCommentsController {
   constructor(private readonly comments: CaseCommentsService) {}

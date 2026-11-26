@@ -38,6 +38,7 @@ import {
 } from './form-templates.dto';
 import { FormTemplatesService } from './form-templates.service';
 import { RequiresDuty } from '../../auth/assistant/assistant-context';
+import { SensitiveNoStore } from '../../../common/cache/http-cache';
 
 const E = ErrorCode;
 
@@ -45,6 +46,8 @@ const E = ErrorCode;
 @ApiTags('case-documents')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('cases/:id/documents')
 export class CaseDocumentsController {
   constructor(private readonly templates: FormTemplatesService) {}
@@ -88,6 +91,8 @@ export class CaseDocumentsController {
 @ApiTags('admin-form-templates')
 @AdminEndpoint('super_admin', 'moderator')
 @SkipAutoAudit()
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('admin/form-templates')
 export class AdminFormTemplatesController {
   constructor(private readonly templates: FormTemplatesService) {}
