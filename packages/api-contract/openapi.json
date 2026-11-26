@@ -28981,6 +28981,87 @@
         ]
       }
     },
+    "/posts/watch": {
+      "post": {
+        "description": "Owner 25.11: one event per ended reel view — watchedMs of real playback, durationMs of the clip, completed when it played to the end. Up to 50 per request; the same viewId again adds nothing.",
+        "operationId": "recordReelWatch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordReelWatchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record how long reel views played (batch, idempotent per view)",
+        "tags": [
+          "posts"
+        ]
+      }
+    },
     "/posts/{id}/insights": {
       "get": {
         "operationId": "postInsights",
@@ -107839,6 +107920,1579 @@
         ]
       }
     },
+    "/e2ee/devices": {
+      "post": {
+        "operationId": "registerMlsDevice",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterMlsDeviceDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MlsDeviceEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: E2EE_DEVICE_LIMIT, E2EE_MEMBERSHIP_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Register this device’s MLS signature key",
+        "tags": [
+          "e2ee"
+        ]
+      },
+      "get": {
+        "operationId": "listMlsDevices",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MlsDeviceListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My devices that read encrypted chats",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/devices/{id}": {
+      "delete": {
+        "operationId": "revokeMlsDevice",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Sign a device out of encrypted chats",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/devices/{id}/key-packages": {
+      "post": {
+        "operationId": "uploadMlsKeyPackages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadKeyPackagesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyPackageCountEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Upload one-time and last-resort KeyPackages",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/devices/{id}/key-packages/count": {
+      "get": {
+        "operationId": "countMlsKeyPackages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyPackageCountEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "How many KeyPackages this device has left",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/welcomes": {
+      "get": {
+        "operationId": "listMlsWelcomes",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MlsWelcomeListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Welcomes waiting for one of my devices",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/welcomes/{id}": {
+      "delete": {
+        "operationId": "ackMlsWelcome",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The device joined from this Welcome",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/conversations/{id}": {
+      "get": {
+        "operationId": "getConversationE2ee",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationE2eeEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Is this chat end-to-end encrypted, and its group",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/conversations/{id}/group": {
+      "post": {
+        "operationId": "createMlsGroup",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMlsGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationE2eeEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: E2EE_OFF, E2EE_EPOCH_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create the chat’s MLS group (epoch 0)",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/conversations/{id}/key-packages/claim": {
+      "post": {
+        "operationId": "claimMlsKeyPackages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimKeyPackagesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimedKeyPackageListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, E2EE_MEMBERSHIP_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One KeyPackage per device to add",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/conversations/{id}/rejoin": {
+      "post": {
+        "operationId": "requestMlsRejoin",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MlsRejoinDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My device could not join from its Welcome: re-add it",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/conversations/{id}/commits": {
+      "post": {
+        "operationId": "postMlsCommit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MlsCommitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MlsEpochEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, E2EE_MEMBERSHIP_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: E2EE_OFF, E2EE_EPOCH_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A commit for the group’s current epoch (adds / removes)",
+        "tags": [
+          "e2ee"
+        ]
+      },
+      "get": {
+        "operationId": "listMlsCommits",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "required": false,
+            "in": "query",
+            "description": "Commits made in this epoch and later (default 0).",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MlsCommitRowListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Commits from an epoch on (catch up)",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/conversations/{id}/reports": {
+      "post": {
+        "operationId": "reportInE2eeChat",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/E2eeReportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/E2eeReportResultEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, E2EE_MEMBERSHIP_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Report a person of an encrypted chat with their last messages (WhatsApp)",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/backup": {
+      "get": {
+        "operationId": "getE2eeBackup",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/E2eeBackupEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My encrypted chat backup",
+        "tags": [
+          "e2ee"
+        ]
+      },
+      "post": {
+        "operationId": "putE2eeBackup",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/E2eeBackupPutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/E2eeBackupEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Keep this encrypted file as my backup",
+        "tags": [
+          "e2ee"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteE2eeBackup",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete my encrypted chat backup",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
     "/saved-chat": {
       "get": {
         "operationId": "listSavedChat",
@@ -141136,7 +142790,12 @@
           "PAYMENT_TERMS_INVALID",
           "ROLE_SWITCH_BLOCKED",
           "ROLE_SWITCH_NOT_ALLOWED",
-          "EMAIL_SEND_FAILED"
+          "EMAIL_SEND_FAILED",
+          "E2EE_OFF",
+          "E2EE_REQUIRED",
+          "E2EE_EPOCH_CONFLICT",
+          "E2EE_DEVICE_LIMIT",
+          "E2EE_MEMBERSHIP_INVALID"
         ]
       },
       "ErrorBodyDto": {
@@ -147653,7 +149312,9 @@
           "post_attachment",
           "document_template",
           "support_attachment",
-          "ai_attachment"
+          "ai_attachment",
+          "chat_e2ee",
+          "chat_backup_e2ee"
         ]
       },
       "PresignFileDto": {
@@ -147669,7 +149330,7 @@
           "mime": {
             "type": "string",
             "example": "image/jpeg",
-            "description": "One of: image/jpeg, image/png, image/heic, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, audio/mp4, audio/webm, image/webp, image/gif, application/msword, application/vnd.ms-excel, application/vnd.ms-powerpoint, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.openxmlformats-officedocument.presentationml.presentation, application/vnd.oasis.opendocument.text, application/vnd.oasis.opendocument.spreadsheet, application/vnd.oasis.opendocument.presentation, application/rtf, text/plain, text/csv, video/mp4, video/quicktime, video/webm (allowed set depends on purpose)."
+            "description": "One of: image/jpeg, image/png, image/heic, application/pdf, application/vnd.openxmlformats-officedocument.wordprocessingml.document, audio/mp4, audio/webm, image/webp, image/gif, application/msword, application/vnd.ms-excel, application/vnd.ms-powerpoint, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.openxmlformats-officedocument.presentationml.presentation, application/vnd.oasis.opendocument.text, application/vnd.oasis.opendocument.spreadsheet, application/vnd.oasis.opendocument.presentation, application/rtf, text/plain, text/csv, video/mp4, video/quicktime, video/webm, application/vnd.lawbid.e2ee (allowed set depends on purpose)."
           },
           "sizeBytes": {
             "type": "number",
@@ -156967,6 +158628,58 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PostEventItemDto"
+            }
+          }
+        },
+        "required": [
+          "events"
+        ]
+      },
+      "ReelWatchItemDto": {
+        "type": "object",
+        "properties": {
+          "postId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "viewId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The app’s id of this view; the same id again (a retry) is counted once."
+          },
+          "watchedMs": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3600000,
+            "description": "Real playback in ms (paused, buffering and off-screen time excluded)."
+          },
+          "durationMs": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 3600000,
+            "description": "The clip’s length in ms (0 or absent = unknown)."
+          },
+          "completed": {
+            "type": "boolean",
+            "description": "The clip played to its end at least once in this view."
+          }
+        },
+        "required": [
+          "postId",
+          "viewId",
+          "watchedMs",
+          "completed"
+        ]
+      },
+      "RecordReelWatchDto": {
+        "type": "object",
+        "properties": {
+          "events": {
+            "minItems": 1,
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReelWatchItemDto"
             }
           }
         },
@@ -173726,7 +175439,8 @@
               "text/csv",
               "video/mp4",
               "video/quicktime",
-              "video/webm"
+              "video/webm",
+              "application/vnd.lawbid.e2ee"
             ],
             "example": "image/jpeg"
           },
@@ -178435,12 +180149,44 @@
           "data"
         ]
       },
+      "ModerationE2eeEvidenceDto": {
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "text": {
+            "type": "string"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "messageId",
+          "text",
+          "verified",
+          "sentAt"
+        ]
+      },
       "ModerationReportDto": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
             "format": "uuid"
+          },
+          "e2eeEvidence": {
+            "description": "Item 25: messages handed over from an encrypted chat.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModerationE2eeEvidenceDto"
+            }
           },
           "reporterId": {
             "type": "string",
@@ -178468,6 +180214,7 @@
         },
         "required": [
           "id",
+          "e2eeEvidence",
           "reporterId",
           "reason",
           "note",
@@ -200098,9 +201845,30 @@
               "gift",
               "contact",
               "place",
-              "post"
+              "post",
+              "mls"
             ],
             "type": "string"
+          },
+          "ciphertext": {
+            "type": "string",
+            "nullable": true,
+            "description": "Item 25 (type=mls): base64 MLS PrivateMessage; the app decrypts it. Null for other types."
+          },
+          "mlsEpoch": {
+            "type": "number",
+            "nullable": true,
+            "description": "Item 25 (type=mls): the group epoch of the message."
+          },
+          "blobUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Item 25 (type=mls with an encrypted file): a short link to the file's ciphertext (its key is inside the message)."
+          },
+          "frankingTag": {
+            "type": "string",
+            "nullable": true,
+            "description": "Item 25 (type=mls, message franking): base64 HMAC-SHA256(k, P) the sender stored; the receiver checks it against the plaintext it decrypted."
           },
           "gift": {
             "nullable": true,
@@ -200322,6 +202090,12 @@
             "type": "number",
             "nullable": true,
             "description": "Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off."
+          },
+          "e2eeSince": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Item 25: since when the chat is end-to-end encrypted (MLS); null = server-side encryption. GET /e2ee/conversations/:id has the details."
           },
           "mutedUntil": {
             "format": "date-time",
@@ -200624,7 +202398,8 @@
           "gift",
           "contact",
           "place",
-          "post"
+          "post",
+          "mls"
         ]
       },
       "SendMessageDto": {
@@ -200643,6 +202418,28 @@
                 "$ref": "#/components/schemas/SendMessageType"
               }
             ]
+          },
+          "ciphertext": {
+            "type": "string",
+            "description": "Item 25 (E2EE, type=mls): base64 of the MLS PrivateMessage (an\napplication message of the chat's group). The server stores only this.",
+            "maxLength": 131072,
+            "format": "base64"
+          },
+          "mlsEpoch": {
+            "type": "integer",
+            "description": "Item 25 (type=mls): the group epoch the message was encrypted in.",
+            "minimum": 0
+          },
+          "mlsDeviceId": {
+            "type": "string",
+            "description": "Item 25 (type=mls): the sending MLS device (POST /e2ee/devices).",
+            "format": "uuid"
+          },
+          "frankingTag": {
+            "type": "string",
+            "description": "Item 25 (type=mls, message franking): base64 of HMAC-SHA256(k, P)\nwhere P is the message's plaintext and k the 32-byte key inside it. A\nreport reveals P; the server checks it against this tag.",
+            "maxLength": 64,
+            "format": "base64"
           },
           "giftId": {
             "type": "string",
@@ -200994,6 +202791,715 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/PinsDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "MlsDevicePlatform": {
+        "type": "string",
+        "enum": [
+          "ios",
+          "android",
+          "macos",
+          "web"
+        ]
+      },
+      "MlsDeviceDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "signatureKey": {
+            "type": "string",
+            "description": "Base64 Ed25519 public signature key."
+          },
+          "platform": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MlsDevicePlatform"
+              }
+            ]
+          },
+          "identity": {
+            "type": "string",
+            "description": "The MLS credential identity this device must use."
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "userId",
+          "signatureKey",
+          "platform",
+          "identity",
+          "createdAt"
+        ]
+      },
+      "RegisterMlsDeviceDto": {
+        "type": "object",
+        "properties": {
+          "signatureKey": {
+            "type": "string",
+            "maxLength": 64,
+            "format": "base64",
+            "description": "Base64 of the Ed25519 public key of the device’s MLS credential (32 bytes)."
+          },
+          "platform": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MlsDevicePlatform"
+              }
+            ]
+          }
+        },
+        "required": [
+          "signatureKey",
+          "platform"
+        ]
+      },
+      "MlsDeviceEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MlsDeviceDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "MlsDeviceListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MlsDeviceDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "KeyPackageCountDto": {
+        "type": "object",
+        "properties": {
+          "oneTime": {
+            "type": "number",
+            "description": "One-time KeyPackages left on the server."
+          },
+          "lastResort": {
+            "type": "boolean"
+          },
+          "target": {
+            "type": "number",
+            "description": "chat.e2ee_key_packages_target: the app tops up below half of it."
+          }
+        },
+        "required": [
+          "oneTime",
+          "lastResort",
+          "target"
+        ]
+      },
+      "UploadKeyPackagesDto": {
+        "type": "object",
+        "properties": {
+          "keyPackages": {
+            "maxItems": 1000,
+            "description": "One-time KeyPackages (base64 MLSMessage, wire format mls_key_package). At most chat.e2ee_key_packages_target per call.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "base64",
+              "maxLength": 8192
+            }
+          },
+          "lastResort": {
+            "type": "string",
+            "maxLength": 8192,
+            "format": "base64",
+            "description": "The last-resort KeyPackage (RFC 9420 §16.8): handed out only when no one-time package is left, never deleted by a claim. Replaces the previous one."
+          }
+        },
+        "required": [
+          "keyPackages"
+        ]
+      },
+      "KeyPackageCountEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/KeyPackageCountDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "MlsWelcomeDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "conversationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "epoch": {
+            "type": "number",
+            "description": "The epoch the device joins into."
+          },
+          "welcome": {
+            "type": "string",
+            "description": "Base64 MLSMessage (mls_welcome)."
+          }
+        },
+        "required": [
+          "id",
+          "conversationId",
+          "epoch",
+          "welcome"
+        ]
+      },
+      "MlsWelcomeListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MlsWelcomeDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "ConversationE2eeState": {
+        "type": "string",
+        "enum": [
+          "off",
+          "pending",
+          "on"
+        ],
+        "description": "off = write as before (server-side encryption); pending = the first device may create the MLS group now; on = the chat is end-to-end encrypted (send type=mls)."
+      },
+      "ConversationE2eeOffReason": {
+        "type": "string",
+        "enum": [
+          "mode_off",
+          "demo",
+          "locked",
+          "too_many_members",
+          "devices_missing"
+        ]
+      },
+      "MlsGroupMemberDeviceDto": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "signatureKey": {
+            "type": "string",
+            "description": "Base64 Ed25519 public signature key."
+          },
+          "inGroup": {
+            "type": "boolean",
+            "description": "In the MLS group now."
+          }
+        },
+        "required": [
+          "deviceId",
+          "userId",
+          "signatureKey",
+          "inGroup"
+        ]
+      },
+      "ConversationE2eeDto": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "description": "off = write as before (server-side encryption); pending = the first device may create the MLS group now; on = the chat is end-to-end encrypted (send type=mls).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ConversationE2eeState"
+              }
+            ]
+          },
+          "reason": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ConversationE2eeOffReason"
+              }
+            ]
+          },
+          "groupId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Base64 MLS group_id."
+          },
+          "epoch": {
+            "type": "number",
+            "nullable": true
+          },
+          "since": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "devices": {
+            "description": "Active devices of the chat’s members (in the group or still to add).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MlsGroupMemberDeviceDto"
+            }
+          },
+          "removeDevices": {
+            "description": "Devices still in the group that must be removed first (signed out, or their person left the chat). MLS messages are refused until a commit removes them.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "state",
+          "devices",
+          "removeDevices"
+        ]
+      },
+      "ConversationE2eeEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ConversationE2eeDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CreateMlsGroupDto": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The creating device."
+          },
+          "groupId": {
+            "type": "string",
+            "maxLength": 88,
+            "format": "base64",
+            "description": "Base64 of the MLS group_id (≤ 64 bytes)."
+          }
+        },
+        "required": [
+          "deviceId",
+          "groupId"
+        ]
+      },
+      "ClaimedKeyPackageDto": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "keyPackage": {
+            "type": "string",
+            "nullable": true,
+            "description": "Base64 MLSMessage; null when the device has none left."
+          }
+        },
+        "required": [
+          "deviceId",
+          "userId"
+        ]
+      },
+      "ClaimKeyPackagesDto": {
+        "type": "object",
+        "properties": {
+          "deviceIds": {
+            "maxItems": 1024,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "deviceIds"
+        ]
+      },
+      "ClaimedKeyPackageListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ClaimedKeyPackageDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "MlsRejoinDto": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "My device that cannot join."
+          }
+        },
+        "required": [
+          "deviceId"
+        ]
+      },
+      "MlsEpochDto": {
+        "type": "object",
+        "properties": {
+          "epoch": {
+            "type": "number",
+            "description": "The group’s epoch after the commit."
+          }
+        },
+        "required": [
+          "epoch"
+        ]
+      },
+      "MlsCommitDto": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The committing device."
+          },
+          "epoch": {
+            "type": "number",
+            "minimum": 0,
+            "description": "The epoch the commit was made in."
+          },
+          "commit": {
+            "type": "string",
+            "maxLength": 98304,
+            "format": "base64",
+            "description": "Base64 MLSMessage with the commit (PublicMessage preferred: the server checks its adds)."
+          },
+          "addedDevices": {
+            "maxItems": 1024,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "removedDevices": {
+            "maxItems": 1024,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "welcome": {
+            "type": "string",
+            "maxLength": 131072,
+            "format": "base64",
+            "description": "Base64 MLSMessage (mls_welcome) for the added devices; required when any is added."
+          }
+        },
+        "required": [
+          "deviceId",
+          "epoch",
+          "commit",
+          "addedDevices",
+          "removedDevices"
+        ]
+      },
+      "MlsEpochEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MlsEpochDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "E2eeReportResultDto": {
+        "type": "object",
+        "properties": {
+          "reportId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "verified": {
+            "type": "number",
+            "description": "Messages whose franking tag matched."
+          },
+          "total": {
+            "type": "number",
+            "description": "Messages handed over in all."
+          }
+        },
+        "required": [
+          "reportId",
+          "verified",
+          "total"
+        ]
+      },
+      "E2eeReportReason": {
+        "type": "string",
+        "enum": [
+          "spam",
+          "abuse",
+          "harassment",
+          "hate_speech",
+          "fraud",
+          "inappropriate",
+          "personal_info",
+          "other"
+        ]
+      },
+      "E2eeReportedMessageDto": {
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "plaintext": {
+            "type": "string",
+            "maxLength": 131072,
+            "format": "base64",
+            "description": "Base64 of the message plaintext exactly as this device decrypted it (it holds the franking key `k`)."
+          }
+        },
+        "required": [
+          "messageId",
+          "plaintext"
+        ]
+      },
+      "E2eeReportDto": {
+        "type": "object",
+        "properties": {
+          "reportedUserId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The person reported."
+          },
+          "reason": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/E2eeReportReason"
+              }
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "messages": {
+            "maxItems": 100,
+            "description": "The reported person's last messages (at most chat.e2ee_report_messages), as WhatsApp sends them.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/E2eeReportedMessageDto"
+            }
+          }
+        },
+        "required": [
+          "reportedUserId",
+          "reason",
+          "messages"
+        ]
+      },
+      "E2eeReportResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/E2eeReportResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "E2eeBackupDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "keyId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Which key locks the backup (E2eeBackupPutDto.keyId)."
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "sizeBytes": {
+            "type": "number"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "sizeBytes",
+          "updatedAt"
+        ]
+      },
+      "E2eeBackupEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/E2eeBackupDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "E2eeBackupPutDto": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A clean chat_backup_e2ee file of mine."
+          },
+          "keyId": {
+            "type": "string",
+            "maxLength": 24,
+            "format": "base64",
+            "description": "Which 64-digit key locks it: base64 of HMAC-SHA256(backup key, \"lawbid-e2ee-backup-key-id\"), 16 bytes (the key itself never leaves the phone). WhatsApp: the same key serves every backup until the person makes a new one."
+          }
+        },
+        "required": [
+          "fileId",
+          "keyId"
+        ]
+      },
+      "MlsCommitRowDto": {
+        "type": "object",
+        "properties": {
+          "epoch": {
+            "type": "number"
+          },
+          "senderDeviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "commit": {
+            "type": "string",
+            "description": "Base64 MLSMessage."
+          },
+          "addedDevices": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "removedDevices": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "epoch",
+          "senderDeviceId",
+          "commit",
+          "addedDevices",
+          "removedDevices",
+          "createdAt"
+        ]
+      },
+      "MlsCommitRowListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MlsCommitRowDto"
+            }
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"

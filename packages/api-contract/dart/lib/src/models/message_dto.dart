@@ -32,6 +32,10 @@ class MessageDto {
     required this.pinned,
     this.senderId,
     this.sentByAssistant,
+    this.ciphertext,
+    this.mlsEpoch,
+    this.blobUrl,
+    this.frankingTag,
     this.gift,
     this.contact,
     this.post,
@@ -57,6 +61,18 @@ class MessageDto {
   /// OQ-048: sent by the attorney's assistant — their name (shown as "Assistant of …").
   final String? sentByAssistant;
   final MessageDtoType type;
+
+  /// Item 25 (type=mls): base64 MLS PrivateMessage; the app decrypts it. Null for other types.
+  final String? ciphertext;
+
+  /// Item 25 (type=mls): the group epoch of the message.
+  final num? mlsEpoch;
+
+  /// Item 25 (type=mls with an encrypted file): a short link to the file's ciphertext (its key is inside the message).
+  final String? blobUrl;
+
+  /// Item 25 (type=mls, message franking): base64 HMAC-SHA256(k, P) the sender stored; the receiver checks it against the plaintext it decrypted.
+  final String? frankingTag;
 
   /// Owner 2026-10-20: the gift of a gift message.
   final GiftSendDto? gift;

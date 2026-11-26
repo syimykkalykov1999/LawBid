@@ -673,7 +673,7 @@ describe('Auth hardening (e2e)', () => {
       }
     });
 
-    it('S14-12 / owner 2026-11-07: no SMS step-up or link code (password only)', async () => {
+    it('S14-12 / owner 2026-11-07 / 25.11: a step-up SMS only to the own number, for this session; no link code by SMS', async () => {
       const phone = '+12025558702';
       const tokens = await otpLogin('phone', phone, 'reauth-dev');
       const bearer = { Authorization: `Bearer ${tokens.accessToken}` };
@@ -691,21 +691,32 @@ describe('Auth hardening (e2e)', () => {
           .send({ method: 'otp', identifier: phone, code: FIXED_CODE });
         expect(plain.status).toBe(401);
         expect(plain.body.error.code).toBe('REAUTH_INVALID');
-        // Owner 2026-11-07: an SMS is only for registration and a forgotten
-        // password — a step-up / link code by SMS is refused for everyone.
-        for (const purpose of ['reauth', 'link']) {
-          const signedIn = await api()
-            .post('/api/v1/auth/otp/request')
-            .set(bearer)
-            .set('X-Forwarded-For', ipOf(61))
-            .send({ channel: 'phone', identifier: phone, purpose });
-          expect(signedIn.status).toBe(400);
-          expect(signedIn.body.error.code).toBe('VALIDATION_ERROR');
-          const anon = await api()
-            .post('/api/v1/auth/otp/request')
-            .send({ channel: 'phone', identifier: phone, purpose });
-          expect(anon.status).toBe(400);
-        }
+        // Owner 2026-11-07: a link code by SMS is refused for everyone.
+        const link = await api()
+          .post('/api/v1/auth/otp/request')
+          .set(bearer)
+          .set('X-Forwarded-For', ipOf(61))
+          .send({ channel: 'phone', identifier: phone, purpose: 'link' });
+        expect(link.status).toBe(400);
+        expect(link.body.error.code).toBe('VALIDATION_ERROR');
+        // Owner 25.11 («по умолчанию SMS»): a step-up code goes by SMS to
+        // the signed-in person's own verified number; a stranger gets none.
+        const anon = await api()
+          .post('/api/v1/auth/otp/request')
+          .send({ channel: 'phone', identifier: phone, purpose: 'reauth' });
+        expect(anon.status).toBe(401);
+        const stepUp = await api()
+          .post('/api/v1/auth/otp/request')
+          .set(bearer)
+          .set('X-Forwarded-For', ipOf(61))
+          .send({ channel: 'phone', identifier: phone, purpose: 'reauth' });
+        expect(stepUp.status).toBe(200);
+        const ok = await api()
+          .post('/api/v1/auth/reauth')
+          .set(bearer)
+          .send({ method: 'otp', identifier: phone, code: FIXED_CODE });
+        expect(ok.status).toBe(201);
+        expect(typeof ok.body.data.reauthToken).toBe('string');
       } finally {
         await setting('security.otp_legacy_purpose_fallback', true);
       }

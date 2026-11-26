@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-314 tables.
+322 tables.
 
 ```mermaid
 erDiagram
@@ -848,6 +848,7 @@ erDiagram
     enum_ChatPairKind pair_kind
     DateTime last_message_at "nullable"
     Int disappear_after_s "nullable"
+    DateTime e2ee_since "nullable"
     String last_message_id "nullable"
     DateTime created_at
     DateTime updated_at
@@ -972,6 +973,9 @@ erDiagram
     String reply_to_id FK "nullable"
     Boolean forwarded
     String forwarded_from_name "nullable"
+    Bytes ciphertext "nullable"
+    Int mls_epoch "nullable"
+    Bytes franking_tag "nullable"
     DateTime created_at
     DateTime updated_at
     Int shard_id
@@ -981,6 +985,71 @@ erDiagram
     String conversation_id PK
     Bytes token PK
     String message_id PK
+    DateTime created_at
+  }
+  mls_devices {
+    String id PK
+    String user_id FK
+    Bytes signature_key
+    String platform
+    DateTime created_at
+    DateTime last_seen_at
+    DateTime revoked_at "nullable"
+  }
+  mls_key_packages {
+    String id PK
+    String device_id FK
+    Bytes data
+    Boolean last_resort
+    DateTime created_at
+  }
+  mls_groups {
+    String conversation_id PK
+    Bytes group_id UK
+    Int epoch
+    String created_by_device
+    DateTime created_at
+    DateTime updated_at
+  }
+  mls_commits {
+    String conversation_id PK
+    Int epoch PK
+    String sender_device_id
+    Bytes data
+    DateTime created_at
+  }
+  mls_group_devices {
+    String conversation_id PK
+    String device_id PK
+    String user_id
+    Int joined_epoch
+    DateTime created_at
+    DateTime rejoin_at "nullable"
+  }
+  e2ee_backups {
+    String user_id PK,FK
+    String file_id
+    String key_id "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  e2ee_report_evidence {
+    String id PK
+    String report_id FK
+    String message_id
+    String conversation_id
+    String sender_id "nullable"
+    String body
+    Boolean verified
+    DateTime sent_at
+    DateTime created_at
+  }
+  mls_welcomes {
+    String id PK
+    String conversation_id
+    String device_id
+    Int epoch
+    Bytes data
     DateTime created_at
   }
   message_hidden {
@@ -1350,6 +1419,7 @@ erDiagram
     DateTime processed_at "nullable"
     Int attempts
     DateTime created_at
+    DateTime dead_at "nullable"
   }
   reports {
     String id PK
@@ -4152,6 +4222,10 @@ erDiagram
   messages }o--o| stickers : "sticker_id"
   messages }o--o| gift_sends : "gift_send_id"
   messages }o--o| messages : "conversation_id, reply_to_id"
+  mls_devices }o--|| users : "user_id"
+  mls_key_packages }o--|| mls_devices : "device_id"
+  e2ee_backups |o--|| users : "user_id"
+  e2ee_report_evidence }o--|| reports : "report_id"
   message_hidden }o--|| messages : "conversation_id, message_id"
   message_reactions }o--|| messages : "conversation_id, message_id"
   message_edits }o--|| messages : "conversation_id, message_id"

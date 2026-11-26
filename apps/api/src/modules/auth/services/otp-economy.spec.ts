@@ -34,7 +34,8 @@ function setup(limited: boolean) {
 const PHONE = '+14155552680';
 
 describe('OtpService SMS under the economy guard', () => {
-  it.each(['login', 'reset'] as const)(
+  // Owner 25.11: the step-up code to the own number is an SMS case too.
+  it.each(['login', 'reset', 'reauth'] as const)(
     'still sends the %s SMS while limited',
     async (purpose) => {
       const { service, sms } = setup(true);
@@ -44,15 +45,16 @@ describe('OtpService SMS under the economy guard', () => {
   );
 });
 
-// Owner rule (memory sms-two-cases): an SMS code only at registration
-// (`login`) and «Забыл пароль» (`reset`) — whatever the economy state.
-describe('OtpService sends an SMS for registration and reset only', () => {
-  it('pins the two purposes', () => {
-    expect([...SMS_OTP_PURPOSES]).toEqual(['login', 'reset']);
+// Owner rule (memory sms-two-cases, widened 25.11): an SMS code only at
+// registration (`login`), «Забыл пароль» (`reset`) and the step-up code to
+// the own verified number (`reauth`) — whatever the economy state.
+describe('OtpService sends an SMS for registration, reset and step-up only', () => {
+  it('pins the three purposes', () => {
+    expect([...SMS_OTP_PURPOSES]).toEqual(['login', 'reset', 'reauth']);
   });
 
   it.each(
-    (['contact', 'reauth', 'link'] as const).flatMap((p) =>
+    (['contact', 'link'] as const).flatMap((p) =>
       [false, true].map((limited) => [p, limited] as const),
     ),
   )(

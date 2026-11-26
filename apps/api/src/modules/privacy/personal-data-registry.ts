@@ -57,6 +57,12 @@ export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   NotificationQuietHours: ['user_id'],
   PushToken: ['user_id'],
   VoipToken: ['user_id'],
+  // Item 25 (E2EE): the person's MLS devices (their KeyPackages go with
+  // them, FK cascade). Their places in chat groups are NOT swept: see
+  // MlsGroupDevice under `pseudonymize`.
+  MlsDevice: ['user_id'],
+  // The person's encrypted backup pointer (the file goes with their files).
+  E2eeBackup: ['user_id'],
   SavedItem: ['user_id'],
   SavedChatMessage: ['user_id'],
   QuickReply: ['user_id'],
@@ -188,6 +194,12 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'DemoAccount',
     ),
     pseudonymize: list(
+      // Item 25 (E2EE): a place in a chat's MLS group holds only ids. It
+      // stays (pointing at the pseudonymized user) until a member's commit
+      // removes that device (RFC 9420 §12.1.3 Remove); deleting the row
+      // first would leave the device in the group for good, because the
+      // Delivery Service refuses a Remove of a device it does not know.
+      'MlsGroupDevice',
       'StickerPack',
       'CallParticipant',
       'ConversationParticipant',
@@ -251,6 +263,8 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'OutreachActivity',
       'AttorneyTrust',
       'Report',
+      // Item 25: what an encrypted-chat report carried stays with the report.
+      'E2eeReportEvidence',
       'ModerationAppeal',
       'DmcaNotice',
       'CountryPartner',

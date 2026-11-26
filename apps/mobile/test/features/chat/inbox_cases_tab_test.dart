@@ -149,9 +149,11 @@ void main() {
       ),
       findsOneWidget,
     );
-    for (final f in ['all', 'groups', 'waiting', 'requests']) {
+    for (final f in ['all', 'groups', 'requests']) {
       expect(_chip(f), findsOneWidget, reason: f);
     }
+    // Owner 2026-11-25: no «Ожидают ответа» chip either.
+    expect(_chip('waiting'), findsNothing);
     expect(_chip('unread'), findsNothing);
     expect(_chip('cases'), findsNothing);
     // The count the «Кейсы» chip had is on the «Кейсы» tab.

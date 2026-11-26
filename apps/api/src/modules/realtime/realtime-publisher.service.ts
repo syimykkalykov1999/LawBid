@@ -135,6 +135,10 @@ export type RealtimeEvent =
   | 'group:member_removed'
   | 'poll:update'
   | 'conversation:update'
+  // Item 25 (E2EE, MLS): a chat's group moved to a new epoch (a commit was
+  // accepted) / a Welcome waits for one of my devices.
+  | 'e2ee:commit'
+  | 'e2ee:welcome'
   // Owner 2026-10-22 (load audit finding 2): I read a chat (any device) —
   // the chat lists drop its unread pill locally.
   | 'conversation:read'

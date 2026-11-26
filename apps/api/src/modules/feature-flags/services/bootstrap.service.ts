@@ -38,6 +38,9 @@ import {
 } from '../../calls/video-call-provider';
 import { SecretsService } from '../../../common/secrets/secrets.service';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import { parseSwitchMode } from '../../../common/app-settings/switch-mode';
+import { CodeChannelService } from '../../../common/app-settings/code-channel.service';
+import { EMAIL_FLOWS_FLAG } from '../email-flows';
 import {
   UPLOAD_LIMITS_KEY,
   sanitizeUploadLimits,
@@ -219,6 +222,8 @@ export class BootstrapService {
     @Optional() private readonly secrets?: SecretsService,
     @Optional() private readonly config?: ConfigService,
     @Optional() private readonly settings?: AppSettingsService,
+    // Owner 25.11: `auth.code_channel`, resolved (Авто → SES ready or not).
+    @Optional() private readonly codeChannel?: CodeChannelService,
   ) {}
 
   /**
@@ -642,11 +647,21 @@ export class BootstrapService {
             PUBLIC_CONFIG_PREFIXES.some((p) => k.startsWith(p)),
           ),
         ),
+        // Item 25 (owner switch rule): the app hides what belongs to
+        // end-to-end encryption (the encrypted backup row) while the admin's
+        // chat.e2ee_mode is Выкл. Always present, as off / on / auto.
+        'chat.e2ee_mode': parseSwitchMode(
+          appConfig['chat.e2ee_mode'] ?? APP_SETTINGS['chat.e2ee_mode'],
+        ),
         // Dedup D-12: `guest.browsing_enabled` is the one master switch (it is
         // also the server's gate for token-less reads). The apps are told
         // "browse as guest" only while it is on, so an app never offers what
         // the API would answer with 401.
         ...this.guestBrowseKeys(appConfig, flags),
+        // Owner 25.11: where a confirmation code goes (`sms` / `email`, Авто
+        // already resolved); the app names the target from it and the
+        // person's own verified contacts, the server sends to the same one.
+        'auth.code_channel': await this.codeChannelForApp(flags),
         ...this.smsDisclosureKeys(appConfig),
         // Owner 2026-10-07 (bug 17): the app shows and checks the admin's
         // upload limits (always present, inside the safe ceilings).
@@ -665,6 +680,17 @@ export class BootstrapService {
           doc.published_at === null ? null : new Date(doc.published_at),
       })),
     };
+  }
+
+  /** `sms` unless the admin's channel resolves to the e-mail AND e-mail
+   * flows (`email_login`) are on — the same rule AuthService sends by. */
+  private async codeChannelForApp(
+    flags: Record<string, boolean>,
+  ): Promise<'sms' | 'email'> {
+    const preferred = await this.codeChannel?.preferred().catch(() => 'phone');
+    return preferred === 'email' && flags[EMAIL_FLOWS_FLAG] !== false
+      ? 'email'
+      : 'sms';
   }
 
   /** Drops the cached content (for a writer of languages/legal

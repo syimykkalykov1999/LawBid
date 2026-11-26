@@ -285,4 +285,73 @@ describe('RankingEventsService', () => {
       expect(createMany).not.toHaveBeenCalled();
     });
   });
+
+  // Owner 25.11 (TikTok / YouTube watch-time logging): one row per reel view.
+  describe('reel watch time', () => {
+    function withNx() {
+      const { svc, createMany } = build();
+      const keys = new Set<string>();
+      const redis = {
+        set: jest.fn((k: string) => {
+          if (keys.has(k)) return Promise.resolve(null);
+          keys.add(k);
+          return Promise.resolve('OK');
+        }),
+      };
+      (svc as unknown as { redis: unknown }).redis = redis;
+      return { svc, createMany, redis };
+    }
+    const view = (over: Record<string, unknown> = {}) => ({
+      postId: 'reel-1',
+      viewId: randomUUID(),
+      watchedMs: 12_345.6,
+      durationMs: 15_000,
+      completed: true,
+      ...over,
+    });
+
+    it('a watch row on the reels surface: value = watched ms, features with completion', async () => {
+      const { svc, createMany, redis } = withNx();
+      const u = randomUUID();
+      const v = view();
+      await svc.logWatch(u, v);
+      await svc.flush();
+      expect(createMany.mock.calls[0][0].data).toEqual([
+        expect.objectContaining({
+          kind: 'watch',
+          user_id: u,
+          surface: 'reels',
+          item_id: 'reel-1',
+          value: 12_346,
+          features: { watched_ms: 12_346, duration_ms: 15_000, completed: 1 },
+        }),
+      ]);
+      expect(redis.set).toHaveBeenCalledWith(
+        `rk:watch:${u}:${v.viewId}`,
+        '1',
+        'EX',
+        86_400,
+        'NX',
+      );
+    });
+
+    it('idempotent: the same view id reported twice is one row', async () => {
+      const { svc, createMany } = withNx();
+      const u = randomUUID();
+      const v = view({ completed: false });
+      await svc.logWatch(u, v);
+      await svc.logWatch(u, v);
+      await svc.logWatch(u, view());
+      await svc.flush();
+      expect(createMany.mock.calls[0][0].data).toHaveLength(2);
+    });
+
+    it('sampled like impressions: nothing for a person outside the sample', async () => {
+      const { svc, createMany } = withNx();
+      jest.spyOn(svc, 'keepsImpressionsOf').mockResolvedValue(false);
+      await svc.logWatch(randomUUID(), view());
+      await svc.flush();
+      expect(createMany).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -64,6 +64,8 @@ import {
   type Tier,
   stripeFeeFrom,
   type StripeFee,
+  replicaFirstControl,
+  type ReplicaFirstControl,
 } from './economy.rules';
 
 export const ECONOMY_FLAG = 'economy_guard';
@@ -681,6 +683,7 @@ export class EconomyService {
         this.settingsSvc.string('scale.spot_fallback.mode').catch(() => 'auto'),
       ]);
       const tri = (m: string) => (m === 'on' || m === 'off' ? m : 'auto');
+      const replicaFirst = await this.replicaFirstControl().catch(() => null);
       // An unreadable tuning = no split (the Lambda keeps Terraform's).
       const ecsTuning =
         (await Promise.resolve()
@@ -699,6 +702,10 @@ export class EconomyService {
           mode: tri(spotMode),
           ...(want && Object.keys(want).length ? { want } : {}),
         },
+        // Item 28 (AU4): modules/db-autoscale reads this (read copy first,
+        // primary size second). Unreadable settings = section left out, the
+        // Lambda then resizes as before.
+        ...(replicaFirst ? { db_replica_first: replicaFirst } : {}),
       });
       const last = await this.redis.get(SCALE_CONTROLS_KEY);
       if (last === body) return;
@@ -712,6 +719,20 @@ export class EconomyService {
     } catch (e) {
       this.fail('scale_controls', e);
     }
+  }
+
+  /** Item 28 (AU4): the db-autoscale Lambda's «read copy first» control
+   * (replicaFirstControl in economy.rules.ts decides `possible`). */
+  async replicaFirstControl(): Promise<ReplicaFirstControl> {
+    const [mode, wait, max, replicas, reads, auto] = await Promise.all([
+      this.settingsSvc.string('scale.db_replica_first.mode'),
+      this.settingsSvc.number('scale.db_replica_first.wait_minutes'),
+      this.settingsSvc.number('scale.db_replica_first.max_replicas'),
+      this.settingsSvc.string('infra.mode.rds_replicas'),
+      this.settingsSvc.string('db.replica_reads'),
+      this.settingsSvc.string('infra.auto_mode'),
+    ]);
+    return replicaFirstControl({ mode, wait, max, replicas, reads, auto });
   }
 
   private fail(step: string, e: unknown): { error: string } {

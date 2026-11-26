@@ -6,6 +6,9 @@ function setup(rows: unknown[] = []) {
   const prisma = {
     subscription: { findMany: jest.fn(() => Promise.resolve(rows)) },
     notification: { findFirst: jest.fn(() => Promise.resolve(null)) },
+    stripeWebhookEvent: {
+      updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
+    },
   };
   const dlq = { add: jest.fn(() => Promise.resolve()) };
   const queue = {
@@ -21,7 +24,7 @@ function setup(rows: unknown[] = []) {
     { emit: jest.fn(() => Promise.resolve()) } as never,
   );
   Object.assign(runner, { dlq, subscriptionsQueue: queue });
-  return { runner, dlq, queue };
+  return { runner, dlq, queue, prisma };
 }
 
 const stalled = new Error('job stalled more than allowable limit');
@@ -42,6 +45,15 @@ describe('BillingRunner failed jobs (verify batch 13)', () => {
       expect.objectContaining({ eventId: 'evt_1' }),
       expect.objectContaining({ jobId: 'evt_1' }),
     );
+  });
+
+  it('item 8 (25.11): the stored event is marked dead, so the requeue sweep skips it', async () => {
+    const { runner, prisma } = setup();
+    await runner.onFailed(STRIPE_WEBHOOKS_QUEUE, job(1), stalled);
+    expect(prisma.stripeWebhookEvent.updateMany).toHaveBeenCalledWith({
+      where: { stripe_event_id: 'evt_1', processed_at: null },
+      data: { dead_at: expect.any(Date) as Date },
+    });
   });
 
   it('Q2: an ordinary failed attempt does not (the processor owns the last-attempt DLQ)', async () => {

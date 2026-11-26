@@ -716,6 +716,36 @@ variable "api_native_deploy" {
   default     = "off"
   description = "X1: ECS built-in canary for the api: off (today: rolling + our canary script) | prepare | canary | linear. Prod stays off until the owner switches it after staging (docs/runbooks/DEPLOY_SAFETY.md «Встроенный canary ECS»)."
 }
+variable "predictive_scaling_enabled" {
+  type        = bool
+  default     = true
+  description = "Item 27: the api predictive scaling policy (created ForecastOnly, $0; the admin infra.predictive_scaling_mode switches it)."
+}
+variable "redis_serverless_mode" {
+  type        = string
+  default     = "off"
+  description = "Item 29: off (today) | standby | on — ElastiCache Serverless Valkey (docs/runbooks/valkey-serverless.md). Only by the runbook."
+}
+variable "redis_serverless_max_data_gb" {
+  type        = number
+  default     = 10
+  description = "Item 29: ceiling of stored GB of the serverless Valkey (cache_usage_limits)."
+}
+variable "redis_serverless_max_ecpu_per_second" {
+  type        = number
+  default     = 100000
+  description = "Item 29: ceiling of ECPU per second of the serverless Valkey (cache_usage_limits)."
+}
+variable "redis_node_group_enabled" {
+  type        = bool
+  default     = true
+  description = "Item 29: keep the node-based Valkey group; false only after 7 days on Serverless (docs/runbooks/valkey-serverless.md «Убрать старые узлы»)."
+}
+variable "redis_serverless_snapshot_arn" {
+  type        = string
+  default     = ""
+  description = "Item 29: backup ARN that seeds the serverless cache at creation (runbook write-pause step)."
+}
 variable "deploy_rollback_on_slo" {
   type        = bool
   default     = false
@@ -944,6 +974,16 @@ variable "alb_deletion_protection" {
   type    = bool
   default = true
 }
+# G2 (STAGE2_ARCH_PERF_2026-11-25): prod balances REST by outstanding requests
+# with no stickiness (AWS ELB "Edit target group attributes": least outstanding
+# requests for requests of unequal cost); only /socket.io/* stays sticky on its
+# own target group. The first apply with these ON re-registers the api service
+# in the second group, so both stay OFF here: otherwise every admin «Авто» /
+# «Масштаб» infra plan would carry that ALB + ECS change before the owner's
+# night apply. Owner: set both true in tfvars and apply at night
+# (docs/runbooks/infra-hardening.md, section 6). Works with the ECS built-in
+# canary (api_native_deploy): the socket group gets its own green pair
+# (api-ws-green, weighted rule 7) on `prepare`.
 variable "alb_least_outstanding_requests" {
   type    = bool
   default = false

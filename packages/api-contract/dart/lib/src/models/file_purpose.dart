@@ -40,6 +40,10 @@ enum FilePurpose {
   supportAttachment('support_attachment'),
   @JsonValue('ai_attachment')
   aiAttachment('ai_attachment'),
+  @JsonValue('chat_e2ee')
+  chatE2ee('chat_e2ee'),
+  @JsonValue('chat_backup_e2ee')
+  chatBackupE2ee('chat_backup_e2ee'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
