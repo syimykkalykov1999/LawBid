@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_database.dart';
@@ -72,6 +73,6 @@ final e2eeServiceProvider = Provider<E2eeService?>((ref) {
 Future<SignOutServerCall?> e2eeSignOutHook(WidgetRef ref) async {
   final id = await ref.read(e2eeServiceProvider)?.signOutDevice();
   if (id == null) return null;
-  return (dio, extras) =>
+  return (Dio dio, Map<String, dynamic> extras) =>
       api.E2eeClient(dio).revokeMlsDevice(id: id, extras: extras);
 }

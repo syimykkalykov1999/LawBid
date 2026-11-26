@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// A server call a feature needs after this device signs out (the session
 /// is already cleared, so it gets the old bearer in [extras]).
 typedef SignOutServerCall = Future<Object?> Function(
-    Dio dio, Map<String, dynamic> extras);
+  Dio dio,
+  Map<String, dynamic> extras,
+);
 
 /// Runs on this device BEFORE the session is cleared (local keys of the
 /// account go here) and may hand back one server call for afterwards.
