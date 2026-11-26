@@ -22,8 +22,10 @@ import 'package:lawbid/core/permissions/permission_primer_host.dart';
 import 'package:lawbid/core/platform/web_consent_notice.dart';
 import 'package:lawbid/core/platform/web_safe_area.dart';
 import 'package:lawbid/core/platform/web_tab_title.dart';
+import 'package:lawbid/core/session/sign_out_hooks.dart';
 import 'package:lawbid/core/theme/preferences_sync.dart';
 import 'package:lawbid/features/calls/presentation/call_host.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_providers.dart';
 import 'package:lawbid/features/hotline/presentation/hotline_attorney_host.dart';
 import 'package:lawbid/features/hotline/presentation/hotline_host.dart';
 import 'package:lawbid/features/onboarding/application/countries_providers.dart';
@@ -43,6 +45,8 @@ class LawBidApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Sign-out steps owned by features (core/session/sign_out_hooks.dart).
+    SignOutHooks.register(e2eeSignOutHook);
     // Mirrors theme/language to PATCH /users/me while signed in and applies
     // the account's values after login (core/theme/preferences_sync.dart).
     ref

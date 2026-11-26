@@ -8,8 +8,8 @@ import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/session/sign_out_hooks.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
-import 'package:lawbid/features/chat/e2ee/e2ee_providers.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -39,15 +39,10 @@ Future<void> signOut(WidgetRef ref) async {
   final dio = ref.read(dioProvider);
   // docs/05 §9.5: this device stops getting pushes for the account.
   final tokens = ref.read(pushServiceProvider).detachForSignOut();
-  // Item 25 (WhatsApp: a signed-out device leaves every encrypted chat):
-  // its MLS keys and groups are deleted here and the device is signed out
-  // on the server, so it never counts against chat.e2ee_max_devices.
-  String? mlsDevice;
-  try {
-    mlsDevice = await ref.read(e2eeServiceProvider)?.signOutDevice();
-  } on Object {
-    mlsDevice = null;
-  }
+  // Steps owned by features (core/session/sign_out_hooks.dart), e.g.
+  // item 25: the MLS keys and groups of this device are deleted and the
+  // device is signed out on the server (WhatsApp).
+  final featureCalls = await SignOutHooks.run(ref);
   await ref.read(sessionControllerProvider.notifier).clear();
   if (bearer != null) {
     unawaited(
@@ -56,7 +51,7 @@ Future<void> signOut(WidgetRef ref) async {
         bearer,
         voip: tokens.voip,
         push: tokens.push,
-        mlsDevice: mlsDevice,
+        featureCalls: featureCalls,
       ),
     );
   }
@@ -95,7 +90,7 @@ Future<void> _tellServer(
   String bearer, {
   required String? voip,
   required String? push,
-  String? mlsDevice,
+  List<SignOutServerCall> featureCalls = const [],
 }) async {
   final extras = <String, dynamic>{
     RequestFlags.bearer: bearer,
@@ -118,13 +113,7 @@ Future<void> _tellServer(
           extras: extras,
         ),
       ),
-    if (mlsDevice != null)
-      _repeated(
-        () => api.E2eeClient(dio).revokeMlsDevice(
-          id: mlsDevice,
-          extras: extras,
-        ),
-      ),
+    for (final c in featureCalls) _repeated(() => c(dio, extras)),
   ]);
   await _repeated(() => api.AuthClient(dio).logout(extras: extras));
 }
