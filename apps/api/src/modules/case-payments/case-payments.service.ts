@@ -2500,8 +2500,12 @@ export class CasePaymentsService {
         email,
         name,
         metadata: { userId: clientId },
+        // THIRD_PASS_A I5: a parallel first payment gets the same customer.
+        idempotencyKey: `conn-cust:${clientId}:${accountId}`,
       });
-      await this.prisma.connectedCustomer.upsert({
+      // The STORED row wins (update: {} keeps it): a create that raced
+      // past the read above uses the customer already saved, never its own.
+      const row = await this.prisma.connectedCustomer.upsert({
         where: {
           client_id_stripe_account_id: {
             client_id: clientId,
@@ -2514,8 +2518,9 @@ export class CasePaymentsService {
           stripe_customer_id: id,
         },
         update: {},
+        select: { stripe_customer_id: true },
       });
-      return id;
+      return row.stripe_customer_id;
     } catch (e) {
       this.logger.warn(`connected customer failed: ${String(e)}`);
       return null;

@@ -973,14 +973,31 @@ export class FakePaymentProvider implements PaymentProvider {
   /** Customers created on connected accounts (saved cards), for tests. */
   readonly connectedCustomers: { accountId: string; id: string }[] = [];
 
+  /** Idempotency keys seen by ensureConnectedCustomer (like Stripe: the
+   * same key returns the same customer). */
+  private readonly connectedCustomerKeys = new Map<string, string>();
+
   ensureConnectedCustomer(input: {
     accountId: string;
     email: string | null;
+    idempotencyKey?: string;
   }): Promise<string> {
     if (!this.connectAccounts.has(input.accountId))
       throw new Error('no such connected account');
+    const seen = input.idempotencyKey
+      ? this.connectedCustomerKeys.get(
+          `${input.accountId}:${input.idempotencyKey}`,
+        )
+      : undefined;
+    if (seen) return Promise.resolve(seen);
     const id = `cus_fake_${randomUUID().slice(0, 12)}`;
     this.connectedCustomers.push({ accountId: input.accountId, id });
+    if (input.idempotencyKey) {
+      this.connectedCustomerKeys.set(
+        `${input.accountId}:${input.idempotencyKey}`,
+        id,
+      );
+    }
     return Promise.resolve(id);
   }
 

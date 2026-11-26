@@ -10,6 +10,7 @@ import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/media/app_image_cache.dart';
 import 'package:lawbid/features/chat/application/link_preview_providers.dart';
+import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -22,8 +23,14 @@ class LinkPreviewCard extends ConsumerStatefulWidget {
     required this.url,
     required this.mine,
     this.conversationId,
+    this.sealed,
     super.key,
   });
+
+  /// Third pass S3: the card that came inside an end-to-end encrypted
+  /// message (built on the sender's phone). When set, nothing is asked of
+  /// the server and its picture is the bytes it carries.
+  final SealedLinkCard? sealed;
 
   final String url;
   final bool mine;
@@ -69,8 +76,17 @@ class _LinkPreviewCardState extends ConsumerState<LinkPreviewCard> {
     if (!ref.watch(linkPreviewsEnabledProvider)) {
       return const SizedBox.shrink();
     }
-    final preview = ref.watch(linkPreviewProvider(url)).value;
+    final sealed = widget.sealed;
+    final preview = sealed != null
+        ? LinkPreview(
+            url: sealed.url,
+            title: sealed.title,
+            description: sealed.description,
+            siteName: sealed.siteName,
+          )
+        : ref.watch(linkPreviewProvider(url)).value;
     if (preview == null) return const SizedBox.shrink();
+    final thumbnail = sealed?.thumbnail;
     _noteOnce(preview.imageUrl);
     final t = ref.watch(translatorProvider);
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
@@ -103,7 +119,17 @@ class _LinkPreviewCardState extends ConsumerState<LinkPreviewCard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (preview.imageUrl != null)
+                if (thumbnail != null)
+                  AspectRatio(
+                    aspectRatio: 1.91,
+                    child: Image.memory(
+                      thumbnail,
+                      fit: BoxFit.cover,
+                      gaplessPlayback: true,
+                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  )
+                else if (preview.imageUrl != null)
                   AspectRatio(
                     aspectRatio: 1.91,
                     child: CachedNetworkImage(

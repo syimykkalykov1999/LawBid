@@ -116,7 +116,7 @@ describe('RedisThrottlerStorageService', () => {
     ).toBeLessThanOrEqual(5_000);
   });
 
-  it('fails open with a throttler_unavailable warning when Redis errors', async () => {
+  it('Redis errors: the request is counted in memory (R2) with a throttler_unavailable warning', async () => {
     const down = new Error('ECONNREFUSED');
     const redis = {
       pttl: jest.fn().mockRejectedValue(down),
@@ -137,14 +137,44 @@ describe('RedisThrottlerStorageService', () => {
     );
 
     expect(rec.isBlocked).toBe(false);
-    expect(rec.totalHits).toBe(0);
+    expect(rec.totalHits).toBe(1);
     expect(log.warn).toHaveBeenCalledWith(
       expect.objectContaining({ err: down, alert: 'throttler_unavailable' }),
       expect.any(String),
     );
+    storage.onApplicationShutdown();
   });
 
-  it('fails open when the MULTI reply carries a command error', async () => {
+  // THIRD_PASS_A R2 (26.11): before, a Redis outage let every request
+  // through (totalHits 0), so login / OTP had no brute-force limit at all.
+  it('Redis down: a brute force on one key is still blocked by the per-task limit; other keys are not', async () => {
+    const redis = {
+      pttl: jest.fn().mockRejectedValue(new Error('ECONNREFUSED')),
+      multi: jest.fn(),
+    };
+    const storage = new RedisThrottlerStorageService(redis as never, logger());
+    const otp = () =>
+      storage.increment('ip:203.0.113.9', 60_000, 5, 60_000, 'auth');
+    for (let i = 0; i < 5; i += 1) {
+      expect((await otp()).isBlocked).toBe(false);
+    }
+    const sixth = await otp();
+    expect(sixth.isBlocked).toBe(true);
+    expect(sixth.totalHits).toBeGreaterThan(5);
+    expect(sixth.timeToBlockExpire).toBeGreaterThan(0);
+    // A different person is not affected.
+    const other = await storage.increment(
+      'ip:198.51.100.7',
+      60_000,
+      5,
+      60_000,
+      'auth',
+    );
+    expect(other).toMatchObject({ isBlocked: false, totalHits: 1 });
+    storage.onApplicationShutdown();
+  });
+
+  it('a MULTI reply with a command error falls back to the in-memory count', async () => {
     const redis = {
       pttl: jest.fn().mockResolvedValue(-2),
       multi: () => {
@@ -177,6 +207,8 @@ describe('RedisThrottlerStorageService', () => {
     );
 
     expect(rec.isBlocked).toBe(false);
+    expect(rec.totalHits).toBe(1);
     expect(log.warn).toHaveBeenCalledTimes(1);
+    storage.onApplicationShutdown();
   });
 });

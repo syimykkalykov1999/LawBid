@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -500,6 +501,81 @@ enum DeliveryState { sending, failed, sent }
 
 /// Owner 2026-10-20: the quoted message of a reply.
 @immutable
+/// Third pass S3 (26.11; WhatsApp Security Whitepaper «Link previews»):
+/// the card of a link in an end-to-end encrypted chat. The SENDER's phone
+/// reads the site and sends this inside the encryption; the receivers draw
+/// it as it came and never ask the server about the address. [thumbnail]
+/// is a small JPEG made on the sender's phone (no picture is fetched by a
+/// receiver either).
+@immutable
+class SealedLinkCard {
+  const SealedLinkCard({
+    required this.url,
+    this.title,
+    this.description,
+    this.siteName,
+    this.thumbnail,
+  });
+
+  /// The payload's `lp` field (null when it is missing or malformed).
+  static SealedLinkCard? tryParse(Object? raw) {
+    if (raw is! Map) return null;
+    String? s(String k, int max) {
+      final v = raw[k];
+      if (v is! String) return null;
+      final t = v.trim();
+      if (t.isEmpty) return null;
+      return t.length > max ? t.substring(0, max) : t;
+    }
+
+    final url = s('u', 2048);
+    final uri = url == null ? null : Uri.tryParse(url);
+    if (uri == null || !(uri.isScheme('https') || uri.isScheme('http'))) {
+      return null;
+    }
+    Uint8List? thumb;
+    final th = raw['th'];
+    if (th is String && th.length <= maxThumbnailB64) {
+      try {
+        thumb = base64Decode(th);
+      } on FormatException {
+        thumb = null;
+      }
+    }
+    final card = SealedLinkCard(
+      url: url!,
+      title: s('ti', 200),
+      description: s('d', 300),
+      siteName: s('s', 100),
+      thumbnail: thumb,
+    );
+    return card.hasContent ? card : null;
+  }
+
+  /// The picture's limit inside the encrypted message (base64 chars): the
+  /// whole MLS message must stay under the server's 128 KiB.
+  static const maxThumbnailB64 = 48 * 1024;
+
+  final String url;
+  final String? title;
+  final String? description;
+  final String? siteName;
+  final Uint8List? thumbnail;
+
+  bool get hasContent =>
+      (title ?? '').isNotEmpty ||
+      (description ?? '').isNotEmpty ||
+      thumbnail != null;
+
+  Map<String, Object?> toJson() => {
+        'u': url,
+        if (title != null) 'ti': title,
+        if (description != null) 'd': description,
+        if (siteName != null) 's': siteName,
+        if (thumbnail != null) 'th': base64Encode(thumbnail!),
+      };
+}
+
 class ReplyPreview {
   const ReplyPreview({
     required this.id,
@@ -572,7 +648,16 @@ class ChatMessage {
     this.expiresAt,
     this.unreadable = false,
     this.seq,
+    this.e2ee = false,
+    this.sealedLink,
   });
+
+  /// Third pass S3: the message came end-to-end encrypted. Its link card is
+  /// only [sealedLink] (from the sender); the server is never asked.
+  final bool e2ee;
+
+  /// The link card the sender put inside the encryption (null = none).
+  final SealedLinkCard? sealedLink;
 
   /// Per-chat sequence number 1, 2, 3, … from the server (null: an old copy
   /// or a message from before numbering). See [hasSeqGap].
@@ -688,6 +773,8 @@ class ChatMessage {
         post: post,
         unreadable: unreadable,
         seq: seq,
+        e2ee: e2ee,
+        sealedLink: sealedLink,
       );
 }
 

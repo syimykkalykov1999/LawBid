@@ -1476,6 +1476,10 @@ class _MessageListState extends ConsumerState<_MessageList> {
                           delivered: layout.delivered(i) && m.senderId == me,
                           showSeenLabel: i == layout.seenLabelEntry,
                           threadId: state.conversation?.id ?? m.conversationId,
+                          // Third pass S3: link cards of an encrypted chat
+                          // come only from inside its messages.
+                          serverLinkCards: state.conversation != null &&
+                              state.conversation!.e2eeSince == null,
                           // Owner 2026-10-01: the client sees "Assistant of
                           // <the attorney>", not the assistant's own account.
                           attorneyName: m.senderId == me
@@ -1692,10 +1696,15 @@ class _Bubble extends ConsumerWidget {
     required this.threadId,
     this.group,
     this.attorneyName,
+    this.serverLinkCards = false,
   });
 
   /// Set when the message came from the other side (the attorney's team).
   final String? attorneyName;
+
+  /// Third pass S3: true only in a chat known NOT to be end-to-end
+  /// encrypted — then a link card may come from `GET /link-preview`.
+  final bool serverLinkCards;
 
   final ChatMessage message;
   final bool mine;
@@ -2073,9 +2082,26 @@ class _Bubble extends ConsumerWidget {
                         ),
                       // Owner 2026-10-22 (link previews): the site card
                       // under a text message that carries a web address.
+                      // Third pass S3 (WhatsApp whitepaper «Link previews»):
+                      // in an end-to-end encrypted chat only the card the
+                      // sender put inside the message; the server never
+                      // learns the address.
                       if (m.kind == MessageKind.text &&
                           !m.revoked &&
                           !m.contactMasked &&
+                          (m.e2ee || !serverLinkCards) &&
+                          m.sealedLink != null)
+                        LinkPreviewCard(
+                          url: m.sealedLink!.url,
+                          mine: mine,
+                          conversationId: m.conversationId,
+                          sealed: m.sealedLink,
+                        )
+                      else if (m.kind == MessageKind.text &&
+                          !m.revoked &&
+                          !m.contactMasked &&
+                          !m.e2ee &&
+                          serverLinkCards &&
                           firstUrlIn(m.body) != null)
                         LinkPreviewCard(
                           url: firstUrlIn(m.body)!,
