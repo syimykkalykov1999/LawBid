@@ -30,6 +30,39 @@ import { DEMO_HEADER } from '../demo/demo-context';
  */
 export const ANONYMOUS_CACHE_KEY = 'http:anonymous_cache_seconds';
 
+/**
+ * ASVS 5.0 V14.3.2 (STAGE2_SECURITY #18): answers with sensitive data —
+ * chats, groups, case files and comments, payments, verification, sessions,
+ * the data export, the account — get `Cache-Control: private, no-store`, so
+ * a browser (the website on a shared computer) never writes them to its disk
+ * cache. The ETag stays: the apps send `If-None-Match` from their OWN local
+ * copy and still get 304 (the «only changes» rule is untouched; it never
+ * relied on the browser's cache). On a controller class or one handler.
+ */
+export const SENSITIVE_NO_STORE_KEY = 'http:sensitive_no_store';
+export const SensitiveNoStore = () => SetMetadata(SENSITIVE_NO_STORE_KEY, true);
+const SENSITIVE_LOCAL = 'lawbidSensitiveNoStore';
+
+/** Marks this answer as sensitive (read by enforceCacheSafety). */
+export function markSensitive(res: Response): void {
+  (res.locals as Record<string, unknown>)[SENSITIVE_LOCAL] = true;
+}
+
+/** The iOS / Android apps (headers_interceptor.dart sends X-Platform on
+ * every request; the website sends `web`). */
+export function isNativeApp(req: Pick<Request, 'headers'>): boolean {
+  const raw: unknown = (req.headers as Record<string, unknown> | undefined)?.[
+    'x-platform'
+  ];
+  const v = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return v === 'ios' || v === 'android';
+}
+
+function isSensitive(res: Response): boolean {
+  const locals = res.locals as Record<string, unknown> | undefined;
+  return locals?.[SENSITIVE_LOCAL] === true;
+}
+
 /** Marks a GET whose answer to a token-less request is the same for every
  * guest, so a CDN may keep it for [seconds] (30–60 is typical). */
 export const AnonymousCache = (seconds: number) =>
@@ -71,6 +104,18 @@ export function enforceCacheSafety(
     res.setHeader('Cache-Control', 'private, no-store');
     return;
   }
+  // Review of #1338: no-store only where a BROWSER would write the answer
+  // to its disk cache. The phone apps (X-Platform ios / android) keep their
+  // own encrypted local copy and revalidate it with If-None-Match; their
+  // HTTP cache skips no-store answers (apps/mobile/lib/core/cache/
+  // http_cache_interceptor.dart), so no-store there would end ETag/304 and
+  // the local-first lists. They keep `private, no-cache` below.
+  if (isSensitive(res) && !isNativeApp(req)) {
+    res.setHeader('Cache-Control', 'private, no-store');
+    addVary(res, ['Authorization', 'X-Platform']);
+    return;
+  }
+  if (isSensitive(res)) addVary(res, ['X-Platform']);
   // Verify batch 13 (E2): a private answer is one account's view. Without
   // `Vary: Authorization` a browser (the web app, a shared computer) kept
   // account A's copy under the URL and revalidated it while signed in as B;
@@ -125,6 +170,15 @@ export class AnonymousCacheInterceptor implements NestInterceptor {
   constructor(private readonly reflector: Reflector) {}
 
   intercept(ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
+    if (
+      ctx.getType() === 'http' &&
+      this.reflector.getAllAndOverride<boolean | undefined>(
+        SENSITIVE_NO_STORE_KEY,
+        [ctx.getHandler(), ctx.getClass()],
+      ) === true
+    ) {
+      markSensitive(ctx.switchToHttp().getResponse<Response>());
+    }
     if (ctx.getType() === 'http') {
       const seconds = this.reflector.get<number | undefined>(
         ANONYMOUS_CACHE_KEY,

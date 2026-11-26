@@ -31,6 +31,7 @@ import {
   LEGACY_AUDIENCES as AUDIENCES,
 } from './privacy-audience';
 import { PrivacySettingsService } from './privacy-settings.service';
+import { SensitiveNoStore } from '../../common/cache/http-cache';
 
 type Audience = (typeof AUDIENCES)[number];
 
@@ -168,6 +169,8 @@ export class UpdatePrivacySettingsDto {
 @ApiTags('privacy')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('users/me/privacy')
 export class PrivacySettingsController {
   constructor(private readonly privacy: PrivacySettingsService) {}

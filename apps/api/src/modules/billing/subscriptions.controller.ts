@@ -54,6 +54,7 @@ import { SeatsService } from './seats.service';
 import { HotlineAddonService } from './hotline-addon.service';
 import { AttorneyOnly } from '../auth/assistant/assistant-context';
 import { ShedPriority } from '../../common/resilience/shed-priority';
+import { SensitiveNoStore } from '../../common/cache/http-cache';
 
 const E = ErrorCode;
 const ATTORNEY_ERRORS = {
@@ -70,6 +71,8 @@ const IDEMPOTENCY_KEY_RE = /^[\w.:-]{8,200}$/;
 @ApiErrors(AUTHENTICATED_ERRORS)
 @AttorneyOnly()
 @ShedPriority('critical')
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('subscriptions')
 export class SubscriptionsController {
   constructor(
