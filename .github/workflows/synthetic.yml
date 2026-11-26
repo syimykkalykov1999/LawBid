@@ -39,6 +39,9 @@ jobs:
         env:
           SYNTHETIC_IDENTIFIER: ${{ secrets.SYNTHETIC_IDENTIFIER }}
           SYNTHETIC_PASSWORD: ${{ secrets.SYNTHETIC_PASSWORD }}
+          # Б6: the website and the status page too (anonymous GETs).
+          SYNTHETIC_WEB_URL: ${{ vars.SYNTHETIC_WEB_URL || 'https://lawbid.dev' }}
+          SYNTHETIC_STATUS_URL: ${{ vars.SYNTHETIC_STATUS_URL || 'https://status.lawbid.dev' }}
         run: node scripts/ops/synthetic-check.mjs "${{ secrets.PROD_API_URL }}"
 
   notify:

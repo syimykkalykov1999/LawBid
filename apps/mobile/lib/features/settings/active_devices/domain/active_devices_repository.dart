@@ -9,10 +9,14 @@ abstract interface class ActiveDevicesRepository {
   /// `meta.nextCursor` (docs/01 §7); null for the first page.
   Future<CursorPage<DeviceSessionInfo>> fetchPage({String? cursor});
 
-  /// Ends one session (`DELETE /auth/sessions/:id`).
-  Future<void> revoke(String sessionId);
+  /// Ends one session (`DELETE /auth/sessions/:id`). STAGE2_SECURITY #12:
+  /// ending ANOTHER session may answer `REAUTH_REQUIRED`; the screen then
+  /// asks for a re-auth and calls again with [reauthToken]
+  /// (`X-Reauth-Token`).
+  Future<void> revoke(String sessionId, {String? reauthToken});
 
   /// Ends every session of the account but this one (`POST
-  /// /auth/logout-others`, R2-A #9); this device stays signed in.
-  Future<void> logoutOthers();
+  /// /auth/logout-others`, R2-A #9); this device stays signed in. Same
+  /// [reauthToken] rule as [revoke].
+  Future<void> logoutOthers({String? reauthToken});
 }

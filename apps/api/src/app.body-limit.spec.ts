@@ -2,6 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import {
   ADMIN_BULK_PATHS,
+  APP_EVENTS_PATH,
   CONTACTS_SYNC_PATH,
   useBodyParsers,
 } from './app.setup';
@@ -12,8 +13,12 @@ describe('useBodyParsers', () => {
   const app = express();
   useBodyParsers(app as never, '256kb');
   app.post('*path', (req, res) => {
-    const b = req.body as { hashes?: unknown[]; ids?: unknown[] };
-    res.json({ n: (b.hashes ?? b.ids)?.length ?? 0 });
+    const b = (req.body ?? {}) as {
+      hashes?: unknown[];
+      ids?: unknown[];
+      events?: unknown[];
+    };
+    res.json({ n: (b.hashes ?? b.ids ?? b.events)?.length ?? 0 });
   });
   const hashes = (n: number) =>
     Array.from({ length: n }, (_, i) => i.toString(16).padStart(64, '0'));
@@ -43,5 +48,23 @@ describe('useBodyParsers', () => {
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ n: OWNER_BULK_MAX });
     }
+  });
+
+  it('Б6: the events intake reads a sendBeacon body (text/plain) as JSON', async () => {
+    const body = JSON.stringify({ events: [{ name: 'web_vital_lcp_good' }] });
+    const res = await request(app)
+      .post(APP_EVENTS_PATH)
+      .set('content-type', 'text/plain;charset=UTF-8')
+      .send(body);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ n: 1 });
+  });
+
+  it('Б6: other routes still ignore text/plain bodies', async () => {
+    const res = await request(app)
+      .post('/api/v1/posts')
+      .set('content-type', 'text/plain')
+      .send(JSON.stringify({ events: [{ name: 'x' }] }));
+    expect(res.body).toEqual({ n: 0 });
   });
 });

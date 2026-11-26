@@ -60,6 +60,11 @@ variable "service_budgets" {
   default     = {}
   description = "Per-service monthly budgets, Cost Explorer SERVICE name => USD (e.g. \"Amazon GuardDuty\" = 25). Each one e-mails at 100 % actual and 100 % forecast: a spend alarm for lines that grow with traffic (GuardDuty S3 events, WAF requests, CloudFront). AWS gives two budgets free, each further one costs about $0.60/month."
 }
+variable "cost_allocation_tags" {
+  type        = list(string)
+  default     = []
+  description = "Б9 (25.11): tag keys activated as cost allocation tags (AWS COST03-BP02). Free. The key must already be on a resource of the account, else AWS refuses it. [] = not managed here."
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -240,5 +245,16 @@ resource "aws_ce_anomaly_subscription" "sns" {
   tags = var.tags
 }
 
+# Б9 (25.11): the manual step «Billing -> Cost allocation tags -> Activate»
+# (docs/runbooks/cost.md) is code now, so it cannot drift. AWS's own resource
+# (Cost Explorer UpdateCostAllocationTagsStatus); only a management or a
+# standalone account may call it.
+resource "aws_ce_cost_allocation_tag" "this" {
+  for_each = toset(var.cost_allocation_tags)
+  tag_key  = each.value
+  status   = "Active"
+}
+
+output "cost_allocation_tags" { value = sort([for t in aws_ce_cost_allocation_tag.this : t.tag_key]) }
 output "budget_name" { value = aws_budgets_budget.monthly.name }
 output "budget_arn" { value = aws_budgets_budget.monthly.arn }
