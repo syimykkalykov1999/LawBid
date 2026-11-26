@@ -37,6 +37,8 @@ describe('SloMetricsService (owner 2026-10-22, audit #4 §7)', () => {
       otpRequested: 0,
       shedCritical: 0,
       shedLow: 0,
+      httpReq: 0,
+      http5xx: 0,
     });
     expect(logger.info).toHaveBeenCalledWith(
       expect.objectContaining({ metric: 'slo', pushOk: 3, pushFailed: 1 }),
@@ -45,6 +47,29 @@ describe('SloMetricsService (owner 2026-10-22, audit #4 §7)', () => {
     // Nothing new: no line at all.
     expect(slo.flush()).toBeNull();
     expect(logger.info).toHaveBeenCalledTimes(1);
+  });
+
+  it('Б2: the line says which release wrote it (canary vs control)', () => {
+    const { slo, logger } = make();
+    const was = process.env.APP_VERSION;
+    process.env.APP_VERSION = 'abc123';
+    try {
+      slo.count('httpReq', 40);
+      slo.count('http5xx', 2);
+      slo.flush();
+    } finally {
+      if (was === undefined) delete process.env.APP_VERSION;
+      else process.env.APP_VERSION = was;
+    }
+    expect(logger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metric: 'slo',
+        release: 'abc123',
+        httpReq: 40,
+        http5xx: 2,
+      }),
+      'slo counters',
+    );
   });
 
   it('flushes what is left on shutdown', () => {

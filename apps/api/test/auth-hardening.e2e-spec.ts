@@ -53,6 +53,8 @@ describe('Auth hardening (e2e)', () => {
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
+    // #8: the CDN's country header counts only with our edge secret.
+    process.env.EDGE_ORIGIN_SECRET = 'test-edge-origin-secret-0123456789';
     process.env.GOOGLE_CLIENT_IDS = GOOGLE_AUDIENCE;
     process.env.AUTH_REFRESH_LIMIT_PER_SESSION_PER_HOUR = '3';
     // X-Forwarded-For names the caller (the address-scoped tests below).
@@ -806,6 +808,7 @@ describe('Auth hardening (e2e)', () => {
       const res = await api()
         .post('/api/v1/auth/otp/verify')
         .set('X-Forwarded-For', ipOf(70))
+        .set('X-LawBid-Edge', 'test-edge-origin-secret-0123456789')
         .set('CloudFront-Viewer-Country', 'US')
         .set(
           'User-Agent',
@@ -840,6 +843,7 @@ describe('Auth hardening (e2e)', () => {
         .expect(200);
       const login = await api()
         .post('/api/v1/auth/otp/verify')
+        .set('X-LawBid-Edge', 'test-edge-origin-secret-0123456789')
         .set('CloudFront-Viewer-Country', 'US')
         .send({
           channel: 'phone',
@@ -852,6 +856,7 @@ describe('Auth hardening (e2e)', () => {
       const refreshFrom = (token: string, country: string) =>
         api()
           .post('/api/v1/auth/refresh')
+          .set('X-LawBid-Edge', 'test-edge-origin-secret-0123456789')
           .set('CloudFront-Viewer-Country', country)
           .send({ refreshToken: token });
       const same = await refreshFrom(login.body.data.refreshToken, 'US');

@@ -607,12 +607,18 @@ jobs:
           echo "api deployment strategy: ${S} (ECS built-in canary: ${N})" | tee -a "$GITHUB_STEP_SUMMARY"
       # Canary (D1-36: ON unless repository variable CANARY_ENABLED=false): one extra task
       # with the new image takes a little live traffic for CANARY_BAKE_MINUTES while
-      # the api alarms are watched; a bad release stops here, before the real api.
+      # the api alarms and (Б2) the login / message / pay fast burns are watched, then
+      # its own 5xx share is compared with the old tasks'; a bad release stops here,
+      # before the real api.
       - name: Canary (1 task, watch alarms)
         if: ${{ steps.strategy.outputs.native != 'true' }}
         env:
           CANARY_ENABLED: ${{ vars.CANARY_ENABLED || 'true' }}
           CANARY_BAKE_MINUTES: ${{ vars.CANARY_BAKE_MINUTES || '5' }}
+          # Б2 (SRE Workbook ch. 16): canary task vs the old tasks after the bake.
+          CANARY_COMPARE: ${{ vars.CANARY_COMPARE || 'on' }}
+          CANARY_MIN_REQUESTS: ${{ vars.CANARY_MIN_REQUESTS || '50' }}
+          CANARY_FLOOR: ${{ vars.CANARY_FLOOR || '0.005' }}
         run: scripts/deploy/canary.sh lawbid-prod "$IMAGE_TAG"
       # With the ECS built-in canary this step waits for ECS's own result
       # (SUCCESSFUL, or ROLLBACK_* = red); roll-services.sh reads the strategy.

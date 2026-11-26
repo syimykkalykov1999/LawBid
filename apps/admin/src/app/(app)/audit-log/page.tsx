@@ -1,14 +1,17 @@
 "use client";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { DateField } from "@/components/date-field";
+import { useConfirm } from "@/components/legacy/confirm";
+import { SettingsRolloutsCard } from "@/components/settings-rollouts-card";
 import { MotionRow } from "@/components/legacy/fade-in";
 import { MoreButton } from "@/components/legacy/more-button";
 import { ErrorNote, PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
+import { useToast } from "@/components/ui/toast";
 import { SortTh, Table, TableEmpty, Td, Th } from "@/components/ui/table";
 import { VirtualRows } from "@/components/ui/virtual-rows";
 import { api, errorText } from "@/lib/api/client";
@@ -88,6 +91,25 @@ export default function AuditLogPage() {
     },
     getNextPageParam: (last) => last.meta?.nextCursor ?? undefined,
   });
+  // Б3 (25.11): «Вернуть» on a settings row puts the old value back for
+  // everyone at once (super admin, a fresh 2FA code, its own audit row).
+  const qc = useQueryClient();
+  const toast = useToast();
+  const { confirm, dialog } = useConfirm();
+  const revert = useMutation({
+    mutationFn: async (auditId: string) =>
+      api.POST("/admin/settings-rollouts/changes/{auditId}/revert", {
+        params: { path: { auditId } },
+      }),
+    onSuccess: () => {
+      toast.success("Старое значение возвращено");
+      void qc.invalidateQueries({ queryKey: ["audit-log"] });
+      void qc.invalidateQueries({ queryKey: ["config"] });
+      void qc.invalidateQueries({ queryKey: ["settings-rollouts"] });
+    },
+    onError: (e) => toast.error(e),
+  });
+  const canRevert = me?.role === "super_admin";
   const { sort, header } = useTableSort(SORT_KEYS);
   const rows = sortRows(q.data?.pages.flatMap((p) => p.data) ?? [], sort, {
     created: (r) => r.createdAt,
@@ -169,6 +191,8 @@ export default function AuditLogPage() {
           </div>
         </div>
       </form>
+      {dialog}
+      {canRevert ? <SettingsRolloutsCard /> : null}
       <ErrorNote text={q.error ? errorText(q.error) : null} />
       <Table>
         <thead>
@@ -226,6 +250,29 @@ export default function AuditLogPage() {
                 <Td className="max-w-80">
                   <Json label="до" value={r.before} />
                   <Json label="после" value={r.after} />
+                  {canRevert && r.targetType === "app_config" && r.after != null ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="mt-1"
+                      disabled={revert.isPending}
+                      onClick={async () => {
+                        if (
+                          await confirm({
+                            title: "Вернуть это изменение настроек?",
+                            description:
+                              "Значения «до» сразу вернутся у всех. Если настройку уже меняли после этого, возврат не выполнится. Нужен код 2FA.",
+                            confirm: "Вернуть",
+                            danger: true,
+                          })
+                        )
+                          revert.mutate(r.id);
+                      }}
+                    >
+                      Вернуть
+                    </Button>
+                  ) : null}
                 </Td>
                 <Td className="font-mono text-xs text-muted">{r.ip ?? ""}</Td>
               </MotionRow>

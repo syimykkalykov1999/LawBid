@@ -66,6 +66,13 @@ Switch: `anomaly_alarms_enabled` in terraform.tfvars (default **false**, ≈ $5.
 ### synthetic
 Optional canary `<env>-jr` (off): signs in with a dedicated test account, opens the feed and sends one message to a dedicated chat, every 15 minutes (about **$3.5 a month**: $0.0012 × 2 880 runs). Set up: create two test accounts (never real people), a chat between them, store `{"identifier": "...", "password": "..."}` in a Secrets Manager secret, then in tfvars `synthetic_journey_enabled = true`, `synthetic_journey_base_url`, `synthetic_journey_secret_arn`, `synthetic_journey_conversation_id`. The probe message is real chat traffic of the test pair only. Alarm `<env>-journey-canary` mails on two failed runs; the run shows which step failed (login / feed / message).
 
+### canary
+Б2 (25.11), Google SRE Workbook ch. 16 «Canarying Releases»: the new release is judged against a **control** that runs the old release over the same minutes, not against one fleet-wide threshold (one bad canary task among many old ones disappears in the average).
+- ECS built-in canary (`api_native_deploy`, two api target groups): `<env>-api-canary-vs-control` (5xx share of one group > 2 × the other + 0.5 pp) and `<env>-api-canary-vs-control-p95` (p95 > 1.5 × the other + 200 ms), only while both groups carry ≥ 50 requests in 5 minutes. Both are in the ECS deployment alarms, so ECS shifts the traffic back by itself. Tuning: `api_canary_compare_*` in terraform.tfvars.
+- Our canary script (`scripts/deploy/canary.sh`, when the ECS canary is off): after the bake it reads the API's minute lines `{metric:"slo", release, httpReq, http5xx}` (CloudWatch Logs, `filter-log-events`) and compares the canary task (`release` = the new tag) with the old tasks (`scripts/deploy/canary-compare.mjs`, same rule). Repository variables: `CANARY_COMPARE=off` skips it, `CANARY_MIN_REQUESTS` (50), `CANARY_FLOOR` (0.005).
+- Business signals: the fast burns `<env>-slo-login-fast`, `-message-fast`, `-pay-fast` are watched by the canary script (with the api alarms; a burn already firing before the canary is ignored) and, with `deploy_rollback_on_slo = true`, by ECS next to otp / call / push.
+- What to do when it fires: nothing urgent, the release stopped before the real api changed (or ECS moved the traffic back). Search the API logs of the new release (`release = <tag>`), fix, ship.
+
 ### client
 Б6 (25.11, SRE Workbook ch. 2 «measure close to the user»): the app and the website count the six SLO flows **as the person sees them**, after their own retries — sign-in, feed (ok within `client.sli_feed_slow_ms`, 3 s), chat send (within `client.sli_message_slow_ms`, 5 s), payment, starting / accepting a call, opening a push. A 5xx or a timeout is a failure; a 4xx (wrong password) or an offline phone is not counted. They travel as opt-in anonymous usage events (`sli_<flow>_<ok|slow|fail>`, docs/analytics_events.md), the API adds them up in its minute line `{metric:"slo_client"}` (no table), CloudWatch metrics `SloClient*`. Alarm `<env>-slo-client-<flow>` (mail): 6× the budget over 6 h AND 30 min. Targets: `client_slo_targets` in tfvars (login 98 %, feed 95 %, message 98 %, pay 95 %, call 95 %, push 95 %). Admin switches: `client.sli_enabled`, `client.sli_feed_slow_ms`, `client.sli_message_slow_ms`. What to do: compare with the server alarm of the same flow (`<env>-slo-<flow>-*`). Server fine, client red = the path to the person (network, CloudFront / Cloudflare, DNS) or an app bug: open the app and the site yourself, look at the CDN alarms below.
 
@@ -91,6 +98,21 @@ Sign up yourself on a phone; check the stores' listings.
 ## Alarm → incident row (off)
 
 `alarm_incident_hook_enabled = true` adds a Lambda (`<env>-alarm-hook`) subscribed to the alerts topic. Each alarm state change is posted to `POST /api/v1/internal/alarm-events` with a shared token (`ALARM_HOOK_TOKEN`, from Secrets Manager); the API opens or closes a row in `system_incidents` (`alarm:<name>`), so the admin «Здоровье системы» timeline shows alarms next to probe incidents. No extra push or mail. Cost: a few invocations a day, inside the free tier.
+
+## Setting changes released like code (Б3, 25.11)
+
+A save of a setting (Настройки, or a section's own settings card) is written to `app_config` and put under watch (`settings.rollouts` row, `apps/api/src/common/app-settings/config-rollout.ts`):
+
+- only `settings.canary_percent` % of the API tasks (default 10, at least one task) read the new value; the other API tasks, the workers and the app start answer (`/config/bootstrap`) read the old one;
+- for `settings.watch_minutes` (default 5) the worker job `settings.rollout-watch` (every minute) looks at the alarm rows above: an `alarm:slo-*-fast` or `alarm:availability-fast` that opened AFTER the save = the old value goes back for everyone (audit `settings.auto_revert`, push + e-mail to the on-call admins); one already open before the save does not count;
+- review of #1332: an alarm is blamed on the NEWEST change that started before it (plus changes saved within a minute of it), never on every change under watch; the older ones keep their window. If the same alarm was already open when that change started, or closed less than `settings.incident_quiet_minutes` (default 30) before it, an incident is going on: nothing is reverted automatically, the on-call admins get «Тревога во время проверки настроек» (log `settings_auto_revert_held`) and decide themselves;
+- a hold whose window plus 10 minutes ran out without the worker (missed promotion) drops every config cache once, so the app start answer gets the new value too;
+- the canary heartbeat runs only in the HTTP API process after it listens (`main.ts`), never in the worker, a CLI script or a test;
+- «Вернуть» in the audit log runs the same checks as a save of that value (owner-only keys with a fresh 2FA code, R2 / LiveKit / … keys, min / max).
+- no alarm until the window ends = everyone reads the new value (audit `settings.rollout_promoted`);
+- money, «Авто», calls, realtime and the `settings.*` keys themselves apply at once (`settings.canary_skip_prefixes`); `settings.watch_minutes = 0` = every change at once, as before.
+
+Admin: Настройки and Журнал аудита show «Изменения на проверке» with «Вернуть» (old value now) and «Применить всем сейчас» (emergency, skips the window); every settings row of the journal has «Вернуть» (refused with 409 when the key was changed again since). All three: super admin, a fresh 2FA code, an audit row (`settings.revert`, `settings.rollout_emergency`). Idea: Meta «Holistic Configuration Management at Facebook» (Configerator, SOSP 2015) and Google SRE Workbook ch. 16 «Canarying Releases»; the code is ours (no library does this for a table-backed config).
 
 ## Dashboard and the old Grafana files
 

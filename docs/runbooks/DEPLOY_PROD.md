@@ -141,7 +141,7 @@ aws logs tail /lawbid/lawbid-prod/migrate --since 30m
 | `SECRETS_ACTIVE_KID` | `modules/stack` | `k1` (без пары с мастер-ключом кнопки «Добавить ключи» серые) |
 | `MESSAGE_ENC_KEYS` / `JWT_KEYS` | секреты | `m1:…` / `j1:…`, не менять: чаты станут нечитаемыми |
 | `SEARCH_INDEX_KEY` | секрет `lawbid-prod/SEARCH_INDEX_KEY` | ≥ 32 случайных символа (`prod-secrets.sh`); без него поиск по тексту сообщений молчит — раздел «Поиск по тексту сообщений» |
-| `DATABASE_URL` и др. | секреты | `sslmode=verify-full`; их создаёт `prod-db-setup.sh` |
+| `DATABASE_URL` и др. | секреты | `sslmode=verify-full`; их создаёт `prod-db-setup.sh` ; сертификат базы проверяется (STAGE2_SECURITY #14), только если адрес — `*.rds.amazonaws.com` (пакет RDS в образе) или в строке есть `sslrootcert`; иначе шифрование без проверки, как раньше, и предупреждение в журнале «database TLS: … NOT checked» |
 | `TRUST_PROXY_HOPS` | `modules/stack` | `1` |
 | `CLAMAV_HOST` | worker task | `127.0.0.1` (сайдкар ClamAV) |
 | `S3_CORS_ALLOWED_ORIGINS` | `s3_cors_allowed_origins` в tfvars | добавить `https://lawbid.dev` и хост веба, когда он появится |

@@ -56,6 +56,7 @@ import {
   AttorneyOnly,
 } from '../auth/assistant/assistant-context';
 import { ShedPriority } from '../../common/resilience/shed-priority';
+import { SensitiveNoStore } from '../../common/cache/http-cache';
 
 /** docs/05 §8, §15 "Чаты" (stage 5.7). */
 @ApiTags('chat')
@@ -63,6 +64,8 @@ import { ShedPriority } from '../../common/resilience/shed-priority';
 @ApiErrors(AUTHENTICATED_ERRORS)
 // OQ-048: assistants use the attorney's chats with the "chats" duty.
 @RequiresDuty('chats')
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('conversations')
 export class ChatController {
   constructor(

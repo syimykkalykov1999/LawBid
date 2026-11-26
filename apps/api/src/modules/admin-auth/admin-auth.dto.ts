@@ -31,14 +31,34 @@ export class AdminRecoverQuestionDto {
   @IsString()
   @MaxLength(40)
   login!: string;
+
+  /** O2 (25.11): the authenticator code or one recovery code. Optional in
+   * the contract (an older admin page keeps a valid request shape), but the
+   * server refuses the step without it (ADMIN_RECOVERY_FAILED). */
+  @ApiPropertyOptional({
+    description:
+      'The 6-digit authenticator code, or one recovery code (it is spent). Required by the server.',
+    minLength: 6,
+    maxLength: 64,
+  })
+  @IsOptional()
+  @IsString()
+  @Length(6, 64)
+  code?: string;
 }
 
 export class AdminRecoverQuestionResultDto {
   @ApiProperty({
     description:
-      'The super admin’s own security question (a neutral text for any other login).',
+      'The super admin’s own security question, shown only after the second factor.',
   })
   question!: string;
+
+  @ApiProperty({
+    description:
+      'Single-use recovery ticket (10 minutes) for POST /admin/auth/recover/password.',
+  })
+  ticket!: string;
 }
 
 export class AdminRecoverPasswordDto {
@@ -57,6 +77,19 @@ export class AdminRecoverPasswordDto {
   @IsString()
   @MaxLength(128)
   newPassword!: string;
+
+  /** O2 (25.11): the ticket POST /admin/auth/recover/question returned.
+   * Optional in the contract; the server refuses the reset without it. */
+  @ApiPropertyOptional({
+    description:
+      'Single-use ticket from POST /admin/auth/recover/question. Required by the server.',
+    maxLength: 128,
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(16)
+  @MaxLength(128)
+  ticket?: string;
 }
 
 export class AdminChangeOwnCredentialsDto {

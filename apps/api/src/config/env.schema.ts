@@ -185,6 +185,15 @@ export const envSchema = z
       .min(0)
       .max(5000)
       .default(350),
+    // ASVS 5.0 V4.1.3 (STAGE2_SECURITY #8): the value our CDN puts in
+    // `X-LawBid-Edge` on its way to the API (CloudFront custom origin
+    // header). Only with it are the CDN's country headers believed
+    // (auth/request-country.util.ts). Unset = never believed. 16+ chars.
+    EDGE_ORIGIN_SECRET: z.string().min(16).optional(),
+    // ASVS 5.0 V13.4.5 (STAGE2_SECURITY #9): `X-Health-Token` that unlocks
+    // the per-dependency detail of GET /health/ready. Unset = public answer
+    // only ({ status, version }) for everyone. 24+ chars.
+    HEALTH_DETAIL_TOKEN: z.string().min(24).optional(),
 
     // --- Stage 1.4: OTP ---
     OTP_CODE_SECRET: z.string().min(32),
@@ -832,6 +841,14 @@ export const envSchema = z
     // higher than the real number of proxies (clients could then spoof
     // their IP and escape per-IP limits).
     TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+    // G1 (API edge, infra/modules/api-edge): the secret CloudFront adds as
+    // `x-origin-verify` (Secrets Manager, set by Terraform with the edge).
+    // Only a request carrying it came through CloudFront, so only then is one
+    // more X-Forwarded-For hop trusted (common/net/edge-client-ip.ts). Empty =
+    // no edge: TRUST_PROXY_HOPS alone, exactly as before.
+    API_EDGE_ORIGIN_VERIFY: z
+      .union([z.literal(''), z.string().min(32)])
+      .default(''),
     // docs/06 §4.1 (stage 6.1): CORS only for the admin panel's origin(s);
     // the mobile app sends no Origin. Comma-separated.
     ADMIN_ORIGINS: z.string().default(''),

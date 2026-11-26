@@ -11,6 +11,7 @@ import type Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { pipeline } from '../../redis/redis-cluster-safe';
 import { RouteMetricsService } from './route-metrics.service';
+import { SloMetricsService } from './slo-metrics.service';
 
 import { LATENCY_EDGES_MS } from './latency-edges';
 export { LATENCY_EDGES_MS };
@@ -137,6 +138,8 @@ export class HttpStatsMiddleware implements NestMiddleware {
     private readonly stats: HttpStatsService,
     // S12-8: per-route RED metrics + journey SLIs (feed, chat send).
     @Optional() private readonly routes?: RouteMetricsService,
+    // Б2: requests and 5xx per release for the canary-vs-control check.
+    @Optional() private readonly slo?: SloMetricsService,
   ) {}
 
   use(req: Request, res: Response, next: NextFunction): void {
@@ -145,6 +148,8 @@ export class HttpStatsMiddleware implements NestMiddleware {
     res.once('finish', () => {
       const ms = Number(process.hrtime.bigint() - started) / 1e6;
       this.stats.record(res.statusCode, ms);
+      this.slo?.count('httpReq');
+      if (res.statusCode >= 500) this.slo?.count('http5xx');
       this.routes?.record(
         req.method,
         (req.route as { path?: unknown } | undefined)?.path,

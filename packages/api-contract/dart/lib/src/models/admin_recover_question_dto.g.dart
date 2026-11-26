@@ -8,8 +8,11 @@ part of 'admin_recover_question_dto.dart';
 
 AdminRecoverQuestionDto _$AdminRecoverQuestionDtoFromJson(
   Map<String, dynamic> json,
-) => AdminRecoverQuestionDto(login: json['login'] as String);
+) => AdminRecoverQuestionDto(
+  login: json['login'] as String,
+  code: json['code'] as String?,
+);
 
 Map<String, dynamic> _$AdminRecoverQuestionDtoToJson(
   AdminRecoverQuestionDto instance,
-) => <String, dynamic>{'login': instance.login};
+) => <String, dynamic>{'login': instance.login, 'code': ?instance.code};

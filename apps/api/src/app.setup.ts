@@ -13,6 +13,7 @@ import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppSettingsService } from './common/app-settings/app-settings.service';
 import { CorsPolicy } from './common/cors/cors-policy';
+import { apiEdgeClientIp } from './common/net/edge-client-ip';
 import { installSocketOriginPolicy } from './common/cors/socket-origin';
 import type { AppEnv } from './config/env.schema';
 import { buildOpenApiDocument } from './openapi/openapi.config';
@@ -165,7 +166,17 @@ export function configureApp(
   // TRUST_PROXY_HOPS=1 in staging/production (exactly one ALB in front);
   // 0 locally. Never higher than the real proxy count, or clients can
   // spoof X-Forwarded-For to dodge per-IP limits.
-  app.set('trust proxy', config.getOrThrow<number>('TRUST_PROXY_HOPS'));
+  const trustedHops = config.getOrThrow<number>('TRUST_PROXY_HOPS');
+  app.set('trust proxy', trustedHops);
+  // G1 (API edge): a request with the edge secret in x-origin-verify came
+  // through CloudFront, one hop more than the ALB; only for those req.ip is
+  // the viewer's address. A direct caller can never pick its own address.
+  app.use(
+    apiEdgeClientIp(
+      config.get<string>('API_EDGE_ORIGIN_VERIFY') ?? '',
+      trustedHops,
+    ),
+  );
 
   // Security headers (docs/01 §13: OWASP ASVS L2 — V14.4 HTTP security
   // headers). The API only serves JSON, so helmet's defaults are right

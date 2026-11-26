@@ -117,7 +117,10 @@ module "stack" {
   ecs_readonly_root_filesystem       = var.ecs_readonly_root_filesystem
   dmarc_policy                       = var.dmarc_policy
   # X1: staging tries the ECS built-in canary first.
-  api_native_deploy = var.api_native_deploy
+  api_native_deploy    = var.api_native_deploy
+  api_edge_enabled     = var.api_edge_enabled
+  api_edge_dns         = var.api_edge_dns
+  api_edge_origin_lock = var.api_edge_origin_lock
 
   # Load audit 6: growth switches (growth.tf).
   growth = var.growth

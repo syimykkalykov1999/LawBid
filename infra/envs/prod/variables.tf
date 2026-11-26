@@ -6,6 +6,16 @@ variable "replica_region" {
   type    = string
   default = "us-west-2"
 }
+# Stage 2 SRE (Б8): every secret also lives in replica_region (the DR region),
+# so envs/dr can start after a region loss. ≈ $0.40 per secret a month.
+# OFF until the owner applies infra/bootstrap: secretsmanager:ReplicateSecretToRegions
+# and the KMS grant via secretsmanager in the DR region exist only there; true
+# before that makes the admin «Infra apply» stop with AccessDenied (KNOWN_ERRORS
+# 75/105). Owner order: apply bootstrap -> true here -> apply prod.
+variable "secrets_replica_enabled" {
+  type    = bool
+  default = false
+}
 variable "azs" {
   type    = list(string)
   default = ["us-east-1a", "us-east-1b"]
@@ -1063,4 +1073,39 @@ variable "alarm_incident_hook_enabled" {
   # empty only because the flag was off. An ALARM also starts the AI assistant.
   default     = true
   description = "Lambda: CloudWatch alarm state changes become incident rows in the admin and start the AI assistant."
+}
+
+# G1 (STAGE2_ARCH_PERF_2026-11-25): API through the CloudFront edge, three
+# steps in order (apps/admin/content/guides/api-edge.md): api_edge_enabled ->
+# DNS (api_edge_dns with Route 53, or by hand) -> api_edge_origin_lock.
+variable "api_edge_enabled" {
+  type    = bool
+  default = false
+}
+variable "api_edge_dns" {
+  type    = bool
+  default = false
+}
+variable "api_edge_origin_lock" {
+  type    = bool
+  default = false
+}
+# STAGE2_SECURITY #4 / #3 (25.11): CSP reporting to Sentry and the exact
+# connect-src of the web app. Owner step: paste the Sentry «Security Headers»
+# report URI (Project → Settings → Security Headers) into both, apply; after a
+# week without reports set web_csp_exact_connect_enforced = true, apply.
+variable "web_csp_report_uri" {
+  type        = string
+  default     = ""
+  description = "Sentry security endpoint for the web app's CSP reports; empty = off."
+}
+variable "admin_csp_report_uri" {
+  type        = string
+  default     = ""
+  description = "Sentry security endpoint for the admin's CSP reports; empty = off."
+}
+variable "web_csp_exact_connect_enforced" {
+  type        = bool
+  default     = false
+  description = "Enforce the exact storage hosts in the web CSP (after a week of Report-Only)."
 }

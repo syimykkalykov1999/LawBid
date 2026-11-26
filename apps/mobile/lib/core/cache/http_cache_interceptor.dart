@@ -352,8 +352,13 @@ class HttpCacheInterceptor extends Interceptor {
         response.statusCode == 200 &&
         etag != null &&
         etag.isNotEmpty &&
-        (data is Map || data is List) &&
-        !(response.headers.value('cache-control') ?? '').contains('no-store')) {
+        (data is Map || data is List)) {
+      // ASVS V14.3.2 (#1338): the server sends `no-store` for sensitive
+      // answers to the website only (the phone apps get `no-cache`). Such
+      // an answer is kept in this tab's memory, so the list still asks with
+      // If-None-Match and gets 304, but never reaches the disk store.
+      final noStore =
+          (response.headers.value('cache-control') ?? '').contains('no-store');
       final json = jsonEncode(data);
       final entry = HttpCacheEntry(
         etag: etag,
@@ -362,7 +367,9 @@ class HttpCacheInterceptor extends Interceptor {
         fetchedAt: _now(),
       );
       _put(key, entry);
-      if (json.length <= maxDiskBodyBytes) _writeDisk(key, entry, json);
+      if (!noStore && json.length <= maxDiskBodyBytes) {
+        _writeDisk(key, entry, json);
+      }
     }
     _finish(response.requestOptions, response);
     handler.next(response);

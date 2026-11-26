@@ -8,6 +8,16 @@ import { throttledWarn } from '../../../common/logging/throttled-warn';
 import { CircuitBreaker } from '../../../common/resilience/resilience';
 import { bumpConfigVersion, CONFIG_VERSION_KEY } from './config-version';
 import { bumpConfigMemoGeneration } from '../../../common/app-settings/config-memo-generation';
+import { isCanaryProcess } from '../../../common/app-settings/canary-state';
+import {
+  canaryView,
+  controlView,
+  expiredHoldIds,
+} from '../../../common/app-settings/config-rollout';
+
+/** Rollouts whose expired hold this process already dropped the caches
+ * for (review of #1332: once per rollout, not on every read). */
+const droppedExpiredHolds = new Set<string>();
 
 /** Same TTL reasoning as FeatureFlagsService — see that file's doc
  * comment. app_config changes even less often than feature_flags in
@@ -88,11 +98,13 @@ export class AppConfigService {
    * main client stays, so dropAppConfigCache's `del` hits the same keys.
    */
   private readonly cache: Redis;
+  private readonly redis: Redis;
 
   constructor(
     private readonly prisma: PrismaService,
     @Inject(REDIS_CLIENT) redis: Redis,
   ) {
+    this.redis = redis;
     const warn = throttledWarn(new Logger(AppConfigService.name));
     this.cache = failSoftRedis(
       redis,
@@ -110,7 +122,44 @@ export class AppConfigService {
    * Redis copy before they bump the config version, so this read is never
    * older than the version the caller keys its copy by. */
   async getConfig(fresh = false): Promise<Record<string, unknown>> {
-    if (fresh) return this.loadFresh();
+    // Б3 (config-rollout.ts): a setting change under watch is read with its
+    // new value only on the canary API tasks; every other reader gets the
+    // old value. The app start answer ([fresh], one shared copy per config
+    // version for all tasks) always gets the old value, so phones see the
+    // change after the window, all at once.
+    if (fresh) {
+      const config = await this.loadFresh();
+      this.dropOnExpiredHold(config);
+      return controlView(config, Date.now());
+    }
+    const config = await this.memoOrLoad();
+    this.dropOnExpiredHold(config);
+    return this.view(config);
+  }
+
+  /**
+   * Review of #1332: a hold that ran out (window + grace over, the worker
+   * did not promote in time) changes what controlView returns without any
+   * save, so nothing bumped the config version: the app start answer and
+   * the other cached copies kept the old values. The first reader that
+   * sees it drops every copy once (dropAppConfigCache bumps the version).
+   */
+  private dropOnExpiredHold(config: Record<string, unknown>): void {
+    const fresh = expiredHoldIds(config, Date.now()).filter(
+      (id) => !droppedExpiredHolds.has(id),
+    );
+    if (fresh.length === 0) return;
+    for (const id of fresh) droppedExpiredHolds.add(id);
+    void dropAppConfigCache(this.redis).catch(() => undefined);
+  }
+
+  private view(config: Record<string, unknown>): Record<string, unknown> {
+    return isCanaryProcess()
+      ? canaryView(config)
+      : controlView(config, Date.now());
+  }
+
+  private async memoOrLoad(): Promise<Record<string, unknown>> {
     const memoOn = process.env.NODE_ENV !== 'test';
     if (memoOn && appConfigMemo) {
       const age = Date.now() - appConfigMemo.at;

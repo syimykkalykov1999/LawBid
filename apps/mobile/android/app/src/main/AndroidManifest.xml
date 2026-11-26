@@ -4,6 +4,9 @@
          access themselves (the template only adds it to debug/profile). -->
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- S12 #28 (25.11): Window.setHideOverlayWindows on a secure screen
+         (MainActivity «lawbid/secure_screen»), a normal permission. -->
+    <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
     <!-- Android 13+: without it the system never asks and no push is shown. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Planner reminders: the local safety net is re-armed after a reboot

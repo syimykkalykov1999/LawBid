@@ -17,6 +17,7 @@ import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { ConfigRolloutService } from '../../common/app-settings/config-rollout.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
@@ -31,7 +32,11 @@ import type {
   UpdateFlagDto,
   UpdateLanguageDto,
 } from './admin-config.dto';
-import { configSchema, validateConfigValue } from './config-schema';
+import {
+  configSchema,
+  validateConfigValue,
+  type ConfigKeySchema,
+} from './config-schema';
 import { REPORT_TIME_ZONE_KEY } from '../../common/utils/report-day';
 import { isValidTimeZone } from '../../common/utils/zoned-time';
 
@@ -161,6 +166,8 @@ export class AdminConfigService {
     @Optional() private readonly secrets?: SecretsService,
     // Owner 2026-11-12 (row 60): the fresh 2FA code of owner-only keys.
     @Optional() private readonly adminAuth?: AdminAuthService,
+    // Б3 (25.11): a save goes to the canary tasks first (config-rollout.ts).
+    @Optional() private readonly rollout?: ConfigRolloutService,
   ) {}
 
   /** Owner 2026-11-12 (row 60): OWNER_ONLY_CONFIG_KEYS change only by the
@@ -552,13 +559,20 @@ export class AdminConfigService {
     });
   }
 
-  async updateConfig(
+  /**
+   * Every check a save of [value] under [key] must pass: owner-only keys
+   * (owner + fresh 2FA), a known key, the schema (type, min / max,
+   * pattern), the required keys of R2 / LiveKit / Cloudflare / search /
+   * text detector, a real time zone. Review of #1332: the audit log's
+   * «Вернуть» (ConfigRolloutService.revertChange) runs the same checks on
+   * the old value. [value] null = back to the default: only the owner
+   * check applies (the default is valid by definition).
+   */
+  async assertWritable(
     admin: AdminActor,
     key: string,
     value: unknown,
-    // Owner 14.11 (row 179): what the editor saw; undefined = no check.
-    expectedUpdatedAt?: string | null,
-  ): Promise<ConfigEntryDto> {
+  ): Promise<ConfigKeySchema> {
     await this.assertOwnerOnly(admin, key);
     const schema = configSchema()[key];
     if (!schema) {
@@ -568,6 +582,7 @@ export class AdminConfigService {
         details: { field: 'key' },
       });
     }
+    if (value === null) return schema;
     const error = validateConfigValue(schema, value);
     if (error) {
       throw new BadRequestException({
@@ -585,10 +600,21 @@ export class AdminConfigService {
     if (key === REPORT_TIME_ZONE_KEY && !isValidTimeZone(value)) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
-        message: `Unknown time zone: ${String(value)}.`,
+        message: `Unknown time zone: ${typeof value === 'string' ? value : JSON.stringify(value)}.`,
         details: { field: 'value' },
       });
     }
+    return schema;
+  }
+
+  async updateConfig(
+    admin: AdminActor,
+    key: string,
+    value: unknown,
+    // Owner 14.11 (row 179): what the editor saw; undefined = no check.
+    expectedUpdatedAt?: string | null,
+  ): Promise<ConfigEntryDto> {
+    const schema = await this.assertWritable(admin, key, value);
     const json = value as Prisma.InputJsonValue;
     const row = await withTxRetry(this.prisma, async (tx) => {
       const before = await tx.appConfig.findUnique({ where: { key } });
@@ -604,6 +630,12 @@ export class AdminConfigService {
         where: { key },
         create: { key, value: json },
         update: { value: json },
+      });
+      await this.rollout?.stage(tx, {
+        adminId: admin.id,
+        action: CONFIG_AUDIT.config,
+        before: { [key]: before ? before.value : null },
+        after: { [key]: json as Prisma.JsonValue },
       });
       await this.audit.record(
         {

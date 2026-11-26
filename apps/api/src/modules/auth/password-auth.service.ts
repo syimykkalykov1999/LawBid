@@ -47,9 +47,11 @@ import {
   LOGIN_FAILURES_PER_ACCOUNT_HOUR,
   PasswordLoginThrottle,
 } from './services/password-login-throttle.service';
-import { simulateSend, timedSend } from './uniform-response.util';
+import { simulateSend, timedSend, waitUntil } from './uniform-response.util';
 
 const WINDOW_SECONDS = 3600;
+/** O4: default floor of `security.phone_status_min_ms`. */
+const PHONE_STATUS_MIN_MS = 150;
 /** Wrong-password guesses per phone / e-mail and per IP, per hour. */
 const LOGIN_PER_IDENTIFIER = 10;
 const LOGIN_PER_IP = 40;
@@ -236,6 +238,31 @@ export class PasswordAuthService {
   // POST /auth/phone/status — "is this number registered?" (rate-limited
   // per number and per IP).
   async phoneStatus(
+    dto: PhoneStatusDto,
+    meta: RequestMeta,
+  ): Promise<PhoneStatusResultDto> {
+    // O4 (ASVS V6.3.8): a registered and an unknown number answer after
+    // the same time (at least `security.phone_status_min_ms`), so a
+    // stopwatch tells nothing more than the answer itself.
+    const started = Date.now();
+    const result = await this.phoneStatusNow(dto, meta);
+    await waitUntil(started + (await this.phoneStatusFloorMs()));
+    return result;
+  }
+
+  private async phoneStatusFloorMs(): Promise<number> {
+    try {
+      const v = await this.settings?.number('security.phone_status_min_ms');
+      if (v !== undefined && Number.isFinite(v) && v >= 0) {
+        return Math.min(2000, Math.round(v));
+      }
+    } catch {
+      // settings unreachable: keep the default
+    }
+    return PHONE_STATUS_MIN_MS;
+  }
+
+  private async phoneStatusNow(
     dto: PhoneStatusDto,
     meta: RequestMeta,
   ): Promise<PhoneStatusResultDto> {

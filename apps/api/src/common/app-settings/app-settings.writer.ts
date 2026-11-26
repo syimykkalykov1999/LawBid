@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { AuditLogService } from '../../modules/admin-access/audit-log.service';
@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import type { AppSettingKey } from './app-settings.defaults';
+import { ConfigRolloutService } from './config-rollout.service';
 
 /**
  * A setting the automation itself moves (no admin, so no audit row: the
@@ -42,6 +43,8 @@ export class AppSettingsWriter {
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    // Б3: optional only so narrow specs can build the writer without it.
+    @Optional() private readonly rollout?: ConfigRolloutService,
   ) {}
 
   async write(
@@ -65,6 +68,18 @@ export class AppSettingsWriter {
           update: { value: value },
         });
       }
+      // Б3: the change goes to the canary tasks first (config-rollout.ts).
+      const old = new Map(before.map((r) => [r.key, r.value]));
+      await this.rollout?.stage(tx, {
+        adminId,
+        action,
+        before: Object.fromEntries(
+          entries.map(([k]) => [k, old.get(k) ?? null]),
+        ),
+        after: Object.fromEntries(
+          entries.map(([k, v]) => [k, (v ?? null) as Prisma.JsonValue]),
+        ),
+      });
       await this.audit.record(
         {
           adminId,
@@ -92,6 +107,13 @@ export class AppSettingsWriter {
         select: { key: true, value: true },
       });
       await tx.appConfig.deleteMany({ where: { key: { in: keys } } });
+      const old = new Map(before.map((r) => [r.key, r.value]));
+      await this.rollout?.stage(tx, {
+        adminId,
+        action,
+        before: Object.fromEntries(keys.map((k) => [k, old.get(k) ?? null])),
+        after: Object.fromEntries(keys.map((k) => [k, null])),
+      });
       await this.audit.record(
         {
           adminId,

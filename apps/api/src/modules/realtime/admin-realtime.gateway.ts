@@ -24,6 +24,8 @@ import {
   ADMINS_ROOM,
   adminTicketKey,
 } from './realtime-publisher.service';
+import { isIP } from 'node:net';
+import { socketClientIp } from './socket-ip';
 import { SOCKET_SERVER_OPTIONS } from '../../common/cors/socket-server-options';
 
 /** The ticket is 24 random bytes in base64url (32 chars). */
@@ -127,7 +129,16 @@ export class AdminRealtimeGateway
       socket.disconnect(true);
       return;
     }
-    const ip = socket.handshake.address;
+    // G1: the real client (X-Forwarded-For with TRUST_PROXY_HOPS, plus the
+    // CloudFront hop through the API edge), not the load balancer's address,
+    // which every caller shares (common/net/edge-client-ip.ts).
+    const peerIp = socketClientIp(
+      socket.handshake.headers,
+      socket.handshake.address,
+      Number(process.env.TRUST_PROXY_HOPS ?? 0) || 0,
+      process.env.API_EDGE_ORIGIN_VERIFY ?? '',
+    );
+    const ip = peerIp && isIP(peerIp) ? peerIp : socket.handshake.address;
     const failKey = ['admin-socket', 'ip', ip];
     if (
       this.rateLimit &&

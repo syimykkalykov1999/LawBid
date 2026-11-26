@@ -17,7 +17,7 @@
 | Terraform state | S3 versioned bucket + DynamoDB lock | — | state bucket |
 
 Targets: **RPO ≤ 1 hour** (point-in-time restore: in practice ≤ 5 min),
-**RTO ≤ 4 hours**. Region loss: RPO ≤ 24 h (newest copy in us-west-2).
+**RTO ≤ 4 hours**. Region loss: RPO ≤ 24 h (newest copy in us-west-2), RTO ≤ 8 h — steps, images, secrets and the DR stack: [region-dr.md](region-dr.md).
 
 Why (AWS Well-Architected, Reliability pillar):
 [REL09 — back up data](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/back-up-data.html)
