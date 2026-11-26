@@ -112,10 +112,14 @@ void main() {
     );
     await tester.pumpAndSettle();
     // Owner 2026-11-18: no «Кейсы» and no «Непрочитанные» chip any more.
+    // Owner 2026-11-25: no «Ожидают ответа» either.
     expect(find.byKey(const ValueKey('chat-folder-all')), findsOneWidget);
-    expect(find.byKey(const ValueKey('chat-folder-waiting')), findsOneWidget);
+    expect(find.byKey(const ValueKey('chat-folder-waiting')), findsNothing);
     expect(find.byKey(const ValueKey('chat-folder-cases')), findsNothing);
     expect(find.byKey(const ValueKey('chat-folder-unread')), findsNothing);
+    // Owner 2026-11-25: «Все» shows no case chat — they are in «Кейсы».
+    expect(find.text('Person a'), findsNothing);
+    expect(find.text('Person b'), findsNothing);
 
     // What the «Кейсы» tab shows.
     await tester.pumpWidget(

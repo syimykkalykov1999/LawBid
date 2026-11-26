@@ -442,6 +442,16 @@ export const GLOBAL_MODELS: readonly string[] = [
   // BUG-1 (package N-12b): the chat search blind index. Global for now (no
   // shard trigger needed); it joins the case family when that is split.
   'MessageSearchToken',
+  // Item 25 (E2EE on MLS): the Delivery Service — devices and KeyPackages
+  // (per user, like sessions) and the groups of chats (no foreign key to
+  // the chat; they join the case family when that is split, like the
+  // search index above).
+  'MlsDevice',
+  'MlsKeyPackage',
+  'MlsGroup',
+  'MlsCommit',
+  'MlsGroupDevice',
+  'MlsWelcome',
 ];
 
 const GLOBAL_SET: ReadonlySet<string> = new Set(GLOBAL_MODELS);

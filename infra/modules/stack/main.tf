@@ -413,17 +413,22 @@ locals {
   api_native_alb_stage    = { off = "off", prepare = "prepare", canary = "on", linear = "on" }[var.api_native_deploy]
   api_native_ecs_strategy = { off = "", prepare = "ROLLING", canary = "CANARY", linear = "LINEAR" }[var.api_native_deploy]
 }
-# X1, an open point for the owner (a warning in every plan, never a failure):
-# the request-based api scaling of «Авто» (modules/ecs aws_appautoscaling_policy
-# api_requests, ALBRequestCountPerTarget) has ONE resource label = the first api
-# target group. With canary / linear the live traffic alternates between the two
-# groups, so after every second release that policy sees no requests (CPU
-# scaling still works). «Авто» is not changed here (owner rule 17.11).
-check "api_native_deploy_request_scaling" {
-  assert {
-    condition     = !contains(["canary", "linear"], var.api_native_deploy)
-    error_message = "X1: api_native_deploy = ${var.api_native_deploy}: the «Авто» request scaling (ALBRequestCountPerTarget) follows only the first api target group; after every second deployment it does not see the live traffic (CPU scaling still works). Owner decision before prod (docs/runbooks/DEPLOY_SAFETY.md)."
-  }
+# X1 + owner decision 25.11 («Авто» improvements): with canary / linear the live
+# api traffic alternates between the two target groups, so the request-based
+# api scaling (modules/ecs api_requests) and the predictive policy read BOTH
+# groups whenever the green group exists (api_two_target_groups below: metric
+# math = AWS's RequestCountPerTarget definition summed over blue + green). The
+# old warning check "api_native_deploy_request_scaling" is closed by that.
+# Item 27 (AU1): ECS predictive scaling of the api (modules/ecs api_predictive).
+variable "predictive_scaling_enabled" {
+  type        = bool
+  default     = true
+  description = "Item 27: the api predictive scaling policy. Created in ForecastOnly (no task change, no cost); the admin `infra.predictive_scaling_mode` (Выкл / Прогноз / Вкл / Авто) switches its Mode."
+}
+variable "predictive_scheduling_buffer_seconds" {
+  type        = number
+  default     = 300
+  description = "Item 27: forecast tasks start this many seconds before the hour (AWS SchedulingBufferTime 0..3600)."
 }
 variable "api_canary_percent" {
   type        = number
@@ -514,6 +519,59 @@ variable "redis_cluster_mode" {
   validation {
     condition     = contains(["off", "standby", "on"], var.redis_cluster_mode)
     error_message = "redis_cluster_mode: off, standby or on."
+  }
+}
+# Item 29 (AU5, owner 25.11): ElastiCache Serverless for Valkey, the same
+# three steps as redis_cluster_mode (docs/runbooks/valkey-serverless.md):
+#   off      today: the node group only (default; nothing is created).
+#   standby  the serverless cache is BUILT beside it (empty, or seeded from
+#            redis_serverless_snapshot_arn); the app still uses the node group.
+#   on       the app uses it: REDIS_URL = REDIS_SERVERLESS_URL, REDIS_CLUSTER =
+#            true (Serverless is cluster mode; the app is cluster-ready,
+#            docs/architecture/REDIS_CLUSTER_READY.md). The node group stays as
+#            the way back until a later step removes it.
+# The admin «Авто» (infra.valkey_serverless_mode) only says which is cheaper.
+variable "redis_serverless_mode" {
+  type        = string
+  default     = "off"
+  description = "Item 29: off | standby | on — ElastiCache Serverless Valkey (docs/runbooks/valkey-serverless.md)."
+  validation {
+    condition     = contains(["off", "standby", "on"], var.redis_serverless_mode)
+    error_message = "redis_serverless_mode: off, standby or on."
+  }
+}
+variable "redis_serverless_snapshot_arn" {
+  type        = string
+  default     = ""
+  description = "Item 29: ElastiCache backup ARN of the node group that seeds the serverless cache when it is created (the runbook's write-pause step)."
+}
+variable "redis_serverless_max_data_gb" {
+  type        = number
+  default     = 10
+  description = "Item 29: ceiling of stored GB of the serverless cache (cache_usage_limits)."
+}
+variable "redis_serverless_max_ecpu_per_second" {
+  type        = number
+  default     = 100000
+  description = "Item 29: ceiling of ECPU per second of the serverless cache (cache_usage_limits)."
+}
+# Item 29, last runbook step: remove the old node group once the app has run
+# on Serverless (`on`) for the runbook's 7 days. false is refused unless
+# redis_serverless_mode = "on", the cluster-mode group is off and LiveKit does
+# not use Redis (it reads the node endpoint).
+variable "redis_node_group_enabled" {
+  type        = bool
+  default     = true
+  description = "Item 29: keep the node-based Valkey group. false only after the move to Serverless (docs/runbooks/valkey-serverless.md «Убрать старые узлы»)."
+  validation {
+    condition     = var.redis_node_group_enabled || (var.redis_serverless_mode == "on" && var.redis_cluster_mode == "off" && !var.livekit_use_redis)
+    error_message = "redis_node_group_enabled = false needs redis_serverless_mode = \"on\", redis_cluster_mode = \"off\" and livekit_use_redis = false."
+  }
+}
+check "redis_serverless_not_with_cluster_mode" {
+  assert {
+    condition     = !(var.redis_serverless_mode == "on" && var.redis_cluster_mode == "on")
+    error_message = "redis_serverless_mode = on and redis_cluster_mode = on: the app can use only one of them."
   }
 }
 variable "redis_cluster_shards" {
@@ -965,6 +1023,8 @@ variable "runbook_base_url" {
 locals {
   # redis_cluster_mode = "on": the app talks to the cluster-mode-enabled group.
   redis_cluster_on = var.redis_cluster_mode == "on"
+  # Item 29 (AU5): the app uses the serverless Valkey (cluster mode, TLS).
+  redis_serverless_on = var.redis_serverless_mode == "on"
   web_cors_origins = distinct(concat(
     var.s3_cors_allowed_origins,
     [for h in concat([var.web_host, var.admin_host], var.web_extra_hosts) : "https://${h}" if h != ""],
@@ -1116,8 +1176,8 @@ module "livekit" {
   hosted_zone_id          = var.hosted_zone_id
   instance_type           = var.livekit_instance_type
   use_redis               = var.livekit_use_redis
-  redis_endpoint          = module.redis.primary_endpoint
-  redis_url_secret_arn    = module.redis.redis_url_secret_arn
+  redis_endpoint          = module.redis.primary_endpoint == null ? "" : module.redis.primary_endpoint
+  redis_url_secret_arn    = module.redis.redis_url_secret_arn == null ? "" : module.redis.redis_url_secret_arn
   redis_security_group_id = module.redis.security_group_id
   kms_key_arn             = module.kms.key_arn
   alerts_topic_arn        = module.monitoring.alerts_topic_arn
@@ -1316,6 +1376,13 @@ module "redis" {
   num_node_groups         = var.redis_cluster_shards
   replicas_per_node_group = var.redis_cluster_replicas_per_shard
   cluster_node_type       = var.redis_cluster_node_type
+
+  # Item 29 (AU5): the serverless Valkey beside the node group.
+  serverless                     = var.redis_serverless_mode != "off"
+  node_group                     = var.redis_node_group_enabled
+  serverless_snapshot_arn        = var.redis_serverless_snapshot_arn
+  serverless_max_data_gb         = var.redis_serverless_max_data_gb
+  serverless_max_ecpu_per_second = var.redis_serverless_max_ecpu_per_second
 
   recovery_window_in_days = var.ephemeral ? 0 : 30
 }
@@ -1898,7 +1965,7 @@ locals {
   # Created even with no standby node yet: the Lambda itself refuses to resize a
   # one-node group (guard no_failover, e-mails) and starts once the API's
   # ha-auto service has added the node.
-  redis_autoscale_on = var.redis_autoscale_enabled && !local.redis_cluster_on
+  redis_autoscale_on = var.redis_autoscale_enabled && !local.redis_cluster_on && !local.redis_serverless_on
   autoscale_ssm_params = concat(
     local.db_autoscale_on ? ["/${local.name}/db-autoscale/mode", "/${local.name}/db-autoscale/max-class", "/${local.name}/db-autoscale/tuning"] : [],
     local.redis_autoscale_on ? ["/${local.name}/redis-autoscale/mode", "/${local.name}/redis-autoscale/max-class", "/${local.name}/redis-autoscale/tuning"] : [],
@@ -2027,7 +2094,7 @@ locals {
     OPS_API_TASK_USD    = tostring(local.api_task_usd) # x86 on-demand list price; the API applies ARM / Spot (S9-7)
     OPS_WORKER_TASK_USD = tostring(local.worker_task_usd)
     OPS_DB_INSTANCE     = local.db_identifier # the admin «Экономика» shows the current class (also after the autoscaler moved it)
-    OPS_REDIS_GROUP     = local.redis_cluster_on ? module.redis.cluster_replication_group_id : "${local.name}-redis"
+    OPS_REDIS_GROUP     = !var.redis_node_group_enabled ? "" : local.redis_cluster_on ? module.redis.cluster_replication_group_id : "${local.name}-redis"
     # Batch D (2026-10-24): the admin «Масштаб» page says whether the size
     # changes by itself (the Lambda's own on / dry-run / off switch is in SSM).
     # Cost registry: SSM parameter NAMES (built from the stack name, not from
@@ -2046,6 +2113,8 @@ locals {
     # reads a missing one as «defaults», so «Авто» ships this without a new
     # resource (the aws.autoscale_code scope is in-place updates only).
     OPS_SPOT_FALLBACK_TUNING_PARAM = "/${local.name}/spot-fallback/tuning"
+    # Item 27 (AU1): the predictive policies whose Mode the admin switches.
+    OPS_ECS_PREDICTIVE_POLICIES = jsonencode(module.ecs.predictive_policies)
     OPS_ECS_SCALING_POLICIES = jsonencode(merge(
       module.ecs.scaling_policies,
       var.db_pooler_enabled ? { pgbouncer_cpu = module.pgbouncer[0].scaling_policy } : {},
@@ -2056,7 +2125,7 @@ locals {
     OPS_AUTOSCALE_CODE_MAIN_PARAM    = "/${local.name}/deploy/autoscale_code_main"
     OPS_AUTOSCALE_CODE_APPLIED_PARAM = aws_ssm_parameter.autoscale_code_applied.name
     # Cluster mode switch (var.redis_cluster_mode = "on"): the app builds ioredis Cluster clients.
-    REDIS_CLUSTER      = local.redis_cluster_on ? "true" : "false"
+    REDIS_CLUSTER      = local.redis_cluster_on || local.redis_serverless_on ? "true" : "false"
     OPS_POOLER_MIN     = tostring(var.pgbouncer_min_tasks)
     OPS_POOLER_MAX     = tostring(var.pgbouncer_max_tasks)
     OPS_BUDGET_NAME    = "${local.name}-monthly"
@@ -2108,7 +2177,7 @@ locals {
   worker_task_usd    = floor(730 * (var.worker_cpu / 1024 * 0.04048 + var.worker_memory / 1024 * 0.004445) * 100) / 100
   app_secret_arns = merge(
     { for k in local.secret_names : k => module.secrets.arns[k] },
-    { REDIS_URL = local.redis_cluster_on ? module.redis.cluster_url_secret_arn : module.redis.redis_url_secret_arn },
+    { REDIS_URL = local.redis_serverless_on ? module.redis.serverless_url_secret_arn : local.redis_cluster_on ? module.redis.cluster_url_secret_arn : module.redis.redis_url_secret_arn },
     var.redis_cache_node ? { REDIS_CACHE_URL = module.redis_cache[0].redis_url_secret_arn } : {},
     # Key rotation on: the active kids are secrets the rotation follow-up changes.
     { for k, v in aws_secretsmanager_secret.active_kid : k => v.arn },
@@ -2256,8 +2325,10 @@ module "secret_rotation" {
   } : null
 
   redis = var.secret_rotation.redis_enabled ? merge(
-    { REDIS_URL = { secret_arn = module.redis.redis_url_secret_arn, group_id = "${local.name}-redis", every_days = var.secret_rotation.redis_every_days } },
+    var.redis_node_group_enabled ? { REDIS_URL = { secret_arn = module.redis.redis_url_secret_arn, group_id = "${local.name}-redis", every_days = var.secret_rotation.redis_every_days } } : {},
     var.redis_cache_node ? { REDIS_CACHE_URL = { secret_arn = module.redis_cache[0].redis_url_secret_arn, group_id = "${local.name}-cache-redis", every_days = var.secret_rotation.redis_every_days } } : {},
+    # Item 29: the Serverless Valkey password is an ElastiCache user's.
+    var.redis_serverless_mode != "off" ? { REDIS_SERVERLESS_URL = { secret_arn = module.redis.serverless_url_secret_arn, group_id = "", user_id = "${local.name}-svl-default", every_days = var.secret_rotation.redis_every_days } } : {},
   ) : {}
 
   keys = var.secret_rotation.keys_enabled ? {
@@ -2443,6 +2514,13 @@ module "ecs" {
   api_linear_step_percent          = var.api_linear_step_percent
   api_linear_step_bake_minutes     = var.api_linear_step_bake_minutes
   api_deploy_bake_minutes          = var.api_deploy_bake_minutes
+  # 25.11: request + predictive scaling read both api target groups once the
+  # green group exists (a literal: its ARN is unknown while it is created).
+  api_two_target_groups             = var.api_native_deploy != "off"
+  api_green_target_group_arn_suffix = module.alb.api_green_target_group_arn_suffix
+  # Item 27 (AU1): ECS predictive scaling, ForecastOnly at creation.
+  predictive_scaling_enabled           = var.predictive_scaling_enabled
+  predictive_scheduling_buffer_seconds = var.predictive_scheduling_buffer_seconds
 
   # Same namespace as modules/monitoring (QueueWaitingTotal).
   metrics_namespace    = "LawBid/${local.name}"
@@ -2654,7 +2732,16 @@ data "aws_iam_policy_document" "ops_read" {
       "application-autoscaling:DescribeScalableTargets",
       "application-autoscaling:DescribeScalingPolicies",
       "application-autoscaling:DescribeScheduledActions",
+      # Item 27 (AU1): the forecast, compared with what really came.
+      "application-autoscaling:GetPredictiveScalingForecast",
     ]
+    resources = ["*"]
+  }
+  # Item 27 (AU1): the real hourly api requests for the forecast error;
+  # item 29 (AU5): the Valkey load for the Serverless cost estimate. Metrics
+  # have no resource-level scope.
+  statement {
+    actions   = ["cloudwatch:GetMetricData"]
     resources = ["*"]
   }
   dynamic "statement" {
@@ -3081,6 +3168,7 @@ module "monitoring" {
   api_service_name                  = module.ecs.api_service_name
   worker_service_name               = module.ecs.worker_service_name
   redis_replication_group_id        = "${local.name}-redis"
+  redis_node_group                  = var.redis_node_group_enabled
   redis_replicas                    = var.redis_replicas
   redis_node_type                   = var.redis_node_type
   redis_cache_replication_group_id  = var.redis_cache_node ? "${local.name}-cache-redis" : ""
@@ -3135,7 +3223,9 @@ module "db_autoscale" {
   initial_ceiling  = var.db_autoscale_initial_ceiling_class
   mode             = var.db_autoscale_mode
   tuning           = var.db_autoscale_tuning
-  tags             = local.tags
+  # Item 28 (AU4): «read copy first» control (economy job -> S3).
+  controls_bucket = module.s3.documents_bucket
+  tags            = local.tags
 }
 
 # Owner 2026-10-24: Redis size follows the load too (modules/redis ignores

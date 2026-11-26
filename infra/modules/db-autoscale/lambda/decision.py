@@ -129,6 +129,8 @@ class State:
     last_down: Optional[float] = None
     last_change: Optional[float] = None  # any size change, ours or not
     notified: dict = field(default_factory=dict)  # throttle: key -> epoch
+    # Item 28 (AU4): since when a CPU-only "up" waits for a read copy.
+    read_out_since: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -275,6 +277,53 @@ def decide(cfg, mode, inst, guards, state, metrics, now):
     if mode == "night":
         return _decide_down(cfg, cur, guards, state, metrics, now)
     return Decision("none", "bad_mode")
+
+
+@dataclass(frozen=True)
+class ReplicaFirst:
+    """Item 28 (AU4, owner 25.11): the owner's «read copy first» control,
+    copied by the economy job into ops/scale-controls.json (db_replica_first,
+    economy.rules.ts replicaFirstControl). Unreadable = off (today's resize)."""
+
+    mode: str = "off"  # off | on | auto
+    wait_min: int = 60
+    max_replicas: int = 5
+    possible: bool = False  # a read copy can really come and take reads
+
+
+# Only sustained CPU waits for a copy: a copy takes reads off the primary's
+# CPU, but not its memory or its connection limit, and the 90 % fast lane is
+# an emergency (minutes to saturation, a copy needs ~15-20 to be created).
+READ_OUT_TRIGGERS = frozenset({"cpu"})
+
+
+def replica_first(dec, rf, inst, state, now):
+    """(decision, state): scale reads out first, the primary up second.
+
+    AWS RDS user guide ("Working with DB instance read replicas": replicas
+    scale beyond one instance for read-heavy loads) and Instagram / OpenAI
+    (January 2026) Postgres: reads grow with copies, the primary grows for
+    writes. A CPU-only "up" is held while fewer than rf.max_replicas own
+    copies run, for at most rf.wait_min minutes from the first hold; then
+    the primary grows as before (the copies follow its class). on = always
+    hold; auto = hold only while a copy can come (rf.possible); off = never.
+    """
+    triggers = set((dec.facts or {}).get("triggers", {}))
+    holdable = dec.action == "up" and bool(triggers) and triggers <= READ_OUT_TRIGGERS
+    active = rf.mode == "on" or (rf.mode == "auto" and rf.possible)
+    copies = len(inst.replica_ids)
+    if not (holdable and active and copies < rf.max_replicas):
+        if state.read_out_since is not None:
+            state = replace(state, read_out_since=None)
+        return dec, state
+    since = state.read_out_since if state.read_out_since is not None else now
+    waited = now - since
+    if waited >= rf.wait_min * MIN:
+        facts = dict(dec.facts, read_out_waited_min=round(waited / MIN), copies=copies)
+        return replace(dec, facts=facts), replace(state, read_out_since=None)
+    facts = dict(dec.facts, copies=copies, waited_min=round(waited / MIN),
+                 wait_min=rf.wait_min, target=dec.target)
+    return Decision("none", "replica_first", facts=facts), replace(state, read_out_since=since)
 
 
 def _single_node_cfg(cfg):
