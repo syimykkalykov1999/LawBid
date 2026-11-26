@@ -590,7 +590,7 @@ export class PrismaService
                 // query that runs past the time the app still waits.
                 const ms = deadlineStatementTimeoutMs();
                 if (ms === null) return body();
-                return (tx as PrismaClient)
+                return (tx as SecretOmittingClient)
                   .$executeRaw`SELECT set_config('statement_timeout', ${String(ms)}, true)`.then(
                   body,
                 );
