@@ -28,6 +28,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { NestFactory } from '@nestjs/core';
+import { STORAGE_REQUEST_HANDLER } from '../common/http/aws-request-handler';
 import { PrismaClient } from '../generated/prisma/client';
 import type Redis from 'ioredis';
 import { AppModule } from '../app.module';
@@ -182,7 +183,12 @@ interface BucketRef {
 function buckets(): BucketRef[] {
   const region = process.env.S3_REGION || process.env.AWS_REGION;
   const endpoint = process.env.S3_ENDPOINT || undefined;
-  const main = new S3Client({ region, endpoint, forcePathStyle: !!endpoint });
+  const main = new S3Client({
+    region,
+    endpoint,
+    forcePathStyle: !!endpoint,
+    requestHandler: STORAGE_REQUEST_HANDLER,
+  });
   const list: BucketRef[] = [];
   for (const name of [
     process.env.S3_BUCKET_DOCUMENTS,
@@ -194,7 +200,10 @@ function buckets(): BucketRef[] {
   if (replica) {
     list.push({
       name: replica,
-      client: new S3Client({ region: process.env.S3_REPLICA_REGION || region }),
+      client: new S3Client({
+        region: process.env.S3_REPLICA_REGION || region,
+        requestHandler: STORAGE_REQUEST_HANDLER,
+      }),
       versionsOnly: true,
     });
   }

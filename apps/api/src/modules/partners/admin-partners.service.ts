@@ -54,6 +54,7 @@ import {
   type PartnerProgramSettings,
   type PartnerStatus,
 } from './partners.settings';
+import type { DbTx } from '../../prisma/secret-columns';
 import { csvCell } from '../../common/csv/csv-cell';
 
 const PAGE = 50;
@@ -737,11 +738,7 @@ export class AdminPartnersService {
   }
 
   /** Replaces the user's referral code with the admin's word. */
-  private async setCode(
-    tx: Prisma.TransactionClient,
-    userId: string,
-    code: string,
-  ): Promise<void> {
+  private async setCode(tx: DbTx, userId: string, code: string): Promise<void> {
     const taken = await tx.referralCode.findUnique({ where: { code } });
     if (taken && taken.user_id !== userId) {
       throw invalidState('This code belongs to someone else.');

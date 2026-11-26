@@ -118,6 +118,7 @@ describe('Admin integrations & API keys (e2e, owner 2026-10-01)', () => {
     // Stored encrypted.
     const row = await prisma.integrationCredential.findFirstOrThrow({
       where: { provider: 'turn', version: 1 },
+      select: { secret_enc: true },
     });
     expect(row.secret_enc).not.toContain(SECRET_1);
     // Pending is not live yet.

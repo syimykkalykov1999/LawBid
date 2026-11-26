@@ -6,6 +6,7 @@ import {
   checkAuditChain,
   TOTALS_BUTTON_COOLDOWN_MS,
 } from '../admin/dashboard.service';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** The stored result of the last chain check (AdminSummaryService). */
 export const AUDIT_CHAIN_SUMMARY_KEY = 'audit-chain';
@@ -47,10 +48,7 @@ export class AuditLogService {
     @Optional() private readonly summary?: AdminSummaryService,
   ) {}
 
-  async record(
-    entry: AuditEntry,
-    tx?: Prisma.TransactionClient,
-  ): Promise<void> {
+  async record(entry: AuditEntry, tx?: DbTx): Promise<void> {
     const db = tx ?? this.prisma;
     await db.auditLog.create({
       data: {

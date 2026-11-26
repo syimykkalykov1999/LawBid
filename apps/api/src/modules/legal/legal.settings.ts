@@ -1,5 +1,4 @@
 import type { PrismaService } from '../../prisma/prisma.service';
-import type { Prisma } from '../../generated/prisma/client';
 import {
   LEGAL_LANGS,
   MACHINE_LANGS,
@@ -9,6 +8,7 @@ import {
   type LegalLang,
   type NewLegalTexts,
 } from './legal.texts.defaults';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /**
  * Owner 2026-10-05 (legal): one app_config row (`legal.settings`, JSON)
@@ -311,7 +311,7 @@ export function legalLangOf(uiLanguage: string | null | undefined): LegalLang {
  * user's language) so the partners module does not import LegalModule.
  */
 export async function readLegalSettings(
-  db: Pick<PrismaService, 'appConfig'> | Prisma.TransactionClient,
+  db: Pick<PrismaService, 'appConfig'> | DbTx,
 ): Promise<LegalSettings> {
   const row = await db.appConfig.findUnique({
     where: { key: LEGAL_SETTINGS_KEY },

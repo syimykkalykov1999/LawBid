@@ -21,6 +21,7 @@ import { ECS_CAPACITY_KINDS, spotSplit, splitKinds } from './autoscale-tuning';
 import type { CostSnapshot } from './ops.constants';
 import { OpsStateService } from './ops-state.service';
 import { opsCredentials } from './ops-credentials';
+import { AWS_API_REQUEST_HANDLER } from '../http/aws-request-handler';
 
 export type TaskKind = 'api' | 'worker';
 
@@ -144,6 +145,7 @@ export class AwsOpsService {
 
   private ecsClient(): ECSClient {
     return (this.ecs ??= new ECSClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: this.region(),
       credentials: this.creds(this.region()),
     }));
@@ -151,6 +153,7 @@ export class AwsOpsService {
 
   private scalingClient(): ApplicationAutoScalingClient {
     return (this.scaling ??= new ApplicationAutoScalingClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: this.region(),
       credentials: this.creds(this.region()),
     }));
@@ -689,6 +692,7 @@ export class AwsOpsService {
     if (!this.budgetAvailable) return null;
     // Budgets is a global service answered from us-east-1.
     this.budgets ??= new BudgetsClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: 'us-east-1',
       credentials: this.creds('us-east-1'),
     });

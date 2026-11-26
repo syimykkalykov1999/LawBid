@@ -26,6 +26,7 @@ import {
   type ValkeyDayLoad,
   type ValkeyVerdict,
 } from './valkey-serverless.logic';
+import { AWS_API_REQUEST_HANDLER } from '../http/aws-request-handler';
 
 const LOCK_KEY = 'ops:valkey-serverless:lock';
 /** Plain-Russian verdict for «Расходы → Реестр» (row aws.redis_serverless). */
@@ -108,12 +109,14 @@ export class ValkeyServerlessService implements OnModuleInit, OnModuleDestroy {
   }
   private cwClient(): CloudWatchClient {
     return (this.cw ??= new CloudWatchClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: this.region(),
       credentials: opsCredentials((n) => this.env(n), this.region()),
     }));
   }
   private cacheClient(): ElastiCacheClient {
     return (this.cache ??= new ElastiCacheClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: this.region(),
       credentials: opsCredentials((n) => this.env(n), this.region()),
     }));

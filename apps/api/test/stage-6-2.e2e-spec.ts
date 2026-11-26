@@ -436,6 +436,7 @@ describe('stage 6.2 — admin auth, RBAC, audit, admins, dashboard (e2e)', () =>
     expect(await actions(s.userId)).toContain('admin.recovery_code_used');
     const cred = await prisma.adminCredential.findUniqueOrThrow({
       where: { user_id: s.userId },
+      select: { recovery_codes_hash: true },
     });
     expect(cred.recovery_codes_hash).toHaveLength(9);
   });

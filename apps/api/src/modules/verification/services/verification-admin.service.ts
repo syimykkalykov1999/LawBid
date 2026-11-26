@@ -86,8 +86,9 @@ import {
   type RegistryCheckJobData,
   type RegistryCheckKind,
 } from '../registry-check.queue';
+import type { DbTx } from '../../../prisma/secret-columns';
 
-type Tx = Prisma.TransactionClient;
+type Tx = DbTx;
 
 const CARD_INCLUDE = {
   documents: {

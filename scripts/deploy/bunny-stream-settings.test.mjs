@@ -219,3 +219,31 @@ test('an invalid declared file stops before any call', async () => {
   assert.equal(f.calls.length, 0);
   assert.equal(await run(['nope'], ENV, f, silent), 64);
 });
+
+test('backup block: off by default, keepOriginals true is compared and written', () => {
+  const d = desired();
+  assert.equal(d.backup.keepOriginals, false);
+  assert.deepEqual(compare(d, same), []);
+  const on = { ...d, backup: { keepOriginals: true } };
+  assert.deepEqual(validateDesired(on), []);
+  const drift = compare(on, { ...same, KeepOriginalFiles: false });
+  assert.deepEqual(drift, [{ field: 'KeepOriginalFiles', want: true, have: false }]);
+  assert.deepEqual(compare(on, { ...same, KeepOriginalFiles: true }), []);
+  assert.equal(updateBody(on).KeepOriginalFiles, true);
+  assert.equal('KeepOriginalFiles' in updateBody(d), false);
+});
+
+test('backup block: a non-boolean keepOriginals is rejected', () => {
+  const errors = validateDesired({ ...desired(), backup: { keepOriginals: 'yes' } });
+  assert.ok(errors.some((e) => e.includes('backup.keepOriginals')));
+});
+
+test('check shows the storage replication regions and never the keys', async () => {
+  const out = capture();
+  const live = { ...same, ReplicationRegions: ['NY', 'LA'], KeepOriginalFiles: false, ApiKey: 'test-library-key' };
+  const code = await run(['check'], ENV, fakeFetch(live), out);
+  assert.equal(code, 0);
+  const text = out.lines.join('\n');
+  assert.match(text, /replication regions: NY, LA; keep originals: no/);
+  assert.doesNotMatch(text, /test-library-key|test-account-api-key/);
+});

@@ -43,6 +43,7 @@ import {
   type WipePlan,
 } from '../src/ops/prelaunch-wipe.plan';
 import { pgAdapter } from '../src/prisma/pg-adapter';
+import { STORAGE_REQUEST_HANDLER } from '../src/common/http/aws-request-handler';
 
 const CONFIRM_PHRASE = 'wipe-beta-test-data';
 const PHASES = ['bunny', 'db', 's3', 'redis'] as const;
@@ -318,6 +319,7 @@ function buckets(): BucketRef[] {
   const region = process.env.S3_REGION || process.env.AWS_REGION;
   const endpoint = process.env.S3_ENDPOINT || undefined;
   const main = new S3Client({
+    requestHandler: STORAGE_REQUEST_HANDLER,
     region,
     endpoint,
     forcePathStyle: !!endpoint,
@@ -334,6 +336,7 @@ function buckets(): BucketRef[] {
     list.push({
       name: replica,
       client: new S3Client({
+        requestHandler: STORAGE_REQUEST_HANDLER,
         region: process.env.S3_REPLICA_REGION || region,
       }),
       versionsOnly: true,

@@ -8,7 +8,7 @@ import {
   randomUUID,
 } from 'node:crypto';
 import type Redis from 'ioredis';
-import type { Session } from '../../../generated/prisma/client';
+import type { SessionRow } from '../../../prisma/secret-columns';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
@@ -52,7 +52,7 @@ export interface RequestMeta {
 const BUSY_RETRY_SECONDS = 2;
 
 export type RefreshOutcome =
-  | { status: 'ok'; session: Session; refreshTokenRaw: string }
+  | { status: 'ok'; session: SessionRow; refreshTokenRaw: string }
   | { status: 'invalid' }
   | { status: 'expired' }
   | { status: 'signed_in_elsewhere' }
@@ -132,7 +132,7 @@ export class SessionService {
     userId: string,
     device: DeviceInfo,
     meta: RequestMeta,
-  ): Promise<{ session: Session; refreshTokenRaw: string }> {
+  ): Promise<{ session: SessionRow; refreshTokenRaw: string }> {
     const { raw, hash } = this.tokenService.generateRefreshToken();
     const sessionChainId = randomUUID();
 
@@ -492,7 +492,7 @@ export class SessionService {
   }
 
   /** A chain opened before #13: its oldest row is the sign-in. */
-  private async chainStart(found: Session): Promise<Date> {
+  private async chainStart(found: SessionRow): Promise<Date> {
     const first = await this.prisma.session.findFirst({
       where: { session_chain_id: found.session_chain_id },
       orderBy: { created_at: 'asc' },
@@ -501,7 +501,7 @@ export class SessionService {
     return first?.created_at ?? found.created_at ?? new Date();
   }
 
-  async listActiveChains(userId: string): Promise<Session[]> {
+  async listActiveChains(userId: string): Promise<SessionRow[]> {
     return this.prisma.session.findMany({
       // S14-10: a row past its expiry that was never revoked is not a live
       // session and must not be listed as one.

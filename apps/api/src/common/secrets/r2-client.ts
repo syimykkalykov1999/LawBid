@@ -1,5 +1,6 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { STORAGE_REQUEST_HANDLER } from '../http/aws-request-handler';
 
 /** The R2 keys every S3 client of ours needs. */
 export interface R2Keys {
@@ -18,11 +19,9 @@ export interface R2Keys {
  */
 /** Time limits of the object-storage clients (R2 and S3): connect within
  * 3 s; a socket idle for 30 s is given up (idle, not total — a long
- * server-side copy keeps its connection busy). */
-export const STORAGE_REQUEST_HANDLER = {
-  connectionTimeout: 3_000,
-  requestTimeout: 30_000,
-};
+ * server-side copy keeps its connection busy). Defined with the other AWS
+ * client limits (common/http/aws-request-handler.ts, M5 26.11). */
+export { STORAGE_REQUEST_HANDLER };
 
 export function createR2Client(keys: R2Keys): S3Client {
   const test =
@@ -39,7 +38,9 @@ export function createR2Client(keys: R2Keys): S3Client {
       secretAccessKey: keys.secretAccessKey,
     },
     // Infra audit 14.11 (as SES does): a bucket that stops answering frees
-    // the request and its socket; the SDK default is no limit at all.
+    // the request and its socket; the SDK default is no limit at all. M5
+    // 26.11: an idle limit (`socketTimeout`) — `requestTimeout` alone only
+    // logged a warning.
     requestHandler: STORAGE_REQUEST_HANDLER,
     // Newer SDK checksums are not accepted by every R2 operation.
     requestChecksumCalculation: 'WHEN_REQUIRED',

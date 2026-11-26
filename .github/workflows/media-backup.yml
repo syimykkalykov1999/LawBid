@@ -1,0 +1,125 @@
+# D10 (SECOND_PASS_2026-11-26, AWS WA REL09-BP01, SRE book ch. 26): nightly
+# independent copy of the public media in Cloudflare R2 (avatars, post and
+# review photos, stickers) into the versioned S3 bucket of infra/bootstrap/
+# media-backup.tf. rclone (MIT, the official image pinned by digest) "sync":
+# new and changed files are copied, files gone from R2 become old versions in
+# S3 and stay recoverable for media_backup_noncurrent_days (30), then expire.
+# R2 is only READ (an R2 API token with Object Read only).
+#
+# Off until the owner switches it on: repository variable
+# MEDIA_BACKUP_ENABLED = true (docs/runbooks/backups.md, section
+# "Публичные фото (R2) и видео (Bunny)"). Videos stay in Bunny Stream: their
+# originals are kept by Bunny itself (KeepOriginalFiles in
+# scripts/deploy/bunny-stream-settings.json, backup block).
+#
+# GitHub environment media-backup:
+#   secrets  AWS_MEDIA_BACKUP_ROLE (terraform output media_backup_role_arn),
+#            R2_BACKUP_ACCESS_KEY_ID, R2_BACKUP_SECRET_ACCESS_KEY (read-only R2 token)
+#   variables MEDIA_BACKUP_BUCKET (terraform output media_backup_bucket),
+#            R2_ACCOUNT_ID, R2_MEDIA_BUCKET
+name: Media backup
+
+on:
+  schedule:
+    - cron: "40 5 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: only list what would be copied or removed"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: media-backup
+  cancel-in-progress: false
+
+env:
+  # rclone 1.76.0 (2026-11-06): newest release at least 7 days old
+  # (STRICT_RULES 10), pinned by digest so a moved tag cannot change what runs.
+  RCLONE_IMAGE: rclone/rclone:1.76.0@sha256:7cbeec24a44f206067597c0368be4de90ae19a64d5113c7d1938bd737a81e466
+
+jobs:
+  r2-to-s3:
+    name: Copy R2 public media to S3 (rclone sync)
+    if: ${{ vars.MEDIA_BACKUP_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    # The first run copies everything; later runs only the changes.
+    timeout-minutes: 350
+    environment:
+      name: media-backup
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_MEDIA_BACKUP_ROLE }}
+          aws-region: us-east-1
+          # The first full copy can take hours: 6 h = the role max_session_duration
+          # (infra/bootstrap/media-backup.tf) and the job timeout.
+          role-duration-seconds: 21600
+      - name: rclone sync R2 -> S3
+        env:
+          DRY_RUN: ${{ inputs.dry_run && '--dry-run' || '' }}
+          SRC_BUCKET: ${{ vars.R2_MEDIA_BUCKET }}
+          DEST_BUCKET: ${{ vars.MEDIA_BACKUP_BUCKET }}
+          # rclone remotes from the environment (rclone docs: "Config file"
+          # -> environment variables RCLONE_CONFIG_<REMOTE>_<OPTION>).
+          RCLONE_CONFIG_R2_TYPE: s3
+          RCLONE_CONFIG_R2_PROVIDER: Cloudflare
+          RCLONE_CONFIG_R2_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          RCLONE_CONFIG_R2_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          RCLONE_CONFIG_R2_ENDPOINT: https://${{ vars.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+          RCLONE_CONFIG_S3_TYPE: s3
+          RCLONE_CONFIG_S3_PROVIDER: AWS
+          RCLONE_CONFIG_S3_ENV_AUTH: "true"
+          RCLONE_CONFIG_S3_REGION: us-east-1
+          # The role may not create buckets, and the bucket encrypts by itself.
+          RCLONE_CONFIG_S3_NO_CHECK_BUCKET: "true"
+        run: |
+          set -eu
+          for v in SRC_BUCKET DEST_BUCKET RCLONE_CONFIG_R2_ACCESS_KEY_ID RCLONE_CONFIG_R2_SECRET_ACCESS_KEY; do
+            [ -n "$(printenv "$v")" ] || { echo "::error::$v is not set in the media-backup environment (docs/runbooks/backups.md)"; exit 1; }
+          done
+          mkdir -p "$RUNNER_TEMP/rclone"
+          # shellcheck disable=SC2086 # DRY_RUN is empty or one flag
+          docker run --rm \
+            -e RCLONE_CONFIG_R2_TYPE -e RCLONE_CONFIG_R2_PROVIDER -e RCLONE_CONFIG_R2_ACCESS_KEY_ID \
+            -e RCLONE_CONFIG_R2_SECRET_ACCESS_KEY -e RCLONE_CONFIG_R2_ENDPOINT \
+            -e RCLONE_CONFIG_S3_TYPE -e RCLONE_CONFIG_S3_PROVIDER -e RCLONE_CONFIG_S3_ENV_AUTH \
+            -e RCLONE_CONFIG_S3_REGION -e RCLONE_CONFIG_S3_NO_CHECK_BUCKET \
+            -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN \
+            -v "$RUNNER_TEMP/rclone:/out" \
+            "$RCLONE_IMAGE" sync "r2:$SRC_BUCKET" "s3:$DEST_BUCKET/r2/$SRC_BUCKET" \
+            --fast-list --transfers 16 --checkers 32 --retries 5 \
+            --stats 60s --stats-one-line --log-level NOTICE \
+            --log-file /out/rclone.log $DRY_RUN
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Media backup (R2 -> S3)"
+            echo "last lines of the rclone log:"
+            echo '```'
+            tail -20 "$RUNNER_TEMP/rclone/rclone.log" 2>/dev/null || echo "(no log)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # A failed nightly copy reaches the owner (notify-failure.yml).
+  notify:
+    name: Notify the owner
+    needs: [r2-to-s3]
+    if: ${{ always() && contains(needs.*.result, 'failure') && github.event_name == 'schedule' }}
+    permissions:
+      contents: read
+      issues: write
+      id-token: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      title: "Media backup failed (R2 public photos were not copied to S3 tonight)"
+      kind: backup
+      remind_after_minutes: 720
+    secrets: inherit

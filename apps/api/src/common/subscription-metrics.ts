@@ -1,4 +1,5 @@
 import type { Prisma, SubscriptionPlan } from '../generated/prisma/client';
+import type { DbTx } from '../prisma/secret-columns';
 
 /**
  * Audit 2026-10-02 — one definition of a "live" subscription for every
@@ -55,7 +56,7 @@ export function monthlyRevenueCents(
  * changes) per plan — Stripe Billing's MRR = item amounts after discounts.
  */
 export async function payingMonthlyRevenueCents(
-  db: { subscription: Prisma.TransactionClient['subscription'] },
+  db: { subscription: DbTx['subscription'] },
   now: Date,
 ): Promise<number> {
   const byPlan = await db.subscription.groupBy({

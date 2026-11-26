@@ -20,6 +20,7 @@ import type {
   IdVerificationInput,
   IdVerificationProvider,
 } from './verification-providers';
+import { AWS_API_REQUEST_HANDLER } from '../../../common/http/aws-request-handler';
 
 /** `details.provider` of every face comparison row (the
  * `verification_provider` enum has no Rekognition value; the row's provider
@@ -340,6 +341,7 @@ export class RekognitionIdVerificationProvider
       this.sdk = {
         fingerprint,
         client: new RekognitionClient({
+          requestHandler: AWS_API_REQUEST_HANDLER,
           region,
           maxAttempts: 3,
           ...(keys ? { credentials: keys } : {}),
