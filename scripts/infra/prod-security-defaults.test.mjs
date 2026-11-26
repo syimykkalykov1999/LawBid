@@ -1,5 +1,7 @@
-// Б9 (25.11): the threat-detection set and the cost allocation tags are ON
-// by default in prod (STRICT_RULES №6: needed features are on by default).
+// Б9 (25.11): the threat-detection set is ON by default in prod (STRICT_RULES
+// №6: needed features are on by default). The unused-access analyzer and the
+// cost allocation tags need IAM rights that only infra/bootstrap adds (owner
+// applies it by hand), so they stay off until then (bootstrap -> true -> apply).
 // Reads infra/envs/prod/variables.tf and its wiring; a default flipped back to
 // false, or a switch no longer passed to the stack, makes this red.
 //   node --test scripts/infra/prod-security-defaults.test.mjs
@@ -30,9 +32,13 @@ const SWITCHES = [
   'security_hub_enabled',
   'securityhub_fsbp_enabled',
   'inspector_enabled',
-  'unused_access_analyzer_enabled',
   'guardduty_runtime_monitoring',
 ];
+
+// Switches whose IAM rights exist only in infra/bootstrap (applied by the owner
+// by hand). They stay off until then, or the admin «Infra apply» workflow stops
+// with AccessDenied (KNOWN_ERRORS 75/105). Owner order: bootstrap -> true -> apply.
+const NEEDS_BOOTSTRAP = ['unused_access_analyzer_enabled'];
 
 for (const name of SWITCHES) {
   test(`prod: ${name} is on by default and reaches the stack`, () => {
@@ -41,10 +47,21 @@ for (const name of SWITCHES) {
   });
 }
 
-test('prod: cost allocation tags are activated by code', () => {
-  const d = defaultOf('cost_allocation_tags');
-  for (const key of ['Project', 'Env', 'Component', 'ManagedBy']) {
-    assert.ok(d.includes(`"${key}"`), `${key} in the default list`);
-  }
+for (const name of NEEDS_BOOTSTRAP) {
+  test(`prod: ${name} waits for the bootstrap rights (off) and still reaches the stack`, () => {
+    assert.equal(defaultOf(name), 'false');
+    assert.match(prodMain, new RegExp(`^\\s*${name}\\s*=\\s*var\\.${name}\\s*$`, 'm'));
+  });
+}
+
+test('prod: cost allocation tags are wired, empty until the bootstrap rights exist', () => {
+  assert.equal(defaultOf('cost_allocation_tags'), '[]');
   assert.match(prodMain, /^\s*cost_allocation_tags\s*=\s*var\.cost_allocation_tags\s*$/m);
+});
+
+test('bootstrap grants what the two switches need once the owner applies it', () => {
+  const boot = readFileSync(join(root, 'infra/bootstrap/infra-apply.tf'), 'utf8');
+  for (const a of ['access-analyzer:CreateAnalyzer', 'ce:UpdateCostAllocationTagsStatus']) {
+    assert.ok(boot.includes(`"${a}"`), `${a} in infra-apply.tf`);
+  }
 });

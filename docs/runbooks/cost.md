@@ -55,8 +55,11 @@ S3), CloudWatch Logs ingestion (debug logging left on), ECS tasks stuck at
 Теги в счёте появляются только после активации. С 25.11 (Б9) её делает
 Terraform прода: ресурс `aws_ce_cost_allocation_tag` в `infra/modules/budget`,
 список ключей `cost_allocation_tags` в `infra/envs/prod/variables.tf`
-(`Project`, `Env`, `Component`, `ManagedBy`), статус `Active`. Ручного шага
-больше нет, дрейфа тоже: выключенный руками ключ следующий apply вернёт.
+(`Project`, `Env`, `Component`, `ManagedBy`), статус `Active`. По умолчанию
+список пустой, пока владелец не применит `infra/bootstrap` (право
+`ce:UpdateCostAllocationTagsStatus` есть только там; иначе apply из админки
+падает с AccessDenied). Порядок: bootstrap → вписать четыре ключа → apply
+прода. После этого дрейфа нет: выключенный руками ключ следующий apply вернёт.
 
 1. Apply прода работает в **управляющем** или отдельном аккаунте (иначе AWS
    отказывает); роли apply нужно `ce:UpdateCostAllocationTagsStatus`

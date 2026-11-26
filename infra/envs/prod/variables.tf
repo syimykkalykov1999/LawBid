@@ -772,16 +772,22 @@ variable "inspector_enabled" {
   default     = true
   description = "Amazon Inspector for ECR images. ~$1-6/month."
 }
+# OFF until the owner applies infra/bootstrap: the apply role gets the
+# access-analyzer:* rights only there (infra-apply.tf). Defaulting it to true
+# before that makes every admin «Infra apply» stop with AccessDenied
+# (KNOWN_ERRORS 75/105). Owner order: apply bootstrap -> true here -> apply prod.
 variable "unused_access_analyzer_enabled" {
   type        = bool
-  default     = true
-  description = "IAM Access Analyzer unused access. ~$0.20 per role/user per month."
+  default     = false
+  description = "IAM Access Analyzer unused access. ~$0.20 per role/user per month. Needs infra/bootstrap applied first (access-analyzer rights)."
 }
 # Б9: the cost allocation tags are activated by code (aws_ce_cost_allocation_tag
 # in modules/budget), not by hand in the Billing console (docs/runbooks/cost.md).
+# Empty until the owner applies infra/bootstrap (ce:UpdateCostAllocationTagsStatus
+# is only added there); then set ["Project", "Env", "Component", "ManagedBy"] and apply.
 variable "cost_allocation_tags" {
   type        = list(string)
-  default     = ["Project", "Env", "Component", "ManagedBy"]
+  default     = []
   description = "Tag keys activated as cost allocation tags (Billing -> Cost allocation tags). Free. A key must already be on a resource (AWS lists it within 24 h). [] = leave the console as is."
 }
 variable "s3_account_block_public_access" {

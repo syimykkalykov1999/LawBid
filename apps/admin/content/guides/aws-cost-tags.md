@@ -15,7 +15,7 @@ sources:
 
 ## Что это и зачем
 
-Все наши ресурсы в AWS помечены метками (тегами). Пока метки не «включены» в биллинге, в отчётах о расходах их не видно, и нельзя понять, сколько стоит прод, а сколько тест. С 25.11 метки включает сам Terraform (ресурс `aws_ce_cost_allocation_tag`, список `cost_allocation_tags` в `infra/envs/prod/variables.tf`), руками нажимать ничего не нужно.
+Все наши ресурсы в AWS помечены метками (тегами). Пока метки не «включены» в биллинге, в отчётах о расходах их не видно, и нельзя понять, сколько стоит прод, а сколько тест. С 25.11 метки умеет включать сам Terraform (ресурс `aws_ce_cost_allocation_tag`, список `cost_allocation_tags` в `infra/envs/prod/variables.tf`). Список пока пустой: право `ce:UpdateCostAllocationTagsStatus` появляется у роли apply только после того, как вы примените `infra/bootstrap`, а без права apply в админке остановился бы с AccessDenied.
 
 ## Что понадобится
 
@@ -24,9 +24,10 @@ sources:
 
 ## Шаги
 
-1. Примените Terraform прода, как обычно. Он включит все четыре ключа.
-2. Если apply пишет, что ключа нет (`Tag keys not found`), метки ещё не дошли до биллинга: подождите до 24 часов и примените ещё раз.
-3. Если позже появится AWS Organizations, Terraform прода должен работать в главной (management) учётной записи, иначе AWS откажет.
+1. Сначала примените `infra/bootstrap` (`terraform plan` → в плане только политика `infra-apply` → `terraform apply`).
+2. Потом впишите в `infra/envs/prod/variables.tf` (или в секрет `lawbid-prod/terraform-tfvars`) `cost_allocation_tags = ["Project", "Env", "Component", "ManagedBy"]` и примените Terraform прода, как обычно. Он включит все четыре ключа.
+3. Если apply пишет, что ключа нет (`Tag keys not found`), метки ещё не дошли до биллинга: подождите до 24 часов и примените ещё раз.
+4. Если позже появится AWS Organizations, Terraform прода должен работать в главной (management) учётной записи, иначе AWS откажет.
 
 Запасной путь руками, если Terraform применить нельзя: [console.aws.amazon.com/costmanagement](https://console.aws.amazon.com/costmanagement/) → **Cost allocation tags** → **User-defined cost allocation tags** → галочки у четырёх ключей → **Activate**.
 
