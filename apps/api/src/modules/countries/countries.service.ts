@@ -7,6 +7,7 @@ import type { Country, Prisma } from '../../generated/prisma/client';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** Every instance re-reads the switches at most this often, so a change
  * in the admin reaches all API instances within half a minute. */
@@ -139,7 +140,7 @@ export class CountriesService {
   async followRegion(
     userId: string,
     regionCode: string | null | undefined,
-    db: Pick<Prisma.TransactionClient, 'state' | 'user'> = this.prisma,
+    db: Pick<DbTx, 'state' | 'user'> = this.prisma,
   ): Promise<void> {
     if (!regionCode) return;
     const region = await db.state.findUnique({

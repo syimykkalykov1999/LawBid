@@ -67,13 +67,14 @@ import {
   hhmm,
   type CallWindow,
 } from './state-timezones';
+import type { DbTx, OutreachLeadRow } from '../../prisma/secret-columns';
 
 /** Email provider without the admin-template override hook (the content
  * of a cold email is final; it is not one of the transactional emails). */
 export const OUTREACH_EMAIL = Symbol('OUTREACH_EMAIL');
 
-type Db = PrismaService | Prisma.TransactionClient;
-export type LeadWithPartner = OutreachLead & { partner: Partner | null };
+type Db = PrismaService | DbTx;
+export type LeadWithPartner = OutreachLeadRow & { partner: Partner | null };
 
 /** Who an admin is in the outreach module: a manager sees everything, an
  * employee (an admin who is also a partner) only their own leads. */
@@ -480,7 +481,7 @@ export class OutreachService {
   /** Moves the lead forward (never back past a system status); logs it. */
   async moveStatus(
     db: Db,
-    lead: OutreachLead,
+    lead: OutreachLeadRow,
     next: LeadStatus,
     input: {
       actorAdminId?: string | null;
@@ -617,7 +618,7 @@ export class OutreachService {
 
   private async leadByUnsubscribeToken(
     token: string,
-  ): Promise<OutreachLead | null> {
+  ): Promise<OutreachLeadRow | null> {
     if (isSignedUnsubscribeToken(token)) {
       const id = this.tokens?.verify(token) ?? null;
       return id ? this.prisma.outreachLead.findUnique({ where: { id } }) : null;
@@ -629,6 +630,8 @@ export class OutreachService {
     if (byHash) return byHash;
     const byRaw = await this.prisma.outreachLead.findUnique({
       where: { unsubscribe_token: token },
+      // S10 (#17): a row not migrated yet gets its hash written once.
+      omit: { unsubscribe_token_hash: false },
     });
     if (byRaw && !byRaw.unsubscribe_token_hash) {
       await this.prisma.outreachLead.updateMany({
@@ -853,7 +856,7 @@ export class OutreachService {
 }
 
 export function leadRow(
-  l: OutreachLead,
+  l: OutreachLeadRow,
   partner: OutreachPartnerDto | null,
 ): OutreachLeadRowDto {
   // Owner 2026-10-05 (legal): a do-not-contact lead shows no phone/email

@@ -70,13 +70,14 @@ import {
   type PromotionStatus,
   type PromotionTarget,
 } from './promotions.settings';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const DAY_MS = 86_400_000;
 export const PROMOTION_CHECKOUT_KIND = 'case_promotion';
 /** System cancellations a late payment may still revive. */
 const REVIVABLE_REASONS = ['checkout_expired', 'superseded'];
 
-type Db = Prisma.TransactionClient | PrismaService;
+type Db = DbTx | PrismaService;
 
 export function toPromotionDto(p: CasePromotion): CasePromotionDto {
   return {
@@ -1266,7 +1267,7 @@ export class PromotionsService {
 
   /** Starts now, or right after a running promotion of the same target. */
   async startAfterRunning(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     p: CasePromotion,
     now: Date,
   ): Promise<Date> {
@@ -1557,7 +1558,7 @@ export class PromotionsService {
    *   was released re-redeems, and never refuses money already taken.
    */
   private async redeemPromo(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     promoId: string,
     userId: string,
     paymentId: string | null,
@@ -1594,7 +1595,7 @@ export class PromotionsService {
   }
 
   private async redeemPromoIn(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     promoId: string,
     userId: string,
     paymentId: string | null,
@@ -1652,7 +1653,7 @@ export class PromotionsService {
 
   /** An unpaid checkout's reserved code goes back (audit #3, finding 4). */
   private async releasePromo(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     promoId: string | null,
     userId: string,
   ): Promise<void> {

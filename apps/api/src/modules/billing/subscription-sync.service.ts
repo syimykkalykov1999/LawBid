@@ -36,6 +36,7 @@ import {
   type ProviderEvent,
   type ProviderSubscription,
 } from './payment-provider';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const secs = (unix: number | null): Date | null =>
   unix ? new Date(unix * 1000) : null;
@@ -716,7 +717,7 @@ export class SubscriptionSyncService {
    * add-on the row still shows (a removal outside the app) — the same
    * amount the app's turn-off takes off the monthly total. */
   private async removedAddonCents(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     local: Subscription,
     remote: ProviderSubscription,
     ids: ReadonlySet<string> | null,
@@ -734,7 +735,7 @@ export class SubscriptionSyncService {
   }
 
   private async seatSync(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     local: Subscription,
     remote: ProviderSubscription,
     ids: ReadonlySet<string> | null,
@@ -864,7 +865,7 @@ export class SubscriptionSyncService {
    * The payment row is locked so two webhooks never book the same part twice.
    */
   private async bookOutsideRefunds(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     payments: { id: string; user_id: string; amount_cents: number }[],
     totalRefundedCents: number,
   ): Promise<void> {
@@ -979,7 +980,7 @@ export class SubscriptionSyncService {
   }
 
   private async byCustomer(
-    db: Pick<Prisma.TransactionClient, 'subscription' | 'stripeCustomer'>,
+    db: Pick<DbTx, 'subscription' | 'stripeCustomer'>,
     customerId: string,
   ) {
     const c = await db.stripeCustomer.findUnique({

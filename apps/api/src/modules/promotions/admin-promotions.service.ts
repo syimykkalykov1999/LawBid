@@ -46,6 +46,7 @@ import {
   type PromotionSettings,
   type PromotionTarget,
 } from './promotions.settings';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const PAGE = 50;
 const DAY_MS = 86_400_000;
@@ -637,10 +638,7 @@ export class AdminPromotionsService {
 
   // ---- helpers ------------------------------------------------------------
 
-  private async mustFind(
-    tx: Prisma.TransactionClient,
-    id: string,
-  ): Promise<CasePromotion> {
+  private async mustFind(tx: DbTx, id: string): Promise<CasePromotion> {
     const row = await tx.casePromotion.findUnique({ where: { id } });
     if (!row) {
       throw new NotFoundException({
@@ -657,7 +655,7 @@ export class AdminPromotionsService {
     before: CasePromotion | null,
     after: CasePromotion,
     reason: string,
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
   ): Promise<void> {
     const view = (p: CasePromotion) =>
       ({

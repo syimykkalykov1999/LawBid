@@ -1,5 +1,4 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import type { Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { CreateBidDto, PaymentTermsDto } from './dto/bid-requests.dto';
 import {
@@ -8,6 +7,7 @@ import {
   normalizeAmount,
   reusableBid,
 } from './bids.service';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const dto = (overrides: Partial<CreateBidDto> = {}): CreateBidDto => ({
   feeType: 'fixed',
@@ -64,7 +64,7 @@ describe('reusableBid (one bid per attorney per case)', () => {
       caseJournal: {
         findMany: jest.fn(() => payloads.map((payload) => ({ payload }))),
       },
-    }) as unknown as Prisma.TransactionClient;
+    }) as unknown as DbTx;
 
   it('a bid auto-rejected by archiving is reusable once the case is open', async () => {
     await expect(

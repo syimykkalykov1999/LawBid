@@ -10,6 +10,7 @@ import { deriveDemoDatabaseUrl } from '../../prisma/prisma.service';
 import { tmpdir } from 'node:os';
 import {
   DemoDatabaseService,
+  mirrorOmit,
   pgErrorCode,
   splitSqlStatements,
 } from './demo-database.service';
@@ -183,5 +184,14 @@ describe('demo world: a half-applied migration (prod 2026-11-08)', () => {
     );
     expect(h.ran.some((s) => s.startsWith('CREATE TABLE "t"'))).toBe(true);
     expect(h.ran.some((s) => s.includes('SET finished_at = now()'))).toBe(true);
+  });
+});
+
+describe('demo world: reference mirror keeps whole rows (S10 #17)', () => {
+  it('switches the global omit off for the secret columns it copies', () => {
+    // The state-bar registry keys are mirrored into the demo world; a plain
+    // read would leave them out and the copy would land without them.
+    expect(mirrorOmit('stateBarRegistry')).toEqual({ secret_enc: false });
+    expect(mirrorOmit('country')).toEqual({});
   });
 });

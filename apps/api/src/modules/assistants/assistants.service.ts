@@ -63,6 +63,7 @@ import {
 } from './join-code';
 import { SessionRevocationService } from '../auth/auth.public';
 import { endAssistantSessions } from './end-assistant-sessions';
+import type { AssistantMembershipRow, DbTx } from '../../prisma/secret-columns';
 
 const PAGE = 30;
 
@@ -173,7 +174,7 @@ export class AssistantsService {
 
   private async meOf(
     state: 'invited' | 'active' | 'paused',
-    m: AssistantMembership,
+    m: AssistantMembershipRow,
   ): Promise<AssistantMeDto> {
     const a = await this.prisma.user.findUnique({
       where: { id: m.attorney_id },
@@ -256,10 +257,7 @@ export class AssistantsService {
     if (live) throw alreadyInTeam();
   }
 
-  private async seatsOf(
-    attorneyId: string,
-    db: Prisma.TransactionClient = this.prisma,
-  ) {
+  private async seatsOf(attorneyId: string, db: DbTx = this.prisma) {
     const sub = await db.subscription.findUnique({
       where: { user_id: attorneyId },
       select: { plan: true },
@@ -282,10 +280,7 @@ export class AssistantsService {
    * lower number from the renewal, so a seat it drops is not handed out
    * now (it used to leave more assistants than paid seats at renewal).
    */
-  private async assertFreeSeat(
-    attorneyId: string,
-    tx: Prisma.TransactionClient,
-  ): Promise<void> {
+  private async assertFreeSeat(attorneyId: string, tx: DbTx): Promise<void> {
     await lockAssistantSeats(tx, attorneyId);
     const { seats: total, used } = await this.seatsOf(attorneyId, tx);
     const [sub, due] = await Promise.all([
@@ -359,6 +354,8 @@ export class AssistantsService {
     const rows = await this.prisma.assistantMembership.findMany({
       where: { attorney_id: user.sub, status: { not: 'removed' } },
       orderBy: { created_at: 'asc' },
+      // S10 (#17): the attorney sees each seat's live join code (codeOf).
+      omit: { join_code_enc: false },
       include: {
         assistant_user: { select: { first_name: true, last_name: true } },
         liability_acceptances: {
@@ -467,7 +464,12 @@ export class AssistantsService {
   }
 
   /** The seat's code while it can still be used (shown to the attorney). */
-  private codeOf(m: AssistantMembership): {
+  private codeOf(
+    m: Pick<
+      AssistantMembership,
+      'id' | 'join_code_enc' | 'join_code_expires_at'
+    >,
+  ): {
     code: string | null;
     expiresAt: Date | null;
   } {
@@ -959,7 +961,7 @@ export function nameOf(m: MemberNames): string {
 }
 
 function memberDto(
-  m: AssistantMembership & {
+  m: AssistantMembershipRow & {
     assistant_user: {
       first_name: string | null;
       last_name: string | null;

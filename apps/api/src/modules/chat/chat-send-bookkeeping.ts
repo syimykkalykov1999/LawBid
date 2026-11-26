@@ -1,4 +1,4 @@
-import type { Prisma } from '../../generated/prisma/client';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /**
  * What a stored chat message changes around it, in ONE statement inside the
@@ -16,7 +16,7 @@ import type { Prisma } from '../../generated/prisma/client';
  * may have waited seconds for the chat lock).
  */
 export async function recordSentMessage(
-  tx: Pick<Prisma.TransactionClient, '$executeRaw'>,
+  tx: Pick<DbTx, '$executeRaw'>,
   m: { conversationId: string; messageId: string; createdAt: Date },
   senderId: string,
 ): Promise<void> {

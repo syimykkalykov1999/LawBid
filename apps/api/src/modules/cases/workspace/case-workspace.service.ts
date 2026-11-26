@@ -35,6 +35,7 @@ import type {
   WorkspaceFileDto,
   CaseFilesQueryDto,
 } from './dto/workspace.dto';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 export type Role = 'client' | 'attorney';
 interface Side {
@@ -103,7 +104,7 @@ export class CaseWorkspaceService {
     s: Side,
     caseId: string,
     kind: 'update' | 'task_added' | 'task_done' | 'task_files',
-    tx?: Prisma.TransactionClient,
+    tx?: DbTx,
   ): Promise<void> {
     // PR-5: the client's news reaches the firm's team too; a team
     // member's reaches the client (and the bid's attorney). Verify 17.11
@@ -405,7 +406,7 @@ export class CaseWorkspaceService {
   /** Validates [items] (the sender's clean case files, ≤20, the admin's
    * format and size limits) and links them to the case. */
   private async attach(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     userId: string,
     caseId: string,
     items: CaseFileInputDto[],

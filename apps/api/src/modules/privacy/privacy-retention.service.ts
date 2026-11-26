@@ -1,12 +1,16 @@
 import { Injectable, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, PrismaClient } from '../../generated/prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { heldSqlFor, requestHeldSql } from '../../common/privacy/legal-hold';
 import { PrismaService } from '../../prisma/prisma.service';
 import { forEachDatabase } from '../../sharding/for-each-database';
 import { pgAdapter } from '../../prisma/pg-adapter';
+import {
+  newSecretOmittingClient,
+  type SecretOmittingClient,
+} from '../../prisma/secret-columns';
 
 const DAY_MS = 24 * 3600 * 1000;
 /** Default of `privacy.retention_batch`: rows per statement. */
@@ -61,7 +65,7 @@ export interface PrivacyRetentionResult {
  */
 @Injectable()
 export class PrivacyRetentionService implements OnApplicationShutdown {
-  private retentionDb?: PrismaClient;
+  private retentionDb?: SecretOmittingClient;
   /** This run's `privacy.retention_batch` / `privacy.retention_max_rows`. */
   private batchSize = RETENTION_BATCH;
   private maxRows = RETENTION_MAX_ROWS;
@@ -265,7 +269,7 @@ export class PrivacyRetentionService implements OnApplicationShutdown {
   private async contactDisclosureIps(cut: Date): Promise<number> {
     const held = await heldSqlFor(this.prisma);
     const db = this.retention();
-    const sweep = (client: PrismaClient | PrismaService) =>
+    const sweep = (client: SecretOmittingClient | PrismaService) =>
       this.batched(
         (limit) => client.$executeRaw`
           UPDATE contact_disclosures
@@ -297,10 +301,10 @@ export class PrivacyRetentionService implements OnApplicationShutdown {
     return total;
   }
 
-  private retention(): PrismaClient | PrismaService {
+  private retention(): SecretOmittingClient | PrismaService {
     const url = this.config.get<string>('RETENTION_DATABASE_URL');
     if (!url) return this.prisma;
-    this.retentionDb ??= new PrismaClient({ adapter: pgAdapter(url) });
+    this.retentionDb ??= newSecretOmittingClient(pgAdapter(url));
     return this.retentionDb;
   }
 

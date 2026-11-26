@@ -15,6 +15,7 @@ import {
   type BidAction,
   type BidSnapshot,
 } from './bid-state-machine';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 const STATUSES: BidStatus[] = [
   'active',
@@ -297,7 +298,7 @@ describe('BidStateMachine (docs/04 §5–§7)', () => {
           create: jest.fn().mockResolvedValue({}),
         },
       };
-      return { tx, client: tx as unknown as Prisma.TransactionClient };
+      return { tx, client: tx as unknown as DbTx };
     }
     const machine = new BidStateMachine();
 

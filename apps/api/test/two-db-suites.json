@@ -148,6 +148,7 @@
     "reviews",
     "search-filters-audit",
     "search-text-audit",
+    "secret-columns-omit",
     "security-contact-leak",
     "security-hardening",
     "shard-move",

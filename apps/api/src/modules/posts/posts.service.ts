@@ -81,6 +81,7 @@ import {
   VISIBLE_POST_WHERE,
 } from './post-presenter.service';
 import { userDirectory } from '../../sharding/user-directory';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** A display/download name without path parts or control characters. */
 export function safeFileName(name: string): string {
@@ -1371,7 +1372,7 @@ export class PostsService {
   }
 
   private async writeTags(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     postId: string,
     tags: string[],
   ): Promise<void> {

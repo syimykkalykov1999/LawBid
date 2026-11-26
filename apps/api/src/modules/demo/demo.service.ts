@@ -9,6 +9,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { DemoAccount, Prisma } from '../../generated/prisma/client';
+import type { DemoAccountRow } from '../../prisma/secret-columns';
 import type Redis from 'ioredis';
 import { createHash, randomInt, randomUUID } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';
@@ -309,6 +310,8 @@ export class DemoService {
         orderBy: [{ created_at: 'desc' }],
         skip: (q.page - 1) * q.limit,
         take: q.limit,
+        // S10 (#17): «has a live invite» (toAdminDtos); the hash stays here.
+        omit: { invite_code_hash: false },
       }),
       this.real.demoAccount.count({ where }),
     ]);
@@ -485,13 +488,14 @@ export class DemoService {
         created_by_user_id: input.createdByUserId ?? null,
         created_by_admin_id: input.createdByAdminId ?? null,
       },
+      omit: { invite_code_hash: false },
     });
   }
 
   /** Deletes the demo user (and, through the schema's cascades, its data)
    * and the registry row. Rows a RESTRICT foreign key keeps alive are
    * left for the next world reset: the account itself is gone either way. */
-  private async deleteAccount(row: DemoAccount): Promise<void> {
+  private async deleteAccount(row: DemoAccountRow): Promise<void> {
     const demo = this.db.rawDemoClient();
     if (demo && this.db.isReady()) {
       await demoContext
@@ -542,6 +546,7 @@ export class DemoService {
               Date.now() + DEMO_INVITE_TTL_DAYS * DAY_MS,
             ),
           },
+          omit: { invite_code_hash: false },
         });
         return { code, row };
       } catch (e) {
@@ -556,7 +561,7 @@ export class DemoService {
    * createSession without the other-device checks a demo account does
    * not need. */
   private async session(
-    row: DemoAccount,
+    row: DemoAccountRow,
     settings: DemoProgramSettings,
     device: DeviceInfo,
     meta: RequestMeta,
@@ -606,7 +611,7 @@ export class DemoService {
   }
 
   private toDto(
-    row: DemoAccount,
+    row: DemoAccountRow,
     settings: DemoProgramSettings,
   ): DemoAccountDto {
     const base = row.last_seen_at ?? row.created_at;

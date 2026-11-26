@@ -1,4 +1,3 @@
-import type { Prisma } from '../../generated/prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 import {
   NOTIFICATION_CATEGORY,
@@ -6,6 +5,7 @@ import {
   NotificationsService,
   notificationTypesOf,
 } from './notifications.service';
+import type { DbTx } from '../../prisma/secret-columns';
 
 describe('NotificationsService.emit (docs/05 §9.3 seam)', () => {
   function db() {
@@ -27,7 +27,7 @@ describe('NotificationsService.emit (docs/05 §9.3 seam)', () => {
           recipientId: 'u1',
           payload: { reviewId: 'r1' },
         },
-        tx.client as unknown as Prisma.TransactionClient,
+        tx.client as unknown as DbTx,
       ),
     ).resolves.toEqual({ id: 'n1' });
 
