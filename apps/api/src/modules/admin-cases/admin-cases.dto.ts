@@ -12,6 +12,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsDefined,
   IsIn,
   IsInt,
   IsOptional,
@@ -309,6 +310,8 @@ export class AdminCasesBulkDto extends AdminCaseActionDto {
 /** Row 179 B6: how many cases the list filter matches, before the action. */
 export class AdminCasesBulkPreviewDto {
   @ApiProperty({ type: () => AdminCasesFilterDto })
+  // DAST 26.11: a body without filter was a 500 (undefined filter field).
+  @IsDefined()
   @ValidateNested()
   @Type(() => AdminCasesFilterDto)
   filter!: AdminCasesFilterDto;

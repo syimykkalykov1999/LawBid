@@ -10,6 +10,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -262,7 +263,7 @@ export class CreateTreasuryExpenseDto {
 
 export class UpdateTreasuryExpenseDto {
   @ApiPropertyOptional({ maxLength: 80 })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @Transform(trim)
   @IsString()
   @MinLength(2)
@@ -270,14 +271,17 @@ export class UpdateTreasuryExpenseDto {
   name?: string;
 
   @ApiPropertyOptional({ type: 'integer' })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(TREASURY_EXPENSE_MAX_CENTS)
   monthlyCents?: number;
 
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() active?: boolean;
+  @ApiPropertyOptional()
+  @ValidateIf((_o, v) => v !== undefined)
+  @IsBoolean()
+  active?: boolean;
 }
 
 export class TreasuryExpenseIdParamDto {
