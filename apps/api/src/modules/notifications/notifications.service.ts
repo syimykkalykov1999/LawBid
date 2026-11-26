@@ -10,7 +10,10 @@ import { hashShard } from '../../sharding/shard-id';
 import { shardContext } from '../../sharding/shard-context';
 import { readsAreSplit } from '../../sharding/split-reads';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
-import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import {
+  postRoom,
+  RealtimePublisher,
+} from '../realtime/realtime-publisher.service';
 import { publishCaseEvent } from './case-events';
 import { BadgesService } from './badges.service';
 import { dedupeKeyFor } from './notification-rules';
@@ -302,6 +305,22 @@ export class NotificationsService {
     } catch {
       return true;
     }
+  }
+
+  /**
+   * Foreman re-check 25.11 (item 5): a comment a moderator or an admin took
+   * down leaves every open post at once — the same `comment:deleted` the
+   * author's own delete sends (CommentsService.remove). Relayed here like
+   * the realtime `case:update` above, so moderation needs no new module.
+   * Call it after the commit; [removed] is what left the post's count.
+   */
+  commentRemoved(event: {
+    postId: string;
+    commentId: string;
+    parentCommentId: string | null;
+    removed: number;
+  }): void {
+    this.realtime?.toRoom(postRoom(event.postId), 'comment:deleted', event);
   }
 
   /**

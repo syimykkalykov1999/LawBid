@@ -218,6 +218,7 @@ dependencies:
   # interfaces still exclude (^0.3). Details: docs/dev/VERSIONS_AUDIT_2026-11-14.md.
   wakelock_plus: 1.8.0
   cupertino_interactive_keyboard: ^1.0.0
+  openmls: ^4.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

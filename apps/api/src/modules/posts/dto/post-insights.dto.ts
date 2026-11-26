@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -50,6 +51,69 @@ export class RecordPostEventsDto {
   @ValidateNested({ each: true })
   @Type(() => PostEventItemDto)
   events!: PostEventItemDto[];
+}
+
+/** Owner 25.11: at most this many reel views in one report. */
+export const REEL_WATCH_BATCH_MAX = 50;
+/** A reel view longer than an hour is cut to an hour. */
+export const REEL_WATCH_MS_MAX = 3_600_000;
+
+/** One ended reel view (TikTok / YouTube watch-time logging). */
+export class ReelWatchItemDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  postId!: string;
+
+  @ApiProperty({
+    format: 'uuid',
+    description:
+      'The app’s id of this view; the same id again (a retry) is counted once.',
+  })
+  @IsUUID('all')
+  viewId!: string;
+
+  @ApiProperty({
+    minimum: 0,
+    maximum: REEL_WATCH_MS_MAX,
+    description:
+      'Real playback in ms (paused, buffering and off-screen time excluded).',
+  })
+  @IsInt()
+  @Min(0)
+  @Max(REEL_WATCH_MS_MAX)
+  watchedMs!: number;
+
+  @ApiPropertyOptional({
+    minimum: 0,
+    maximum: REEL_WATCH_MS_MAX,
+    description: 'The clip’s length in ms (0 or absent = unknown).',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(REEL_WATCH_MS_MAX)
+  durationMs?: number;
+
+  @ApiProperty({
+    description: 'The clip played to its end at least once in this view.',
+  })
+  @IsBoolean()
+  completed!: boolean;
+}
+
+/** POST /posts/watch — reel views as they ended (owner 25.11). */
+export class RecordReelWatchDto {
+  @ApiProperty({
+    type: [ReelWatchItemDto],
+    minItems: 1,
+    maxItems: REEL_WATCH_BATCH_MAX,
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(REEL_WATCH_BATCH_MAX)
+  @ValidateNested({ each: true })
+  @Type(() => ReelWatchItemDto)
+  events!: ReelWatchItemDto[];
 }
 
 export class PostInsightsQueryDto {
