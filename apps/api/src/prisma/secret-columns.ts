@@ -105,7 +105,7 @@ export type DbTx = Omit<SecretOmittingClient, ITXClientDenyList>;
  * to this one (a checked cast, or the lint rule no-unnecessary-type-assertion
  * looking at `PrismaClient as ...`) makes the checker expand the default and
  * the omit-typed delegate trees, +2.6M types and an eslint heap OOM (#1345,
- * KNOWN_ERRORS 254). The runtime class is Prisma's own; only the type is
+ * KNOWN_ERRORS 256). The runtime class is Prisma's own; only the type is
  * narrowed.
  */
 const prismaClientClass: unknown = PrismaClient;
