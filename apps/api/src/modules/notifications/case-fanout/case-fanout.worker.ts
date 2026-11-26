@@ -24,6 +24,10 @@ import {
   workerTuning,
   outageProof,
 } from '../../../common/queues/queue-hardening';
+import {
+  queueConcurrency,
+  trackConcurrency,
+} from '../../../common/queues/queue-concurrency';
 
 export const CASE_FANOUT_OPTIONS = Symbol('CASE_FANOUT_OPTIONS');
 
@@ -67,9 +71,10 @@ export class CaseFanoutWorker
       {
         ...bullOptions(CASE_FANOUT_QUEUE, url, { worker: true }),
         ...workerTuning(CASE_FANOUT_QUEUE),
-        concurrency: 4,
+        concurrency: queueConcurrency(CASE_FANOUT_QUEUE),
       },
     );
+    trackConcurrency(this.worker);
     this.worker.on('failed', (job, error) => {
       // Algo audit 2026-10-27 (CASES M-1): the last attempt is an ops alert
       // (`alert: case_fanout_failed`, the log metric filter pages on it);

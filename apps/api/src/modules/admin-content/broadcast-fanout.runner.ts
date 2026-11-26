@@ -21,6 +21,10 @@ import {
   workerTuning,
   outageProof,
 } from '../../common/queues/queue-hardening';
+import {
+  queueConcurrency,
+  trackConcurrency,
+} from '../../common/queues/queue-concurrency';
 
 export const BROADCAST_QUEUE = 'admin-broadcast';
 export const BROADCAST_OPTIONS = Symbol('BROADCAST_OPTIONS');
@@ -93,9 +97,10 @@ export class BroadcastFanoutRunner
       {
         ...bullOptions(BROADCAST_QUEUE, url, { worker: true }),
         ...workerTuning(BROADCAST_QUEUE),
-        concurrency: 1,
+        concurrency: queueConcurrency(BROADCAST_QUEUE),
       },
     );
+    trackConcurrency(this.worker);
     this.worker.on('failed', (job, error) => {
       this.logger.error(
         { broadcastId: job?.data.broadcastId, err: error.message },

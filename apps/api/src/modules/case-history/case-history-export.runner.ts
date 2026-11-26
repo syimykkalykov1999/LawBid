@@ -29,6 +29,10 @@ import {
   workerTuning,
   outageProof,
 } from '../../common/queues/queue-hardening';
+import {
+  queueConcurrency,
+  trackConcurrency,
+} from '../../common/queues/queue-concurrency';
 
 export const HISTORY_EXPORT_QUEUE = 'case-history-export';
 export const HISTORY_EXPORT_OPTIONS = Symbol('HISTORY_EXPORT_OPTIONS');
@@ -114,9 +118,10 @@ export class CaseHistoryExportRunner
       {
         ...bullOptions(HISTORY_EXPORT_QUEUE, url, { worker: true }),
         ...workerTuning(HISTORY_EXPORT_QUEUE),
-        concurrency: 2,
+        concurrency: queueConcurrency(HISTORY_EXPORT_QUEUE),
       },
     );
+    trackConcurrency(this.worker);
     this.worker.on(
       'failed',
       (job: Job<ExportJob> | undefined, error) =>

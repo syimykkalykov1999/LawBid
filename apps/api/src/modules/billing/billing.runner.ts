@@ -32,6 +32,10 @@ import {
   outageProof,
   isStalledFailure,
 } from '../../common/queues/queue-hardening';
+import {
+  queueConcurrency,
+  trackConcurrency,
+} from '../../common/queues/queue-concurrency';
 
 /**
  * BullMQ workers of the billing queues — in the `worker` process always,
@@ -103,7 +107,7 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
         {
           ...bullOptions(STRIPE_WEBHOOKS_QUEUE, url, { worker: true }),
           ...workerTuning(STRIPE_WEBHOOKS_QUEUE),
-          concurrency: 4,
+          concurrency: queueConcurrency(STRIPE_WEBHOOKS_QUEUE),
         },
       ),
       new Worker<{ subscriptionId: string }>(
@@ -112,11 +116,12 @@ export class BillingRunner implements OnApplicationBootstrap, OnModuleDestroy {
         {
           ...bullOptions(SUBSCRIPTION_JOBS_QUEUE, url, { worker: true }),
           ...workerTuning(SUBSCRIPTION_JOBS_QUEUE),
-          concurrency: 2,
+          concurrency: queueConcurrency(SUBSCRIPTION_JOBS_QUEUE),
         },
       ),
     );
     for (const w of this.workers) {
+      trackConcurrency(w);
       w.on('failed', (job, err) => void this.onFailed(w.name, job, err));
     }
   }

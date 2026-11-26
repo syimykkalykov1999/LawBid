@@ -20,6 +20,10 @@ import {
   workerTuning,
   outageProof,
 } from '../../common/queues/queue-hardening';
+import {
+  queueConcurrency,
+  trackConcurrency,
+} from '../../common/queues/queue-concurrency';
 
 export const CHANNEL_FANOUT_QUEUE = 'channel-fanout';
 export const CHANNEL_FANOUT_OPTIONS = Symbol('CHANNEL_FANOUT_OPTIONS');
@@ -107,9 +111,10 @@ export class ChannelFanoutRunner
       {
         ...bullOptions(CHANNEL_FANOUT_QUEUE, url, { worker: true }),
         ...workerTuning(CHANNEL_FANOUT_QUEUE),
-        concurrency: 4,
+        concurrency: queueConcurrency(CHANNEL_FANOUT_QUEUE),
       },
     );
+    trackConcurrency(this.worker);
     this.worker.on('failed', (job, error) => {
       this.logger.error(
         { postId: job?.data.postId, err: error.message },
