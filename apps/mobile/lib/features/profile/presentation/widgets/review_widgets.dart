@@ -1012,6 +1012,11 @@ class _MapsReviewTileState extends ConsumerState<MapsReviewTile> {
   }
 }
 
+/// Third pass M22: the review filter chips follow the system text size up
+/// to 1.3x (six chips share one row; past that the label ellipsizes).
+TextScaler _reviewChipScaler(BuildContext context) =>
+    MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.3);
+
 /// «All» in front of the five grade chips: lit while no grade is picked.
 class _AllChip extends ConsumerWidget {
   const _AllChip({required this.selected, required this.onTap});
@@ -1024,6 +1029,11 @@ class _AllChip extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final t = ref.watch(translatorProvider);
+    // Third pass M22 (WCAG 2.2 1.4.4, Flutter «Accessibility → large
+    // fonts»): the label grows with the system text size up to 1.3x (as
+    // post_text_cover.dart), and its box with it; at the default size the
+    // chip is exactly as before.
+    final scaler = _reviewChipScaler(context);
     return Semantics(
       button: onTap != null,
       selected: selected,
@@ -1043,12 +1053,12 @@ class _AllChip extends ConsumerWidget {
             border: Border.all(color: selected ? colors.gold : colors.border),
           ),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 56),
+            constraints: BoxConstraints(maxWidth: scaler.scale(56)),
             child: Text(
               t.t('reviews.filter.all'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              textScaler: TextScaler.noScaling,
+              textScaler: scaler,
               style: typography.caption.copyWith(
                 color: selected ? colors.text : colors.textSecondary,
                 fontWeight: selected ? FontWeight.w700 : null,
@@ -1121,7 +1131,8 @@ class _StarChip extends ConsumerWidget {
                     '${SocialFormat.count(formats, count)}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    textScaler: TextScaler.noScaling,
+                    // Third pass M22: grows up to 1.3x, ellipsis past that.
+                    textScaler: _reviewChipScaler(context),
                     style: typography.caption.copyWith(
                       color: selected ? colors.text : colors.textSecondary,
                       fontWeight: selected ? FontWeight.w700 : null,

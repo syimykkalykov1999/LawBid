@@ -15,6 +15,7 @@ import {
   catchError,
   concatMap,
   defer,
+  finalize,
   from,
   of,
   switchMap,
@@ -30,6 +31,14 @@ export const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
  * process dies mid-request the key frees itself after this, instead of
  * blocking the client's retries for the full replay window. */
 export const IDEMPOTENCY_PENDING_TTL_SECONDS = 60;
+/** THIRD_PASS_A I2 (26.11): while the winner's handler runs, its claim is
+ * renewed at a third of the TTL (the heartbeat of a TTL lock, Kleppmann
+ * «How to do distributed locking»; same pattern as `cron-run.ts` RENEW), so
+ * a handler slower than the TTL (Stripe 20 s x 3 tries) never lets a retry
+ * with the same key win a fresh claim and run the side effect twice. A dead
+ * process stops renewing and the key frees itself within the TTL. */
+export const IDEMPOTENCY_RENEW_EVERY_MS =
+  (IDEMPOTENCY_PENDING_TTL_SECONDS * 1000) / 3;
 const HEADER = 'idempotency-key';
 /** Set on a request once an instance of the interceptor has taken it. */
 const IDEMPOTENCY_SEEN = Symbol('idempotency.seen');
@@ -48,6 +57,18 @@ if not current then return 0 end
 local ok, rec = pcall(cjson.decode, current)
 if ok and rec.state == 'pending' and rec.token == ARGV[1] then
   return redis.call('DEL', KEYS[1])
+end
+return 0
+`;
+
+// Extends the claim only if it is still OURS and still pending (a done
+// record or someone else's claim is never touched).
+const RENEW_LUA = `
+local current = redis.call('GET', KEYS[1])
+if not current then return 0 end
+local ok, rec = pcall(cjson.decode, current)
+if ok and rec.state == 'pending' and rec.token == ARGV[1] then
+  return redis.call('EXPIRE', KEYS[1], ARGV[2])
 end
 return 0
 `;
@@ -183,6 +204,21 @@ export class IdempotencyInterceptor implements NestInterceptor {
     token: string,
     fingerprint: string,
   ): Observable<unknown> {
+    // I2: heartbeat of the in-flight claim until the handler settles.
+    const renew = setInterval(() => {
+      this.redis
+        .eval(
+          RENEW_LUA,
+          1,
+          cacheKey,
+          token,
+          String(IDEMPOTENCY_PENDING_TTL_SECONDS),
+        )
+        // A Redis error is not a loss: the next tick retries, the TTL
+        // still bounds a dead process.
+        .catch(() => undefined);
+    }, IDEMPOTENCY_RENEW_EVERY_MS);
+    renew.unref();
     return next.handle().pipe(
       concatMap((body: unknown) =>
         defer(async () => {
@@ -213,6 +249,8 @@ export class IdempotencyInterceptor implements NestInterceptor {
           switchMap(() => throwError(() => error)),
         ),
       ),
+      // Success, error or a client that went away: the heartbeat stops.
+      finalize(() => clearInterval(renew)),
     );
   }
 

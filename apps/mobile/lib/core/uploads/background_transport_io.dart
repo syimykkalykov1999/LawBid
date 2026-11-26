@@ -130,6 +130,9 @@ class BackgroundStorageTransport implements StorageTransport {
         retries: 3,
         // Owner row 100: its notification (configureBackgroundUploads).
         group: uploadsGroup,
+        // Third pass M19: priority 0 = a user-initiated data transfer job
+        // on Android 14+ (see [userInitiatedUploads]).
+        priority: userInitiatedUploads ? 0 : 5,
       ),
       onProgress: (p) {
         if (p >= 0) onProgress?.call(p);
@@ -182,6 +185,20 @@ class BackgroundStorageTransport implements StorageTransport {
 /// uploads (their progress notification).
 const uploadsGroup = 'lawbid-uploads';
 
+/// Third pass M19 (26.11; Android docs «User-initiated data transfer
+/// jobs» and «Foreground service types → dataSync»: Android 15 stops a
+/// dataSync foreground service after 6 h in 24 h). background_downloader
+/// (BSD-3, 9.6.6 `BDPlugin.enqueue`, doc/notifications.md «Android 14+
+/// UIDT») runs a task of priority 0 as a user-initiated data transfer job
+/// on Android 14+ (its `UIDTJobService`, no 6 h cap) when the app holds
+/// RUN_USER_INITIATED_JOBS (AndroidManifest.xml) and a notification is
+/// configured; otherwise, and below Android 14, it keeps WorkManager as
+/// before. UIDT needs a visible notification, so priority 0 only while the
+/// progress notification is on. The 5 MiB parts ([OsBackgroundParts]) stay
+/// on WorkManager: each one is short and they share one group notification.
+@visibleForTesting
+bool userInitiatedUploads = false;
+
 /// Owner row 100 (media audit 13.11, batch E item 10; R3): background
 /// uploads on Android run as a foreground service with a progress
 /// notification — WorkManager alone stops a task after about 9 minutes
@@ -198,6 +215,7 @@ Future<void> configureBackgroundUploads({
   if (!backgroundHandsOff) return;
   try {
     final d = FileDownloader();
+    userInitiatedUploads = Platform.isAndroid && foreground;
     if (Platform.isAndroid) {
       await d.configure(
         androidConfig: [

@@ -125,3 +125,37 @@ export const EFFECTS: Readonly<Record<string, Effect>> = {
       WHERE user_id = ${p.attorneyId}::UUID`;
   },
 };
+
+/**
+ * THIRD_PASS_A X1 (26.11): AFTER-COMMIT effects, i.e. side effects outside
+ * the database (queue a BullMQ job, call a service) that must not be lost
+ * when the process dies between the commit and the call (transactional
+ * outbox: Kleppmann DDIA ch. 11; microservices.io «Transactional outbox»).
+ * Unlike EFFECTS they never run inside the caller's transaction (a job
+ * could start before the row it reads is committed): `emit` always stores
+ * the row in the same transaction, `flush` runs it right after the commit
+ * and the every-minute `outbox.sweep` relay re-runs whatever did not finish
+ * (a crash, a deploy kill, a Redis or database blip), with the same backoff
+ * and dead letter as the other events. Delivery is at-least-once, so an
+ * after-commit effect MUST be idempotent (a deterministic job id, a
+ * per-recipient dedupe key). They need DI services, so the owning service
+ * registers its effect on module init (the API and the worker both load it).
+ */
+export type AfterCommitEffect = (payload: never) => Promise<void>;
+
+const AFTER_COMMIT = new Map<string, AfterCommitEffect>();
+
+/** Registers (or replaces: a second app in the same process, tests) the
+ * after-commit effect of [type]. */
+export function registerAfterCommitEffect(
+  type: string,
+  effect: AfterCommitEffect,
+): void {
+  if (EFFECTS[type]) throw new Error(`outbox event ${type} already exists`);
+  AFTER_COMMIT.set(type, effect);
+}
+
+/** The after-commit effect of [type], if one is registered. */
+export function afterCommitEffect(type: string): AfterCommitEffect | undefined {
+  return AFTER_COMMIT.get(type);
+}

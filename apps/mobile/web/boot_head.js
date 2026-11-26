@@ -1,13 +1,15 @@
 /* Owner 2026-10-22 (audit #7): moved out of index.html so the page's
    Content-Security-Policy needs no 'unsafe-inline' for scripts. Runs in
    <head>, before the engine. */
-/* Owner 2026-10-18 (iPhone): Flutter replaces this tag with one that
-       allows zoom up to 5x, and its hidden text fields are 14px, so iOS
-       Safari zoomed into the page on every tap in a field and half the
-       screen went off the edge. Keep our tag: no automatic zoom (pinch still
-       works on iOS), and the notch area is ours (viewport-fit=cover). */
+/* Owner 2026-10-18 (iPhone): Flutter replaces this tag with its own, and
+       its hidden text fields were 14px, so iOS Safari zoomed into the page
+       on every tap in a field and half the screen went off the edge. Keep
+       our tag (the notch area is ours: viewport-fit=cover).
+       Third pass W7 (26.11; WCAG 2.2 1.4.4): no maximum-scale any more, so
+       pinch zoom works on Android Chrome too; the tap-zoom is prevented by
+       the 16px hidden field instead (index.html <style>). */
     (function () {
-      var want = 'width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover';
+      var want = 'width=device-width, initial-scale=1, viewport-fit=cover';
       function fix() {
         var tags = document.querySelectorAll('meta[name="viewport"]');
         for (var i = 0; i < tags.length; i++) {

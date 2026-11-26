@@ -619,6 +619,10 @@ import flutter_callkit_incoming
   /// the same plugin instance over when the window appears.
   private var callkitEngine: FlutterEngine?
 
+  /// M14: the plugin instance that reports a VoIP push when even the
+  /// stand-in engine could not start; kept only until that call has ended.
+  private var spareCallkit: SwiftFlutterCallkitIncomingPlugin?
+
   private func callkitPlugin() -> SwiftFlutterCallkitIncomingPlugin? {
     if let plugin = SwiftFlutterCallkitIncomingPlugin.sharedInstance { return plugin }
     let engine = FlutterEngine(name: "lawbid.callkit", project: nil, allowHeadlessExecution: true)
@@ -649,14 +653,27 @@ import flutter_callkit_incoming
       completion()
       return
     }
-    // Without the plugin there is no CallKit provider to report to; finish
-    // the push instead of leaving iOS waiting (only if even the stand-in
-    // engine could not start).
     guard let callkit = callkitPlugin() else {
-      // No plugin = no provider to report to; the project allows exactly
-      // one CallKit provider (callkit_single_subscription_test), so a
-      // second one is not created here.
-      completion()
+      // Third pass M14 (2026-11-26), Apple PushKit
+      // `pushRegistry(_:didReceiveIncomingPushWith:for:completion:)`: on
+      // iOS 13+ EVERY VoIP push must report a call to CallKit before
+      // completion(), or iOS ends the app and, after a few times, stops
+      // VoIP delivery. Even the stand-in engine did not start here, so
+      // the call is reported through a spare instance of the same plugin
+      // (its own provider: the app still never creates a CXProvider,
+      // callkit_single_subscription_test) and ended at once, as for a
+      // duplicate push. The plugin's init(messenger:) touches no channel,
+      // so an engine that is not running is enough; the spare goes away
+      // right after, before the app's own engine brings its plugin up.
+      let spare = SwiftFlutterCallkitIncomingPlugin(
+        messenger: FlutterEngine(
+          name: "lawbid.callkit.spare", project: nil, allowHeadlessExecution: true
+        ).binaryMessenger)
+      spareCallkit = spare
+      reportThrowaway(spare) { [weak self] in
+        completion()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self?.spareCallkit = nil }
+      }
       return
     }
     let p = payload.dictionaryPayload
