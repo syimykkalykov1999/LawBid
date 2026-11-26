@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/cache/cache_database.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
+import 'package:lawbid/core/session/sign_out_hooks.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart'
     show ChatMappers;
 import 'package:lawbid/features/chat/e2ee/e2ee_service.dart';
@@ -63,3 +64,14 @@ final e2eeServiceProvider = Provider<E2eeService?>((ref) {
   });
   return service;
 });
+
+/// Item 25 (WhatsApp: a signed-out device leaves every encrypted chat): its
+/// MLS keys and groups are deleted before the session is cleared, then the
+/// device is signed out on the server, so it never counts against
+/// chat.e2ee_max_devices. Registered by app.dart (SignOutHooks).
+Future<SignOutServerCall?> e2eeSignOutHook(WidgetRef ref) async {
+  final id = await ref.read(e2eeServiceProvider)?.signOutDevice();
+  if (id == null) return null;
+  return (dio, extras) =>
+      api.E2eeClient(dio).revokeMlsDevice(id: id, extras: extras);
+}
