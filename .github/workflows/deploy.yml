@@ -532,6 +532,15 @@ jobs:
           LAST=$(aws ssm get-parameter --name "/lawbid-prod/deploy/last_good_tag" --query Parameter.Value --output text 2>/dev/null || true)
           echo "LAST_GOOD_TAG=${LAST}" >> "$GITHUB_ENV"
           echo "running release: ${LAST:-unknown}"
+      # Б1 (25.11): error budget policy (docs/runbooks/error-budget-policy.md,
+      # SRE Workbook "Example Error Budget Policy"). An SLO that spent its
+      # 28-day budget (alarm <env>-slo-<flow>-budget-exhausted) lets only fixes,
+      # reverts, security changes and rollbacks through, before anything in prod
+      # changes. Owner override: repository variable BUDGET_GATE=off (warn = report only).
+      - name: Error budget gate (only fixes while an SLO budget is spent)
+        env:
+          BUDGET_GATE: ${{ vars.BUDGET_GATE || 'on' }}
+        run: scripts/deploy/budget-gate.sh lawbid-prod "$IMAGE_TAG"
       # S11-14: the real check: the database's newest restorable point (RDS
       # LatestRestorableTime) must be younger than 26 h. BACKUP_CHECK_STRICT=true
       # (repository variable) also fails when the role may not read it.
@@ -663,6 +672,16 @@ jobs:
           SYNTHETIC_IDENTIFIER: ${{ secrets.SYNTHETIC_IDENTIFIER }}
           SYNTHETIC_PASSWORD: ${{ secrets.SYNTHETIC_PASSWORD }}
         run: node scripts/ops/synthetic-check.mjs "${{ secrets.PROD_API_URL }}" --expect-version "$IMAGE_TAG"
+      # Б6: the website and the status page after every release. Only a
+      # report: a website fault is not this API release's fault, so it never
+      # rolls the API back (the step is not in the rollback condition below).
+      - name: Synthetic website (lawbid.dev + status page, report only)
+        continue-on-error: true
+        env:
+          SYNTHETIC_ONLY_WEB: "1"
+          SYNTHETIC_WEB_URL: ${{ vars.SYNTHETIC_WEB_URL || 'https://lawbid.dev' }}
+          SYNTHETIC_STATUS_URL: ${{ vars.SYNTHETIC_STATUS_URL || 'https://status.lawbid.dev' }}
+        run: node scripts/ops/synthetic-check.mjs "${{ secrets.PROD_API_URL }}"
       # Owner 15.11 («разреши "Авто" само применять обновления кода своих
       # функций без меня»): the autoscale Lambdas' source hash on main. The
       # API compares it with deploy/autoscale_code_applied (written by the

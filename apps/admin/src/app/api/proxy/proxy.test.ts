@@ -1,17 +1,25 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const jar = vi.hoisted(() => ({ legacy: false }));
+
 vi.mock('@/lib/api/server', () => ({
-  SESSION_COOKIE: 'lawbid_admin',
+  SESSION_COOKIE: '__Host-lawbid_admin',
+  LEGACY_SESSION_COOKIE: 'lawbid_admin',
+  SESSION_MAX_AGE_SECONDS: 8 * 3600,
   apiBaseUrl: () => 'http://api.test/api/v1',
-  cookieOptions: () => ({}),
+  cookieOptions: (maxAge: number) => ({ path: '/', maxAge }),
   sessionToken: async () => 'tok',
+  sessionCookie: async () => ({ token: 'tok', legacy: jar.legacy }),
 }));
 
 import { NextRequest } from 'next/server';
 import { DELETE, GET, POST } from './[...path]/route';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  jar.legacy = false;
+});
 
 describe('admin proxy', () => {
   it('gives every API call a deadline and answers 504 when it passes', async () => {
@@ -129,7 +137,7 @@ describe('admin proxy', () => {
       { params: Promise.resolve({ path: ['users', 'u1'] }) },
     );
     expect(res.status).toBe(401);
-    expect(res.headers.get('set-cookie')).toMatch(/lawbid_admin=;/);
+    expect(res.headers.get('set-cookie')).toMatch(/__Host-lawbid_admin=;/);
   });
 
   it('passes the ETag and If-None-Match so a 304 reaches the browser', async () => {
@@ -218,5 +226,25 @@ describe('admin proxy', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('#1 cookie prefix: a pre-prefix session moves to __Host-lawbid_admin', async () => {
+    jar.legacy = true;
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{"ok":true}', { status: 200 })));
+    const res = await GET(new NextRequest('http://admin.test/api/proxy/users'), {
+      params: Promise.resolve({ path: ['users'] }),
+    });
+    expect(res.status).toBe(200);
+    const set = res.headers.getSetCookie();
+    expect(set.some((c) => c.startsWith('__Host-lawbid_admin=tok;') && /Max-Age=28800/.test(c))).toBe(true);
+    expect(set.some((c) => c.startsWith('lawbid_admin=;') && /Max-Age=0/.test(c))).toBe(true);
+  });
+
+  it('#1 cookie prefix: a session already under the new name sets no cookie', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{"ok":true}', { status: 200 })));
+    const res = await GET(new NextRequest('http://admin.test/api/proxy/users'), {
+      params: Promise.resolve({ path: ['users'] }),
+    });
+    expect(res.headers.getSetCookie()).toEqual([]);
   });
 });

@@ -353,6 +353,12 @@
       "owner": false,
       "skip": "Тревога процессора серверов для инженера; владельцу — «Масштаб»."
     },
+    "error-budget-policy.md": {
+      "owner": true,
+      "guides": [
+        "error-budget-policy"
+      ]
+    },
     "infra-alarms.md": {
       "owner": false,
       "guides": [
@@ -517,6 +523,10 @@
       "guides": [
         "table-partitioning"
       ]
+    },
+    "toil.md": {
+      "owner": true,
+      "skip": "Реестр ручной рутины для пересмотра раз в квартал; кнопок и шагов владельца в админке нет."
     },
     "treasury.md": {
       "owner": false,
