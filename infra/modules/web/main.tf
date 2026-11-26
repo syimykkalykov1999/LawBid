@@ -354,7 +354,15 @@ locals {
   ]
   # The exact list (#3) and, while it is still being proven, the old wide one.
   connect_exact = concat(["'self'", "blob:", var.api_origin, "wss://${replace(var.api_origin, "https://", "")}", "https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io"], var.extra_connect_src, local.app_check_connect, var.app_connect_src, var.storage_connect_src, var.media_origins)
-  connect_wide  = concat(local.connect_exact, var.csp_wide_connect_src)
+  # The wide list keeps only the exact hosts no wildcard of it already
+  # covers (e.g. the S3 bucket hosts under https://*.amazonaws.com), so
+  # the policy stays inside CloudFront's 1783-character header limit.
+  connect_wide = concat([
+    for h in local.connect_exact : h if !anytrue([
+      for w in var.csp_wide_connect_src :
+      startswith(w, "https://*.") && startswith(h, "https://") && endswith(h, substr(w, 9, -1))
+    ])
+  ], var.csp_wide_connect_src)
   # #4: report-uri (every browser) + report-to (the Reporting API name below).
   csp_report        = var.csp_report_uri == "" ? [] : ["report-uri ${var.csp_report_uri}", "report-to csp-endpoint"]
   csp_enforced_rest = concat(local.csp_rest, ["connect-src ${join(" ", var.csp_exact_connect_enforced ? local.connect_exact : local.connect_wide)}"], local.csp_report)
