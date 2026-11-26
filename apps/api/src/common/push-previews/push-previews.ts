@@ -29,8 +29,8 @@ export const PUSH_PREVIEWS_MAX = 64;
 /** The blobs outlive quiet hours (a push can be held until morning). */
 export const PUSH_PREVIEW_TTL_SEC = 2 * 24 * 3600;
 
-export function pushPreviewKid(keyB64: string): string {
-  const raw = Buffer.from(keyB64, 'base64');
+export function pushPreviewKid(publicB64: string): string {
+  const raw = Buffer.from(publicB64, 'base64');
   return createHash('sha256')
     .update(raw)
     .digest()
@@ -39,9 +39,11 @@ export function pushPreviewKid(keyB64: string): string {
 }
 
 /** True for a base64 raw 32-byte key. */
-export function isPushPreviewKey(keyB64: string | null | undefined): boolean {
-  if (!keyB64 || keyB64.length !== PUSH_PREVIEW_KEY_B64_LEN) return false;
-  return Buffer.from(keyB64, 'base64').length === 32;
+export function isPushPreviewKey(
+  publicB64: string | null | undefined,
+): boolean {
+  if (!publicB64 || publicB64.length !== PUSH_PREVIEW_KEY_B64_LEN) return false;
+  return Buffer.from(publicB64, 'base64').length === 32;
 }
 
 const redisKey = (messageId: string) => `push:pp:${messageId}`;
