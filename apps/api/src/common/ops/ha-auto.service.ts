@@ -30,6 +30,7 @@ import { autoCheckMs, autoLockTtlS } from './auto-check';
 import { infraWritesOff } from './infra-writes';
 import { opsCredentials } from './ops-credentials';
 import { OpsStateService } from './ops-state.service';
+import { AWS_API_REQUEST_HANDLER } from '../http/aws-request-handler';
 
 export type HaAction =
   | 'db_multi_az_on'
@@ -651,18 +652,21 @@ export class HaAutoService implements OnModuleInit, OnModuleDestroy {
 
   private cwClient(): CloudWatchClient {
     return (this.cw ??= new CloudWatchClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: this.region(),
       credentials: this.creds(),
     }));
   }
   private rdsClient(): RDSClient {
     return (this.rds ??= new RDSClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: this.region(),
       credentials: this.creds(),
     }));
   }
   private cacheClient(): ElastiCacheClient {
     return (this.cache ??= new ElastiCacheClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: this.region(),
       credentials: this.creds(),
     }));

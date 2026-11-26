@@ -32,6 +32,7 @@ import {
   selfHostDbConnections,
   selfHostRedisMemoryPercent,
 } from './selfhost-capacity';
+import { AWS_API_REQUEST_HANDLER } from '../http/aws-request-handler';
 
 export type CapacityTarget = 'db' | 'redis';
 
@@ -129,18 +130,21 @@ export class AwsCapacityService {
 
   private cwClient(): CloudWatchClient {
     return (this.cw ??= new CloudWatchClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: this.region(),
       credentials: opsCredentials((n) => this.env(n), this.region()),
     }));
   }
   private rdsClient(): RDSClient {
     return (this.rds ??= new RDSClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: this.region(),
       credentials: opsCredentials((n) => this.env(n), this.region()),
     }));
   }
   private cacheClient(): ElastiCacheClient {
     return (this.cache ??= new ElastiCacheClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: this.region(),
       credentials: opsCredentials((n) => this.env(n), this.region()),
     }));

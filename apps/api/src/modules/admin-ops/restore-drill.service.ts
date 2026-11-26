@@ -6,6 +6,7 @@ import {
   type RestoreJobsListMember,
 } from '@aws-sdk/client-backup';
 import { AwsOpsService } from '../../common/ops/aws-ops.service';
+import { AWS_API_REQUEST_HANDLER } from '../../common/http/aws-request-handler';
 
 export type DrillState = 'ok' | 'failed' | 'running' | 'never' | 'unknown';
 
@@ -73,7 +74,10 @@ export class RestoreDrillService {
 
   private async read(now: Date): Promise<RestoreDrillResult> {
     if (!this.available) return summarize([], now, false);
-    this.client ??= new BackupClient({ region: this.region() });
+    this.client ??= new BackupClient({
+      region: this.region(),
+      requestHandler: AWS_API_REQUEST_HANDLER,
+    });
     const out = await this.client.send(
       new ListRestoreJobsCommand({
         ByResourceType: 'RDS',

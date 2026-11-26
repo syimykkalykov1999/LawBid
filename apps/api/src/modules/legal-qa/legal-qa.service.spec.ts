@@ -428,3 +428,50 @@ describe('LegalQaService list / get keep a suspended author’s posts (Q6, pin)'
     expect(people.has('suspended-attorney')).toBe(true);
   });
 });
+
+/** F5 (26.11, docs/dev/SECOND_PASS_2026-11-26.md): a text search lists
+ * best match first and pages in that order, not by date. */
+describe('LegalQaService.list with text keeps the search order (F5)', () => {
+  const [A, B, C, D] = [1, 2, 3, 4].map(
+    (n) => `0000000${n}-0000-4000-8000-00000000000${n}`,
+  );
+
+  it('best match first, filtered out ids skipped, next page after the cursor', async () => {
+    const { svc, prisma, internals } = setup();
+    const search = internals.search as { searchQuestions: jest.Mock };
+    // Best first: c (old exact match), a, b; d is filtered out by the list.
+    search.searchQuestions.mockResolvedValue([C, A, D, B]);
+    const at = (id: string) => ({
+      id,
+      created_at: new Date({ [A]: 3, [B]: 2, [C]: 1 }[id] ?? 0),
+    });
+    prisma.legalQuestion.findMany.mockImplementation(
+      (args: { select?: unknown; where: { id?: { in: string[] } } }) =>
+        Promise.resolve(
+          args.select
+            ? [A, B, C].map((id) => ({ id }))
+            : // the database answers in its own order
+              [...(args.where.id?.in ?? [])].sort().map(at),
+        ),
+    );
+    const first = await svc.list(CLIENT, { q: 'divorce', limit: 2 });
+    expect(first.items.map((r) => r.id)).toEqual([C, A]);
+    expect(first.nextCursor).not.toBeNull();
+    const second = await svc.list(CLIENT, {
+      q: 'divorce',
+      limit: 2,
+      cursor: first.nextCursor,
+    } as never);
+    expect(second.items.map((r) => r.id)).toEqual([B]);
+    expect(second.nextCursor).toBeNull();
+  });
+
+  it('no match: an empty page without a database read', async () => {
+    const { svc, prisma, internals } = setup();
+    const search = internals.search as { searchQuestions: jest.Mock };
+    search.searchQuestions.mockResolvedValue([]);
+    const res = await svc.list(CLIENT, { q: 'nothing' });
+    expect(res).toEqual({ items: [], nextCursor: null });
+    expect(prisma.legalQuestion.findMany).not.toHaveBeenCalled();
+  });
+});

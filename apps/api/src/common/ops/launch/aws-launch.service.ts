@@ -27,6 +27,7 @@ import {
 import { PrismaService } from '../../../prisma/prisma.service';
 import { SecretsService } from '../../secrets/secrets.service';
 import { opsCredentials } from '../ops-credentials';
+import { AWS_API_REQUEST_HANDLER } from '../../http/aws-request-handler';
 
 const sha = (v: string) => createHash('sha256').update(v).digest('hex');
 
@@ -83,6 +84,7 @@ export class PagerDutySnsService {
 
   private client(): SNSClient {
     return (this.sns ??= new SNSClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: this.topicArn?.split(':')[3] ?? 'us-east-1',
       credentials: opsCredentials(
         (n) => this.config.get<string>(n),
@@ -276,6 +278,7 @@ export class AwsBudgetsAdminService {
   private b(): BudgetsClient {
     // Budgets is a global service answered from us-east-1.
     return (this.client ??= new BudgetsClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: 'us-east-1',
       credentials: opsCredentials((n) => this.env(n), 'us-east-1'),
     }));
@@ -422,6 +425,7 @@ export class AwsCostService {
 
   private c(): CostExplorerClient {
     return (this.ce ??= new CostExplorerClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: 'us-east-1',
       credentials: opsCredentials((n) => process.env[n], 'us-east-1'),
     }));

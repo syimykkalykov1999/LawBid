@@ -176,6 +176,12 @@ variable "waf_bot_control_count_rules" {
 # The paths that send an SMS / e-mail or answer "is this number registered":
 # the costly anonymous ones (docs/COST_PROTECTION.md §1).
 locals {
+  edge_header = "x-origin-verify"
+  waf_acls    = var.waf_enabled ? (var.edge_waf_enabled ? toset(["regional", "edge"]) : toset(["regional"])) : toset([])
+  # The regional ACL keeps its metric names (alarms and dashboards read them).
+  waf_metric_prefix = { regional = var.name, edge = "${var.name}-edge" }
+}
+locals {
   otp_paths = [
     "/api/v1/auth/otp/request",
     "/api/v1/auth/password/reset/request",
@@ -192,6 +198,30 @@ locals {
     "/api/v1/auth/password/reset/confirm",
     "/api/v1/auth/social",
   ]
+}
+# G1 (STAGE2_ARCH_PERF_2026-11-25): the API behind the CloudFront edge
+# (modules/api-edge). CloudFront adds `x-origin-verify: <secret>` to every
+# origin request and overwrites a viewer header of that name.
+variable "edge_enabled" {
+  type        = bool
+  default     = false
+  description = "The API edge (CloudFront) is in front of api_host: its requests carry x-origin-verify and skip this WAF (the edge copy of the ACL judged them with the real client address)."
+}
+variable "edge_origin_verify_value" {
+  type        = string
+  default     = ""
+  sensitive   = true
+  description = "The secret CloudFront sends in x-origin-verify. Required when edge_enabled."
+}
+variable "edge_waf_enabled" {
+  type        = bool
+  default     = false
+  description = "Create the CLOUDFRONT-scope copy of this ACL (same rules, without the admin allow-list) for the API edge. Must be created in us-east-1."
+}
+variable "edge_origin_lock" {
+  type        = bool
+  default     = false
+  description = "API requests without the edge secret get 403 (switch on only after api.<domain> points at the edge). Off = the ALB still answers direct API requests."
 }
 variable "access_logs_bucket" {
   type    = string
@@ -338,6 +368,15 @@ resource "aws_lb_listener_rule" "api_ws" {
   condition {
     path_pattern { values = ["/socket.io/*", "/socket.io"] }
   }
+  dynamic "condition" {
+    for_each = var.edge_origin_lock ? [1] : []
+    content {
+      http_header {
+        http_header_name = local.edge_header
+        values           = [var.edge_origin_verify_value]
+      }
+    }
+  }
 }
 
 # 25.11 (S2-1 + X1): the socket group next to the ECS built-in canary / linear
@@ -402,6 +441,16 @@ resource "aws_lb_listener_rule" "api_ws_weighted" {
   condition {
     path_pattern { values = ["/socket.io/*", "/socket.io"] }
   }
+  # S2-2: same edge lock as rule 9, or /socket.io bypasses CloudFront here.
+  dynamic "condition" {
+    for_each = var.edge_origin_lock ? [1] : []
+    content {
+      http_header {
+        http_header_name = local.edge_header
+        values           = [var.edge_origin_verify_value]
+      }
+    }
+  }
   lifecycle {
     ignore_changes = [action[0].forward]
   }
@@ -440,6 +489,15 @@ resource "aws_lb_listener_rule" "api_admin" {
   }
   condition {
     path_pattern { values = ["/api/v1/admin/*", "/api/v1/admin"] }
+  }
+  dynamic "condition" {
+    for_each = var.edge_origin_lock ? [1] : []
+    content {
+      http_header {
+        http_header_name = local.edge_header
+        values           = [var.edge_origin_verify_value]
+      }
+    }
   }
 }
 
@@ -495,6 +553,16 @@ resource "aws_lb_listener" "https" {
       status_code  = "404"
     }
   }
+  lifecycle {
+    precondition {
+      condition     = !var.edge_enabled || length(var.edge_origin_verify_value) >= 32
+      error_message = "edge_enabled needs edge_origin_verify_value (32+ characters)."
+    }
+    precondition {
+      condition     = !var.edge_origin_lock || var.edge_enabled
+      error_message = "edge_origin_lock needs edge_enabled."
+    }
+  }
 }
 
 resource "aws_lb_listener_rule" "api" {
@@ -507,6 +575,15 @@ resource "aws_lb_listener_rule" "api" {
   }
   condition {
     host_header { values = [var.api_host] }
+  }
+  dynamic "condition" {
+    for_each = var.edge_origin_lock ? [1] : []
+    content {
+      http_header {
+        http_header_name = local.edge_header
+        values           = [var.edge_origin_verify_value]
+      }
+    }
   }
 }
 # X1: the rule had no count before; same object, new address (no replacement).
@@ -570,8 +647,36 @@ resource "aws_lb_listener_rule" "api_weighted" {
   condition {
     host_header { values = [var.api_host] }
   }
+  dynamic "condition" {
+    for_each = var.edge_origin_lock ? [1] : []
+    content {
+      http_header {
+        http_header_name = local.edge_header
+        values           = [var.edge_origin_verify_value]
+      }
+    }
+  }
   lifecycle {
     ignore_changes = [action[0].forward]
+  }
+}
+
+# G1: with the origin lock every API rule above also needs the edge secret;
+# what is left for api_host (a request that went around the edge) ends here.
+resource "aws_lb_listener_rule" "api_edge_only" {
+  count        = var.edge_origin_lock ? 1 : 0
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 90
+  action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "forbidden"
+      status_code  = "403"
+    }
+  }
+  condition {
+    host_header { values = [var.api_host] }
   }
 }
 
@@ -597,20 +702,76 @@ resource "aws_wafv2_ip_set" "admin" {
   tags               = var.tags
 }
 
+# G1: "regional" is the ALB's ACL (as before); "edge" is the same rule set in
+# CLOUDFRONT scope for the API edge (AWS WAF: a CloudFront ACL must be created
+# in us-east-1), where the rate rules see the real client address.
 resource "aws_wafv2_web_acl" "this" {
-  count = var.waf_enabled ? 1 : 0
-  name  = "${var.name}-waf"
-  scope = "REGIONAL"
+  for_each = local.waf_acls
+  name     = each.key == "edge" ? "${var.name}-api-edge-waf" : "${var.name}-waf"
+  scope    = each.key == "edge" ? "CLOUDFRONT" : "REGIONAL"
   default_action {
     allow {}
   }
 
-  # Security review: admin.<domain> only from the allow-list when one is set.
+  # G1: a request the edge forwarded (its secret header, to the API host) was
+  # already judged by the edge copy of these rules with the viewer's address.
+  # Here it would be counted per CloudFront address: a whole city behind one
+  # edge node would hit the per-IP limits. Allow it before them.
   dynamic "rule" {
-    for_each = length(var.admin_allowed_cidrs) > 0 ? [1] : []
+    for_each = each.key == "regional" && var.edge_enabled ? [1] : []
+    content {
+      name     = "edge-verified"
+      priority = 0
+      action {
+        allow {}
+      }
+      statement {
+        and_statement {
+          statement {
+            byte_match_statement {
+              search_string         = var.api_host
+              positional_constraint = "EXACTLY"
+              field_to_match {
+                single_header { name = "host" }
+              }
+              text_transformation {
+                priority = 0
+                type     = "LOWERCASE"
+              }
+            }
+          }
+          statement {
+            byte_match_statement {
+              search_string         = var.edge_origin_verify_value
+              positional_constraint = "EXACTLY"
+              field_to_match {
+                single_header { name = local.edge_header }
+              }
+              text_transformation {
+                priority = 0
+                type     = "NONE"
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.name}-edge-verified"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  # Security review: admin.<domain> only from the allow-list when one is set.
+  # (Not in the edge copy: the edge carries only api_host.) With the edge on it
+  # moves to the end: it only blocks, so its place among block rules does not
+  # change what gets through, and priority 0 is the edge rule's.
+  dynamic "rule" {
+    for_each = each.key == "regional" && length(var.admin_allowed_cidrs) > 0 ? [1] : []
     content {
       name     = "admin-allow-list"
-      priority = 0
+      priority = var.edge_enabled ? 15 : 0
       action {
         block {}
       }
@@ -640,7 +801,7 @@ resource "aws_wafv2_web_acl" "this" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "${var.name}-admin-allow-list"
+        metric_name                = "${local.waf_metric_prefix[each.key]}-admin-allow-list"
         sampled_requests_enabled   = true
       }
     }
@@ -660,7 +821,7 @@ resource "aws_wafv2_web_acl" "this" {
     }
     visibility_config {
       cloudwatch_metrics_enabled = true
-      metric_name                = "${var.name}-rate-per-ip"
+      metric_name                = "${local.waf_metric_prefix[each.key]}-rate-per-ip"
       sampled_requests_enabled   = true
     }
   }
@@ -703,7 +864,7 @@ resource "aws_wafv2_web_acl" "this" {
     }
     visibility_config {
       cloudwatch_metrics_enabled = true
-      metric_name                = "${var.name}-otp-rate-per-ip"
+      metric_name                = "${local.waf_metric_prefix[each.key]}-otp-rate-per-ip"
       sampled_requests_enabled   = true
     }
   }
@@ -758,7 +919,7 @@ resource "aws_wafv2_web_acl" "this" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "${var.name}-otp-rate-per-ip-device"
+        metric_name                = "${local.waf_metric_prefix[each.key]}-otp-rate-per-ip-device"
         sampled_requests_enabled   = true
       }
     }
@@ -810,7 +971,7 @@ resource "aws_wafv2_web_acl" "this" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "${var.name}-auth-login-rate-per-ip"
+        metric_name                = "${local.waf_metric_prefix[each.key]}-auth-login-rate-per-ip"
         sampled_requests_enabled   = true
       }
     }
@@ -864,7 +1025,7 @@ resource "aws_wafv2_web_acl" "this" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "${var.name}-auth-refresh-rate-per-device"
+        metric_name                = "${local.waf_metric_prefix[each.key]}-auth-refresh-rate-per-device"
         sampled_requests_enabled   = true
       }
     }
@@ -924,7 +1085,7 @@ resource "aws_wafv2_web_acl" "this" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "${var.name}-auth-account-takeover"
+        metric_name                = "${local.waf_metric_prefix[each.key]}-auth-account-takeover"
         sampled_requests_enabled   = true
       }
     }
@@ -993,7 +1154,7 @@ resource "aws_wafv2_web_acl" "this" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "${var.name}-bot-control"
+        metric_name                = "${local.waf_metric_prefix[each.key]}-bot-control"
         sampled_requests_enabled   = true
       }
     }
@@ -1030,7 +1191,7 @@ resource "aws_wafv2_web_acl" "this" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "${var.name}-${rule.key}"
+        metric_name                = "${local.waf_metric_prefix[each.key]}-${rule.key}"
         sampled_requests_enabled   = true
       }
     }
@@ -1136,7 +1297,7 @@ resource "aws_wafv2_web_acl" "this" {
     }
     visibility_config {
       cloudwatch_metrics_enabled = true
-      metric_name                = "${var.name}-body-size"
+      metric_name                = "${local.waf_metric_prefix[each.key]}-body-size"
       sampled_requests_enabled   = true
     }
   }
@@ -1181,14 +1342,14 @@ resource "aws_wafv2_web_acl" "this" {
     }
     visibility_config {
       cloudwatch_metrics_enabled = true
-      metric_name                = "${var.name}-no-user-agent"
+      metric_name                = "${local.waf_metric_prefix[each.key]}-no-user-agent"
       sampled_requests_enabled   = true
     }
   }
 
   visibility_config {
     cloudwatch_metrics_enabled = true
-    metric_name                = "${var.name}-waf"
+    metric_name                = "${local.waf_metric_prefix[each.key]}-waf"
     sampled_requests_enabled   = true
   }
   tags = var.tags
@@ -1197,7 +1358,7 @@ resource "aws_wafv2_web_acl" "this" {
 resource "aws_wafv2_web_acl_association" "this" {
   count        = var.waf_enabled ? 1 : 0
   resource_arn = aws_lb.this.arn
-  web_acl_arn  = aws_wafv2_web_acl.this[0].arn
+  web_acl_arn  = aws_wafv2_web_acl.this["regional"].arn
 }
 
 # The ACL and its association gained `count` (waf_enabled): keep the existing
@@ -1210,6 +1371,13 @@ moved {
   from = aws_wafv2_web_acl_association.this
   to   = aws_wafv2_web_acl_association.this[0]
 }
+# G1: count became for_each (regional + the optional edge copy).
+moved {
+  from = aws_wafv2_web_acl.this[0]
+  to   = aws_wafv2_web_acl.this["regional"]
+}
+
+output "edge_waf_acl_arn" { value = contains(local.waf_acls, "edge") ? aws_wafv2_web_acl.this["edge"].arn : "" }
 
 output "waf_acl_name" { value = var.waf_enabled ? "${var.name}-waf" : "" }
 

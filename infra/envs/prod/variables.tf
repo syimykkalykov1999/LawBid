@@ -1075,6 +1075,21 @@ variable "alarm_incident_hook_enabled" {
   description = "Lambda: CloudWatch alarm state changes become incident rows in the admin and start the AI assistant."
 }
 
+# G1 (STAGE2_ARCH_PERF_2026-11-25): API through the CloudFront edge, three
+# steps in order (apps/admin/content/guides/api-edge.md): api_edge_enabled ->
+# DNS (api_edge_dns with Route 53, or by hand) -> api_edge_origin_lock.
+variable "api_edge_enabled" {
+  type    = bool
+  default = false
+}
+variable "api_edge_dns" {
+  type    = bool
+  default = false
+}
+variable "api_edge_origin_lock" {
+  type    = bool
+  default = false
+}
 # STAGE2_SECURITY #4 / #3 (25.11): CSP reporting to Sentry and the exact
 # connect-src of the web app. Owner step: paste the Sentry «Security Headers»
 # report URI (Project → Settings → Security Headers) into both, apply; after a
