@@ -14,6 +14,7 @@ import { captureKeyEnv, scrubKeyEnv } from './common/secrets/key-holder';
 import { unwrapKmsWrappedKeys } from './common/secrets/kms-env';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
+import { ConfigCanaryCohortService } from './common/app-settings/config-canary';
 import { installOutboundAgents } from './common/http/outbound-agent';
 import { configureApp } from './app.setup';
 
@@ -40,6 +41,9 @@ async function bootstrap(): Promise<void> {
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
+  // Б3 / review of #1332: only this process (the HTTP API, now listening)
+  // joins the canary heartbeat — never the worker or a CLI run.
+  app.get(ConfigCanaryCohortService, { strict: false }).start();
   // CJK PDF fonts (not in git): fetched in the background, sha256-checked.
   void warmCjkFonts();
   // Every cipher has read its keys by now: drop them from the environment.

@@ -3,6 +3,7 @@ import { AdminAccessModule } from '../../modules/admin-access/admin-access.modul
 import { FeatureFlagsModule } from '../../modules/feature-flags/feature-flags.module';
 import { AppSettingsService } from './app-settings.service';
 import { AppSettingsWriter } from './app-settings.writer';
+import { ConfigRolloutService } from './config-rollout.service';
 import { TextLimitsService } from './text-limits.service';
 import { CodeChannelService } from './code-channel.service';
 
@@ -13,6 +14,7 @@ import { CodeChannelService } from './code-channel.service';
     AppSettingsService,
     AppSettingsWriter,
     TextLimitsService,
+    ConfigRolloutService,
     // Owner 25.11: `auth.code_channel` (SMS / почта / Авто).
     CodeChannelService,
   ],
@@ -20,6 +22,7 @@ import { CodeChannelService } from './code-channel.service';
     AppSettingsService,
     AppSettingsWriter,
     TextLimitsService,
+    ConfigRolloutService,
     CodeChannelService,
   ],
 })
