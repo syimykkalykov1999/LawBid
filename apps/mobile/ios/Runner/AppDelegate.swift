@@ -342,6 +342,9 @@ import flutter_callkit_incoming
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidSecureScreen") {
       registerSecureScreen(registrar.messenger())
     }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidFileProtection") {
+      registerFileProtection(registrar.messenger())
+    }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidSpotlight") {
       SpotlightBridge.shared.register(registrar)
     }
@@ -425,6 +428,57 @@ import flutter_callkit_incoming
       captureCover?.removeFromSuperview()
       captureCover = nil
     }
+  }
+
+  // MARK: - File protection
+
+  /// S13 #26 (MASVS-STORAGE-1, lib/core/platform/file_protection.dart): the
+  /// chat media cache folder and the voice notes next to it get the Data
+  /// Protection class `completeUntilFirstUserAuthentication` explicitly
+  /// (Apple «Encrypting Your App's Files»: set `FileProtectionType` with
+  /// `FileManager.setAttributes`; new files take the class of their folder).
+  /// The work runs off the main thread; the answer is how many items were set.
+  private func registerFileProtection(_ messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(name: "lawbid/file_protection", binaryMessenger: messenger)
+    channel.setMethodCallHandler { call, result in
+      guard call.method == "protect",
+        let args = call.arguments as? [String: Any],
+        let dir = args["dir"] as? String
+      else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      let prefix = args["prefix"] as? String
+      DispatchQueue.global(qos: .utility).async {
+        let count = AppDelegate.protectFiles(dir: dir, loosePrefix: prefix)
+        DispatchQueue.main.async { result(count) }
+      }
+    }
+  }
+
+  static func protectFiles(dir: String, loosePrefix: String?) -> Int {
+    let fm = FileManager.default
+    let attrs: [FileAttributeKey: Any] = [
+      .protectionKey: FileProtectionType.completeUntilFirstUserAuthentication
+    ]
+    var count = 0
+    func protect(_ path: String) {
+      if (try? fm.setAttributes(attrs, ofItemAtPath: path)) != nil { count += 1 }
+    }
+    try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true, attributes: attrs)
+    protect(dir)
+    if let items = fm.enumerator(atPath: dir) {
+      for case let rel as String in items {
+        protect((dir as NSString).appendingPathComponent(rel))
+      }
+    }
+    if let prefix = loosePrefix, !prefix.isEmpty {
+      let parent = (dir as NSString).deletingLastPathComponent
+      for name in (try? fm.contentsOfDirectory(atPath: parent)) ?? [] where name.hasPrefix(prefix) {
+        protect((parent as NSString).appendingPathComponent(name))
+      }
+    }
+    return count
   }
 
   // MARK: - Chat notifications

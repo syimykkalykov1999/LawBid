@@ -343,6 +343,17 @@ dependency_overrides:
   go_router:
     path: third_party/go_router
 
+# S13 #26 (MASVS-STORAGE-1), drift «Encryption» (drift 2.32+, sqlite3 3.x):
+# the sqlite3 build hook links SQLite3MultipleCiphers (MIT, utelle) instead
+# of plain SQLite, so the account's local databases are encrypted with
+# `PRAGMA key` (lib/core/persistence/encrypted_database.dart). The prebuilt
+# libraries come from the sqlite3.dart release with pinned SHA-256
+# (sqlite3 lib/src/hook/asset_hashes.dart). Web keeps sqlite3.wasm (web/).
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc
+
 # Owner 2026-10-22 (audit #11): `dart run sentry_dart_plugin` after a prod
 # release build (fastlane `sentry_symbols`) uploads the Dart symbols of
 # `--split-debug-info=build/symbols/<platform>` and the native debug files
