@@ -8,8 +8,14 @@ part of 'admin_recover_question_result_dto.dart';
 
 AdminRecoverQuestionResultDto _$AdminRecoverQuestionResultDtoFromJson(
   Map<String, dynamic> json,
-) => AdminRecoverQuestionResultDto(question: json['question'] as String);
+) => AdminRecoverQuestionResultDto(
+  question: json['question'] as String,
+  ticket: json['ticket'] as String,
+);
 
 Map<String, dynamic> _$AdminRecoverQuestionResultDtoToJson(
   AdminRecoverQuestionResultDto instance,
-) => <String, dynamic>{'question': instance.question};
+) => <String, dynamic>{
+  'question': instance.question,
+  'ticket': instance.ticket,
+};

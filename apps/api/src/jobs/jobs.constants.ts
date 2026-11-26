@@ -227,6 +227,9 @@ export const CRON_JOBS = {
   /** Owner 2026-10-22: «Состояние системы» watchdog — opens / closes
    * incidents and alerts the on-call admins. */
   statusWatchdog: 'ops.status-watchdog',
+  /** Б3 (25.11): a setting change under watch is reverted on a fresh SLO
+   * fast-burn alarm or released to everyone (config-rollout.ts). */
+  settingsRolloutWatch: 'settings.rollout-watch',
   /** Batch C items 11 and 16: daily Cloudflare Realtime and Bunny usage. */
   usagePoll: 'ops.usage-poll',
   /** G3 (2026-11-08): the same vendor reads hourly, only near the limits. */
@@ -437,6 +440,7 @@ export const CRON_SCHEDULES: readonly CronSchedule[] = [
   { name: CRON_JOBS.fraudSweep, pattern: '55 3 * * *' },
   { name: CRON_JOBS.opsGuard, pattern: '* * * * *' },
   { name: CRON_JOBS.statusWatchdog, pattern: '* * * * *' },
+  { name: CRON_JOBS.settingsRolloutWatch, pattern: '* * * * *' },
   // 06:25 UTC daily (the providers' stats lag by hours).
   { name: CRON_JOBS.usagePoll, pattern: '25 6 * * *' },
   // G3: hourly, a no-op unless the daily one saw warn / crit.
@@ -520,6 +524,7 @@ export const FAST_JOBS: readonly CronJobName[] = [
   CRON_JOBS.opsQueueMetrics,
   CRON_JOBS.opsGuard,
   CRON_JOBS.statusWatchdog,
+  CRON_JOBS.settingsRolloutWatch,
   CRON_JOBS.callsSweep,
   CRON_JOBS.outboxSweep,
   CRON_JOBS.taskReminders,

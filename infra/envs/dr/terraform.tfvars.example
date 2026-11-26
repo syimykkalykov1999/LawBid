@@ -1,0 +1,26 @@
+# Stage 2 SRE (Б8): copy to terraform.tfvars on the day (or the drill) and fill in.
+# docs/runbooks/region-dr.md, steps 2–5.
+region         = "us-west-2"
+replica_region = "us-east-2"
+
+# Step 2: the database restored from the vault lawbid-prod-db-dr.
+restored_database_identifier = "lawbid-dr-postgres"
+
+# Step 3: the last good prod release (SSM /lawbid-prod/deploy/last_good_tag, or the
+# newest tag in the DR ECR: aws ecr describe-images --region us-west-2 --repository-name lawbid-api).
+image_tag = "REPLACE_WITH_SHA"
+
+domain            = "lawbid.dev"
+api_host          = "api.lawbid.dev"
+admin_host        = "admin.lawbid.dev"
+app_link_base_url = "https://lawbid.dev"
+# Step 4: ACM certificate requested in us-west-2 for api. and admin. (DNS validation).
+certificate_arn = "arn:aws:acm:us-west-2:ACCOUNT:certificate/REPLACE"
+
+dmarc_rua        = "mailto:dmarc@lawbid.dev"
+ses_from_address = "no-reply@lawbid.dev"
+alert_emails     = ["owner@example.com"]
+
+# Drill: 0 (nothing serves traffic). The real day: 2.
+min_tasks   = 0
+admin_tasks = 0

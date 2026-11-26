@@ -43,8 +43,31 @@ export function socketOrigins(apiBaseUrl: string | undefined): string[] {
   }
 }
 
-export function buildCsp(opts: { nonce: string; dev: boolean; connectSrc?: string; socketOrigin?: string }): string {
+/**
+ * ASVS 5.0 V3.4.7 (STAGE2_SECURITY #4): where the browser sends CSP
+ * violation reports — Sentry's security endpoint (ADMIN_CSP_REPORT_URI,
+ * Project → Settings → Security Headers). Only a plain https URL is taken
+ * (it goes into a header: no spaces, quotes, commas or semicolons).
+ */
+export function reportUri(raw: string | undefined): string | null {
+  const v = (raw ?? '').trim();
+  return /^https:\/\/[a-z0-9.-]+(:\d+)?\/[^\s;,"']*$/i.test(v) ? v : null;
+}
+
+/** `Reporting-Endpoints` value for [reportUri] (the Reporting API name). */
+export function reportingEndpoints(uri: string | null): string | null {
+  return uri ? `csp-endpoint="${uri}"` : null;
+}
+
+export function buildCsp(opts: {
+  nonce: string;
+  dev: boolean;
+  connectSrc?: string;
+  socketOrigin?: string;
+  reportUri?: string;
+}): string {
   const { nonce, dev } = opts;
+  const report = reportUri(opts.reportUri);
   const connect = [
     "'self'",
     ...parseOrigins(opts.connectSrc),
@@ -69,6 +92,7 @@ export function buildCsp(opts: { nonce: string; dev: boolean; connectSrc?: strin
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
+    ...(report ? [`report-uri ${report}`, 'report-to csp-endpoint'] : []),
   ].join('; ');
 }
 

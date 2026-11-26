@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCsp, newNonce, parseOrigins, socketOrigins } from './csp';
+import { buildCsp, newNonce, parseOrigins, reportUri, reportingEndpoints, socketOrigins } from './csp';
 
 const directive = (csp: string, name: string) => csp.split('; ').find((d) => d.startsWith(`${name} `)) ?? '';
 
@@ -58,5 +58,24 @@ describe('admin CSP: the live socket origin (speed matrix §3 #5)', () => {
       'wss://x.example.com',
       'https://y.example.com',
     ]);
+  });
+});
+
+describe('admin CSP: violation reports (ASVS V3.4.7, STAGE2_SECURITY #4)', () => {
+  const sentry = 'https://o1.ingest.us.sentry.io/api/2/security/?sentry_key=testpublickey';
+
+  it('sends report-uri and report-to to the Sentry security endpoint', () => {
+    const csp = buildCsp({ nonce: 'n', dev: false, reportUri: sentry });
+    expect(directive(csp, 'report-uri')).toBe(`report-uri ${sentry}`);
+    expect(directive(csp, 'report-to')).toBe('report-to csp-endpoint');
+    expect(reportingEndpoints(reportUri(sentry))).toBe(`csp-endpoint="${sentry}"`);
+  });
+
+  it('no URI, or one that could break the header, adds nothing', () => {
+    for (const bad of [undefined, '', 'http://plain.example/x', 'https://x.example/a; script-src *', 'https://x.example/a"b']) {
+      expect(reportUri(bad)).toBeNull();
+      expect(buildCsp({ nonce: 'n', dev: false, reportUri: bad })).not.toContain('report-uri');
+    }
+    expect(reportingEndpoints(null)).toBeNull();
   });
 });

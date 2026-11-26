@@ -415,14 +415,17 @@ export class AdminAuthController {
   @Public()
   @Post('recover/question')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Show the super admin security question' })
+  @ApiOperation({
+    summary:
+      'Super admin recovery, step 1: login + authenticator (or recovery) code → the security question and a ticket',
+  })
   @ApiEnvelopeResponse(AdminRecoverQuestionResultDto)
-  @ApiErrors(START_ERRORS)
+  @ApiErrors({ ...START_ERRORS, 401: [E.ADMIN_RECOVERY_FAILED] })
   async adminRecoverQuestion(
     @Body() dto: AdminRecoverQuestionDto,
     @Ip() ip: string,
   ): Promise<AdminRecoverQuestionResultDto> {
-    return { question: await this.auth.recoverQuestion(dto.login, ip || null) };
+    return this.auth.recoverQuestion(dto.login, dto.code ?? '', ip || null);
   }
 
   @Public()
@@ -442,6 +445,7 @@ export class AdminAuthController {
       dto.login,
       dto.answer,
       dto.newPassword,
+      dto.ticket ?? '',
       ip || null,
     );
     return { ok: true };

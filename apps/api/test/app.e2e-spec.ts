@@ -67,6 +67,12 @@ describe('AppModule (e2e) — stage 1.2 plumbing', () => {
   it('GET /health/ready -> 200 (stage 1.1 acceptance, still holds)', async () => {
     const res = await request(app.getHttpServer()).get('/health/ready');
     expect(res.status).toBe(200);
+    // ASVS V13.4.5 (STAGE2_SECURITY #9): the public answer names no
+    // dependency (status + version only); the detail needs X-Health-Token.
+    const body =
+      (res.body as { data?: Record<string, unknown> }).data ?? res.body;
+    expect(Object.keys(body as object).sort()).toEqual(['status', 'version']);
+    expect(JSON.stringify(res.body)).not.toMatch(/database|redis/);
   });
 
   it('validation error matches docs/01_FOUNDATION_AUTH.md §7 error shape', async () => {

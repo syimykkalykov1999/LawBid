@@ -56,6 +56,13 @@ export const SLO_COUNTERS = [
   // Alarms of their own (monitoring/slo.tf `load-shed-*`), not an SLO ratio.
   'shedCritical',
   'shedLow',
+  // Б2 (25.11, SRE Workbook ch. 16 "compare the canary to the control"):
+  // every answered request and the 5xx among them, per process. Together
+  // with `release` in the same line, scripts/deploy/canary.sh compares the
+  // canary task (new release) with the rest of the fleet (old release). No
+  // CloudWatch metric is made of them (monitoring/slo.tf lists its own).
+  'httpReq',
+  'http5xx',
 ] as const;
 export type SloCounter = (typeof SLO_COUNTERS)[number];
 
@@ -90,7 +97,11 @@ export class SloMetricsService implements OnModuleInit, OnApplicationShutdown {
       SLO_COUNTERS.map((k) => [k, this.counts.get(k) ?? 0]),
     ) as Record<SloCounter, number>;
     this.counts = new Map();
-    this.logger.info({ metric: 'slo', ...line }, 'slo counters');
+    // Б2: which release wrote the line (deploy.yml sets APP_VERSION = the tag).
+    this.logger.info(
+      { metric: 'slo', release: process.env.APP_VERSION ?? 'unknown', ...line },
+      'slo counters',
+    );
     if (this.redis) {
       const key = SLO_REDIS_PREFIX + Math.floor(Date.now() / 60_000);
       const pipe = pipeline(this.redis);

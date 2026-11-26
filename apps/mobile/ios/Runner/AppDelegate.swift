@@ -368,9 +368,19 @@ import flutter_callkit_incoming
   /// document / licence is open (lib/core/platform/secure_screen.dart) a
   /// screen recording or mirroring shows a blank window instead of the
   /// document. iOS cannot stop a screenshot; a recording it can hide.
+  ///
+  /// S12 #27 (25.11, MASVS-PLATFORM-3): the same cover also goes on while
+  /// the app resigns active (app switcher, Control Center, an incoming
+  /// call) and comes off when it is active again — Apple's documented way
+  /// to keep a sensitive view out of the snapshot iOS takes for the app
+  /// switcher («Preparing your UI to run in the background»). Scene-based
+  /// app (SceneDelegate), so the scene notifications are observed; the
+  /// UIApplication ones are posted as well and change nothing twice.
   private var secureScreen = false
+  private var resignedActive = false
   private var captureCover: UIView?
   private var captureObserver: NSObjectProtocol?
+  private var lifecycleObservers: [NSObjectProtocol] = []
 
   private func registerSecureScreen(_ messenger: FlutterBinaryMessenger) {
     let channel = FlutterMethodChannel(name: "lawbid/secure_screen", binaryMessenger: messenger)
@@ -401,6 +411,23 @@ import flutter_callkit_incoming
         self?.updateCaptureCover()
       }
     }
+    if on, lifecycleObservers.isEmpty {
+      let center = NotificationCenter.default
+      for name in [UIScene.willDeactivateNotification, UIApplication.willResignActiveNotification] {
+        lifecycleObservers.append(
+          center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+            self?.resignedActive = true
+            self?.updateCaptureCover()
+          })
+      }
+      for name in [UIScene.didActivateNotification, UIApplication.didBecomeActiveNotification] {
+        lifecycleObservers.append(
+          center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+            self?.resignedActive = false
+            self?.updateCaptureCover()
+          })
+      }
+    }
     updateCaptureCover()
   }
 
@@ -415,7 +442,7 @@ import flutter_callkit_incoming
   }
 
   private func updateCaptureCover() {
-    let shouldCover = secureScreen && UIScreen.main.isCaptured
+    let shouldCover = secureScreen && (UIScreen.main.isCaptured || resignedActive)
     if shouldCover {
       guard captureCover == nil, let w = activeWindow() else { return }
       let cover = UIView(frame: w.bounds)

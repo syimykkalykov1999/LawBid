@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import { useState } from "react";
 import { BudgetLimitsCard, isBudgetKey } from "@/components/budget-limits-card";
+import { SettingsRolloutsCard, SETTINGS_ROLLOUTS_KEY } from "@/components/settings-rollouts-card";
 import { TextLimitsCard, isTextLimitKey } from "@/components/text-limits-card";
 import { RecoQaCard } from "@/components/reco-qa-card";
 import { MotionRow } from "@/components/legacy/fade-in";
@@ -641,6 +642,8 @@ const KEY_TEXT: Record<string, string> = {
     "Новых живых соединений в минуту с одного адреса для тех, кто не вошёл (0 — без ограничения). Для вошедших адрес — лишь широкая сетка безопасности (в 10 раз выше).",
   "realtime.server.shed_mode":
     "Сброс нагрузки, когда одному серверу тяжело (как у Netflix): лишние запросы сразу получают ответ «подождите пару секунд», и приложение само повторяет их чуть позже, вместо того чтобы зависнуть у всех. Первыми ждут фоновые (статистика), потом предзагрузка и подсказки, потом обычные; вход, оплата, звонки и отправка сообщения — в самую последнюю очередь. Выкл — никому не отказывать. Вкл — по порогам realtime.server.shed_* как записаны. Авто (по умолчанию) — те же пороги плюс предел одновременных запросов, который сервер считает сам по времени ответов; он включается только когда процессор выше realtime.server.shed_cpu_start_pct, чтобы сначала успели добавиться серверы.",
+  "realtime.server.ws_compression_mode":
+    "Сжатие живого соединения (сокета), как у Discord: большие сообщения (от realtime.server.ws_compression_threshold_bytes, 1 КБ) идут сжатыми, трафик телефона меньше в разы. Выкл — без сжатия. Вкл — для всех новых подключений. Авто (по умолчанию) — пока на сервере меньше realtime.server.ws_compression_auto_max_sockets сжатых сокетов (каждый около 0,2 МБ памяти), дальше новые без сжатия. Уже открытые соединения не меняются.",
   "realtime.max_connects_per_user_per_minute":
     "Новых живых соединений в минуту от одного вошедшего человека (0 — без ограничения). Считаем по аккаунту, а не по адресу.",
   "security.password_breach_check_enabled":
@@ -649,6 +652,8 @@ const KEY_TEXT: Record<string, string> = {
     "Сколько миллисекунд ждать ответ базы утёкших паролей.",
   "security.password_common_list_enabled":
     "Не принимать пароли из списка самых частых.",
+  "security.phone_status_min_ms":
+    "Проверка «зарегистрирован ли номер» отвечает не быстрее этого числа миллисекунд — одинаково для зарегистрированных и новых номеров, чтобы по времени ответа ничего нельзя было узнать (150). 0 — без задержки.",
   "security.password_context_words":
     "Слова, из которых нельзя составить пароль (половина пароля или больше): название сервиса и похожие. Имя, логин, почта и телефон самого человека проверяются всегда. Через запятую.",
   "security.app_check.replay_protection":
@@ -1475,6 +1480,14 @@ const KEY_TEXT: Record<string, string> = {
     "Сколько последних наборов переводов (язык + версия) каждый сервер держит в памяти. 0 — не держать.",
   "ops.loop_stall_log_ms":
     "Если сервер «замер» хотя бы на столько миллисекунд, он пишет в журнал одну строку: сколько длилась пауза, какая уборка памяти шла и какие запросы и задачи были открыты. 0 — выключено.",
+  "settings.canary_percent":
+    "Новая настройка сначала включается только на этой доле серверов API (минимум на одном), пока смотрим тревоги качества. 100 — сразу на всех, но под наблюдением.",
+  "settings.watch_minutes":
+    "Сколько минут новая настройка работает на пробных серверах, прежде чем включиться у всех. Если в это время сработает тревога качества, старое значение само вернётся у всех. 0 — любая правка сразу у всех, как раньше.",
+  "settings.incident_quiet_minutes":
+    "Если та же тревога качества уже горела в момент правки или погасла меньше этого числа минут до неё, значит идёт сбой, а не вина правки: при новой тревоге настройка сама НЕ откатывается, дежурным приходит сообщение. 0 — считается только тревога, горевшая в момент правки.",
+  "settings.canary_skip_prefixes":
+    "Настройки, ключ которых начинается с одной из этих строк, включаются сразу, без пробного окна: деньги, «Авто», звонки и связь в реальном времени (обе стороны звонка должны работать одинаково).",
   "ops.bootstrap_cache_sec":
     "Сколько секунд ответ для запуска приложения (/config/bootstrap) используется повторно, пока настройки не менялись; любая правка настроек сразу даёт новый ответ. 0 — собирать каждый раз.",
   "ops.db_lost_exit_min":
@@ -1844,6 +1857,8 @@ function FullConfigPage() {
     ),
     onSuccess: (_r, v) => {
       toast.success(`Сохранено: ${v.key}`);
+      // Б3: a save may now be on the canary servers (the card above).
+      void qc.invalidateQueries({ queryKey: SETTINGS_ROLLOUTS_KEY });
       setDrafts((d) => {
         const next = { ...d };
         delete next[v.key];
@@ -1885,6 +1900,7 @@ function FullConfigPage() {
           </div>
         }
       />
+      <SettingsRolloutsCard />
       <BudgetLimitsCard />
       <TextLimitsCard entries={q.data ?? []} />
       <RecoQaCard />

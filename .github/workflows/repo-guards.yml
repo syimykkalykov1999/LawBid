@@ -72,6 +72,8 @@ jobs:
           bash scripts/deploy/run-migrations.test.sh
           bash scripts/infra/pooler-roll.test.sh
           bash scripts/deploy/roll-services.test.sh
+          bash scripts/deploy/canary.test.sh
+          node --test scripts/deploy/canary-compare.test.mjs
           bash scripts/deploy/budget-gate.test.sh
           bash scripts/deploy/i18n-needed.test.sh
           bash scripts/deploy/wait-data-stores-idle.test.sh
@@ -94,13 +96,29 @@ jobs:
           node --test scripts/ci/migration-role-check.test.mjs
           # CONTENT_MEDIA_VERIFY 17.11 №1: CI and the Mac run prod's engines (PostgreSQL 18, Valkey 9.1).
           node --test scripts/ci/ci-engines-match-prod.test.mjs
+          # S12 #25: the app's certificate pins (Android pin-set = iOS NSPinnedDomains).
+          node --test scripts/ci/cert-pins-check.test.mjs
           # STAGE2 G2 25.11: prod REST least-outstanding, stickiness only on /socket.io.
           node --test scripts/ci/prod-alb-balancing.test.mjs
+
+      # S12 #25 (25.11): both platforms pin the same hosts and keys, and the
+      # Android pin-set expiration is still ahead. The live-chain half runs
+      # daily in cert-pins.yml.
+      - name: App certificate pins are equal on Android and iOS
+        run: node scripts/ci/cert-pins-check.mjs
 
       # OPEN_ITEMS_SWEEP 2026-11-09 C-c9: the docs name the DB user migrations
       # really run under (infra/postgres/migration-role.txt); drift fails here.
       - name: Docs name the real migration DB user
         run: node scripts/ci/migration-role-check.mjs
+
+      # STAGE2_SECURITY #20 (ASVS 5.0 documentation requirements, 25.11):
+      # every security / sign-in setting, encryption key and sign-in method
+      # has a line in docs/security/ASVS_DOCUMENTATION.md.
+      - name: ASVS documentation is complete
+        run: |
+          node --test scripts/ci/asvs-doc-check.test.mjs
+          node scripts/ci/asvs-doc-check.mjs
 
       # Owner rule 2026-11-03 «правка в приложении = правка в вебе» (B-c15):
       # a PR touching apps/mobile/lib/{features,core} must say what the web

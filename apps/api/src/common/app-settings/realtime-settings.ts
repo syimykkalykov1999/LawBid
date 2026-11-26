@@ -155,6 +155,24 @@ export const REALTIME_SETTING_DEFS: readonly RealtimeSettingDef[] = [
       'Сервер: при выкате и остановке — случайный разброс «server:going-away», мс (чтобы клиенты возвращались не разом)',
   },
   {
+    key: 'realtime.server.ws_compression_threshold_bytes',
+    field: null,
+    default: 1024,
+    min: 0,
+    max: 1_048_576,
+    labelRu:
+      'Сервер: сжимать сообщения сокета не меньше этого размера, байт (меньшие — набор текста, «в сети», подтверждения — идут как есть). Работает, когда realtime.server.ws_compression_mode не «Выкл»',
+  },
+  {
+    key: 'realtime.server.ws_compression_auto_max_sockets',
+    field: null,
+    default: 1000,
+    min: 0,
+    max: 1_000_000,
+    labelRu:
+      'Сервер, сжатие сокета в режиме «Авто»: сколько сжатых сокетов держит один сервер (каждый около 0,2 МБ памяти); дальше новые подключаются без сжатия',
+  },
+  {
     key: 'realtime.server.shed_event_loop_lag_ms',
     field: null,
     default: 500,
@@ -318,6 +336,8 @@ export const OWNER_REALTIME_SETTINGS = {
   'realtime.server.auth_expiring_lead_seconds': 120,
   'realtime.server.auth_grace_seconds': 120,
   'realtime.server.going_away_spread_ms': 20_000,
+  'realtime.server.ws_compression_threshold_bytes': 1024,
+  'realtime.server.ws_compression_auto_max_sockets': 1000,
   'realtime.server.shed_event_loop_lag_ms': 500,
   'realtime.server.shed_lag_start_ms': 200,
   'realtime.server.shed_cpu_start_pct': 75,

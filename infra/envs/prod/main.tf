@@ -83,6 +83,7 @@ module "stack" {
   status_host                    = var.status_host
   status_certificate_arn         = var.status_certificate_arn
   status_create_certificate      = var.status_create_certificate
+  secrets_replica_enabled        = var.secrets_replica_enabled
   status_backup_url              = var.status_backup_url
   hosted_zone_id                 = var.hosted_zone_id
   dmarc_rua                      = var.dmarc_rua
@@ -141,6 +142,9 @@ module "stack" {
   turn_traffic_alarm_gb_per_day      = var.turn_traffic_alarm_gb_per_day
   turn_instance_type                 = var.turn_instance_type
   turn_total_quota                   = var.turn_total_quota
+  web_csp_report_uri                 = var.web_csp_report_uri
+  admin_csp_report_uri               = var.admin_csp_report_uri
+  web_csp_exact_connect_enforced     = var.web_csp_exact_connect_enforced
   livekit_enabled                    = var.livekit_enabled
   livekit_instance_type              = var.livekit_instance_type
   livekit_use_redis                  = var.livekit_use_redis

@@ -651,6 +651,11 @@ const AUDIT_ACTION: Record<string, string> = {
   'admin.sticker.add': 'Стикер добавлен',
   'admin.sticker.remove': 'Стикер удалён',
   'config.app_config': 'Изменена настройка',
+  // Б3 (25.11): настройки выкатываются как код.
+  'settings.auto_revert': 'Изменение настроек отменено само (сработала тревога)',
+  'settings.rollout_promoted': 'Изменение настроек включено у всех (проверка прошла)',
+  'settings.rollout_emergency': 'Изменение настроек включено у всех сразу (срочно, 2FA)',
+  'settings.revert': 'Изменение настроек возвращено',
   'config.flag': 'Изменена функция (флаг)',
   'config.flag_rebucketed': 'Функция: сменилось деление людей (у кого она включена)',
   'config.language': 'Изменён язык',

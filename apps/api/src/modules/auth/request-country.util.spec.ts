@@ -1,4 +1,4 @@
-import { requestCountry } from './request-country.util';
+import { fromOurEdge, requestCountry } from './request-country.util';
 import {
   recordSendDuration,
   resetSendLatency,
@@ -6,18 +6,46 @@ import {
 } from './uniform-response.util';
 
 describe('requestCountry', () => {
+  const SECRET = 'test-edge-origin-secret-0123456789';
+  const edge = { 'x-lawbid-edge': SECRET };
   const hdr = (h: Record<string, string>) => (n: string) => h[n];
-  it('reads CloudFront then Cloudflare, upper-cased', () => {
-    expect(requestCountry(hdr({ 'cloudfront-viewer-country': 'us' }))).toBe(
-      'US',
+  it('reads CloudFront then Cloudflare, upper-cased (request from our edge)', () => {
+    expect(
+      requestCountry(
+        hdr({ ...edge, 'cloudfront-viewer-country': 'us' }),
+        SECRET,
+      ),
+    ).toBe('US');
+    expect(requestCountry(hdr({ ...edge, 'cf-ipcountry': 'DE' }), SECRET)).toBe(
+      'DE',
     );
-    expect(requestCountry(hdr({ 'cf-ipcountry': 'DE' }))).toBe('DE');
   });
   it('ignores unknown / Tor / malformed values', () => {
-    expect(requestCountry(hdr({ 'cf-ipcountry': 'XX' }))).toBeUndefined();
-    expect(requestCountry(hdr({ 'cf-ipcountry': 'T1' }))).toBeUndefined();
-    expect(requestCountry(hdr({ 'cf-ipcountry': 'USA' }))).toBeUndefined();
-    expect(requestCountry(hdr({}))).toBeUndefined();
+    for (const v of ['XX', 'T1', 'USA']) {
+      expect(
+        requestCountry(hdr({ ...edge, 'cf-ipcountry': v }), SECRET),
+      ).toBeUndefined();
+    }
+    expect(requestCountry(hdr(edge), SECRET)).toBeUndefined();
+  });
+  // ASVS 5.0 V4.1.3 (STAGE2_SECURITY #8): a client cannot pick its country.
+  it('a country header straight from a client is not trusted', () => {
+    const forged = { 'cloudfront-viewer-country': 'US', 'cf-ipcountry': 'US' };
+    expect(requestCountry(hdr(forged), SECRET)).toBeUndefined();
+    expect(
+      requestCountry(hdr({ ...forged, 'x-lawbid-edge': 'guess' }), SECRET),
+    ).toBeUndefined();
+    // No secret configured: never trusted.
+    expect(
+      requestCountry(hdr({ ...forged, ...edge }), undefined),
+    ).toBeUndefined();
+    expect(requestCountry(hdr({ ...forged, ...edge }), '')).toBeUndefined();
+  });
+  it('the edge secret must be long enough and match exactly', () => {
+    expect(fromOurEdge(SECRET, SECRET)).toBe(true);
+    expect(fromOurEdge(`${SECRET}x`, SECRET)).toBe(false);
+    expect(fromOurEdge('short', 'short')).toBe(false);
+    expect(fromOurEdge(undefined, SECRET)).toBe(false);
   });
 });
 

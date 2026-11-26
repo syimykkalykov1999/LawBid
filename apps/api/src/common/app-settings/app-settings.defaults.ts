@@ -1210,12 +1210,22 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
    * an adaptive concurrency limit (Netflix Gradient2) that only sheds once
    * CPU is above `shed_cpu_start_pct` (above the autoscaling target). */
   'realtime.server.shed_mode': 'auto',
+  /** G6 (25.11, Discord «How Discord Reduced Websocket Traffic by 40%»):
+   * permessage-deflate on the socket for frames of
+   * `realtime.server.ws_compression_threshold_bytes` and more. off = none;
+   * on = every new socket; auto (default) = new sockets while this server
+   * holds fewer than `realtime.server.ws_compression_auto_max_sockets`
+   * compressed ones (memory, modules/realtime/ws-compression.ts). */
+  'realtime.server.ws_compression_mode': 'auto',
   /** Owner 2026-10-25: password screening (NIST SP 800-63B-4 §3.1.1.2). */
   'security.password_breach_check_enabled': true,
   /** Milliseconds to wait for the breached-password service; later = skip. */
   'security.password_breach_timeout_ms': 1500,
   /** Refuse passwords from the bundled list of the most common ones. */
   'security.password_common_list_enabled': true,
+  /** O4 (ASVS V6.3.8): «is this number registered?» answers after at least
+   * this many ms, registered or not (0 = no floor, at most 2000). */
+  'security.phone_status_min_ms': 150,
   /** ASVS V6.2.11 (STAGE2_SECURITY #11): words a password may not be built
    * from (half or more of it); the person's own name, username, e-mail and
    * phone are added per check. */
@@ -2689,6 +2699,46 @@ export const OWNER_ADDRESS_SETTINGS = {
   'addresses.per_user_per_day': 300,
 };
 
+/**
+ * Б3 (25.11): a setting change is released like code (config-rollout.ts):
+ * first to `settings.canary_percent` % of the API tasks (at least one) for
+ * `settings.watch_minutes` minutes while the SLO fast-burn alarms are
+ * watched; an alarm = automatic revert, no alarm = everyone. 0 minutes =
+ * every change applies at once as before. Keys starting with one of
+ * `settings.canary_skip_prefixes` always apply at once: money and «Авто»
+ * (owner: «Авто» hands off), calls and realtime (both ends of a call must
+ * agree), and the `settings.` keys themselves.
+ */
+export const OWNER_SETTINGS_ROLLOUT_SETTINGS = {
+  'settings.canary_percent': 10,
+  'settings.watch_minutes': 5,
+  /** Review of #1332: an SLO alarm that was already open, or closed less
+   * than this many minutes before a change started, means an incident is
+   * going on: its next firing alerts on-call instead of reverting. */
+  'settings.incident_quiet_minutes': 30,
+  'settings.canary_skip_prefixes': [
+    'billing.',
+    'payments.',
+    'treasury.',
+    'economy.',
+    'stripe_ops.',
+    'ledger.',
+    'fees.',
+    'rewards.',
+    'subscription.',
+    'infra.',
+    'scale.',
+    'ha.',
+    'db.',
+    'partition.',
+    'ops.auto_scale',
+    'queues.scale_signal',
+    'search.engine',
+    'calls.',
+    'realtime.',
+  ] as string[],
+};
+
 export const APP_SETTINGS = {
   ...OWNER_COMPLIANCE_SETTINGS,
   ...FILE_03_SETTINGS,
@@ -2755,6 +2805,7 @@ export const APP_SETTINGS = {
   // Staff package T1 (2026-10-27): «Админка и сотрудники», all switches off.
   ...OWNER_STAFF_SETTINGS,
   ...OWNER_ADDRESS_SETTINGS,
+  ...OWNER_SETTINGS_ROLLOUT_SETTINGS,
 };
 
 export type AppSettingKey = keyof typeof APP_SETTINGS;
