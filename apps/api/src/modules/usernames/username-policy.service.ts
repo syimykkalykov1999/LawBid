@@ -19,8 +19,9 @@ import {
   type UsernameKind,
   withinOneEdit,
 } from './username-rules';
+import type { DbTx } from '../../prisma/secret-columns';
 
-type Db = PrismaService | Prisma.TransactionClient;
+type Db = PrismaService | DbTx;
 type UsernameRow = {
   username_lower: string;
   owner_type: string;

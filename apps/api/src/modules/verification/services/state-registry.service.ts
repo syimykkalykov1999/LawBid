@@ -253,7 +253,10 @@ export class StateRegistryService {
     if (this.cache && Date.now() - this.cache.at < CACHE_MS) {
       return this.cache.rows;
     }
-    const rows = await this.prisma.stateBarRegistry.findMany();
+    // S10 (#17): live lookups decrypt the vendor key (resolved()).
+    const rows = await this.prisma.stateBarRegistry.findMany({
+      omit: { secret_enc: false },
+    });
     this.cache = {
       at: Date.now(),
       rows: new Map(rows.map((r) => [r.state_code, r])),
@@ -283,7 +286,8 @@ export class StateRegistryService {
         where: { is_active: true },
         orderBy: { code: 'asc' },
       }),
-      this.prisma.stateBarRegistry.findMany(),
+      // dto() says whether a key is saved; the key itself never leaves.
+      this.prisma.stateBarRegistry.findMany({ omit: { secret_enc: false } }),
       this.prisma.barFormatMiss.findMany({
         orderBy: [{ hits: 'desc' }, { last_seen: 'desc' }],
         take: 200,
@@ -317,6 +321,8 @@ export class StateRegistryService {
     const state = await this.stateOr404(stateCode);
     const current = await this.prisma.stateBarRegistry.findUnique({
       where: { state_code: state.code },
+      // A save without a new key keeps the stored one.
+      omit: { secret_enc: false },
     });
     const desc = adapterDescriptor(input.adapter);
     if (!desc) throw bad('Unknown adapter type.', 'adapter');
@@ -410,6 +416,7 @@ export class StateRegistryService {
       where: { state_code: state.code },
       create: { state_code: state.code, ...data },
       update: data,
+      omit: { secret_enc: false },
     });
     this.invalidate();
     this.guard.reset(state.code);
@@ -421,6 +428,8 @@ export class StateRegistryService {
   async copy(from: string, to: string[], adminId: string) {
     const src = await this.prisma.stateBarRegistry.findUnique({
       where: { state_code: from.toUpperCase() },
+      // The key is copied, re-sealed for each target state.
+      omit: { secret_enc: false },
     });
     if (!src) throw bad('Save the source state first.', 'from');
     const plain =
@@ -467,6 +476,8 @@ export class StateRegistryService {
     const state = await this.stateOr404(stateCode);
     const row = await this.prisma.stateBarRegistry.findUnique({
       where: { state_code: state.code },
+      // The test lookup uses the saved key (resolved()).
+      omit: { secret_enc: false },
     });
     // Owner 2026-11-12: a state on its free default can be tested too.
     const registry =

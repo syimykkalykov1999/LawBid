@@ -43,6 +43,7 @@ import type {
   AdminCasesQueryDto,
   Page,
 } from './admin-cases.dto';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const DEFAULT_LIMIT = 20;
 const JOURNAL_MAX = 50;
@@ -463,7 +464,7 @@ export class AdminCaseManagementService {
   }
 
   private async rejectActiveBids(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     caseId: string,
     clientId: string,
     actor: { userId: string; role: 'admin' },

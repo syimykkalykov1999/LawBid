@@ -1,6 +1,5 @@
 import { type CountryScope, userInScope } from '../countries/country-scope';
 import { primaryClient } from '../../prisma/primary-client';
-import type { Prisma } from '../../generated/prisma/client';
 import {
   ConflictException,
   ForbiddenException,
@@ -50,6 +49,7 @@ import type {
 import { assertNoBlock } from '../blocks/block-guard';
 import { lastModeration } from '../reviews/reviews.service';
 import { userDirectory } from '../../sharding/user-directory';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const PAGE = 20;
 
@@ -1048,8 +1048,8 @@ export class ClientReviewsService {
 
   async recalc(
     clientId: string,
-    tx?: Prisma.TransactionClient,
-    reviews: Prisma.TransactionClient | PrismaService = tx ?? this.prisma,
+    tx?: DbTx,
+    reviews: DbTx | PrismaService = tx ?? this.prisma,
   ): Promise<void> {
     // Verify 17.11 (batch 9): two reviews of one client written at once
     // could leave the older count last (aggregate, then update). The

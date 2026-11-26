@@ -15,7 +15,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import type { Prisma, PrismaClient } from '../../src/generated/prisma/client';
+import type { Prisma } from '../../src/generated/prisma/client';
 import { DEMO_EMAIL_DOMAIN } from '../../src/modules/demo/demo-seed';
 import {
   DEMO_AVATAR_SIZE,
@@ -30,6 +30,7 @@ import {
   type DemoPostSpec,
 } from './texts';
 import { STORAGE_REQUEST_HANDLER } from '../../src/common/http/aws-request-handler';
+import type { SecretOmittingClient } from '../../src/prisma/secret-columns';
 
 const DAY = 86_400_000;
 const MIN = 60_000;
@@ -154,7 +155,7 @@ interface Person {
 }
 
 export async function seedDemoContent(
-  prisma: PrismaClient,
+  prisma: SecretOmittingClient,
   opts: { videoStubs?: boolean; now?: Date } = {},
 ): Promise<ContentResult> {
   const now = opts.now ?? new Date();
@@ -768,7 +769,7 @@ async function write<T>(
 }
 
 async function flushFiles(
-  prisma: PrismaClient,
+  prisma: SecretOmittingClient,
   files: Prisma.FileCreateManyInput[],
 ): Promise<void> {
   if (files.length === 0) return;
@@ -779,7 +780,7 @@ async function flushFiles(
 }
 
 async function writeTags(
-  prisma: PrismaClient,
+  prisma: SecretOmittingClient,
   pairs: { postId: string; tag: string }[],
 ): Promise<void> {
   const lowers = [...new Set(pairs.map((p) => p.tag))];

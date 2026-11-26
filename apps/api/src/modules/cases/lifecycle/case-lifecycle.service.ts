@@ -35,6 +35,7 @@ import {
   type StaleFacts,
   type StaleTimers,
 } from '../domain/case-staleness';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 function staleFacts(row: {
   urgency: string | null;
@@ -98,7 +99,7 @@ export class CaseLifecycleService {
    * the client leaves client_completed_at, the attorney attorney_confirmed_at
    * — the other mark is the one still missing. */
   private async requestedBy(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     caseId: string,
   ): Promise<'client' | 'attorney' | null> {
     const row = await tx.case.findUnique({
@@ -601,7 +602,7 @@ export class CaseLifecycleService {
   /** Archive one locked `open` case: status, bids, journal, chats,
    * notifications (shared by auto-archive and client suspension). */
   private async archiveInTx(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     caseId: string,
     clientId: string,
     now: Date,
@@ -707,7 +708,7 @@ export class CaseLifecycleService {
    * to both sides (§13) and the review request to the client (docs/03
    * §7.3; §10.1 "После closed … предложением оставить отзыв"). */
   private async closeInTx(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     input: {
       caseId: string;
       clientId: string;
@@ -815,7 +816,7 @@ export class CaseLifecycleService {
   /** The case's client and the attorney of its accepted bid. A case
    * without an accepted bid has no lifecycle past `open` (404 here). */
   private async parties(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     caseId: string,
   ): Promise<{ clientId: string; attorneyId: string }> {
     const kase = await tx.case.findUnique({
@@ -832,7 +833,7 @@ export class CaseLifecycleService {
     };
   }
 
-  private async lockCase(tx: Prisma.TransactionClient, caseId: string) {
+  private async lockCase(tx: DbTx, caseId: string) {
     const rows = await tx.$queryRaw<
       {
         client_id: string;

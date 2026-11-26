@@ -1,6 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type Redis from 'ioredis';
-import type { Prisma, PrismaClient } from '../../../generated/prisma/client';
 import { REDIS_CLIENT } from '../../../redis/redis.constants';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { TokenService } from './token.service';
@@ -8,6 +7,8 @@ import { publishSessionRevoked } from '../../../redis/session-revoked';
 import { isRedisInfraError } from '../../../redis/redis-errors';
 import { throttledWarn } from '../../../common/logging/throttled-warn';
 import { L1Cache } from '../../../common/cache/l1-cache';
+import type { DbTx } from '../../../prisma/secret-columns';
+import type { SecretOmittingClient } from '../../../prisma/secret-columns';
 
 export type RevokeReason =
   | 'logout'
@@ -82,7 +83,7 @@ export class SessionRevocationService {
   async revokeChain(
     sessionChainId: string,
     reason: RevokeReason,
-    tx?: Prisma.TransactionClient | PrismaClient,
+    tx?: DbTx | SecretOmittingClient,
   ): Promise<void> {
     const client = tx ?? this.prisma;
     await client.session.updateMany({
@@ -95,7 +96,7 @@ export class SessionRevocationService {
   async revokeAllChainsForUser(
     userId: string,
     reason: RevokeReason,
-    tx?: Prisma.TransactionClient | PrismaClient,
+    tx?: DbTx | SecretOmittingClient,
   ): Promise<string[]> {
     const client = tx ?? this.prisma;
     const active = await client.session.findMany({
@@ -155,7 +156,7 @@ export class SessionRevocationService {
     userId: string,
     web: boolean,
     reason: RevokeReason,
-    tx?: Prisma.TransactionClient | PrismaClient,
+    tx?: DbTx | SecretOmittingClient,
   ): Promise<string[]> {
     const client = tx ?? this.prisma;
     const active = await client.session.findMany({

@@ -1,11 +1,15 @@
 import { Injectable, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, PrismaClient } from '../../generated/prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { heldSqlFor } from '../../common/privacy/legal-hold';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import { forEachDatabase } from '../../sharding/for-each-database';
 import { pgAdapter } from '../../prisma/pg-adapter';
+import {
+  newSecretOmittingClient,
+  type SecretOmittingClient,
+} from '../../prisma/secret-columns';
 
 /** Rows per statement: short transactions, no long locks. */
 const BATCH = 5000;
@@ -21,7 +25,7 @@ const MAX_PER_RUN = 2_000_000;
  */
 @Injectable()
 export class JournalRetentionService implements OnApplicationShutdown {
-  private retention?: PrismaClient;
+  private retention?: SecretOmittingClient;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -31,7 +35,7 @@ export class JournalRetentionService implements OnApplicationShutdown {
     this.logger.setContext(JournalRetentionService.name);
   }
 
-  private client(): PrismaClient | PrismaService {
+  private client(): SecretOmittingClient | PrismaService {
     const url = this.config.get<string>('RETENTION_DATABASE_URL');
     if (!url) {
       this.logger.warn(
@@ -39,7 +43,7 @@ export class JournalRetentionService implements OnApplicationShutdown {
       );
       return this.prisma;
     }
-    this.retention ??= new PrismaClient({ adapter: pgAdapter(url) });
+    this.retention ??= newSecretOmittingClient(pgAdapter(url));
     return this.retention;
   }
 
@@ -58,7 +62,7 @@ export class JournalRetentionService implements OnApplicationShutdown {
   }
 
   private async sweep(
-    db: PrismaClient | PrismaService,
+    db: SecretOmittingClient | PrismaService,
     now: Date,
   ): Promise<number> {
     const held = await heldSqlFor(this.prisma);

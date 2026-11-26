@@ -4,6 +4,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { AssistantMembership } from '../../../generated/prisma/client';
+import type { AssistantMembershipRow } from '../../../prisma/secret-columns';
+
+/** A seat found by its code: the code hash guards the claim (S10 #17). */
+export type CodeSeat = AssistantMembershipRow &
+  Pick<AssistantMembership, 'join_code_hash'>;
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { hashJoinCode, normalizeJoinCode } from '../../assistants/join-code';
@@ -26,12 +31,14 @@ export class AssistantCodeService {
 
   /** The live seat behind [code], or 401 ASSISTANT_CODE_INVALID — the
    * same answer for unknown, used, expired and removed (no probing). */
-  async find(code: string): Promise<AssistantMembership> {
+  async find(code: string): Promise<CodeSeat> {
     const normalized = normalizeJoinCode(code);
     const m =
       normalized.length >= 8
         ? await this.prisma.assistantMembership.findUnique({
             where: { join_code_hash: hashJoinCode(normalized) },
+            // The claim is conditional on this very hash (claimInTx).
+            omit: { join_code_hash: false },
           })
         : null;
     if (
@@ -49,7 +56,7 @@ export class AssistantCodeService {
    * Binds [m] to [userId] and burns the code in one conditional write, so
    * two phones racing with the same code can't both get in.
    */
-  async claim(m: AssistantMembership, userId: string): Promise<void> {
+  async claim(m: CodeSeat, userId: string): Promise<void> {
     const joining = m.status !== 'active';
     try {
       await this.claimInTx(m, userId);
@@ -69,10 +76,7 @@ export class AssistantCodeService {
     }
   }
 
-  private async claimInTx(
-    m: AssistantMembership,
-    userId: string,
-  ): Promise<void> {
+  private async claimInTx(m: CodeSeat, userId: string): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const { count } = await tx.assistantMembership.updateMany({
         where: {

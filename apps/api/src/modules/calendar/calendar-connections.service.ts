@@ -7,6 +7,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { CalendarConnection } from '../../generated/prisma/client';
+import type { CalendarConnectionRow } from '../../prisma/secret-columns';
 import { PinoLogger } from 'nestjs-pino';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -182,6 +183,8 @@ export class CalendarConnectionsService {
   ): Promise<void> {
     const row = await this.prisma.calendarConnection.findUnique({
       where: { user_id_provider: { user_id: userId, provider } },
+      // S10 (#17): disconnecting revokes the refresh token at the vendor.
+      omit: { refresh_token_enc: false },
     });
     if (!row) return;
     const app = await this.cfg.oauthApp(provider);
@@ -256,7 +259,7 @@ export class CalendarConnectionsService {
     return app;
   }
 
-  private view(r: CalendarConnection): ConnectionView {
+  private view(r: CalendarConnectionRow): ConnectionView {
     return {
       provider: asProvider(r.provider),
       accountEmail: r.account_email,

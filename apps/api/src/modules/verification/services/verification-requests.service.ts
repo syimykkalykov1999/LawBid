@@ -62,8 +62,9 @@ import {
 } from './selfie-capture-tokens.service';
 import { VerificationHandoffService } from './verification-handoff.service';
 import { PersonaVerificationService } from './persona-verification.service';
+import type { DbTx } from '../../../prisma/secret-columns';
 
-type Tx = Prisma.TransactionClient;
+type Tx = DbTx;
 
 const REQUEST_INCLUDE = {
   documents: { orderBy: [{ created_at: 'asc' }, { id: 'asc' }] },

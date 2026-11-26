@@ -1,8 +1,8 @@
-import type { Prisma } from '../../generated/prisma/client';
 import type {
   MessageSearchIndex,
   SearchTokenRow,
 } from '../../common/secrets/message-search-index';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /**
  * The blind search token rows of a message (pure: no database). Load test
@@ -20,7 +20,7 @@ export function searchTokenRows(
 
 /** Writes prepared token rows through the transaction client [tx]. */
 export async function writeSearchTokenRows(
-  tx: Pick<Prisma.TransactionClient, 'messageSearchToken'>,
+  tx: Pick<DbTx, 'messageSearchToken'>,
   rows: SearchTokenRow[],
 ): Promise<number> {
   if (rows.length === 0) return 0;
@@ -35,7 +35,7 @@ export async function writeSearchTokenRows(
  * written (0 without the index, or for a type with no text).
  */
 export async function writeSearchTokens(
-  tx: Pick<Prisma.TransactionClient, 'messageSearchToken'>,
+  tx: Pick<DbTx, 'messageSearchToken'>,
   index: MessageSearchIndex | undefined,
   m: { id: string; conversation_id: string; type: string },
   shownText: string,

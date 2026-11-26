@@ -1,12 +1,13 @@
 import { ForbiddenException } from '@nestjs/common';
-import type { Prisma, PrismaClient } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { readsAreSplit } from '../../sharding/split-reads';
 import { shardContext } from '../../sharding/shard-context';
+import type { DbTx } from '../../prisma/secret-columns';
+import type { SecretOmittingClient } from '../../prisma/secret-columns';
 
-type Db = Prisma.TransactionClient | PrismaClient;
+type Db = DbTx | SecretOmittingClient;
 
 /** The per-pair lock key: the same whichever of the two acts. */
 export function blockPairKey(a: string, b: string): string {
@@ -21,7 +22,7 @@ export function blockPairKey(a: string, b: string): string {
  * check and its follow clean-up. Released at commit / rollback.
  */
 export async function lockBlockPair(
-  tx: Prisma.TransactionClient,
+  tx: DbTx,
   a: string,
   b: string,
 ): Promise<void> {

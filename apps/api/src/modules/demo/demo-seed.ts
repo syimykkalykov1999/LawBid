@@ -17,7 +17,7 @@
  * makes the world look the same after every reset.
  */
 import { randomUUID } from 'node:crypto';
-import type { Prisma, PrismaClient } from '../../generated/prisma/client';
+import type { Prisma } from '../../generated/prisma/client';
 import { ASSISTANT_DUTIES } from '../assistants/assistant-duties';
 import {
   ASSISTANT_TASKS,
@@ -43,6 +43,7 @@ import {
   type DemoClientSpec,
   type DemoTaskSpec,
 } from './demo-seed.data';
+import type { SecretOmittingClient } from '../../prisma/secret-columns';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -157,7 +158,7 @@ interface Refs {
   priceCents: number;
 }
 
-async function loadRefs(prisma: PrismaClient): Promise<Refs> {
+async function loadRefs(prisma: SecretOmittingClient): Promise<Refs> {
   const [states, areas, plans] = await Promise.all([
     prisma.state.findMany({
       where: { country_code: 'US', is_active: true },
@@ -292,7 +293,7 @@ async function createChunked<T>(
   }
 }
 
-async function flush(prisma: PrismaClient, b: Buffers): Promise<void> {
+async function flush(prisma: SecretOmittingClient, b: Buffers): Promise<void> {
   await createChunked(b.users, (data) => prisma.user.createMany({ data }));
   await createChunked(b.clientProfiles, (data) =>
     prisma.clientProfile.createMany({ data }),
@@ -1513,7 +1514,7 @@ function addAssistantTasks(
 // The world
 // ---------------------------------------------------------------------------
 
-async function worldCounts(prisma: PrismaClient): Promise<{
+async function worldCounts(prisma: SecretOmittingClient): Promise<{
   users: number;
   cases: number;
   posts: number;
@@ -1535,7 +1536,7 @@ async function worldCounts(prisma: PrismaClient): Promise<{
  * ends with DEMO_EMAIL_DOMAIN), returns counts without inserting.
  */
 export async function seedDemoWorld(
-  prisma: PrismaClient,
+  prisma: SecretOmittingClient,
   opts?: { now?: Date },
 ): Promise<{
   users: number;
@@ -1755,7 +1756,7 @@ interface World {
   openCases: { id: string; practiceId: string; bidderIds: Set<string> }[];
 }
 
-async function loadWorld(prisma: PrismaClient): Promise<World> {
+async function loadWorld(prisma: SecretOmittingClient): Promise<World> {
   const users = await prisma.user.findMany({
     where: {
       email: { endsWith: `@${DEMO_EMAIL_DOMAIN}` },
@@ -1854,7 +1855,7 @@ function caseSpecsFor(
  * seeded) demo world and returns its id.
  */
 export async function createDemoUser(
-  prisma: PrismaClient,
+  prisma: SecretOmittingClient,
   input: DemoUserInput,
   opts?: { now?: Date },
 ): Promise<DemoUserResult> {
