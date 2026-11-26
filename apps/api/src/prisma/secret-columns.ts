@@ -100,12 +100,16 @@ export interface SecretOmittingClient extends Omit<
 export type DbTx = Omit<SecretOmittingClient, ITXClientDenyList>;
 
 /**
- * The PrismaClient class typed as SecretOmittingClient. Cast through
- * `unknown` on purpose: a checked cast would make tsc compare the omit-typed
- * and the default delegate trees structurally, the cost this file avoids.
- * The runtime class is Prisma's own; only the type is narrowed.
+ * The PrismaClient class typed as SecretOmittingClient. The class goes
+ * through `unknown` first on purpose: relating Prisma's own constructor type
+ * to this one (a checked cast, or the lint rule no-unnecessary-type-assertion
+ * looking at `PrismaClient as ...`) makes the checker expand the default and
+ * the omit-typed delegate trees, +2.6M types and an eslint heap OOM (#1345,
+ * KNOWN_ERRORS 254). The runtime class is Prisma's own; only the type is
+ * narrowed.
  */
-export const SecretOmittingPrismaClient = PrismaClient as unknown as new (
+const prismaClientClass: unknown = PrismaClient;
+export const SecretOmittingPrismaClient = prismaClientClass as new (
   options: Prisma.PrismaClientOptions & {
     adapter: ReturnType<typeof pgAdapter>;
     omit: typeof SECRET_COLUMNS_OMIT;
