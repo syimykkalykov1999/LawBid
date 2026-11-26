@@ -69,24 +69,23 @@ class ContactsBookState {
     List<ContactPerson>? people,
     int? version,
     DateTime? checkedAt,
-  }) =>
-      ContactsBookState(
-        serverHash: clearServerHash ? null : (serverHash ?? this.serverHash),
-        hashes: hashes ?? this.hashes,
-        people: people ?? this.people,
-        version: version ?? this.version,
-        region: region,
-        checkedAt: checkedAt ?? this.checkedAt,
-      );
+  }) => ContactsBookState(
+    serverHash: clearServerHash ? null : (serverHash ?? this.serverHash),
+    hashes: hashes ?? this.hashes,
+    people: people ?? this.people,
+    version: version ?? this.version,
+    region: region,
+    checkedAt: checkedAt ?? this.checkedAt,
+  );
 
   String encode() => jsonEncode({
-        'serverHash': serverHash,
-        'hashes': hashes.toList(),
-        'version': version,
-        'region': region,
-        'checkedAt': checkedAt?.toIso8601String(),
-        'people': [for (final p in people) contactPersonToJson(p)],
-      });
+    'serverHash': serverHash,
+    'hashes': hashes.toList(),
+    'version': version,
+    'region': region,
+    'checkedAt': checkedAt?.toIso8601String(),
+    'people': [for (final p in people) contactPersonToJson(p)],
+  });
 
   static ContactsBookState? decode(String? raw) {
     if (raw == null) return null;
@@ -110,13 +109,13 @@ class ContactsBookState {
 }
 
 Map<String, Object?> contactPersonToJson(ContactPerson p) => {
-      'hash': p.hash,
-      'userId': p.userId,
-      'displayName': p.displayName,
-      'username': p.username,
-      'avatarUrl': p.avatarUrl,
-      'role': p.role,
-    };
+  'hash': p.hash,
+  'userId': p.userId,
+  'displayName': p.displayName,
+  'username': p.username,
+  'avatarUrl': p.avatarUrl,
+  'role': p.role,
+};
 
 ContactPerson? contactPersonFromJson(Object? raw) {
   if (raw is! Map) return null;

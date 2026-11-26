@@ -30,16 +30,16 @@ class _ChatsTabState extends ConsumerState<ChatsTab> {
 
   /// The same row as a contact's, so the buttons do the same things.
   LawBidContact _asContact(MyPerson p) => LawBidContact(
-        person: ContactPerson(
-          hash: '',
-          userId: p.id,
-          displayName: p.title,
-          username: p.username.isEmpty ? null : p.username,
-          avatarUrl: p.avatarUrl,
-          role: p.role,
-        ),
-        phoneName: p.name,
-      );
+    person: ContactPerson(
+      hash: '',
+      userId: p.id,
+      displayName: p.title,
+      username: p.username.isEmpty ? null : p.username,
+      avatarUrl: p.avatarUrl,
+      role: p.role,
+    ),
+    phoneName: p.name,
+  );
 
   void _open(MyPerson p) {
     if (p.username.isEmpty || p.role == 'assistant') {

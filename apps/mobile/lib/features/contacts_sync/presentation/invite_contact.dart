@@ -1,4 +1,8 @@
 import 'package:flutter/foundation.dart';
+<<<<<<< origin/main
+=======
+import 'package:flutter/material.dart';
+>>>>>>> 8433f6221
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:material_ui/material_ui.dart';
@@ -39,6 +43,7 @@ Future<void> inviteContact(
     'name': name,
     'link': lawbidInviteLink,
   });
+<<<<<<< origin/main
   // The context may sit on a sliver, which is not a box.
   final box = context.findRenderObject();
   final origin = box is RenderBox && box.hasSize
@@ -48,6 +53,14 @@ Future<void> inviteContact(
     final open = ref.read(inviteUrlLauncherProvider);
     if (await open(inviteSmsUri(number, text))) return;
   }
+=======
+  final box = context.findRenderObject() as RenderBox?;
+  final origin = box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+  final opened =
+      number.isNotEmpty &&
+      await ref.read(inviteUrlLauncherProvider)(inviteSmsUri(number, text));
+  if (opened) return;
+>>>>>>> 8433f6221
   await SharePlus.instance.share(
     ShareParams(text: text, sharePositionOrigin: origin),
   );

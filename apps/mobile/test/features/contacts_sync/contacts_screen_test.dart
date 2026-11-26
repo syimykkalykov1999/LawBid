@@ -6,10 +6,17 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/features/contacts_sync/application/phone_contacts.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
+<<<<<<< origin/main
 import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
 import 'package:lawbid/features/contacts_sync/presentation/contacts_screen.dart';
 import 'package:lawbid/features/contacts_sync/presentation/invite_contact.dart';
 import 'package:material_ui/material_ui.dart';
+=======
+import 'package:lawbid/features/contacts_sync/presentation/contact_picker.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contact_rows.dart';
+import 'package:lawbid/features/contacts_sync/presentation/contacts_screen.dart';
+import 'package:lawbid/features/contacts_sync/presentation/invite_contact.dart';
+>>>>>>> 8433f6221
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/long_locale.dart';
@@ -21,28 +28,24 @@ import '../../helpers/ux_harness.dart';
 const _long = 'Maximilian-Alexander von Hohenzollern-Sigmaringen der Dritte';
 
 PhoneContacts _data() => const PhoneContacts(
-      onLawBid: [
-        LawBidContact(
-          person: ContactPerson(
-            hash: 'h1',
-            userId: 'u1',
-            displayName: 'Ann Lee',
-            username: 'annlee',
-            role: 'attorney',
-          ),
-          phoneName: _long,
-        ),
-        LawBidContact(
-          person: ContactPerson(
-            hash: 'h2',
-            userId: 'u2',
-            displayName: 'Bob',
-          ),
-          phoneName: 'Bob',
-        ),
-      ],
-      invite: [InvitableContact(name: _long, number: '+14155550000')],
-    );
+  onLawBid: [
+    LawBidContact(
+      person: ContactPerson(
+        hash: 'h1',
+        userId: 'u1',
+        displayName: 'Ann Lee',
+        username: 'annlee',
+        role: 'attorney',
+      ),
+      phoneName: _long,
+    ),
+    LawBidContact(
+      person: ContactPerson(hash: 'h2', userId: 'u2', displayName: 'Bob'),
+      phoneName: 'Bob',
+    ),
+  ],
+  invite: [InvitableContact(name: _long, number: '+14155550000')],
+);
 
 /// The phone book already read, the server's answer not here yet.
 class _LiveBook extends PhoneContactsLive {
@@ -125,8 +128,9 @@ void main() {
   });
 
   for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
-    testWidgets('the "new on LawBid" switch fits at 360 dp ($name)',
-        (tester) async {
+    testWidgets('the "new on LawBid" switch fits at 360 dp ($name)', (
+      tester,
+    ) async {
       useNarrowPhone(tester);
       await tester.pumpWidget(
         uxApp(
@@ -169,8 +173,9 @@ void main() {
         overrides: uxOverrides(
           extra: [
             sharedPreferencesProvider.overrideWithValue(prefs),
-            phoneContactsProvider
-                .overrideWith((_) async => const PhoneContacts(denied: true)),
+            phoneContactsProvider.overrideWith(
+              (_) async => const PhoneContacts(denied: true),
+            ),
           ],
         ),
       ),
@@ -203,34 +208,37 @@ void main() {
   });
 
   testWidgets(
-      'owner 2026-10-22: the phone book shows while the server is asked, '
-      'not a spinner', (tester) async {
-    useNarrowPhone(tester);
-    final never = Completer<PhoneContacts>();
-    await tester.pumpWidget(
-      uxApp(
-        // The «Contacts» tab (the screen opens on «Chats» since #237).
-        const ContactsScreen(initialContacts: true),
-        theme: AppTheme.light(),
-        size: narrowPhone,
-        disableAnimations: true,
-        overrides: uxOverrides(
-          extra: [
-            sharedPreferencesProvider.overrideWithValue(prefs),
-            phoneContactsProvider.overrideWith((_) => never.future),
-            phoneContactsLiveProvider.overrideWith(_LiveBook.new),
-          ],
+    'owner 2026-10-22: the phone book shows while the server is asked, '
+    'not a spinner',
+    (tester) async {
+      useNarrowPhone(tester);
+      final never = Completer<PhoneContacts>();
+      await tester.pumpWidget(
+        uxApp(
+          // The «Contacts» tab (the screen opens on «Chats» since #237).
+          const ContactsScreen(initialContacts: true),
+          theme: AppTheme.light(),
+          size: narrowPhone,
+          disableAnimations: true,
+          overrides: uxOverrides(
+            extra: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              phoneContactsProvider.overrideWith((_) => never.future),
+              phoneContactsLiveProvider.overrideWith(_LiveBook.new),
+            ],
+          ),
         ),
-      ),
-    );
-    await tester.pump();
-    await tester.pump();
-    expect(find.text('Bob'), findsWidgets);
-    expect(find.text(_long), findsWidgets);
-  });
+      );
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Bob'), findsWidgets);
+      expect(find.text(_long), findsWidgets);
+    },
+  );
 
-  testWidgets('a failed match request still lists the phone book',
-      (tester) async {
+  testWidgets('a failed match request still lists the phone book', (
+    tester,
+  ) async {
     useNarrowPhone(tester);
     await tester.pumpWidget(
       uxApp(
@@ -260,8 +268,14 @@ void main() {
     expect(find.text('Something went wrong'), findsNothing);
   });
 
+<<<<<<< origin/main
   testWidgets('Invite opens the SMS composer with the number and our link',
       (tester) async {
+=======
+  testWidgets('Invite opens the SMS composer with the number and our link', (
+    tester,
+  ) async {
+>>>>>>> 8433f6221
     useNarrowPhone(tester);
     final opened = <Uri>[];
     await tester.pumpWidget(
@@ -290,6 +304,7 @@ void main() {
     );
     await tester.pump();
     await tester.pump();
+<<<<<<< origin/main
     await tester.tap(
       find.descendant(
         of: find.byType(InviteContactRow),
@@ -302,5 +317,16 @@ void main() {
     final url = opened.single.toString();
     expect(url, contains('+14155550001'));
     expect(url, contains(Uri.encodeComponent(lawbidInviteLink)));
+=======
+    await tester.tap(find.byType(InviteContactRow));
+    await tester.pump();
+    expect(opened, hasLength(1));
+    expect(opened.single.scheme, 'sms');
+    expect(opened.single.toString(), contains('+14155550001'));
+    expect(
+      opened.single.toString(),
+      contains(Uri.encodeComponent(lawbidInviteLink)),
+    );
+>>>>>>> 8433f6221
   });
 }
