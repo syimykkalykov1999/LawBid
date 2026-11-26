@@ -12,7 +12,7 @@
 | Файлы дел и чатов (S3 documents) | бакет `*-documents-replica` | репликация S3 сразу при записи (`infra/modules/s3`) | минуты |
 | Публичные фото | Cloudflare R2 | вне AWS, регион не важен | 0 |
 | Образы `lawbid-api/admin/clamav/pgbouncer` | ECR us-west-2 | репликация ECR каждого нового образа (`infra/bootstrap/ecr-replica.tf`, `infra/modules/ecr-replica`) | 0 для образов после включения |
-| Секреты (`lawbid-prod/*`) | Secrets Manager us-west-2 (реплики) | репликация Secrets Manager (`secrets_replica_enabled`, `infra/modules/secrets`) | 0 |
+| Секреты (`lawbid-prod/*`) | Secrets Manager us-west-2 (реплики) | репликация Secrets Manager (`secrets_replica_enabled`, `infra/modules/secrets`; по умолчанию выключено, пока владелец не применит `infra/bootstrap`: bootstrap → true → apply прода) | 0 |
 | Состояние terraform | бакет `lawbid-prod-tfstate-replica` | `state_replica_enabled` (bootstrap) | минуты |
 | Страница статуса | Cloudflare R2 `status/` | воркер каждую минуту (`STATUS_PAGE.md`) | — |
 | Redis | нет | не источник правды, пересобирается сам | — |

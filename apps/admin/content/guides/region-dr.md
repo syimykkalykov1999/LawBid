@@ -35,7 +35,7 @@ sources:
 
 Один раз, заранее:
 1. Применить bootstrap (`infra/bootstrap`, `terraform apply`). Включится копирование образов в us-west-2.
-2. Применить прод (`infra/envs/prod`, `terraform apply`). У каждого секрета появится копия в us-west-2.
+2. Только после шага 1 поставить `secrets_replica_enabled = true` (в `infra/envs/prod/variables.tf` или в секрете `lawbid-prod/terraform-tfvars`) и применить прод (`infra/envs/prod`, `terraform apply`). У каждого секрета появится копия в us-west-2. До применения bootstrap переключатель выключен: у роли apply ещё нет права копировать секреты, и apply из админки упал бы с AccessDenied.
 3. Раз в год провести учение вместе с Claude (раздел «Учение раз в год» в `region-dr.md`).
 
 В день аварии (решение «поднимаем» за вами):
