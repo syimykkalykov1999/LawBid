@@ -317,6 +317,23 @@ variable "dmarc_policy" {
   type    = string
   default = "quarantine"
 }
+# S10 (SECOND_PASS_2026-11-26): DNS-level outbound allowlist for the VPC
+# (modules/dns-firewall). Off by default; ALERT only logs.
+variable "dns_firewall_enabled" {
+  type        = bool
+  default     = false
+  description = "Route 53 Resolver DNS Firewall for the app VPC (allowlist of the domains the API calls)."
+}
+variable "dns_firewall_mode" {
+  type        = string
+  default     = "ALERT"
+  description = "ALERT = only log domains outside the allowlist; BLOCK = refuse them (after 2 weeks of clean ALERT logs)."
+}
+variable "dns_firewall_extra_domains" {
+  type        = list(string)
+  default     = []
+  description = "Extra allowed domains (example.com and/or *.example.com)."
+}
 # Security research #5 (2026-10-22), A6 / A8.
 variable "security_hub_enabled" {
   type        = bool
@@ -3395,6 +3412,16 @@ module "spot_fallback" {
 
 # Security research #5 (2026-10-22), A6: CloudTrail, GuardDuty, Access
 # Analyzer, password policy; findings go to the alerts topic.
+module "dns_firewall" {
+  source                = "../dns-firewall"
+  name                  = local.name
+  vpc_id                = module.network.vpc_id
+  enabled               = var.dns_firewall_enabled
+  mode                  = var.dns_firewall_mode
+  extra_allowed_domains = var.dns_firewall_extra_domains
+  tags                  = local.tags
+}
+
 module "security_baseline" {
   count                = var.ephemeral ? 0 : 1 # CloudTrail / GuardDuty / Access Analyzer are account singletons
   source               = "../security-baseline"

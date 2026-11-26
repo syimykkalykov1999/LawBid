@@ -1094,3 +1094,24 @@ variable "web_csp_exact_connect_enforced" {
   default     = false
   description = "Enforce the exact storage hosts in the web CSP (after a week of Report-Only)."
 }
+
+# S10 (SECOND_PASS_2026-11-26, ASVS 5.0 V13.2.4/V13.2.5): Route 53 Resolver
+# DNS Firewall for the app VPC. Default OFF (owner applies, docs/runbooks/
+# dns-firewall.md). First ALERT for 2 weeks (logs only), then BLOCK.
+# About $0.60 per million DNS queries + $0.0005 per allowed domain a month
+# + CloudWatch Logs for the query log.
+variable "dns_firewall_enabled" {
+  type        = bool
+  default     = false
+  description = "DNS Firewall for the app VPC (allowlist). Off by default."
+}
+variable "dns_firewall_mode" {
+  type        = string
+  default     = "ALERT"
+  description = "ALERT (only log) or BLOCK (refuse unknown domains)."
+}
+variable "dns_firewall_extra_domains" {
+  type        = list(string)
+  default     = []
+  description = "Extra allowed domains for the DNS Firewall."
+}

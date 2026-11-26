@@ -2097,6 +2097,49 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     ],
   },
   {
+    id: 'aws.dns_firewall',
+    name: 'Фильтр исходящих адресов (Route 53 DNS Firewall)',
+    purpose:
+      'Серверы API ходят только на известные адреса (Stripe, Twilio, Bunny, R2, Sentry, пуши, реестры адвокатов). Сначала только пишет в журнал чужие адреса, потом блокирует их.',
+    kind: 'aws',
+    control: tf(
+      [
+        'dns_firewall_enabled',
+        'dns_firewall_mode',
+        'dns_firewall_extra_domains',
+      ],
+      {
+        off: 'dns_firewall_enabled = false',
+        on: 'dns_firewall_enabled = true  # dns_firewall_mode = "ALERT", через 2 недели "BLOCK"',
+      },
+    ),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      '$0,60 за миллион DNS-запросов + $0,0005 за адрес в списке в месяц; журнал запросов бесплатно, запись в CloudWatch Logs $0,50 за ГБ',
+      U.r53,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(1, 15),
+    needed: 'yes',
+    neededNote:
+      'Нужен до запуска: без него заражённая библиотека может отправить данные на любой адрес (ASVS V13.2.4).',
+    alarm: null,
+    ceService: 'Amazon Route 53',
+    awsTypes: [
+      'aws_route53_resolver_firewall_domain_list',
+      'aws_route53_resolver_firewall_rule_group',
+      'aws_route53_resolver_firewall_rule',
+      'aws_route53_resolver_firewall_rule_group_association',
+      'aws_route53_resolver_firewall_config',
+      'aws_route53_resolver_query_log_config',
+      'aws_route53_resolver_query_log_config_association',
+    ],
+    note: 'SECOND_PASS_2026-11-26 S10',
+  },
+  {
     id: 'aws.inspector',
     name: 'Поиск уязвимостей в образах (Inspector)',
     purpose: 'Сканирует образы серверов на известные дыры.',
