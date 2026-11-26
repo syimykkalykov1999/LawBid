@@ -960,6 +960,11 @@ variable "backup_age_missing_data" {
   default     = "breaching"
   description = "breaching (steady state) or notBreaching ONLY until the first backup job completes, so the backup-age alarm cannot fire falsely (docs/runbooks/restore-drill.md)."
 }
+variable "cost_allocation_tags" {
+  type        = list(string)
+  default     = []
+  description = "Б9: tag keys activated as cost allocation tags by code (modules/budget). Account-wide, so only prod sets it. [] = not managed."
+}
 variable "service_budgets" {
   type = map(number)
   default = {
@@ -3138,6 +3143,7 @@ module "budget" {
   anomaly_extra_emails         = var.anomaly_extra_emails
   anomaly_sns_topic_arn        = var.anomaly_to_alerts_topic ? module.monitoring.alerts_topic_arn : ""
   service_budgets              = var.service_budgets
+  cost_allocation_tags         = var.cost_allocation_tags
 }
 
 module "monitoring" {
