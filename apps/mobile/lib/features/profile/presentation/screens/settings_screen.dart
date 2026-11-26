@@ -416,7 +416,7 @@ class SettingsScreen extends ConsumerWidget {
           if (e2eeBackupVisible(ref.watch(featureFlagsControllerProvider)))
             AppListRow(
               key: const ValueKey('settings-e2ee-backup'),
-              icon: AppIcons.lockOutlineRounded,
+              icon: AppIcons.cloudUploadOutlined,
               label: t.t('chat.e2ee.backupTitle'),
               onTap: () => openE2eeBackup(context),
             ),
