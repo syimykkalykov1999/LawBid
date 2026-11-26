@@ -269,7 +269,7 @@ variable "admin_target_group_arn_suffix" {
 variable "deploy_rollback_on_slo" {
   type        = bool
   default     = false
-  description = "Also roll the api back when a FAST-burn SLO composite alarm (call / push / otp) fires during a deploy. Off by default: those SLOs depend on Twilio / FCM / Cloudflare, and an outage there would roll back a healthy release. ECS support for composite alarms in `alarms` is not documented; test on staging first."
+  description = "Also roll the api back when a FAST-burn SLO composite alarm (call / push / otp, and since Б2 login / message / pay) fires during a deploy. Off by default: those SLOs depend on Twilio / FCM / Cloudflare, and an outage there would roll back a healthy release. ECS support for composite alarms in `alarms` is not documented; test on staging first."
 }
 
 # Deploy-only alarm (no notification): more than 10 admin 5xx in 5 minutes.
@@ -377,7 +377,13 @@ output "api_deployment_alarm_names" {
       aws_cloudwatch_metric_alarm.api_p95.alarm_name,
       aws_cloudwatch_metric_alarm.unhealthy_hosts.alarm_name,
     ],
-    var.deploy_rollback_on_slo ? [for k, a in aws_cloudwatch_composite_alarm.slo : a.alarm_name if contains(["otp-fast", "call-fast", "push-fast"], k)] : [],
+    # Б2 (SRE Workbook ch. 16): with the ECS built-in canary, the canary group
+    # against the control group (canary-compare.tf); [] with one group.
+    aws_cloudwatch_metric_alarm.api_canary_vs_control[*].alarm_name,
+    aws_cloudwatch_metric_alarm.api_canary_vs_control_p95[*].alarm_name,
+    # Б2: the business fast burns join the judgement too (login, chat send,
+    # payments next to call / push / otp), under the same switch.
+    var.deploy_rollback_on_slo ? [for k, a in aws_cloudwatch_composite_alarm.slo : a.alarm_name if contains(["otp-fast", "call-fast", "push-fast", "login-fast", "message-fast", "pay-fast"], k)] : [],
   )
 }
 # Deploy-only alarm: the worker writes one HeapUsedMb line a minute per running

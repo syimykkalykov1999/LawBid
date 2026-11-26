@@ -16,8 +16,15 @@
 #   CANARY_BAKE_MINUTES    watch time after the task is healthy (default 5)
 #   CANARY_START_TIMEOUT_SECONDS  wait for the canary task to run (default 600)
 #   CANARY_ALARMS          space-separated alarm names (default: <cluster>-api-5xx-ratio,
-#                          -api-p95, -api-unhealthy-hosts)
+#                          -api-p95, -api-unhealthy-hosts and, Б2, the business fast-burn
+#                          SLO alarms -slo-login-fast, -slo-message-fast, -slo-pay-fast)
 #   CANARY_POLL_SECONDS    poll interval (default 20)
+#   CANARY_COMPARE         Б2 (SRE Workbook ch. 16): "on" (default) also compares the
+#                          canary task with the control (the old tasks) after the bake,
+#                          from the API's minute `{metric:"slo", release, httpReq,
+#                          http5xx}` lines (scripts/deploy/canary-compare.mjs); "off" = skip
+#   CANARY_MIN_REQUESTS    fewer requests on either side = no verdict (default 50)
+#   CANARY_FLOOR           canary 5xx share may exceed 2 x control by this much (default 0.005)
 set -eu
 CLUSTER="$1"; TAG="$2"
 if [ "${CANARY_ENABLED:-false}" != "true" ]; then echo "canary: off (CANARY_ENABLED is not true)"; exit 0; fi
@@ -33,7 +40,7 @@ esac
 BAKE_MIN="${CANARY_BAKE_MINUTES:-5}"
 START_TIMEOUT="${CANARY_START_TIMEOUT_SECONDS:-600}"
 POLL="${CANARY_POLL_SECONDS:-20}"
-ALARMS="${CANARY_ALARMS:-${CLUSTER}-api-5xx-ratio ${CLUSTER}-api-p95 ${CLUSTER}-api-unhealthy-hosts}"
+ALARMS="${CANARY_ALARMS:-${CLUSTER}-api-5xx-ratio ${CLUSTER}-api-p95 ${CLUSTER}-api-unhealthy-hosts ${CLUSTER}-slo-login-fast ${CLUSTER}-slo-message-fast ${CLUSTER}-slo-pay-fast}"
 REGISTRY="${ECR_REGISTRY:?ECR_REGISTRY is required}"
 SVC=api-canary
 WORK="$(mktemp -d)"
@@ -49,8 +56,11 @@ remove_canary() {
 trap 'remove_canary; rm -rf "$WORK"' EXIT
 
 firing() { # alarm names currently in ALARM state, sorted, one line
+  # Б2: the slo-*-fast alarms are composite; describe-alarms returns only metric
+  # alarms unless --alarm-types asks for both.
   # shellcheck disable=SC2086
-  aws cloudwatch describe-alarms --alarm-names $ALARMS --state-value ALARM --query 'MetricAlarms[].AlarmName' --output text | tr '\t' '\n' | sort | tr '\n' ' '
+  aws cloudwatch describe-alarms --alarm-names $ALARMS --alarm-types MetricAlarm CompositeAlarm --state-value ALARM \
+    --query '[MetricAlarms[].AlarmName, CompositeAlarms[].AlarmName][]' --output text | tr -s '\t ' '\n' | grep -v -e '^None$' -e '^$' | sort | tr '\n' ' '
 }
 
 remove_canary # leftovers of an earlier aborted run
@@ -101,6 +111,7 @@ while :; do
   sleep "$POLL"
 done
 echo "canary: task healthy, watching ${BAKE_MIN} min"
+BAKE_START_MS=$(( $(date +%s) * 1000 ))
 
 # 2) bake: watch alarms and the canary task.
 end=$(( $(date +%s) + BAKE_MIN * 60 ))
@@ -113,4 +124,27 @@ while [ "$(date +%s)" -lt "$end" ]; do
   if [ "$RUNNING" != "1" ]; then echo "::error::canary task stopped during the bake (running=$RUNNING). The real api was not touched."; exit 1; fi
   sleep "$POLL"
 done
+
+# 3) Б2: canary vs control (SRE Workbook ch. 16). The fleet-wide alarms above
+# average one canary task with N old ones; here its own 5xx share is put next
+# to the old tasks' share over the same minutes.
+if [ "${CANARY_COMPARE:-on}" != "off" ]; then
+  LOG_GROUP=$(node -e '
+    const td = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+    const c = td.containerDefinitions.find((c) => c.name === "api") || {};
+    process.stdout.write(((c.logConfiguration || {}).options || {})["awslogs-group"] || "");
+  ' "$WORK/td.json")
+  if [ -z "$LOG_GROUP" ]; then
+    echo "canary: no awslogs group in the api task definition, canary-vs-control skipped"
+  else
+    # The minute lines of the last minute of the bake land a little later.
+    sleep "${CANARY_COMPARE_SETTLE_SECONDS:-70}"
+    aws logs filter-log-events --log-group-name "$LOG_GROUP" --start-time "$BAKE_START_MS" \
+      --filter-pattern '{ $.metric = "slo" }' --query 'events[].message' --output json > "$WORK/slo-lines.json"
+    if ! node "$(dirname "$0")/canary-compare.mjs" "$TAG" "${CANARY_MIN_REQUESTS:-50}" "${CANARY_FLOOR:-0.005}" 2 < "$WORK/slo-lines.json"; then
+      echo "::error::canary: its 5xx share is far above the old tasks' (canary vs control). The real api was not touched."
+      exit 1
+    fi
+  fi
+fi
 echo "canary: passed, continuing with the rolling deploy"
