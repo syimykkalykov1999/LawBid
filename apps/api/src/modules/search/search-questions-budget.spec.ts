@@ -19,7 +19,11 @@ describe('PostgresSearchProvider.searchQuestions fallback budget', () => {
     const provider = new PostgresSearchProvider(prisma as never);
     return { provider, queryRaw, executeRaw, transaction };
   }
-  const sqlOf = (call: unknown[]) => (call[0] as readonly string[]).join('?');
+  // A tagged-template call passes the strings; Prisma.sql passes a Sql.
+  const sqlOf = (call: unknown[]) => {
+    const first = call[0] as readonly string[] | { strings: readonly string[] };
+    return ('strings' in first ? first.strings : first).join('?');
+  };
 
   it('the indexed step finds it: no fallback, no budget needed', async () => {
     const t = make();
@@ -38,6 +42,13 @@ describe('PostgresSearchProvider.searchQuestions fallback budget', () => {
     );
     expect(timeouts).toHaveLength(1);
     expect(sqlOf(t.queryRaw.mock.calls[1])).toContain('q.body ILIKE');
+    // Item 9 #16 (25.11): the typo arm reads the title trigram index with
+    // `<%`, at the typo threshold the budget sets (0.42 ≤ the 0.45 check).
+    expect(sqlOf(t.queryRaw.mock.calls[1])).toContain('<% f_unaccent');
+    const thresholds = t.executeRaw.mock.calls.filter((c) =>
+      sqlOf(c).includes('word_similarity_threshold'),
+    );
+    expect((thresholds[0] as unknown[]).slice(1)).toEqual(['0.42']);
   });
 
   it('the fallback running out of time answers no questions, not a 500', async () => {

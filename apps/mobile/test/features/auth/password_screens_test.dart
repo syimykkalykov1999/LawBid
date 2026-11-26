@@ -480,11 +480,11 @@ void main() {
         await tester.pump();
         await tester.tap(button('Continue'));
         await tester.pumpAndSettle();
-        // Refused without a token: the code goes to the verified E-MAIL —
-        // owner rule sms-two-cases, a step-up code is never an SMS.
+        // Refused without a token: owner 25.11 («по умолчанию SMS»,
+        // `auth.code_channel`) — the code goes by SMS to the verified phone.
         expect(repo.reauthTokens, [null]);
-        expect(repo.requested, ['email:ann@example.com']);
-        expect(find.textContaining('ann@example.com'), findsOneWidget);
+        expect(repo.requested, ['phone:+15551234567']);
+        expect(find.textContaining('ann@example.com'), findsNothing);
 
         final code = find.descendant(
           of: find.byType(AppOtpField),
@@ -498,7 +498,7 @@ void main() {
     );
 
     testWidgets(
-      'owner rule sms-two-cases: a phone-only account gets no SMS step-up code',
+      'owner 25.11: a phone-only account gets the step-up code by SMS',
       (tester) async {
         repo.needsReauth = true;
         final me = meFixture(
@@ -507,6 +507,29 @@ void main() {
           phone: '+15551234567',
           phoneVerified: true,
         );
+        await open(
+          tester,
+          AuthRoutes.setPassword,
+          overrides: [
+            currentUserControllerProvider.overrideWith(
+              () => FixedUserController(CurrentUserState.ready(me)),
+            ),
+          ],
+        );
+        await tester.enterText(find.byType(TextField), '12345678');
+        await tester.pump();
+        await tester.tap(button('Continue'));
+        await tester.pumpAndSettle();
+        expect(repo.requested, ['phone:+15551234567']);
+        expect(find.byType(AppOtpField), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'owner 25.11: no verified phone or e-mail — no code, «confirm first»',
+      (tester) async {
+        repo.needsReauth = true;
+        final me = meFixture(role: UserRole.client, consents: true);
         await open(
           tester,
           AuthRoutes.setPassword,

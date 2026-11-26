@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
@@ -10,6 +11,7 @@ import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/presentation/widgets/password_step_up.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/profile/application/delete_account_controller.dart';
 import 'package:lawbid/features/profile/domain/delete_account_step.dart';
 import 'package:material_ui/material_ui.dart';
@@ -302,10 +304,18 @@ class _ReauthPhoneStep extends ConsumerWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final state = ref.watch(deleteAccountControllerProvider);
     final notifier = ref.read(deleteAccountControllerProvider.notifier);
-    final contact = ref.watch(
-      currentUserControllerProvider
-          .select((s) => s.user?.reauthIdentifier?.identifier),
+    // Owner 25.11: where the code goes — «+1 ••• 23» or the e-mail, by the
+    // server's `auth.code_channel` (SMS by default).
+    final target = ref.watch(stepUpCodeTargetProvider);
+    final contact = target == null ? null : codeTargetLabel(target);
+    final bySms = (target?.channel ?? 'phone') == 'phone';
+    final serverSms = ref.watch(
+      featureFlagsControllerProvider
+          .select((s) => s.appConfig['auth.code_channel'] != 'email'),
     );
+    final useCode = bySms
+        ? t.t('deleteAccount.reauth.useCode.sms')
+        : t.t('deleteAccount.reauth.useCode');
 
     Future<void> useBiometric() async {
       final ok = await notifier.tryBiometric(
@@ -315,9 +325,7 @@ class _ReauthPhoneStep extends ConsumerWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            ok
-                ? t.t('deleteAccount.reauth.biometric.prompt')
-                : t.t('deleteAccount.reauth.useCode'),
+            ok ? t.t('deleteAccount.reauth.biometric.prompt') : useCode,
           ),
         ),
       );
@@ -345,14 +353,16 @@ class _ReauthPhoneStep extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            t.t('deleteAccount.reauth.useCode'),
+            useCode,
             style: typography.bodySmall.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: AppSpacing.md),
         ],
         Text(
           contact == null
-              ? t.t('history.reauth.noPhone')
+              ? (serverSms
+                  ? t.t('history.reauth.noPhone.sms')
+                  : t.t('history.reauth.noPhone'))
               : t.t('history.reauth.message', {'phone': contact}),
           style: typography.body.copyWith(color: colors.textSecondary),
         ),
@@ -411,7 +421,7 @@ class _ReauthCodeStepState extends ConsumerState<_ReauthCodeStep> {
         Text(
           t.t(
             'deleteAccount.reauth.codeSubtitle',
-            {'phone': state.codeTarget ?? ''},
+            {'phone': _sentToLabel(state.codeTarget)},
           ),
           style: typography.body.copyWith(color: colors.textSecondary),
         ),
@@ -538,4 +548,12 @@ class _DoneStep extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The «we sent a code to …» line: «+1 ••• 23» for a phone, an e-mail as is.
+String _sentToLabel(String? target) {
+  if (target == null) return '';
+  return codeTargetLabel(
+    (channel: target.startsWith('+') ? 'phone' : 'email', identifier: target),
+  );
 }

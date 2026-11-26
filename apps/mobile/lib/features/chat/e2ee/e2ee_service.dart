@@ -1,0 +1,1001 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, debugPrint, defaultTargetPlatform, kIsWeb;
+import 'package:lawbid/features/chat/e2ee/e2ee_payload.dart';
+import 'package:lawbid/features/chat/e2ee/mls_engine.dart';
+import 'package:lawbid/features/chat/e2ee/safety_number.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
+
+/// Where the decrypted payloads are kept (the cache database's
+/// `E2eePlaintexts` on the phones, mls.js's sealed IndexedDB on the web; a
+/// map in tests). Also holds this device's pending commit of a chat
+/// (`p:<conversationId>`), so a commit whose answer was lost is decided on
+/// the next catch-up even after a restart.
+abstract class E2eePlaintextStore {
+  Future<String?> get(String id);
+  Future<void> put(String id, String conversationId, String payload);
+  Future<void> remove(String id);
+}
+
+class MemoryE2eePlaintextStore implements E2eePlaintextStore {
+  final Map<String, String> rows = {};
+
+  @override
+  Future<String?> get(String id) async => rows[id];
+
+  @override
+  Future<void> put(String id, String conversationId, String payload) async =>
+      rows[id] = payload;
+
+  @override
+  Future<void> remove(String id) async => rows.remove(id);
+}
+
+/// The chat is end-to-end encrypted but this device cannot write yet (its
+/// Welcome has not come, or the server refused): the message waits.
+class E2eeNotReady implements Exception {
+  const E2eeNotReady(this.reason);
+  final String reason;
+  @override
+  String toString() => 'E2eeNotReady($reason)';
+}
+
+/// The server's error codes the device acts on.
+abstract final class E2eeErrors {
+  /// Another commit took the epoch (or the message's epoch is stale).
+  static const epochConflict = 'E2EE_EPOCH_CONFLICT';
+
+  /// A plain message in a chat that became end-to-end encrypted.
+  static const required = 'E2EE_REQUIRED';
+
+  /// Devices that left must be removed before anyone writes (409), or a
+  /// commit that cannot change these devices (400).
+  static const membershipInvalid = 'E2EE_MEMBERSHIP_INVALID';
+
+  /// The switch went to Выкл (or the chat cannot be encrypted): the next
+  /// try goes as a normal message.
+  static const off = 'E2EE_OFF';
+
+  /// A send refused for the chat's encryption state, not for what it says:
+  /// the outbox tries it again after the state was refreshed (the chat
+  /// moved to a new epoch, became encrypted, a device must go first, or the
+  /// switch went off) — RFC 9750 §5.2, Wire.
+  static bool sendIsRetryable(String code, int? status) =>
+      status == 409 &&
+      (code == epochConflict ||
+          code == required ||
+          code == off ||
+          code == membershipInvalid);
+}
+
+/// This device's commit of a chat that the server has not decided on yet.
+class _Pending {
+  const _Pending({
+    required this.epoch,
+    required this.commit,
+    required this.added,
+    required this.removed,
+    this.welcome,
+  });
+
+  factory _Pending.fromJson(Map<String, dynamic> j) => _Pending(
+        epoch: (j['e'] as num).toInt(),
+        commit: j['c'] as String,
+        welcome: j['w'] as String?,
+        added: [for (final d in j['a'] as List) d as String],
+        removed: [for (final d in j['r'] as List) d as String],
+      );
+
+  final int epoch;
+  final String commit;
+  final String? welcome;
+  final List<String> added;
+  final List<String> removed;
+
+  Map<String, Object?> toJson() => {
+        'e': epoch,
+        'c': commit,
+        'w': welcome,
+        'a': added,
+        'r': removed,
+      };
+}
+
+/// Item 25 (docs/architecture/E2EE_MLS_PLAN_2026-11-25.md): the device side
+/// of end-to-end encrypted chats, the way Wire / WhatsApp clients work:
+///
+/// - registers this device's MLS key and keeps its KeyPackages topped up
+///   (below half of `chat.e2ee_key_packages_target` it adds more), with a
+///   real last-resort package (RFC 9420 §16.8);
+/// - per chat: creates the MLS group when the server says `pending`, joins
+///   from a Welcome (a Welcome it cannot use: the members remove and add
+///   it again), applies the commits of others in epoch order, adds the
+///   members' new devices and removes the ones that left (a 409 from the
+///   strongly-ordered Delivery Service = catch up and try again). Its own
+///   commit stays pending until the server's answer, and survives a
+///   restart: the next catch-up merges it when the server took exactly
+///   those bytes, otherwise discards it (RFC 9420 §12.4);
+/// - encrypts outgoing text into `type=mls` sends and decrypts incoming
+///   ones ONCE (forward secrecy), keeping the plaintext on the device; a
+///   message it cannot open yet keeps its ciphertext and is tried again
+///   after the next catch-up and after a restart.
+///
+/// One chat is worked on by one task at a time ([_serial]); the MLS state
+/// never sees two operations at once. Sending needs no server round trip
+/// while the cached state is current: the `e2ee:commit` events and a 409
+/// tell when it is not.
+class E2eeService {
+  E2eeService({
+    required this.client,
+    required this.ownerId,
+    required this.plaintexts,
+    required Future<MlsEngine> Function(String userId) openEngine,
+    api.MlsDevicePlatform? platform,
+  })  : _openEngine = openEngine,
+        _platform = platform ?? _platformNow();
+
+  final api.E2eeClient client;
+  final String ownerId;
+  final E2eePlaintextStore plaintexts;
+  final Future<MlsEngine> Function(String userId) _openEngine;
+  final api.MlsDevicePlatform _platform;
+
+  Future<MlsEngine>? _engine;
+  final Map<String, Future<void>> _queues = {};
+  final Map<String, api.ConversationE2eeDto> _states = {};
+
+  /// Decrypted payloads by message id, for the synchronous mappers.
+  final Map<String, E2eePayload> _memory = {};
+
+  /// Messages not opened yet, by chat: tried again after a catch-up.
+  final Map<String, Map<String, api.MessageDto>> _undecrypted = {};
+
+  /// Devices of a chat that had no KeyPackage left at the last try (a send
+  /// does not ask for them again until the next event of the chat).
+  final Map<String, Set<String>> _unaddable = {};
+
+  final _opened = StreamController<api.MessageDto>.broadcast();
+
+  /// A message that waited and is now opened (the screens put it in place).
+  Stream<api.MessageDto> get opened => _opened.stream;
+
+  /// RFC 9420 §15.2: how many past epochs keep their message keys (the
+  /// engines' window); a message older than that never opens.
+  static const pastEpochs = 4;
+
+  static api.MlsDevicePlatform _platformNow() {
+    if (kIsWeb) return api.MlsDevicePlatform.web;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return api.MlsDevicePlatform.android;
+      case TargetPlatform.macOS:
+        return api.MlsDevicePlatform.macos;
+      case TargetPlatform.iOS:
+      case TargetPlatform.fuchsia:
+      case TargetPlatform.linux:
+      case TargetPlatform.windows:
+        return api.MlsDevicePlatform.ios;
+    }
+  }
+
+  // ------------------------------------------------------------- device
+
+  /// The device's MLS client, registered with the server and with
+  /// KeyPackages on it.
+  Future<MlsEngine> engine() async {
+    final opening = _engine ??= _open();
+    try {
+      return await opening;
+    } on Object {
+      // A failed start (offline, server down) is tried again next time.
+      if (identical(_engine, opening)) _engine = null;
+      rethrow;
+    }
+  }
+
+  Future<MlsEngine> _open() async {
+    final e = await _openEngine(ownerId);
+    // iOS reinstall: the keys outlived the database. The old device is
+    // signed out (its groups remove it), this one registers afresh.
+    final previous = e.previousDeviceId;
+    if (previous != null) {
+      try {
+        await client.revokeMlsDevice(id: previous);
+      } on DioException catch (x) {
+        // 404: already gone. No answer: tried again on the next start.
+        if (!_refused(x)) rethrow;
+      }
+      await e.forgetPreviousDevice();
+    }
+    if (e.deviceId == null) {
+      final d = (await client.registerMlsDevice(
+        body: api.RegisterMlsDeviceDto(
+          signatureKey: base64Encode(e.signaturePublicKey),
+          platform: _platform,
+        ),
+      ))
+          .data;
+      await e.setDeviceId(d.id);
+      // A real last-resort package first (RFC 9420 §16.8: several Welcomes
+      // may use it, its private half stays after a join).
+      final last = await e.newLastResortKeyPackage();
+      await client.uploadMlsKeyPackages(
+        id: d.id,
+        body: api.UploadKeyPackagesDto(
+          keyPackages: const [],
+          lastResort: base64Encode(last),
+        ),
+      );
+    }
+    await _topUp(e);
+    return e;
+  }
+
+  Future<void> _topUp(MlsEngine e) async {
+    final c = (await client.countMlsKeyPackages(id: e.deviceId!)).data;
+    final target = c.target.toInt();
+    final have = c.oneTime.toInt();
+    if (!c.lastResort) {
+      await client.uploadMlsKeyPackages(
+        id: e.deviceId!,
+        body: api.UploadKeyPackagesDto(
+          keyPackages: const [],
+          lastResort: base64Encode(await e.newLastResortKeyPackage()),
+        ),
+      );
+    }
+    if (target <= 0 || have * 2 >= target) return;
+    final kps = await e.newKeyPackages(target - have);
+    await client.uploadMlsKeyPackages(
+      id: e.deviceId!,
+      body: api.UploadKeyPackagesDto(
+        keyPackages: [for (final k in kps) base64Encode(k)],
+      ),
+    );
+  }
+
+  /// Sign-out (WhatsApp: a signed-out device leaves every chat): this
+  /// device's keys and groups are deleted here; returns its server id so
+  /// the caller signs it out on the server too (null when it had none).
+  Future<String?> signOutDevice() async {
+    final opening = _engine;
+    _engine = null;
+    MlsEngine? e;
+    try {
+      // A start still waiting for the network does not hold the sign-out.
+      e = opening == null
+          ? await _openEngine(ownerId)
+          : await opening.timeout(const Duration(seconds: 3));
+    } on Object {
+      try {
+        e = await _openEngine(ownerId);
+      } on Object {
+        e = null;
+      }
+    }
+    final id = e?.deviceId;
+    await e?.wipe();
+    _states.clear();
+    _memory.clear();
+    _undecrypted.clear();
+    _unaddable.clear();
+    _waiting.clear();
+    return id;
+  }
+
+  /// The account's service goes (sign-out, another account): the MLS
+  /// database is closed so the next one can open it.
+  Future<void> close() async {
+    final opening = _engine;
+    _engine = null;
+    await _opened.close();
+    if (opening == null) return;
+    try {
+      await (await opening).close();
+    } on Object {
+      // It never opened.
+    }
+  }
+
+  // --------------------------------------------------------------- chats
+
+  Future<T> _serial<T>(String conversationId, Future<T> Function() job) {
+    final previous = _queues[conversationId] ?? Future<void>.value();
+    final result = previous.then((_) => job());
+    _queues[conversationId] = result.then((_) {}, onError: (_) {});
+    return result;
+  }
+
+  /// The server's view of the chat (cached until a commit event).
+  Future<api.ConversationE2eeDto> state(
+    String conversationId, {
+    bool fresh = false,
+  }) async {
+    final known = _states[conversationId];
+    if (known != null && !fresh) return known;
+    final s = (await client.getConversationE2ee(id: conversationId)).data;
+    _states[conversationId] = s;
+    return s;
+  }
+
+  /// The cached view of the chat is stale (a 409 of the send, an event).
+  void invalidate(String conversationId) {
+    _states.remove(conversationId);
+    _unaddable.remove(conversationId);
+  }
+
+  /// Whether new messages of this chat must go end-to-end encrypted.
+  Future<bool> encrypted(String conversationId) async =>
+      (await state(conversationId)).state == api.ConversationE2eeState.valueOn;
+
+  /// A commit event of the chat (`e2ee:commit`) or a Welcome for me.
+  void onServerEvent(String conversationId) {
+    invalidate(conversationId);
+    unawaited(
+      sync(conversationId).then(
+        (_) {},
+        onError: (Object e) => debugPrint('e2ee sync $conversationId: $e'),
+      ),
+    );
+  }
+
+  /// Brings this device's copy of the chat's group up to the server's:
+  /// creates / joins it, settles its own pending commit, applies others'
+  /// commits, adds missing devices and removes the ones that left, then
+  /// opens the messages that waited. True when this device can write.
+  Future<bool> sync(String conversationId) =>
+      _serial(conversationId, () => _sync(conversationId));
+
+  Future<bool> _sync(String conversationId, {int attempt = 0}) async {
+    final e = await engine();
+    var s = await state(conversationId, fresh: true);
+    if (s.state == api.ConversationE2eeState.off) return false;
+    if (s.state == api.ConversationE2eeState.pending) {
+      final gid = Uint8List.fromList(utf8.encode('lawbid:$conversationId'));
+      if (!await e.hasGroup(gid)) await e.createGroup(gid);
+      try {
+        s = (await client.createMlsGroup(
+          id: conversationId,
+          body: api.CreateMlsGroupDto(
+            deviceId: e.deviceId!,
+            groupId: base64Encode(gid),
+          ),
+        ))
+            .data;
+        _states[conversationId] = s;
+      } on DioException catch (x) {
+        // Another device of the chat made it first: join that one.
+        await e.deleteGroup(gid);
+        if (attempt > 2 || !_isConflict(x)) rethrow;
+        return _sync(conversationId, attempt: attempt + 1);
+      }
+    }
+    final gid = base64Decode(s.groupId!);
+    if (!await e.hasGroup(gid)) {
+      await _takeWelcomes(e);
+      if (!await e.hasGroup(gid)) return false;
+    }
+    try {
+      if (await _settlePending(e, conversationId, gid)) {
+        // My commit went in after all: the members it changed are in.
+        s = await state(conversationId, fresh: true);
+      }
+      await _catchUp(e, conversationId, gid, upTo: s.epoch?.toInt());
+      final remove = s.removeDevices;
+      final skip = _unaddable[conversationId] ?? const <String>{};
+      final missing = [
+        for (final d in s.devices)
+          if (!d.inGroup &&
+              d.deviceId != e.deviceId &&
+              !remove.contains(d.deviceId) &&
+              !skip.contains(d.deviceId))
+            d.deviceId,
+      ];
+      final kps = <Uint8List>[];
+      final ids = <String>[];
+      if (missing.isNotEmpty) {
+        final claimed = (await client.claimMlsKeyPackages(
+          id: conversationId,
+          body: api.ClaimKeyPackagesDto(deviceIds: missing),
+        ))
+            .data;
+        for (final c in claimed) {
+          if (c.keyPackage == null) {
+            (_unaddable[conversationId] ??= {}).add(c.deviceId);
+            continue;
+          }
+          kps.add(base64Decode(c.keyPackage!));
+          ids.add(c.deviceId);
+        }
+      }
+      // One commit removes the devices that left and adds the new ones.
+      if (remove.isNotEmpty || kps.isNotEmpty) {
+        await _commit(
+          e,
+          conversationId,
+          gid,
+          keyPackages: kps,
+          ids: ids,
+          removeDeviceIds: remove,
+        );
+      }
+    } on DioException catch (x) {
+      if (attempt > 2 || !_isConflict(x)) rethrow;
+      return _sync(conversationId, attempt: attempt + 1);
+    }
+    await _openWaiting(e, conversationId, gid);
+    return true;
+  }
+
+  Future<_Pending?> _pendingOf(String conversationId) async {
+    final j = await plaintexts.get('p:$conversationId');
+    if (j == null) return null;
+    return _Pending.fromJson(jsonDecode(j) as Map<String, dynamic>);
+  }
+
+  Future<void> _dropPending(String conversationId) =>
+      plaintexts.remove('p:$conversationId');
+
+  Future<void> _commit(
+    MlsEngine e,
+    String conversationId,
+    Uint8List gid, {
+    List<Uint8List> keyPackages = const [],
+    List<String> ids = const [],
+    List<String> removeDeviceIds = const [],
+  }) async {
+    Future<MlsCommitOut> make() => e.commit(
+          gid,
+          keyPackages: keyPackages,
+          removeDeviceIds: removeDeviceIds,
+        );
+    MlsCommitOut out;
+    try {
+      out = await make();
+    } on Object {
+      // A pending commit with no record of it (the app stopped between
+      // the two) blocks a new one: it never reached the server.
+      if (await _pendingOf(conversationId) != null) rethrow;
+      await e.discardCommit(gid);
+      out = await make();
+    }
+    final p = _Pending(
+      epoch: out.epoch,
+      commit: base64Encode(out.commit),
+      welcome: out.welcome == null ? null : base64Encode(out.welcome!),
+      added: ids,
+      removed: removeDeviceIds,
+    );
+    await plaintexts.put(
+      'p:$conversationId',
+      conversationId,
+      jsonEncode(p.toJson()),
+    );
+    await _post(e, conversationId, gid, p);
+  }
+
+  /// Sends [p]; merges it when the server took it. Discards it only when
+  /// the server answered that it did not (409 another commit at this
+  /// epoch, or a refusal); without an answer it stays pending.
+  Future<void> _post(
+    MlsEngine e,
+    String conversationId,
+    Uint8List gid,
+    _Pending p,
+  ) async {
+    try {
+      await client.postMlsCommit(
+        id: conversationId,
+        body: api.MlsCommitDto(
+          deviceId: e.deviceId!,
+          epoch: p.epoch,
+          commit: p.commit,
+          addedDevices: p.added,
+          removedDevices: p.removed,
+          welcome: p.welcome,
+        ),
+      );
+    } on DioException catch (x) {
+      _states.remove(conversationId);
+      if (_codeOf(x) == E2eeErrors.epochConflict) {
+        // Another commit took the epoch — or this one did, and the answer
+        // of its first try was lost: the server's commit decides.
+        final row = await _serverCommit(conversationId, p.epoch);
+        if (row != null && row.commit == p.commit) {
+          await e.mergeCommit(gid);
+          await _dropPending(conversationId);
+          return;
+        }
+        await e.discardCommit(gid);
+        await _dropPending(conversationId);
+        rethrow;
+      }
+      if (_refused(x)) {
+        await e.discardCommit(gid);
+        await _dropPending(conversationId);
+      }
+      rethrow;
+    }
+    await e.mergeCommit(gid);
+    await _dropPending(conversationId);
+    _states.remove(conversationId);
+  }
+
+  /// The pending commit of the chat (from before a lost answer or a
+  /// restart) is decided first: merged when the server holds exactly its
+  /// bytes for that epoch, discarded when it holds another commit, sent
+  /// again (the same bytes) when the server has none. True when the group
+  /// moved (the state read before is stale).
+  Future<bool> _settlePending(
+    MlsEngine e,
+    String conversationId,
+    Uint8List gid,
+  ) async {
+    final p = await _pendingOf(conversationId);
+    if (p == null) return false;
+    if (p.epoch != await e.epoch(gid)) {
+      // The group moved on without it: it is not this group's any more.
+      await e.discardCommit(gid);
+      await _dropPending(conversationId);
+      return false;
+    }
+    final row = await _serverCommit(conversationId, p.epoch);
+    if (row != null) {
+      await _applyRow(e, conversationId, gid, row);
+      return true;
+    }
+    await _post(e, conversationId, gid, p);
+    return true;
+  }
+
+  Future<api.MlsCommitRowDto?> _serverCommit(
+    String conversationId,
+    int epoch,
+  ) async {
+    final rows =
+        (await client.listMlsCommits(id: conversationId, after: epoch)).data;
+    for (final r in rows) {
+      if (r.epoch.toInt() == epoch) return r;
+    }
+    return null;
+  }
+
+  /// One accepted commit of the server, at this device's epoch.
+  Future<void> _applyRow(
+    MlsEngine e,
+    String conversationId,
+    Uint8List gid,
+    api.MlsCommitRowDto r,
+  ) async {
+    final p = await _pendingOf(conversationId);
+    if (p != null && p.epoch == r.epoch.toInt()) {
+      await _dropPending(conversationId);
+      if (p.commit == r.commit) {
+        // RFC 9420 §12.4: my own commit is merged, never processed.
+        await e.mergeCommit(gid);
+        return;
+      }
+      await e.discardCommit(gid);
+    }
+    try {
+      await e.applyCommit(gid, base64Decode(r.commit));
+    } on Object catch (x) {
+      // This copy of the group cannot follow the server's: it is dropped
+      // and the members add this device again (a fresh Welcome).
+      debugPrint('e2ee commit ${r.epoch} of $conversationId: $x');
+      await e.deleteGroup(gid);
+      await _requestRejoin(e, conversationId);
+      throw const E2eeNotReady('rejoin');
+    }
+  }
+
+  Future<void> _requestRejoin(MlsEngine e, String conversationId) =>
+      client.requestMlsRejoin(
+        id: conversationId,
+        body: api.MlsRejoinDto(deviceId: e.deviceId!),
+      );
+
+  Future<void> _takeWelcomes(MlsEngine e) async {
+    final ws = (await client.listMlsWelcomes(deviceId: e.deviceId!)).data;
+    for (final w in ws) {
+      final welcome = base64Decode(w.welcome);
+      final gid = _groupIdOf(w.conversationId);
+      try {
+        try {
+          await e.join(welcome);
+        } on Object {
+          // An old copy of the group (this device was removed and is added
+          // again) is replaced by the new one.
+          if (gid == null ||
+              !await e.hasGroup(gid) ||
+              await e.epoch(gid) >= w.epoch.toInt()) {
+            rethrow;
+          }
+          await e.deleteGroup(gid);
+          await e.join(welcome);
+        }
+      } on Object catch (x) {
+        debugPrint('e2ee welcome ${w.id}: $x');
+        final already = gid != null &&
+            await e.hasGroup(gid) &&
+            await e.epoch(gid) >= w.epoch.toInt();
+        if (!already) {
+          // This device cannot join from it: not acknowledged; the members
+          // remove and add it again, the server drops this Welcome.
+          try {
+            await _requestRejoin(e, w.conversationId);
+          } on Object catch (y) {
+            debugPrint('e2ee rejoin ${w.conversationId}: $y');
+          }
+          continue;
+        }
+      }
+      await client.ackMlsWelcome(id: w.id);
+    }
+    if (ws.isNotEmpty) await _topUp(e);
+  }
+
+  Uint8List? _groupIdOf(String conversationId) {
+    final g = _states[conversationId]?.groupId;
+    return g == null ? null : base64Decode(g);
+  }
+
+  /// Applies the server's commits from this device's epoch on, up to
+  /// [upTo] (the epoch a message or the state needs; null = all).
+  Future<void> _catchUp(
+    MlsEngine e,
+    String conversationId,
+    Uint8List gid, {
+    int? upTo,
+  }) async {
+    while (true) {
+      var mine = await e.epoch(gid);
+      if (upTo != null && mine >= upTo) return;
+      final rows = (await client.listMlsCommits(
+        id: conversationId,
+        after: mine,
+      ))
+          .data
+        ..sort((a, b) => a.epoch.compareTo(b.epoch));
+      var moved = false;
+      for (final r in rows) {
+        if (r.epoch.toInt() != mine) continue;
+        await _applyRow(e, conversationId, gid, r);
+        mine += 1;
+        moved = true;
+        if (upTo != null && mine >= upTo) return;
+      }
+      if (!moved) return;
+    }
+  }
+
+  static bool _isConflict(DioException x) => x.response?.statusCode == 409;
+
+  static String? _codeOf(DioException x) {
+    final data = x.response?.data;
+    if (data is Map && data['error'] is Map) {
+      final code = (data['error'] as Map)['code'];
+      if (code is String) return code;
+    }
+    return null;
+  }
+
+  /// The server answered «no» (it did not and will not take it); no answer,
+  /// a busy server, a token being renewed or a timeout are not refusals.
+  static bool _refused(DioException x) {
+    final c = x.response?.statusCode;
+    if (c == null) return false;
+    return c >= 400 && c < 500 && c != 401 && c != 408 && c != 425 && c != 429;
+  }
+
+  // ------------------------------------------------------------ messages
+
+  /// Whether a send can go at once, from the cached state alone: the chat
+  /// is on, this device is in its group at the server's epoch with nothing
+  /// pending, and nobody waits to be added or removed.
+  Future<bool> _canWriteNow(
+    MlsEngine e,
+    String conversationId,
+    api.ConversationE2eeDto s,
+  ) async {
+    if (s.state != api.ConversationE2eeState.valueOn || s.groupId == null) {
+      return false;
+    }
+    if (s.removeDevices.isNotEmpty) return false;
+    final skip = _unaddable[conversationId] ?? const <String>{};
+    for (final d in s.devices) {
+      if (!d.inGroup &&
+          d.deviceId != e.deviceId &&
+          !skip.contains(d.deviceId)) {
+        return false;
+      }
+    }
+    final gid = base64Decode(s.groupId!);
+    if (!await e.hasGroup(gid)) return false;
+    if (await e.epoch(gid) != s.epoch?.toInt()) return false;
+    return await _pendingOf(conversationId) == null;
+  }
+
+  /// The `type=mls` send of [payload], or null when the chat is not end-to-
+  /// end encrypted (send as before). Throws [E2eeNotReady] when it is but
+  /// this device cannot write yet.
+  Future<api.SendMessageDto?> seal(
+    String conversationId,
+    String clientMessageId,
+    E2eePayload payload,
+  ) =>
+      _serial(conversationId, () async {
+        // Pending = every member can read encrypted: this send starts it.
+        var s = await state(conversationId);
+        if (s.state == api.ConversationE2eeState.off) return null;
+        final e = await engine();
+        if (!await _canWriteNow(e, conversationId, s)) {
+          final ready = await _sync(conversationId);
+          if (!ready) throw const E2eeNotReady('not_in_group');
+          s = await state(conversationId);
+        }
+        final gid = base64Decode(s.groupId!);
+        final epoch = await e.epoch(gid);
+        final ct = await e.encrypt(gid, payload.encode());
+        final json = jsonEncode(payload.toJson());
+        // My own message cannot be decrypted by me: kept now.
+        await plaintexts.put('c:$clientMessageId', conversationId, json);
+        _memory['c:$clientMessageId'] = payload;
+        return api.SendMessageDto(
+          clientMessageId: clientMessageId,
+          type: api.SendMessageType.mls,
+          ciphertext: base64Encode(ct),
+          mlsEpoch: epoch,
+          mlsDeviceId: e.deviceId,
+          // Which message it answers is metadata the server already orders
+          // by (the quoted text stays inside the encryption).
+          replyToId: payload.replyToId,
+        );
+      });
+
+  /// The message as the app shows it: an `mls` message becomes the text it
+  /// carries (decrypted once, then from the device's store).
+  Future<api.MessageDto> open(api.MessageDto d) async {
+    if (d.type != api.MessageDtoType.mls) return d;
+    final payload = await _payloadOf(d);
+    return withPayload(d, payload);
+  }
+
+  /// A page / catch-up: the `mls` messages are opened older epoch first
+  /// (RFC 9420: a past epoch's keys are the first to go), each epoch in
+  /// the order they were sent; the page keeps its order.
+  Future<List<api.MessageDto>> openAll(List<api.MessageDto> ds) async {
+    if (!ds.any((d) => d.type == api.MessageDtoType.mls)) return ds;
+    final order = [
+      for (final d in ds)
+        if (d.type == api.MessageDtoType.mls) d,
+    ]..sort(_oldestFirst);
+    final got = <String, E2eePayload?>{
+      for (final d in order) d.id: await _payloadOf(d),
+    };
+    return [
+      for (final d in ds)
+        if (d.type == api.MessageDtoType.mls) withPayload(d, got[d.id]) else d,
+    ];
+  }
+
+  static int _oldestFirst(api.MessageDto a, api.MessageDto b) {
+    final e = (a.mlsEpoch ?? 0).compareTo(b.mlsEpoch ?? 0);
+    if (e != 0) return e;
+    final t = a.createdAt.compareTo(b.createdAt);
+    return t != 0 ? t : a.id.compareTo(b.id);
+  }
+
+  /// Synchronous: from memory only (null when not opened yet).
+  api.MessageDto openCached(api.MessageDto d) {
+    if (d.type != api.MessageDtoType.mls) return d;
+    return withPayload(d, _cached(d));
+  }
+
+  E2eePayload? _cached(api.MessageDto d) =>
+      _memory[d.id] ??
+      (d.clientMessageId == null ? null : _memory['c:${d.clientMessageId}']);
+
+  /// The phone's copy of a chat was read (after a restart nothing is in
+  /// memory): the opened texts come from the device's store; messages
+  /// that never opened are tried again in the background.
+  Future<void> prime(Iterable<api.MessageDto> rows) async {
+    final retry = <String>{};
+    for (final d in rows) {
+      if (d.type != api.MessageDtoType.mls || _cached(d) != null) continue;
+      if (await _stored(d) != null) continue;
+      if (d.ciphertext == null || d.revoked) continue;
+      (_undecrypted[d.conversationId] ??= {})[d.id] = d;
+      _waiting.add(d.id);
+      retry.add(d.conversationId);
+    }
+    for (final c in retry) {
+      unawaited(
+        _serial(c, () => _retryWaiting(c)).then(
+          (_) {},
+          onError: (Object x) => debugPrint('e2ee retry $c: $x'),
+        ),
+      );
+    }
+  }
+
+  Future<E2eePayload?> _stored(api.MessageDto d) async {
+    var json = await plaintexts.get(d.id);
+    if (json == null && d.clientMessageId != null) {
+      json = await plaintexts.get('c:${d.clientMessageId}');
+      if (json != null) await plaintexts.put(d.id, d.conversationId, json);
+    }
+    if (json == null) return null;
+    final p = E2eePayload.fromJson(jsonDecode(json) as Map<String, dynamic>);
+    _memory[d.id] = p;
+    return p;
+  }
+
+  Future<E2eePayload?> _payloadOf(api.MessageDto d) async {
+    final hit = _memory[d.id];
+    if (hit != null) return hit;
+    final stored = await _stored(d);
+    if (stored != null) return stored;
+    if (d.ciphertext == null || d.revoked) return null;
+    return _serial(d.conversationId, () async {
+      try {
+        final e = await engine();
+        final s = await state(d.conversationId);
+        if (s.groupId == null) return _wait(d);
+        final gid = base64Decode(s.groupId!);
+        if (!await e.hasGroup(gid)) await _takeWelcomes(e);
+        if (!await e.hasGroup(gid)) return _wait(d);
+        // Only as far as this message needs: a later commit would move
+        // past the keys of its epoch.
+        final epoch = d.mlsEpoch?.toInt() ?? 0;
+        if (await e.epoch(gid) < epoch) {
+          await _catchUp(e, d.conversationId, gid, upTo: epoch);
+        }
+        return await _decryptNow(e, gid, d) ?? _wait(d);
+      } on Object catch (x) {
+        debugPrint('e2ee open ${d.id}: $x');
+        return _wait(d);
+      }
+    });
+  }
+
+  E2eePayload? _wait(api.MessageDto d) {
+    (_undecrypted[d.conversationId] ??= {})[d.id] = d;
+    return null;
+  }
+
+  Future<E2eePayload?> _decryptNow(
+    MlsEngine e,
+    Uint8List gid,
+    api.MessageDto d,
+  ) async {
+    final plain = await e.decrypt(gid, base64Decode(d.ciphertext!));
+    if (plain == null) return null;
+    final p = E2eePayload.decode(plain);
+    await plaintexts.put(d.id, d.conversationId, jsonEncode(p.toJson()));
+    _memory[d.id] = p;
+    _undecrypted[d.conversationId]?.remove(d.id);
+    return p;
+  }
+
+  /// Inside the chat's queue: catches up as far as the waiting messages
+  /// need, then opens them.
+  Future<void> _retryWaiting(String conversationId) async {
+    final waiting = _undecrypted[conversationId];
+    if (waiting == null || waiting.isEmpty) return;
+    final e = await engine();
+    final s = await state(conversationId);
+    if (s.groupId == null) return;
+    final gid = base64Decode(s.groupId!);
+    if (!await e.hasGroup(gid)) await _takeWelcomes(e);
+    if (!await e.hasGroup(gid)) return;
+    final need = waiting.values
+        .map((d) => d.mlsEpoch?.toInt() ?? 0)
+        .fold<int>(0, (a, b) => a > b ? a : b);
+    if (await e.epoch(gid) < need) {
+      await _catchUp(e, conversationId, gid, upTo: need);
+    }
+    await _openWaiting(e, conversationId, gid);
+  }
+
+  /// The messages of the chat that waited, now that the group caught up.
+  Future<void> _openWaiting(
+    MlsEngine e,
+    String conversationId,
+    Uint8List gid,
+  ) async {
+    final waiting = _undecrypted[conversationId];
+    if (waiting == null || waiting.isEmpty) return;
+    final mine = await e.epoch(gid);
+    for (final d in [...waiting.values]..sort(_oldestFirst)) {
+      final epoch = d.mlsEpoch?.toInt() ?? 0;
+      if (epoch > mine) continue;
+      try {
+        final p = await _decryptNow(e, gid, d);
+        if (p != null && !_opened.isClosed) _opened.add(withPayload(d, p));
+      } on Object catch (x) {
+        // Past the kept window its keys are gone for good: it stays
+        // «waiting» but is not tried again.
+        if (mine - epoch >= pastEpochs) waiting.remove(d.id);
+        debugPrint('e2ee open ${d.id}: $x');
+      }
+    }
+  }
+
+  /// The DTO the rest of the app reads: type text with the decrypted body;
+  /// [p] null = «Ожидание сообщения» (WhatsApp's «Waiting for this message»).
+  /// The ciphertext stays on it, so the phone's copy keeps the message as
+  /// it came ([storable]) and never a payload-less text.
+  api.MessageDto withPayload(api.MessageDto d, E2eePayload? p) {
+    final j = d.toJson()
+      ..['type'] = 'text'
+      ..['body'] = p?.body ?? '';
+    if (p != null && p.forwarded) j['forwarded'] = true;
+    // The quote of an encrypted message: its text from this device.
+    final reply = j['replyTo'];
+    if (reply is Map && (reply['snippet'] as String? ?? '').isEmpty) {
+      final quoted = _memory[reply['id']];
+      if (quoted != null) {
+        j['replyTo'] = {
+          ...reply,
+          'type': 'text',
+          'snippet':
+              [...quoted.body.runes].take(120).map(String.fromCharCode).join(),
+        };
+      }
+    }
+    if (p == null) {
+      _waiting.add(d.id);
+    } else {
+      _waiting.remove(d.id);
+    }
+    return api.MessageDto.fromJson(j);
+  }
+
+  /// What the phone's copy of a chat stores for [m]: an end-to-end
+  /// encrypted message as it came from the server (`mls` + ciphertext);
+  /// its text is in E2eePlaintexts and is put back when it is read.
+  static Map<String, dynamic> storable(api.MessageDto m) {
+    final j = m.toJson();
+    if (m.ciphertext != null && m.type != api.MessageDtoType.mls) {
+      j
+        ..['type'] = 'mls'
+        ..['body'] = ''
+        ..['forwarded'] = false;
+    }
+    return j;
+  }
+
+  /// The chat's 60-digit security code with [otherUserId]: from the keys
+  /// the MLS group really encrypts to (null while the chat is not
+  /// end-to-end encrypted on this device).
+  Future<String?> securityCode(String conversationId, String otherUserId) =>
+      _serial(conversationId, () async {
+        final s = await state(conversationId, fresh: true);
+        if (s.groupId == null) return null;
+        final e = await engine();
+        final gid = base64Decode(s.groupId!);
+        if (!await e.hasGroup(gid)) return null;
+        final members = await e.members(gid);
+        List<Uint8List> keysOf(String u) => [
+              for (final m in members)
+                if (m.userId == u) m.signatureKey,
+            ];
+        final theirs = keysOf(otherUserId);
+        if (theirs.isEmpty) return null;
+        return SafetyNumber.of(
+          meId: ownerId,
+          myKeys: keysOf(ownerId),
+          otherId: otherUserId,
+          otherKeys: theirs,
+        );
+      });
+
+  /// Messages this device could not open (shown as «waiting»).
+  static final Set<String> _waiting = {};
+  static bool isWaiting(String messageId) => _waiting.contains(messageId);
+}

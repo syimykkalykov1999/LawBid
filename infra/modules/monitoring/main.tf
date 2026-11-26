@@ -131,6 +131,36 @@ variable "cluster_name" { type = string }
 variable "api_service_name" { type = string }
 variable "worker_service_name" { type = string }
 variable "redis_replication_group_id" { type = string }
+# Item 29: false after the old Valkey node group is removed (the app runs on
+# ElastiCache Serverless): its node alarms go with it.
+variable "redis_node_group" {
+  type    = bool
+  default = true
+}
+moved {
+  from = aws_cloudwatch_metric_alarm.redis_cpu
+  to   = aws_cloudwatch_metric_alarm.redis_cpu[0]
+}
+moved {
+  from = aws_cloudwatch_metric_alarm.redis_memory
+  to   = aws_cloudwatch_metric_alarm.redis_memory[0]
+}
+moved {
+  from = aws_cloudwatch_metric_alarm.redis_network_allowance
+  to   = aws_cloudwatch_metric_alarm.redis_network_allowance[0]
+}
+moved {
+  from = aws_cloudwatch_metric_alarm.redis_traffic_management
+  to   = aws_cloudwatch_metric_alarm.redis_traffic_management[0]
+}
+moved {
+  from = aws_cloudwatch_metric_alarm.redis_connections
+  to   = aws_cloudwatch_metric_alarm.redis_connections[0]
+}
+moved {
+  from = aws_cloudwatch_metric_alarm.redis_new_connections
+  to   = aws_cloudwatch_metric_alarm.redis_new_connections[0]
+}
 variable "redis_replicas" {
   type        = number
   default     = 0
@@ -761,6 +791,7 @@ resource "aws_cloudwatch_metric_alarm" "sms_spend" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "redis_cpu" {
+  count               = var.redis_node_group ? 1 : 0
   alarm_name          = "${var.name}-redis-cpu"
   alarm_description   = "LawBid: Быстрая память (Redis) сильно загружена. Что делать: Обычно проходит само. Держится больше суток — увеличьте Redis при следующем «ставь на AWS». Инструкция: ${var.runbook_base_url}/redis.md (EN: Redis engine CPU > 80%.)"
   comparison_operator = "GreaterThanThreshold"
@@ -777,6 +808,7 @@ resource "aws_cloudwatch_metric_alarm" "redis_cpu" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "redis_memory" {
+  count               = var.redis_node_group ? 1 : 0
   alarm_name          = "${var.name}-redis-memory"
   alarm_description   = "LawBid: Быстрая память (Redis) заполнена больше чем на ${var.redis_memory_alarm_percent} %. Что делать: Держится больше суток — увеличьте Redis при следующем «ставь на AWS». Данные не теряются. Инструкция: ${var.runbook_base_url}/redis.md (EN: Redis memory above ${var.redis_memory_alarm_percent}%.)"
   comparison_operator = "GreaterThanThreshold"
@@ -802,7 +834,7 @@ locals {
 }
 
 resource "aws_cloudwatch_metric_alarm" "redis_cpu_credits" {
-  count               = local.redis_is_burstable ? 1 : 0
+  count               = var.redis_node_group && local.redis_is_burstable ? 1 : 0
   alarm_name          = "${var.name}-redis-cpu-credits"
   alarm_description   = "LawBid: У быстрой памяти (Redis) кончаются «кредиты» процессора, скоро она замедлится. Что делать: Увеличьте Redis при следующем «ставь на AWS» (класс не t4g). Инструкция: ${var.runbook_base_url}/redis.md (EN: CPUCreditBalance < 20 on the burstable Redis node.)"
   comparison_operator = "LessThanThreshold"
@@ -820,6 +852,7 @@ resource "aws_cloudwatch_metric_alarm" "redis_cpu_credits" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "redis_network_allowance" {
+  count               = var.redis_node_group ? 1 : 0
   alarm_name          = "${var.name}-redis-network-allowance"
   alarm_description   = "LawBid: Быстрая память (Redis) упёрлась в сетевой лимит своего класса, пакеты отбрасываются. Что делать: Увеличьте Redis при следующем «ставь на AWS». Инструкция: ${var.runbook_base_url}/redis.md (EN: NetworkBandwidthAllowanceExceeded > 0.)"
   comparison_operator = "GreaterThanThreshold"
@@ -837,6 +870,7 @@ resource "aws_cloudwatch_metric_alarm" "redis_network_allowance" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "redis_traffic_management" {
+  count               = var.redis_node_group ? 1 : 0
   alarm_name          = "${var.name}-redis-traffic-management"
   alarm_description   = "LawBid: Быстрая память (Redis) сама притормаживает клиентов (перегружена по трафику). Что делать: Увеличьте Redis при следующем «ставь на AWS». Инструкция: ${var.runbook_base_url}/redis.md (EN: TrafficManagementActive > 0.)"
   comparison_operator = "GreaterThanThreshold"
@@ -854,6 +888,7 @@ resource "aws_cloudwatch_metric_alarm" "redis_traffic_management" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "redis_connections" {
+  count               = var.redis_node_group ? 1 : 0
   alarm_name          = "${var.name}-redis-connections"
   alarm_description   = "LawBid: К быстрой памяти (Redis) подключено слишком много соединений. Что делать: Обычно после переключения Redis или утечки; если не проходит за час — напишите Claude «redis соединения». Инструкция: ${var.runbook_base_url}/redis.md (EN: CurrConnections high.)"
   comparison_operator = "GreaterThanThreshold"
@@ -871,6 +906,7 @@ resource "aws_cloudwatch_metric_alarm" "redis_connections" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "redis_new_connections" {
+  count               = var.redis_node_group ? 1 : 0
   alarm_name          = "${var.name}-redis-new-connections"
   alarm_description   = "LawBid: Всплеск новых подключений к быстрой памяти (Redis): похоже на «шторм переподключений». Что делать: Обычно после переключения Redis или выкладки; если повторяется — напишите Claude «redis соединения». Инструкция: ${var.runbook_base_url}/redis.md (EN: NewConnections spike.)"
   comparison_operator = "GreaterThanThreshold"
@@ -1604,7 +1640,7 @@ resource "aws_cloudwatch_metric_alarm" "economy" {
 # <group>-001 (first primary) and <group>-002 ...; after a failover the
 # roles swap but the ids stay, so every replica node gets an alarm.
 resource "aws_cloudwatch_metric_alarm" "redis_replication_lag" {
-  for_each            = toset([for i in range(2, var.redis_replicas + 2) : format("%03d", i)])
+  for_each            = var.redis_node_group ? toset([for i in range(2, var.redis_replicas + 2) : format("%03d", i)]) : toset([])
   alarm_name          = "${var.name}-redis-replication-lag-${each.key}"
   alarm_description   = "LawBid: Запасная копия быстрой памяти (Redis) отстаёт больше 30 секунд. Что делать: ничего срочного, приложение работает; если не проходит за час — это нужно проверить. Инструкция: ${var.runbook_base_url}/redis.md (EN: ElastiCache ReplicationLag > 30 s on replica ${each.key}.)"
   comparison_operator = "GreaterThanThreshold"

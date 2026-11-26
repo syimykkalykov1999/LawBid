@@ -183,7 +183,9 @@ describe('env contract: production task definition ↔ env.schema.ts', () => {
       expect.arrayContaining(['DATABASE_URL', 'JWT_KEYS', 'MESSAGE_ENC_KEYS']),
     );
     // REDIS_URL always reaches the tasks as a secret (app_secret_arns).
-    expect(STACK).toMatch(/\{ REDIS_URL = local\.redis_cluster_on/);
+    expect(STACK).toMatch(
+      /\{ REDIS_URL = local\.redis_serverless_on \? module\.redis\.serverless_url_secret_arn : local\.redis_cluster_on \? module\.redis\.cluster_url_secret_arn : module\.redis\.redis_url_secret_arn \}/,
+    );
     // The ecs module puts PORT / JOBS_ENABLED on the api container.
     expect(ECS).toMatch(/name = "JOBS_ENABLED", value = "false"/);
   });

@@ -187,7 +187,11 @@ def redis_url_with_token(url: str, token: str) -> str:
 
     p = urlsplit(url)
     host = p.netloc.rpartition("@")[2]
-    return urlunsplit((p.scheme, f":{quote(token, safe='')}@{host}", p.path, p.query, p.fragment))
+    # Item 29: a Serverless Valkey URL names its user (rediss://default:pw@h);
+    # the user name stays, only the password changes. A node-group URL has
+    # no user (rediss://:token@h), exactly as before.
+    user = quote(p.username, safe="") if p.username else ""
+    return urlunsplit((p.scheme, f"{user}:{quote(token, safe='')}@{host}", p.path, p.query, p.fragment))
 
 
 def new_redis_token() -> str:

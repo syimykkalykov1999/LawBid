@@ -267,6 +267,13 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   message_pins: 'pinned messages',
   message_search_tokens: 'blind search index of chat message words',
   message_reactions: 'message reactions',
+  // Item 25: end-to-end encryption (MLS) of chats
+  mls_devices: 'devices that read encrypted chats (public keys)',
+  mls_key_packages: 'one-time keys of those devices',
+  mls_groups: 'encryption groups of chats',
+  mls_commits: 'encryption group changes',
+  mls_group_devices: 'devices in each encryption group',
+  mls_welcomes: 'invitations of devices into encryption groups',
   chat_groups: 'group chats',
   chat_group_members: 'group members',
   chat_group_messages: 'group messages',
