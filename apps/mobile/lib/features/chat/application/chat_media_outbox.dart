@@ -77,33 +77,43 @@ class ChatMediaHandler extends UploadJobHandler {
   }
 
   /// WhatsApp: in an end-to-end encrypted chat the phone encrypts the file
-  /// and uploads only ciphertext. False when the chat is not encrypted (the
-  /// file goes the normal, scanned way).
+  /// and uploads only ciphertext. False when the chat is not encrypted —
+  /// decided from the chat's state BEFORE any byte is read, so a plain
+  /// chat's file still streams from disk the normal, scanned way. The
+  /// encrypted one goes 64 KiB at a time from disk to disk; its key never
+  /// goes into the plain upload queue (it waits in the E2EE store).
   Future<bool> _encrypted(
     E2eeService e2ee,
     UploadJob job,
     UploadJobScope scope,
   ) async {
-    final bytes = await scope.bytes();
-    if (bytes == null) {
-      throw const ApiException(
-        code: UploadQueue.localFileMissing,
-        message: 'e2ee',
-      );
-    }
+    if (!await e2ee.encryptsFiles(job.target)) return false;
     final p = job.payload;
     final voice = kind == ChatMediaKind.voice;
-    final webm = voice && isWebmVoice(bytes);
+    final body = await scope.body();
+    final size = await body.length();
+    if (size > (voice ? kVoiceMaxBytes : kChatAttachmentCeilingBytes)) {
+      throw const ApiException(
+        code: ApiErrorCodes.fileTooLarge,
+        message: 'size',
+      );
+    }
+    final mime = job.mime ?? 'application/octet-stream';
+    // A voice note is small (m4a or a browser's webm); a photo's bytes make
+    // its blurhash preview. Anything else is never read whole.
+    final small = voice ||
+            (mime.startsWith('image/') && size <= _previewMaxBytes)
+        ? await scope.bytes()
+        : null;
+    final webm = voice && small != null && isWebmVoice(small);
     final caption = p['caption'] as String?;
     final r = await e2ee.encryptFile(
       job.target,
-      bytes,
+      body,
       name: voice
           ? (webm ? 'voice.webm' : 'voice.m4a')
           : p['name'] as String? ?? 'file',
-      mime: voice
-          ? (webm ? 'audio/webm' : 'audio/mp4')
-          : job.mime ?? 'application/octet-stream',
+      mime: voice ? (webm ? 'audio/webm' : 'audio/mp4') : mime,
       width: (p['width'] as num?)?.toInt(),
       height: (p['height'] as num?)?.toInt(),
       durationMs: voice ? (p['durationMs'] as num?)?.toInt() ?? 0 : null,
@@ -115,13 +125,21 @@ class ChatMediaHandler extends UploadJobHandler {
           : null,
       caption: caption == null || caption.isEmpty ? null : caption,
       replyToId: p['replyToId'] as String?,
+      preview: small,
+      localPath: await scope.filePath(),
     );
     if (r == null) return false;
     scope.reportProgress(1);
-    await scope.saveProgress({e2eeKey: r.payload.toJson()});
+    final sealed = r.payload.toJson();
+    final fk = sealed.remove('fk')! as String;
+    await e2ee.keepOutgoingKey(job.id, job.target, fk);
+    await scope.saveProgress({e2eeKey: sealed});
     await scope.saveFileId(r.fileId);
     return true;
   }
+
+  /// A photo up to this size is read once for its blurhash preview.
+  static const _previewMaxBytes = 20 * 1024 * 1024;
 
   @override
   Future<void> commit(UploadJob job, UploadJobScope scope) async {
@@ -130,13 +148,25 @@ class ChatMediaHandler extends UploadJobHandler {
     final repo = _repo;
     try {
       final ChatMessage sent;
-      if (sealed is Map && repo is ApiChatRepository) {
+      final e2ee = repo is ApiChatRepository ? repo.e2ee : null;
+      if (sealed is Map && repo is ApiChatRepository && e2ee != null) {
+        final fk = await e2ee.outgoingKey(job.id);
+        if (fk == null) {
+          throw const ApiException(
+            code: UploadQueue.localFileMissing,
+            message: 'e2ee',
+          );
+        }
         sent = await repo.sendSealedFile(
           job.target,
           job.id,
-          E2eePayload.fromJson(Map<String, dynamic>.from(sealed)),
+          E2eePayload.fromJson({
+            ...Map<String, dynamic>.from(sealed),
+            'fk': fk,
+          }),
           fileId: job.fileId!,
         );
+        await e2ee.dropOutgoingKey(job.id);
         if (kind == ChatMediaKind.voice) {
           _sentIds[job.id] = sent.id;
         } else {

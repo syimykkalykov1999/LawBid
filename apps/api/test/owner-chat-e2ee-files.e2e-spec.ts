@@ -1,5 +1,5 @@
 import type { AddressInfo, Server } from 'node:net';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -226,6 +226,49 @@ describe('Encrypted files, reports and backups (e2e, item 25 PR 4)', () => {
     ).toBe(true);
   });
 
+  it('franking: an MLS message without its 32-byte tag is refused; the tag comes back with the message for the receiver to check', async () => {
+    const { conv, alice, auth } = await pair();
+    const { ciphertext, epoch } = await alice.encrypt(conv, 'no tag');
+    const send = (frankingTag?: string) =>
+      request(base)
+        .post(`/api/v1/conversations/${conv}/messages`)
+        .set('Authorization', auth.alice)
+        .send({
+          clientMessageId: randomUUID(),
+          type: 'mls',
+          ciphertext,
+          mlsEpoch: epoch,
+          mlsDeviceId: alice.deviceId,
+          ...(frankingTag ? { frankingTag } : {}),
+        });
+    const none = await send();
+    expect(none.status).toBe(400);
+    expect((none.body as { error: { code: string } }).error.code).toBe(
+      'VALIDATION_ERROR',
+    );
+    expect((await send(randomBytes(16).toString('base64'))).status).toBe(400);
+    const ok = await alice.sendFranked(conv, { t: 'text', b: 'with a tag' });
+    expect(ok.res.status).toBe(201);
+    const list = await request(base)
+      .get(`/api/v1/conversations/${conv}/messages`)
+      .set('Authorization', auth.bob)
+      .expect(200);
+    const items = (list.body.data.items ?? list.body.data) as {
+      id: string;
+      frankingTag: string | null;
+    }[];
+    const got = items.find(
+      (x) => x.id === (ok.res.body.data as { id: string }).id,
+    )!;
+    const k = Buffer.from(
+      (JSON.parse(ok.plaintext) as { k: string }).k,
+      'base64',
+    );
+    expect(got.frankingTag).toBe(
+      createHmac('sha256', k).update(ok.plaintext).digest('base64'),
+    );
+  });
+
   it('a report carries the last messages; franking tells real ones from forged ones; a reported file is scanned', async () => {
     const { conv, alice, bob, auth, aliceId } = await pair();
     const one = await alice.sendFranked(conv, {
@@ -312,9 +355,17 @@ describe('Encrypted files, reports and backups (e2e, item 25 PR 4)', () => {
     const put = await request(base)
       .post('/api/v1/e2ee/backup')
       .set('Authorization', auth.bob)
-      .send({ fileId: first })
+      .send({ fileId: first, keyId: 'a2V5LWlkLW9uZS0xMjM0NQ==' })
       .expect(200);
     expect(put.body.data.fileId).toBe(first);
+    // WhatsApp: the key's identity is kept, so the phone knows which key
+    // locks it and backs up again with the same one.
+    expect(put.body.data.keyId).toBe('a2V5LWlkLW9uZS0xMjM0NQ==');
+    await request(base)
+      .post('/api/v1/e2ee/backup')
+      .set('Authorization', auth.bob)
+      .send({ fileId: first })
+      .expect(400);
     const blob = Buffer.from(
       await (await fetch(put.body.data.url as string)).arrayBuffer(),
     );
@@ -327,7 +378,7 @@ describe('Encrypted files, reports and backups (e2e, item 25 PR 4)', () => {
     await request(base)
       .post('/api/v1/e2ee/backup')
       .set('Authorization', auth.bob)
-      .send({ fileId: second })
+      .send({ fileId: second, keyId: 'a2V5LWlkLW9uZS0xMjM0NQ==' })
       .expect(200);
     const old = await prisma.file.findUnique({ where: { id: first } });
     expect(old?.deleted_at).not.toBeNull();
@@ -335,7 +386,7 @@ describe('Encrypted files, reports and backups (e2e, item 25 PR 4)', () => {
     await request(base)
       .post('/api/v1/e2ee/backup')
       .set('Authorization', auth.alice)
-      .send({ fileId: second })
+      .send({ fileId: second, keyId: 'a2V5LWlkLW9uZS0xMjM0NQ==' })
       .expect((r) => expect([403, 404, 409]).toContain(r.status));
   });
 });

@@ -167,7 +167,7 @@ export class E2eeService {
       });
     }
     const max = await this.settings.number('chat.e2ee_max_devices');
-    const created = await this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.global().$transaction(async (tx) => {
       // One registration at a time per person, so two new devices at once
       // cannot both pass the cap.
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`mls-dev:${user.sub}`}))::TEXT AS locked`;
@@ -202,7 +202,7 @@ export class E2eeService {
    * group it sits in must remove it before the next MLS message. */
   async revokeDevice(user: RequestUser, id: string): Promise<void> {
     const d = await this.ownDevice(user, id);
-    await this.prisma.$transaction([
+    await this.prisma.global().$transaction([
       this.prisma.mlsKeyPackage.deleteMany({ where: { device_id: d.id } }),
       this.prisma.mlsWelcome.deleteMany({ where: { device_id: d.id } }),
       this.prisma.mlsDevice.update({
@@ -243,7 +243,7 @@ export class E2eeService {
       const check = await checkKeyPackage(bytes(k), expect);
       if (!check.ok) invalidKeyPackage(i, check.why);
     }
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.global().$transaction(async (tx) => {
       if (dto.lastResort) {
         await tx.mlsKeyPackage.deleteMany({
           where: { device_id: d.id, last_resort: true },
@@ -273,7 +273,30 @@ export class E2eeService {
         data: { last_seen_at: new Date() },
       });
     });
+    // A device's first upload carries its last-resort package (right after
+    // registering): from now on it can be added, so the person's encrypted
+    // chats are told to bring it in (WhatsApp: a newly linked device shows
+    // up in every chat without anyone writing first).
+    if (dto.lastResort) await this.announceNewDevice(user.sub, d.id);
     return this.keyPackageCount(user, deviceId);
+  }
+
+  /** Every encrypted chat of [userId] that [deviceId] is not in yet. */
+  private async announceNewDevice(
+    userId: string,
+    deviceId: string,
+  ): Promise<void> {
+    const rows = await this.prisma.global().$queryRaw<
+      { conversation_id: string }[]
+    >`
+      SELECT DISTINCT g.conversation_id::TEXT AS conversation_id
+      FROM mls_group_devices g
+      WHERE g.user_id = ${userId}::UUID
+        AND NOT EXISTS (
+          SELECT 1 FROM mls_group_devices x
+          WHERE x.conversation_id = g.conversation_id
+            AND x.device_id = ${deviceId}::UUID)`;
+    for (const r of rows) await this.announce(r.conversation_id);
   }
 
   async keyPackageCount(
@@ -388,8 +411,15 @@ export class E2eeService {
         signatureKey: b64(d.signature_key),
         inGroup: members.has(d.id),
       })),
+      // Also a device that could not join from its Welcome: removed, then
+      // added again from a new KeyPackage (requestRejoin).
       removeDevices: inGroup
-        .filter((g) => !active.has(g.device_id) || !users.includes(g.user_id))
+        .filter(
+          (g) =>
+            !active.has(g.device_id) ||
+            !users.includes(g.user_id) ||
+            g.rejoin_at !== null,
+        )
         .map((g) => g.device_id),
     };
   }
@@ -423,7 +453,7 @@ export class E2eeService {
     const el = await this.eligibility(user, conv, users, false);
     if (el.state !== 'pending') throw e2eeOff(el.reason);
     try {
-      await this.prisma.$transaction([
+      await this.prisma.global().$transaction([
         this.prisma.mlsGroup.create({
           data: {
             conversation_id: id,
@@ -480,6 +510,19 @@ export class E2eeService {
       (d) => !devices.some((x) => x.id === d && users.includes(x.user_id)),
     );
     if (foreign.length) throw membershipInvalid(foreign, 'not_a_member');
+    // RFC 9750 §6.3 (KeyPackage exhaustion): a KeyPackage is taken only to
+    // ADD a device; a device already in this chat's group has nothing to be
+    // added for, so its one-time keys cannot be drained from here.
+    const already = await this.prisma.mlsGroupDevice.findMany({
+      where: { conversation_id: id, device_id: { in: deviceIds } },
+      select: { device_id: true },
+    });
+    if (already.length) {
+      throw membershipInvalid(
+        already.map((a) => a.device_id),
+        'already_in_group',
+      );
+    }
     const out: ClaimedKeyPackageDto[] = [];
     for (const d of devices) {
       const [taken] = await this.prisma.$queryRaw<{ data: Uint8Array }[]>`
@@ -547,7 +590,7 @@ export class E2eeService {
       }
     }
     const max = await this.settings.number('chat.e2ee_max_group_members');
-    const result = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.global().$transaction(async (tx) => {
       // The compare-and-set: one commit per epoch, the group never forks.
       const [g] = await tx.$queryRaw<{ epoch: number; group_id: Uint8Array }[]>`
         SELECT epoch, group_id FROM mls_groups
@@ -651,6 +694,58 @@ export class E2eeService {
     }));
   }
 
+  /**
+   * Nightly (cron `chat.e2ee-welcome-sweep`): a Welcome a device never took
+   * within `chat.e2ee_welcome_keep_days` is deleted (0 = keep). It is useless
+   * after that anyway: the group has moved on and the device joins again from
+   * a fresh Welcome. Batches of 1 000 by the created_at index.
+   */
+  async sweepWelcomes(): Promise<number> {
+    const keepDays = await this.settings.number('chat.e2ee_welcome_keep_days');
+    if (keepDays <= 0) return 0;
+    const before = new Date(Date.now() - keepDays * 86_400_000);
+    let total = 0;
+    for (;;) {
+      const n = await this.prisma.$executeRaw`
+        DELETE FROM mls_welcomes WHERE id IN (
+          SELECT id FROM mls_welcomes WHERE created_at < ${before}
+          ORDER BY created_at LIMIT 1000)`;
+      total += n;
+      if (n < 1000) return total;
+    }
+  }
+
+  /**
+   * RFC 9420 §12.4.3.1 / Wire: my device could not join from the Welcome
+   * made for it (the KeyPackage's private half is gone, the Welcome does not
+   * parse). It cannot read or write in the group, and no member could add
+   * it again while its old leaf is still there. So its place is marked:
+   * the chat's state lists it in `removeDevices`, the next member online
+   * removes the leaf with a commit and then adds the device from a new
+   * KeyPackage — the device gets a fresh Welcome. Its old Welcomes of this
+   * chat go. A device that is not in the group has nothing to mark (the
+   * members add it anyway).
+   */
+  async requestRejoin(
+    user: RequestUser,
+    id: string,
+    deviceId: string,
+  ): Promise<void> {
+    await this.member(user, id);
+    const d = await this.ownDevice(user, deviceId);
+    const marked = await this.prisma.global().$transaction(async (tx) => {
+      const n = await tx.mlsGroupDevice.updateMany({
+        where: { conversation_id: id, device_id: d.id, rejoin_at: null },
+        data: { rejoin_at: new Date() },
+      });
+      await tx.mlsWelcome.deleteMany({
+        where: { conversation_id: id, device_id: d.id },
+      });
+      return n.count;
+    });
+    if (marked > 0) await this.announce(id);
+  }
+
   async welcomes(
     user: RequestUser,
     deviceId: string,
@@ -737,16 +832,17 @@ export class E2eeService {
       ...users.map((u) => u.user_id),
       ...(c ? [c.client_id, c.attorney_id] : []),
     ]);
-    const revoked = await this.prisma.mlsDevice.findMany({
-      where: {
-        id: { in: inGroup.map((g) => g.device_id) },
-        revoked_at: { not: null },
-      },
-      select: { id: true },
+    // A device that was signed out (revoked_at) or erased with its account
+    // (row gone, its group place kept: personal-data-registry) must be
+    // removed by a commit first.
+    const known = await this.prisma.mlsDevice.findMany({
+      where: { id: { in: inGroup.map((g) => g.device_id) } },
+      select: { id: true, revoked_at: true },
     });
+    const live = new Set(known.filter((k) => !k.revoked_at).map((k) => k.id));
     const stale = [
       ...inGroup.filter((g) => !members.has(g.user_id)).map((g) => g.device_id),
-      ...revoked.map((r) => r.id),
+      ...inGroup.filter((g) => !live.has(g.device_id)).map((g) => g.device_id),
     ];
     if (stale.length) {
       // Wire / MLS: a person who left (or a signed-out phone) must be out of
@@ -901,6 +997,7 @@ export class E2eeService {
     }
     return {
       fileId: b.file_id,
+      keyId: b.key_id,
       url: (await this.files?.e2eeBackupUrl(b.file_id)) ?? null,
       sizeBytes: Number(f.size_bytes),
       updatedAt: b.updated_at,
@@ -908,7 +1005,11 @@ export class E2eeService {
   }
 
   /** A new backup replaces the old one (whose file is released). */
-  async putBackup(user: RequestUser, fileId: string): Promise<E2eeBackupDto> {
+  async putBackup(
+    user: RequestUser,
+    fileId: string,
+    keyId: string,
+  ): Promise<E2eeBackupDto> {
     if (!this.files) throw deviceNotFound();
     await this.files.assertAttachable(user.sub, fileId, ['chat_backup_e2ee']);
     const old = await this.prisma.e2eeBackup.findUnique({
@@ -916,8 +1017,8 @@ export class E2eeService {
     });
     await this.prisma.e2eeBackup.upsert({
       where: { user_id: user.sub },
-      create: { user_id: user.sub, file_id: fileId },
-      update: { file_id: fileId },
+      create: { user_id: user.sub, file_id: fileId, key_id: keyId },
+      update: { file_id: fileId, key_id: keyId },
     });
     if (old && old.file_id !== fileId) {
       await this.prisma.file.updateMany({
@@ -969,8 +1070,18 @@ export class E2eeService {
       where: { conversation_id: conversationId },
       select: { epoch: true },
     });
+    // A case chat's client and attorney are members without a participant
+    // row (as in assertMlsSend), so they are told too.
+    const c = await this.prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: { client_id: true, attorney_id: true },
+    });
+    const to = new Set([
+      ...rows.map((r) => r.user_id),
+      ...(c ? [c.client_id, c.attorney_id] : []),
+    ]);
     this.realtime.toUsers(
-      rows.map((r) => r.user_id),
+      [...to].filter((u): u is string => typeof u === 'string' && u.length > 0),
       'e2ee:commit',
       { conversationId, epoch: group?.epoch ?? 0 },
     );

@@ -108753,6 +108753,106 @@
         ]
       }
     },
+    "/e2ee/conversations/{id}/rejoin": {
+      "post": {
+        "operationId": "requestMlsRejoin",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MlsRejoinDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My device could not join from its Welcome: re-add it",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
     "/e2ee/conversations/{id}/commits": {
       "post": {
         "operationId": "postMlsCommit",
@@ -201632,6 +201732,11 @@
             "nullable": true,
             "description": "Item 25 (type=mls with an encrypted file): a short link to the file's ciphertext (its key is inside the message)."
           },
+          "frankingTag": {
+            "type": "string",
+            "nullable": true,
+            "description": "Item 25 (type=mls, message franking): base64 HMAC-SHA256(k, P) the sender stored; the receiver checks it against the plaintext it decrypted."
+          },
           "gift": {
             "nullable": true,
             "description": "Owner 2026-10-20: the gift of a gift message.",
@@ -202957,6 +203062,19 @@
           "data"
         ]
       },
+      "MlsRejoinDto": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "My device that cannot join."
+          }
+        },
+        "required": [
+          "deviceId"
+        ]
+      },
       "MlsEpochDto": {
         "type": "object",
         "properties": {
@@ -203142,6 +203260,11 @@
             "type": "string",
             "format": "uuid"
           },
+          "keyId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Which key locks the backup (E2eeBackupPutDto.keyId)."
+          },
           "url": {
             "type": "string",
             "nullable": true
@@ -203181,10 +203304,17 @@
             "type": "string",
             "format": "uuid",
             "description": "A clean chat_backup_e2ee file of mine."
+          },
+          "keyId": {
+            "type": "string",
+            "maxLength": 24,
+            "format": "base64",
+            "description": "Which 64-digit key locks it: base64 of HMAC-SHA256(backup key, \"lawbid-e2ee-backup-key-id\"), 16 bytes (the key itself never leaves the phone). WhatsApp: the same key serves every backup until the person makes a new one."
           }
         },
         "required": [
-          "fileId"
+          "fileId",
+          "keyId"
         ]
       },
       "MlsCommitRowDto": {

@@ -2173,6 +2173,7 @@ export 'models/create_mls_group_dto.dart';
 export 'models/claimed_key_package_dto.dart';
 export 'models/claim_key_packages_dto.dart';
 export 'models/claimed_key_package_list_envelope.dart';
+export 'models/mls_rejoin_dto.dart';
 export 'models/mls_epoch_dto.dart';
 export 'models/mls_commit_dto.dart';
 export 'models/mls_epoch_envelope.dart';

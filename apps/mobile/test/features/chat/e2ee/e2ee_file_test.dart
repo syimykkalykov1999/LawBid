@@ -21,6 +21,34 @@ void main() {
     }
   });
 
+  test(
+      'streaming: odd-sized pieces in and out give the same format, one '
+      'segment at a time', () async {
+    final key = E2eeFile.newKey();
+    final plain = bytes(3 * E2eeFile.segment + 999);
+    Stream<List<int>> pieces(Uint8List b, int size) async* {
+      for (var i = 0; i < b.length; i += size) {
+        yield Uint8List.sublistView(b, i, (i + size).clamp(0, b.length));
+      }
+    }
+
+    final out = BytesBuilder();
+    await for (final c in E2eeFile.encryptStream(pieces(plain, 7777), key)) {
+      out.add(c);
+    }
+    final blob = out.takeBytes();
+    expect(blob.length, E2eeFile.sealedLength(plain.length));
+    // The bytes API reads it (same format as the server's e2ee-file.ts).
+    expect(await E2eeFile.decrypt(blob, key), plain);
+    final back = BytesBuilder();
+    await for (final c in E2eeFile.decryptStream(pieces(blob, 5000), key)) {
+      // Never more than one segment comes out at a time.
+      expect(c.length, lessThanOrEqualTo(E2eeFile.segment));
+      back.add(c);
+    }
+    expect(back.takeBytes(), plain);
+  });
+
   test('a wrong key, a changed byte or a cut-off end opens nothing', () async {
     final key = E2eeFile.newKey();
     final blob = await E2eeFile.encrypt(bytes(3 * E2eeFile.segment), key);

@@ -412,12 +412,14 @@ class SettingsScreen extends ConsumerWidget {
           ),
           // Item 25, PR 4 (WhatsApp «End-to-end encrypted backup»): the
           // messages of encrypted chats, locked with the person's own key.
-          AppListRow(
-            key: const ValueKey('settings-e2ee-backup'),
-            icon: AppIcons.lockOutlineRounded,
-            label: t.t('chat.e2ee.backupTitle'),
-            onTap: () => openE2eeBackup(context),
-          ),
+          // Hidden while the admin's chat.e2ee_mode is Выкл (switch rule).
+          if (e2eeBackupVisible(ref.watch(featureFlagsControllerProvider)))
+            AppListRow(
+              key: const ValueKey('settings-e2ee-backup'),
+              icon: AppIcons.lockOutlineRounded,
+              label: t.t('chat.e2ee.backupTitle'),
+              onTap: () => openE2eeBackup(context),
+            ),
         ],
       ),
       AppListSection(

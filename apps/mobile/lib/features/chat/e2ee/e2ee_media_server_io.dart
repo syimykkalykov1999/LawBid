@@ -4,28 +4,29 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:lawbid/features/chat/e2ee/e2ee_scratch.dart';
 
 /// The loopback server of E2eeMedia on the phone: `GET /<token>/<fileId>`
 /// answers the decrypted bytes (whole, or the asked `Range`), only on
 /// 127.0.0.1 and only to a caller that knows this launch's random token.
+/// A decrypted copy on disk is read in 64 KiB pieces of the asked range,
+/// never whole into memory.
 String? _base;
 Future<void>? _starting;
 
 String? get base => _base;
 
-Future<void> start(
-  Future<({Uint8List bytes, String mime})?> Function(String fileId)? Function()
-      resolver,
-) =>
+typedef E2eeMediaResolver = Future<({E2eePlainFile file, String mime})?>
+        Function(String fileId)?
+    Function();
+
+Future<void> start(E2eeMediaResolver resolver) =>
     _starting ??= _start(resolver).catchError((Object e) {
       debugPrint('e2ee media server: $e');
       _starting = null;
     });
 
-Future<void> _start(
-  Future<({Uint8List bytes, String mime})?> Function(String fileId)? Function()
-      resolver,
-) async {
+Future<void> _start(E2eeMediaResolver resolver) async {
   // Started by the first encrypted file shown; no idle timer (the players
   // keep their own connections).
   final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0)
@@ -42,8 +43,7 @@ Future<void> _start(
 Future<void> _serve(
   HttpRequest req,
   String token,
-  Future<({Uint8List bytes, String mime})?> Function(String fileId)? Function()
-      resolver,
+  E2eeMediaResolver resolver,
 ) async {
   final res = req.response;
   try {
@@ -53,19 +53,19 @@ Future<void> _serve(
       res.statusCode = HttpStatus.notFound;
       return;
     }
-    final file = await resolve(seg[1]);
-    if (file == null) {
+    final found = await resolve(seg[1]);
+    if (found == null) {
       res.statusCode = HttpStatus.notFound;
       return;
     }
-    final bytes = file.bytes;
-    final total = bytes.length;
+    final file = found.file;
+    final total = file.length;
     var start = 0;
     var end = total - 1;
     final range = RegExp(r'^bytes=(\d*)-(\d*)$')
         .firstMatch(req.headers.value(HttpHeaders.rangeHeader) ?? '');
     res.headers
-      ..contentType = ContentType.parse(file.mime)
+      ..contentType = ContentType.parse(found.mime)
       ..set(HttpHeaders.acceptRangesHeader, 'bytes')
       ..set(HttpHeaders.cacheControlHeader, 'no-store');
     if (range != null) {
@@ -90,9 +90,13 @@ Future<void> _serve(
           'bytes $start-$end/$total',
         );
     }
-    res.contentLength = end - start + 1;
-    if (req.method != 'HEAD') {
+    res.contentLength = total == 0 ? 0 : end - start + 1;
+    if (req.method == 'HEAD' || total == 0) return;
+    final bytes = file.bytes;
+    if (bytes != null) {
       res.add(Uint8List.sublistView(bytes, start, end + 1));
+    } else {
+      await res.addStream(File(file.path!).openRead(start, end + 1));
     }
   } on Object catch (e) {
     debugPrint('e2ee media serve: $e');

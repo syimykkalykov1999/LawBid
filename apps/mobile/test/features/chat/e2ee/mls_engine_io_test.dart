@@ -68,6 +68,71 @@ void main() {
     await expectLater(bobWeb.decrypt(group, after), throwsA(anything));
   });
 
+  test(
+      'a last-resort KeyPackage serves several Welcomes, a one-time one only '
+      'one (RFC 9420 §16.8)', () async {
+    final alice = await device('ua', 'da');
+    final bob = await device('ub', 'db');
+    final last = await bob.newLastResortKeyPackage();
+    final once = (await bob.newKeyPackages(1)).single;
+    final g2 = Uint8List.fromList(utf8.encode('lawbid:conv-2'));
+    final g3 = Uint8List.fromList(utf8.encode('lawbid:conv-3'));
+    final g4 = Uint8List.fromList(utf8.encode('lawbid:conv-4'));
+    Future<Uint8List> invite(Uint8List g, Uint8List kp) async {
+      await alice.createGroup(g);
+      final add = await alice.commit(g, keyPackages: [kp]);
+      expect(add.epoch, 0);
+      await alice.mergeCommit(g);
+      return add.welcome!;
+    }
+
+    await bob.join(await invite(group, last));
+    await bob.join(await invite(g2, last));
+    final m = await alice.encrypt(g2, text('second group'));
+    expect(read(await bob.decrypt(g2, m)), 'second group');
+    await bob.join(await invite(g3, once));
+    await expectLater(bob.join(await invite(g4, once)), throwsA(anything));
+  });
+
+  test('a message of the previous epoch opens after the commit (4 kept)',
+      () async {
+    final alice = await device('ua', 'da');
+    final bob = await device('ub', 'db');
+    final carl = await device('uc', 'dc');
+    await alice.createGroup(group);
+    final add =
+        await alice.commit(group, keyPackages: await bob.newKeyPackages(1));
+    await alice.mergeCommit(group);
+    await bob.join(add.welcome!);
+    final before = await alice.encrypt(group, text('sent in epoch 1'));
+    final add2 =
+        await alice.commit(group, keyPackages: await carl.newKeyPackages(1));
+    await alice.mergeCommit(group);
+    await bob.applyCommit(group, add2.commit);
+    expect(await bob.epoch(group), 2);
+    expect(read(await bob.decrypt(group, before)), 'sent in epoch 1');
+  });
+
+  test(
+      'a reinstall (vault kept, database new) is a new device; the old id '
+      'is handed over to be signed out', () async {
+    final vault = MemoryMlsKeyVault();
+    Future<OpenMlsEngine> open() =>
+        OpenMlsEngine.open(userId: 'ua', vault: vault, dbPath: ':memory:');
+    final first = await open();
+    await first.setDeviceId('d-old');
+    final again = await open();
+    expect(again.deviceId, isNull);
+    expect(again.previousDeviceId, 'd-old');
+    expect(again.signaturePublicKey, isNot(first.signaturePublicKey));
+    await again.forgetPreviousDevice();
+    expect(await vault.read('mls.ua.previous'), isNull);
+    // Wiped (sign-out): nothing of the device stays in the vault.
+    await again.setDeviceId('d-new');
+    await again.wipe();
+    expect(vault.values.keys.where((k) => k.startsWith('mls.ua.')), isEmpty);
+  });
+
   test('a discarded commit leaves the group where it was', () async {
     final alice = await device('ua', 'da');
     final bob = await device('ub', 'db');

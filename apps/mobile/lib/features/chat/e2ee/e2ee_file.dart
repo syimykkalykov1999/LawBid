@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -12,10 +13,15 @@ import 'package:cryptography/cryptography.dart';
 ///
 ///   "LBE1" | nonce prefix (7) | segments of ≤ 64 KiB + 16-byte tag
 ///   nonce of segment i = prefix || u32be(i) || (1 on the last, else 0)
+///
+/// [encryptStream] / [decryptStream] work one segment at a time, so a large
+/// video goes from disk to disk without being held in memory (Tink's
+/// streaming AEAD, WhatsApp's media pipeline).
 abstract final class E2eeFile {
   static const segment = 64 * 1024;
   static const _tag = 16;
   static const _header = 11;
+  static const _magic = [0x4c, 0x42, 0x45, 0x31]; // "LBE1"
   static final _aes = AesGcm.with256bits();
 
   static Uint8List newKey() => _random(32);
@@ -34,55 +40,140 @@ abstract final class E2eeFile {
         if (last) 1 else 0,
       ];
 
-  static Future<Uint8List> encrypt(Uint8List plain, Uint8List key) async {
+  /// The ciphertext size of a [plainLength]-byte file.
+  static int sealedLength(int plainLength) =>
+      _header +
+      plainLength +
+      max(1, (plainLength + segment - 1) ~/ segment) * _tag;
+
+  /// Reads [source] in pieces of [size] bytes and tells, for each, whether
+  /// it is the last one (one piece of look-ahead; an empty source gives
+  /// one empty last piece).
+  static Stream<(Uint8List, bool)> _pieces(
+    Stream<List<int>> source,
+    int size,
+  ) async* {
+    var buf = BytesBuilder(copy: false);
+    Uint8List? ready;
+    await for (final chunk in source) {
+      var at = 0;
+      while (at < chunk.length) {
+        final take = min(size - buf.length, chunk.length - at);
+        final bytes = chunk is Uint8List ? chunk : Uint8List.fromList(chunk);
+        buf.add(Uint8List.sublistView(bytes, at, at + take));
+        at += take;
+        if (buf.length == size) {
+          if (ready != null) yield (ready, false);
+          ready = buf.takeBytes();
+          buf = BytesBuilder(copy: false);
+        }
+      }
+    }
+    if (buf.length > 0) {
+      if (ready != null) yield (ready, false);
+      yield (buf.takeBytes(), true);
+    } else {
+      yield (ready ?? Uint8List(0), true);
+    }
+  }
+
+  /// The encrypted form of [plain], segment by segment.
+  static Stream<List<int>> encryptStream(
+    Stream<List<int>> plain,
+    Uint8List key,
+  ) async* {
     final prefix = _random(7);
-    final out = BytesBuilder(copy: false)
-      ..add(const [0x4c, 0x42, 0x45, 0x31]) // "LBE1"
-      ..add(prefix);
+    yield [..._magic, ...prefix];
     final secret = SecretKey(key);
-    final count = max(1, (plain.length + segment - 1) ~/ segment);
-    for (var i = 0; i < count; i++) {
-      final end = min(plain.length, (i + 1) * segment);
+    var i = 0;
+    await for (final (piece, last) in _pieces(plain, segment)) {
       final box = await _aes.encrypt(
-        Uint8List.sublistView(plain, i * segment, end),
+        piece,
         secretKey: secret,
-        nonce: _nonce(prefix, i, i == count - 1),
+        nonce: _nonce(prefix, i, last),
       );
-      out
-        ..add(box.cipherText)
-        ..add(box.mac.bytes);
+      yield box.cipherText;
+      yield box.mac.bytes;
+      i++;
+    }
+  }
+
+  /// The plaintext of [blob], segment by segment; throws on a wrong key,
+  /// a changed byte or a cut-off end (the last segment is marked).
+  static Stream<List<int>> decryptStream(
+    Stream<List<int>> blob,
+    Uint8List key,
+  ) async* {
+    final secret = SecretKey(key);
+    Uint8List? prefix;
+    var head = BytesBuilder(copy: false);
+    final rest = StreamController<List<int>>();
+    // The header first, then the segments (each segment + its tag).
+    final sub = blob.listen(
+      (chunk) {
+        if (prefix != null) {
+          rest.add(chunk);
+          return;
+        }
+        head.add(chunk);
+        if (head.length < _header) return;
+        final h = head.takeBytes();
+        head = BytesBuilder(copy: false);
+        for (var j = 0; j < 4; j++) {
+          if (h[j] != _magic[j]) {
+            rest.addError(
+              const FormatException('not an encrypted LawBid file'),
+            );
+            return;
+          }
+        }
+        prefix = Uint8List.sublistView(h, 4, _header);
+        if (h.length > _header) rest.add(Uint8List.sublistView(h, _header));
+      },
+      onError: rest.addError,
+      onDone: () {
+        if (prefix == null) {
+          rest.addError(const FormatException('not an encrypted LawBid file'));
+        }
+        rest.close();
+      },
+    );
+    try {
+      var i = 0;
+      await for (final (seg, last) in _pieces(rest.stream, segment + _tag)) {
+        if (seg.length < _tag) {
+          throw const FormatException('a cut-off encrypted file');
+        }
+        yield await _aes.decrypt(
+          SecretBox(
+            Uint8List.sublistView(seg, 0, seg.length - _tag),
+            nonce: _nonce(prefix!, i, last),
+            mac: Mac(Uint8List.sublistView(seg, seg.length - _tag)),
+          ),
+          secretKey: secret,
+        );
+        i++;
+      }
+    } finally {
+      await sub.cancel();
+    }
+  }
+
+  static Future<Uint8List> _collect(Stream<List<int>> s) async {
+    final out = BytesBuilder(copy: false);
+    await for (final c in s) {
+      out.add(c);
     }
     return out.takeBytes();
   }
 
+  static Future<Uint8List> encrypt(Uint8List plain, Uint8List key) =>
+      _collect(encryptStream(Stream.value(plain), key));
+
   static Future<Uint8List> decrypt(Uint8List blob, Uint8List key) async {
-    if (blob.length < _header + _tag ||
-        blob[0] != 0x4c ||
-        blob[1] != 0x42 ||
-        blob[2] != 0x45 ||
-        blob[3] != 0x31) {
+    if (blob.length < _header + _tag) {
       throw const FormatException('not an encrypted LawBid file');
     }
-    final prefix = Uint8List.sublistView(blob, 4, _header);
-    final secret = SecretKey(key);
-    final out = BytesBuilder(copy: false);
-    var at = _header;
-    for (var i = 0; at < blob.length; i++) {
-      final end = min(at + segment + _tag, blob.length);
-      final last = end == blob.length;
-      final seg = Uint8List.sublistView(blob, at, end);
-      out.add(
-        await _aes.decrypt(
-          SecretBox(
-            Uint8List.sublistView(seg, 0, seg.length - _tag),
-            nonce: _nonce(prefix, i, last),
-            mac: Mac(Uint8List.sublistView(seg, seg.length - _tag)),
-          ),
-          secretKey: secret,
-        ),
-      );
-      at = end;
-    }
-    return out.takeBytes();
+    return _collect(decryptStream(Stream.value(blob), key));
   }
 }

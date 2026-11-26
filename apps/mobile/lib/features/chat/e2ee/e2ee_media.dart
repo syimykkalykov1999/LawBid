@@ -1,13 +1,12 @@
-import 'dart:typed_data';
-
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:lawbid/core/platform/blob_url.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_media_server_stub.dart'
     if (dart.library.io) 'package:lawbid/features/chat/e2ee/e2ee_media_server_io.dart'
     as server;
+import 'package:lawbid/features/chat/e2ee/e2ee_scratch.dart';
 
-/// The decrypted bytes of an encrypted chat file and their type.
-typedef E2eeMediaBytes = ({Uint8List bytes, String mime});
+/// The decrypted copy of an encrypted chat file and its type.
+typedef E2eeMediaBytes = ({E2eePlainFile file, String mime});
 
 /// Item 25, PR 4 (docs/architecture/E2EE_MLS_PLAN_2026-11-25.md §5): the
 /// address the app's image loader, video and voice players and document
@@ -16,9 +15,10 @@ typedef E2eeMediaBytes = ({Uint8List bytes, String mime});
 /// decrypted bytes, the way Element Web shows encrypted media (a `blob:`
 /// URL in the browser); on the phone a loopback server on 127.0.0.1 with a
 /// random path per launch (answers Range requests, which AVPlayer and
-/// ExoPlayer need). The plaintext never leaves the device.
+/// ExoPlayer need, from the decrypted copy on disk). The plaintext never
+/// leaves the device.
 abstract final class E2eeMedia {
-  /// Set by the signed-in account's E2eeService: the bytes of a file.
+  /// Set by the signed-in account's E2eeService: the copy of a file.
   static Future<E2eeMediaBytes?> Function(String fileId)? resolve;
 
   static final Map<String, String> _blobs = {};
@@ -48,8 +48,9 @@ abstract final class E2eeMedia {
       return urlOf(fileId);
     }
     final r = await resolve?.call(fileId);
-    if (r == null) return null;
-    final url = blobUrlFor(r.bytes, r.mime);
+    final bytes = r?.file.bytes;
+    if (r == null || bytes == null) return null;
+    final url = blobUrlFor(bytes, r.mime);
     if (url == null) return null;
     _blobs[fileId] = url;
     // The browser keeps a blob alive until it is revoked: the oldest go.

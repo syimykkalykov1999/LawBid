@@ -14,6 +14,7 @@ ALTER TABLE "messages" ADD COLUMN     "franking_tag" BYTEA;
 CREATE TABLE "e2ee_backups" (
     "user_id" UUID NOT NULL,
     "file_id" UUID NOT NULL,
+    "key_id" VARCHAR(24),
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ NOT NULL,
 

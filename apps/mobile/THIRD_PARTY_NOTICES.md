@@ -964,6 +964,11 @@ Flutter adds its LICENSE to the app's licence list). The segmented file format
 follows the idea of Google Tink's AES-GCM-HKDF streaming AEAD (Apache-2.0;
 idea only, no code copied — there is no Dart port of Tink).
 
+The preview inside an encrypted photo's message is a BlurHash made on the
+phone by the `blurhash_dart` pub package 1.2.1 (MIT, Copyright (c) 2020
+Tobias Schwackenhofer, https://github.com/justacid/blurhash-dart), used
+unmodified; the bubble draws it with `flutter_blurhash` as before.
+
 ts-mls — Copyright (c) 2025 Luka Jacobowitz.
 @hpke/core, @hpke/common — Copyright (c) 2023–2024 Ajitomi Daisuke.
 @noble/hashes, @noble/curves, @noble/ciphers — Copyright (c) 2022–2023 Paul

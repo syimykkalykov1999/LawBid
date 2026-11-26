@@ -3413,6 +3413,9 @@ model MlsGroupDevice {
   user_id         String   @db.Uuid
   joined_epoch    Int
   created_at      DateTime @default(now()) @db.Timestamptz
+  /// The device could not join from its Welcome (RFC 9420 §12.4.3.1): the
+  /// members remove its leaf and add it again from a new KeyPackage.
+  rejoin_at       DateTime? @db.Timestamptz
 
   @@id([conversation_id, device_id])
   @@index([device_id])
@@ -3428,6 +3431,9 @@ model E2eeBackup {
   user_id    String   @id @db.Uuid
   user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
   file_id    String   @db.Uuid
+  /// Which 64-digit key locks it (HMAC id of the key; the key stays on the
+  /// phone). The same key serves every backup until the person makes a new one.
+  key_id     String?  @db.VarChar(24)
   created_at DateTime @default(now()) @db.Timestamptz
   updated_at DateTime @updatedAt @db.Timestamptz
 
@@ -3468,6 +3474,7 @@ model MlsWelcome {
 
   @@index([device_id, created_at])
   @@index([conversation_id])
+  @@index([created_at])
   @@map("mls_welcomes")
 }
 

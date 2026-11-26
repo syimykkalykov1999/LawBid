@@ -759,6 +759,14 @@ export class MessageDto {
   })
   blobUrl!: string | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Item 25 (type=mls, message franking): base64 HMAC-SHA256(k, P) the sender stored; the receiver checks it against the plaintext it decrypted.',
+  })
+  frankingTag!: string | null;
+
   /** Owner 2026-10-20: the gift of a gift message. */
   @ApiPropertyOptional({ type: () => GiftSendDto, nullable: true })
   gift!: GiftSendDto | null;

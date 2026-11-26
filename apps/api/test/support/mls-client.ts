@@ -318,6 +318,11 @@ export class MlsDeviceClient {
       ciphertext,
       mlsEpoch: epoch,
       mlsDeviceId: this.deviceId,
+      // Every MLS message carries a 32-byte franking tag (the server
+      // requires it); [sendFranked] makes one a report can check.
+      frankingTag: b64(
+        createHmac('sha256', randomBytes(32)).update(text).digest(),
+      ),
     });
   }
 

@@ -1,3 +1,4 @@
+import { Throttle } from '@nestjs/throttler';
 import {
   Body,
   Controller,
@@ -37,6 +38,7 @@ import {
   MlsCommitsQueryDto,
   MlsDeviceDto,
   MlsEpochDto,
+  MlsRejoinDto,
   MlsWelcomeDto,
   MlsWelcomesQueryDto,
   RegisterMlsDeviceDto,
@@ -164,6 +166,9 @@ export class E2eeController {
   }
 
   @Post('conversations/:id/key-packages/claim')
+  // RFC 9750 §6.3: a per-person limit on claims (a real add takes one
+  // claim per commit), so nobody drains another person's KeyPackages.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @HttpCode(200)
   @ApiOperation({ summary: 'One KeyPackage per device to add' })
   @ApiEnvelopeResponse(ClaimedKeyPackageDto, { isArray: true })
@@ -177,6 +182,23 @@ export class E2eeController {
     @Body() dto: ClaimKeyPackagesDto,
   ): Promise<ClaimedKeyPackageDto[]> {
     return this.e2ee.claimKeyPackages(user, p.id, dto.deviceIds);
+  }
+
+  @Post('conversations/:id/rejoin')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'My device could not join from its Welcome: re-add it',
+  })
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    404: [ErrorCode.CONVERSATION_NOT_FOUND, ErrorCode.NOT_FOUND],
+  })
+  requestMlsRejoin(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+    @Body() dto: MlsRejoinDto,
+  ): Promise<void> {
+    return this.e2ee.requestRejoin(user, p.id, dto.deviceId);
   }
 
   @Post('conversations/:id/commits')
@@ -235,7 +257,7 @@ export class E2eeController {
     @CurrentUser() user: RequestUser,
     @Body() dto: E2eeBackupPutDto,
   ): Promise<E2eeBackupDto> {
-    return this.e2ee.putBackup(user, dto.fileId);
+    return this.e2ee.putBackup(user, dto.fileId, dto.keyId);
   }
 
   @Delete('backup')

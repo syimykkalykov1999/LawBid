@@ -73,6 +73,7 @@ import 'package:lawbid/core/l10n/strings/share_to_strings.dart';
 import 'package:lawbid/core/l10n/strings/stale_case_strings.dart';
 import 'package:lawbid/core/l10n/strings/stars_strings.dart';
 import 'package:lawbid/core/l10n/strings/step_up_strings.dart';
+import 'package:lawbid/core/l10n/strings/e2ee_strings.dart';
 import 'package:lawbid/core/l10n/strings/storage_screen_strings.dart';
 import 'package:lawbid/core/l10n/strings/storage_strings.dart';
 import 'package:lawbid/core/l10n/strings/stories_strings.dart';
@@ -1119,6 +1120,7 @@ const Map<String, String> compiledStringsRu = {
   ...casesFilterRu,
   ...storageRu,
   ...storageScreenRu,
+  ...e2eeRu,
   ...supportRu,
   ...caseCoverRu,
   ...caseUrgencyRu,
@@ -2544,6 +2546,7 @@ const Map<String, String> compiledStringsEn = {
   ...casesFilterEn,
   ...storageEn,
   ...storageScreenEn,
+  ...e2eeEn,
   ...supportEn,
   ...caseCoverEn,
   ...caseUrgencyEn,

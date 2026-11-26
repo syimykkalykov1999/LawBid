@@ -12,6 +12,7 @@ class E2eeBackupDto {
     required this.fileId,
     required this.sizeBytes,
     required this.updatedAt,
+    this.keyId,
     this.url,
   });
 
@@ -19,6 +20,9 @@ class E2eeBackupDto {
       _$E2eeBackupDtoFromJson(json);
 
   final String fileId;
+
+  /// Which key locks the backup (E2eeBackupPutDto.keyId).
+  final String? keyId;
   final String? url;
   final num sizeBytes;
   final DateTime updatedAt;

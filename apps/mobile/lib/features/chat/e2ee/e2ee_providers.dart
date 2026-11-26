@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
@@ -7,7 +7,6 @@ import 'package:lawbid/core/cache/cache_database.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/uploads/storage_uploader.dart';
-import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart'
     show ChatMappers;
 import 'package:lawbid/features/chat/e2ee/e2ee_media.dart';
@@ -41,6 +40,9 @@ class DbE2eePlaintextStore implements E2eePlaintextStore {
       );
 
   @override
+  Future<void> remove(String id) => _db.deleteE2eePlaintext(_owner, id);
+
+  @override
   Future<Map<String, (String, String)>> all() async => {
         for (final r in await _db.e2eePlaintextsAll(_owner))
           r.id: (r.conversationId, r.payload),
@@ -57,34 +59,41 @@ final e2eeServiceProvider = Provider<E2eeService?>((ref) {
   final service = E2eeService(
     client: api.E2eeClient(ref.watch(dioProvider)),
     ownerId: owner,
-    plaintexts: DbE2eePlaintextStore(ref.watch(cacheDatabaseProvider), owner),
+    // The web seals them like the MLS state (mls.js), the phones keep them
+    // in the cache database (a file the OS protects).
+    plaintexts: MlsEngine.sealedPlaintexts(owner) ??
+        DbE2eePlaintextStore(ref.watch(cacheDatabaseProvider), owner),
     openEngine: MlsEngine.open,
     // PR 4: encrypted files and the backup go up as ciphertext only (no
-    // scan: the server cannot read them; a reported file is scanned then).
-    upload: (bytes, purpose) => StorageUploader.dio(
+    // scan: the server cannot read them; a reported file is scanned then),
+    // streamed from the file the phone wrote.
+    upload: (body, purpose) => StorageUploader.dio(
       ref.read(dioProvider),
       ref.read(storageDioProvider),
     ).upload(
       purpose: purpose,
-      body: UploadBody.bytes(bytes),
+      body: body,
       mime: 'application/vnd.lawbid.e2ee',
       filename: 'e2ee.bin',
     ),
-    download: (url) async {
-      final r = await ref.read(storageDioProvider).get<List<int>>(
+    // The ciphertext as it arrives (decrypted segment by segment).
+    download: (url) async* {
+      final r = await ref.read(storageDioProvider).get<ResponseBody>(
             url,
-            options: Options(responseType: ResponseType.bytes),
+            options: Options(responseType: ResponseType.stream),
           );
-      return Uint8List.fromList(r.data ?? const []);
+      final body = r.data;
+      if (body != null) yield* body.stream;
     },
   );
   ChatMappers.e2eeOpen = service.openCached;
   // PR 4: the players and image loaders read encrypted files locally.
-  E2eeMedia.resolve = (id) => E2eeService.mediaOf(id, service.download!);
+  E2eeMedia.resolve = service.mediaOf;
   ref.onDispose(() {
     if (ChatMappers.e2eeOpen == service.openCached) ChatMappers.e2eeOpen = null;
-    E2eeMedia.resolve = null;
+    if (E2eeMedia.resolve == service.mediaOf) E2eeMedia.resolve = null;
     E2eeMedia.clear();
+    unawaited(service.close());
   });
   return service;
 });

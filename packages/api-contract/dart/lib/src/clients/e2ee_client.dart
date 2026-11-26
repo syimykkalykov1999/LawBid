@@ -19,6 +19,7 @@ import '../models/mls_commit_row_list_envelope.dart';
 import '../models/mls_device_envelope.dart';
 import '../models/mls_device_list_envelope.dart';
 import '../models/mls_epoch_envelope.dart';
+import '../models/mls_rejoin_dto.dart';
 import '../models/mls_welcome_list_envelope.dart';
 import '../models/register_mls_device_dto.dart';
 import '../models/upload_key_packages_dto.dart';
@@ -98,6 +99,14 @@ abstract class E2eeClient {
   Future<ClaimedKeyPackageListEnvelope> claimMlsKeyPackages({
     @Path('id') required String id,
     @Body() required ClaimKeyPackagesDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My device could not join from its Welcome: re-add it
+  @POST('/e2ee/conversations/{id}/rejoin')
+  Future<void> requestMlsRejoin({
+    @Path('id') required String id,
+    @Body() required MlsRejoinDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

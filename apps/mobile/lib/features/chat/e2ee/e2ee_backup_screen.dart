@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
@@ -13,6 +14,11 @@ import 'package:lawbid/features/chat/e2ee/e2ee_providers.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_service.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 import 'package:material_ui/material_ui.dart';
+
+/// Settings shows the backup row unless the admin's chat.e2ee_mode is Выкл
+/// (owner switch rule: what a switched-off feature needs is not shown).
+bool e2eeBackupVisible(FeatureFlagsState flags) =>
+    flags.appConfig['chat.e2ee_mode'] != 'off';
 
 /// Opens the encrypted backup (Settings → «Зашифрованная резервная копия»).
 void openE2eeBackup(BuildContext context) {
@@ -36,6 +42,9 @@ class E2eeBackupScreen extends ConsumerStatefulWidget {
 class _E2eeBackupScreenState extends ConsumerState<E2eeBackupScreen> {
   api.E2eeBackupDto? _last;
   bool _loading = true;
+
+  /// This device holds the key (WhatsApp: the next backup needs no code).
+  bool _hasKey = false;
   bool _busy = false;
 
   /// The new key while it is shown (before «I saved the key»).
@@ -62,9 +71,11 @@ class _E2eeBackupScreenState extends ConsumerState<E2eeBackupScreen> {
     } on Object {
       last = null; // 404 = none yet
     }
+    final hasKey = await e2ee?.hasBackupKey() ?? false;
     if (!mounted) return;
     setState(() {
       _last = last;
+      _hasKey = hasKey;
       _loading = false;
     });
   }
@@ -87,13 +98,17 @@ class _E2eeBackupScreenState extends ConsumerState<E2eeBackupScreen> {
     showAppSnackBar(context, text);
   }
 
+  /// With a new key just shown ([_newCode]) or, when this device already
+  /// holds one, again with the same key (WhatsApp).
   Future<void> _create() => _run((e2ee) async {
         final t = ref.read(translatorProvider);
-        final n = await e2ee.createBackup(_newCode!);
+        final n = await e2ee.createBackup(newCode: _newCode);
         _newCode = null;
         await _load();
         return t.t('chat.e2ee.backupDone', {'count': '$n'});
       });
+
+  void _showNewKey() => setState(() => _newCode = E2eeService.newBackupCode());
 
   Future<void> _restore() => _run((e2ee) async {
         final t = ref.read(translatorProvider);
@@ -102,6 +117,7 @@ class _E2eeBackupScreenState extends ConsumerState<E2eeBackupScreen> {
         try {
           final n = await e2ee.restoreBackup(code);
           _input.clear();
+          await _load();
           return t.t('chat.e2ee.backupRestored', {'count': '$n'});
         } on E2eeNotReady {
           return t.t('chat.e2ee.backupNone');
@@ -190,18 +206,28 @@ class _E2eeBackupScreenState extends ConsumerState<E2eeBackupScreen> {
                       onPressed: _create,
                     ),
                   ),
-                ] else
+                ] else ...[
                   Center(
                     child: AppButton(
                       key: const ValueKey('e2ee-backup-create'),
                       label: t.t('chat.e2ee.backupCreate'),
-                      onPressed: _busy
-                          ? null
-                          : () => setState(
-                                () => _newCode = E2eeService.newBackupCode(),
-                              ),
+                      isLoading: _busy && _hasKey,
+                      onPressed:
+                          _busy ? null : (_hasKey ? _create : _showNewKey),
                     ),
                   ),
+                  if (_hasKey) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Center(
+                      child: AppButton(
+                        key: const ValueKey('e2ee-backup-new-key'),
+                        label: t.t('chat.e2ee.backupNewKey'),
+                        variant: AppButtonVariant.secondary,
+                        onPressed: _busy ? null : _showNewKey,
+                      ),
+                    ),
+                  ],
+                ],
                 if (last != null && code == null) ...[
                   const SizedBox(height: AppSpacing.xl * 2),
                   AppTextField(

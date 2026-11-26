@@ -141,6 +141,16 @@ export class CreateMlsGroupDto {
   groupId!: string;
 }
 
+/** RFC 9420 §12.4.3.1: a Welcome this device could not join from (its
+ * KeyPackage's private half is gone, the Welcome is damaged) — the other
+ * members remove the device's leaf and add it again from a new KeyPackage,
+ * so it gets a fresh Welcome (Wire's "re-add on failed Welcome"). */
+export class MlsRejoinDto {
+  @ApiProperty({ format: 'uuid', description: 'My device that cannot join.' })
+  @IsUUID('all')
+  deviceId!: string;
+}
+
 export class MlsCommitDto {
   @ApiProperty({ format: 'uuid', description: 'The committing device.' })
   @IsUUID('all')
@@ -379,11 +389,27 @@ export class E2eeBackupPutDto {
   })
   @IsUUID('all')
   fileId!: string;
+
+  @ApiProperty({
+    description:
+      'Which 64-digit key locks it: base64 of HMAC-SHA256(backup key, "lawbid-e2ee-backup-key-id"), 16 bytes (the key itself never leaves the phone). WhatsApp: the same key serves every backup until the person makes a new one.',
+    maxLength: 24,
+  })
+  @IsBase64()
+  @MaxLength(24)
+  keyId!: string;
 }
 
 export class E2eeBackupDto {
   @ApiProperty({ format: 'uuid' })
   fileId!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Which key locks the backup (E2eeBackupPutDto.keyId).',
+  })
+  keyId!: string | null;
 
   @ApiPropertyOptional({ type: String, nullable: true })
   url!: string | null;

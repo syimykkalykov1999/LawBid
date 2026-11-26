@@ -1024,10 +1024,12 @@ erDiagram
     String user_id
     Int joined_epoch
     DateTime created_at
+    DateTime rejoin_at "nullable"
   }
   e2ee_backups {
     String user_id PK,FK
     String file_id
+    String key_id "nullable"
     DateTime created_at
     DateTime updated_at
   }

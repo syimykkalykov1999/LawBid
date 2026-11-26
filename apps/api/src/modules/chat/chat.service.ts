@@ -1410,10 +1410,13 @@ export class ChatService implements FileScanListener {
         epoch: dto.mlsEpoch!,
         ciphertext: new Uint8Array(ciphertext!),
       });
-      if (frankingTag && frankingTag.length !== 32) {
+      // Message franking (Messenger): every MLS message carries its
+      // 32-byte tag, so a report of it can be checked and its receivers
+      // check it too (a message whose tag does not match is dropped).
+      if (!frankingTag || frankingTag.length !== 32) {
         throw new BadRequestException({
           code: ErrorCode.VALIDATION_ERROR,
-          message: 'A franking tag is 32 bytes.',
+          message: 'An MLS message needs its 32-byte franking tag.',
           details: { field: 'frankingTag' },
         });
       }
@@ -3095,6 +3098,11 @@ export class ChatService implements FileScanListener {
           ? Buffer.from(m.ciphertext).toString('base64')
           : null,
       mlsEpoch: m.type === 'mls' ? m.mls_epoch : null,
+      // Message franking: the receivers check HMAC(k, P) against it.
+      frankingTag:
+        m.type === 'mls' && m.franking_tag && !revoked
+          ? Buffer.from(m.franking_tag).toString('base64')
+          : null,
       blobUrl:
         m.type === 'mls' && m.file_id && !revoked
           ? (media?.blobs?.get(m.file_id)?.url ?? null)
