@@ -9,6 +9,8 @@ import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/data/message_store.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_payload.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_service.dart';
 import 'package:lawbid/features/stars/domain/stars_mappers.dart';
 import 'package:lawbid/features/stickers/data/stickers_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -89,7 +91,8 @@ abstract interface class ChatRepository {
     bool forwarded = false,
   });
 
-  /// OQ-040: presign → upload → confirm → clean scan of an m4a note.
+  /// OQ-040: presign → upload → confirm of an m4a note (M3: the scan is not
+  /// waited for; the server shows the note to the others once it is clean).
   Future<String> uploadVoice(Uint8List bytes);
 
   /// OQ-040: a voice message with an uploaded [fileId].
@@ -102,8 +105,8 @@ abstract interface class ChatRepository {
     String? replyToId,
   });
 
-  /// OQ-047: presign → upload → confirm → clean scan of a photo or a
-  /// document; [mime] comes from `sniffChatMime`.
+  /// OQ-047: presign → upload → confirm of a photo or a document; [mime]
+  /// comes from `sniffChatMime` (M3: the scan is not waited for).
   Future<String> uploadAttachment(
     Uint8List bytes,
     String mime, {
@@ -202,6 +205,7 @@ class ApiChatRepository implements ChatRepository {
     Dio? storageDio,
     this.listCache,
     this.messageStore,
+    this.e2ee,
   })  : _chat = api.ChatClient(dio),
         _uploader = StorageUploader.dio(dio, storageDio ?? dio);
 
@@ -212,10 +216,21 @@ class ApiChatRepository implements ChatRepository {
   /// to the phone's copy of the chat (pages, catch-ups, my own writes).
   final MessageStore? messageStore;
 
+  /// Item 25: end-to-end encrypted chats — outgoing text is sealed with
+  /// MLS, incoming `mls` messages are opened (once) before anything else
+  /// of the app sees them; the phone's copy holds the opened message.
+  final E2eeService? e2ee;
+
   ChatMessage _m(api.MessageDto d) {
-    unawaited(messageStore?.put(d.conversationId, [d]) ?? Future.value());
-    return ChatMappers.message(d);
+    final shown = e2ee?.openCached(d) ?? d;
+    unawaited(
+      messageStore?.put(shown.conversationId, [shown]) ?? Future.value(),
+    );
+    return ChatMappers.message(shown);
   }
+
+  Future<List<api.MessageDto>> _open(List<api.MessageDto> ds) =>
+      e2ee?.openAll(ds) ?? Future.value(ds);
 
   final api.ChatClient _chat;
   final StorageUploader _uploader;
@@ -238,6 +253,10 @@ class ApiChatRepository implements ChatRepository {
       mime: webm ? 'audio/webm' : 'audio/mp4',
       filename: webm ? 'voice.webm' : 'voice.m4a',
       scanMaxPolls: _scanMaxPolls,
+      // M3 (owner 25.11, Slack / Telegram), as the queue jobs: the message
+      // goes once storage has the note; the server shows it to the others
+      // after a clean scan, so no 28 s wait and no «scan» failure here.
+      waitScan: false,
     );
   }
 
@@ -287,6 +306,11 @@ class ApiChatRepository implements ChatRepository {
       mime: mime,
       onProgress: onProgress,
       scanMaxPolls: _scanMaxPolls,
+      // M3 (owner 25.11): group files with `group_files_from_disk` off come
+      // here; like `uploadChatAttachmentJob` they no longer wait for the
+      // antivirus (the server holds the file back from the others until it
+      // is clean, PR #1300).
+      waitScan: false,
     );
   }
 
@@ -610,17 +634,18 @@ class ApiChatRepository implements ChatRepository {
     final env =
         await guardApiCall(() => _chat.listMessages(id: id, cursor: cursor));
     final next = env.meta?.nextCursor;
+    final data = await _open(env.data);
     unawaited(
       messageStore?.put(
             id,
-            env.data,
+            data,
             nextCursor: next,
             complete: next == null,
           ) ??
           Future.value(),
     );
     return CursorPage(
-      items: env.data.map(ChatMappers.message).toList(),
+      items: data.map(ChatMappers.message).toList(),
       nextCursor: next,
     );
   }
@@ -630,8 +655,9 @@ class ApiChatRepository implements ChatRepository {
     final env = await guardApiCall(
       () => _chat.listMessages(id: id, afterId: afterId),
     );
-    unawaited(messageStore?.put(id, env.data) ?? Future.value());
-    return env.data.map(ChatMappers.message).toList();
+    final data = await _open(env.data);
+    unawaited(messageStore?.put(id, data) ?? Future.value());
+    return data.map(ChatMappers.message).toList();
   }
 
   @override
@@ -641,21 +667,45 @@ class ApiChatRepository implements ChatRepository {
     String body, {
     String? replyToId,
     bool forwarded = false,
-  }) async =>
-      _m(
-        (await guardApiCall(
-          () => _chat.sendMessage(
-            id: id,
-            body: api.SendMessageDto(
-              clientMessageId: clientMessageId,
-              body: body,
-              replyToId: replyToId,
-              forwarded: forwarded ? true : null,
-            ),
-          ),
-        ))
-            .data,
-      );
+  }) async {
+    // Item 25: in an end-to-end encrypted chat the text goes sealed (the
+    // reply and the «Forwarded» mark inside it; the server sees neither).
+    final sealed = await e2ee?.seal(
+      id,
+      clientMessageId,
+      E2eePayload(
+        kind: 'text',
+        body: body,
+        replyToId: replyToId,
+        forwarded: forwarded,
+      ),
+    );
+    final api.MessageDto sent;
+    try {
+      sent = (await guardApiCall(
+        () => _chat.sendMessage(
+          id: id,
+          body: sealed ??
+              api.SendMessageDto(
+                clientMessageId: clientMessageId,
+                body: body,
+                replyToId: replyToId,
+                forwarded: forwarded ? true : null,
+              ),
+        ),
+      ))
+          .data;
+    } on ApiException catch (e) {
+      // The chat's encryption moved on / it became encrypted / a device
+      // must go first: the cached state is stale; the outbox tries again
+      // and the next seal catches up (no state request on every send).
+      if (e.statusCode == 409 && e.code.startsWith('E2EE_')) {
+        e2ee?.invalidate(id);
+      }
+      rethrow;
+    }
+    return _m((await _open([sent])).single);
+  }
 
   @override
   Future<ChatMessage> editMessage(
@@ -856,7 +906,16 @@ abstract final class ChatMappers {
   static bool _gone(api.MessageDto d) =>
       d.expiresAt != null && !d.expiresAt!.isAfter(DateTime.now());
 
-  static ChatMessage message(api.MessageDto d) => ChatMessage(
+  /// Item 25: opens an end-to-end encrypted message from the device's
+  /// memory (set by the signed-in account's E2eeService) — every way a
+  /// message reaches a screen (lists, events, the phone's copy) passes here.
+  static api.MessageDto Function(api.MessageDto d)? e2eeOpen;
+
+  static ChatMessage message(api.MessageDto raw) => _message(
+        raw.type == api.MessageDtoType.mls ? (e2eeOpen?.call(raw) ?? raw) : raw,
+      );
+
+  static ChatMessage _message(api.MessageDto d) => ChatMessage(
         id: d.id,
         conversationId: d.conversationId,
         senderId: d.senderId,
@@ -1011,6 +1070,7 @@ abstract final class ChatMappers {
         markedUnread: d.markedUnread ?? false,
         matchedMessage: d.matchedMessage,
         disappearAfterS: d.disappearAfterS?.toInt(),
+        e2eeSince: d.e2eeSince,
       );
 
   /// A realtime `message:new` payload (same shape as MessageDto).

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/route_observer.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
@@ -8,6 +9,7 @@ import 'package:lawbid/features/auth/domain/password_reauth_outcome.dart';
 import 'package:lawbid/features/auth/presentation/screens/phone_screen.dart'
     show SwitchChannelLink;
 import 'package:lawbid/features/auth/presentation/widgets/password_form_widgets.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Whether to offer «Face ID / отпечаток» on the password step-up: the
@@ -51,6 +53,18 @@ class PasswordStepUp extends ConsumerStatefulWidget {
 }
 
 class _PasswordStepUpState extends ConsumerState<PasswordStepUp> {
+  /// Owner 25.11 («по умолчанию SMS»): «…get a code by SMS» or «…by
+  /// email» — where the code would go ([stepUpCodeTargetProvider]), or the
+  /// server's `auth.code_channel` when the account has no verified contact.
+  bool _codeBySms() {
+    final target = ref.read(stepUpCodeTargetProvider);
+    if (target != null) return target.channel == 'phone';
+    return ref
+            .read(featureFlagsControllerProvider)
+            .appConfig['auth.code_channel'] !=
+        'email';
+  }
+
   final _password = TextEditingController();
   bool _busy = false;
   String? _error;
@@ -85,7 +99,9 @@ class _PasswordStepUpState extends ConsumerState<PasswordStepUp> {
       case PasswordReauthLocked():
         setState(() {
           _busy = false;
-          _error = t.t('stepUp.password.locked');
+          _error = _codeBySms()
+              ? t.t('stepUp.password.locked.sms')
+              : t.t('stepUp.password.locked');
         });
       case PasswordReauthUseCode():
         final useCode = widget.onUseCode;
@@ -127,6 +143,12 @@ class _PasswordStepUpState extends ConsumerState<PasswordStepUp> {
   Widget build(BuildContext context) {
     final t = ref.watch(translatorProvider);
     final passkey = ref.watch(stepUpPasskeyProvider).value ?? false;
+    final target = ref.watch(stepUpCodeTargetProvider);
+    final serverSms = ref.watch(
+      featureFlagsControllerProvider
+          .select((s) => s.appConfig['auth.code_channel'] != 'email'),
+    );
+    final bySms = target == null ? serverSms : target.channel == 'phone';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
@@ -164,7 +186,7 @@ class _PasswordStepUpState extends ConsumerState<PasswordStepUp> {
           const SizedBox(height: AppSpacing.sm),
           SwitchChannelLink(
             key: const ValueKey('step-up-use-code'),
-            label: t.t('stepUp.useCode'),
+            label: bySms ? t.t('stepUp.useCode.sms') : t.t('stepUp.useCode'),
             alignment: AlignmentDirectional.center,
             textAlign: TextAlign.center,
             onTap: () {

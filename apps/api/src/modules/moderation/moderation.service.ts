@@ -17,6 +17,7 @@ import { fileNameAad } from '../../common/secrets/field-aad';
 import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { AutoModerationService } from './auto-moderation.service';
 import { ReporterReputationService } from './reporter-reputation.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export type Tx = Prisma.TransactionClient;
 
@@ -66,6 +67,8 @@ export class ModerationService {
     @Optional() private readonly reputation?: ReporterReputationService,
     @Optional() private readonly auto?: AutoModerationService,
     @Optional() private readonly outbox?: CrossFamilyOutbox,
+    // Foreman re-check 25.11 (item 5): a hidden comment leaves open posts.
+    @Optional() private readonly notifications?: NotificationsService,
   ) {}
 
   /**
@@ -600,6 +603,24 @@ export class ModerationService {
             after.push(() =>
               this.counters.bump('comment', parentId, 'reply_count', delta),
             );
+          }
+          // Foreman re-check 25.11 (item 5, Instagram / YouTube): a comment
+          // a moderator or an admin takes down leaves the open post at once,
+          // the same event the author's own delete sends (`comment:deleted`
+          // to room `post:{id}`, CommentsService.remove). [removed] is what
+          // left the post's count — this one comment (FO1: its replies stay
+          // counted). Queued in [after], so it goes only after the commit.
+          if (delta < 0 && postId) {
+            const commentId = target.id;
+            after.push(() => {
+              this.notifications?.commentRemoved({
+                postId,
+                commentId,
+                parentCommentId: parentId ?? null,
+                removed: -delta,
+              });
+              return Promise.resolve();
+            });
           }
         }
         return target.status;

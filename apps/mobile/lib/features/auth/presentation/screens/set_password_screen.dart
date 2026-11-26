@@ -85,8 +85,8 @@ class _SetPasswordScreenState extends ConsumerState<SetPasswordScreen> {
   /// Sends the "it's me" code to a contact the account already has.
   Future<void> _askIdentity() async {
     final t = ref.read(translatorProvider);
-    final target =
-        ref.read(currentUserControllerProvider).user?.reauthIdentifier;
+    // Owner 25.11: the contact the server's `auth.code_channel` picks.
+    final target = ref.read(stepUpCodeTargetProvider);
     if (target == null) {
       setState(() {
         _busy = false;

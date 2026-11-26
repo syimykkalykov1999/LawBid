@@ -18,6 +18,7 @@ import '../models/post_kind.dart';
 import '../models/post_list_envelope.dart';
 import '../models/post_media_filter.dart';
 import '../models/record_post_events_dto.dart';
+import '../models/record_reel_watch_dto.dart';
 import '../models/saved_post_item_list_envelope.dart';
 import '../models/update_post_dto.dart';
 
@@ -170,6 +171,15 @@ abstract class PostsClient {
   @POST('/posts/events')
   Future<void> recordPostEvents({
     @Body() required RecordPostEventsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Record how long reel views played (batch, idempotent per view).
+  ///
+  /// Owner 25.11: one event per ended reel view — watchedMs of real playback, durationMs of the clip, completed when it played to the end. Up to 50 per request; the same viewId again adds nothing.
+  @POST('/posts/watch')
+  Future<void> recordReelWatch({
+    @Body() required RecordReelWatchDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

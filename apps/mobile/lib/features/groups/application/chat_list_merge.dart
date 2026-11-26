@@ -61,13 +61,16 @@ final class GroupChatEntry extends ChatListEntry {
   bool get hasUnread => group.unreadCount > 0;
 }
 
-/// R-404 (b) (owner 2026-11-04, Telegram: one person = one row): in «All»
-/// every conversation with the same person — the direct chat and one chat
+/// R-404 (b) (owner 2026-11-04, Telegram: one person = one row): every
+/// conversation with the same person — the direct chat and one chat
 /// per case — is ONE row. The row is the direct chat (or, while there is
 /// none, a stand-in built from the newest case chat; a tap on it opens or
 /// starts the direct chat); its preview is the newest message across all
 /// of them, its unread count their sum, its place the newest activity.
 /// The case chats themselves stay under the «Cases» chip and in the case.
+/// Owner 2026-11-25: «Все» has no case chats any more ([withoutCaseChats]),
+/// so there a person's row is simply their direct chat (the grouping stays
+/// for two direct chats with one person and for [mergeChatList] callers).
 final class PersonChatEntry extends ChatListEntry {
   PersonChatEntry({
     required this.counterpartId,
@@ -296,7 +299,32 @@ AsyncValue<PaginatedList<Conversation>> chatsOrMemory(
   return AsyncData(PaginatedList.firstPage(memory));
 }
 
-/// The «All» view of Chats: direct chats + my groups.
+/// Owner 2026-11-25: «Все» holds only the direct chats and the groups —
+/// no case chat at all; those live only in the «Кейсы» tab (and in the
+/// case). The server has no folder for «direct only» (its «general» is a
+/// chosen folder, not «no case»), and the case chats of the «All» list stay
+/// in memory for «Cases with this person (N)» ([caseChatsWithProvider]), so
+/// the list is filtered here, with no extra request. The paging is the
+/// server's: the next page is still asked for while it has one.
+AsyncValue<PaginatedList<Conversation>> withoutCaseChats(
+  AsyncValue<PaginatedList<Conversation>> chats,
+) =>
+    chats.whenData(
+      (p) => p.items.any((c) => c.caseId != null)
+          ? PaginatedList(
+              items: [
+                for (final c in p.items)
+                  if (c.caseId == null) c,
+              ],
+              nextCursor: p.nextCursor,
+              isLoadingMore: p.isLoadingMore,
+              loadMoreError: p.loadMoreError,
+            )
+          : p,
+    );
+
+/// The «All» view of Chats: direct chats + my groups (owner 2026-11-25: no
+/// case chats, see [withoutCaseChats]).
 final mergedChatListProvider =
     Provider.autoDispose<AsyncValue<PaginatedList<ChatListEntry>>>((ref) {
   final live = ref.watch(conversationsProvider);
@@ -306,7 +334,9 @@ final mergedChatListProvider =
   // instead of holding the whole list on a skeleton.
   final fromMemory = !live.hasValue && !live.hasError;
   return combineChatLists(
-    chatsOrMemory(live, ref.watch(chatListCacheProvider).memory),
+    withoutCaseChats(
+      chatsOrMemory(live, ref.watch(chatListCacheProvider).memory),
+    ),
     groups,
     // Owner 2026-11-16 (chat-groups plan, step 4, WhatsApp): my groups are
     // rows of the chat list next to the 1:1 chats while «Группы в чатах»
@@ -352,7 +382,35 @@ final caseChatsWithProvider =
     );
 });
 
+/// Owner 2026-11-25: the unread messages of the case chats in the «All»
+/// list in memory — the «Чаты» tab leaves them out of its count, since
+/// «Все» shows no case chat (the «Кейсы» tab has its own count).
+final caseChatsUnreadProvider = Provider.autoDispose<int>((ref) {
+  final live = ref.watch(conversationsProvider).value?.items;
+  final rows = live ?? ref.watch(chatListCacheProvider).memory?.items;
+  if (rows == null) return 0;
+  var n = 0;
+  for (final c in rows) {
+    if (c.caseId != null) n += c.unreadCount;
+  }
+  return n;
+});
+
+/// The count on the «Чаты» tab: every unread chat message ([badgeChats],
+/// the server's badge, case chats included) minus the case chats' ones
+/// ([caseUnread], owner 2026-11-25), plus the message requests.
+int chatsTabCount(
+  int badgeChats, {
+  required int caseUnread,
+  required int requests,
+}) {
+  final direct = badgeChats - caseUnread;
+  return (direct < 0 ? 0 : direct) + requests;
+}
+
 /// The Chats search: server-filtered chats + the loaded groups by title.
+/// Owner 2026-11-25: searching «Все» finds no case chat either (the
+/// «Кейсы» tab has its own search).
 final mergedChatSearchProvider = Provider.autoDispose
     .family<AsyncValue<PaginatedList<ChatListEntry>>, ChatSearchKey>(
   (ref, key) {
@@ -366,8 +424,11 @@ final mergedChatSearchProvider = Provider.autoDispose
         withGroups: groupsOn,
       );
     }
+    final found = ref.watch(searchConversationsProvider(key));
     return combineChatLists(
-      ref.watch(searchConversationsProvider(key)),
+      key.folder == ChatListFolder.all || key.folder == ChatListFolder.unread
+          ? withoutCaseChats(found)
+          : found,
       ref.watch(groupsProvider),
       query: key.q,
       // Owner 2026-11-16 (step 4): «Все» and «Непрочитанные» find groups

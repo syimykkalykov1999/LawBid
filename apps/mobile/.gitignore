@@ -53,3 +53,7 @@ app.*.map.json
 /vendor/
 /.bundle/
 /Gemfile.lock
+
+# Item 25: the openmls package's build hook drops its WASM build here on a
+# web build; the web app uses ts-mls (web/js/mls.js) instead.
+/web/pkg/

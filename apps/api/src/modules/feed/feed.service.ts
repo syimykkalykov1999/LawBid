@@ -48,6 +48,13 @@ import {
   followToken,
   selfToken,
 } from './feed-timeline.service';
+import { createHash } from 'node:crypto';
+import {
+  HOME_FEED_RANKER,
+  type HomeFeedArm,
+  type HomeFeedRanker,
+  RANKED_PIN_TTL_SEC,
+} from '../../common/feed-ranking/home-feed-ranker';
 
 export const recoCurrentKey = () => ck('reco', 'feed:reco:current');
 export const recoKey = (version: string) => ck('reco', `feed:reco:${version}`);
@@ -79,6 +86,29 @@ const FOLLOWEES_MAX = 2000;
  * so the two can never drift from the shared rule). */
 const { author: AUTHOR_VISIBLE, ...POST_VISIBLE_WHERE } = VISIBLE_POST_WHERE;
 const AUTHOR_VISIBLE_WHERE = AUTHOR_VISIBLE as Prisma.UserWhereInput;
+
+/** Owner 25.11: the model arm's ranked window of one scroll (FeedCursor.k). */
+const rankedKey = (uid: string, pin: string) => `feed:rank:${uid}:${pin}`;
+
+interface RankedWindow {
+  ids: string[];
+  rep: Record<string, PostReposterDto>;
+}
+
+/** One page of the feed before it is presented. */
+interface StreamPage {
+  page: Post[];
+  reposters: Map<string, PostReposterDto>;
+  /** The chronological read after this page (null = the feed ended). */
+  next: FeedCursor | null;
+  nextCursor: string | null;
+  /** Recommendations served on it (marked seen). */
+  usedReco: string[];
+  /** The posts model's rows the page was ranked with (model arm). */
+  rows?: ReadonlyMap<string, Record<string, number>>;
+}
+
+const emptyPage = (): PostPage => ({ items: [], nextCursor: null });
 
 function badCursor(): BadRequestException {
   return new BadRequestException({
@@ -123,6 +153,11 @@ export class FeedService implements FeedProvider {
     // Item 23 (F1): the precomputed timeline (fan-out on write); absent =
     // the read below, as before.
     @Optional() private readonly timeline?: FeedTimelineService,
+    // Owner 25.11: the posts model orders the model arm's window; absent =
+    // the feed as before (and no impressions log).
+    @Optional()
+    @Inject(HOME_FEED_RANKER)
+    private readonly reco?: HomeFeedRanker,
   ) {
     this.cache = cache ?? redis;
   }
@@ -262,11 +297,16 @@ export class FeedService implements FeedProvider {
     // Owner 2026-10-05: "Legal only" hides general (personal) posts.
     const mode = await this.contentFilter.modeOf(viewer.sub);
     const only = contentModeWhere(mode);
+    // Owner 25.11 (Instagram home feed): a scroll that started on a ranked
+    // window keeps paging that same window (FeedCursor.k).
+    if (cursor.k) return this.rankedNext(viewer, cursor, limit, only);
+    const arm = (await this.reco?.homeFeedArm(viewer.sub)) ?? null;
+    const ranked = !!this.reco?.isHomeModelArm(arm);
     const ver = first ? await feedVersion(this.cache, viewer.sub) : '0';
+    // The model arm's first page is another list: its own cache entry.
+    const firstKey = `${firstPageKey(viewer.sub, limit, mode, ver)}${ranked ? ':ranked' : ''}`;
     if (first) {
-      const cached = await this.cache.get(
-        firstPageKey(viewer.sub, limit, mode, ver),
-      );
+      const cached = await this.cache.get(firstKey);
       if (cached) {
         return this.fromIds(
           viewer,
@@ -279,7 +319,201 @@ export class FeedService implements FeedProvider {
         );
       }
     }
+    const out =
+      (first && ranked
+        ? await this.rankedFirst(viewer, limit, only, startedAt, arm)
+        : null) ??
+      (await this.streamPage(viewer, cursor, first, limit, only, startedAt));
+    await this.markSeen(viewer.sub, out.usedReco);
+    if (first) {
+      await this.cache.set(
+        firstKey,
+        JSON.stringify({
+          ids: out.page.map((p) => p.id),
+          next: out.nextCursor,
+          rep: Object.fromEntries(out.reposters),
+        }),
+        'EX',
+        FIRST_PAGE_TTL_SEC,
+      );
+    }
+    // Owner 25.11: every served page is training data for the posts model
+    // (sampled people only; never waited for).
+    void this.reco?.logHomeServed(
+      viewer.sub,
+      out.page.map((p) => p.id),
+      first ? 0 : (cursor.n ?? 0),
+      arm,
+      out.rows,
+    );
+    return {
+      items: await this.presenter.present(out.page, viewer.sub, out.reposters),
+      nextCursor: out.nextCursor,
+    };
+  }
 
+  /**
+   * Owner 25.11 (Instagram home feed, "Journey to 1000 models" 2025:
+   * candidates first, then the model orders them, served from a fixed
+   * window): the model arm's first page. The candidate window is the feed
+   * exactly as today (fan-out timeline + celebrity pull, recommendation
+   * slots, reposts, the tail) read `reco.ranker.feed_window` posts deep;
+   * the posts model orders it once, the order is pinned for the scroll
+   * (POST_PIN_TTL_SEC, like Search «Для вас») and paged by FeedCursor.k;
+   * after the window the feed goes on exactly where the window's
+   * chronological read stopped. The viewer's own posts of the window's
+   * first page stay on top (a post just published is seen at once). Null
+   * = no model / scoring failed: the caller serves today's page.
+   */
+  private async rankedFirst(
+    viewer: RequestUser,
+    limit: number,
+    only: Prisma.PostWhereInput,
+    startedAt: number,
+    arm: HomeFeedArm,
+  ): Promise<StreamPage | null> {
+    const reco = this.reco;
+    if (!reco) return null;
+    const window = Math.max(
+      limit,
+      await this.num('reco.ranker.feed_window', 20, 400),
+    );
+    const win = await this.streamPage(
+      viewer,
+      { f: null, r: 0, v: null },
+      true,
+      window,
+      only,
+      startedAt,
+    );
+    if (win.page.length === 0) return null;
+    const lead = new Set(
+      win.page
+        .slice(0, limit)
+        .filter((p) => p.author_id === viewer.sub)
+        .map((p) => p.id),
+    );
+    const ranked = await reco.rankHomeWindow(
+      viewer.sub,
+      win.page.map((p) => p.id),
+      lead,
+      arm,
+    );
+    if (!ranked || ranked.ids.length === 0) return null;
+    const byId = new Map(win.page.map((p) => [p.id, p]));
+    const rep = Object.fromEntries(
+      [...win.reposters].filter(([id]) => ranked.ids.includes(id)),
+    );
+    const pin = createHash('sha256')
+      .update(JSON.stringify(ranked.ids))
+      .digest('base64url')
+      .slice(0, 12);
+    try {
+      await this.cache.set(
+        rankedKey(viewer.sub, pin),
+        JSON.stringify({ ids: ranked.ids, rep } satisfies RankedWindow),
+        'EX',
+        RANKED_PIN_TTL_SEC,
+      );
+    } catch {
+      // Cache down: the window is not kept; serve today's page instead
+      // (a scroll that cannot be paged stably is not served ranked).
+      return null;
+    }
+    const pageIds = ranked.ids.slice(0, limit);
+    // The chronological read after the window (null: the feed ended in it).
+    const after = win.next;
+    const nextCursor =
+      ranked.ids.length > limit
+        ? encodeFeedCursor({
+            ...(after ?? { f: null, r: 0, v: null }),
+            k: { p: pin, o: limit, ...(after ? {} : { e: true }) },
+          })
+        : after
+          ? encodeFeedCursor({ ...after, n: ranked.ids.length })
+          : null;
+    return {
+      page: pageIds.flatMap((id) => (byId.has(id) ? [byId.get(id)!] : [])),
+      reposters: new Map(
+        Object.entries(rep).filter(([id]) => pageIds.includes(id)),
+      ),
+      nextCursor,
+      next: null,
+      usedReco: win.usedReco,
+      rows: ranked.rows,
+    };
+  }
+
+  /**
+   * A later page of a ranked window (FeedCursor.k): the next ids of the
+   * pinned order, re-read with the visibility rule, the content mode and
+   * the block set (a post deleted, hidden or blocked since is never shown).
+   * The window lost (cache eviction) = the feed goes on chronologically
+   * from where the window's read stopped.
+   */
+  private async rankedNext(
+    viewer: RequestUser,
+    cursor: FeedCursor,
+    limit: number,
+    only: Prisma.PostWhereInput,
+  ): Promise<PostPage> {
+    const k = cursor.k!;
+    const rest: FeedCursor = { ...cursor, k: undefined };
+    // A dead cache node reads as a lost window.
+    const raw = await this.cache
+      .get(rankedKey(viewer.sub, k.p))
+      .catch(() => null);
+    const after = (n: number): string | null =>
+      k.e ? null : encodeFeedCursor({ ...rest, n });
+    if (!raw) {
+      const lost = after(cursor.n ?? k.o);
+      return lost ? this.organicPage(viewer, lost, limit) : emptyPage();
+    }
+    const win = JSON.parse(raw) as RankedWindow;
+    const arm = (await this.reco?.homeFeedArm(viewer.sub)) ?? null;
+    let o = k.o;
+    for (;;) {
+      const ids = win.ids.slice(o, o + limit);
+      const end = o + limit >= win.ids.length;
+      const nextCursor = end
+        ? after(win.ids.length)
+        : encodeFeedCursor({ ...cursor, k: { ...k, o: o + limit } });
+      const page = await this.fromIds(
+        viewer,
+        { ids, next: nextCursor, rep: win.rep },
+        only,
+      );
+      // Everything of this slice was deleted / hidden / blocked since:
+      // the next slice, so a page never comes back empty mid-feed.
+      if (page.items.length === 0 && !end) {
+        o += limit;
+        continue;
+      }
+      void this.reco?.logHomeServed(
+        viewer.sub,
+        page.items.map((p) => p.id),
+        o,
+        arm,
+      );
+      return page;
+    }
+  }
+
+  /**
+   * The feed page as it was before ranking (and still is for everyone
+   * outside the model arm): followed + own posts newest first, every 4th
+   * slot a recommendation, reposts by people followed, then every other
+   * post newest first. [usedReco] are marked seen by the caller.
+   */
+  private async streamPage(
+    viewer: RequestUser,
+    cursor: FeedCursor,
+    first: boolean,
+    limit: number,
+    only: Prisma.PostWhereInput,
+    startedAt: number,
+  ): Promise<StreamPage> {
+    const served = first ? 0 : (cursor.n ?? 0);
     // Bounded: the most recent follows feed the "followed" stream (load
     // review — an account following 50k attorneys can't make an unbounded
     // IN list).
@@ -313,18 +547,23 @@ export class FeedService implements FeedProvider {
         since,
       );
       const last = tail[tail.length - 1];
+      const next: FeedCursor | null =
+        tail.length < limit || !last
+          ? null
+          : {
+              f: null,
+              r: cursor.r,
+              v: cursor.v,
+              l: { t: last.created_at.toISOString(), id: last.id },
+              ...(since ? { s: since } : {}),
+              n: served + tail.length,
+            };
       return {
-        items: await this.presenter.present(tail, viewer.sub),
-        nextCursor:
-          tail.length < limit || !last
-            ? null
-            : encodeFeedCursor({
-                f: null,
-                r: cursor.r,
-                v: cursor.v,
-                l: { t: last.created_at.toISOString(), id: last.id },
-                ...(since ? { s: since } : {}),
-              }),
+        page: tail,
+        reposters: new Map(),
+        next,
+        nextCursor: next ? encodeFeedCursor(next) : null,
+        usedReco: [],
       };
     }
 
@@ -441,7 +680,7 @@ export class FeedService implements FeedProvider {
       l: lastL ? { t: lastL.created_at.toISOString(), id: lastL.id } : null,
       ...(since ? { s: since } : {}),
     };
-    const nextCursor = page.length < limit ? null : encodeFeedCursor(next);
+    const ended = page.length < limit;
 
     // Owner 2026-10-12 (Threads): what the people I follow reposted, in the
     // time window this page covers — "reposted by @name" over the card.
@@ -477,25 +716,15 @@ export class FeedService implements FeedProvider {
       for (const [postId, who] of heads) reposters.set(postId, who);
     }
 
-    await this.markSeen(
-      viewer.sub,
-      usedReco.map((p) => p.id),
-    );
-    if (first) {
-      await this.cache.set(
-        firstPageKey(viewer.sub, limit, mode, ver),
-        JSON.stringify({
-          ids: page.map((p) => p.id),
-          next: nextCursor,
-          rep: Object.fromEntries(reposters),
-        }),
-        'EX',
-        FIRST_PAGE_TTL_SEC,
-      );
-    }
+    const counted: FeedCursor | null = ended
+      ? null
+      : { ...next, n: served + page.length };
     return {
-      items: await this.presenter.present(page, viewer.sub, reposters),
-      nextCursor,
+      page,
+      reposters,
+      next: counted,
+      nextCursor: counted ? encodeFeedCursor(counted) : null,
+      usedReco: usedReco.map((p) => p.id),
     };
   }
 
@@ -779,7 +1008,10 @@ export class FeedService implements FeedProvider {
 
   /** An admin number clamped to [min, max] (the default without settings). */
   private async num(
-    key: 'feed.reco_scan_max' | 'feed.reposts_per_page',
+    key:
+      | 'feed.reco_scan_max'
+      | 'feed.reposts_per_page'
+      | 'reco.ranker.feed_window',
     min: number,
     max: number,
   ): Promise<number> {

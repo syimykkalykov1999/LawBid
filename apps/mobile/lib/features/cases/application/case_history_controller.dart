@@ -46,16 +46,15 @@ class HistoryAccess {
 /// Re-authentication for "История кейсов" (docs/04 §12, `POST
 /// /auth/reauth`). Kept in memory only.
 ///
-/// Pack E (25.11, ROUND1 #12): the code goes to the verified e-mail
-/// (`CurrentUser.reauthIdentifier`), never by SMS — the server sends an SMS
-/// only at registration and «Забыл пароль» (owner rule sms-two-cases), so a
-/// code asked for the account's own phone never arrived.
+/// Owner 25.11 («по умолчанию SMS»): the code goes to the contact
+/// [stepUpCodeTargetProvider] names — the channel the server chose
+/// (`auth.code_channel`, SMS by default) among the person's verified ones.
 class HistoryAccessController extends Notifier<HistoryAccess> {
   @override
   HistoryAccess build() => const HistoryAccess();
 
   ({String channel, String identifier})? get _target =>
-      ref.read(currentUserControllerProvider).user?.reauthIdentifier;
+      ref.read(stepUpCodeTargetProvider);
 
   Future<void> sendCode() async {
     final target = _target;

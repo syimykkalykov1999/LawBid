@@ -170,8 +170,8 @@ class ContactVerificationController extends Notifier<ContactVerificationState> {
       });
 
   Future<void> _sendIdentityCode(String value) async {
-    final target =
-        ref.read(currentUserControllerProvider).user?.reauthIdentifier;
+    // Owner 25.11: the contact the server's `auth.code_channel` picks.
+    final target = ref.read(stepUpCodeTargetProvider);
     if (target == null) {
       throw const ApiException(
         code: kNoReauthContactCode,
