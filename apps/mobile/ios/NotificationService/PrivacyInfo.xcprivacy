@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Privacy manifest of the NotificationService extension (third pass M16,
+     2026-11-26). Apple «Describing use of required reason API»: every
+     bundle that calls a required-reason API ships its own manifest, app
+     extensions included (ITMS-91053). NotificationService.swift reads the
+     App Group defaults (`UserDefaults(suiteName:)`) shared with the app:
+     reason 1C8F.1 (read/write data only accessible to apps and extensions
+     in the same App Group). The extension collects nothing itself and does
+     no tracking; the app's own manifest (Runner/PrivacyInfo.xcprivacy)
+     lists the collected data. -->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>1C8F.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
