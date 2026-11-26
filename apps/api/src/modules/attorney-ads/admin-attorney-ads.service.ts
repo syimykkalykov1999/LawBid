@@ -23,6 +23,7 @@ import {
   type AttorneyAdsSettings,
 } from './attorney-ads.settings';
 import { AD_RULES } from './ad-rules';
+import { csvQuoted } from '../../common/csv/csv-cell';
 
 export const ATTORNEY_ADS_AUDIT = {
   settings: 'attorney_ads.settings',
@@ -32,8 +33,8 @@ export const ATTORNEY_ADS_AUDIT = {
 const EXPORT_MAX = 5000;
 
 /** Quotes a cell; a leading = + - @ is neutralised (spreadsheet formulas). */
-const csv = (v: string): string =>
-  `"${(/^[=+\-@\t\r]/.test(v) ? `'${v}` : v).replace(/"/g, '""')}"`;
+// S18-2 / ASVS V1.2.10: the shared OWASP rule, every cell quoted.
+const csv = (v: string): string => csvQuoted(v);
 
 function row(r: AttorneyAdArchive): AdArchiveRowDto {
   return {
