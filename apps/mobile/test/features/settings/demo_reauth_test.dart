@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/session/biometric_auth_service.dart';
 import 'package:lawbid/features/auth/application/auth_providers.dart';
@@ -52,7 +55,7 @@ class _Repo extends StubAuthRepository {
     return demoResult;
   }
 
-  /// Pack E: the channel of every code asked for (never 'phone').
+  /// Owner 25.11: the channel of every code asked for.
   final List<String> otpChannels = [];
   final List<String> reauthIdentifiers = [];
 
@@ -120,6 +123,16 @@ class _ExportRepo implements DataExportRepository {
 }
 
 const _en = StaticTranslatorEn();
+
+/// Owner 25.11: the server's bootstrap says `auth.code_channel: email`
+/// (the admin connected SES and chose «Почта»).
+class _CodeByEmail extends FeatureFlagsController {
+  @override
+  FeatureFlagsState build() => const FeatureFlagsState(
+        flags: defaultFeatureFlags,
+        appConfig: {'auth.code_channel': 'email'},
+      );
+}
 
 final _withEmail = meFixture(
   role: UserRole.client,
@@ -221,44 +234,62 @@ void main() {
       expect(access.isOpen, isTrue);
     });
 
-    test(
-        'pack E (ROUND1 #12): the history code goes to the verified e-mail, '
-        'never an SMS to the phone', () async {
+    ProviderContainer history(CurrentUser user, {bool byEmail = false}) {
       final container = ProviderContainer(
         overrides: [
           authRepositoryProvider.overrideWithValue(auth),
           currentUserControllerProvider.overrideWith(
-            () => FixedUserController(CurrentUserState.ready(_withEmail)),
+            () => FixedUserController(CurrentUserState.ready(user)),
           ),
+          if (byEmail)
+            featureFlagsControllerProvider.overrideWith(_CodeByEmail.new),
         ],
       );
       addTearDown(container.dispose);
+      return container;
+    }
+
+    test(
+        'owner 25.11: by default the history code goes by SMS to the '
+        'verified phone (the e-mail is not used)', () async {
+      final container = history(_withEmail);
+      final c = container.read(historyAccessProvider.notifier)..useCode();
+      await c.sendCode();
+      expect(auth.otpRequests, ['+15551234567']);
+      expect(auth.otpChannels, ['phone']);
+      expect(container.read(historyAccessProvider).codeSent, isTrue);
+      await c.submitCode('123456');
+      expect(auth.reauthIdentifiers, ['+15551234567']);
+      expect(container.read(historyAccessProvider).token, 'code-t');
+    });
+
+    test('owner 25.11: the server says «email» → the verified e-mail',
+        () async {
+      final container = history(_withEmail, byEmail: true);
       final c = container.read(historyAccessProvider.notifier)..useCode();
       await c.sendCode();
       expect(auth.otpRequests, ['ann@example.com']);
       expect(auth.otpChannels, ['email']);
-      expect(container.read(historyAccessProvider).codeSent, isTrue);
       await c.submitCode('123456');
       expect(auth.reauthIdentifiers, ['ann@example.com']);
-      expect(container.read(historyAccessProvider).token, 'code-t');
     });
 
-    test('pack E: a phone-only account gets no code request', () async {
-      final container = ProviderContainer(
-        overrides: [
-          authRepositoryProvider.overrideWithValue(auth),
-          currentUserControllerProvider.overrideWith(
-            () => FixedUserController(CurrentUserState.ready(_phoneOnly)),
-          ),
-        ],
+    test('owner 25.11: «email» but no verified e-mail → the phone', () async {
+      final container = history(_phoneOnly, byEmail: true);
+      await container.read(historyAccessProvider.notifier).sendCode();
+      expect(auth.otpRequests, ['+15551234567']);
+      expect(auth.otpChannels, ['phone']);
+    });
+
+    test('owner 25.11: no verified contact at all → no code request', () async {
+      final container = history(
+        meFixture(role: UserRole.client, consents: true),
       );
-      addTearDown(container.dispose);
       await container.read(historyAccessProvider.notifier).sendCode();
       expect(auth.otpRequests, isEmpty);
     });
 
-    testWidgets('pack E: the gate names the e-mail the code goes to',
-        (tester) async {
+    Future<void> pumpGate(WidgetTester tester, {bool byEmail = false}) async {
       await tester.pumpWidget(
         uxApp(
           const DataExportScreen(),
@@ -271,6 +302,8 @@ void main() {
               dataExportRepositoryProvider.overrideWithValue(exports),
               dataExportPollIntervalProvider
                   .overrideWithValue(const Duration(hours: 1)),
+              if (byEmail)
+                featureFlagsControllerProvider.overrideWith(_CodeByEmail.new),
               currentUserControllerProvider.overrideWith(
                 () => FixedUserController(
                   CurrentUserState.ready(
@@ -292,13 +325,32 @@ void main() {
       );
       await tester.pump();
       await tester.pump();
+    }
+
+    testWidgets('owner 25.11: the gate names the phone «+1 ••• 67» by default',
+        (tester) async {
+      await pumpGate(tester);
+      expect(
+        find.text(_en.t('history.reauth.message', {'phone': '+1 ••• 67'})),
+        findsOneWidget,
+      );
+      expect(find.textContaining('ann@example.com'), findsNothing);
+      expect(find.textContaining('5551234567'), findsNothing);
+      await tester.tap(find.text(_en.t('history.reauth.send')));
+      await tester.pump();
+      expect(auth.otpChannels, ['phone']);
+    });
+
+    testWidgets('owner 25.11: the server says «email» → the gate names it',
+        (tester) async {
+      await pumpGate(tester, byEmail: true);
       expect(
         find.text(
           _en.t('history.reauth.message', {'phone': 'ann@example.com'}),
         ),
         findsOneWidget,
       );
-      expect(find.textContaining('+1555'), findsNothing);
+      expect(find.textContaining('+1 •••'), findsNothing);
       await tester.tap(find.text(_en.t('history.reauth.send')));
       await tester.pump();
       expect(auth.otpChannels, ['email']);
@@ -310,6 +362,7 @@ void main() {
       _Repo repo, {
       required bool demo,
       CurrentUser? user,
+      bool byEmail = false,
     }) {
       final c = ProviderContainer(
         overrides: [
@@ -320,6 +373,8 @@ void main() {
             currentUserControllerProvider.overrideWith(
               () => FixedUserController(CurrentUserState.ready(user)),
             ),
+          if (byEmail)
+            featureFlagsControllerProvider.overrideWith(_CodeByEmail.new),
         ],
       );
       addTearDown(c.dispose);
@@ -411,30 +466,51 @@ void main() {
     });
 
     test(
-        'pack E (ROUND1 #12): «Забыли пароль?» sends the code to the '
-        'verified e-mail, never an SMS to the phone', () async {
+        'owner 25.11: «Забыли пароль?» sends the code by SMS to the '
+        'verified phone by default', () async {
       final repo = _Repo();
       final c = container(repo, demo: false, user: _withEmail);
       final ctrl = c.read(deleteAccountControllerProvider.notifier);
       await ctrl.acknowledgeWarning();
       ctrl.useCode();
       await ctrl.sendCode();
-      expect(repo.otpRequests, ['ann@example.com']);
-      expect(repo.otpChannels, ['email']);
+      expect(repo.otpRequests, ['+15551234567']);
+      expect(repo.otpChannels, ['phone']);
       var state = c.read(deleteAccountControllerProvider);
       expect(state.step, DeleteAccountStep.reauthCode);
-      expect(state.codeTarget, 'ann@example.com');
+      expect(state.codeTarget, '+15551234567');
 
       await ctrl.submitCode('123456');
-      expect(repo.reauthIdentifiers, ['ann@example.com']);
+      expect(repo.reauthIdentifiers, ['+15551234567']);
       state = c.read(deleteAccountControllerProvider);
       expect(state.step, DeleteAccountStep.confirmPhrase);
       expect(state.reauthToken, 'code-t');
     });
 
-    test('pack E: no verified e-mail, no code is asked for at all', () async {
+    test('owner 25.11: the server says «email» → the verified e-mail',
+        () async {
       final repo = _Repo();
-      final c = container(repo, demo: false, user: _phoneOnly);
+      final c = container(repo, demo: false, user: _withEmail, byEmail: true);
+      final ctrl = c.read(deleteAccountControllerProvider.notifier);
+      await ctrl.acknowledgeWarning();
+      ctrl.useCode();
+      await ctrl.sendCode();
+      expect(repo.otpRequests, ['ann@example.com']);
+      expect(repo.otpChannels, ['email']);
+      expect(
+        c.read(deleteAccountControllerProvider).codeTarget,
+        'ann@example.com',
+      );
+    });
+
+    test('owner 25.11: no verified contact, no code is asked for at all',
+        () async {
+      final repo = _Repo();
+      final c = container(
+        repo,
+        demo: false,
+        user: meFixture(role: UserRole.client, consents: true),
+      );
       final ctrl = c.read(deleteAccountControllerProvider.notifier);
       await ctrl.acknowledgeWarning();
       ctrl.useCode();

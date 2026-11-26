@@ -30,6 +30,8 @@ import 'package:lawbid/features/chat/data/chat_list_cache.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/data/message_store.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_providers.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_service.dart' show E2eeErrors;
 import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart'
@@ -60,6 +62,9 @@ final messageStoreProvider = Provider<MessageStore?>((ref) {
     owner,
     limitBytes: () =>
         ref.read(cacheLimitsProvider).limitBytes(CacheStore.messages),
+    // Item 25: encrypted messages read from the disk get their texts back.
+    prime: (rows) =>
+        ref.read(e2eeServiceProvider)?.prime(rows) ?? Future<void>.value(),
   );
 });
 
@@ -69,6 +74,8 @@ final chatRepositoryProvider = Provider<ChatRepository>(
     storageDio: ref.watch(storageDioProvider),
     listCache: ref.watch(chatListCacheProvider),
     messageStore: ref.watch(messageStoreProvider),
+    // Item 25: end-to-end encrypted chats.
+    e2ee: ref.watch(e2eeServiceProvider),
   ),
 );
 
@@ -119,6 +126,12 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
 
   @override
   Future<PaginatedList<Conversation>> build() {
+    // Item 25: this device's MLS key and KeyPackages reach the server as
+    // soon as the chats are opened (then «Авто» can encrypt its chats).
+    final e2ee = ref.read(e2eeServiceProvider);
+    if (e2ee != null) {
+      unawaited(e2ee.engine().then((_) {}, onError: (Object _) {}));
+    }
     _outside.clear();
     _asked.clear();
     _pullSince = null;
@@ -536,8 +549,15 @@ class OutboxSender with WidgetsBindingObserver {
   /// Whether [e] is worth repeating as it is: no connection, a server that
   /// is down or busy, a token that is being renewed or a request that timed
   /// out. Anything else is a refusal the user has to see.
+  ///
+  /// Item 25: a 409 of an end-to-end encrypted chat is temporary too — the
+  /// chat's encryption moved on (E2EE_EPOCH_CONFLICT), it became encrypted
+  /// after this device last looked (E2EE_REQUIRED) or a device that left
+  /// must be removed first: the repository forgot the cached state, so the
+  /// next pass catches up and seals again (Wire / RFC 9750 §5.2).
   static bool _temporary(ApiException e) {
     final c = e.statusCode ?? 500;
+    if (E2eeErrors.sendIsRetryable(e.code, e.statusCode)) return true;
     return e.isNetworkError ||
         c == 401 ||
         c == 408 ||
@@ -914,6 +934,12 @@ class ChatThread extends Notifier<ChatThreadState> {
       ref.read(outboxSenderProvider).sent.listen((m) {
         if (m.conversationId == id) _merge([m]);
       }),
+      // Item 25: an encrypted message that waited («Ожидание сообщения»)
+      // opened after a catch-up: its text takes the bubble's place.
+      if (ref.read(e2eeServiceProvider) case final e2ee?)
+        e2ee.opened.listen((d) {
+          if (d.conversationId == id) _apply(ChatMappers.message(d));
+        }),
       if (owner != null)
         ref
             .read(socialLocalDatabaseProvider)
@@ -1062,6 +1088,12 @@ class ChatThread extends Notifier<ChatThreadState> {
   /// copy at once, the server is asked only for what came after the newest
   /// message on the phone; a chat without a copy reads its first page.
   Future<void> load() async {
+    // Item 25: the chat's encryption group is brought up to date while the
+    // messages load (joins, others' commits, new devices of the members).
+    final e2ee = ref.read(e2eeServiceProvider);
+    if (e2ee != null) {
+      unawaited(e2ee.sync(id).then((_) {}, onError: (Object _) {}));
+    }
     final store = _store;
     if (store != null) {
       // R-380: no list in memory — the saved chats list (read alongside the

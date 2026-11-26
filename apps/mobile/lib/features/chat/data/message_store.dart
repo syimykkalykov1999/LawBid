@@ -6,6 +6,7 @@ import 'package:lawbid/core/cache/cache_database.dart';
 import 'package:lawbid/core/cache/json_off_main.dart';
 import 'package:lawbid/core/media/stable_network_image.dart'
     show stableImageCacheKey;
+import 'package:lawbid/features/chat/e2ee/e2ee_service.dart' show E2eeService;
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// What the phone knows about one chat's history.
@@ -32,11 +33,21 @@ class ConversationHistory {
 /// (`afterId`), and older pages go to disk as they are read. Bounded by
 /// the `messages` store limit, least recently opened chat out first (plan
 /// §5.1). Rows are the server's `MessageDto` JSON as received.
+///
+/// Item 25: an end-to-end encrypted message is stored as it came (`mls`
+/// with its ciphertext, [E2eeService.storable]) — never the opened text,
+/// never an empty text for one that did not open yet; [prime] puts the
+/// decrypted texts back (from E2eePlaintexts) when a page is read, and
+/// starts a new try for the ones that never opened.
 class MessageStore extends CachedMessageStore<api.MessageDto> {
-  MessageStore(super.db, super.owner, {required super.limitBytes})
-      : super(
+  MessageStore(
+    super.db,
+    super.owner, {
+    required super.limitBytes,
+    this.prime,
+  }) : super(
           decode: _messageOf,
-          encode: (m) => m.toJson(),
+          encode: E2eeService.storable,
           idOf: (m) => m.id,
           createdAtOf: (m) => m.createdAt,
           imageUrlsOf: (m) => [
@@ -46,6 +57,28 @@ class MessageStore extends CachedMessageStore<api.MessageDto> {
             ],
           ],
         );
+
+  /// Item 25: readies the end-to-end encrypted messages of a page read
+  /// from the disk ([E2eeService.prime]).
+  final Future<void> Function(List<api.MessageDto> rows)? prime;
+
+  @override
+  Future<List<api.MessageDto>> page(
+    String conversationId, {
+    int limit = 50,
+    DateTime? before,
+  }) async {
+    final rows = await super.page(conversationId, limit: limit, before: before);
+    final p = prime;
+    if (p != null && rows.any((m) => m.type == api.MessageDtoType.mls)) {
+      try {
+        await p(rows);
+      } on Object catch (e) {
+        debugPrint('e2ee prime: $e');
+      }
+    }
+    return rows;
+  }
 
   /// A realtime payload (`message:new` / `message:updated`, same shape as
   /// `MessageDto`).

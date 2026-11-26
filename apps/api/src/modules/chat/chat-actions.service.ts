@@ -304,6 +304,9 @@ export class ChatActionsService {
           contact_masked: false,
           // Privacy round 13 (S13-4): the document's name goes too.
           file_name: null,
+          // Item 25: an end-to-end encrypted message loses its ciphertext
+          // (nobody can read it any more, not even with a leaked key).
+          ciphertext: null,
         },
       }),
       this.prisma.messagePin.deleteMany({ where: { message_id: m.id } }),

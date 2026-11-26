@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
@@ -11,6 +11,7 @@ import {
 } from '../../jobs/handlers/ops-metrics.job';
 import { CRON_LANES } from '../../jobs/jobs.constants';
 import { bullOptions } from '../../redis/redis-connection';
+import { PrismaService } from '../../prisma/prisma.service';
 
 export interface QueueRetryResult {
   /** Failed jobs put back in their queues. */
@@ -37,6 +38,8 @@ export class QueueAdminService {
   constructor(
     private readonly config: ConfigService,
     private readonly logger: PinoLogger,
+    // Item 8 (25.11): a replayed dead event is live again for the sweep.
+    @Optional() private readonly prisma?: PrismaService,
   ) {
     this.logger.setContext(QueueAdminService.name);
   }
@@ -97,6 +100,14 @@ export class QueueAdminService {
           },
         );
         await job.remove();
+        // Foreman re-check 25.11 (item 8): live again — should this new job
+        // be lost too, the requeue sweep finds the event once more.
+        await this.prisma?.stripeWebhookEvent
+          .updateMany({
+            where: { stripe_event_id: eventId, processed_at: null },
+            data: { dead_at: null },
+          })
+          .catch(() => undefined);
         replayed++;
       }
       return replayed;

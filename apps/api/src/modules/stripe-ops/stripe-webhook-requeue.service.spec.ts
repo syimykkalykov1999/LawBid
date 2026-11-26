@@ -1,5 +1,8 @@
 import { STRIPE_WEBHOOK_JOB } from '../billing/billing.constants';
-import { StripeWebhookRequeueService } from './stripe-webhook-requeue.service';
+import {
+  REQUEUE_CURSOR_KEY,
+  StripeWebhookRequeueService,
+} from './stripe-webhook-requeue.service';
 
 function make(
   rows: string[],
@@ -49,6 +52,8 @@ describe('StripeWebhookRequeueService.sweep', () => {
       ]
     )[0].where;
     expect(where.processed_at).toBeNull();
+    // Item 8 (25.11): the DLQ's dead events are not read again.
+    expect((where as unknown as { dead_at: null }).dead_at).toBeNull();
     expect(where.created_at.lt.toISOString()).toBe('2026-10-25T11:58:00.000Z');
     expect(h.queue.add).toHaveBeenCalledWith(
       STRIPE_WEBHOOK_JOB,
@@ -160,5 +165,73 @@ describe('StripeWebhookRequeueService.sweep', () => {
     findMany.mockClear();
     await svc.sweep(now);
     expect(findMany.mock.calls[0][0].where.OR).toBeUndefined();
+  });
+
+  it('item 8 (25.11): the position is kept in Redis — a restarted or second process goes on from it', async () => {
+    const at = (i: number) => new Date(Date.UTC(2026, 9, 1) + i * 1000);
+    const db = [
+      ...Array.from({ length: 1500 }, (_, i) => ({
+        stripe_event_id: `evt_old_${String(i).padStart(4, '0')}`,
+        created_at: at(i),
+      })),
+      { stripe_event_id: 'evt_lost', created_at: at(2000) },
+    ];
+    type Where = {
+      OR?: [
+        { created_at: { gt: Date } },
+        { created_at: Date; stripe_event_id: { gt: string } },
+      ];
+    };
+    const findMany = jest.fn((q: { where: Where; take: number }) => {
+      const k = q.where.OR;
+      const rows = db.filter(
+        (r) =>
+          !k ||
+          r.created_at > k[0].created_at.gt ||
+          (r.created_at.getTime() === k[1].created_at.getTime() &&
+            r.stripe_event_id > k[1].stripe_event_id.gt),
+      );
+      return Promise.resolve(rows.slice(0, q.take));
+    });
+    const store = new Map<string, string>();
+    const redis = {
+      get: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
+      set: jest.fn((k: string, v: string) => {
+        store.set(k, v);
+        return Promise.resolve('OK');
+      }),
+      del: jest.fn((k: string) => Promise.resolve(store.delete(k) ? 1 : 0)),
+    };
+    const newProcess = () => {
+      const svc = new StripeWebhookRequeueService(
+        { stripeWebhookEvent: { findMany } } as never,
+        { get: () => undefined } as never,
+        redis as never,
+      );
+      svc.queue = {
+        add: jest.fn(() => Promise.resolve({})),
+        getJob: jest.fn((id: string) =>
+          Promise.resolve(id === 'evt_lost' ? null : { id }),
+        ),
+        close: jest.fn(),
+      } as never;
+      return svc;
+    };
+    const now = new Date(Date.UTC(2026, 9, 2));
+    expect(await newProcess().sweep(now)).toEqual({ found: 1000, requeued: 0 });
+    expect(JSON.parse(store.get(REQUEUE_CURSOR_KEY) ?? 'null')).toEqual({
+      t: at(999).toISOString(),
+      id: 'evt_old_0999',
+    });
+    expect(redis.set).toHaveBeenCalledWith(
+      REQUEUE_CURSOR_KEY,
+      expect.any(String),
+      'EX',
+      86_400,
+    );
+    // A new process (a restart, a deploy, another worker) reads the cursor.
+    expect(await newProcess().sweep(now)).toEqual({ found: 501, requeued: 1 });
+    // Reached the end: the cursor is gone, the next lap starts from the oldest.
+    expect(store.has(REQUEUE_CURSOR_KEY)).toBe(false);
   });
 });

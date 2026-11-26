@@ -32,6 +32,8 @@ class MessageDto {
     required this.pinned,
     this.senderId,
     this.sentByAssistant,
+    this.ciphertext,
+    this.mlsEpoch,
     this.gift,
     this.contact,
     this.post,
@@ -57,6 +59,12 @@ class MessageDto {
   /// OQ-048: sent by the attorney's assistant — their name (shown as "Assistant of …").
   final String? sentByAssistant;
   final MessageDtoType type;
+
+  /// Item 25 (type=mls): base64 MLS PrivateMessage; the app decrypts it. Null for other types.
+  final String? ciphertext;
+
+  /// Item 25 (type=mls): the group epoch of the message.
+  final num? mlsEpoch;
 
   /// Owner 2026-10-20: the gift of a gift message.
   final GiftSendDto? gift;

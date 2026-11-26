@@ -16,9 +16,13 @@ import 'package:lawbid/core/navigation/shell/web_media_width.dart';
 import 'package:lawbid/core/perf/build_counter.dart';
 import 'package:lawbid/features/promotions/presentation/promotion_cta_button.dart';
 import 'package:lawbid/features/reels/application/reel_publish_job.dart';
+import 'package:lawbid/features/reels/application/reel_watch_queue.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
+import 'package:lawbid/features/reels/application/watch_time_meter.dart';
 import 'package:lawbid/features/reels/presentation/reel_video.dart';
 import 'package:lawbid/features/reels/presentation/reel_web_stepper.dart';
+import 'package:lawbid/features/social/application/post_insights_providers.dart'
+    show reelWatchQueueProvider;
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
@@ -686,6 +690,21 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
     if (mounted) ref.read(socialActionsProvider).recordView(widget.post);
   }
 
+  /// Owner 25.11 (TikTok / YouTube watch time): this view of the reel ended
+  /// — how long it really played and whether to the end, one report (the
+  /// reels model learns from it). The queue is taken while the page lives:
+  /// the player reports its last view while the page is being disposed.
+  late final ReelWatchQueue _watchQueue;
+
+  @override
+  void initState() {
+    super.initState();
+    _watchQueue = ref.read(reelWatchQueueProvider);
+  }
+
+  void _watched(ReelWatchTotals totals, int clipMs) =>
+      _watchQueue.ended(widget.post.id, totals, clipMs);
+
   @override
   void didUpdateWidget(_ReelPage old) {
     super.didUpdateWidget(old);
@@ -872,6 +891,7 @@ class _ReelPageState extends ConsumerState<_ReelPage> {
                       zoomable: true,
                       onProgress: (v) => _progress.value = v,
                       onViewed: _viewed,
+                      onWatched: _watched,
                     ),
                   ),
                 if (video != null && !video.ready)

@@ -93,7 +93,8 @@
   "0950084db9c585cf7190fad3e1dd5cc1d42e70b73d99b620fae9d8fcef0d8cbb apps/mobile/lib/features/calls/presentation/call_waiting_banner.dart",
   "3b31228b0ced7057ef2368f9fc4cfb8c335ef03d41dde925391355c30ff4f190 apps/mobile/lib/features/calls/presentation/call_widgets.dart",
   "43ba154204a6116edaa6564275a095b807b800477c1d48f5a0ecbe551e9f9600 apps/mobile/lib/features/calls/presentation/live_calls_fab.dart",
-  "38fadfc27338a866a3db3515b1e3e46fb6b9024e3a5e7ac0d87df11ac72f1bcb infra/modules/turn/ha.tf",
-  "42c8544964cfb7eda53e8e6b649eac95f631d5fb0398bdd08659d4ce0da46ae5 infra/modules/turn/main.tf",
-  "99b5cd47917cf380a5aeb7a8e9b90a1986537328e3c9ff13b6aab51bc56df527 infra/modules/turn/user-data.sh.tftpl"
+  "90c7e71370a239dbf20ada4cb60a39db9b179e70e1e55e1f15ad8af91c377284 infra/modules/turn/ha.tf",
+  "d576c0ef602188912b576d6c708768d881a384dd2f768b53e2d71cf68078bc34 infra/modules/turn/main.tf",
+  "86056f0a5f559a8fc3caa636d6e0b97ecb6ce91d60a17b99773fa8a3e2cf30cf infra/modules/turn/tests/coturn_hardening.tftest.hcl",
+  "82014ad13a6513486098123704d3b851defb426ce02756bf47052ea43ccb60ae infra/modules/turn/user-data.sh.tftpl"
 ]
