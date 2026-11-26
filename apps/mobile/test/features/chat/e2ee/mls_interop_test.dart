@@ -75,9 +75,9 @@ void main() {
       });
       final g2 = await phone.join(base64Decode(started['welcome'] as String));
       final hi = await ask({'op': 'encrypt', 'text': 'Последний ключ'});
-      final got =
+      final lastGot =
           await phone.decrypt(g2, base64Decode(hi['message'] as String));
-      expect(utf8.decode(got!), 'Последний ключ');
+      expect(utf8.decode(lastGot!), 'Последний ключ');
       peer.kill();
     },
     skip: node ? false : 'node is not installed',
