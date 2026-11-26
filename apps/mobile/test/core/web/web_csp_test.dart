@@ -16,8 +16,14 @@ void main() {
         .split('\n')
         .firstWhere((l) => l.trimLeft().startsWith('connect_exact'));
     expect(connect, contains('"blob:"'));
-    expect(tf, contains('connect-src \${join(" ", var.csp_exact_connect_enforced ? local.connect_exact : local.connect_wide)}'));
-    expect(tf, contains('connect-src \${join(" ", local.connect_exact)}'));
+    expect(
+      tf,
+      contains(
+        r'connect-src ${join(" ", var.csp_exact_connect_enforced '
+        '? local.connect_exact : local.connect_wide)}',
+      ),
+    );
+    expect(tf, contains(r'connect-src ${join(" ", local.connect_exact)}'));
   });
 
   // Holes re-check (25.11, item 13): App Check on the web is reCAPTCHA
