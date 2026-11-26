@@ -464,7 +464,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Store release 2026-10-06: Info.plist allows plain http:// for the local\n# dev backend (NSAllowsArbitraryLoads). The prod flavor talks only to\n# https://api.lawbid.dev, so the exception is removed from its bundle.\ncase \"${CONFIGURATION}\" in\n  *-prod)\n    /usr/libexec/PlistBuddy -c \"Delete :NSAppTransportSecurity\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\" 2>/dev/null || true\n    ;;\nesac\n";
+			shellScript = "# S12 #29 (25.11): Info.plist allows local networking (reels from the Mac\n# on the LAN) for the dev flavor only. LAWBID_ALLOWS_LOCAL_NET comes from\n# Flutter/*.xcconfig: YES only in *-dev, so staging and prod lose the key.\n# The pins (NSAppTransportSecurity:NSPinnedDomains) stay in every flavor.\nif [ \"${LAWBID_ALLOWS_LOCAL_NET:-NO}\" != \"YES\" ]; then\n  /usr/libexec/PlistBuddy -c \"Delete :NSAppTransportSecurity:NSAllowsLocalNetworking\" \"${TARGET_BUILD_DIR}/${INFOPLIST_PATH}\" 2>/dev/null || true\nfi\n";
 		};
 		4C1A5E2F2EA0B00100D1A504 /* Auto build number */ = {
 			isa = PBXShellScriptBuildPhase;

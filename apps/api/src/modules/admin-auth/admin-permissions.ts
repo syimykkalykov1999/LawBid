@@ -144,6 +144,8 @@ const SEGMENT_AREA: Record<string, RouteArea> = {
   countries: 'localization',
   'feature-flags': 'settings',
   config: 'settings',
+  // Б3 (25.11): setting changes under watch (canary window).
+  'settings-rollouts': 'settings',
   // Owner 2026-10-05: Система → Хранилище.
   storage: 'settings',
   // Owner 2026-10-05 (legal): DMCA notices, disclaimers, incident contact.

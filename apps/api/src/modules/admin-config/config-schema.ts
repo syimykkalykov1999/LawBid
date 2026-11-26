@@ -1674,6 +1674,32 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 60_000,
   };
+  // Б3 (25.11): setting changes released like code (config-rollout.ts).
+  out['settings.canary_percent'] = {
+    ...out['settings.canary_percent'],
+    description:
+      'A changed setting first reaches this share of the API servers (at least one) while the SLO alarms are watched. 100 = all servers at once, still watched.',
+    min: 1,
+    max: 100,
+  };
+  out['settings.watch_minutes'] = {
+    ...out['settings.watch_minutes'],
+    description:
+      'Minutes a changed setting stays on the canary servers before it reaches everyone; an SLO fast-burn alarm in that time puts the old value back for everyone. 0 = every change applies at once (as before).',
+    min: 0,
+  };
+  out['settings.incident_quiet_minutes'] = {
+    ...out['settings.incident_quiet_minutes'],
+    description:
+      'Minutes before a change: if the same SLO alarm was open then, or closed less than this long before, an alarm during the watch is treated as the incident still going on — on-call gets an alert and the change is NOT reverted automatically. 0 = only an alarm open at the start counts.',
+    min: 0,
+    max: 1440,
+  };
+  out['settings.canary_skip_prefixes'] = {
+    ...out['settings.canary_skip_prefixes'],
+    description:
+      'Settings whose key starts with one of these apply at once, without the canary window: money, «Авто», calls and realtime (both ends must agree).',
+  };
   out['ops.bootstrap_cache_sec'] = {
     ...out['ops.bootstrap_cache_sec'],
     description:

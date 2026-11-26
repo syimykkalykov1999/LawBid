@@ -54,6 +54,7 @@ import {
   SignDealRecordDto,
 } from './dto/deal-record.dto';
 import { RequiresDuty } from '../auth/assistant/assistant-context';
+import { SensitiveNoStore } from '../../common/cache/http-cache';
 
 const E = ErrorCode;
 const ERR = {
@@ -85,6 +86,8 @@ function requestMeta(req: Request): RequestMeta {
 @ApiTags('deal-records')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller()
 export class DealRecordsController {
   constructor(private readonly deals: DealRecordsService) {}
@@ -218,6 +221,8 @@ export class DealRecordsController {
 @ApiTags('admin-deal-record')
 @AdminEndpoint('super_admin')
 @SkipAutoAudit()
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('admin/deal-record')
 export class AdminDealRecordController {
   constructor(private readonly preview: DealRecordPreview) {}

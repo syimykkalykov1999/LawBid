@@ -61,3 +61,26 @@ jobs:
             echo "::endgroup::"
           done < "$RUNNER_TEMP/tf-test-dirs"
           exit $fail
+
+  # SECOND_PASS_2026-11-26 X4 (AWS WA SEC01-BP06): Terraform/Dockerfile
+  # misconfiguration scan, blocking on HIGH/CRITICAL. Trivy (Apache-2.0) runs
+  # as the CLI image, like container-scan.yml (trivy-action tags no longer
+  # resolve there), pinned by digest so a moved tag cannot change what runs
+  # (0.76.2, built 2026-11-05). Accepted findings live in
+  # infra/.trivyignore.yaml, each scoped to its files with a reason. No AWS
+  # access, no state: the scan reads the .tf files only.
+  trivy-config:
+    name: terraform security scan (trivy config)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Trivy config (fail on HIGH/CRITICAL)
+        run: |
+          # Explicit timeout (KNOWN_ERRORS 132): a slow scan must fail as a
+          # timeout, not hang. The read-only mount keeps the tree untouched.
+          docker run --rm -v "$PWD:/src:ro" \
+            aquasec/trivy:0.76.2@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb \
+            config --timeout 10m --severity HIGH,CRITICAL --exit-code 1 \
+            --ignorefile /src/infra/.trivyignore.yaml \
+            --format table /src/infra

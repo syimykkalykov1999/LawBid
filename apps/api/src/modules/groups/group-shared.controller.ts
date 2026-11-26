@@ -15,6 +15,7 @@ import { GroupSharedQueryDto } from './group-shared.dto';
 import { GroupSharedService } from './group-shared.service';
 import { GroupIdParamDto, GroupMessageDto } from './groups.dto';
 import type { GroupMessagePage } from './groups.dto';
+import { SensitiveNoStore } from '../../common/cache/http-cache';
 
 /** Owner 2026-10-21: the «Photos and videos · Files · Links · Voice» tabs. */
 @ApiTags('groups')
@@ -22,6 +23,8 @@ import type { GroupMessagePage } from './groups.dto';
 @ApiErrors(AUTHENTICATED_ERRORS)
 // Owner 2026-10-22 (security audit #3): the same "chats" duty as the group.
 @RequiresDuty('chats')
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('groups')
 export class GroupSharedController {
   constructor(private readonly shared: GroupSharedService) {}

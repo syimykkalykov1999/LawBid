@@ -1,3 +1,6 @@
 // Debug configuration of the dev flavor (`--flavor dev`), p12 leaf-1.4.
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug-dev.xcconfig"
 #include "Common.xcconfig"
+
+// S12 #29: the dev flavor plays reels from the Mac on the LAN.
+LAWBID_ALLOWS_LOCAL_NET = YES

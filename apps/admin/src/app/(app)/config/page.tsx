@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import { useState } from "react";
 import { BudgetLimitsCard, isBudgetKey } from "@/components/budget-limits-card";
+import { SettingsRolloutsCard, SETTINGS_ROLLOUTS_KEY } from "@/components/settings-rollouts-card";
 import { TextLimitsCard, isTextLimitKey } from "@/components/text-limits-card";
 import { RecoQaCard } from "@/components/reco-qa-card";
 import { MotionRow } from "@/components/legacy/fade-in";
@@ -1469,6 +1470,14 @@ const KEY_TEXT: Record<string, string> = {
     "Сколько последних наборов переводов (язык + версия) каждый сервер держит в памяти. 0 — не держать.",
   "ops.loop_stall_log_ms":
     "Если сервер «замер» хотя бы на столько миллисекунд, он пишет в журнал одну строку: сколько длилась пауза, какая уборка памяти шла и какие запросы и задачи были открыты. 0 — выключено.",
+  "settings.canary_percent":
+    "Новая настройка сначала включается только на этой доле серверов API (минимум на одном), пока смотрим тревоги качества. 100 — сразу на всех, но под наблюдением.",
+  "settings.watch_minutes":
+    "Сколько минут новая настройка работает на пробных серверах, прежде чем включиться у всех. Если в это время сработает тревога качества, старое значение само вернётся у всех. 0 — любая правка сразу у всех, как раньше.",
+  "settings.incident_quiet_minutes":
+    "Если та же тревога качества уже горела в момент правки или погасла меньше этого числа минут до неё, значит идёт сбой, а не вина правки: при новой тревоге настройка сама НЕ откатывается, дежурным приходит сообщение. 0 — считается только тревога, горевшая в момент правки.",
+  "settings.canary_skip_prefixes":
+    "Настройки, ключ которых начинается с одной из этих строк, включаются сразу, без пробного окна: деньги, «Авто», звонки и связь в реальном времени (обе стороны звонка должны работать одинаково).",
   "ops.bootstrap_cache_sec":
     "Сколько секунд ответ для запуска приложения (/config/bootstrap) используется повторно, пока настройки не менялись; любая правка настроек сразу даёт новый ответ. 0 — собирать каждый раз.",
   "ops.db_lost_exit_min":
@@ -1838,6 +1847,8 @@ function FullConfigPage() {
     ),
     onSuccess: (_r, v) => {
       toast.success(`Сохранено: ${v.key}`);
+      // Б3: a save may now be on the canary servers (the card above).
+      void qc.invalidateQueries({ queryKey: SETTINGS_ROLLOUTS_KEY });
       setDrafts((d) => {
         const next = { ...d };
         delete next[v.key];
@@ -1879,6 +1890,7 @@ function FullConfigPage() {
           </div>
         }
       />
+      <SettingsRolloutsCard />
       <BudgetLimitsCard />
       <TextLimitsCard entries={q.data ?? []} />
       <RecoQaCard />
