@@ -69,7 +69,7 @@ class ShardStats {
    * DB-ops S5-12: one insert of a sharded-family row whose primary key is a
    * time-ordered sharded id (`sharded = true`, UUIDv8) or a random UUIDv4
    * (the caller passed `randomUUID()`, `SHARD_IDS=off`, or the database
-   * default `gen_random_uuid()` filled it). Counted here, in the process,
+   * default `gen_random_uuid()` / `uuidv7()` filled it). Counted here, in the process,
    * because a database trigger per insert would cost far more than the
    * number is worth.
    */

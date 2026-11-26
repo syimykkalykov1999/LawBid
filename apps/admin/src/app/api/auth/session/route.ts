@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
+  LEGACY_SESSION_COOKIE,
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
   apiBaseUrl,
@@ -69,6 +70,10 @@ export async function POST(req: Request): Promise<Response> {
     accessToken,
     cookieOptions(SESSION_MAX_AGE_SECONDS),
   );
+  // A fresh sign-in also drops a pre-prefix cookie left from before #1.
+  if (LEGACY_SESSION_COOKIE !== SESSION_COOKIE) {
+    res.cookies.set(LEGACY_SESSION_COOKIE, '', cookieOptions(0));
+  }
   return res;
 }
 
@@ -85,6 +90,9 @@ export async function DELETE(req: Request): Promise<Response> {
   }
   const res = NextResponse.json({ data: { ok: true } });
   res.cookies.set(SESSION_COOKIE, '', cookieOptions(0));
+  if (LEGACY_SESSION_COOKIE !== SESSION_COOKIE) {
+    res.cookies.set(LEGACY_SESSION_COOKIE, '', cookieOptions(0));
+  }
   return res;
 }
 

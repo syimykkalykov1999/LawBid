@@ -9,6 +9,12 @@ part of 'moderation_report_dto.dart';
 ModerationReportDto _$ModerationReportDtoFromJson(Map<String, dynamic> json) =>
     ModerationReportDto(
       id: json['id'] as String,
+      e2eeEvidence: (json['e2eeEvidence'] as List<dynamic>)
+          .map(
+            (e) =>
+                ModerationE2eeEvidenceDto.fromJson(e as Map<String, dynamic>),
+          )
+          .toList(),
       reporterId: json['reporterId'] as String,
       reason: json['reason'] as String,
       note: json['note'] as String?,
@@ -23,6 +29,7 @@ Map<String, dynamic> _$ModerationReportDtoToJson(
   ModerationReportDto instance,
 ) => <String, dynamic>{
   'id': instance.id,
+  'e2eeEvidence': instance.e2eeEvidence.map((e) => e.toJson()).toList(),
   'reporterId': instance.reporterId,
   'reason': instance.reason,
   'note': ?instance.note,

@@ -1,3 +1,4 @@
+import { S3Client } from '@aws-sdk/client-s3';
 import { buildPublicStatus, type IncidentInput } from './public-status';
 import { PublicStatusService } from './public-status.service';
 import type { ProbeResult } from './status-probes.service';
@@ -168,6 +169,107 @@ describe('PublicStatusService', () => {
     expect(data.detail.manual).toBe(true);
     expect(data.detail.title.en).toBe('Работы');
     expect(r.id).toBe('x');
+  });
+
+  // Stage 2 SRE (Б4, SRE Workbook ch. 9): a copy outside AWS.
+  describe('backup copy in Cloudflare R2', () => {
+    const r2 = {
+      accountId: 'a'.repeat(32),
+      accessKeyId: 'test-r2-access-key-id-1',
+      secretAccessKey: 'test-r2-secret-access-key-value-000000',
+      bucket: 'lawbid-media',
+      publicBaseUrl: 'https://media.lawbid.dev',
+    };
+    function withBackup(opts: {
+      bucket?: string;
+      keys?: typeof r2 | null;
+      enabled?: boolean;
+    }) {
+      const base = make(opts.bucket);
+      const secrets = {
+        get: jest
+          .fn()
+          .mockResolvedValue(
+            opts.keys ? { fingerprint: 'fp1', fields: opts.keys } : null,
+          ),
+      };
+      const settings = {
+        boolean: jest.fn().mockResolvedValue(opts.enabled ?? true),
+      };
+      const svc = new PublicStatusService(
+        base.prisma as never,
+        base.probes as never,
+        {
+          get: (k: string) =>
+            k === 'STATUS_PAGE_BUCKET' ? opts.bucket : undefined,
+        } as never,
+        { setContext: jest.fn(), warn: jest.fn() } as never,
+        secrets as never,
+        settings as never,
+      );
+      const sent: Array<{ Bucket: string; Key: string }> = [];
+      const send = jest
+        .spyOn(S3Client.prototype, 'send')
+        .mockImplementation(((cmd: {
+          input: { Bucket: string; Key: string };
+        }) => {
+          sent.push({ Bucket: cmd.input.Bucket, Key: cmd.input.Key });
+          return Promise.resolve({});
+        }) as never);
+      return { svc, sent, send };
+    }
+    afterEach(() => jest.restoreAllMocks());
+
+    it('writes status.json and the page to R2 status/ next to the AWS copy', async () => {
+      const { svc, sent } = withBackup({ bucket: 'lawbid-status', keys: r2 });
+      expect(await svc.publish([])).toBe(true);
+      expect(sent).toEqual(
+        expect.arrayContaining([
+          { Bucket: 'lawbid-status', Key: 'status.json' },
+          { Bucket: 'lawbid-media', Key: 'status/status.json' },
+          { Bucket: 'lawbid-media', Key: 'status/index.html' },
+        ]),
+      );
+      // The page itself goes up once per process, status.json every time.
+      sent.length = 0;
+      await svc.publish([]);
+      expect(sent).toEqual(
+        expect.arrayContaining([
+          { Bucket: 'lawbid-media', Key: 'status/status.json' },
+        ]),
+      );
+      expect(sent.some((s) => s.Key === 'status/index.html')).toBe(false);
+    });
+
+    it('the R2 copy works even without the AWS bucket', async () => {
+      const { svc, sent } = withBackup({ keys: r2 });
+      await svc.publish([]);
+      expect(sent.map((s) => s.Key)).toContain('status/status.json');
+      expect(sent.some((s) => s.Bucket === 'lawbid-status')).toBe(false);
+    });
+
+    it('no R2 keys or the admin switch off: no backup', async () => {
+      const a = withBackup({ bucket: 'lawbid-status', keys: null });
+      await a.svc.publish([]);
+      expect(a.sent.map((s) => s.Key)).toEqual(['status.json']);
+      jest.restoreAllMocks();
+      const b = withBackup({
+        bucket: 'lawbid-status',
+        keys: r2,
+        enabled: false,
+      });
+      await b.svc.publish([]);
+      expect(b.sent.map((s) => s.Key)).toEqual(['status.json']);
+    });
+
+    it('a failing R2 never stops the AWS copy', async () => {
+      const { svc, send } = withBackup({ bucket: 'lawbid-status', keys: r2 });
+      send.mockImplementation(((cmd: { input: { Bucket: string } }) =>
+        cmd.input.Bucket === 'lawbid-media'
+          ? Promise.reject(new Error('r2 down'))
+          : Promise.resolve({})) as never);
+      expect(await svc.publish([])).toBe(true);
+    });
   });
 
   it('resolves only incidents an admin posted', async () => {

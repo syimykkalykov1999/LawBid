@@ -129,6 +129,12 @@
   <!-- Owner row 113: the unread number on the tab icon (Tinycon 0.6.8, MIT,
        copied whole; drawn from lib/core/platform/web_favicon_badge_web.dart). -->
   <script src="tinycon.js" defer></script>
+  <!-- Б6 / G8: Core Web Vitals of real visits (web-vitals 6.2.3, Google,
+       Apache-2.0, unmodified); js/web_vitals_beacon.js sends only the
+       good / ni / poor rating, and only after the person allowed usage
+       statistics. -->
+  <script src="vendor/web-vitals-6.2.3/web-vitals.iife.js" defer></script>
+  <script src="js/web_vitals_beacon.js" defer></script>
   <script src="boot_end.js" defer></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

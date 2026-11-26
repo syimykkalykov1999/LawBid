@@ -408,10 +408,20 @@ export class AuthController {
    * `logout-all` keeps its old meaning for the apps already out there. */
   @ApiBearerAuth()
   @ApiEnvelopeResponse(LoggedOutDto)
-  @ApiErrors({ 401: BEARER_401 })
+  @ApiErrors({
+    401: [...BEARER_401, E.REAUTH_INVALID],
+    403: [E.REAUTH_REQUIRED],
+  })
+  @ReauthTokenHeader(
+    'ASVS V7.5.2 (STAGE2_SECURITY #12): a fresh single-use token from POST /auth/reauth, unless this session signed in within the last 10 minutes.',
+  )
   @Post('logout-others')
   @HttpCode(HttpStatus.OK)
-  async logoutOthers(@CurrentUser() user: RequestUser): Promise<LoggedOutDto> {
+  async logoutOthers(
+    @CurrentUser() user: RequestUser,
+    @Req() req: Request & { user?: RequestUser },
+  ): Promise<LoggedOutDto> {
+    await this.assertReauthToEndSessions(req);
     await this.auth.logoutOthers(user);
     return { loggedOut: true };
   }
@@ -442,15 +452,53 @@ export class AuthController {
 
   @ApiBearerAuth()
   @ApiEnvelopeResponse(SessionEndedDto)
-  @ApiErrors({ 401: BEARER_401, 404: [E.NOT_FOUND] })
+  @ApiErrors({
+    401: [...BEARER_401, E.REAUTH_INVALID],
+    403: [E.REAUTH_REQUIRED],
+    404: [E.NOT_FOUND],
+  })
+  @ReauthTokenHeader(
+    'ASVS V7.5.2 (STAGE2_SECURITY #12): ending ANOTHER session needs a fresh single-use token from POST /auth/reauth, unless this session signed in within the last 10 minutes. Ending this very session needs none.',
+  )
   @Delete('sessions/:id')
   @HttpCode(HttpStatus.OK)
   async endSession(
     @CurrentUser() user: RequestUser,
     @Param('id') id: string,
+    @Req() req: Request & { user?: RequestUser },
   ): Promise<SessionEndedDto> {
+    // Signing this device out is never gated (same as logout).
+    if (id !== user.sid) await this.assertReauthToEndSessions(req);
     await this.auth.endSession(user, id);
     return { ended: true };
+  }
+
+  /**
+   * ASVS 5.0 V7.5.2 (STAGE2_SECURITY #12): a thief with a fresh access
+   * token must not sign the owner out everywhere. Ending other sessions
+   * needs re-authentication — the passkey-removal rule
+   * (ReauthVerifier.assertRecentAuthentication). The website ships with the
+   * API, so it is always held to it; a phone app from before this rule
+   * (below `security.session_end_reauth_min_app_version`, empty = every
+   * app version still allowed) keeps working until the owner sets the
+   * version of the build that shows the re-auth sheet. «Это был не я»
+   * stays one tap: it signs out everyone, the caller included.
+   */
+  private async assertReauthToEndSessions(
+    req: Request & { user?: RequestUser },
+  ): Promise<void> {
+    const web = req.header('x-platform')?.trim().toLowerCase() === 'web';
+    if (
+      !web &&
+      !this.reauthVerifier.hasToken(req) &&
+      (await this.reauthVerifier.legacyClient(
+        req,
+        'security.session_end_reauth_min_app_version',
+      ))
+    ) {
+      return;
+    }
+    await this.reauthVerifier.assertRecentAuthentication(req);
   }
 
   @ApiBearerAuth()

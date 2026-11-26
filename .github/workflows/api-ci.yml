@@ -363,6 +363,7 @@ jobs:
           python3 -m unittest discover -s infra/modules/backup/lambda/tests
           "$PY" -m unittest discover -s infra/modules/db-autoscale/lambda/tests
           python3 -m unittest discover -s infra/modules/secret-rotation/lambda/tests
+          python3 -m unittest discover -s infra/modules/monitoring/lambda/error-budget/tests
           "$PY" -m unittest discover -s infra/modules/redis-autoscale/lambda/tests
           "$PY" -m unittest discover -s infra/modules/endpoints-autoscale/lambda/tests
           python3 -m unittest discover -s loadtest/local-docker -p 'test_*.py'

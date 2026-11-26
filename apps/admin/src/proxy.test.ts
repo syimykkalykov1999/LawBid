@@ -28,6 +28,11 @@ describe('admin proxy (S18-12)', () => {
     expect(res.headers.get('content-security-policy')).toMatch(/nonce-/);
   });
 
+  it('#1: the __Host- cookie and a pre-prefix cookie both count as a session', () => {
+    expect(at('/users', '__Host-lawbid_admin=tok').status).toBe(200);
+    expect(at('/users', 'lawbid_admin=tok').status).toBe(200);
+  });
+
   it('sends a signed-in admin away from /login', () => {
     const res = at('/login', 'lawbid_admin=tok');
     expect(new URL(res.headers.get('location')!).pathname).toBe('/');
