@@ -109,6 +109,25 @@ class Rolls(unittest.TestCase):
         ops.ec.modify_replication_group.assert_called_once()
         self.assertNotIn("strict_at", state["redis"]["REDIS_URL"])
 
+    def test_serverless_valkey_user_keeps_only_the_new_password(self):
+        # Item 29: a Serverless Valkey secret is an ElastiCache user, not a group.
+        t = 1000.0
+        ops.CFG.setdefault("redis", {})["REDIS_SERVERLESS_URL"] = {"arn": "arn:s", "group": "", "user": "lb-svl-default"}
+        self.addCleanup(ops.CFG["redis"].pop, "REDIS_SERVERLESS_URL")
+        state = {"redis": {"REDIS_SERVERLESS_URL": {"version": "v2", "rotated_at": t, "strict_at": t + 10}}}
+        ops.current_version = lambda arn: "v2"
+        ops.now = lambda: t + 20
+        ops.ecs.describe_services.return_value = {"services": [{"status": "ACTIVE", "deployments": [dep(t + 1)]}]}
+        ops.secret_text = lambda arn: "rediss://default:new-test-password@h:6379"
+        ops.kl.redis_url_token = lambda url: "new-test-password"
+        ops.ec.modify_replication_group.reset_mock()
+        ops.reconcile_redis(state)
+        ops.ec.modify_user.assert_called_with(
+            UserId="lb-svl-default",
+            AuthenticationMode={"Type": "password", "Passwords": ["new-test-password"]},
+        )
+        ops.ec.modify_replication_group.assert_not_called()
+
     def test_a_rollout_in_progress_is_not_rolled(self):
         ops.ecs.describe_services.return_value = {
             "services": [{"status": "ACTIVE", "deployments": [dep(5.0, "IN_PROGRESS")]}]

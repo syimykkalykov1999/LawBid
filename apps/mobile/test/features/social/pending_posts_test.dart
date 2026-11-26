@@ -114,7 +114,9 @@ void main() {
     await _settle();
     expect(repo.drafts, isEmpty, reason: 'waits for the photo');
     upload.complete('form-2');
-    await _settle();
+    // Wait for the draft itself, not a fixed number of ticks: on a loaded CI
+    // runner the publish can land after _settle() (KNOWN_ERRORS 246).
+    await _until(() => repo.drafts.isNotEmpty);
     expect(repo.drafts.single.mediaFileIds, ['ready-1', 'form-2']);
     expect(repo.photos, isEmpty, reason: 'the form already sent it');
   });

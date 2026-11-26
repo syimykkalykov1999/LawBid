@@ -1400,6 +1400,7 @@ erDiagram
     DateTime processed_at "nullable"
     Int attempts
     DateTime created_at
+    DateTime dead_at "nullable"
   }
   reports {
     String id PK

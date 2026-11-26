@@ -62,10 +62,13 @@ variable "db" {
 
 # --- Redis tokens: short secret name => secret + replication group -----------
 variable "redis" {
+  # Item 29: user_id set = an ElastiCache Serverless Valkey user (password,
+  # up to two at once) instead of a replication-group AUTH token.
   type = map(object({
     secret_arn = string
     group_id   = string
     every_days = number
+    user_id    = optional(string, "")
   }))
   default = {}
 }
@@ -133,7 +136,7 @@ locals {
       url_arn    = var.db.url_secret_arn
       master_arn = var.db.master_secret_arn
     } : null
-    redis = { for k, v in var.redis : k => { arn = v.secret_arn, group = v.group_id } }
+    redis = { for k, v in var.redis : k => { arn = v.secret_arn, group = v.group_id, user = v.user_id } }
     keys  = { for k, v in var.keys : k => { arn = v.secret_arn, active_arn = v.active_kid_secret } }
   }
 
@@ -143,7 +146,9 @@ locals {
     [for v in var.keys : v.active_kid_secret],
     local.db_on ? [var.db.json_secret_arn, var.db.url_secret_arn] : [],
   )
-  group_arns = [for v in var.redis : "arn:aws:elasticache:${local.region}:${local.acct}:replicationgroup:${v.group_id}"]
+  group_arns   = [for v in var.redis : "arn:aws:elasticache:${local.region}:${local.acct}:replicationgroup:${v.group_id}" if v.user_id == ""]
+  user_arns    = [for v in var.redis : "arn:aws:elasticache:${local.region}:${local.acct}:user:${v.user_id}" if v.user_id != ""]
+  valkey_users = { for k, v in var.redis : k => v.user_id if v.user_id != "" }
 }
 
 data "archive_file" "lambda" {
@@ -223,7 +228,7 @@ data "aws_iam_policy_document" "rotator" {
     }
   }
   dynamic "statement" {
-    for_each = length(var.redis) == 0 ? [] : [1]
+    for_each = length(local.group_arns) == 0 ? [] : [1]
     content {
       sid       = "RedisTokenOfTheseGroups"
       actions   = ["elasticache:ModifyReplicationGroup"]
@@ -231,10 +236,27 @@ data "aws_iam_policy_document" "rotator" {
     }
   }
   dynamic "statement" {
-    for_each = length(var.redis) == 0 ? [] : [1]
+    for_each = length(local.group_arns) == 0 ? [] : [1]
     content {
       sid       = "RedisStatus"
       actions   = ["elasticache:DescribeReplicationGroups"]
+      resources = ["*"]
+    }
+  }
+  # Item 29: the Serverless Valkey user's password (ModifyUser, two at once).
+  dynamic "statement" {
+    for_each = length(local.user_arns) == 0 ? [] : [1]
+    content {
+      sid       = "ValkeyUserPassword"
+      actions   = ["elasticache:ModifyUser"]
+      resources = local.user_arns
+    }
+  }
+  dynamic "statement" {
+    for_each = length(local.user_arns) == 0 ? [] : [1]
+    content {
+      sid       = "ValkeyUserStatus"
+      actions   = ["elasticache:DescribeUsers"]
       resources = ["*"]
     }
   }
@@ -265,7 +287,8 @@ resource "aws_lambda_function" "rotator" {
   memory_size      = 256
   environment {
     variables = {
-      REDIS_GROUPS = jsonencode({ for k, v in var.redis : k => v.group_id })
+      REDIS_GROUPS = jsonencode({ for k, v in var.redis : k => v.group_id if v.user_id == "" })
+      VALKEY_USERS = jsonencode(local.valkey_users)
       KEY_SECRETS  = jsonencode(keys(var.keys))
       KMS_KEY_ARN  = var.data_keys_kms_key_arn
       KMS_APP      = var.kms_app
@@ -378,11 +401,20 @@ data "aws_iam_policy_document" "ops" {
     resources = [for s in var.service_names : "arn:aws:ecs:${local.region}:${local.acct}:service/${var.cluster_name}/${s}"]
   }
   dynamic "statement" {
-    for_each = length(var.redis) == 0 ? [] : [1]
+    for_each = length(local.group_arns) == 0 ? [] : [1]
     content {
       sid       = "RedisOldTokenOff"
       actions   = ["elasticache:ModifyReplicationGroup"]
       resources = local.group_arns
+    }
+  }
+  # Item 29: keep only the new Serverless Valkey password after the overlap.
+  dynamic "statement" {
+    for_each = length(local.user_arns) == 0 ? [] : [1]
+    content {
+      sid       = "ValkeyOldPasswordOff"
+      actions   = ["elasticache:ModifyUser"]
+      resources = local.user_arns
     }
   }
   statement {
