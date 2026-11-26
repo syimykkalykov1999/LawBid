@@ -7,6 +7,7 @@ import { CorsPolicy } from '../../common/cors/cors-policy';
 import { AuthController } from './auth.controller';
 import {
   ClearsWebSessionCookie,
+  LEGACY_WEB_SESSION_COOKIE,
   WEB_SESSION_COOKIE,
   WebSessionCookieInterceptor,
   WebSessionCookies,
@@ -69,7 +70,7 @@ async function run(
   headers: Record<string, string>,
   body: unknown,
   handler: 'login' | 'logout' = 'login',
-) {
+): Promise<{ out: unknown; cookies: CookieCall[] }> {
   const r = res();
   const ctx = {
     switchToHttp: () => ({
@@ -138,13 +139,64 @@ describe('web session cookie', () => {
     }
   });
 
-  it('logout clears the cookie', async () => {
+  it('logout clears the prefixed and the legacy cookie', async () => {
     const r = await run(WEB, { loggedOut: true }, 'logout');
-    expect(r.cookies).toHaveLength(1);
-    expect(r.cookies[0]).toMatchObject({
-      name: WEB_SESSION_COOKIE,
-      value: '',
-      opts: { maxAge: 0, path: '/api/v1/auth' },
+    expect(r.cookies.map((c) => c.name)).toEqual([
+      WEB_SESSION_COOKIE,
+      LEGACY_WEB_SESSION_COOKIE,
+    ]);
+    for (const c of r.cookies) {
+      expect(c).toMatchObject({
+        value: '',
+        opts: { maxAge: 0, path: '/api/v1/auth', secure: true },
+      });
+    }
+  });
+
+  describe('ASVS V3.3.1: __Secure- prefix (STAGE2_SECURITY #1)', () => {
+    it('the cookie is named __Secure-lb_rt on https', () => {
+      expect(WEB_SESSION_COOKIE).toBe('__Secure-lb_rt');
+      const r = res();
+      cookies().set(req(WEB), r as unknown as Response, 'x');
+      expect(r.calls).toEqual([
+        expect.objectContaining({
+          name: '__Secure-lb_rt',
+          opts: expect.objectContaining({ secure: true }) as unknown,
+        }),
+      ]);
+    });
+
+    it('an open session under the old name still refreshes', async () => {
+      const c = cookies();
+      expect(
+        await c.fromRequest(req({ ...WEB, cookie: 'lb_rt=old-session' })),
+      ).toBe('old-session');
+      expect(
+        await c.fromRequest(
+          req({ ...WEB, cookie: 'lb_rt=old; __Secure-lb_rt=new' }),
+        ),
+      ).toBe('new');
+    });
+
+    it('the next rotation moves it to the new name and drops the old one', async () => {
+      const r = await run(
+        { ...WEB, cookie: 'lb_rt=old-session' },
+        { accessToken: access(), refreshToken: 'rotated' },
+      );
+      expect(r.cookies).toEqual([
+        expect.objectContaining({ name: '__Secure-lb_rt', value: 'rotated' }),
+        expect.objectContaining({
+          name: 'lb_rt',
+          value: '',
+          opts: expect.objectContaining({ maxAge: 0 }) as unknown,
+        }),
+      ]);
+    });
+
+    it('plain-http local development keeps the bare name', () => {
+      const r = res();
+      cookies('development').set(req(WEB), r as unknown as Response, 'x');
+      expect(r.calls.map((c) => c.name)).toEqual(['lb_rt']);
     });
   });
 

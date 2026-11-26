@@ -8,6 +8,9 @@ import 'package:lawbid/core/diagnostics/sentry_reporter.dart';
 import 'package:lawbid/core/persistence/drift_memory_stub.dart'
     if (dart.library.js_interop) 'package:lawbid/core/persistence/drift_memory_web.dart';
 import 'package:lawbid/core/persistence/drift_recovery.dart';
+import 'package:lawbid/core/persistence/encrypted_database.dart'
+    if (dart.library.js_interop) 'package:lawbid/core/persistence/encrypted_database_web.dart';
+import 'package:lawbid/core/persistence/local_db_key.dart';
 import 'package:lawbid/core/platform/base_uri.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/common.dart' show CommonDatabase;
@@ -56,15 +59,29 @@ void cacheDatabaseSetup(CommonDatabase db) {
 
 const _cacheNativeOptions = DriftNativeOptions(setup: cacheDatabaseSetup);
 
-/// The files of a phone database: the database, then its companions.
-Future<List<File>> _databaseFiles(String name) async {
+Future<String> _plainPath(String name) async {
   final dir = (await getApplicationDocumentsDirectory()).path;
-  final base = '$dir${Platform.pathSeparator}$name.sqlite';
+  return '$dir${Platform.pathSeparator}$name.sqlite';
+}
+
+/// The files of a phone database: each database file, then its companions.
+/// An encrypted database (S13) lists its encrypted file and the plaintext
+/// one it replaces, so a recovery treats both alike.
+Future<List<File>> _databaseFiles(String name) async {
+  final plain = await _plainPath(name);
+  final bases = [
+    if (encryptedDatabases.contains(name)) encryptedPathOf(plain),
+    plain,
+  ];
   return [
-    File(base),
-    File('$base-wal'),
-    File('$base-shm'),
-    File('$base-journal'),
+    for (final base in bases) ...[
+      File(base),
+      File('$base-wal'),
+      File('$base-shm'),
+      File('$base-journal'),
+    ],
+    if (encryptedDatabases.contains(name))
+      File('${encryptedPathOf(plain)}.tmp'),
   ];
 }
 
@@ -89,12 +106,25 @@ QueryExecutor _nativeDatabase(String name, DriftRecovery recovery) =>
     RecoveringExecutor(
       name: name,
       recovery: recovery,
-      open: () => driftDatabase(
-        name: name,
-        web: appDriftWebOptions,
-        native:
-            _walCaches.contains(name) ? _cacheNativeOptions : _nativeOptions,
-      ),
+      open: () => encryptedDatabases.contains(name)
+          ? openEncryptedDatabase(
+              name: name,
+              plainPath: () => _plainPath(name),
+              key: LocalDatabaseKey.instance.passphrase,
+              // Android has no /tmp; drift_flutter does the same.
+              tempDirectory: () async => (await getTemporaryDirectory()).path,
+              setup: _walCaches.contains(name)
+                  ? cacheDatabaseSetup
+                  : _setupPragmas,
+              web: appDriftWebOptions,
+            )
+          : driftDatabase(
+              name: name,
+              web: appDriftWebOptions,
+              native: _walCaches.contains(name)
+                  ? _cacheNativeOptions
+                  : _nativeOptions,
+            ),
       files: () => _databaseFiles(name),
       memory: () => openProcessMemoryDatabase(appDriftWebOptions.sqlite3Wasm),
       report: _reportRecovery,

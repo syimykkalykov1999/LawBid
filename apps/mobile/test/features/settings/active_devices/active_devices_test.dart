@@ -57,14 +57,19 @@ class _PagedRepo implements ActiveDevicesRepository {
     return pages[cursor]!;
   }
 
+  final List<String?> revokeTokens = [];
+
   @override
-  Future<void> revoke(String sessionId) async => revoked.add(sessionId);
+  Future<void> revoke(String sessionId, {String? reauthToken}) async {
+    revoked.add(sessionId);
+    revokeTokens.add(reauthToken);
+  }
 
   int logoutOthersCalls = 0;
   Completer<void>? holdLogoutOthers;
 
   @override
-  Future<void> logoutOthers() async {
+  Future<void> logoutOthers({String? reauthToken}) async {
     logoutOthersCalls++;
     final gate = holdLogoutOthers;
     if (gate != null) await gate.future;
@@ -181,6 +186,47 @@ void main() {
     test('a malformed body is an error, not a crash', () async {
       adapter.handler = (o) async => jsonBody({'data': 'nope'});
       await expectLater(repo.fetchPage(), throwsA(isA<ApiException>()));
+    });
+
+    // STAGE2_SECURITY #12: after the re-auth sheet the call carries its token.
+    test('revoke / logoutOthers with a re-auth token send X-Reauth-Token',
+        () async {
+      adapter.handler = (o) async => ok({'ended': true});
+      await repo.revoke('s-9', reauthToken: 'test-reauth-token');
+      expect(adapter.requests.last.method, 'DELETE');
+      expect(adapter.requests.last.uri.path, endsWith('/auth/sessions/s-9'));
+      expect(
+        adapter.requests.last.headers['X-Reauth-Token'],
+        'test-reauth-token',
+      );
+      await repo.logoutOthers(reauthToken: 'test-reauth-token-2');
+      expect(adapter.requests.last.method, 'POST');
+      expect(adapter.requests.last.uri.path, endsWith('/auth/logout-others'));
+      expect(
+        adapter.requests.last.headers['X-Reauth-Token'],
+        'test-reauth-token-2',
+      );
+    });
+
+    test('REAUTH_REQUIRED / REAUTH_INVALID are recognised for the sheet', () {
+      expect(
+        ActiveDevicesController.isReauthError(
+          const ApiException(code: 'REAUTH_REQUIRED', message: 'x'),
+        ),
+        isTrue,
+      );
+      expect(
+        ActiveDevicesController.isReauthError(
+          const ApiException(code: 'REAUTH_INVALID', message: 'x'),
+        ),
+        isTrue,
+      );
+      expect(
+        ActiveDevicesController.isReauthError(
+          const ApiException(code: 'NOT_FOUND', message: 'x'),
+        ),
+        isFalse,
+      );
     });
   });
 

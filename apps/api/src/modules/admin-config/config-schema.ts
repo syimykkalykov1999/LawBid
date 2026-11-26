@@ -1917,6 +1917,19 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'From this app version on (semver), Google sign-in must use a nonce issued by the server; older builds keep their own. Empty = not enforced.',
     pattern: /^(\d+\.\d+\.\d+)?$/,
   };
+  out['security.session_end_reauth_min_app_version'] = {
+    ...out['security.session_end_reauth_min_app_version'],
+    description:
+      'From this app version on (semver), ending another session or signing out other devices needs a fresh re-authentication on phones; the website always needs it. Empty = phones not held to it yet.',
+    pattern: /^(\d+\.\d+\.\d+)?$/,
+  };
+  out['auth.session_absolute_days'] = {
+    ...out['auth.session_absolute_days'],
+    description:
+      'A sign-in lasts at most this many days however often it refreshes, then the person signs in again (365; 0 = no absolute limit).',
+    min: 0,
+    max: 3650,
+  };
   out['security.export_reauth_min_app_version'] = {
     ...out['security.export_reauth_min_app_version'],
     description:
