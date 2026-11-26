@@ -62,15 +62,66 @@ variable "turn_total_quota" {
 }
 variable "denied_peer_cidrs" {
   type        = list(string)
-  description = "Private ranges the relay must never reach (incl. this VPC)."
+  description = "IPv4 ranges (CIDR) the relay must never reach: private, loopback, link-local, this VPC and the IANA special-purpose blocks (ASVS 5.0 V17.1.1). Rendered as coturn `denied-peer-ip=<first>-<last>` lines: coturn reads only an address or an address range there, not CIDR (src/apps/relay/userdb.c add_ip_list_range splits on '-' only)."
   default = [
+    "0.0.0.0/8", # «this network»: on Linux 0.0.0.0 reaches the relay host itself (known coturn bypass)
     "10.0.0.0/8",
-    "172.16.0.0/12",
-    "192.168.0.0/16",
+    "100.64.0.0/10", # carrier-grade NAT
     "127.0.0.0/8",
-    "169.254.0.0/16",
-    "100.64.0.0/10",
+    "169.254.0.0/16", # link-local, incl. the instance metadata service
+    "172.16.0.0/12",
+    "192.0.0.0/24", # IETF protocol assignments
+    "192.0.2.0/24", # TEST-NET-1
+    "192.168.0.0/16",
+    "198.18.0.0/15",   # benchmarking
+    "198.51.100.0/24", # TEST-NET-2
+    "203.0.113.0/24",  # TEST-NET-3
+    "224.0.0.0/4",     # multicast (no-multicast-peers too)
+    "240.0.0.0/4",     # reserved
+    "255.255.255.255/32",
   ]
+  validation {
+    condition     = alltrue([for c in var.denied_peer_cidrs : can(cidrhost(c, 0)) && !strcontains(c, ":")])
+    error_message = "denied_peer_cidrs takes IPv4 CIDR blocks only; IPv6 goes in denied_peer_ipv6_ranges."
+  }
+}
+variable "denied_peer_ipv6_ranges" {
+  type        = list(string)
+  description = "IPv6 ranges the relay must never reach, written as coturn wants them (`first-last` or one address). IPv6 relaying is not on today; the lines keep it safe if it is ever turned on. Written out, not computed: Terraform prints an IPv4-mapped address (::ffff:0:0) as plain IPv4, which would deny every IPv4 peer."
+  default = [
+    "::-::",                                             # unspecified
+    "::1-::1",                                           # loopback
+    "::ffff:0:0-::ffff:ffff:ffff",                       # IPv4-mapped (::ffff:0:0/96)
+    "64:ff9b::-64:ff9b::ffff:ffff",                      # NAT64 (64:ff9b::/96)
+    "100::-100::ffff:ffff:ffff:ffff",                    # discard (100::/64)
+    "2001:db8::-2001:db8:ffff:ffff:ffff:ffff:ffff:ffff", # documentation (2001:db8::/32)
+    "fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",    # unique local (fc00::/7)
+    "fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff",    # link-local (fe80::/10)
+    "ff00::-ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",    # multicast (ff00::/8)
+  ]
+}
+variable "turn_user_quota" {
+  type        = number
+  default     = 12
+  description = "coturn user-quota: simultaneous relay allocations ONE credential may hold (ASVS 5.0 V17.1.2). The API hands each call participant a short-lived credential; 12 = a few calls' worth, so one leaked or scripted credential cannot take the whole box (total-quota). 0 = no per-credential limit."
+  validation {
+    condition     = var.turn_user_quota >= 0 && floor(var.turn_user_quota) == var.turn_user_quota
+    error_message = "turn_user_quota is a whole number, 0 or more."
+  }
+}
+variable "turn_max_allocate_lifetime" {
+  type        = number
+  default     = 3600
+  description = "coturn max-allocate-lifetime in seconds: an allocation must be refreshed at least this often (the client does it by itself); a dead client's allocation goes after this time at most."
+}
+variable "turn_max_bps" {
+  type        = number
+  default     = 0
+  description = "coturn max-bps: bytes per second ONE relayed session may use. 0 = no per-session cap (today's behaviour: a relayed video call is never throttled). The knob is here so the owner can set one without a code change."
+  validation {
+    condition     = var.turn_max_bps >= 0 && floor(var.turn_max_bps) == var.turn_max_bps
+    error_message = "turn_max_bps is a whole number of bytes per second, 0 (no cap) or more."
+  }
 }
 variable "on_demand" {
   type        = bool
@@ -233,7 +284,10 @@ resource "aws_instance" "this" {
     on_demand    = var.on_demand
     secret_param = aws_ssm_parameter.secret.name
     region       = data.aws_region.current.region
-    denied       = var.denied_peer_cidrs
+    denied       = local.denied_peer_ranges
+    user_quota   = var.turn_user_quota
+    max_lifetime = var.turn_max_allocate_lifetime
+    max_bps      = var.turn_max_bps
     quota        = local.quota
   })
   # A new secret, address or quota rewrites the config: replace the box.
@@ -286,8 +340,13 @@ locals {
     "c7gn.large"  = { quota = 2000, baseline_mbps = 6250 }
     "c7gn.xlarge" = { quota = 4000, baseline_mbps = 12500 }
   }
-  size          = lookup(local.sizes, var.instance_type, local.sizes["t4g.nano"])
-  quota         = var.turn_total_quota != null ? var.turn_total_quota : local.size.quota
+  size  = lookup(local.sizes, var.instance_type, local.sizes["t4g.nano"])
+  quota = var.turn_total_quota != null ? var.turn_total_quota : local.size.quota
+  # coturn takes `denied-peer-ip=<addr>` or `<first>-<last>`, never CIDR.
+  denied_peer_ranges = concat(
+    [for c in var.denied_peer_cidrs : "${cidrhost(c, 0)}-${cidrhost(c, -1)}"],
+    var.denied_peer_ipv6_ranges,
+  )
   baseline_mbps = local.size.baseline_mbps
   burstable     = startswith(var.instance_type, "t")
 }
@@ -328,4 +387,9 @@ output "instance_arn" {
 output "instance_ids" {
   value       = concat([aws_instance.this.id], aws_instance.second[*].id)
   description = "EC2 ids of the relays (the load test reads their CloudWatch CPU / network)."
+}
+
+output "denied_peer_ranges" {
+  value       = local.denied_peer_ranges
+  description = "The coturn denied-peer-ip lines (first-last), as rendered into /etc/turnserver.conf."
 }

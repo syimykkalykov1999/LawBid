@@ -14,3 +14,4 @@ crash.log
 .endpoints-autoscale-*.zip
 .spot-fallback-*.zip
 __pycache__/
+.error-budget-*.zip

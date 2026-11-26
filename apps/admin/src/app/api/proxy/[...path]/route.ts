@@ -1,9 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import {
+  LEGACY_SESSION_COOKIE,
   SESSION_COOKIE,
+  SESSION_MAX_AGE_SECONDS,
   apiBaseUrl,
   cookieOptions,
-  sessionToken,
+  sessionCookie,
 } from '@/lib/api/server';
 import { bodyTypeAllowed, crossSiteReason, isSafeMethod } from '@/lib/csrf';
 
@@ -86,7 +88,8 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
   if (!isSafeMethod(req.method) && declared > MAX_BODY_BYTES) {
     return refuse(413, 'PAYLOAD_TOO_LARGE', 'The request is too large.');
   }
-  const token = await sessionToken();
+  const session = await sessionCookie();
+  const token = session?.token;
   if (!token) {
     return NextResponse.json(
       { error: { code: 'UNAUTHORIZED', message: 'No admin session.' } },
@@ -194,6 +197,13 @@ async function forward(req: NextRequest, path: string[]): Promise<Response> {
   }
   if (upstream.status === 401) {
     res.cookies.set(SESSION_COOKIE, '', cookieOptions(0));
+    if (session?.legacy) res.cookies.set(LEGACY_SESSION_COOKIE, '', cookieOptions(0));
+  } else if (session?.legacy) {
+    // #1 cookie prefix, one-release migration: the JWT moves to the
+    // `__Host-` name and the old cookie goes. The API still ends the session
+    // at its own absolute 8 h, so the fresh Max-Age extends nothing.
+    res.cookies.set(SESSION_COOKIE, token, cookieOptions(SESSION_MAX_AGE_SECONDS));
+    res.cookies.set(LEGACY_SESSION_COOKIE, '', cookieOptions(0));
   }
   return res;
 }

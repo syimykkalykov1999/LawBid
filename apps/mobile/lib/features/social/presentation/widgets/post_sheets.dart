@@ -632,12 +632,17 @@ Future<void> showPostMenu(BuildContext context, WidgetRef ref, Post post) {
 
 /// `POST /reports` with a `report_reason` (§4, §12). A repeat by the same
 /// user is ignored by the server, so the answer is always "thanks".
+///
+/// [submit] replaces the plain `POST /reports` (item 25: a report from an
+/// end-to-end encrypted chat carries the reported person's last messages
+/// from this device); it returns the error, null when sent.
 Future<void> showReportSheet(
   BuildContext context,
   WidgetRef ref,
   ReportTarget target,
-  String id,
-) {
+  String id, {
+  Future<Object?> Function(ReportReason reason)? submit,
+}) {
   final t = ref.read(translatorProvider);
   return showAppBottomSheet<void>(
     context: context,
@@ -680,9 +685,11 @@ Future<void> showReportSheet(
                         }
                         return;
                       }
-                      final error = await ref
-                          .read(socialActionsProvider)
-                          .report(target, id, reason);
+                      final error = submit != null
+                          ? await submit(reason)
+                          : await ref
+                              .read(socialActionsProvider)
+                              .report(target, id, reason);
                       if (context.mounted) {
                         showAppSnackBar(
                           context,

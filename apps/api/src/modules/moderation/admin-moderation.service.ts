@@ -1,4 +1,5 @@
 import type { CountryScope } from '../countries/country-scope';
+import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import {
   ConflictException,
   Inject,
@@ -83,6 +84,8 @@ export class AdminModerationService {
     @Optional() private readonly appSettings?: AppSettingsService,
     // R-403: a decision drops the shared sidebar counts (badge = list).
     @Optional() private readonly summary?: AdminSummaryService,
+    // Item 25: the text of encrypted-chat report evidence (sealed at rest).
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   async queue(
@@ -184,6 +187,8 @@ export class AdminModerationService {
         where: { target_type: type, target_id: id },
         orderBy: { created_at: 'asc' },
         take: 100,
+        // Item 25: what an encrypted-chat report carried.
+        include: { e2ee_evidence: { orderBy: { sent_at: 'asc' } } },
       }),
       target.authorId ? this.author(target.authorId) : null,
     ]);
@@ -200,6 +205,12 @@ export class AdminModerationService {
       author,
       reports: reports.map((r) => ({
         id: r.id,
+        e2eeEvidence: r.e2ee_evidence.map((e) => ({
+          messageId: e.message_id,
+          text: this.cipher?.open(e.body, e.message_id) ?? e.body,
+          verified: e.verified,
+          sentAt: e.sent_at.toISOString(),
+        })),
         reporterId: r.reporter_id,
         reason: r.reason,
         note: r.note,
