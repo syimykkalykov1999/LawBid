@@ -127,3 +127,19 @@ run "lock_without_edge_is_refused" {
   }
   expect_failures = [aws_lb_listener.https]
 }
+
+run "origin_lock_also_on_the_native_canary_rules" {
+  command = plan
+  variables {
+    edge_enabled             = true
+    edge_waf_enabled         = true
+    edge_origin_lock         = true
+    ws_target_group_enabled  = true
+    api_native_deploy_stage  = "prepare"
+    edge_origin_verify_value = "test-origin-verify-value-0123456789abcdef"
+  }
+  assert {
+    condition     = length([for c in aws_lb_listener_rule.api_ws_weighted[0].condition : c if length(c.http_header) > 0]) == 1
+    error_message = "the /socket.io canary rule (priority 7) needs x-origin-verify, or sockets go around the edge"
+  }
+}

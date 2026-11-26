@@ -110,6 +110,10 @@ enum AdminSupportUploadDtoMime {
   @JsonValue('video/webm')
   undefined22('video/webm'),
 
+  /// Incorrect name has been replaced. Original name: `application/vnd.lawbid.e2ee`.
+  @JsonValue('application/vnd.lawbid.e2ee')
+  undefined23('application/vnd.lawbid.e2ee'),
+
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);
 

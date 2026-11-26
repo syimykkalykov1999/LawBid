@@ -2592,14 +2592,16 @@ module "ecs" {
   api_admin_deployment_alarm_names = module.monitoring.api_admin_deployment_alarm_names
 
   # X1: ECS built-in canary / linear for the api (var.api_native_deploy).
-  api_deployment_strategy          = local.api_native_ecs_strategy
-  api_alternate_target_group_arn   = module.alb.api_green_target_group_arn
-  api_production_listener_rule_arn = module.alb.api_production_listener_rule_arn
-  api_canary_percent               = var.api_canary_percent
-  api_canary_bake_minutes          = var.api_canary_bake_minutes
-  api_linear_step_percent          = var.api_linear_step_percent
-  api_linear_step_bake_minutes     = var.api_linear_step_bake_minutes
-  api_deploy_bake_minutes          = var.api_deploy_bake_minutes
+  api_deployment_strategy             = local.api_native_ecs_strategy
+  api_alternate_target_group_arn      = module.alb.api_green_target_group_arn
+  api_production_listener_rule_arn    = module.alb.api_production_listener_rule_arn
+  api_ws_alternate_target_group_arn   = module.alb.api_ws_green_target_group_arn
+  api_ws_production_listener_rule_arn = module.alb.api_ws_production_listener_rule_arn
+  api_canary_percent                  = var.api_canary_percent
+  api_canary_bake_minutes             = var.api_canary_bake_minutes
+  api_linear_step_percent             = var.api_linear_step_percent
+  api_linear_step_bake_minutes        = var.api_linear_step_bake_minutes
+  api_deploy_bake_minutes             = var.api_deploy_bake_minutes
   # 25.11: request + predictive scaling read both api target groups once the
   # green group exists (a literal: its ARN is unknown while it is created).
   api_two_target_groups             = var.api_native_deploy != "off"

@@ -511,8 +511,22 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
                   label: t.t('contact.reportName', {'name': blockName}),
                   destructive: true,
                   showChevron: false,
-                  onTap: () =>
-                      showReportSheet(context, ref, ReportTarget.user, p.id!),
+                  onTap: () => showReportSheet(
+                    context,
+                    ref,
+                    ReportTarget.user,
+                    p.id!,
+                    // Item 25 (WhatsApp): from an encrypted chat the report
+                    // carries this person's last messages from the phone.
+                    submit: c.e2eeSince == null
+                        ? null
+                        : (reason) => reportE2eeChat(
+                              ref,
+                              widget.conversationId,
+                              p.id!,
+                              reason,
+                            ),
+                  ),
                 ),
               ],
             ),

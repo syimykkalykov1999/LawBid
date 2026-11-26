@@ -78,6 +78,7 @@ import {
   takeSocketEvent,
   type SocketEventBucket,
 } from './socket-event-bucket';
+import { SOCKET_SERVER_OPTIONS } from '../../common/cors/socket-server-options';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -208,15 +209,9 @@ function expiryOf(token: string): number | null {
  */
 @WebSocketGateway({
   namespace: REALTIME_NAMESPACE,
-  cors: { origin: true },
-  transports: ['websocket', 'polling'],
-  // Owner 2026-10-15: limits so one heavy or broken client cannot hurt the
-  // rest. Every socket event is small (join, typing, presence, a call's
-  // SDP/ICE of a few KB); files go through the REST API, not the socket.
-  maxHttpBufferSize: 64 * 1024,
-  pingInterval: 25_000,
-  pingTimeout: 20_000,
-  connectTimeout: 10_000,
+  // One Socket.IO server for all namespaces: the same options on every
+  // gateway, whichever starts first (common/cors/socket-server-options.ts).
+  ...SOCKET_SERVER_OPTIONS,
 })
 export class RealtimeGateway
   implements

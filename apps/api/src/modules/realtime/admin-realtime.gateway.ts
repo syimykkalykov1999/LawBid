@@ -26,6 +26,7 @@ import {
 } from './realtime-publisher.service';
 import { isIP } from 'node:net';
 import { socketClientIp } from './socket-ip';
+import { SOCKET_SERVER_OPTIONS } from '../../common/cors/socket-server-options';
 
 /** The ticket is 24 random bytes in base64url (32 chars). */
 const TICKET_RE = /^[A-Za-z0-9_-]{16,64}$/;
@@ -61,12 +62,9 @@ const scopeKey = (countries: string[] | null) =>
  */
 @WebSocketGateway({
   namespace: ADMIN_RT_NAMESPACE,
-  cors: { origin: true },
-  transports: ['websocket', 'polling'],
-  maxHttpBufferSize: 4 * 1024,
-  pingInterval: 25_000,
-  pingTimeout: 20_000,
-  connectTimeout: 10_000,
+  // One Socket.IO server for all namespaces: the same options on every
+  // gateway, whichever starts first (common/cors/socket-server-options.ts).
+  ...SOCKET_SERVER_OPTIONS,
 })
 export class AdminRealtimeGateway
   implements OnGatewayInit, OnGatewayConnection, OnModuleDestroy
