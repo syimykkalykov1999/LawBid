@@ -94,6 +94,12 @@ Replication), один раз. Маркеры удаления не копиру
   только для `/socket.io/*`, остальной API без липкости и с
   `least_outstanding_requests`. **Внимание:** провайдер AWS пересоздаёт ECS-сервис
   api при добавлении группы (короткий перебой) — применять в тихое время.
+  26.11: исходник провайдера (`internal/service/ecs/service.go`, main) меняет
+  `load_balancer` на месте (`UpdateService` с `LoadBalancers`), без пересоздания;
+  если план всё же покажет `delete-create` сервиса, автоматический план его не
+  применит (`NEVER_AUTO_DESTROY`). Включает «Авто» само: строка
+  `aws.alb_balancing` (`infra-auto-growth.logic.ts`), с
+  `infra.edge_on_api_tasks` (2) серверов API, в `infra.quiet_hours`.
 - Позже (изменение приложения, не сделано): клиенты Socket.IO
   `transports: ['websocket']` (без long-polling), тогда липкость не нужна совсем.
 

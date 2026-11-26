@@ -9,6 +9,13 @@ import {
   type InfraTarget,
 } from '../../../common/ops/infra-switches';
 import { infraSuggestions, type SuggestionSignals } from './infra-change.logic';
+import {
+  EDGE_LADDER,
+  GROWTH_AUTO_SCOPE,
+  growthWants,
+  tracingKeep,
+  type GrowthSignals,
+} from './infra-auto-growth.logic';
 
 /**
  * Automation audit 2026-11-08 (owner: «Авто» must really act, on at the
@@ -28,7 +35,7 @@ export const autoscaleCodePair = (main: string, applied: string): string =>
 
 export const SYSTEM_ACTOR_ID = '00000000-0000-0000-0000-000000000000';
 
-export interface AutoSignals extends SuggestionSignals {
+export interface AutoSignals extends SuggestionSignals, GrowthSignals {
   /** Owner 15.11 («разреши "Авто" само применять обновления кода своих
    * функций без меня»): the source hash of the four autoscale Lambdas on
    * main (deploy.yml) and the one the last apply shipped (Terraform). */
@@ -187,7 +194,12 @@ export const WAF_GUARDS = [
 
 /** Read copies and search nodes: each step needs the one before it and goes
  * only after the ones above it. */
-const LADDERS: readonly (readonly string[])[] = [COPIES, SEARCH_NODES];
+const LADDERS: readonly (readonly string[])[] = [
+  COPIES,
+  SEARCH_NODES,
+  // Owner 26.11: ALB balancing -> canary preparation -> canary.
+  EDGE_LADDER,
+];
 
 export interface AutoWant {
   id: string;
@@ -219,6 +231,12 @@ const KEEP_ON: Readonly<Record<string, (s: AutoSignals) => boolean>> = {
   // for the whole cool-down (events.sink auto turns back to the table).
   'aws.events_stream': (s) =>
     s.eventsStreamWanted === true || s.eventsStreamInUse === true,
+  // Owner 26.11: tracing is billed per trace, so it goes again after the
+  // quiet cool-down (infra-auto-growth.logic.ts). The ALB balancing, the
+  // canary preparation and the database change log are NOT here: they cost
+  // $0 and switching them off deletes serving parts or needs
+  // ResetDBParameterGroup.
+  'aws.tracing': (s) => tracingKeep(s),
   // G5: the cache node is NOT here on purpose: its own effect removes the
   // signal (main Redis memory drops once the cache moved), so switching it
   // off by that signal would flap. Once on by itself, it stays.
@@ -491,6 +509,8 @@ export function autoWants(
         'Таблица подходит к порогу деления «Авто»: нужен вход роли lawbid_partition.',
     });
   }
+  // Owner 26.11: the growth items made «Авто» (infra-auto-growth.logic.ts).
+  out.push(...growthWants(s, live));
   const modeOf = (id: string): InfraMode => s.modes?.[id] ?? 'auto';
   for (const [id, keep] of Object.entries(KEEP_ON)) {
     const handed = autoOn.has(id) || s.pickedAuto?.has(id) === true;
@@ -842,6 +862,9 @@ export const AUTO_SCOPE: Readonly<Record<string, readonly RegExp[]>> = {
   'aws.waf_alb': WAF_ALB,
   'aws.waf_bot_control': WAF_ALB,
   'aws.waf_extra_rules': WAF_ALB,
+  // Owner 26.11: the growth items made «Авто» (aws.api_canary is not in it:
+  // its plan deletes listener rule 10, always the owner's 2FA).
+  ...GROWTH_AUTO_SCOPE,
 };
 
 /** Terraform resource type of a plan address
