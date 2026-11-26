@@ -22,10 +22,35 @@ import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.da
     show muteDuration, pickMute;
 import 'package:material_ui/material_ui.dart';
 
+/// The pills of Chats, in order. "General" is hidden: it meant the same as
+/// "All". Owner 2026-10-19: «Основные» (primary) is hidden too. Owner
+/// 2026-11-18: no «Непрочитанные», «Кейсы» is a top tab. Owner 2026-11-25:
+/// no «Ожидают ответа» either — it meant the same as «Непрочитанные»; only
+/// «Все · Группы · Запросы» stay. The hidden folders and their filters stay
+/// in the code. Owner 2026-11-16 (WhatsApp «Группы» filter): «Группы» only
+/// while «Группы в чатах» is on.
+List<ChatListFolder> chatFolderPills({required bool groupsOn}) => [
+      ChatListFolder.all,
+      if (groupsOn) ChatListFolder.groups,
+      ChatListFolder.requests,
+    ];
+
+/// The folder Chats shows for a chosen (or remembered) [folder]: one whose
+/// pill is gone — «Ожидают ответа» (owner 2026-11-25), «Непрочитанные»,
+/// «Группы» while groups are off — falls back to «Все».
+ChatListFolder shownChatFolder(
+  ChatListFolder folder, {
+  required bool groupsOn,
+}) =>
+    chatFolderPills(groupsOn: groupsOn).contains(folder)
+        ? folder
+        : ChatListFolder.all;
+
 /// Owner 2026-10-01: small Instagram-like sub-tabs inside Chats —
 /// All · Groups · Waiting · Requests (with counts). Owner 2026-11-18:
 /// «Непрочитанные» is gone (each row shows its unread) and «Кейсы» is a
-/// top tab of its own now.
+/// top tab of its own now. Owner 2026-11-25: «Ожидают ответа» is gone too
+/// — the pills are «Все · Группы · Запросы» ([chatFolderPills]).
 class ChatFolderPills extends ConsumerWidget {
   const ChatFolderPills({
     required this.value,
@@ -57,22 +82,7 @@ class ChatFolderPills extends ConsumerWidget {
     // Owner 2026-10-22 (Instagram DM tabs): the pills share the whole row in
     // equal widths with small gaps; the label shrinks to fit a long language.
     // «Requests» ends with a chevron.
-    // "General" tab is hidden: it meant the same as "All".
-    // Owner 2026-10-19: «Основные» (primary) is hidden too; its
-    // filter stays in the code.
-    final shown = [
-      for (final f in ChatListFolder.values)
-        if (f != ChatListFolder.general &&
-            f != ChatListFolder.primary &&
-            f != ChatListFolder.archive &&
-            // Owner 2026-11-18: no «Непрочитанные», «Кейсы» is a top tab.
-            f != ChatListFolder.unread &&
-            f != ChatListFolder.cases &&
-            // Owner 2026-11-16 (WhatsApp «Группы» filter): only while
-            // «Группы в чатах» is on.
-            (f != ChatListFolder.groups || groupsOn))
-          f,
-    ];
+    final shown = chatFolderPills(groupsOn: groupsOn);
     return SizedBox(
       height: 32,
       child: Padding(
@@ -446,7 +456,13 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
             ),
             // Owner 2026-10-21: no «Primary» any more; the chat moves to the
             // folders that exist. «Cases» holds the case chats by itself.
-            if (!c.waiting)
+            // Owner 2026-11-25: no «Ожидают ответа» chip any more, so no
+            // «Move to: Ожидают ответа» either while the chip is gone (the
+            // row stays in the code; «Жду ответа» and the note stay in the
+            // full sheet below).
+            if (!c.waiting &&
+                chatFolderPills(groupsOn: true)
+                    .contains(ChatListFolder.waiting))
               AppListRow(
                 key: const ValueKey('organize-move'),
                 icon: AppIcons.hourglassEmptyRounded,

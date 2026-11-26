@@ -120,6 +120,88 @@ describe('AwsOpsService.applyScaling (admin ECS numbers)', () => {
     ]);
   });
 
+  it('item 27: the api predictive policy follows the admin api_requests.target, Mode and metrics kept', async () => {
+    const PRED = {
+      Mode: 'ForecastAndScale',
+      SchedulingBufferTime: 300,
+      MaxCapacityBreachBehavior: 'HonorMaxCapacity',
+      MetricSpecifications: [
+        {
+          TargetValue: 3000,
+          CustomizedLoadMetricSpecification: {
+            MetricDataQueries: [{ Id: 'load', Expression: 'FILL(rb, 0)' }],
+          },
+        },
+      ],
+    };
+    const env2: Record<string, string> = {
+      OPS_ECS_CLUSTER: 'c',
+      OPS_WORKER_SERVICE: 'worker',
+      OPS_ECS_SCALING_POLICIES: JSON.stringify({
+        api_requests: {
+          name: 'p-api-requests',
+          resource_id: 'service/c/api',
+          dimension: 'ecs:service:DesiredCount',
+          target: 3000,
+          in_s: 600,
+          out_s: 180,
+        },
+      }),
+      OPS_ECS_PREDICTIVE_POLICIES: JSON.stringify({
+        api: {
+          name: 'p-api-predictive',
+          resource_id: 'service/c/api',
+          dimension: 'ecs:service:DesiredCount',
+        },
+      }),
+    };
+    const put: Record<string, unknown>[] = [];
+    const s = new AwsOpsService({ get: (k: string) => env2[k] } as never);
+    const send = jest.fn((cmd: unknown) => {
+      if (cmd instanceof DescribeScalingPoliciesCommand) {
+        const name = cmd.input.PolicyNames![0];
+        return Promise.resolve({
+          ScalingPolicies: [
+            name === 'p-api-predictive'
+              ? { PolicyName: name, PredictiveScalingPolicyConfiguration: PRED }
+              : {
+                  PolicyName: name,
+                  TargetTrackingScalingPolicyConfiguration: {
+                    TargetValue: 3000,
+                    ScaleInCooldown: 600,
+                    ScaleOutCooldown: 180,
+                  },
+                },
+          ],
+        });
+      }
+      if (cmd instanceof PutScalingPolicyCommand) put.push({ ...cmd.input });
+      return Promise.resolve({});
+    });
+    (s as unknown as { scaling: unknown }).scaling = { send };
+
+    const r = await s.applyScaling({ 'api_requests.target': 1800 });
+    expect(r.changed).toEqual(['api_requests', 'api_predictive']);
+    expect(put[1]).toEqual({
+      PolicyName: 'p-api-predictive',
+      ServiceNamespace: 'ecs',
+      ResourceId: 'service/c/api',
+      ScalableDimension: 'ecs:service:DesiredCount',
+      PolicyType: 'PredictiveScaling',
+      PredictiveScalingPolicyConfiguration: {
+        ...PRED,
+        MetricSpecifications: [
+          { ...PRED.MetricSpecifications[0], TargetValue: 1800 },
+        ],
+      },
+    });
+    // An emptied admin field = the Terraform default (3000) = already equal.
+    put.length = 0;
+    const r2 = await s.applyScaling({});
+    expect(r2.changed).toEqual([]);
+    expect(put).toEqual([]);
+  });
+
   it('nothing configured off AWS', async () => {
     const s = new AwsOpsService({ get: () => undefined } as never);
     await expect(s.applyScaling({})).resolves.toEqual({

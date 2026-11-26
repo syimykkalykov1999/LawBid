@@ -34,6 +34,8 @@ On-call: the owner until a rotation exists (docs/06 §11.1 "дежурный
 | `api-no-running-tasks` / `worker-no-running-tasks` | [ecs-capacity.md](ecs-capacity.md) |
 | `db-autoscale-errors`, письма «База увеличена / уменьшена» | [db-autoscale.md](db-autoscale.md) |
 | `redis-autoscale-errors`, письма «Redis увеличен / уменьшен» | [redis-autoscale.md](redis-autoscale.md) |
+| Письмо «Сначала разгружаем чтение копией базы», прогноз серверов API | [predictive-and-read-first.md](predictive-and-read-first.md) |
+| «Пора переходить» на Valkey Serverless в «Расходы → Реестр» | [valkey-serverless.md](valkey-serverless.md) |
 | Лампочка «База» жёлтая с `bloatOver` (раздутие таблиц) | [pg-repack.md](pg-repack.md) |
 | `secret-rotation-problems`, «Смена паролей и ключей» в здоровье системы | [secrets-rotation.md](secrets-rotation.md) |
 | GitHub «Self-check (production)» failed | the run summary + [OWNER.md](OWNER.md) |

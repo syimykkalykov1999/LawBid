@@ -388,6 +388,8 @@ describe('BootstrapService.build', () => {
     });
     expect(result.app_config).toEqual({
       min_app_version_ios: '0.1.0',
+      // Owner 25.11: where a confirmation code goes (SMS by default).
+      'auth.code_channel': 'sms',
       // Owner 2026-10-07 (bug 17): always sent, defaults when unset.
       'uploads.limits': sanitizeUploadLimits(undefined),
       // Owner 2026-10-22 (client economy plan §5): the on-device cache

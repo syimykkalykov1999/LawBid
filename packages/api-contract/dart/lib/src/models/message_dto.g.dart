@@ -21,6 +21,8 @@ MessageDto _$MessageDtoFromJson(Map<String, dynamic> json) => MessageDto(
   pinned: json['pinned'] as bool,
   senderId: json['senderId'] as String?,
   sentByAssistant: json['sentByAssistant'] as String?,
+  ciphertext: json['ciphertext'] as String?,
+  mlsEpoch: json['mlsEpoch'] as num?,
   gift: json['gift'] == null
       ? null
       : GiftSendDto.fromJson(json['gift'] as Map<String, dynamic>),
@@ -63,6 +65,8 @@ Map<String, dynamic> _$MessageDtoToJson(MessageDto instance) =>
       'senderId': ?instance.senderId,
       'sentByAssistant': ?instance.sentByAssistant,
       'type': instance.type.toJson(),
+      'ciphertext': ?instance.ciphertext,
+      'mlsEpoch': ?instance.mlsEpoch,
       'gift': ?instance.gift?.toJson(),
       'contact': ?instance.contact?.toJson(),
       'post': ?instance.post?.toJson(),
