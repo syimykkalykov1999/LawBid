@@ -111,6 +111,40 @@ describe('enforceCacheSafety: sensitive answers', () => {
     expect(res.h.get('cache-control')).toBe('private, no-store');
   });
 
+  it.each(['ios', 'android', 'Android'])(
+    'review #1338: the %s app keeps private, no-cache (its ETag/304 local copy)',
+    (platform) => {
+      const res = fakeRes({ ETag: 'W/"x"' });
+      markSensitive(res);
+      enforceCacheSafety(
+        get({ authorization: 'Bearer t', 'x-platform': platform }),
+        res,
+        200,
+      );
+      expect(res.h.get('cache-control')).toBe('private, no-cache');
+      expect(res.h.get('vary')).toMatch(/Authorization/);
+      expect(res.h.get('vary')).toMatch(/X-Platform/);
+      expect(res.h.get('etag')).toBe('W/"x"');
+    },
+  );
+
+  it.each([undefined, 'web', 'desktop'])(
+    'review #1338: X-Platform %s (a browser) gets private, no-store',
+    (platform) => {
+      const res = fakeRes();
+      markSensitive(res);
+      enforceCacheSafety(
+        get({
+          authorization: 'Bearer t',
+          ...(platform ? { 'x-platform': platform } : {}),
+        }),
+        res,
+        200,
+      );
+      expect(res.h.get('cache-control')).toBe('private, no-store');
+    },
+  );
+
   it('an unmarked signed-in answer stays private, no-cache', () => {
     const res = fakeRes();
     enforceCacheSafety(get({ authorization: 'Bearer t' }), res, 200);

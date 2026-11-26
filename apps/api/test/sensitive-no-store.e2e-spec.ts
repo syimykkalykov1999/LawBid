@@ -67,6 +67,36 @@ describe('Sensitive answers are not stored (e2e)', () => {
       .expect(304);
   });
 
+  it.each(['ios', 'android'])(
+    'review #1338: the %s app keeps private, no-cache on a sensitive answer (its local copy + 304)',
+    async (platform) => {
+      const first = await request(app.getHttpServer())
+        .get('/api/v1/auth/sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .set('X-Platform', platform)
+        .expect(200);
+      expect(first.headers['cache-control']).toBe('private, no-cache');
+      expect(first.headers.vary).toMatch(/X-Platform/);
+      const etag = first.headers.etag as string | undefined;
+      expect(etag).toBeTruthy();
+      await request(app.getHttpServer())
+        .get('/api/v1/auth/sessions')
+        .set('Authorization', `Bearer ${token}`)
+        .set('X-Platform', platform)
+        .set('If-None-Match', etag!)
+        .expect(304);
+    },
+  );
+
+  it('review #1338: the website (X-Platform web) gets private, no-store', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/auth/sessions')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Platform', 'web')
+      .expect(200);
+    expect(res.headers['cache-control']).toBe('private, no-store');
+  });
+
   it('a non-sensitive signed-in answer keeps private, no-cache', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/config/bootstrap')

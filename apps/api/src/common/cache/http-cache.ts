@@ -48,6 +48,16 @@ export function markSensitive(res: Response): void {
   (res.locals as Record<string, unknown>)[SENSITIVE_LOCAL] = true;
 }
 
+/** The iOS / Android apps (headers_interceptor.dart sends X-Platform on
+ * every request; the website sends `web`). */
+export function isNativeApp(req: Pick<Request, 'headers'>): boolean {
+  const raw: unknown = (req.headers as Record<string, unknown> | undefined)?.[
+    'x-platform'
+  ];
+  const v = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+  return v === 'ios' || v === 'android';
+}
+
 function isSensitive(res: Response): boolean {
   const locals = res.locals as Record<string, unknown> | undefined;
   return locals?.[SENSITIVE_LOCAL] === true;
@@ -94,11 +104,18 @@ export function enforceCacheSafety(
     res.setHeader('Cache-Control', 'private, no-store');
     return;
   }
-  if (isSensitive(res)) {
+  // Review of #1338: no-store only where a BROWSER would write the answer
+  // to its disk cache. The phone apps (X-Platform ios / android) keep their
+  // own encrypted local copy and revalidate it with If-None-Match; their
+  // HTTP cache skips no-store answers (apps/mobile/lib/core/cache/
+  // http_cache_interceptor.dart), so no-store there would end ETag/304 and
+  // the local-first lists. They keep `private, no-cache` below.
+  if (isSensitive(res) && !isNativeApp(req)) {
     res.setHeader('Cache-Control', 'private, no-store');
-    addVary(res, ['Authorization']);
+    addVary(res, ['Authorization', 'X-Platform']);
     return;
   }
+  if (isSensitive(res)) addVary(res, ['X-Platform']);
   // Verify batch 13 (E2): a private answer is one account's view. Without
   // `Vary: Authorization` a browser (the web app, a shared computer) kept
   // account A's copy under the URL and revalidated it while signed in as B;
