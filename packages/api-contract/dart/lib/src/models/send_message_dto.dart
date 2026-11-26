@@ -15,6 +15,7 @@ class SendMessageDto {
     this.ciphertext,
     this.mlsEpoch,
     this.mlsDeviceId,
+    this.frankingTag,
     this.giftId,
     this.contactUserId,
     this.postId,
@@ -46,6 +47,11 @@ class SendMessageDto {
 
   /// Item 25 (type=mls): the sending MLS device (POST /e2ee/devices).
   final String? mlsDeviceId;
+
+  /// Item 25 (type=mls, message franking): base64 of HMAC-SHA256(k, P).
+  /// where P is the message's plaintext and k the 32-byte key inside it. A.
+  /// report reveals P; the server checks it against this tag.
+  final String? frankingTag;
 
   /// Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is.
   /// the optional note (≤200).

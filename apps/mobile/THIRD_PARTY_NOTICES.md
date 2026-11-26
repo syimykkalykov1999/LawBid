@@ -292,6 +292,15 @@ is (https://developer.android.com/topic/performance/graphics/load-bitmap,
 read 2026-11-13). Code samples on that site are licensed under the Apache
 License, Version 2.0, as for livekit_client above.
 
+## Android developer guide «Optimize network data usage» — Apache-2.0
+
+The Data Saver check in `android/.../DataSaverChannel.kt`
+(`isActiveNetworkMetered`, then `restrictBackgroundStatus ==
+RESTRICT_BACKGROUND_STATUS_ENABLED`, and the in-code receiver for
+`ACTION_RESTRICT_BACKGROUND_CHANGED`) is the guide's Kotlin sample
+(https://developer.android.com/develop/connectivity/network-ops/data-saver,
+read 2026-11-25), Apache License, Version 2.0, as above.
+
 ## tus-js-client — MIT
 
 The parallel reel upload in `lib/features/reels/data/reels_repository.dart`
@@ -956,6 +965,18 @@ bundled **unmodified** into one ES module by esbuild 0.28.2
 e2fdcabfb4e05195fa7f9735602240e221ef5c9802c924c13f19f3403a2982f4. Our own
 glue is `web/js/mls.js`. The phones use OpenMLS through the `openmls` pub
 package (MIT; Flutter adds its LICENSE to the app's licence list itself).
+
+Encrypted chat files and the encrypted backup (item 25, PR 4) use AES-256-GCM
+and HKDF-SHA256 from the `cryptography` pub package 2.9.0 (Apache-2.0,
+https://github.com/dint-dev/cryptography; the browser's WebCrypto on the web;
+Flutter adds its LICENSE to the app's licence list). The segmented file format
+follows the idea of Google Tink's AES-GCM-HKDF streaming AEAD (Apache-2.0;
+idea only, no code copied — there is no Dart port of Tink).
+
+The preview inside an encrypted photo's message is a BlurHash made on the
+phone by the `blurhash_dart` pub package 1.2.1 (MIT, Copyright (c) 2020
+Tobias Schwackenhofer, https://github.com/justacid/blurhash-dart), used
+unmodified; the bubble draws it with `flutter_blurhash` as before.
 
 ts-mls — Copyright (c) 2025 Luka Jacobowitz.
 @hpke/core, @hpke/common — Copyright (c) 2023–2024 Ajitomi Daisuke.

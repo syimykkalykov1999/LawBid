@@ -1385,6 +1385,11 @@ export const OWNER_E2EE_SETTINGS = {
   'chat.e2ee_report_messages': 5,
   /** Undelivered Welcomes are dropped after this many days. */
   'chat.e2ee_welcome_keep_days': 30,
+  /** MB of one end-to-end encrypted chat file (WhatsApp: 2 GB documents;
+   * ours start at the chat's own 100). */
+  'chat.e2ee_file_max_mb': 100,
+  /** MB of one person's encrypted chat backup. */
+  'chat.e2ee_backup_max_mb': 500,
 } as const;
 
 /** Owner 2026-10-20 (WhatsApp): how long a sent message can still be edited
@@ -2323,6 +2328,12 @@ export const OWNER_LEGAL_SECURITY_SETTINGS = {
   /** S3-11: push notifications show the message text. Off = «Новое
    * сообщение»; Google and Apple then never see the text. */
   'push.chat_preview': true,
+  /** G10 (25.11, Firebase «Best practices for FCM registration token
+   * management»): a push token whose device has not checked in for this
+   * many days is deleted by the nightly `push.tokens-stale` job (FCM itself
+   * drops an Android token after 270 days offline). The app re-registers
+   * every 7 days while used. 0 = never delete. */
+  'push.token_stale_days': 270,
 };
 
 /** Owner 2026-10-25: case tools (invoices, signing, case comments). Every

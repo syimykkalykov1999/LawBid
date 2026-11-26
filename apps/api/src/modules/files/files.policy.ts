@@ -39,6 +39,9 @@ export const FILE_MIME = {
   // Owner 2026-10-19: a WebM video from a computer (the browser sends it
   // as it is; phones can play it only in the web version).
   webmVideo: 'video/webm',
+  // Item 25 (E2EE): a file the phone encrypted (header `LBE1`, then AES-256-
+  // GCM segments); the server never learns what is inside.
+  e2ee: 'application/vnd.lawbid.e2ee',
 } as const;
 export type FileMime = (typeof FILE_MIME)[keyof typeof FILE_MIME];
 export const ALL_FILE_MIMES: readonly FileMime[] = Object.values(FILE_MIME);
@@ -52,7 +55,9 @@ export interface PurposeRule {
   readonly sizeSetting?:
     | 'files.max_size_mb'
     | 'files.sticker_max_size_mb'
-    | 'files.document_template_max_size_mb';
+    | 'files.document_template_max_size_mb'
+    | 'chat.e2ee_file_max_mb'
+    | 'chat.e2ee_backup_max_mb';
   /** Verification files live in the documents bucket (docs/02 §1.6),
    * avatars and post photos in the media bucket (docs/06 §6). */
   readonly bucket: BucketKind;
@@ -134,6 +139,19 @@ export const PURPOSE_RULES: Record<FilePurpose, PurposeRule> = {
   case_attachment: {
     // Owner 2026-10-19: and videos (from the phone's gallery or a computer).
     mimes: [...IMAGES, ...DOCS, FILE_MIME.mp4, FILE_MIME.mov],
+    bucket: 'documents',
+  },
+  // Item 25: an end-to-end encrypted chat file (photo, document, video or
+  // voice note — only the phones know which) and a person's encrypted
+  // backup: ciphertext only, private, never processed.
+  chat_e2ee: {
+    mimes: [FILE_MIME.e2ee],
+    sizeSetting: 'chat.e2ee_file_max_mb',
+    bucket: 'documents',
+  },
+  chat_backup_e2ee: {
+    mimes: [FILE_MIME.e2ee],
+    sizeSetting: 'chat.e2ee_backup_max_mb',
     bucket: 'documents',
   },
   // OQ-047: photos and documents in a chat once the bid is accepted;

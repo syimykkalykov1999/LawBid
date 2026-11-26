@@ -1016,6 +1016,16 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       365,
       'Days an undelivered MLS Welcome is kept.',
     ],
+    [
+      'chat.e2ee_file_max_mb',
+      4096,
+      'MB of one end-to-end encrypted chat file.',
+    ],
+    [
+      'chat.e2ee_backup_max_mb',
+      16384,
+      'MB of one person’s encrypted chat backup.',
+    ],
   ] as const) {
     out[key] = { ...out[key], description: text, min: 0, max };
   }
@@ -1472,6 +1482,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Sessions cleanup (nightly): session rows scanned per statement (one short transaction each).',
     min: 100,
     max: 50000,
+  };
+  out['push.token_stale_days'] = {
+    ...out['push.token_stale_days'],
+    description:
+      'Push tokens: delete a device token not seen for this many days (nightly push.tokens-stale; Firebase: FCM drops an Android token after 270 days offline). 0 = never.',
+    min: 0,
   };
   out['sessions.revoked_retention_days'] = {
     ...out['sessions.revoked_retention_days'],

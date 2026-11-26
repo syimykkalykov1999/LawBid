@@ -866,6 +866,10 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
             ..where((r) => r.owner.equals(owner) & r.id.equals(id)))
           .getSingleOrNull();
 
+  /// Every decrypted message of [owner] (the encrypted backup).
+  Future<List<E2eePlaintextRow>> e2eePlaintextsAll(String owner) =>
+      (select(e2eePlaintexts)..where((r) => r.owner.equals(owner))).get();
+
   Future<List<E2eePlaintextRow>> e2eePlaintextsOf(
     String owner,
     String conversationId,
