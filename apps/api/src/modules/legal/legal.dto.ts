@@ -3,6 +3,7 @@ import { Transform, Type } from 'class-transformer';
 import {
   Equals,
   IsBoolean,
+  IsDefined,
   IsEmail,
   IsIn,
   IsInt,
@@ -171,11 +172,13 @@ export class LegalTextsDto {
 
 export class LegalTextsByLangDto {
   @ApiProperty({ type: LegalTextsDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => LegalTextsDto)
   en!: LegalTextsDto;
 
   @ApiProperty({ type: LegalTextsDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => LegalTextsDto)
   ru!: LegalTextsDto;
@@ -337,11 +340,13 @@ export class IncidentContactDto {
 /** GET / PUT /admin/legal/settings. */
 export class LegalSettingsDto {
   @ApiProperty({ type: DmcaAgentDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => DmcaAgentDto)
   dmcaAgent!: DmcaAgentDto;
 
   @ApiProperty({ type: IncidentContactDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => IncidentContactDto)
   incidentContact!: IncidentContactDto;
@@ -359,6 +364,7 @@ export class LegalSettingsDto {
   dmcaStrikesToSuspend!: number;
 
   @ApiProperty({ type: LegalTextsByLangDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => LegalTextsByLangDto)
   texts!: LegalTextsByLangDto;

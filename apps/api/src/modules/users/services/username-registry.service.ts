@@ -1,5 +1,4 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import type { Prisma } from '../../../generated/prisma/client';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -12,8 +11,9 @@ import {
   type UsernameSeeds,
   usernameBase,
 } from './username.util';
+import type { DbTx } from '../../../prisma/secret-columns';
 
-type Db = PrismaService | Prisma.TransactionClient;
+type Db = PrismaService | DbTx;
 
 /**
  * One @username namespace for attorneys AND clients (owner decision

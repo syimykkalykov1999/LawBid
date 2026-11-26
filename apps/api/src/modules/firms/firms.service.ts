@@ -14,6 +14,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { LegalAcceptanceService } from '../legal-documents/legal-acceptance.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BidTeamService } from './bid-team.service';
+import type { DbTx } from '../../prisma/secret-columns';
 
 export const FIRMS_FLAG = 'firm_profiles';
 /** Firms audit 16.11 (PR-3): the admin settings' defaults (rule 11). */
@@ -234,7 +235,7 @@ export class FirmsService {
   /** attorney_id is unique in firm_members: a legacy `invited` row would
    * block the lawyer's real membership, so it goes first. */
   private async dropLegacyInvite(
-    db: Prisma.TransactionClient | PrismaService,
+    db: DbTx | PrismaService,
     userId: string,
   ): Promise<void> {
     await db.firmMember.deleteMany({
@@ -498,7 +499,7 @@ export class FirmsService {
    * two racing hand-overs safe: only the call that still sees [fromId] as
    * the owner wins. */
   private async handOver(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     firmId: string,
     fromId: string,
     toId: string,

@@ -4,9 +4,10 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
-  IsISO8601,
+  IsDefined,
   IsIn,
   IsInt,
+  IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
@@ -362,6 +363,8 @@ export class AdminStickerPacksBulkDto extends AdminReasonDto {
 
 export class AdminVideosBulkPreviewDto {
   @ApiProperty({ type: () => AdminVideosFilterDto })
+  // DAST 26.11: a body without filter was a 500 (undefined filter field).
+  @IsDefined()
   @ValidateNested()
   @Type(() => AdminVideosFilterDto)
   filter!: AdminVideosFilterDto;
@@ -369,6 +372,8 @@ export class AdminVideosBulkPreviewDto {
 
 export class AdminStickerPacksBulkPreviewDto {
   @ApiProperty({ type: () => AdminStickerPacksFilterDto })
+  // DAST 26.11: a body without filter was a 500 (undefined filter field).
+  @IsDefined()
   @ValidateNested()
   @Type(() => AdminStickerPacksFilterDto)
   filter!: AdminStickerPacksFilterDto;

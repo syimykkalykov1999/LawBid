@@ -70,6 +70,8 @@ export class CalendarSyncService {
         status: 'active',
         write_events: true,
       },
+      // S10 (#17): each sync refreshes the access token (accessTokenFor).
+      omit: { refresh_token_enc: false },
       orderBy: [{ last_sync_at: { sort: 'asc', nulls: 'first' } }],
       take: CONNECTIONS_PER_RUN,
     });

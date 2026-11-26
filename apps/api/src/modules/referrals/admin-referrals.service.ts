@@ -42,6 +42,7 @@ import {
   validateReward,
   type ReferralProgramSettings,
 } from './referrals.settings';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const PAGE = 50;
 
@@ -366,7 +367,7 @@ export class AdminReferralsService {
     before: Referral,
     after: Referral,
     reason: string,
-    tx?: Prisma.TransactionClient,
+    tx?: DbTx,
   ): Promise<void> {
     const view = (r: Referral) =>
       ({

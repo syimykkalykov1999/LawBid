@@ -335,6 +335,8 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
             return tx.integrationCredential.findMany({
               where: { provider, status: 'active' },
               orderBy: [{ priority: 'asc' }, { slot: 'asc' }],
+              // S10 (#17): the only reader that decrypts the live keys.
+              omit: { secret_enc: false },
             });
           },
           { timeout: 5000, maxWait: 3000 },
@@ -359,7 +361,12 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private fieldsOf(row: IntegrationCredential): Record<string, string> {
+  private fieldsOf(
+    row: Pick<
+      IntegrationCredential,
+      'secret_enc' | 'provider' | 'version' | 'public_config'
+    >,
+  ): Record<string, string> {
     const secrets = JSON.parse(
       this.envelope!.decrypt(row.secret_enc, aad(row.provider, row.version)),
     ) as Record<string, string>;
@@ -484,7 +491,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     return rows.map((r) => this.summary(r));
   }
 
-  summary(r: IntegrationCredential) {
+  summary(r: CredentialSummaryRow) {
     return {
       id: r.id,
       version: r.version,
@@ -532,6 +539,8 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     const latestInSlot = await this.prisma.integrationCredential.findFirst({
       where: { provider, slot },
       orderBy: { version: 'desc' },
+      // A blank secret field keeps the stored value (decrypted below).
+      omit: { secret_enc: false },
     });
     const previous = latestInSlot ? this.fieldsOf(latestInSlot) : {};
     const values: Record<string, string> = {};
@@ -661,7 +670,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
   async test(provider: string, version: number) {
     this.needEnvelope();
     const def = await this.def(provider);
-    const row = await this.row(provider, version);
+    const row = await this.secretRow(provider, version);
     let ok = true;
     let error: string | null = null;
     if (def.test) {
@@ -886,6 +895,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     const env = this.needEnvelope();
     const rows = await this.prisma.integrationCredential.findMany({
       where: { kid: { not: env.activeKid } },
+      select: { id: true, provider: true, version: true, secret_enc: true },
     });
     for (const r of rows) {
       const plain = env.decrypt(r.secret_enc, aad(r.provider, r.version));
@@ -1024,7 +1034,7 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
   ): Promise<Record<string, string>> {
     this.needEnvelope();
     const def = await this.def(provider);
-    const fields = this.fieldsOf(await this.row(provider, version));
+    const fields = this.fieldsOf(await this.secretRow(provider, version));
     const out: Record<string, string> = {};
     for (const f of def.fields) {
       if (fields[f.name] !== undefined) out[f.name] = fields[f.name];
@@ -1044,14 +1054,32 @@ export class SecretsService implements OnModuleInit, OnModuleDestroy {
     }
     return row;
   }
+
+  /** As row(), with the encrypted secret (S10 #17: test and reveal only). */
+  private async secretRow(provider: string, version: number) {
+    const row = await this.prisma.integrationCredential.findUnique({
+      where: { provider_version: { provider, version } },
+      omit: { secret_enc: false },
+    });
+    if (!row) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'No such version.',
+      });
+    }
+    return row;
+  }
 }
+
+/** A key-set version as the admin sees it: never the encrypted secret. */
+type CredentialSummaryRow = Omit<IntegrationCredential, 'secret_enc'>;
 
 const aad = (provider: string, version: number) => `${provider}:${version}`;
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /** Key set names that have an active or pending version. */
-function slotsOf(rows: IntegrationCredential[]): string[] {
+function slotsOf(rows: Array<Pick<IntegrationCredential, 'slot'>>): string[] {
   return [...new Set(rows.map((r) => r.slot))];
 }
 

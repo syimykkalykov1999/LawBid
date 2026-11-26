@@ -7,7 +7,6 @@ import {
 import type {
   Consultation,
   ConsultationNoShow,
-  Prisma,
 } from '../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -17,6 +16,7 @@ import { withTxRetry } from '../../prisma/tx-retry.util';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NO_SHOW_STATES } from './calendar.dto';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const MIN_MS = 60_000;
 const HOUR_MS = 3_600_000;
@@ -456,7 +456,7 @@ export class NoShowService {
   // --- counters (stored only) ------------------------------------------------------
 
   private async count(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     row: ConsultationNoShow,
     now: Date,
   ): Promise<void> {
@@ -476,10 +476,7 @@ export class NoShowService {
     });
   }
 
-  private async uncount(
-    tx: Prisma.TransactionClient,
-    row: ConsultationNoShow,
-  ): Promise<void> {
+  private async uncount(tx: DbTx, row: ConsultationNoShow): Promise<void> {
     const { count } = await tx.consultationNoShow.updateMany({
       where: { id: row.id, counted_at: { not: null } },
       data: { counted_at: null },
@@ -492,7 +489,7 @@ export class NoShowService {
   }
 
   private async bump(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     userId: string,
     inc: { disputed_count?: number; overturned_count?: number },
   ): Promise<void> {

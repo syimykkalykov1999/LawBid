@@ -43,6 +43,7 @@ import {
   statusOfAction,
   statusOfScore,
 } from './fraud-decision';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const DAY_MS = 86_400_000;
 /** Reports with these reasons count as a fraud complaint. */
@@ -467,10 +468,7 @@ export class ClientFraudService {
   }
 
   /** The account is deleted while blocked: its hashes keep blocking. */
-  async freezeBanned(
-    userId: string,
-    tx?: Prisma.TransactionClient,
-  ): Promise<void> {
+  async freezeBanned(userId: string, tx?: DbTx): Promise<void> {
     await (tx ?? this.prisma).identityFingerprint.updateMany({
       where: { user_id: userId, banned_at: null },
       data: { banned_at: new Date() },

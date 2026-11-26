@@ -2,11 +2,7 @@ import { SloMetricsService } from '../../../common/ops/slo-metrics.service';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { isKnownCountry } from '../../../common/reference-data/countries';
 import { ConflictException, Injectable, Optional } from '@nestjs/common';
-import type {
-  Prisma,
-  PrismaClient,
-  User,
-} from '../../../generated/prisma/client';
+import type { UserRow } from '../../../prisma/secret-columns';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withDeleted } from '../../../prisma/soft-delete.extension';
@@ -15,11 +11,13 @@ import {
   AgeGateService,
   type AgeSource,
 } from '../../compliance/age-gate.service';
+import type { DbTx } from '../../../prisma/secret-columns';
+import type { SecretOmittingClient } from '../../../prisma/secret-columns';
 
 export type IdentityProvider = 'phone' | 'email' | 'apple' | 'google';
 
 export interface FindOrCreateResult {
-  user: User;
+  user: UserRow;
   isNewUser: boolean;
 }
 
@@ -57,7 +55,7 @@ export class IdentityService {
   async findByIdentifier(
     provider: IdentityProvider,
     providerUid: string,
-  ): Promise<User | null> {
+  ): Promise<UserRow | null> {
     const identifier = await this.prisma.userIdentifier.findUnique({
       where: { provider_provider_uid: { provider, provider_uid: providerUid } },
       include: { user: true },
@@ -71,7 +69,7 @@ export class IdentityService {
   async findOrCreateForOtp(
     channel: 'phone' | 'email',
     normalizedIdentifier: string,
-    tx?: Prisma.TransactionClient | PrismaClient,
+    tx?: DbTx | SecretOmittingClient,
     ageAttestation?: AgeAttestationInput | null,
     ageSource: AgeSource = 'otp',
   ): Promise<FindOrCreateResult> {

@@ -20,7 +20,8 @@ import {
   Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Prisma, User } from '../../generated/prisma/client';
+import type { User } from '../../generated/prisma/client';
+import type { DbTx, UserRow } from '../../prisma/secret-columns';
 import type Redis from 'ioredis';
 import { randomBytes } from 'node:crypto';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
@@ -685,7 +686,7 @@ export class AuthService {
    * a sign-in whose identity is already proven (OTP, magic link or
    * password — owner 2026-10-13). */
   async finishLogin(
-    user: User,
+    user: UserRow,
     isNewUser: boolean,
     deletionCancelled: boolean,
     identifier: string,
@@ -972,7 +973,7 @@ export class AuthService {
 
   /** Session, tokens, audit and the new-device alert of a sign-in. */
   private async issueLogin(
-    user: User,
+    user: UserRow,
     isNewUser: boolean,
     identifier: string,
     deviceInfo: DeviceInfo,
@@ -1770,9 +1771,9 @@ export async function assertAccountOpen(
  * finishLogin refuses, instead of flipping it back to `active` mid-erasure.
  */
 export async function cancelDeletionOnLogin(
-  db: Pick<Prisma.TransactionClient, 'user'>,
-  user: User,
-): Promise<{ user: User; cancelled: boolean }> {
+  db: Pick<DbTx, 'user'>,
+  user: UserRow,
+): Promise<{ user: UserRow; cancelled: boolean }> {
   const done = await db.user.updateMany({
     where: { id: user.id, status: 'deletion_pending' },
     data: { status: 'active', deletion_requested_at: null },

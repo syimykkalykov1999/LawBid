@@ -1,6 +1,6 @@
-import type { Prisma } from '../../../generated/prisma/client';
+import type { DbTx } from '../../../prisma/secret-columns';
 
-type Tx = Prisma.TransactionClient;
+type Tx = DbTx;
 
 export interface PersonName {
   first_name: string | null;

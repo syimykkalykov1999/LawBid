@@ -1,4 +1,4 @@
-import type { Prisma } from '../../generated/prisma/client';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /**
  * Batched backfills (docs/architecture/ONLINE_DDL.md). Same shape as GitLab's
@@ -37,7 +37,7 @@ export interface BackfillDefinition {
 }
 
 export type BackfillDb = Pick<
-  Prisma.TransactionClient,
+  DbTx,
   '$queryRaw' | '$executeRaw' | '$queryRawUnsafe' | '$executeRawUnsafe'
 >;
 

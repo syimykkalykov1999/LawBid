@@ -9,6 +9,7 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsDefined,
   IsIn,
   IsInt,
   IsNumber,
@@ -794,21 +795,25 @@ export class ModelPriceDto {
 
 export class BillingModelsDto {
   @ApiProperty({ type: ModelPriceDto, description: 'Views (per 1000).' })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ModelPriceDto)
   impressions!: ModelPriceDto;
 
   @ApiProperty({ type: ModelPriceDto, description: 'People (per 1000).' })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ModelPriceDto)
   reach!: ModelPriceDto;
 
   @ApiProperty({ type: ModelPriceDto, description: 'Taps (each).' })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ModelPriceDto)
   clicks!: ModelPriceDto;
 
   @ApiProperty({ type: ModelPriceDto, description: 'Real actions (each).' })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ModelPriceDto)
   actions!: ModelPriceDto;
@@ -816,6 +821,7 @@ export class BillingModelsDto {
 
 export class TargetPricingDto {
   @ApiProperty({ type: BillingModelsDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => BillingModelsDto)
   models!: BillingModelsDto;
@@ -830,21 +836,25 @@ export class TargetPricingDto {
 
 export class PricingMatrixDto {
   @ApiProperty({ type: TargetPricingDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => TargetPricingDto)
   post!: TargetPricingDto;
 
   @ApiProperty({ type: TargetPricingDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => TargetPricingDto)
   video!: TargetPricingDto;
 
   @ApiProperty({ type: TargetPricingDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => TargetPricingDto)
   case!: TargetPricingDto;
 
   @ApiProperty({ type: TargetPricingDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => TargetPricingDto)
   profile!: TargetPricingDto;
@@ -981,6 +991,7 @@ export class PromotionSettingsDto {
     description:
       'Owner 2026-10-27: prices and switches per way to pay (views, people, taps, real actions) for posts, videos, cases and attorney profiles.',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => PricingMatrixDto)
   pricing!: PricingMatrixDto;

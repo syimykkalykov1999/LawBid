@@ -1,13 +1,13 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { Prisma } from '../../generated/prisma/client';
 import { InjectPinoLogger, PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { TRUST_ACTOR } from './attorney-trust.constants';
+import type { DbTx } from '../../prisma/secret-columns';
 
-type Db = PrismaService | Prisma.TransactionClient;
+type Db = PrismaService | DbTx;
 
 export interface BlockActor {
   type: string;
@@ -152,7 +152,7 @@ export class BarNumberBlocksService {
     actor: BlockActor,
     reason: string,
     source: BlockSource,
-    tx?: Prisma.TransactionClient,
+    tx?: DbTx,
   ): Promise<number> {
     const run = async (db: Db) => {
       const [licenses, user, contacts] = await Promise.all([

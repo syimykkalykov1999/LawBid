@@ -6,8 +6,9 @@ import {
   since,
   type SignalCode,
 } from './staff-appeals.logic';
+import type { DbTx } from '../../prisma/secret-columns';
 
-type Db = Pick<PrismaService, 'staffAction'> | Prisma.TransactionClient;
+type Db = Pick<PrismaService, 'staffAction'> | DbTx;
 
 export interface SignalInput {
   code: SignalCode;

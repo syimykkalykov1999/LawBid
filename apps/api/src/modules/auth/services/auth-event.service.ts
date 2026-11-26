@@ -1,12 +1,14 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
-import type { Prisma, PrismaClient } from '../../../generated/prisma/client';
+import type { Prisma } from '../../../generated/prisma/client';
 import {
   SloMetricsService,
   type SloCounter,
 } from '../../../common/ops/slo-metrics.service';
 import { PrismaService } from '../../../prisma/prisma.service';
+import type { DbTx } from '../../../prisma/secret-columns';
+import type { SecretOmittingClient } from '../../../prisma/secret-columns';
 
 /**
  * docs/02_DATABASE.md §4.A: auth_events is append-only (no update/delete
@@ -153,7 +155,7 @@ export class AuthEventService {
    * standalone write otherwise. */
   async record(
     input: RecordAuthEventInput,
-    tx?: Prisma.TransactionClient | PrismaClient,
+    tx?: DbTx | SecretOmittingClient,
   ): Promise<void> {
     const client = tx ?? this.prisma;
     await client.authEvent.create({

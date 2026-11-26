@@ -1,5 +1,4 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
-import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CounterAggregator } from '../counters/counter-aggregator.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -18,6 +17,7 @@ import {
   type PromotionTarget,
   RETIRED_PROMOTION_CTA_TYPES,
 } from './promotions.settings';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** A running promotion as the feeds see it. */
 export interface LivePromotion {
@@ -388,7 +388,7 @@ export class PromotionDeliveryService {
     id: string,
     p: { user_id: string; case_id: string | null; post_id: string | null },
     reason: string,
-    db: Prisma.TransactionClient | PrismaService = this.prisma,
+    db: DbTx | PrismaService = this.prisma,
   ): Promise<boolean> {
     const res = await db.casePromotion.updateMany({
       where: { id, status: 'active' },

@@ -54,6 +54,7 @@ import {
   type DealRecordDto,
   type SignDealRecordDto,
 } from './dto/deal-record.dto';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** Same cap as the Docs-tab signing (CaseSigningService). */
 export const DEAL_SIGNATURE_IMAGE_MAX_BYTES = 150_000;
@@ -840,7 +841,7 @@ export class DealRecordsService {
   }
 
   private async notify(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     recipientId: string,
     actorId: string,
     row: { id: string; case_id: string },

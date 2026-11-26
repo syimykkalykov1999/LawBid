@@ -32,6 +32,7 @@ import { ISO_639_1_CODES } from '../iso-639-1';
 import { CLIENT_USERNAME_FALLBACK, USERNAME_FALLBACK } from './username.util';
 import { UsernameRegistry } from './username-registry.service';
 import { startNameRecheckIfVerified } from './attorney-name-recheck';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 /** Digits reserved for a numeric suffix when reading taken usernames. */
 
@@ -72,7 +73,7 @@ export interface ProfileFacts {
   attorneyHasPractices: boolean;
 }
 
-type Tx = Prisma.TransactionClient;
+type Tx = DbTx;
 
 /** Extra writes that must commit together with the profile upsert. */
 export interface ProfileTxExtras {
