@@ -49,6 +49,29 @@ class ActiveDevicesApiClient {
       throw ApiException.fromDioException(e);
     }
   }
+
+  /// STAGE2_SECURITY #12: `DELETE /auth/sessions/:id` with the single-use
+  /// `X-Reauth-Token` the re-auth sheet returned.
+  Future<void> endSessionWithReauth(String sessionId, String reauthToken) =>
+      _send('DELETE', '/auth/sessions/$sessionId', reauthToken);
+
+  /// STAGE2_SECURITY #12: `POST /auth/logout-others` with the token.
+  Future<void> logoutOthersWithReauth(String reauthToken) =>
+      _send('POST', '/auth/logout-others', reauthToken);
+
+  Future<void> _send(String method, String path, String reauthToken) async {
+    try {
+      await _dio.request<Object?>(
+        path,
+        options: Options(
+          method: method,
+          headers: {'X-Reauth-Token': reauthToken},
+        ),
+      );
+    } on DioException catch (e) {
+      throw ApiException.fromDioException(e);
+    }
+  }
 }
 
 /// [ActiveDevicesRepository] over the live API. Listing goes through
@@ -71,14 +94,21 @@ class ActiveDevicesRepositoryImpl implements ActiveDevicesRepository {
   }
 
   @override
-  Future<void> revoke(String sessionId) => _auth.revokeSession(sessionId);
+  Future<void> revoke(String sessionId, {String? reauthToken}) =>
+      reauthToken == null
+          ? _auth.revokeSession(sessionId)
+          : _api.endSessionWithReauth(sessionId, reauthToken);
 
   /// R2-A #9: `POST /auth/logout-others`. A server one release older has
   /// no such route (404): then the other sessions are ended one by one
   /// (`DELETE /auth/sessions/:id`, which every server has) — never
   /// `logout-all`, which signs this phone out too.
   @override
-  Future<void> logoutOthers() async {
+  Future<void> logoutOthers({String? reauthToken}) async {
+    if (reauthToken != null) {
+      await _api.logoutOthersWithReauth(reauthToken);
+      return;
+    }
     try {
       await _auth.logoutOthers();
     } on ApiException catch (e) {

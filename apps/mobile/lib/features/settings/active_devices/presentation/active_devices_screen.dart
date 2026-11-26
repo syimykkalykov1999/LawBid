@@ -11,6 +11,7 @@ import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/session/session_providers.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/auth/presentation/widgets/passkeys_section.dart';
+import 'package:lawbid/features/cases/presentation/widgets/reauth_sheet.dart';
 import 'package:lawbid/features/settings/active_devices/application/active_devices_controller.dart';
 import 'package:lawbid/features/settings/active_devices/domain/device_session_info.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -86,7 +87,9 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
     if (!ok || !mounted) return;
     setState(() => _revoking.add(session.sessionId));
     try {
-      await _controller.revoke(session.sessionId);
+      await _withReauth(
+        (token) => _controller.revoke(session.sessionId, reauthToken: token),
+      );
       if (session.isCurrent) {
         await ref.read(sessionControllerProvider.notifier).clear();
         if (mounted) context.go(AuthRoutes.welcome);
@@ -112,14 +115,36 @@ class _ActiveDevicesScreenState extends ConsumerState<ActiveDevicesScreen> {
       );
       if (!ok) return;
       setState(() => _othersLoading = true);
-      await _controller.logoutOthers();
-      if (mounted) showAppSnackBar(context, t.t('devices.logoutOthers.done'));
+      final done = await _withReauth(
+        (token) => _controller.logoutOthers(reauthToken: token),
+      );
+      if (done && mounted) {
+        showAppSnackBar(context, t.t('devices.logoutOthers.done'));
+      }
     } on Object catch (error) {
       if (mounted) showAppSnackBar(context, errorText(t, error));
     } finally {
       _endingOthers = false;
       if (mounted) setState(() => _othersLoading = false);
     }
+  }
+
+  /// STAGE2_SECURITY #12 (ASVS V7.5.2): ending other sessions may need a
+  /// fresh re-auth. On `REAUTH_REQUIRED` the same re-auth sheet as the data
+  /// export opens (code / password / passkey) and the call runs once more
+  /// with its token. False when the person closed the sheet.
+  Future<bool> _withReauth(Future<void> Function(String? token) call) async {
+    try {
+      await call(null);
+      return true;
+    } on Object catch (e) {
+      if (!ActiveDevicesController.isReauthError(e)) rethrow;
+    }
+    if (!mounted) return false;
+    final token = await showReauthSheet(context);
+    if (token == null || !mounted) return false;
+    await call(token);
+    return true;
   }
 
   Future<void> _pullToRefresh() async {
