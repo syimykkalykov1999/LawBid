@@ -25,6 +25,7 @@ import {
   variantKey,
 } from '../src/modules/files/files.policy';
 import { pgAdapter } from '../src/prisma/pg-adapter';
+import { STORAGE_REQUEST_HANDLER } from '../src/common/http/aws-request-handler';
 
 const APPLY = process.argv.includes('--apply');
 const PAGE = 500;
@@ -45,6 +46,7 @@ async function exists(s3: S3Client, bucket: string, key: string) {
 async function main(): Promise<void> {
   const endpoint = process.env.S3_ENDPOINT?.trim() || undefined;
   const s3 = new S3Client({
+    requestHandler: STORAGE_REQUEST_HANDLER,
     region: process.env.S3_REGION ?? 'us-east-1',
     endpoint,
     forcePathStyle: endpoint !== undefined,

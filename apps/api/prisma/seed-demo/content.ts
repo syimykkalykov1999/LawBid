@@ -29,6 +29,7 @@ import {
   REPLY_BODIES,
   type DemoPostSpec,
 } from './texts';
+import { STORAGE_REQUEST_HANDLER } from '../../src/common/http/aws-request-handler';
 import type { SecretOmittingClient } from '../../src/prisma/secret-columns';
 
 const DAY = 86_400_000;
@@ -93,6 +94,7 @@ class Storage {
     const id = process.env.S3_ACCESS_KEY_ID;
     const secret = process.env.S3_SECRET_ACCESS_KEY;
     const client = new S3Client({
+      requestHandler: STORAGE_REQUEST_HANDLER,
       region: process.env.S3_REGION || 'us-east-1',
       endpoint,
       forcePathStyle: endpoint !== undefined,

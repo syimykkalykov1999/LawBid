@@ -1,5 +1,6 @@
 import { createHash, createHmac } from 'node:crypto';
 import { ECSClient } from '@aws-sdk/client-ecs';
+import { AWS_API_REQUEST_HANDLER } from '../http/aws-request-handler';
 
 export interface AwsCredentialIdentity {
   accessKeyId: string;
@@ -195,7 +196,8 @@ export function assumeOpsRole(cfg: OpsRoleConfig): CredentialProvider {
 
 /** The task's own credentials: the SDK default chain, borrowed from a client. */
 const defaultChain = (region: string) => (): CredentialProvider =>
-  new ECSClient({ region }).config.credentials as CredentialProvider;
+  new ECSClient({ region, requestHandler: AWS_API_REQUEST_HANDLER }).config
+    .credentials as CredentialProvider;
 
 const providers = new Map<string, CredentialProvider>();
 

@@ -7,6 +7,7 @@ import {
 } from '@aws-sdk/client-ses';
 import { AppSettingsService } from './app-settings.service';
 import { SecretsService } from '../secrets/secrets.service';
+import { awsRequestHandler } from '../http/aws-request-handler';
 
 /**
  * Owner 25.11: «Мы не будем использовать SES … переключатель, по умолчанию
@@ -141,7 +142,9 @@ export class CodeChannelService {
   ): Pick<SESClient, 'send' | 'destroy'> {
     return new SESClient({
       region,
-      requestHandler: { requestTimeout: 3_000, connectionTimeout: 3_000 },
+      // M5 26.11: a limit that really throws (`requestTimeout` alone only
+      // logged a warning).
+      requestHandler: awsRequestHandler(3_000),
       ...(accessKeyId && secretAccessKey
         ? { credentials: { accessKeyId, secretAccessKey } }
         : {}),

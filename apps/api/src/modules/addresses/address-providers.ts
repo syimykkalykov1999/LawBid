@@ -4,6 +4,7 @@ import {
 } from '@aws-sdk/client-geo-places';
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { SecretsService } from '../../common/secrets/secrets.service';
+import { awsRequestHandler } from '../../common/http/aws-request-handler';
 
 /** What the person is typing: a street address, or only a city. */
 export type AddressKind = 'address' | 'city';
@@ -113,6 +114,9 @@ export class AwsLocationAddressProvider
     const client = new GeoPlacesClient({
       region,
       maxAttempts: 1,
+      // The caller's abortSignal (TIMEOUT_MS) ends the wait; this frees the
+      // socket on the same limit (M5 26.11).
+      requestHandler: awsRequestHandler(TIMEOUT_MS),
       ...(accessKeyId && secretAccessKey
         ? { credentials: { accessKeyId, secretAccessKey } }
         : {}),

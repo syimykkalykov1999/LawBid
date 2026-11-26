@@ -4,6 +4,7 @@ import {
   CloudWatchClient,
   GetMetricStatisticsCommand,
 } from '@aws-sdk/client-cloudwatch';
+import { AWS_API_REQUEST_HANDLER } from '../http/aws-request-handler';
 
 export type RotationState =
   | 'ok' // rotated recently, next one scheduled
@@ -105,6 +106,7 @@ export class SecretRotationService {
 
   private client(): CloudWatchClient {
     return (this.cw ??= new CloudWatchClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region:
         this.config.get<string>('AWS_REGION') ??
         this.config.get<string>('S3_REGION') ??
