@@ -1216,6 +1216,15 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   'security.password_breach_timeout_ms': 1500,
   /** Refuse passwords from the bundled list of the most common ones. */
   'security.password_common_list_enabled': true,
+  /** ASVS V6.2.11 (STAGE2_SECURITY #11): words a password may not be built
+   * from (half or more of it); the person's own name, username, e-mail and
+   * phone are added per check. */
+  'security.password_context_words': [
+    'lawbid',
+    'law bid',
+    'attorney',
+    'lawyer',
+  ],
   /** Password hashes (scrypt) running at once on one server; the rest wait,
    * so a sign-in flood cannot starve the server's file / DNS work. 2 (not 4):
    * each scrypt is 64 MiB and about 100-200 ms of CPU, and the launch task
