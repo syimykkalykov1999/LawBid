@@ -6,6 +6,16 @@ variable "replica_region" {
   type    = string
   default = "us-west-2"
 }
+# Stage 2 SRE (Б8): every secret also lives in replica_region (the DR region),
+# so envs/dr can start after a region loss. ≈ $0.40 per secret a month.
+# OFF until the owner applies infra/bootstrap: secretsmanager:ReplicateSecretToRegions
+# and the KMS grant via secretsmanager in the DR region exist only there; true
+# before that makes the admin «Infra apply» stop with AccessDenied (KNOWN_ERRORS
+# 75/105). Owner order: apply bootstrap -> true here -> apply prod.
+variable "secrets_replica_enabled" {
+  type    = bool
+  default = false
+}
 variable "azs" {
   type    = list(string)
   default = ["us-east-1a", "us-east-1b"]

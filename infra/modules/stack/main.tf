@@ -1792,6 +1792,21 @@ module "secrets" {
   tags        = local.tags
 
   recovery_window_in_days = var.ephemeral ? 0 : 30
+
+  # Stage 2 SRE (Б8): a copy of every secret in the replica (DR) region, under
+  # the customer key there (module.kms_replica), for envs/dr after a region loss.
+  replica_region      = var.secrets_replica_enabled && !var.ephemeral ? data.aws_region.replica.region : ""
+  replica_kms_key_arn = var.secrets_replica_enabled && !var.ephemeral ? module.kms_replica.key_arn : null
+}
+
+data "aws_region" "replica" {
+  provider = aws.replica
+}
+
+variable "secrets_replica_enabled" {
+  type        = bool
+  default     = false
+  description = "Stage 2 SRE (Б8): replicate every Secrets Manager secret to the replica region (the DR region, us-west-2 in prod). About $0.40 per secret a month. docs/runbooks/region-dr.md."
 }
 
 # --- database autoscale (owner 2026-10-24, docs/architecture/DB_AUTOSCALE.md) --
