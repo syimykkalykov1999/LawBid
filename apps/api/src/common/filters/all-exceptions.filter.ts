@@ -18,6 +18,7 @@ import {
 } from '../resilience/request-deadline';
 import { isRedisInfraError } from '../../redis/redis-errors';
 import { isDbBusyError } from '../../prisma/db-busy-error';
+import { Prisma } from '../../generated/prisma/client';
 import type { ApiErrorBody } from '../dto/api-response.dto';
 
 /**
@@ -198,6 +199,22 @@ export class AllExceptionsFilter implements ExceptionFilter {
         code: 'SERVER_BUSY',
         message: 'The server is busy right now. Try again shortly.',
         retryAfterSec: 5,
+      };
+    }
+
+    // DAST 26.11 (Schemathesis): Prisma P2007 «Data validation error» is
+    // PostgreSQL refusing a value the client sent (invalid input syntax for
+    // type uuid in a route or query parameter, e.g. /admin/demo/accounts/0).
+    // Bad input, the usual 400 VALIDATION_ERROR, not a 500 (Prisma error
+    // reference: https://www.prisma.io/docs/orm/reference/error-reference#p2007).
+    if (
+      exception instanceof Prisma.PrismaClientKnownRequestError &&
+      exception.code === 'P2007'
+    ) {
+      return {
+        status: HttpStatus.BAD_REQUEST,
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Request validation failed.',
       };
     }
 

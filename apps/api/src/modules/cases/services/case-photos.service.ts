@@ -1,13 +1,13 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { privateDetailsAad } from '../../../common/secrets/field-aad';
 import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
-import type { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { FilesService } from '../../files/files.service';
 import { assertUploadCount } from '../../files/upload-limits';
 import type { CasePhotoDto } from '../dto/case-responses.dto';
+import type { DbTx } from '../../../prisma/secret-columns';
 
-type Tx = Prisma.TransactionClient;
+type Tx = DbTx;
 
 /**
  * Owner decision 2026-09-30 (OQ-031): photos per case (count: admin). Files are

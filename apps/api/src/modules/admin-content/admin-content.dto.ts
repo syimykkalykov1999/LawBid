@@ -7,9 +7,10 @@ import {
   ArrayUnique,
   IsArray,
   IsBoolean,
+  IsDefined,
   IsIn,
-  IsISO8601,
   IsInt,
+  IsISO8601,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -320,7 +321,7 @@ export class AdminPracticeAreaDto {
 
 export class UpdatePracticeAreaDto {
   @ApiPropertyOptional({ maxLength: 120 })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @Transform(trim)
   @IsString()
   @IsNotEmpty()
@@ -328,12 +329,12 @@ export class UpdatePracticeAreaDto {
   nameEn?: string;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsBoolean()
   isActive?: boolean;
 
   @ApiPropertyOptional({ type: 'integer' })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -681,6 +682,8 @@ export class AdminContentBulkPreviewDto {
   type!: BulkContentType;
 
   @ApiProperty({ type: () => AdminContentBulkFilterDto })
+  // DAST 26.11: a body without filter was a 500 (undefined filter field).
+  @IsDefined()
   @ValidateNested()
   @Type(() => AdminContentBulkFilterDto)
   filter!: AdminContentBulkFilterDto;

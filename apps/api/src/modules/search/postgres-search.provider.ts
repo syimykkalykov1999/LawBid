@@ -18,6 +18,7 @@ import {
   ftsMatch,
   DEFAULT_TEXT_WEIGHTS,
   ftsRank,
+  rankWeights,
   TYPO_THRESHOLD,
   typoMatch,
 } from '../../common/search/fts-sql';
@@ -951,33 +952,53 @@ export class PostgresSearchProvider implements SearchProvider {
   async searchQuestions(text: string): Promise<string[]> {
     const topics = (await this.synonyms?.resolve(text))?.practiceIds ?? [];
     const like = `%${escapeLike(text)}%`;
+    // F5 (26.11, docs/dev/SECOND_PASS_2026-11-26.md): best match first, as
+    // posts and cases (ftsRank). Each branch reads its index as before and
+    // keeps its newest BRANCH_CAP matches (as POST_CANDIDATES for posts);
+    // those are ranked with ts_rank — title A, question text B, answer C
+    // (rankWeights, the admin's search.weight_title / weight_text) — and a
+    // question keeps its best branch. Before, the union was cut to the 500
+    // NEWEST, so an old exact answer fell out behind loose new matches.
+    const arr = rankWeights((await this.weights()).text);
+    const tq = Prisma.sql`websearch_to_tsquery('simple', f_unaccent(${text}))`;
+    const vec = (expr: Prisma.Sql, weight: 'A' | 'B' | 'C') =>
+      Prisma.sql`setweight(to_tsvector('simple', f_unaccent(${expr})), ${Prisma.raw(`'${weight}'`)})`;
     const fast = await this.db.$queryRaw<{ id: string }[]>`
       SELECT t.id::TEXT AS id FROM (
-        SELECT q.id, q.created_at FROM legal_questions q
-        WHERE q.status = 'published' AND q.deleted_at IS NULL
-          AND to_tsvector('simple', f_unaccent(q.title || ' ' || q.body))
-                @@ websearch_to_tsquery('simple', f_unaccent(${text}))
-        UNION
-        SELECT q.id, q.created_at FROM legal_questions q
-        WHERE q.status = 'published' AND q.deleted_at IS NULL
-          AND f_unaccent(lower(q.title)) LIKE f_unaccent(lower(${like}))
-        UNION
-        SELECT q.id, q.created_at FROM legal_answers a
-        JOIN legal_questions q ON q.id = a.question_id
-        WHERE a.status = 'published' AND a.deleted_at IS NULL
-          AND q.status = 'published' AND q.deleted_at IS NULL
-          AND to_tsvector('simple', f_unaccent(a.body))
-                @@ websearch_to_tsquery('simple', f_unaccent(${text}))
+        (SELECT q.id, q.created_at,
+                ts_rank(${arr}::float4[], ${vec(Prisma.sql`q.title`, 'A')} || ${vec(Prisma.sql`q.body`, 'B')}, ${tq}) AS rank
+         FROM legal_questions q
+         WHERE q.status = 'published' AND q.deleted_at IS NULL
+           AND to_tsvector('simple', f_unaccent(q.title || ' ' || q.body)) @@ ${tq}
+         ORDER BY q.created_at DESC LIMIT ${BRANCH_CAP})
+        UNION ALL
+        (SELECT q.id, q.created_at,
+                ts_rank(${arr}::float4[], ${vec(Prisma.sql`q.title`, 'A')}, ${tq}) AS rank
+         FROM legal_questions q
+         WHERE q.status = 'published' AND q.deleted_at IS NULL
+           AND f_unaccent(lower(q.title)) LIKE f_unaccent(lower(${like}))
+         ORDER BY q.created_at DESC LIMIT ${BRANCH_CAP})
+        UNION ALL
+        (SELECT q.id, q.created_at,
+                ts_rank(${arr}::float4[], ${vec(Prisma.sql`a.body`, 'C')}, ${tq}) AS rank
+         FROM legal_answers a
+         JOIN legal_questions q ON q.id = a.question_id
+         WHERE a.status = 'published' AND a.deleted_at IS NULL
+           AND q.status = 'published' AND q.deleted_at IS NULL
+           AND to_tsvector('simple', f_unaccent(a.body)) @@ ${tq}
+         ORDER BY q.created_at DESC LIMIT ${BRANCH_CAP})
         ${
           topics.length > 0
-            ? Prisma.sql`UNION
-        SELECT q.id, q.created_at FROM legal_questions q
-        WHERE q.status = 'published' AND q.deleted_at IS NULL
-          AND q.practice_area_id = ANY(${topics}::UUID[])`
+            ? Prisma.sql`UNION ALL
+        (SELECT q.id, q.created_at, 0::float4 AS rank FROM legal_questions q
+         WHERE q.status = 'published' AND q.deleted_at IS NULL
+           AND q.practice_area_id = ANY(${topics}::UUID[])
+         ORDER BY q.created_at DESC LIMIT ${BRANCH_CAP})`
             : Prisma.empty
         }
       ) t
-      ORDER BY t.created_at DESC
+      GROUP BY t.id
+      ORDER BY max(t.rank) DESC, max(t.created_at) DESC, t.id DESC
       LIMIT 500`;
     if (fast.length > 0) return fast.map((r) => r.id);
     // Pack E (25.11, ROUND2 #16): the fallback (a typo, a fragment inside a
@@ -1003,17 +1024,16 @@ export class PostgresSearchProvider implements SearchProvider {
     );
   }
 
-  /** Search-engine step: only questions that are still published, newest
-   * first (the order [searchQuestions] gives). */
+  /** Search-engine step: only questions that are still published, in the
+   * engine's order (best match first, F5 26.11; before: newest first). */
   async searchQuestionsAmong(ids: string[]): Promise<string[]> {
     if (ids.length === 0) return [];
     const rows = await this.db.$queryRaw<{ id: string }[]>`
       SELECT q.id::TEXT AS id FROM legal_questions q
       WHERE q.id = ANY(${ids}::UUID[])
-        AND q.status = 'published' AND q.deleted_at IS NULL
-      ORDER BY q.created_at DESC
-      LIMIT 500`;
-    return rows.map((r) => r.id);
+        AND q.status = 'published' AND q.deleted_at IS NULL`;
+    const kept = new Set(rows.map((r) => r.id));
+    return ids.filter((id) => kept.has(id)).slice(0, 500);
   }
 
   /**

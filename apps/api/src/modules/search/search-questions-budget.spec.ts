@@ -1,3 +1,4 @@
+import { Prisma } from '../../generated/prisma/client';
 import { PostgresSearchProvider } from './postgres-search.provider';
 
 /** Pack E (25.11, ROUND2 #16): the Q&A search fallback (no index hit: a
@@ -65,5 +66,33 @@ describe('PostgresSearchProvider.searchQuestions fallback budget', () => {
     await expect(t.provider.searchQuestions('zzzz')).rejects.toThrow(
       'connection lost',
     );
+  });
+});
+
+/** F5 (26.11, docs/dev/SECOND_PASS_2026-11-26.md): best match first. */
+describe('PostgresSearchProvider Q&A relevance (F5)', () => {
+  // The whole statement with its nested fragments, as Prisma sends it.
+  const sqlText = (call: unknown[]) =>
+    Prisma.sql(call[0] as readonly string[], ...(call.slice(1) as never[])).sql;
+
+  it('ranks with ts_rank (title A, text B, answer C) before the 500 cap', async () => {
+    const queryRaw = jest.fn().mockResolvedValue([{ id: 'q1' }]);
+    const p = new PostgresSearchProvider({ $queryRaw: queryRaw } as never);
+    await p.searchQuestions('divorce custody');
+    const sql = sqlText(queryRaw.mock.calls[0]);
+    expect(sql).toContain('ts_rank(');
+    for (const w of ["'A'", "'B'", "'C'"]) expect(sql).toContain(w);
+    expect(sql).toMatch(
+      /ORDER BY max\(t\.rank\) DESC, max\(t\.created_at\) DESC, t\.id DESC\s+LIMIT 500/,
+    );
+  });
+
+  it('the engine step keeps the engine order (best first), only published', async () => {
+    const queryRaw = jest.fn().mockResolvedValue([{ id: 'b' }, { id: 'a' }]);
+    const p = new PostgresSearchProvider({ $queryRaw: queryRaw } as never);
+    expect(await p.searchQuestionsAmong(['a', 'gone', 'b'])).toEqual([
+      'a',
+      'b',
+    ]);
   });
 });

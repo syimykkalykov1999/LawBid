@@ -16,5 +16,9 @@
     "0": ["x264"],
     "1": ["x264", "av1"]
   },
-  "readOnly": ["HasWatermark"]
+  "readOnly": ["HasWatermark"],
+  "backup": {
+    "$comment": "D10 (SECOND_PASS_2026-11-26): keepOriginals = true makes check expect KeepOriginalFiles = true and apply --yes write it (Bunny then stores and bills the uploaded originals). false = not compared. Off until the owner says yes (docs/runbooks/backups.md).",
+    "keepOriginals": false
+  }
 }

@@ -5,7 +5,6 @@ import {
   Optional,
 } from '@nestjs/common';
 import {
-  Prisma,
   type LegalDocType,
   type LegalDocument,
 } from '../../generated/prisma/client';
@@ -38,6 +37,7 @@ import {
   liveSettingKeys,
   nextVersion,
 } from './legal-documents.logic';
+import type { DbTx } from '../../prisma/secret-columns';
 
 export const LEGAL_DOCS_AUDIT = {
   draft: 'legal.document.draft',
@@ -399,7 +399,7 @@ export class LegalDocumentsService {
   /** Makes [content] the current version: the draft row (or a new row for
    * a rollback) gets the next number, the previous current is archived. */
   private async promote(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     admin: AdminActor,
     p: {
       type: LegalDocType;

@@ -27,8 +27,9 @@ import {
 import { syncProfileStatus } from '../verification.helpers';
 import { DEFAULT_SIMILARITY_THRESHOLD } from '../providers/rekognition-id-verification.provider';
 import { VerificationChecksService } from './verification-checks.service';
+import type { DbTx } from '../../../prisma/secret-columns';
 
-type Tx = Prisma.TransactionClient;
+type Tx = DbTx;
 
 /** moderation_auto_actions.kind of an automatic verification rejection: the
  * attorney appeals it like any automatic decision (POST

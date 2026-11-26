@@ -5,6 +5,7 @@ import {
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import type { ModerationLabel } from './media-moderation.constants';
+import { AWS_API_REQUEST_HANDLER } from '../../common/http/aws-request-handler';
 
 /** One image's moderation labels (empty = nothing unsafe found). */
 export interface ImageModerationResult {
@@ -73,6 +74,7 @@ export class RekognitionModerationProvider
     this.client?.client.destroy();
     const { region, accessKeyId, secretAccessKey } = c.fields;
     const client = new RekognitionClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region,
       maxAttempts: 3,
       ...(accessKeyId && secretAccessKey

@@ -32,12 +32,15 @@ import {
   PinsDto,
   ReactMessageDto,
 } from './chat.dto';
+import { SensitiveNoStore } from '../../common/cache/http-cache';
 
 /** Owner 2026-10-20: edit, delete, react, pin (WhatsApp / Telegram). */
 @ApiTags('chat')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
 @RequiresDuty('chats')
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('conversations')
 export class ChatActionsController {
   constructor(private readonly actions: ChatActionsService) {}

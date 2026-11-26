@@ -1,9 +1,9 @@
-import type { Prisma } from '../../../generated/prisma/client';
 import {
   nameChanged,
   namesClose,
   startNameRecheckIfVerified,
 } from './attorney-name-recheck';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 /** Owner decision 2026-09-30, final (OQ-029): name changes never touch the
  * account status or the blue check. */
@@ -29,12 +29,10 @@ describe('attorney name change (OQ-029 final)', () => {
       attorneyProfile: { update: jest.fn(), findUnique: jest.fn() },
     };
     expect(
-      await startNameRecheckIfVerified(
-        tx as unknown as Prisma.TransactionClient,
-        'u1',
-        verified,
-        { first_name: 'Saul', last_name: 'Goodman' },
-      ),
+      await startNameRecheckIfVerified(tx as unknown as DbTx, 'u1', verified, {
+        first_name: 'Saul',
+        last_name: 'Goodman',
+      }),
     ).toBe(false);
     expect(tx.attorneyProfile.findUnique).not.toHaveBeenCalled();
     expect(tx.attorneyProfile.update).not.toHaveBeenCalled();

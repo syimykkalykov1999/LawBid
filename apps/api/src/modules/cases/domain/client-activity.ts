@@ -1,7 +1,7 @@
-import type { PrismaClient } from '../../../generated/prisma/client';
+import type { SecretOmittingClient } from '../../../prisma/secret-columns';
 
 /** The write side only: PrismaService and a transaction client both fit. */
-type RawWriter = Pick<PrismaClient, '$executeRaw'>;
+type RawWriter = Pick<SecretOmittingClient, '$executeRaw'>;
 
 /** A burst of requests (opening a screen) writes the row once a minute. */
 const TOUCH_THROTTLE_SECONDS = 60;

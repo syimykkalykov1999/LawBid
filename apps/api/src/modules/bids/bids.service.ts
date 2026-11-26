@@ -59,6 +59,7 @@ import {
 import { touchClientActive } from '../cases/cases.public';
 import { ConflictCheckService } from './conflict/conflict-check.service';
 import { assertNoBlockBetween } from '../blocks/block-check';
+import type { DbTx } from '../../prisma/secret-columns';
 
 export type BidWithOffers = Bid & { offers: BidOffer[] };
 type BidWithCase = Bid & { case: { client_id: string; status: string } };
@@ -83,7 +84,7 @@ function bidAlreadyExists(): ConflictException {
  * The attorney's own withdrawal and the client's rejection stay final.
  */
 export async function reusableBid(
-  tx: Prisma.TransactionClient,
+  tx: DbTx,
   caseId: string,
   attorneyId: string,
   bid: { id: string; status: Bid['status'] },
@@ -165,7 +166,7 @@ export class BidsService {
    * firm on this case means the firm has bid — 409 FIRM_BID_EXISTS with
    * the bid and who sent it; the lawyer joins it (`join`) instead. */
   private async assertNoFirmBid(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     caseId: string,
     firm: Awaited<ReturnType<FirmsService['colleaguesOf']>>,
   ): Promise<void> {
@@ -1274,7 +1275,7 @@ export class BidsService {
     plan: { to: string; event: string };
     amountCents?: number;
     percentBps?: number;
-    tx: Prisma.TransactionClient;
+    tx: DbTx;
   }): Promise<void> {
     const { caseId, attorneyId, clientId, bidId, action, by, plan, tx } = input;
     // Owner 2026-10-19: a counter-offer puts the bid's chat in the other

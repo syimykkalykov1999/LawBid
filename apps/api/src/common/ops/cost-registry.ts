@@ -1263,6 +1263,36 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     awsTypes: ['aws_ecr_replication_configuration'],
   },
   {
+    id: 'aws.media_backup',
+    name: 'Копия публичных фото из R2 в S3 (ночная)',
+    purpose:
+      'Каждую ночь копирует аватары, фото постов и отзывов и стикеры из Cloudflare R2 в отдельную корзину S3 с версиями: удалённое или заменённое фото можно вернуть 30 дней.',
+    kind: 'aws',
+    // D10 (SECOND_PASS_2026-11-26): the bucket and the role live in
+    // infra/bootstrap (media_backup_enabled, owner applies); the copy itself is
+    // .github/workflows/media-backup.yml behind MEDIA_BACKUP_ENABLED.
+    control: fixed(
+      'Переключатель media_backup_enabled в infra/bootstrap (применяет владелец) и переменная MEDIA_BACKUP_ENABLED в GitHub; по умолчанию выключено.',
+    ),
+    states: ['off'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      '$0,023 за ГБ в месяц (файлы больше 128 КБ дешевеют сами, Intelligent-Tiering) + $0,005 за 1000 записей + $1 за ключ KMS; чтение из R2 без платы за трафик',
+      U.s3,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(1, 25),
+    needed: 'yes',
+    neededNote:
+      'Нужно: сейчас у фото в R2 нет ни копии, ни версий (AWS WA REL09-BP01).',
+    alarm:
+      'письмо и задача в GitHub, если ночная копия не прошла (notify-failure.yml)',
+    ceService: 'Amazon Simple Storage Service',
+    note: 'SECOND_PASS_2026-11-26 D10',
+  },
+  {
     id: 'aws.ses',
     name: 'Почта (Amazon SES)',
     purpose: 'Письма входа, чеки, уведомления.',
@@ -2047,6 +2077,145 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'Вместо RDS Proxy, дешевле. Нужен раньше, чем серверов станет больше 16.',
     alarm: null,
   },
+  // Owner 26.11 («автоматизируй их не мучая меня»): the growth items that
+  // were a tfvars line each are «Авто» rows on «Масштаб» now
+  // (modules/admin-launch/infra/infra-auto-growth.logic.ts).
+  {
+    id: 'aws.alb_balancing',
+    name: 'Балансировка API: наименее занятый сервер и своя группа сокетов',
+    purpose:
+      'Обычные запросы идут на сервер с меньшей очередью, а не по кругу; сокеты (/socket.io) живут в своей липкой группе.',
+    kind: 'aws',
+    control: tf(
+      ['alb_least_outstanding_requests', 'alb_websocket_target_group'],
+      {
+        off: 'alb_least_outstanding_requests = false\nalb_websocket_target_group = false',
+        on: 'alb_least_outstanding_requests = true\nalb_websocket_target_group = true',
+      },
+    ),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: null,
+    price: {
+      model: 'free',
+      text: 'Бесплатно: группа и правило балансировщика без доплаты, платите только LCU за трафик, как сейчас',
+      sourceUrl: 'https://aws.amazon.com/elasticloadbalancing/pricing/',
+      checkedAt: '2026-11-26',
+      verified: true,
+    },
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'auto',
+    neededNote:
+      'Авто: включается само, когда серверов API не меньше infra.edge_on_api_tasks (2). Само не выключается: стоит $0, а выключение удаляет работающую группу балансировщика (только с кодом 2FA).',
+    alarm: null,
+  },
+  {
+    id: 'aws.api_canary_prepare',
+    name: 'Встроенный canary ECS: подготовка (вторая группа серверов API)',
+    purpose:
+      'Готовит выкат силами самого ECS: вторая («зелёная») группа серверов и правило балансировщика за старым, трафик не двигается.',
+    kind: 'aws',
+    control: tf(['api_native_deploy'], {
+      off: 'api_native_deploy = "off"',
+      on: 'api_native_deploy = "prepare"',
+    }),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: null,
+    price: {
+      model: 'free',
+      text: 'Бесплатно: вторая группа и правило балансировщика без доплаты; больше 10 правил на запрос — копейки LCU',
+      sourceUrl: 'https://aws.amazon.com/elasticloadbalancing/pricing/',
+      checkedAt: '2026-11-26',
+      verified: true,
+    },
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0, 1),
+    needed: 'auto',
+    neededNote:
+      'Авто: включается само, когда серверов API не меньше infra.edge_on_api_tasks (2) и балансировка API уже включена. Само не выключается (стоит около $0).',
+    alarm: null,
+  },
+  {
+    id: 'aws.api_canary',
+    name: 'Встроенный canary ECS: выкат API малой долей с откатом',
+    purpose:
+      'Новая версия API сначала получает малую долю трафика; при тревоге ECS сам возвращает старую.',
+    kind: 'aws',
+    control: tf(['api_native_deploy'], {
+      off: 'api_native_deploy = "prepare"',
+      on: 'api_native_deploy = "canary"',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: {
+      model: 'free',
+      text: 'Бесплатно: вторая группа и правило балансировщика без доплаты; больше 10 правил на запрос — копейки LCU',
+      sourceUrl: 'https://aws.amazon.com/elasticloadbalancing/pricing/',
+      checkedAt: '2026-11-26',
+      verified: true,
+    },
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0, 1),
+    needed: 'later',
+    neededNote:
+      'Не «Авто»: этот шаг удаляет старое правило балансировщика, а автоматический план никогда сам не удаляет работающие части сайта. Один раз: «Вкл» и код 2FA, после подготовки и прав роли выката (infra/bootstrap).',
+    alarm: null,
+  },
+  {
+    id: 'aws.tracing',
+    name: 'Трассы запросов (ADOT → X-Ray): все медленные и ошибочные',
+    purpose:
+      'Показывает, где именно теряется время в медленном или ошибочном запросе: API, база, кэш, внешние сервисы.',
+    kind: 'aws',
+    control: tf(['tracing_enabled'], {
+      off: 'tracing_enabled = false',
+      on: 'tracing_enabled = true',
+    }),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: null,
+    price: {
+      model: 'unit',
+      text: 'X-Ray: первые 100 000 трасс в месяц бесплатно, дальше $5 за миллион; помощник ADOT живёт в той же задаче',
+      sourceUrl: 'https://aws.amazon.com/xray/pricing/',
+      checkedAt: '2026-11-26',
+      verified: true,
+    },
+    usd: { launch: R(0), k100: R(0, 5), m1: R(5, 40) },
+    ifOnUsd: R(0, 10),
+    needed: 'auto',
+    neededNote:
+      'Авто: включается само, когда API медленный (p95 за 15 минут не ниже infra.tracing_on_p95_ms, 600 мс) или ошибок 5xx не меньше infra.tracing_on_error_pct (2 %); выключается само после infra.auto_off_hours спокойствия (деньги).',
+    alarm: null,
+  },
+  {
+    id: 'aws.db_logical_replication',
+    name: 'Журнал изменений базы для сброса кэша (подготовка)',
+    purpose:
+      'Включает в базе логическую репликацию, нужную для сброса кэша по журналу изменений (db.cdc_mode).',
+    kind: 'aws',
+    control: tf(['database_logical_replication'], {
+      off: 'database_logical_replication = false',
+      on: 'database_logical_replication = true',
+    }),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: null,
+    price: {
+      model: 'free',
+      text: 'Бесплатно: настройка базы; журнал растёт, только пока его читает сброс кэша',
+      sourceUrl: 'https://aws.amazon.com/rds/postgresql/pricing/',
+      checkedAt: '2026-11-26',
+      verified: true,
+    },
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'auto',
+    neededNote:
+      'Авто только готовит базу (когда серверов API не меньше infra.cdc_prepare_on_api_tasks, 4). Действует после перезагрузки базы и GRANT rds_replication — шаги владельца (docs/runbooks/cache-cdc.md). Само не выключается: снять настройку может только владелец.',
+    alarm: null,
+  },
   {
     id: 'aws.partition_role',
     name: 'Вход для деления больших таблиц (роль lawbid_partition)',
@@ -2095,6 +2264,49 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'aws_securityhub_account',
       'aws_securityhub_standards_subscription',
     ],
+  },
+  {
+    id: 'aws.dns_firewall',
+    name: 'Фильтр исходящих адресов (Route 53 DNS Firewall)',
+    purpose:
+      'Серверы API ходят только на известные адреса (Stripe, Twilio, Bunny, R2, Sentry, пуши, реестры адвокатов). Сначала только пишет в журнал чужие адреса, потом блокирует их.',
+    kind: 'aws',
+    control: tf(
+      [
+        'dns_firewall_enabled',
+        'dns_firewall_mode',
+        'dns_firewall_extra_domains',
+      ],
+      {
+        off: 'dns_firewall_enabled = false',
+        on: 'dns_firewall_enabled = true  # dns_firewall_mode = "ALERT", через 2 недели "BLOCK"',
+      },
+    ),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      '$0,60 за миллион DNS-запросов + $0,0005 за адрес в списке в месяц; журнал запросов бесплатно, запись в CloudWatch Logs $0,50 за ГБ',
+      U.r53,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(1, 15),
+    needed: 'yes',
+    neededNote:
+      'Нужен до запуска: без него заражённая библиотека может отправить данные на любой адрес (ASVS V13.2.4).',
+    alarm: null,
+    ceService: 'Amazon Route 53',
+    awsTypes: [
+      'aws_route53_resolver_firewall_domain_list',
+      'aws_route53_resolver_firewall_rule_group',
+      'aws_route53_resolver_firewall_rule',
+      'aws_route53_resolver_firewall_rule_group_association',
+      'aws_route53_resolver_firewall_config',
+      'aws_route53_resolver_query_log_config',
+      'aws_route53_resolver_query_log_config_association',
+    ],
+    note: 'SECOND_PASS_2026-11-26 S10',
   },
   {
     id: 'aws.inspector',
@@ -3640,6 +3852,11 @@ export const INFRA_MODE_KEYS: Readonly<Record<string, string>> = {
   'aws.db_shards_14': 'infra.mode.db_shards_14',
   'aws.db_shards_15': 'infra.mode.db_shards_15',
   'aws.redis_cache': 'cache.redis_mode',
+  // Owner 26.11: the growth items made «Авто» (infra-auto-growth.logic.ts).
+  'aws.alb_balancing': 'infra.mode.alb_balancing',
+  'aws.api_canary_prepare': 'infra.mode.api_canary_prepare',
+  'aws.tracing': 'infra.mode.tracing',
+  'aws.db_logical_replication': 'infra.mode.db_logical_replication',
 };
 
 export function stepsFor(entry: CostEntry, state: CostState): string[] {

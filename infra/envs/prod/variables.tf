@@ -1075,6 +1075,21 @@ variable "alarm_incident_hook_enabled" {
   description = "Lambda: CloudWatch alarm state changes become incident rows in the admin and start the AI assistant."
 }
 
+# G1 (STAGE2_ARCH_PERF_2026-11-25): API through the CloudFront edge, three
+# steps in order (apps/admin/content/guides/api-edge.md): api_edge_enabled ->
+# DNS (api_edge_dns with Route 53, or by hand) -> api_edge_origin_lock.
+variable "api_edge_enabled" {
+  type    = bool
+  default = false
+}
+variable "api_edge_dns" {
+  type    = bool
+  default = false
+}
+variable "api_edge_origin_lock" {
+  type    = bool
+  default = false
+}
 # STAGE2_SECURITY #4 / #3 (25.11): CSP reporting to Sentry and the exact
 # connect-src of the web app. Owner step: paste the Sentry «Security Headers»
 # report URI (Project → Settings → Security Headers) into both, apply; after a
@@ -1093,4 +1108,25 @@ variable "web_csp_exact_connect_enforced" {
   type        = bool
   default     = false
   description = "Enforce the exact storage hosts in the web CSP (after a week of Report-Only)."
+}
+
+# S10 (SECOND_PASS_2026-11-26, ASVS 5.0 V13.2.4/V13.2.5): Route 53 Resolver
+# DNS Firewall for the app VPC. Default OFF (owner applies, docs/runbooks/
+# dns-firewall.md). First ALERT for 2 weeks (logs only), then BLOCK.
+# About $0.60 per million DNS queries + $0.0005 per allowed domain a month
+# + CloudWatch Logs for the query log.
+variable "dns_firewall_enabled" {
+  type        = bool
+  default     = false
+  description = "DNS Firewall for the app VPC (allowlist). Off by default."
+}
+variable "dns_firewall_mode" {
+  type        = string
+  default     = "ALERT"
+  description = "ALERT (only log) or BLOCK (refuse unknown domains)."
+}
+variable "dns_firewall_extra_domains" {
+  type        = list(string)
+  default     = []
+  description = "Extra allowed domains for the DNS Firewall."
 }

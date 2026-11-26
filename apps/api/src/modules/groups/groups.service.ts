@@ -131,6 +131,7 @@ import {
   forwardPartId,
   unsupportedInTarget,
 } from '../../common/forward/forward-content';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const GROUPS_PAGE = 30;
 const MESSAGES_PAGE = 30;
@@ -2655,7 +2656,7 @@ export class GroupsService implements FileScanListener {
   }
 
   async bumpTopic(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     topicId: string,
     msg: ChatGroupMessage,
   ): Promise<void> {
@@ -2667,7 +2668,7 @@ export class GroupsService implements FileScanListener {
 
   /** Forum mode on (creates «General») or off (marks the chat read). */
   private async switchTopics(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     group: ChatGroup,
     on: boolean,
   ): Promise<void> {
@@ -2735,7 +2736,7 @@ export class GroupsService implements FileScanListener {
   }
 
   private async system(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     groupId: string,
     kind: string,
     actorId: string | null,

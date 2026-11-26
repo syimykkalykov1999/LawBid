@@ -1,8 +1,8 @@
-import type { Prisma } from '../../generated/prisma/client';
 import type { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { EntitlementsService } from '../plans/entitlements.service';
 import { MAX_ASSISTANT_SEATS, SEATS_HARD_CAP } from './billing.constants';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** Owner 2026-10-05: how many assistants an attorney may add — the admin
  * setting `billing.max_assistant_seats`, kept within 1..SEATS_HARD_CAP. */
@@ -48,7 +48,7 @@ export async function getAssistantLimit(
  * "Add assistant" seat check and a seat decrease's in-use check run under
  * it, so neither can pass on a count the other is about to change. */
 export async function lockAssistantSeats(
-  tx: Prisma.TransactionClient,
+  tx: DbTx,
   attorneyId: string,
 ): Promise<void> {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`assistant-seats:${attorneyId}`}, 0))`;

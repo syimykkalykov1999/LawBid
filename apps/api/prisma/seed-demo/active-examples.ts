@@ -1,4 +1,4 @@
-import type { PrismaClient } from '../../src/generated/prisma/client';
+import type { SecretOmittingClient } from '../../src/prisma/secret-columns';
 
 /**
  * Owner 2026-10-15: examples for «Моё > Активные» in every state, for both
@@ -88,7 +88,7 @@ const EXAMPLES: Example[] = [
 ];
 
 export async function seedActiveExamples(
-  prisma: PrismaClient,
+  prisma: SecretOmittingClient,
 ): Promise<{ created: number }> {
   const amelia = await prisma.user.findFirst({
     where: { phone_e164: AMELIA_PHONE },

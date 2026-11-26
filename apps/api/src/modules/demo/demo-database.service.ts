@@ -4,7 +4,6 @@ import {
   OnApplicationBootstrap,
   Optional,
 } from '@nestjs/common';
-import type { PrismaClient } from '../../generated/prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -28,6 +27,10 @@ import { REQUIRED_CONSENTS } from '../users/services/onboarding.service';
 import { DEMO_AVATAR_SIZE, renderDemoAvatarPng } from './demo-avatar';
 import { seedDemoWorld } from './demo-seed';
 import { sqlStateOf } from '../../common/resilience/transient-errors';
+import {
+  SECRET_COLUMNS_OMIT,
+  type SecretOmittingClient,
+} from '../../prisma/secret-columns';
 
 /**
  * Owner 2026-10-05 («Продвижение»): keeps the DEMO database alive without
@@ -72,6 +75,14 @@ const MIRRORED_MODELS = [
   'planPrice',
   'stateBarRegistry',
 ] as const;
+
+/** `{ column: false }` for every omitted secret column of [model]. */
+export function mirrorOmit(model: string): Record<string, boolean> {
+  const omitted =
+    (SECRET_COLUMNS_OMIT as Record<string, Record<string, boolean>>)[model] ??
+    {};
+  return Object.fromEntries(Object.keys(omitted).map((c) => [c, false]));
+}
 
 const LOCK_KEY = 'demo:world:lock';
 const LOCK_TTL_SECONDS = 15 * 60;
@@ -151,7 +162,7 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
   }
 
   /** The raw demo client (no soft-delete extension) for seed/bulk work. */
-  rawDemoClient(): PrismaClient | null {
+  rawDemoClient(): SecretOmittingClient | null {
     return routingOf(this.prisma).demoClient();
   }
 
@@ -265,7 +276,7 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
     return candidates.find((c) => existsSync(c)) ?? null;
   }
 
-  private async applyMigrations(demo: PrismaClient): Promise<void> {
+  private async applyMigrations(demo: SecretOmittingClient): Promise<void> {
     const dir = this.migrationsDir();
     if (!dir) throw new Error('prisma/migrations folder not found');
     await demo.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "_prisma_migrations" (
@@ -434,7 +445,7 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
     }
   }
 
-  private async truncateAll(demo: PrismaClient): Promise<void> {
+  private async truncateAll(demo: SecretOmittingClient): Promise<void> {
     const rows = await demo.$queryRawUnsafe<{ table_name: string }[]>(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> '_prisma_migrations'`,
     );
@@ -447,10 +458,14 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
     );
   }
 
-  private async mirrorReference(demo: PrismaClient): Promise<void> {
+  private async mirrorReference(demo: SecretOmittingClient): Promise<void> {
     const real = this.realClient() as unknown as Record<
       string,
-      { findMany: () => Promise<Record<string, unknown>[]> }
+      {
+        findMany: (args?: {
+          omit?: Record<string, boolean>;
+        }) => Promise<Record<string, unknown>[]>;
+      }
     >;
     const target = demo as unknown as Record<
       string,
@@ -462,7 +477,10 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
       }
     >;
     for (const model of MIRRORED_MODELS) {
-      let rows = await real[model].findMany();
+      // S10 (#17): a mirror copies the WHOLE row, secret columns included
+      // (the demo world's state-bar lookups use the same vendor keys), so
+      // the global omit is switched off for exactly those columns.
+      let rows = await real[model].findMany({ omit: mirrorOmit(model) });
       // feature_flags.updated_by references users, and the demo world has
       // none of the real admins (FK violation in prod, 2026-10-07).
       if (model === 'featureFlag') {
@@ -479,7 +497,7 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
 
   /** S3 objects of the demo world live under their own keys; delete them
    * before the rows that remember them are truncated. Best effort. */
-  private async deleteDemoFiles(demo: PrismaClient): Promise<void> {
+  private async deleteDemoFiles(demo: SecretOmittingClient): Promise<void> {
     if (!this.storage) return;
     try {
       const files = await demo.file.findMany({
@@ -509,7 +527,10 @@ export class DemoDatabaseService implements OnApplicationBootstrap {
    * sends an attorney without a clean photo back to the photo step).
    * `userIds` omitted = every user without a completed onboarding row.
    */
-  async finishUsers(demo: PrismaClient, userIds?: string[]): Promise<void> {
+  async finishUsers(
+    demo: SecretOmittingClient,
+    userIds?: string[],
+  ): Promise<void> {
     const users = await demo.user.findMany({
       where: userIds
         ? { id: { in: userIds } }

@@ -831,6 +831,11 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     'infra.mode.db_shards_13',
     'infra.mode.db_shards_14',
     'infra.mode.db_shards_15',
+    // Owner 26.11: the growth items made «Авто».
+    'infra.mode.alb_balancing',
+    'infra.mode.api_canary_prepare',
+    'infra.mode.tracing',
+    'infra.mode.db_logical_replication',
   ]) {
     out[k] = { ...out[k], pattern: /^(off|on|auto)$/ };
   }
@@ -2430,6 +2435,38 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Minutes of calm before the WAF protections go off, instead of infra.waf_calm_off_hours when above 0. 0 = use the hours.',
     min: 0,
   };
+  // Owner 26.11 («автоматизируй их не мучая меня»): the lines of the growth
+  // items made «Авто» (infra-auto-growth.logic.ts). No ceiling (rule 11).
+  out['infra.edge_on_api_tasks'] = {
+    ...out['infra.edge_on_api_tasks'],
+    description:
+      'API servers wanted (ECS desired count) from which the cloud automation switches on the ALB least-outstanding balancing with its own socket group, and then prepares the ECS built-in canary (default 2).',
+    min: 1,
+  };
+  out['infra.tracing_on_p95_ms'] = {
+    ...out['infra.tracing_on_p95_ms'],
+    description:
+      'API p95 of the last 15 minutes (ms) from which the cloud automation switches tracing (ADOT, X-Ray) on; it goes off after infra.auto_off_hours below 80 % of it (default 600 = the p95 target).',
+    min: 1,
+  };
+  out['infra.tracing_on_error_pct'] = {
+    ...out['infra.tracing_on_error_pct'],
+    description:
+      'Share of 5xx answers of the last 15 minutes (whole percent) from which tracing switches on too; kept while at least half of it (default 2).',
+    min: 1,
+  };
+  out['infra.tracing_min_requests'] = {
+    ...out['infra.tracing_min_requests'],
+    description:
+      'Requests in the 15 minutes needed before slowness or errors count for tracing (default 300).',
+    min: 1,
+  };
+  out['infra.cdc_prepare_on_api_tasks'] = {
+    ...out['infra.cdc_prepare_on_api_tasks'],
+    description:
+      'API servers wanted from which the cloud automation prepares the database change log (rds.logical_replication) for the cache reset. The database reboot stays the owner step (default 4).',
+    min: 1,
+  };
   out['economy.db_cpu_limit_percent'] = {
     ...out['economy.db_cpu_limit_percent'],
     description:
@@ -2767,6 +2804,11 @@ export const NO_CEILING: readonly string[] = [
   'infra.waf_calm_off_hours',
   'infra.waf_calm_off_minutes',
   'partition.auto_rows',
+  'infra.tracing_on_p95_ms',
+  'infra.tracing_on_error_pct',
+  'infra.tracing_min_requests',
+  'infra.cdc_prepare_on_api_tasks',
+  'infra.edge_on_api_tasks',
 ];
 
 /** Owner 2026-10-27: scores take decimals, modes take fixed words,

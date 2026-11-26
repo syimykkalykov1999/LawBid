@@ -1,4 +1,5 @@
 import { Prisma } from '../../generated/prisma/client';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /**
  * docs/03 §7.5: `attorney_profiles.rating_avg` / `rating_count` are a plain
@@ -18,7 +19,7 @@ export interface RatingTotals {
 }
 
 export async function recalcAttorneyRating(
-  tx: Prisma.TransactionClient,
+  tx: DbTx,
   attorneyId: string,
 ): Promise<RatingTotals> {
   const rows = await tx.$queryRaw<

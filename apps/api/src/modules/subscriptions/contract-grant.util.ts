@@ -1,4 +1,5 @@
 import type { Prisma } from '../../generated/prisma/client';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /**
  * Owner 2026-10-02: free subscriptions under a contract (blogger
@@ -7,7 +8,7 @@ import type { Prisma } from '../../generated/prisma/client';
  * (SubscriptionAccessService.isActive) and carries its own assistant
  * seats; the effective seat count is max(paid seats, grant seats).
  */
-export type GrantDb = Pick<Prisma.TransactionClient, 'contractGrant'>;
+export type GrantDb = Pick<DbTx, 'contractGrant'>;
 
 export interface ActiveGrant {
   id: string;

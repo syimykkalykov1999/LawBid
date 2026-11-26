@@ -442,6 +442,7 @@ describe('Outreach (e2e)', () => {
       .expect(200);
     const thirdAfter = await prisma.outreachLead.findUniqueOrThrow({
       where: { id: third.id },
+      omit: { unsubscribe_token_hash: false },
     });
     expect(thirdAfter.unsubscribed_at).not.toBeNull();
     expect(thirdAfter.unsubscribe_token_hash).toBe(

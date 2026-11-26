@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma, ReportTargetType } from '../../generated/prisma/client';
+import type { ReportTargetType } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import {
@@ -11,6 +11,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
 import type { AdminActor } from '../admin-auth/admin-auth.decorators';
 import { NotificationsService } from '../notifications/notifications.service';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const DAY_MS = 24 * 3600 * 1000;
 const LEVEL_RANK: Record<StrikeLevel, number> = {
@@ -84,7 +85,7 @@ export class StrikesService {
    * on [target]. Returns a function to run after the commit (cache drop).
    */
   async issue(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     input: {
       admin: AdminActor;
       userId: string;

@@ -1,4 +1,3 @@
-import type { PrismaClient } from '../../generated/prisma/client';
 import type { PinoLogger } from 'nestjs-pino';
 import { demoContext } from '../../common/demo/demo-context';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -14,6 +13,7 @@ import {
 } from '../users/services/onboarding.service';
 import { DemoDatabaseService } from './demo-database.service';
 import { DEMO_EMAIL_DOMAIN } from './demo-seed';
+import type { SecretOmittingClient } from '../../prisma/secret-columns';
 
 /**
  * Store reviewers and demo-code users (POST /demo/invites/redeem) must
@@ -170,7 +170,7 @@ async function finished(user: UserRow): Promise<ReturnType<typeof fakeDb>> {
     {} as never,
     { setContext: () => undefined } as unknown as PinoLogger,
   );
-  await service.finishUsers(db as unknown as PrismaClient, [user.id]);
+  await service.finishUsers(db as unknown as SecretOmittingClient, [user.id]);
   return db;
 }
 

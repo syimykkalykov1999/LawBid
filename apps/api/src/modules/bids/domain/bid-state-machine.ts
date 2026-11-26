@@ -17,6 +17,7 @@ import {
 } from '../../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { assertOfferTransition } from '../../negotiations/domain/offer-state-machine';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 /**
  * docs/04_CASES_BIDS.md §5–§7 — bid statuses and the negotiation (§6.3
@@ -278,7 +279,7 @@ export interface BulkBidResult {
 @Injectable()
 export class BidStateMachine {
   async apply(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     input: ApplyBidActionInput,
   ): Promise<{ bid: Bid; plan: BidTransitionPlan }> {
     const now = input.now ?? new Date();
@@ -367,7 +368,7 @@ export class BidStateMachine {
    * journal and notify each.
    */
   async applyToActive(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     where: { caseId?: string; attorneyId?: string; exceptBidId?: string },
     action: 'auto_reject' | 'system_withdraw',
     now: Date = new Date(),
@@ -409,7 +410,7 @@ export class BidStateMachine {
   }
 
   private async closePendingOffer(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     bidId: string,
     roundNo: number,
     to: OfferStatus,

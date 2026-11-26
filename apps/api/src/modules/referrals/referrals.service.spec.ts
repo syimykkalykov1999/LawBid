@@ -18,6 +18,7 @@ import {
   roundDays,
   validateReward,
 } from './referrals.settings';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const DAY = 86_400_000;
 
@@ -572,7 +573,7 @@ describe('integration helpers', () => {
     s.prisma.referral.findMany.mockResolvedValue(rows);
     expect(await s.service.promotionCreditDays('cli')).toBe(3);
 
-    const tx = s.prisma as unknown as Prisma.TransactionClient;
+    const tx = s.prisma as unknown as DbTx;
     expect(await s.service.consumePromotionCredits(tx, 'cli', 'p1', 2)).toBe(2);
     const calls = (s.prisma.referral.update.mock.calls as unknown[][]).map(
       (c) => c[0],
@@ -629,7 +630,7 @@ describe('integration helpers', () => {
         return Promise.resolve(row);
       },
     );
-    const tx = s.prisma as unknown as Prisma.TransactionClient;
+    const tx = s.prisma as unknown as DbTx;
     expect(await s.service.restorePromotionCredits(tx, 'cli', 'p1')).toBe(1);
     expect(row.referrer_reward).toMatchObject({
       uses: {},
@@ -665,7 +666,7 @@ describe('integration helpers', () => {
       referee_reward: {},
     };
     s.prisma.referral.findMany.mockResolvedValue([row]);
-    const tx = s.prisma as unknown as Prisma.TransactionClient;
+    const tx = s.prisma as unknown as DbTx;
     expect(await s.service.reconsumePromotionCredits(tx, 'cli', 'p1')).toBe(
       false,
     );

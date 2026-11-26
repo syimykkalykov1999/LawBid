@@ -1786,6 +1786,31 @@ export const OWNER_STORAGE_SETTINGS = {
   'infra.mode.db_shards_13': 'auto',
   'infra.mode.db_shards_14': 'auto',
   'infra.mode.db_shards_15': 'auto',
+  // Owner 26.11 («автоматизируй их не мучая меня»): the growth items that
+  // were a tfvars line each (infra-auto-growth.logic.ts). auto = on by its
+  // signal; tracing also off again after infra.auto_off_hours of calm.
+  'infra.mode.alb_balancing': 'auto',
+  'infra.mode.api_canary_prepare': 'auto',
+  'infra.mode.tracing': 'auto',
+  'infra.mode.db_logical_replication': 'auto',
+  /** API tasks wanted (ECS desired count) from which the ALB balancing and
+   * the ECS canary preparation switch on (FIX_PLAN #1313 / #1296: both only
+   * matter with two or more servers). */
+  'infra.edge_on_api_tasks': 2,
+  /** Tracing switches on when the API p95 of the last 15 minutes is at
+   * least this many ms (the p95 latency target p95_target_ms, 600 ms,
+   * docs/runbooks/slo.md) or 5xx answers are at least
+   * infra.tracing_on_error_pct % (SRE Workbook ch. 5: 14.4x the 0.1 %
+   * budget = 1.44 %, rounded up to a whole percent), with at least
+   * infra.tracing_min_requests requests in the window (no noise at night).
+   * Kept while p95 >= 80 % of the line or 5xx >= half of it. */
+  'infra.tracing_on_p95_ms': 600,
+  'infra.tracing_on_error_pct': 2,
+  'infra.tracing_min_requests': 300,
+  /** API tasks wanted from which «Авто» prepares the database change log
+   * for the cache reset (C2, rds.logical_replication): the more servers
+   * write, the more writes can miss the code's own key delete. */
+  'infra.cdc_prepare_on_api_tasks': 4,
   // Owner 15.11 («максимальное число серверов базы в админке»): database
   // servers in all (the primary + the extra ones) «Авто» may reach, 1..16
   // (common/ops/infra-switches.ts DB_SERVERS_HARD_MAX). 4 = as before.

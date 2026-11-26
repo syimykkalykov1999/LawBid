@@ -59,6 +59,7 @@ import {
 } from './passkey.dto';
 import { PasskeyService } from './passkey.service';
 import { ShedPriority } from '../../../common/resilience/shed-priority';
+import { SensitiveNoStore } from '../../../common/cache/http-cache';
 
 const E = ErrorCode;
 /** Optional: a recent sign-in is enough; otherwise the single-use token
@@ -88,6 +89,8 @@ const PASSKEY_REAUTH_PER_USER_PER_HOUR = 60;
 @ApiErrors(COMMON_ERRORS)
 @AssistantSelf()
 @ShedPriority('critical')
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('auth/passkeys')
 @UseInterceptors(WebSessionCookieInterceptor)
 export class PasskeyController {

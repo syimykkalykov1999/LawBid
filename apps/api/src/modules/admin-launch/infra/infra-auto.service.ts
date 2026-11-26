@@ -1,4 +1,8 @@
 import { SsmParamGateway } from '../../../common/ops/ssm-param.gateway';
+import { AwsOpsService } from '../../../common/ops/aws-ops.service';
+import { HttpStatsService } from '../../../common/ops/http-stats.service';
+import type { GrowthSignals } from './infra-auto-growth.logic';
+import type { AppSettingKey } from '../../../common/app-settings/app-settings.defaults';
 import { PartitionService } from '../../../partitioning/partition.service';
 import { ShardMoveService } from '../../../sharding/move/shard-move.service';
 import { serversFull } from '../../../sharding/shard-growth';
@@ -385,7 +389,10 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
     const maxSearchNodes = await Promise.resolve()
       .then(() => this.settings.number('search.max_nodes'))
       .catch(() => undefined);
+    // Owner 26.11: the growth items made «Авто» (infra-auto-growth.logic).
+    const growth = await this.growthSignals().catch((): GrowthSignals => ({}));
     return {
+      ...growth,
       maxSearchNodes,
       autoscaleCodeMain: code.main,
       autoscaleCodeApplied: code.applied,
@@ -418,6 +425,39 @@ export class InfraAutoService implements OnModuleInit, OnModuleDestroy {
       serversFull: full,
       emptyServers: empty,
       maxServers,
+    };
+  }
+
+  /**
+   * Owner 26.11: the readings of the growth items (infra-auto-growth.logic):
+   * the api service's desired count (ECS DescribeServices, free), the last
+   * 15 minutes of every API task's request counts (Redis, HttpStatsService)
+   * and the owner's lines. A failed read = unknown = nothing switches.
+   */
+  async growthSignals(): Promise<GrowthSignals> {
+    const ops = this.moduleRef?.get(AwsOpsService, { strict: false });
+    const http = this.moduleRef?.get(HttpStatsService, { strict: false });
+    const num = (k: AppSettingKey) =>
+      Promise.resolve()
+        .then(() => this.settings.number(k))
+        .catch(() => undefined);
+    const [counts, http15, edge, p95, err, minReq, cdc] = await Promise.all([
+      ops ? ops.taskCounts().catch(() => null) : Promise.resolve(null),
+      http ? http.window(15).catch(() => null) : Promise.resolve(null),
+      num('infra.edge_on_api_tasks'),
+      num('infra.tracing_on_p95_ms'),
+      num('infra.tracing_on_error_pct'),
+      num('infra.tracing_min_requests'),
+      num('infra.cdc_prepare_on_api_tasks'),
+    ]);
+    return {
+      apiDesired: counts ? counts.api.desired : null,
+      http15,
+      edgeOnApiTasks: edge,
+      tracingOnP95Ms: p95,
+      tracingOnErrorPct: err,
+      tracingMinRequests: minReq,
+      cdcPrepareOnApiTasks: cdc,
     };
   }
 

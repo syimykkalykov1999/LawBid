@@ -11,6 +11,7 @@ import {
 } from '../../../../common/resilience/resilience';
 import type { EmailMessage, EmailProvider } from './email-provider.interface';
 import { buildMimeMessage } from './mime-message';
+import { awsRequestHandler } from '../../../../common/http/aws-request-handler';
 import { recordSesOk, recordSesProblem } from './ses-delivery';
 
 /** A failure on SES's side or the network (counts toward the breaker);
@@ -58,11 +59,9 @@ export class SesEmailProvider implements EmailProvider {
     // Without keys the AWS chain (the server role) is used.
     this.client = new SESClient({
       region: creds.region,
-      // Sockets are released too, not only the awaiting caller.
-      requestHandler: {
-        requestTimeout: SES_SEND_TIMEOUT_MS,
-        connectionTimeout: 3_000,
-      },
+      // Sockets are released too, not only the awaiting caller (M5 26.11:
+      // with `throwOnRequestTimeout`; `requestTimeout` alone only warned).
+      requestHandler: awsRequestHandler(SES_SEND_TIMEOUT_MS),
       ...(creds.accessKeyId && creds.secretAccessKey
         ? {
             credentials: {

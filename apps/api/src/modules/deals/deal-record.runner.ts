@@ -6,7 +6,6 @@ import {
   OnApplicationShutdown,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Prisma } from '../../generated/prisma/client';
 import { Queue, Worker, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 import {
@@ -36,6 +35,7 @@ import type { DealRecordSnapshot } from './deal-record.snapshot';
 import { DealRecordTexts, type SignedConsent } from './deal-record-texts';
 import { DealRecordPdfCache } from './deal-record-pdf-cache';
 import { dealRecordVerifyUrl, publicApiBase } from './deal-record.verify';
+import type { DbTx } from '../../prisma/secret-columns';
 
 export const DEAL_RECORD_QUEUE = 'deal-record';
 export const DEAL_RECORD_OPTIONS = Symbol('DEAL_RECORD_OPTIONS');
@@ -197,7 +197,7 @@ export class DealRecordRunner
 
   /** The next free position in the case's Files tab (CasePhoto). */
   async linkFile(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     caseId: string,
     fileId: string,
     userId: string,

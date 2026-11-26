@@ -11,6 +11,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import { AuditLogService } from '../../modules/admin-access/audit-log.service';
 import { dropAppConfigCache } from '../../modules/feature-flags/services/app-config.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { DbTx } from '../../prisma/secret-columns';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { ErrorCode } from '../errors/error-code.enum';
@@ -28,7 +29,7 @@ import {
   type ConfigRollout,
 } from './config-rollout';
 
-type Tx = Prisma.TransactionClient;
+type Tx = DbTx;
 type Json = Prisma.JsonValue;
 
 /** A writer's change, staged in its own transaction. */

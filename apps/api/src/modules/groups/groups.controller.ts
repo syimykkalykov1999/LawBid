@@ -81,6 +81,7 @@ import { GroupReceiptsService } from './group-receipts.service';
 import { ReactMessageDto } from '../chat/chat.dto';
 import type { SyncPage } from '../../common/sync/sync.util';
 import { ShedPriority } from '../../common/resilience/shed-priority';
+import { SensitiveNoStore } from '../../common/cache/http-cache';
 
 const GROUP_ERRORS = {
   403: [ErrorCode.GROUP_FORBIDDEN],
@@ -95,6 +96,8 @@ const GROUP_ERRORS = {
 // assistant reaches them in the attorney's name only with the "chats"
 // duty, the same as direct chats (the app already hides them without it).
 @RequiresDuty('chats')
+// ASVS V14.3.2 (#18): sensitive answers are never stored by a browser.
+@SensitiveNoStore()
 @Controller('groups')
 export class GroupsController {
   constructor(

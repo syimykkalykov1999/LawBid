@@ -7,7 +7,7 @@ import { createR2Client } from './r2-client';
  * R2 now does the same.
  */
 describe('createR2Client time limits (infra audit)', () => {
-  it('sets a connection and a request time limit on the HTTP handler', async () => {
+  it('sets a connection and an idle time limit on the HTTP handler', async () => {
     const client = createR2Client({
       accountId: 'test-account',
       accessKeyId: 'test-key-id',
@@ -15,13 +15,15 @@ describe('createR2Client time limits (infra audit)', () => {
     });
     const handler = client.config.requestHandler as unknown as {
       configProvider?: Promise<{
-        requestTimeout?: number;
+        socketTimeout?: number;
         connectionTimeout?: number;
       }>;
-      config?: { requestTimeout?: number; connectionTimeout?: number };
+      config?: { socketTimeout?: number; connectionTimeout?: number };
     };
     const cfg = handler.config ?? (await handler.configProvider);
-    expect(cfg?.requestTimeout).toBeGreaterThan(0);
+    // M5 26.11: the idle limit (socketTimeout) really ends a stalled call;
+    // requestTimeout alone only logged a warning (aws-request-handler.ts).
+    expect(cfg?.socketTimeout).toBeGreaterThan(0);
     expect(cfg?.connectionTimeout).toBeGreaterThan(0);
     client.destroy();
   });

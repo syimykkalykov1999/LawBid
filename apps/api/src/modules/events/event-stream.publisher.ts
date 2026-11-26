@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { DomainEventRecord } from './domain-event.types';
+import { AWS_API_REQUEST_HANDLER } from '../../common/http/aws-request-handler';
 
 /** Where the `stream` sink ships events (Kinesis Data Streams today). */
 export abstract class EventStreamPublisher {
@@ -40,7 +41,10 @@ export class KinesisEventStreamPublisher extends EventStreamPublisher {
         await import('@aws-sdk/client-kinesis');
       // Set only after the client exists: a throwing constructor is retried.
       this.sdk = {
-        client: new KinesisClient({ region: process.env.AWS_REGION }),
+        client: new KinesisClient({
+          region: process.env.AWS_REGION,
+          requestHandler: AWS_API_REQUEST_HANDLER,
+        }),
         PutRecordsCommand,
       };
     }

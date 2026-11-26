@@ -41,11 +41,16 @@ export function ftsRank(
   const { tsquery } = parseSearchQuery(q);
   if (!tsquery) return Prisma.sql`0`;
   const a = Prisma.raw(alias);
-  // ts_rank's weight array is {D, C, B, A}.
-  const arr = `{0.1, ${num(w.text)}, 0.4, ${num(w.title)}}`;
+  const arr = rankWeights(w);
   return Prisma.sql`GREATEST(
       ts_rank(${arr}::float4[], ${a}.search_tsv, to_tsquery('english', public.f_unaccent(${tsquery}))),
       ts_rank(${arr}::float4[], ${a}.search_tsv_simple, to_tsquery('simple', public.f_unaccent(${tsquery}))))`;
+}
+
+/** ts_rank's weight array, in its order {D, C, B, A}: title A and text C
+ * from the admin's weights, B 0.4, D 0.1. Bound as a parameter. */
+export function rankWeights(w: TextWeights = DEFAULT_TEXT_WEIGHTS): string {
+  return `{0.1, ${num(w.text)}, 0.4, ${num(w.title)}}`;
 }
 
 /** A finite, non-negative number for the weight array (never NaN). */
