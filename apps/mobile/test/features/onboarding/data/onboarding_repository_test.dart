@@ -82,7 +82,12 @@ void main() {
       me.missing,
       {MissingRequirement.name, MissingRequirement.phoneVerified},
     );
-    expect(me.reauthIdentifier, (channel: 'email', identifier: 'a@b.co'));
+    // Owner 25.11: no verified phone yet → the code goes to the e-mail,
+    // whichever channel the server prefers.
+    expect(
+      me.codeTarget(preferEmail: false),
+      (channel: 'email', identifier: 'a@b.co'),
+    );
   });
 
   test('setRole POSTs the role with an Idempotency-Key', () async {

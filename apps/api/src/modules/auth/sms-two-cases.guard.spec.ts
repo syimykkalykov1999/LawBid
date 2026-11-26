@@ -4,11 +4,13 @@ import { SMS_OTP_PURPOSES } from './services/otp.service';
 import { PLAIN_SMS_ALLOWED } from '../compliance/sms-compliance.service';
 
 /**
- * Owner rule (memory sms-two-cases, decided, never ask again): an SMS code
- * goes out ONLY at registration (POST /auth/otp/request for a new number)
- * and «Забыл пароль» (POST /auth/password/reset/request). Sign-in is phone +
- * password; a step-up, a new sign-in method or a phone change is confirmed
- * with the password / passkey.
+ * Owner rule (memory sms-two-cases; widened by the owner 25.11: «по
+ * умолчанию SMS», `auth.code_channel`): an SMS code goes out ONLY at
+ * registration (POST /auth/otp/request for a new number), «Забыл пароль»
+ * (POST /auth/password/reset/request) and as a step-up code to the
+ * signed-in person's OWN verified number (POST /auth/otp/request with
+ * purpose `reauth`). Sign-in is phone + password; a new sign-in method or a
+ * new number is never confirmed by an SMS to it.
  *
  * This guard fails when any other code path can reach the SMS provider:
  *   1. the provider is injected and called in OtpService only;
@@ -56,9 +58,9 @@ function file(rel: string): string {
   return found.text;
 }
 
-describe('SMS only at registration and «Забыл пароль» (owner rule)', () => {
-  it('OtpService texts exactly two purposes: registration and reset', () => {
-    expect([...SMS_OTP_PURPOSES]).toEqual(['login', 'reset']);
+describe('SMS only at registration, «Забыл пароль» and the own-number step-up (owner rule)', () => {
+  it('OtpService texts exactly three purposes: registration, reset and step-up', () => {
+    expect([...SMS_OTP_PURPOSES]).toEqual(['login', 'reset', 'reauth']);
     const otp = file('modules/auth/services/otp.service.ts');
     // The check sits in front of the provider call, in the phone branch.
     const gate = otp.indexOf('if (!SMS_OTP_PURPOSES.includes(purpose))');
@@ -86,7 +88,7 @@ describe('SMS only at registration and «Забыл пароль» (owner rule)'
   it('OtpService.requestOtp has a fixed set of callers', () => {
     expect(filesMatching(/\.requestOtp\(/)).toEqual([
       'modules/auth/auth.controller.ts', // AuthService.requestOtp (below)
-      'modules/auth/auth.service.ts', // registration (new number only)
+      'modules/auth/auth.service.ts', // registration (new number) + own-number step-up
       'modules/auth/password-auth.service.ts', // «Забыл пароль»
       'modules/users/services/contacts.service.ts', // e-mail only
     ]);
@@ -156,11 +158,23 @@ describe('SMS only at registration and «Забыл пароль» (owner rule)'
     ]);
   });
 
-  it('the registration route texts a NEW number only; other phone purposes are refused', () => {
+  it('the registration route texts a NEW number only; a step-up texts the own number; other phone purposes are refused', () => {
     const auth = file('modules/auth/auth.service.ts');
     expect(auth).toContain('this.assertSmsOnlyForNewNumber(identifier)');
     expect(auth).toMatch(
-      /if \(dto\.channel === 'phone' && purpose !== 'login'\) \{\s*throw new BadRequestException/,
+      /dto\.channel === 'phone' &&\s*purpose !== 'login' &&\s*purpose !== 'reauth'\s*\) \{\s*throw new BadRequestException/,
+    );
+    // Owner 25.11: a step-up SMS goes only to the caller's OWN verified
+    // number: the ownership check comes before the target is picked, and
+    // the registration-only check still guards every sign-in code.
+    const purposeFn = auth.slice(auth.indexOf('private async requestPurpose('));
+    const ownCheck = purposeFn.indexOf('account.phone_e164 === identifier');
+    expect(ownCheck).toBeGreaterThan(0);
+    expect(purposeFn.indexOf('this.stepUpTarget(account)')).toBeGreaterThan(
+      ownCheck,
+    );
+    expect(auth).toMatch(
+      /channel === 'phone' && purpose === 'login'\s*\?\s*await this\.assertSmsOnlyForNewNumber\(identifier\)/,
     );
     // A phone is never linked as an extra sign-in method (it would need a code).
     expect(auth).toMatch(

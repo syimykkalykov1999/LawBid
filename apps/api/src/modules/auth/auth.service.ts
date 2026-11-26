@@ -66,6 +66,12 @@ import { normalizeSignal } from '../client-fraud/fingerprint.util';
 import { simulateSend, timedSend } from './uniform-response.util';
 import { browserLabel, maskIp } from './device-label.util';
 import type { OtpPurpose, OtpScope } from './services/otp.service';
+import {
+  CodeChannelService,
+  codeTarget,
+  type CodeChannel,
+  type CodeContacts,
+} from '../../common/app-settings/code-channel.service';
 
 const ENV = {
   otpPerIdentifierPerHour: 'OTP_RATE_LIMIT_PER_IDENTIFIER_PER_HOUR',
@@ -153,6 +159,8 @@ export class AuthService {
     @Optional() private readonly events?: DomainEvents,
     // Detective R2B-9 (14.11): Google linking takes the server's nonce too.
     @Optional() private readonly socialNonces?: SocialNonceService,
+    // Owner 25.11: `auth.code_channel` — SMS by default, e-mail later.
+    @Optional() private readonly codeChannel?: CodeChannelService,
   ) {}
 
   // ---------------------------------------------------------------------
@@ -164,23 +172,33 @@ export class AuthService {
     caller?: OtpCaller,
   ): Promise<void> {
     // Before any rate-limit budget or provider spend (feature flag
-    // phone_login / email_login).
-    await this.loginMethods.assertEnabled(dto.channel);
-    const identifier = this.normalize(dto.channel, dto.identifier);
-    const { purpose, scope } = await this.requestPurpose(
+    // phone_login / email_login). A step-up code is checked below, against
+    // the channel it really goes by.
+    if (dto.purpose !== 'reauth') {
+      await this.loginMethods.assertEnabled(dto.channel);
+    }
+    const asked = this.normalize(dto.channel, dto.identifier);
+    const { purpose, scope, target } = await this.requestPurpose(
       dto,
-      identifier,
+      asked,
       caller,
     );
+    // Owner 25.11 (`auth.code_channel`): a step-up code goes to the contact
+    // the admin's channel picks among the caller's own verified ones,
+    // whichever of them the app named (an app build of pack E names the
+    // e-mail). Everything below — bans, limits, the send — is about it.
+    const channel: CodeChannel = target?.channel ?? dto.channel;
+    const identifier = target?.identifier ?? asked;
+    if (target) await this.loginMethods.assertEnabled(channel);
     // Owner 2026-10-02: a blocked phone, e-mail or device gets no code.
     await this.bans.assertAllowed({
-      phone: dto.channel === 'phone' ? identifier : null,
-      email: dto.channel === 'email' ? identifier : null,
+      phone: channel === 'phone' ? identifier : null,
+      email: channel === 'email' ? identifier : null,
       deviceId: meta.deviceId,
     });
     // S14-6: a throw-away address opens no NEW account (existing accounts
     // keep their e-mail sign-in).
-    if (dto.channel === 'email' && purpose !== 'reauth') {
+    if (channel === 'email' && purpose !== 'reauth') {
       await this.assertEmailAllowedForSignup(identifier);
     }
     // The account that already owns this phone / e-mail is not its own
@@ -190,7 +208,7 @@ export class AuthService {
       ? await this.prisma.userIdentifier.findUnique({
           where: {
             provider_provider_uid: {
-              provider: dto.channel,
+              provider: channel,
               provider_uid: identifier,
             },
           },
@@ -199,8 +217,8 @@ export class AuthService {
       : null;
     await this.fraud?.assertSignInAllowed(
       {
-        phone: dto.channel === 'phone' ? identifier : null,
-        email: dto.channel === 'email' ? identifier : null,
+        phone: channel === 'phone' ? identifier : null,
+        email: channel === 'email' ? identifier : null,
         deviceKey: meta.deviceKey,
       },
       owner?.user_id ?? null,
@@ -212,15 +230,18 @@ export class AuthService {
     // "use your password" — or, with no password yet, "use «Забыл пароль»"
     // (AU1, 17.11) — from POST /auth/phone/status only.
     const registeredPhone =
-      dto.channel === 'phone'
+      channel === 'phone' && purpose === 'login'
         ? await this.assertSmsOnlyForNewNumber(identifier)
         : false;
+    // Owner 25.11: a step-up SMS to the caller's own verified number waits
+    // for the same admin cooldown as every other SMS code.
+    if (channel === 'phone' && purpose === 'reauth') {
+      await assertSmsResendWait(this.rateLimit, this.settings, identifier);
+    }
 
     // S14-6: Gmail dots and "+tags" are one mailbox — they share one budget.
     const counterId =
-      dto.channel === 'email'
-        ? normalizeSignal('email', identifier)
-        : identifier;
+      channel === 'email' ? normalizeSignal('email', identifier) : identifier;
     const perIdentifier = await this.rateLimit.consumeSlidingWindow(
       ['otp-req', 'id', this.rateLimit.hashIdentifier(counterId)],
       this.limit(ENV.otpPerIdentifierPerHour),
@@ -292,15 +313,15 @@ export class AuthService {
     } else {
       const send = () =>
         this.otp.requestOtp(
-          dto.channel,
+          channel,
           identifier,
           purpose,
-          dto.channel === 'email' && purpose === 'login'
+          channel === 'email' && purpose === 'login'
             ? dto.linkChallenge
             : undefined,
           scope,
         );
-      if (dto.channel === 'phone') await timedSend(send);
+      if (channel === 'phone') await timedSend(send);
       else await send();
     }
     await this.authEvents.record({
@@ -320,16 +341,25 @@ export class AuthService {
     dto: OtpRequestDto,
     identifier: string,
     caller?: OtpCaller,
-  ): Promise<{ purpose: OtpPurpose; scope: OtpScope }> {
+  ): Promise<{
+    purpose: OtpPurpose;
+    scope: OtpScope;
+    target?: { channel: CodeChannel; identifier: string };
+  }> {
     const purpose: OtpPurpose = dto.purpose ?? 'login';
-    // Owner 2026-11-07: an SMS goes out in exactly two cases — a new number
-    // (registration) and «Забыл пароль» (its own route). A step-up or a new
-    // sign-in method is confirmed with the password, never by SMS.
-    if (dto.channel === 'phone' && purpose !== 'login') {
+    // Owner 2026-11-07 / 25.11: an SMS goes out for a new number
+    // (registration), «Забыл пароль» (its own route) and a step-up code to
+    // the caller's own verified number (`auth.code_channel`). A new sign-in
+    // method is never confirmed by SMS.
+    if (
+      dto.channel === 'phone' &&
+      purpose !== 'login' &&
+      purpose !== 'reauth'
+    ) {
       throw new BadRequestException({
         code: ErrorCode.VALIDATION_ERROR,
         message:
-          'An SMS code is only for registration and a forgotten password.',
+          'An SMS code is only for registration, a forgotten password and a confirmation.',
       });
     }
     if (purpose === 'login') return { purpose, scope: {} };
@@ -339,33 +369,48 @@ export class AuthService {
         message: 'Sign in first.',
       });
     }
-    if (purpose === 'reauth') {
-      const account = await this.prisma.user.findUnique({
-        where: withDeleted({ id: caller.id }),
-        select: {
-          phone_e164: true,
-          phone_verified_at: true,
-          email: true,
-          email_verified_at: true,
-        },
+    const scope: OtpScope = caller.sid ? { bind: caller.sid } : {};
+    if (purpose !== 'reauth') return { purpose, scope };
+    const account = await this.prisma.user.findUnique({
+      where: withDeleted({ id: caller.id }),
+      select: {
+        phone_e164: true,
+        phone_verified_at: true,
+        email: true,
+        email_verified_at: true,
+      },
+    });
+    const own =
+      dto.channel === 'phone'
+        ? account?.phone_verified_at != null &&
+          account.phone_e164 === identifier
+        : account?.email_verified_at != null &&
+          account.email?.toLowerCase() === identifier;
+    const target = own ? await this.stepUpTarget(account) : null;
+    if (!target) {
+      throw new UnauthorizedException({
+        code: ErrorCode.REAUTH_INVALID,
+        message: 'Identifier is not a verified contact on this account.',
       });
-      const own =
-        dto.channel === 'phone'
-          ? account?.phone_verified_at != null &&
-            account.phone_e164 === identifier
-          : account?.email_verified_at != null &&
-            account.email?.toLowerCase() === identifier;
-      if (!own) {
-        throw new UnauthorizedException({
-          code: ErrorCode.REAUTH_INVALID,
-          message: 'Identifier is not a verified contact on this account.',
-        });
-      }
     }
-    return {
-      purpose,
-      scope: caller.sid ? { bind: caller.sid } : {},
-    };
+    return { purpose, scope, target };
+  }
+
+  /** Owner 25.11: where a step-up code goes for these contacts — the
+   * channel `auth.code_channel` picks (an e-mail only while e-mail flows
+   * are on), else the other verified contact; null when none is verified. */
+  private async stepUpTarget(
+    contacts: CodeContacts | null | undefined,
+  ): Promise<{ channel: CodeChannel; identifier: string } | null> {
+    let preferred: CodeChannel =
+      (await this.codeChannel?.preferred()) ?? 'phone';
+    if (
+      preferred === 'email' &&
+      !(await this.loginMethods.isEnabled('email'))
+    ) {
+      preferred = 'phone';
+    }
+    return codeTarget(preferred, contacts);
   }
 
   /** S14-6: a NEW account may not be opened with a disposable e-mail. An
@@ -1318,17 +1363,26 @@ export class AuthService {
     const account = await this.prisma.user.findUniqueOrThrow({
       where: withDeleted({ id: user.sub }),
     });
-    // Pack E (25.11, owner rule sms-two-cases): a step-up code is the
-    // verified e-mail's only. An SMS goes out only at registration and
-    // «Забыл пароль», so the account's own phone never gets a code and a
-    // phone identifier here is refused like any foreign one.
-    const channel: 'email' | null =
-      account.email_verified_at &&
-      account.email?.toLowerCase() === identifier.toLowerCase()
-        ? 'email'
+    // Owner 25.11 (`auth.code_channel`): the code went to one of the
+    // account's own verified contacts — the phone (SMS, the default) or the
+    // e-mail. Anything else is refused before any code check.
+    const phone =
+      account.phone_verified_at && account.phone_e164
+        ? { channel: 'phone' as const, identifier: account.phone_e164 }
         : null;
+    const email =
+      account.email_verified_at && account.email
+        ? { channel: 'email' as const, identifier: account.email }
+        : null;
+    const named =
+      phone && phone.identifier === identifier.trim()
+        ? phone
+        : email && email.identifier.toLowerCase() === identifier.toLowerCase()
+          ? email
+          : null;
+    const channel = named?.channel ?? null;
 
-    if (!channel) {
+    if (!named || !channel) {
       // Doesn't distinguish "not yours" from "not verified" — both are
       // just REAUTH_INVALID to the caller, same anti-enumeration spirit
       // as OTP request/verify.
@@ -1347,14 +1401,30 @@ export class AuthService {
     // S14-12: the code must have been asked for this step-up from THIS
     // session; an old app build that asked a plain sign-in code is still
     // accepted while `security.otp_legacy_purpose_fallback` is on.
-    const result = await this.verifyScopedCode(
+    let result = await this.verifyScopedCode(
       channel,
-      identifier,
+      named.identifier,
       code,
       'reauth',
       user.sid,
       meta?.ip,
     );
+    // The request sends to the contact `auth.code_channel` picks, which may
+    // be the other one the app named (an app of pack E names the e-mail,
+    // the code went by SMS). Only when no code waits under the named one
+    // ('expired' spends no attempt) is the other own contact checked.
+    const other = named === phone ? email : phone;
+    if (result === 'expired' && other) {
+      const second = await this.verifyScopedCode(
+        other.channel,
+        other.identifier,
+        code,
+        'reauth',
+        user.sid,
+        meta?.ip,
+      );
+      if (second !== 'expired') result = second;
+    }
     if (result !== 'ok') {
       await this.authEvents.record({
         userId: user.sub,
@@ -1573,28 +1643,7 @@ export class AuthService {
     });
     // S14-1: the cooldown and the daily cap count for EVERY number, known or
     // not, so neither the answer nor its 429 pattern says who is registered.
-    const idHash = this.rateLimit.hashIdentifier(identifier);
-    const cooldown = await cfg.number('sms.resend_cooldown_seconds');
-    // 0 = no cooldown (the admin form allows 10 s and up; only the e2e
-    // database seeds 0, so suites may ask for a number's code repeatedly).
-    const wait =
-      cooldown > 0
-        ? await this.rateLimit.consumeFixedWindow(
-            ['sms-resend', idHash],
-            1,
-            cooldown,
-          )
-        : { allowed: true, retryAfterSeconds: 0, remaining: 1 };
-    if (!wait.allowed) {
-      throw new HttpException(
-        {
-          code: ErrorCode.RATE_LIMITED,
-          message: 'Wait a moment before asking for another code.',
-          details: { retryAfterSeconds: wait.retryAfterSeconds },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
+    const idHash = await assertSmsResendWait(this.rateLimit, cfg, identifier);
     const day = await this.rateLimit.consumeSlidingWindow(
       ['sms-reg-day', idHash],
       await cfg.number('sms.registration_per_number_per_day'),
@@ -1629,6 +1678,36 @@ export class AuthService {
     }
     return otpDailyLimit(stored, this.limit(ENV.otpPerIdentifierPerDay));
   }
+}
+
+/** The admin's `sms.resend_cooldown_seconds`: one SMS code per number per
+ * wait (registration and, owner 25.11, a step-up SMS). Returns the
+ * number's counter hash. */
+async function assertSmsResendWait(
+  rateLimit: Pick<RateLimitService, 'hashIdentifier' | 'consumeFixedWindow'>,
+  cfg: Pick<AppSettingsService, 'number'> | undefined,
+  identifier: string,
+): Promise<string> {
+  const idHash = rateLimit.hashIdentifier(identifier);
+  if (!cfg) return idHash;
+  const cooldown = await cfg.number('sms.resend_cooldown_seconds');
+  // 0 = no cooldown (the admin form allows 10 s and up; only the e2e
+  // database seeds 0, so suites may ask for a number's code repeatedly).
+  const wait =
+    cooldown > 0
+      ? await rateLimit.consumeFixedWindow(['sms-resend', idHash], 1, cooldown)
+      : { allowed: true, retryAfterSeconds: 0, remaining: 1 };
+  if (!wait.allowed) {
+    throw new HttpException(
+      {
+        code: ErrorCode.RATE_LIMITED,
+        message: 'Wait a moment before asking for another code.',
+        details: { retryAfterSeconds: wait.retryAfterSeconds },
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+  }
+  return idHash;
 }
 
 /** How long "continue and sign the other device out" stays possible. */

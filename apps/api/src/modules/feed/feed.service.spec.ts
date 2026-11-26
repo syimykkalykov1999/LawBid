@@ -72,11 +72,18 @@ function build(opts: {
   redis: ReturnType<typeof fakeRedis>;
   stored?: Record<string, number>;
   timeline?: { followed: jest.Mock };
+  reco?: unknown;
+  /** Post ids that were deleted / hidden since (dropped by every id read). */
+  gone?: Set<string>;
 }) {
   const findMany = jest.fn(
     (args: { where: { id?: { in: string[] }; AND?: unknown } }) =>
       Promise.resolve(
-        args.where.id?.in ? args.where.id.in.map((id) => postOf(id)) : [],
+        args.where.id?.in
+          ? args.where.id.in
+              .filter((id) => !opts.gone?.has(id))
+              .map((id) => postOf(id))
+          : [],
       ),
   );
   const prisma = {
@@ -126,6 +133,7 @@ function build(opts: {
     undefined,
     settings as never,
     opts.timeline as never,
+    opts.reco as never,
   );
   return { svc, prisma, presenter };
 }
@@ -648,5 +656,168 @@ describe('FeedService precomputed timeline (item 23, F1)', () => {
     await svc.page(viewer, undefined, 10);
     expect(followed).toHaveBeenCalledTimes(1);
     expect(streamWhere(prisma)?.author_id).toEqual({ in: ['att-1', 'viewer'] });
+  });
+});
+
+describe('FeedService «Посты» ranked by the posts model (owner 25.11)', () => {
+  const at = (m: number) =>
+    new Date(Date.parse('2026-11-25T12:00:00Z') - m * 60_000);
+  // 40 followed posts newest first; p2 is the viewer's own.
+  const rows = Array.from({ length: 40 }, (_, i) => ({
+    id: `p${i}`,
+    author_id: i === 2 ? 'viewer' : `att-${i % 5}`,
+    created_at: at(i + 1),
+  }));
+  /** The fan-out timeline over [rows]: newest first after the cursor. */
+  const timelineOver = () => ({
+    followed: jest.fn(
+      (q: { after: { t: string; id: string } | null; take: number }) => {
+        const from = q.after
+          ? rows.findIndex((r) => r.id === q.after!.id) + 1
+          : 0;
+        return Promise.resolve(rows.slice(from, from + q.take));
+      },
+    ),
+  });
+  const MODEL = { experimentKey: 'post_ranker', variant: 'model' };
+  const CONTROL = { experimentKey: 'post_ranker', variant: 'control' };
+  /** The model puts the window upside down (oldest first), lead on top. */
+  const fakeReco = (arm: unknown, scoring = true) => ({
+    homeFeedArm: jest.fn().mockResolvedValue(arm),
+    isHomeModelArm: (a: { variant?: string } | null) => a?.variant === 'model',
+    rankHomeWindow: jest.fn((_v: string, ids: string[], lead: Set<string>) =>
+      Promise.resolve(
+        scoring
+          ? {
+              ids: [
+                ...ids.filter((id) => lead.has(id)),
+                ...ids.filter((id) => !lead.has(id)).reverse(),
+              ],
+              rows: new Map(ids.map((id) => [id, { hot: 0.5 }])),
+            }
+          : null,
+      ),
+    ),
+    logHomeServed: jest.fn().mockResolvedValue(undefined),
+  });
+  const setup = (reco: unknown, gone?: Set<string>) => {
+    const redis = fakeRedis({});
+    const timeline = timelineOver();
+    const b = build({
+      redis,
+      timeline,
+      reco,
+      gone,
+      stored: { 'reco.ranker.feed_window': 25 },
+    });
+    b.prisma.follow.findMany.mockResolvedValue(
+      [0, 1, 3, 4].map((i) => ({
+        followee_id: `att-${i}`,
+        created_at: new Date('2026-11-01T00:00:00Z'),
+      })),
+    );
+    return { ...b, redis, timeline };
+  };
+  const scroll = async (svc: FeedService, pages: number, limit = 10) => {
+    const out: string[][] = [];
+    let cursor: string | undefined;
+    for (let i = 0; i < pages; i++) {
+      const p = await svc.page(viewer, cursor, limit);
+      out.push(p.items.map((x) => x.id));
+      if (!p.nextCursor) break;
+      cursor = p.nextCursor;
+    }
+    return out;
+  };
+  const chrono = rows.map((r) => r.id);
+
+  it('model arm: the window is served in the model order, own newest post on top', async () => {
+    const reco = fakeReco(MODEL);
+    const { svc, timeline } = setup(reco);
+    const [first] = await scroll(svc, 1);
+    // The candidate window is the feed as it is, `feed_window` deep.
+    expect(timeline.followed.mock.calls[0][0].take).toBe(26);
+    const window = chrono.slice(0, 25);
+    expect(reco.rankHomeWindow).toHaveBeenCalledWith(
+      'viewer',
+      window,
+      new Set(['p2']),
+      MODEL,
+    );
+    expect(first).toEqual([
+      'p2',
+      ...window
+        .filter((id) => id !== 'p2')
+        .reverse()
+        .slice(0, 9),
+    ]);
+  });
+
+  it('stable pagination: the scroll pages the pinned window, then goes on newest first, no repeat, no gap', async () => {
+    const reco = fakeReco(MODEL);
+    const { svc } = setup(reco);
+    const all = (await scroll(svc, 10)).flat();
+    expect(new Set(all).size).toBe(all.length);
+    expect([...all].sort()).toEqual([...chrono].sort());
+    // Ranked once per scroll (later pages read the pin, not the model).
+    expect(reco.rankHomeWindow).toHaveBeenCalledTimes(1);
+    // After the 25-post window the feed continues exactly where its
+    // chronological read stopped.
+    expect(all.slice(25)).toEqual(chrono.slice(25));
+    // Impressions with their places, for the training data.
+    const offsets = reco.logHomeServed.mock.calls.map((c) => c[2] as number);
+    expect(offsets).toEqual([0, 10, 20, 25, 35]);
+  });
+
+  it('a post deleted after the window was pinned is never served', async () => {
+    const gone = new Set<string>();
+    const { svc } = setup(fakeReco(MODEL), gone);
+    const p1 = await svc.page(viewer, undefined, 10);
+    gone.add('p5');
+    const p2 = await svc.page(viewer, p1.nextCursor!, 10);
+    const p3 = await svc.page(viewer, p2.nextCursor!, 10);
+    expect([...p2.items, ...p3.items].map((x) => x.id)).not.toContain('p5');
+  });
+
+  it('the pinned window lost (cache eviction): the feed goes on chronologically after it', async () => {
+    const { svc, redis } = setup(fakeReco(MODEL));
+    const p1 = await svc.page(viewer, undefined, 10);
+    for (const k of [...redis.kv.keys()]) {
+      if (k.startsWith('feed:rank:')) redis.kv.delete(k);
+    }
+    const p2 = await svc.page(viewer, p1.nextCursor!, 10);
+    expect(p2.items.map((x) => x.id)).toEqual(chrono.slice(25, 35));
+  });
+
+  it('control arm and people outside the test: the feed exactly as before, impressions tagged', async () => {
+    for (const arm of [CONTROL, null]) {
+      const reco = fakeReco(arm);
+      const { svc } = setup(reco);
+      const pages = (await scroll(svc, 2)).flat();
+      expect(pages).toEqual(chrono.slice(0, 20));
+      expect(reco.rankHomeWindow).not.toHaveBeenCalled();
+      expect(reco.logHomeServed.mock.calls[0][3]).toEqual(arm);
+      // The same pages as a FeedService without any ranker.
+      const plain = setup(undefined);
+      expect((await scroll(plain.svc, 2)).flat()).toEqual(pages);
+    }
+  });
+
+  it('model missing or scoring failed: today’s page (chronological fallback)', async () => {
+    const reco = fakeReco(MODEL, false);
+    const { svc } = setup(reco);
+    expect((await scroll(svc, 2)).flat()).toEqual(chrono.slice(0, 20));
+    expect(reco.rankHomeWindow).toHaveBeenCalledTimes(1);
+  });
+
+  it('a forged ranked cursor is refused', async () => {
+    const { svc } = setup(fakeReco(MODEL));
+    const bad = encodeFeedCursor({
+      f: null,
+      r: 0,
+      v: null,
+      k: { p: '../../x', o: 0 },
+    });
+    await expect(svc.page(viewer, bad, 10)).rejects.toThrow('Invalid cursor');
   });
 });

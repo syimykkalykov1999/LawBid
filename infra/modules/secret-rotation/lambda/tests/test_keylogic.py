@@ -15,6 +15,18 @@ class KeyLogic(unittest.TestCase):
         v = f"j1:{A},j2:{B}"
         self.assertEqual(k.format_keys(k.parse_keys(v)), v)
 
+    def test_redis_url_keeps_the_serverless_user_name(self):
+        # Item 29: rediss://default:pw@h (Serverless) keeps «default»;
+        # rediss://:token@h (node group) stays without a user.
+        self.assertEqual(
+            k.redis_url_with_token("rediss://default:old@h.example:6379", "newpw"),
+            "rediss://default:newpw@h.example:6379",
+        )
+        self.assertEqual(
+            k.redis_url_with_token("rediss://:old@h.example:6379", "newpw"),
+            "rediss://:newpw@h.example:6379",
+        )
+
     def test_kms_entries_keep_colons(self):
         v = f"m1:{A},m2:kms:QUJD"
         self.assertEqual(k.parse_keys(v)[1], ("m2", "kms:QUJD"))

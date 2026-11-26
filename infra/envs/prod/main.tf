@@ -277,15 +277,22 @@ module "stack" {
   deploy_alarm_rollback              = var.deploy_alarm_rollback
   deploy_rollback_on_slo             = var.deploy_rollback_on_slo
   api_native_deploy                  = var.api_native_deploy
-  tracing_enabled                    = var.tracing_enabled
-  tracing_sample_ratio               = var.tracing_sample_ratio
-  tracing_tail_sampling              = var.tracing_tail_sampling
-  tracing_slow_ms                    = var.tracing_slow_ms
-  synthetic_journey_enabled          = var.synthetic_journey_enabled
-  synthetic_journey_secret_arn       = var.synthetic_journey_secret_arn
-  synthetic_journey_conversation_id  = var.synthetic_journey_conversation_id
-  alarm_incident_hook_enabled        = var.alarm_incident_hook_enabled
-  dmarc_policy                       = var.dmarc_policy
+  # Items 27 + 29 (owner 25.11, «Авто» like the big platforms).
+  predictive_scaling_enabled           = var.predictive_scaling_enabled
+  redis_serverless_mode                = var.redis_serverless_mode
+  redis_serverless_snapshot_arn        = var.redis_serverless_snapshot_arn
+  redis_node_group_enabled             = var.redis_node_group_enabled
+  redis_serverless_max_data_gb         = var.redis_serverless_max_data_gb
+  redis_serverless_max_ecpu_per_second = var.redis_serverless_max_ecpu_per_second
+  tracing_enabled                      = var.tracing_enabled
+  tracing_sample_ratio                 = var.tracing_sample_ratio
+  tracing_tail_sampling                = var.tracing_tail_sampling
+  tracing_slow_ms                      = var.tracing_slow_ms
+  synthetic_journey_enabled            = var.synthetic_journey_enabled
+  synthetic_journey_secret_arn         = var.synthetic_journey_secret_arn
+  synthetic_journey_conversation_id    = var.synthetic_journey_conversation_id
+  alarm_incident_hook_enabled          = var.alarm_incident_hook_enabled
+  dmarc_policy                         = var.dmarc_policy
 
   # Load audit 6: growth switches (growth.tf).
   growth = merge(var.growth, var.growth_switches)
