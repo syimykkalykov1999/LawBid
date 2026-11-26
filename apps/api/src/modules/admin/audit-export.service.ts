@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../admin-access/audit-log.service';
+import { STORAGE_REQUEST_HANDLER } from '../../common/http/aws-request-handler';
 
 export const AUDIT_EXPORT_CURSOR_KEY = 'admin.audit_export_cursor';
 /** Rows per file, and files per run (a quiet system needs one). */
@@ -30,6 +31,7 @@ class S3Putter implements AuditPutter {
 
   async put(bucket: string, key: string, body: string): Promise<void> {
     this.client ??= new S3Client({
+      requestHandler: STORAGE_REQUEST_HANDLER,
       region: this.config.get<string>('S3_REGION'),
     });
     await this.client.send(

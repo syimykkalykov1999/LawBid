@@ -19,6 +19,8 @@
  * DATA_KEYS_KMS_APP carries that name, DATA_KEYS_KMS_KEY_ARN the key (both
  * optional — a ciphertext names its own key).
  */
+import { AWS_API_REQUEST_HANDLER } from '../http/aws-request-handler';
+
 export const KMS_WRAPPED_PREFIX = 'kms:';
 
 /** Env vars that are "kid:secret,…" lists and may carry wrapped entries. */
@@ -132,6 +134,7 @@ async function awsDecrypt(
   const { KMSClient, DecryptCommand } = await import('@aws-sdk/client-kms');
   const client = new KMSClient({
     region: env.AWS_REGION ?? env.S3_REGION ?? 'us-east-1',
+    requestHandler: AWS_API_REQUEST_HANDLER,
   });
   return async (ciphertext, { keyId, encryptionContext }) => {
     const res = await client.send(

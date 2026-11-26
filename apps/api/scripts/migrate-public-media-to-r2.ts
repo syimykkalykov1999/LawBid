@@ -33,6 +33,7 @@ import {
   variantKey,
 } from '../src/modules/files/files.policy';
 import { pgAdapter } from '../src/prisma/pg-adapter';
+import { STORAGE_REQUEST_HANDLER } from '../src/common/http/aws-request-handler';
 
 const args = process.argv.slice(2);
 const APPLY = args.includes('--apply');
@@ -128,6 +129,7 @@ async function main(): Promise<void> {
   const aws: Side = {
     bucket: awsBucket,
     client: new S3Client({
+      requestHandler: STORAGE_REQUEST_HANDLER,
       region: process.env.S3_REGION ?? 'us-east-1',
       credentials:
         process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY
@@ -141,6 +143,7 @@ async function main(): Promise<void> {
   const r2: Side = {
     bucket: r2Bucket,
     client: new S3Client({
+      requestHandler: STORAGE_REQUEST_HANDLER,
       region: 'auto',
       endpoint: `https://${need('CLOUDFLARE_R2_ACCOUNT_ID')}.r2.cloudflarestorage.com`,
       credentials: {
