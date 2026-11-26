@@ -115,7 +115,7 @@ jobs:
         run: |
           set -u
           # The image runs as its own non-root user: it must be able to write
-          # the report folder of the runner (KNOWN_ERRORS 256).
+          # the report folder of the runner (KNOWN_ERRORS 258).
           mkdir -p "$RUNNER_TEMP/dast" && chmod 0777 "$RUNNER_TEMP/dast"
           run_pass() {
             name="$1"; shift
