@@ -24,7 +24,7 @@ import {
   ADMINS_ROOM,
   adminTicketKey,
 } from './realtime-publisher.service';
-import { SOCKET_SERVER_ORIGIN_OPTIONS } from '../../common/cors/socket-origin';
+import { SOCKET_SERVER_OPTIONS } from '../../common/cors/socket-server-options';
 
 /** The ticket is 24 random bytes in base64url (32 chars). */
 const TICKET_RE = /^[A-Za-z0-9_-]{16,64}$/;
@@ -60,13 +60,9 @@ const scopeKey = (countries: string[] | null) =>
  */
 @WebSocketGateway({
   namespace: ADMIN_RT_NAMESPACE,
-  // ASVS V4.4.2 (#6): the HTTP CORS allowlist, also for the handshake.
-  ...SOCKET_SERVER_ORIGIN_OPTIONS,
-  transports: ['websocket', 'polling'],
-  maxHttpBufferSize: 4 * 1024,
-  pingInterval: 25_000,
-  pingTimeout: 20_000,
-  connectTimeout: 10_000,
+  // One Socket.IO server for all namespaces: the same options on every
+  // gateway, whichever starts first (common/cors/socket-server-options.ts).
+  ...SOCKET_SERVER_OPTIONS,
 })
 export class AdminRealtimeGateway
   implements OnGatewayInit, OnGatewayConnection, OnModuleDestroy
