@@ -290,7 +290,7 @@
       ]
     },
     "backups.md": {
-      "owner": false,
+      "owner": true,
       "guides": [
         "backups"
       ]
