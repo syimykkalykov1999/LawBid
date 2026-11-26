@@ -1,3 +1,4 @@
+import { APP_SETTINGS } from '../app-settings/app-settings.defaults';
 import { QueueConcurrencyService } from './queue-concurrency.service';
 import { workerTuning } from './queue-hardening';
 import {
@@ -102,9 +103,7 @@ describe('queue worker concurrency (Q5)', () => {
     expect(workerTuning('group-fanout').lockDuration).toBe(90_000);
   });
 
-  it('every listed queue has its admin setting with the same default', async () => {
-    const { APP_SETTINGS } =
-      await import('../app-settings/app-settings.defaults');
+  it('every listed queue has its admin setting with the same default', () => {
     for (const [queue, { key, default: d }] of Object.entries(
       QUEUE_CONCURRENCY,
     )) {
