@@ -221,4 +221,39 @@ describe('Q&A search and filters matrix (e2e)', () => {
     }
     expect(bad).toEqual([]);
   });
+  // F5 (26.11, docs/dev/SECOND_PASS_2026-11-26.md): best match first. Runs
+  // after the matrix (its own rows would push the matrix's off its pages).
+  it('an old exact-title question comes first, above 600 newer loose matches', async () => {
+    const w1 = `exactfoo${tok}`;
+    const w2 = `exactbar${tok}`;
+    const author = (
+      await prisma.user.create({
+        data: { role: 'client', phone_verified_at: new Date() },
+      })
+    ).id;
+    const old = await prisma.legalQuestion.create({
+      data: {
+        author_id: author,
+        title: `${w1} ${w2}`,
+        body: 'Asked a year ago, the exact question.',
+        created_at: new Date(Date.now() - 365 * 86_400_000),
+      },
+    });
+    await prisma.legalQuestion.createMany({
+      data: Array.from({ length: 600 }, (_, i) => ({
+        author_id: author,
+        title: `A newer question ${i}`,
+        body: `Mentions ${w1} once and ${w2} once, number ${i}, among other words.`,
+        created_at: new Date(Date.now() - i * 1000),
+      })),
+    });
+    const query = new URLSearchParams({ q: `${w1} ${w2}`, limit: '5' });
+    const r: { status: number; body: { data: { id: string }[] } } =
+      await request(base)
+        .get(`/api/v1/questions?${query.toString()}`)
+        .set(await viewer());
+    expect(r.status).toBe(200);
+    expect(r.body.data[0]?.id).toBe(old.id);
+    expect(r.body.data).toHaveLength(5);
+  });
 });

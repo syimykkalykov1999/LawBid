@@ -114,8 +114,8 @@ export interface SearchProvider {
   /** Type-ahead: topics, attorney handles and practice names by prefix. */
   suggest(prefix: string, perKind: number): Promise<SuggestItem[]>;
   searchTags(prefix: string, limit: number): Promise<string[]>;
-  /** «Вопрос юристу»: published question ids matching [text], newest
-   * first, at most 500. */
+  /** «Вопрос юристу»: published question ids matching [text], best match
+   * first (then newest), at most 500. */
   searchQuestions(text: string): Promise<string[]>;
   /** Practices whose name in ANY language has a word starting with [q]. */
   practiceMatches(
