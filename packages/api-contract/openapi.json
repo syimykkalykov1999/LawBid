@@ -109054,6 +109054,93 @@
         ]
       }
     },
+    "/e2ee/conversations/{id}/push-keys": {
+      "get": {
+        "operationId": "getPushPreviewKeys",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushPreviewKeysEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: CONVERSATION_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Push-preview public keys of the other members’ phones",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
     "/e2ee/conversations/{id}/group": {
       "post": {
         "operationId": "createMlsGroup",
@@ -202987,6 +203074,28 @@
           "mls"
         ]
       },
+      "PushPreviewDto": {
+        "type": "object",
+        "properties": {
+          "kid": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 16,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Id of the recipient key (GET /e2ee/conversations/:id/push-keys)."
+          },
+          "ct": {
+            "type": "string",
+            "maxLength": 1024,
+            "format": "base64",
+            "description": "base64 of HPKE enc (32 bytes) || ciphertext."
+          }
+        },
+        "required": [
+          "kid",
+          "ct"
+        ]
+      },
       "SendMessageDto": {
         "type": "object",
         "properties": {
@@ -203025,6 +203134,14 @@
             "description": "Item 25 (type=mls, message franking): base64 of HMAC-SHA256(k, P)\nwhere P is the message's plaintext and k the 32-byte key inside it. A\nreport reveals P; the server checks it against this tag.",
             "maxLength": 64,
             "format": "base64"
+          },
+          "pushPreviews": {
+            "description": "Third pass M12 (type=mls): the push previews, one per recipient\nphone, sealed on the sender's device. Optional; without them the push\nsays «Новое сообщение».",
+            "maxItems": 64,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PushPreviewDto"
+            }
           },
           "giftId": {
             "type": "string",
@@ -203696,6 +203813,51 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/ConversationE2eeDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PushPreviewKeyDto": {
+        "type": "object",
+        "properties": {
+          "kid": {
+            "type": "string",
+            "description": "Key id: base64url of the first 12 bytes of SHA-256(key), 16 chars."
+          },
+          "key": {
+            "type": "string",
+            "description": "Raw X25519 public key, base64 (32 bytes)."
+          }
+        },
+        "required": [
+          "kid",
+          "key"
+        ]
+      },
+      "PushPreviewKeysDto": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PushPreviewKeyDto"
+            }
+          }
+        },
+        "required": [
+          "keys"
+        ]
+      },
+      "PushPreviewKeysEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PushPreviewKeysDto"
           },
           "meta": {
             "$ref": "#/components/schemas/ResponseMetaDto"
@@ -208461,6 +208623,13 @@
           "actorStyle": {
             "type": "boolean",
             "description": "Owner 2026-10-26: this app draws notifications with a person (bid, comment, like, missed call …) itself, with the person's round photo, from a data-only push (Android)."
+          },
+          "previewKey": {
+            "type": "string",
+            "format": "base64",
+            "minLength": 44,
+            "maxLength": 44,
+            "description": "Third pass M12: this device's push-preview public key (raw X25519, base64). Senders of end-to-end encrypted messages seal a short preview to it (HPKE, RFC 9180); only this device opens it."
           }
         },
         "required": [

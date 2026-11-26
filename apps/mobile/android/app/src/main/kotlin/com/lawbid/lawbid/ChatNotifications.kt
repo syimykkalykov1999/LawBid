@@ -117,7 +117,11 @@ object ChatNotifications {
         val name = contactName(context, senderId)
             ?: data["senderName"]?.takeIf { it.isNotEmpty() }
             ?: data["title"].orEmpty()
-        val text = data["text"] ?: data["body"].orEmpty()
+        // Third pass M12: an end-to-end encrypted message — the sender
+        // sealed its first words to this phone's key (`pp`); opened only
+        // here. Any failure keeps the server's «Новое сообщение».
+        val text = data["pp"]?.let { PushPreview.open(context, it) }
+            ?: data["text"] ?: data["body"].orEmpty()
         val messageId = data["messageId"].orEmpty()
         val lineId = when (data["event"]) {
             "reaction" -> "r:$messageId:$senderId"

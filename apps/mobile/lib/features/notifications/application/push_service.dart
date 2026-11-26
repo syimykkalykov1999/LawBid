@@ -342,7 +342,7 @@ class PushService {
     return registrar.register(token);
   }
 
-  Future<void> _post(String token) => _ref
+  Future<void> _post(String token) async => _ref
       .read(notificationsRepositoryProvider)
       .registerPushToken(
         token,
@@ -357,6 +357,9 @@ class PushService {
         // round photo: bids, comments, likes, missed calls).
         actorStyle: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
         fid: _usesFid,
+        // Third pass M12: the phone's push-preview key (made and kept by
+        // the native side, where the push extension opens the previews).
+        previewKey: await chatNotificationsChannel.pushPreviewKey(),
       );
 
   String? _voipToken;

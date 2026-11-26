@@ -374,6 +374,14 @@ class MainActivity : FlutterFragmentActivity() {
                         )
                         result.success(null)
                     }
+                    // Third pass M12: this phone's push-preview public key
+                    // (PushPreview.kt); made off the main thread.
+                    "pushPreviewKey" -> {
+                        Thread {
+                            val key = PushPreview.publicKeyBase64(applicationContext)
+                            runOnUiThread { result.success(key) }
+                        }.start()
+                    }
                     "pendingOpen" -> {
                         result.success(pendingChatOpen)
                         pendingChatOpen = null

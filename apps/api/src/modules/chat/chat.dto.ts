@@ -2,10 +2,16 @@ import { StickerDto } from '../stickers/stickers.dto';
 import { GiftSendDto } from '../stars/stars.dto';
 import { SharedPostCardDto } from '../posts/shared-post-cards.service';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { MLS_MESSAGE_MAX_B64 } from './e2ee/e2ee.dto';
 import {
+  PUSH_PREVIEW_CT_MAX_B64,
+  PUSH_PREVIEW_KID_LEN,
+  PUSH_PREVIEWS_MAX,
+} from '../../common/push-previews/push-previews';
+import {
   ArrayMaxSize,
+  IsArray,
   IsBase64,
   IsBoolean,
   IsIn,
@@ -19,7 +25,33 @@ import {
   MaxLength,
   Min,
   MinLength,
+  Length,
+  ValidateNested,
 } from 'class-validator';
+
+/** Third pass M12: a short preview of an end-to-end encrypted message,
+ * sealed by the sender to one recipient phone's push-preview key (HPKE,
+ * RFC 9180). The server never opens it; it goes into that phone's push. */
+export class PushPreviewDto {
+  @ApiProperty({
+    minLength: PUSH_PREVIEW_KID_LEN,
+    maxLength: PUSH_PREVIEW_KID_LEN,
+    description:
+      'Id of the recipient key (GET /e2ee/conversations/:id/push-keys).',
+  })
+  @IsString()
+  @Length(PUSH_PREVIEW_KID_LEN, PUSH_PREVIEW_KID_LEN)
+  @Matches(/^[A-Za-z0-9_-]+$/)
+  kid!: string;
+
+  @ApiProperty({
+    maxLength: PUSH_PREVIEW_CT_MAX_B64,
+    description: 'base64 of HPKE enc (32 bytes) || ciphertext.',
+  })
+  @IsBase64()
+  @MaxLength(PUSH_PREVIEW_CT_MAX_B64)
+  ct!: string;
+}
 
 /** docs/05 §8.2: text only, up to 2000 characters. */
 export const MESSAGE_MAX_CHARS = 2000;
@@ -320,6 +352,17 @@ export class SendMessageDto {
   @IsBase64()
   @MaxLength(64)
   frankingTag?: string;
+
+  /** Third pass M12 (type=mls): the push previews, one per recipient
+   * phone, sealed on the sender's device. Optional; without them the push
+   * says «Новое сообщение». */
+  @ApiPropertyOptional({ type: [PushPreviewDto], maxItems: PUSH_PREVIEWS_MAX })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(PUSH_PREVIEWS_MAX)
+  @ValidateNested({ each: true })
+  @Type(() => PushPreviewDto)
+  pushPreviews?: PushPreviewDto[];
 
   /** Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is
    * the optional note (≤200). */

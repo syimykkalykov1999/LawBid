@@ -304,6 +304,10 @@ abstract interface class NotificationsRepository {
     /// (firebase_messaging 17 `register()`/`onRegistered`), not a legacy
     /// registration token; the server then sends with `message.fid`.
     bool fid = false,
+
+    /// Third pass M12: this phone's push-preview public key (raw X25519,
+    /// base64); senders of encrypted messages seal a preview to it.
+    String? previewKey,
   });
   Future<void> deletePushToken(String token);
 
@@ -570,8 +574,13 @@ class ApiNotificationsRepository
     bool chatStyle = false,
     bool actorStyle = false,
     bool fid = false,
+    String? previewKey,
   }) async {
-    Future<void> send({required bool withActorStyle, required bool asFid}) =>
+    Future<void> send({
+      required bool withActorStyle,
+      required bool asFid,
+      String? key,
+    }) =>
         guardApiCall(
           () => _api.registerPushToken(
             body: api.PushTokenDto(
@@ -588,17 +597,20 @@ class ApiNotificationsRepository
               actorStyle: withActorStyle ? true : null,
               // 2026-11-07: only sent for an FID, for the same reason.
               kind: asFid ? api.PushTokenDtoKind.fid : null,
+              // Third pass M12: only sent when there is one (same reason).
+              previewKey: key,
             ),
           ),
         );
     try {
-      await send(withActorStyle: actorStyle, asFid: fid);
+      await send(withActorStyle: actorStyle, asFid: fid, key: previewKey);
     } on ApiException catch (e) {
       // An older server that does not know `actorStyle` / `kind` yet:
       // register without them (plain notifications; an FID stored as a
       // token still reaches the phone, FCM's `message.token` accepts an FID
       // during the transition) instead of failing forever.
-      if (!(actorStyle || fid) || e.code != ApiErrorCodes.validationError) {
+      if (!(actorStyle || fid || previewKey != null) ||
+          e.code != ApiErrorCodes.validationError) {
         rethrow;
       }
       await send(withActorStyle: false, asFid: false);

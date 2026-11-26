@@ -196,6 +196,25 @@ export class MlsEpochDto {
   epoch!: number;
 }
 
+/** Third pass M12: one recipient phone's push-preview public key. */
+export class PushPreviewKeyDto {
+  @ApiProperty({
+    description:
+      'Key id: base64url of the first 12 bytes of SHA-256(key), 16 chars.',
+  })
+  kid!: string;
+
+  @ApiProperty({ description: 'Raw X25519 public key, base64 (32 bytes).' })
+  key!: string;
+}
+
+/** Third pass M12: the other members' phones a sender seals a push preview
+ * to (HPKE, RFC 9180). Empty while encryption is off for this chat. */
+export class PushPreviewKeysDto {
+  @ApiProperty({ type: [PushPreviewKeyDto] })
+  keys!: PushPreviewKeyDto[];
+}
+
 export class MlsCommitsQueryDto {
   @ApiPropertyOptional({
     description: 'Commits made in this epoch and later (default 0).',

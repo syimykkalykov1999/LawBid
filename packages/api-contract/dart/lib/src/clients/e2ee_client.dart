@@ -21,6 +21,7 @@ import '../models/mls_device_list_envelope.dart';
 import '../models/mls_epoch_envelope.dart';
 import '../models/mls_rejoin_dto.dart';
 import '../models/mls_welcome_list_envelope.dart';
+import '../models/push_preview_keys_envelope.dart';
 import '../models/register_mls_device_dto.dart';
 import '../models/upload_key_packages_dto.dart';
 
@@ -82,6 +83,13 @@ abstract class E2eeClient {
   /// Is this chat end-to-end encrypted, and its group
   @GET('/e2ee/conversations/{id}')
   Future<ConversationE2eeEnvelope> getConversationE2ee({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Push-preview public keys of the other members’ phones
+  @GET('/e2ee/conversations/{id}/push-keys')
+  Future<PushPreviewKeysEnvelope> getPushPreviewKeys({
     @Path('id') required String id,
     @Extras() Map<String, dynamic>? extras,
   });

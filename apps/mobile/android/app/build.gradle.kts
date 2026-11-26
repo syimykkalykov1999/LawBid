@@ -178,6 +178,9 @@ dependencies {
     implementation("androidx.media3:media3-transformer:1.9.2")
     implementation("androidx.media3:media3-effect:1.9.2")
     implementation("androidx.media3:media3-common:1.9.2")
+    // Third pass M12: HPKE for the push previews of end-to-end encrypted
+    // messages (PushPreview.kt). Google Tink, Apache-2.0.
+    implementation("com.google.crypto.tink:tink-android:1.24.0")
 }
 
 flutter {

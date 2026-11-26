@@ -135,8 +135,8 @@ describe('push tokens keyed on the sign-in chain', () => {
       p as unknown as PrismaService,
     ).activeDevices('u');
     expect(out).toEqual([
-      { token: 'tok-a', fid: true },
-      { token: 'tok-c', fid: false },
+      { token: 'tok-a', fid: true, previewKid: null },
+      { token: 'tok-c', fid: false, previewKid: null },
     ]);
     expect(p.pushToken.deleteMany).toHaveBeenCalledWith({
       where: { user_id: 'u', fcm_token: { in: ['tok-b', 'tok-x'] } },

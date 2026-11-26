@@ -41,6 +41,7 @@ import {
   MlsRejoinDto,
   MlsWelcomeDto,
   MlsWelcomesQueryDto,
+  PushPreviewKeysDto,
   RegisterMlsDeviceDto,
   UploadKeyPackagesDto,
 } from './e2ee.dto';
@@ -147,6 +148,20 @@ export class E2eeController {
     @Param() p: ConversationIdParamDto,
   ): Promise<ConversationE2eeDto> {
     return this.e2ee.conversationState(user, p.id);
+  }
+
+  // Third pass M12: whom a sender seals the push preview to.
+  @Get('conversations/:id/push-keys')
+  @ApiOperation({
+    summary: 'Push-preview public keys of the other members’ phones',
+  })
+  @ApiEnvelopeResponse(PushPreviewKeysDto)
+  @ApiErrors({ 404: [ErrorCode.CONVERSATION_NOT_FOUND] })
+  getPushPreviewKeys(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+  ): Promise<PushPreviewKeysDto> {
+    return this.e2ee.pushPreviewKeys(user, p.id);
   }
 
   @Post('conversations/:id/group')

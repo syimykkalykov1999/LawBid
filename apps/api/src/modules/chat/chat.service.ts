@@ -57,6 +57,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { BoostActions } from '../promotions/boost-actions.service';
 import { randomUUID } from 'node:crypto';
 import type Redis from 'ioredis';
+import { storePushPreviews } from '../../common/push-previews/push-previews';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { shardContext } from '../../sharding/shard-context';
 import { withTxRetry } from '../../prisma/tx-retry.util';
@@ -1832,6 +1833,11 @@ export class ChatService implements FileScanListener {
     // file's state, so no end of the check falls between the two).
     if (scanPending && message.file_id) {
       await this.markScanWait(message.file_id, id, message.id);
+    }
+    // Third pass M12: the sender's sealed push previews, kept for the push
+    // (the server cannot open them; never stored with the message).
+    if (mls) {
+      await storePushPreviews(this.redis, message.id, dto.pushPreviews);
     }
     const urls = await this.deliverEffects(conv, message, user.sub, {
       silent: opts.silent === true,

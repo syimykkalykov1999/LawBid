@@ -89,6 +89,22 @@ class ChatNotificationsChannel {
   }) =>
       _call('setPushActions', {'url': apiBase, 'token': deviceToken});
 
+  /// Third pass M12: this phone's push-preview PUBLIC key (raw X25519,
+  /// base64; made once and kept by the native side — iPhone: the App Group
+  /// keychain the push extension reads; Android: Tink's keyset under the
+  /// Keystore). Null on the web, in tests, on an iPhone below iOS 17 (no
+  /// CryptoKit HPKE) and on any failure: the push then says «Новое
+  /// сообщение».
+  Future<String?> pushPreviewKey() async {
+    if (!_supported) return null;
+    try {
+      final key = await _channel.invokeMethod<String>('pushPreviewKey');
+      return key != null && key.length == 44 ? key : null;
+    } on Object {
+      return null;
+    }
+  }
+
   Future<void> _call(String method, [Object? args]) async {
     if (!_supported) return;
     try {

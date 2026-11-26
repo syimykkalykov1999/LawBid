@@ -679,6 +679,8 @@ class ApiChatRepository implements ChatRepository {
         replyToId: replyToId,
         forwarded: forwarded,
       ),
+      // Third pass M12: the text a recipient's push may show (sealed).
+      previewText: body,
     );
     final api.MessageDto sent;
     try {

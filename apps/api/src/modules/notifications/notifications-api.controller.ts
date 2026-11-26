@@ -232,6 +232,8 @@ export class NotificationsApiController {
       dto.chatStyle === true && dto.platform === 'android',
       dto.actorStyle === true && dto.platform === 'android',
       dto.kind === 'fid' ? 'fid' : 'token',
+      // Third pass M12: iPhones and Android phones open sealed previews.
+      dto.platform === 'web' ? null : (dto.previewKey ?? null),
     );
   }
 

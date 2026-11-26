@@ -568,6 +568,9 @@ import flutter_callkit_incoming
         AppDelegate.setPushActions(
           url: args?["url"] as? String, token: args?["token"] as? String)
         result(nil)
+      case "pushPreviewKey":
+        // Third pass M12: this phone's push-preview public key (PushPreview.swift).
+        result(PushPreview.publicKeyBase64())
       case "pendingOpen":
         result(nil)
       default:

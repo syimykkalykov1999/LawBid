@@ -203,6 +203,9 @@ export interface PushMessage {
   /** Owner 2026-10-26: the iPhone's notification category (its buttons:
    * «Ответить» / «Прочитано» for chats). */
   iosCategory?: string;
+  /** Third pass M12: sealed previews of an end-to-end encrypted message,
+   * by push-preview key id; each device gets only its own (`data.pp`). */
+  previews?: Record<string, string>;
 }
 
 export type PushSoundKind = 'message' | 'notification';

@@ -1,10 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UpdatedSinceQuery } from '../../common/sync/sync.util';
+import { PUSH_PREVIEW_KEY_B64_LEN } from '../../common/push-previews/push-previews';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsBase64,
   IsBoolean,
+  Length,
   IsIn,
   IsOptional,
   IsString,
@@ -352,6 +355,17 @@ export class PushTokenDto {
   @IsOptional()
   @IsBoolean()
   actorStyle?: boolean;
+
+  @ApiPropertyOptional({
+    minLength: PUSH_PREVIEW_KEY_B64_LEN,
+    maxLength: PUSH_PREVIEW_KEY_B64_LEN,
+    description:
+      "Third pass M12: this device's push-preview public key (raw X25519, base64). Senders of end-to-end encrypted messages seal a short preview to it (HPKE, RFC 9180); only this device opens it.",
+  })
+  @IsOptional()
+  @IsBase64()
+  @Length(PUSH_PREVIEW_KEY_B64_LEN, PUSH_PREVIEW_KEY_B64_LEN)
+  previewKey?: string;
 }
 
 /** Owner 2026-10-20: the planner reminders an iPhone has armed locally. */

@@ -14,6 +14,7 @@ import 'package:lawbid/features/chat/e2ee/e2ee_scratch_mem.dart' as mem;
 import 'package:lawbid/features/chat/e2ee/e2ee_service.dart';
 import 'package:lawbid/features/chat/e2ee/mls_engine_io.dart';
 import 'package:lawbid/features/chat/e2ee/mls_key_vault.dart';
+import 'package:lawbid/features/chat/e2ee/push_preview_hpke.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Item 25: the app's end-to-end encryption against an in-memory Delivery
@@ -371,6 +372,39 @@ void main() {
     expect(m.mlsEpoch, ds.epoch);
   });
 
+  /// Third pass M12 (WhatsApp / Signal): the text of an encrypted message
+  /// reaches each recipient phone's push sealed to that phone's own key;
+  /// the server only passes the blobs on.
+  test('push previews: sealed per phone key, opened only with it', () async {
+    final (alice, _) = await pair();
+    final sk = PushPreviewHpke.deriveSecretKey(List.filled(32, 9));
+    final pk = base64Encode(await PushPreviewHpke.publicKeyOf(sk));
+    ds.pushKeys = [api.PushPreviewKeyDto(kid: 'kid-bob-phone-01', key: pk)];
+    final sent = (await alice.seal(
+      'c1',
+      'cm-pp-1',
+      const E2eePayload(kind: 'text', body: 'Встреча в 15:00'),
+      previewText: 'Встреча в 15:00',
+    ))!;
+    final pp = sent.pushPreviews!.single;
+    expect(pp.kid, 'kid-bob-phone-01');
+    final opened = await PushPreviewHpke.open(sk, base64Decode(pp.ct));
+    expect(utf8.decode(opened!), 'Встреча в 15:00');
+    // The key list is reused for a while (no request per message).
+    await alice.seal(
+      'c1',
+      'cm-pp-2',
+      const E2eePayload(kind: 'text', body: 'ещё'),
+      previewText: 'ещё',
+    );
+    expect(ds.pushKeyReads, 1);
+    // No keys = no previews (the push says «Новое сообщение»).
+    expect(
+      await alice.pushPreviews('c1', '   '),
+      isNull,
+    );
+  });
+
   test('the outbox repeats a send refused for an encrypted chat’s state', () {
     bool again(String code, int status) =>
         E2eeErrors.sendIsRetryable(code, status);
@@ -704,6 +738,10 @@ class _FakeDs {
   final Set<String> members;
   String mode = 'auto';
   int messages = 0;
+
+  /// Third pass M12: the other members' push-preview keys, and reads.
+  List<api.PushPreviewKeyDto> pushKeys = const [];
+  int pushKeyReads = 0;
   final Set<String> skipAddsFor = {};
   final Map<String, String> deviceUser = {};
   final Map<String, List<String>> kps = {};
@@ -861,6 +899,17 @@ class _FakeClient implements api.E2eeClient {
           target: 4,
         ),
       );
+
+  @override
+  Future<api.PushPreviewKeysEnvelope> getPushPreviewKeys({
+    required String id,
+    Map<String, dynamic>? extras,
+  }) async {
+    ds.pushKeyReads++;
+    return api.PushPreviewKeysEnvelope(
+      data: api.PushPreviewKeysDto(keys: ds.pushKeys),
+    );
+  }
 
   @override
   Future<api.ConversationE2eeEnvelope> getConversationE2ee({

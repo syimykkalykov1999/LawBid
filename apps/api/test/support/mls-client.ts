@@ -310,9 +310,11 @@ export class MlsDeviceClient {
   async send(
     conversationId: string,
     text: string,
+    extra: Record<string, unknown> = {},
   ): Promise<{ status: number; body: { data?: unknown; error?: unknown } }> {
     const { ciphertext, epoch } = await this.encrypt(conversationId, text);
     return this.http.post(`/api/v1/conversations/${conversationId}/messages`, {
+      ...extra,
       clientMessageId: randomUUID(),
       type: 'mls',
       ciphertext,

@@ -123,6 +123,14 @@ export class FcmPushSender implements PushSender {
     // 2026-11-07: FCM HTTP v1 `message.fid` for a Firebase Installation ID,
     // the deprecated `message.token` for a legacy registration token.
     const fids = new Set(rows.filter((r) => r.fid).map((r) => r.token));
+    // Third pass M12: each device's own sealed preview (never another's).
+    const previewOf = new Map<string, string>();
+    if (message.previews) {
+      for (const r of rows) {
+        const ct = r.previewKid ? message.previews[r.previewKid] : undefined;
+        if (ct) previewOf.set(r.token, ct);
+      }
+    }
     const target = (device: string) =>
       fids.has(device) ? { fid: device } : { token: device };
     const sentKey = `push:sent:${dedupeKey}`;
@@ -164,6 +172,8 @@ export class FcmPushSender implements PushSender {
       if (key && armed.get(device)?.has(key)) return;
       const ownChat = chatStyle.has(device) || actorStyle.has(device);
       const dataOnly = message.call || localReminder.has(device) || ownChat;
+      const pp = previewOf.get(device);
+      const data = pp ? { ...message.data, pp } : message.data;
       // Claim the device before the call: a crash between FCM's 200 and
       // the mark can at most skip a push, never double it (load review).
       const claimed = await this.redis.set(
@@ -195,7 +205,7 @@ export class FcmPushSender implements PushSender {
                     }),
                 data: dataOnly
                   ? {
-                      ...message.data,
+                      ...data,
                       title: message.title,
                       body: message.body,
                       // Owner 2026-10-22 (inbox 29): the app draws this
@@ -205,7 +215,7 @@ export class FcmPushSender implements PushSender {
                         ? { iconBadge: '0' }
                         : {}),
                     }
-                  : message.data,
+                  : data,
                 android: message.call
                   ? { priority: 'high', ttl: `${CALL_TTL_SEC}s` }
                   : ownChat

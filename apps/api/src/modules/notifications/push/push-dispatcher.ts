@@ -64,6 +64,9 @@ import {
 } from './push.constants';
 import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
 import { viewerContext } from '../../../common/viewer/viewer-context';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../../redis/redis.constants';
+import { loadPushPreviews } from '../../../common/push-previews/push-previews';
 import { FilesService } from '../../files/files.service';
 import {
   CHAT_SENDER_SELECT,
@@ -227,6 +230,8 @@ export class PushDispatcher
     // S3-11: `push.chat_preview` (off = no message text in a push);
     // S10-5: admin «queues.push_rate_*» (three-state limiter).
     @Optional() private readonly appSettings?: AppSettingsService,
+    // Third pass M12: the sealed previews of end-to-end encrypted messages.
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {
     this.logger.setContext(PushDispatcher.name);
   }
@@ -1358,6 +1363,12 @@ export class PushDispatcher
     const pics = await this.avatarUrls(data.recipientId, [
       sender?.avatar_file_id,
     ]);
+    // Third pass M12: an end-to-end encrypted message carries the sender's
+    // sealed previews; each device opens only its own (S3-11 switch too).
+    const previews =
+      message.type === 'mls' && !data.event && (await this.chatPreviewOn())
+        ? await loadPushPreviews(this.redis, data.messageId)
+        : {};
     const chat = chatPushData({
       senderId,
       senderName: who,
@@ -1389,6 +1400,7 @@ export class PushDispatcher
         threadId: data.conversationId,
         chat: true,
         iosCategory: CHAT_CATEGORY,
+        ...(Object.keys(previews).length > 0 ? { previews } : {}),
       },
       dedupeKey,
     );

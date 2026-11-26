@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import {
+  isPushPreviewKey,
+  pushPreviewKid,
+} from '../../../common/push-previews/push-previews';
 import { resolveChains } from './sign-in-chain';
 
 /** At most this many devices get a push per user (newest first). */
@@ -15,6 +19,8 @@ export type PushTokenKind = 'token' | 'fid';
 export interface PushDevice {
   token: string;
   fid: boolean;
+  /** Third pass M12: the id of its push-preview key (null = none). */
+  previewKid?: string | null;
 }
 
 /**
@@ -42,7 +48,9 @@ export class PushTokensService {
     chatStyle = false,
     actorStyle = false,
     kind: PushTokenKind = 'token',
+    previewKey: string | null = null,
   ): Promise<void> {
+    const preview = isPushPreviewKey(previewKey) ? previewKey : null;
     const session = await this.prisma.session.findFirst({
       where: {
         user_id: userId,
@@ -65,6 +73,7 @@ export class PushTokensService {
         local_reminders: localReminders,
         chat_style: chatStyle,
         actor_style: actorStyle,
+        preview_key: preview,
       },
       update: {
         user_id: userId,
@@ -75,6 +84,7 @@ export class PushTokensService {
         local_reminders: localReminders,
         chat_style: chatStyle,
         actor_style: actorStyle,
+        preview_key: preview,
         last_seen_at: new Date(),
       },
     });
@@ -165,6 +175,7 @@ export class PushTokensService {
         token_kind: true,
         session_id: true,
         session_chain_id: true,
+        preview_key: true,
       },
     });
     const { chainOf, live } = await resolveChains(this.prisma, userId, rows);
@@ -180,9 +191,11 @@ export class PushTokensService {
         where: { user_id: userId, fcm_token: { in: dead } },
       });
     }
-    return rows
-      .filter(isAlive)
-      .map((r) => ({ token: r.fcm_token, fid: r.token_kind === 'fid' }));
+    return rows.filter(isAlive).map((r) => ({
+      token: r.fcm_token,
+      fid: r.token_kind === 'fid',
+      previewKid: r.preview_key ? pushPreviewKid(r.preview_key) : null,
+    }));
   }
 
   /** Browser tokens: a browser push must show something, so silent

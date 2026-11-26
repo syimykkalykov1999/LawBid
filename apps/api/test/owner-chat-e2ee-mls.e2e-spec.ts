@@ -1,5 +1,5 @@
 import type { AddressInfo, Server } from 'node:net';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
@@ -11,6 +11,7 @@ import { RealtimePublisher } from '../src/modules/realtime/realtime-publisher.se
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 import { MlsDeviceClient, type Http } from './support/mls-client';
+import { pushPreviewKid } from '../src/common/push-previews/push-previews';
 
 /**
  * Item 25 (owner 25.11; docs/architecture/E2EE_MLS_PLAN_2026-11-25.md):
@@ -439,6 +440,73 @@ describe('End-to-end encrypted chats on MLS (e2e, item 25)', () => {
     expect((stale.body.error as { code: string }).code).toBe(
       'E2EE_EPOCH_CONFLICT',
     );
+  });
+
+  it('push previews (third pass M12): a phone key is registered, only public keys go to the other side, the sealed blobs wait for the push', async () => {
+    const { chat, alice } = await encryptedPair();
+    // Bob's phone registers its push token with its push-preview key.
+    const chain = randomUUID();
+    await prisma.session.create({
+      data: {
+        user_id: chat.client.id,
+        session_chain_id: chain,
+        device_id: 'bob-phone',
+        platform: 'ios',
+        refresh_hash: `hash-${randomUUID()}`,
+        expires_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const bobPhone = `Bearer ${tokens.signAccessToken({
+      sub: chat.client.id,
+      role: 'client',
+      sid: chain,
+      verified: false,
+      subscriptionStatus: 'none',
+    })}`;
+    const key = randomBytes(32).toString('base64');
+    await request(base)
+      .post('/api/v1/push-tokens')
+      .set('Authorization', bobPhone)
+      .send({ token: `fid-${randomUUID()}`, platform: 'ios', previewKey: key })
+      .expect(204);
+    const kid = pushPreviewKid(key);
+    // Alice gets Bob's public key (and nothing else); Bob does not get his own.
+    const forAlice = await request(base)
+      .get(`/api/v1/e2ee/conversations/${chat.id}/push-keys`)
+      .set('Authorization', chat.attorney.auth)
+      .expect(200);
+    expect(forAlice.body.data.keys).toEqual([{ kid, key }]);
+    const forBob = await request(base)
+      .get(`/api/v1/e2ee/conversations/${chat.id}/push-keys`)
+      .set('Authorization', chat.client.auth)
+      .expect(200);
+    expect(forBob.body.data.keys).toEqual([]);
+    // Alice's sealed preview travels with the MLS message and waits for the
+    // push in Redis; the message row never holds it.
+    const ct = randomBytes(80).toString('base64');
+    const sent = await alice.send(chat.id, 'hi', {
+      pushPreviews: [{ kid, ct }],
+    });
+    expect(sent.status).toBe(201);
+    const id = (sent.body.data as { id: string }).id;
+    expect(JSON.parse((await redis.get(`push:pp:${id}`))!)).toEqual({
+      [kid]: ct,
+    });
+    // A malformed preview is refused like any bad field.
+    const bad = await alice.send(chat.id, 'x', {
+      pushPreviews: [{ kid: 'short', ct }],
+    });
+    expect(bad.status).toBe(400);
+    // A key that is not 32 raw bytes is refused at registration.
+    await request(base)
+      .post('/api/v1/push-tokens')
+      .set('Authorization', bobPhone)
+      .send({
+        token: `fid-${randomUUID()}`,
+        platform: 'ios',
+        previewKey: 'abc',
+      })
+      .expect(400);
   });
 
   it('KeyPackages: a device already in the group cannot be claimed (RFC 9750 §6.3 exhaustion)', async () => {

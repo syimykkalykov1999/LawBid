@@ -60,7 +60,14 @@ class NotificationService: UNNotificationServiceExtension {
     let serverName = info["senderName"] as? String ?? ""
     let saved = ChatContactNames.name(for: senderId)
     let name = saved ?? (serverName.isEmpty ? content.title : serverName)
-    let text = info["text"] as? String ?? content.body
+    var text = info["text"] as? String ?? content.body
+    // Third pass M12: an end-to-end encrypted message — the sender sealed
+    // its first words to this phone's key (`pp`); opened here only. Any
+    // failure keeps the server's «Новое сообщение».
+    if let sealed = info["pp"] as? String, let opened = PushPreview.open(sealed) {
+      text = opened
+      content.body = opened
+    }
     if group {
       // The system shows the sender with the group; the bare text below.
       content.body = text

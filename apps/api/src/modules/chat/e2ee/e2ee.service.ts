@@ -36,9 +36,15 @@ import {
   type MlsCommitRowDto,
   type MlsDeviceDto,
   type MlsWelcomeDto,
+  type PushPreviewKeysDto,
   type RegisterMlsDeviceDto,
   type UploadKeyPackagesDto,
 } from './e2ee.dto';
+import {
+  isPushPreviewKey,
+  PUSH_PREVIEWS_MAX,
+  pushPreviewKid,
+} from '../../../common/push-previews/push-previews';
 import {
   checkKeyPackage,
   deviceIdentity,
@@ -375,6 +381,43 @@ export class E2eeService {
       if (ready.length < users.length) return off('devices_missing');
     }
     return { mode, state: 'pending', reason: null };
+  }
+
+  /**
+   * Third pass M12: the push-preview public keys of the other members'
+   * phones (newest first, [PUSH_PREVIEWS_MAX] in all). The sender seals a
+   * short preview to each; the server only passes the blobs on. Only public
+   * keys and their ids leave here; nothing while encryption is off.
+   */
+  async pushPreviewKeys(
+    user: RequestUser,
+    id: string,
+  ): Promise<PushPreviewKeysDto> {
+    const { users } = await this.member(user, id);
+    if ((await this.mode()) === 'off') return { keys: [] };
+    const others = users.filter((u) => u !== user.sub);
+    if (others.length === 0) return { keys: [] };
+    const rows = await this.prisma.pushToken.findMany({
+      where: {
+        user_id: { in: others },
+        preview_key: { not: null },
+        platform: { in: ['ios', 'android'] },
+      },
+      orderBy: { last_seen_at: 'desc' },
+      take: PUSH_PREVIEWS_MAX,
+      select: { preview_key: true },
+    });
+    const seen = new Set<string>();
+    const keys: PushPreviewKeysDto['keys'] = [];
+    for (const r of rows) {
+      const key = r.preview_key;
+      if (!isPushPreviewKey(key)) continue;
+      const kid = pushPreviewKid(key!);
+      if (seen.has(kid)) continue;
+      seen.add(kid);
+      keys.push({ kid, key: key! });
+    }
+    return { keys };
   }
 
   async conversationState(

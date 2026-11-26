@@ -16,6 +16,7 @@ import 'package:lawbid/features/chat/e2ee/e2ee_media.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_payload.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_scratch.dart';
 import 'package:lawbid/features/chat/e2ee/mls_engine.dart';
+import 'package:lawbid/features/chat/e2ee/push_preview_hpke.dart';
 import 'package:lawbid/features/chat/e2ee/safety_number.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
@@ -778,6 +779,7 @@ class E2eeService {
     String clientMessageId,
     E2eePayload payload, {
     String? fileId,
+    String? previewText,
   }) =>
       _serial(conversationId, () async {
         // Pending = every member can read encrypted: this send starts it.
@@ -813,7 +815,12 @@ class E2eeService {
           utf8.decode(plain),
         );
         _memory['c:$clientMessageId'] = franked;
+        // Third pass M12: the push previews, sealed here per recipient phone.
+        final previews = previewText == null
+            ? null
+            : await pushPreviews(conversationId, previewText);
         return api.SendMessageDto(
+          pushPreviews: previews,
           clientMessageId: clientMessageId,
           type: api.SendMessageType.mls,
           ciphertext: base64Encode(ct),
@@ -826,6 +833,62 @@ class E2eeService {
           replyToId: payload.replyToId,
         );
       });
+
+  /// Third pass M12 (WhatsApp / Signal: the text of an encrypted message in
+  /// its push): [text] (its first [pushPreviewChars] characters) sealed with
+  /// HPKE to every other member's phone key (GET …/push-keys, kept for
+  /// [pushKeysFor]). Only that phone opens its own; the server passes the
+  /// blobs on. Null = none (no keys, offline, any failure): the push then
+  /// says «Новое сообщение». Never throws.
+  Future<List<api.PushPreviewDto>?> pushPreviews(
+    String conversationId,
+    String text,
+  ) async {
+    final shown = [...text.trim().runes]
+        .take(pushPreviewChars)
+        .map(String.fromCharCode)
+        .join();
+    if (shown.isEmpty) return null;
+    try {
+      final keys = await _pushKeys(conversationId);
+      if (keys.isEmpty) return null;
+      final plain = utf8.encode(shown);
+      final out = <api.PushPreviewDto>[];
+      for (final k in keys) {
+        final raw = base64Decode(k.key);
+        if (raw.length != 32) continue;
+        final sealed = await PushPreviewHpke.seal(raw, plain);
+        out.add(api.PushPreviewDto(kid: k.kid, ct: base64Encode(sealed)));
+      }
+      return out.isEmpty ? null : out;
+    } on Object catch (e) {
+      // An older server / offline: not asked again on every send.
+      _pushKeyCache[conversationId] = (DateTime.now(), const []);
+      debugPrint('e2ee push previews $conversationId: $e');
+      return null;
+    }
+  }
+
+  /// What a push may show of an encrypted message (like the server's
+  /// MESSAGE_PREVIEW_CHARS for other chats).
+  static const pushPreviewChars = 120;
+
+  /// How long the other members' phone keys are reused before asking again.
+  static const pushKeysFor = Duration(minutes: 10);
+
+  final Map<String, (DateTime, List<api.PushPreviewKeyDto>)> _pushKeyCache =
+      {};
+
+  Future<List<api.PushPreviewKeyDto>> _pushKeys(String conversationId) async {
+    final hit = _pushKeyCache[conversationId];
+    if (hit != null && DateTime.now().difference(hit.$1) < pushKeysFor) {
+      return hit.$2;
+    }
+    final keys =
+        (await client.getPushPreviewKeys(id: conversationId)).data.keys;
+    _pushKeyCache[conversationId] = (DateTime.now(), keys);
+    return keys;
+  }
 
   /// The message as the app shows it: an `mls` message becomes the text it
   /// carries (decrypted once, then from the device's store).
