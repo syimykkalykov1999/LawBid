@@ -123,6 +123,32 @@ export const CLIENT_TUNING_DEFS = {
     max: 3600,
     description: 'How often the app sends its usage events, seconds.',
   },
+  // Б6 (25.11): service level as the person sees it (SRE Workbook ch. 2).
+  // Through the same opt-in usage events: nothing without the consent.
+  'client.sli_enabled': {
+    default: true,
+    description:
+      'The app and the website count, after their own retries, whether sign-in, the feed, sending a message, a payment, starting a call and opening a push worked for the person (ok / slow / failed) and send the counts with the anonymous usage events (off = not counted).',
+  },
+  'client.sli_feed_slow_ms': {
+    default: 3000,
+    min: 500,
+    max: 30_000,
+    description:
+      'The feed counts as slow for the person when its answer took longer than this, milliseconds (the phone sees the network too, so it is above the server’s 1 s).',
+  },
+  'client.sli_message_slow_ms': {
+    default: 5000,
+    min: 1000,
+    max: 60_000,
+    description:
+      'Sending a message counts as slow for the person when it took longer than this, milliseconds.',
+  },
+  'client.web_vitals_enabled': {
+    default: true,
+    description:
+      'The website sends the Core Web Vitals rating (LCP, INP, CLS, TTFB: good / needs improvement / poor; web-vitals by Google) of each visit with the anonymous usage events (off = not sent).',
+  },
   'client.call_sync_s': {
     default: 30,
     min: 10,

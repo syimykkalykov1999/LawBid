@@ -265,7 +265,7 @@ resource "aws_cloudwatch_dashboard" "slo" {
   count          = var.dashboard_enabled ? 1 : 0
   dashboard_name = "${var.name}-slo"
   dashboard_body = jsonencode({
-    widgets = [
+    widgets = concat([
       {
         type       = "text", x = 0, y = 0, width = 24, height = 2
         properties = { markdown = "# LawBid — SLO, burn rate, runtime\nЗелёное = хорошо. Алярмы: composite `${var.name}-slo-*-fast|slow` и `${var.name}-availability-fast|slow`. Инструкция: ${var.runbook_base_url}/slo.md. Старые JSON-дашборды Grafana в infra/observability/grafana не подключены ни к чему." }
@@ -326,7 +326,18 @@ resource "aws_cloudwatch_dashboard" "slo" {
           alarms = concat([for k, a in aws_cloudwatch_composite_alarm.slo : a.arn], [for k, a in aws_cloudwatch_composite_alarm.availability : a.arn])
         }
       },
-    ]
+      ], local.eb_on ? [
+      # Б1: the row the release gate is about (error-budget.tf).
+      {
+        type = "metric", x = 0, y = 21, width = 24, height = 6
+        properties = {
+          title       = "Остаток запаса ошибок за ${var.error_budget_window_days} дней (1 = весь, 0 = израсходован: выкатываются только исправления)", region = data.aws_region.current.region, view = "timeSeries", period = 3600, stat = "Minimum"
+          metrics     = [for k in sort(keys(local.eb_slos)) : [local.ns, "SloBudgetRemaining", "Slo", k, { label = local.eb_labels[k] }]]
+          yAxis       = { left = { max = 1 } }
+          annotations = { horizontal = [{ label = "запас израсходован", value = 0 }] }
+        }
+      },
+    ] : [])
   })
 }
 

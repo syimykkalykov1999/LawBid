@@ -165,6 +165,11 @@ data "aws_iam_policy_document" "deploy_infra_apply" {
       "scheduler:GetSchedule", "scheduler:UpdateSchedule", "scheduler:CreateSchedule",
       "scheduler:DeleteSchedule", "scheduler:TagResource", "scheduler:ListTagsForResource", "sns:*", "cloudfront:GetDistribution*", "cloudfront:UpdateDistribution",
       "cloudfront:TagResource", "servicediscovery:*", "ssm:PutParameter", "ssm:AddTagsToResource",
+      # 25.11 (Б9): the unused-access analyzer and the cost allocation tags are
+      # created by Terraform now; without these the apply stops with AccessDenied.
+      "access-analyzer:CreateAnalyzer", "access-analyzer:DeleteAnalyzer", "access-analyzer:UpdateAnalyzer",
+      "access-analyzer:TagResource", "access-analyzer:UntagResource",
+      "ce:UpdateCostAllocationTagsStatus",
     ]
     resources = ["*"]
   }
