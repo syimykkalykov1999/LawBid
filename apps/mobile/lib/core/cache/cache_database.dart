@@ -164,6 +164,27 @@ class ChatMediaFiles extends Table {
   Set<Column> get primaryKey => {url};
 }
 
+/// Item 25 (end-to-end encrypted chats, MLS): what this device decrypted.
+/// An MLS message opens only once (forward secrecy: its key is gone after
+/// it), so the decrypted payload of every message is kept here — never
+/// LRU-trimmed, wiped only with the account on sign-out (as WhatsApp: the
+/// history lives on the phone; a new phone restores it from the encrypted
+/// backup). [id] is the server's message id, or `c:<clientMessageId>` for
+/// my own message before the server answered.
+@DataClassName('E2eePlaintextRow')
+class E2eePlaintexts extends Table {
+  TextColumn get owner => text()();
+  TextColumn get id => text()();
+  TextColumn get conversationId => text()();
+
+  /// The JSON payload inside the MLS message (`E2eePayload`).
+  TextColumn get payload => text()();
+  DateTimeColumn get createdAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {owner, id};
+}
+
 /// The cache database (`lawbid_cache`). On phones it is a file the OS
 /// protects; on the web build the browser's storage (owner 2026-11-08, speed
 /// everywhere; it lived only in the tab's memory before), wiped on sign-out
@@ -180,6 +201,7 @@ class ChatMediaFiles extends Table {
     CachedFileViews,
     FileViewsSync,
     ChatMediaFiles,
+    E2eePlaintexts,
   ],
 )
 class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
@@ -187,12 +209,13 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
       : super(executor ?? appDriftCacheDatabase('lawbid_cache'));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   // v2 (owner 2026-10-24): the view lists of case documents - two new
   // tables; nothing existing changes.
   // v3 (owner 2026-11-02): chat picture -> chat, one new table.
   // v4 (owner 2026-11-03): which of them are group chats.
+  // v5 (item 25, 25.11): decrypted end-to-end encrypted messages.
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
@@ -206,6 +229,9 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
           }
           if (from == 3) {
             await m.addColumn(chatMediaFiles, chatMediaFiles.isGroup);
+          }
+          if (from < 5) {
+            await m.createTable(e2eePlaintexts);
           }
         },
       );
@@ -821,8 +847,36 @@ class CacheDatabase extends _$CacheDatabase implements SyncStateStore {
       await (delete(cachedTranslations)..where((r) => others(r.owner))).go();
       await (delete(cachedFileViews)..where((r) => others(r.owner))).go();
       await (delete(fileViewsSync)..where((r) => others(r.owner))).go();
+      await (delete(e2eePlaintexts)..where((r) => others(r.owner))).go();
     });
   }
+
+  // --- end-to-end encrypted messages (item 25) ---------------------------
+
+  Future<void> putE2eePlaintext(E2eePlaintextsCompanion row) =>
+      into(e2eePlaintexts).insertOnConflictUpdate(row);
+
+  Future<void> deleteE2eePlaintext(String owner, String id) =>
+      (delete(e2eePlaintexts)
+            ..where((r) => r.owner.equals(owner) & r.id.equals(id)))
+          .go();
+
+  Future<E2eePlaintextRow?> e2eePlaintext(String owner, String id) =>
+      (select(e2eePlaintexts)
+            ..where((r) => r.owner.equals(owner) & r.id.equals(id)))
+          .getSingleOrNull();
+
+  Future<List<E2eePlaintextRow>> e2eePlaintextsOf(
+    String owner,
+    String conversationId,
+  ) =>
+      (select(e2eePlaintexts)
+            ..where(
+              (r) =>
+                  r.owner.equals(owner) &
+                  r.conversationId.equals(conversationId),
+            ))
+          .get();
 
   /// «Прочее»: everything small and technical.
   Future<void> clearOther({bool keepFileViews = false}) async {

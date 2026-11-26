@@ -644,6 +644,75 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     note: 'V4',
   },
   {
+    // Item 29 (AU5, owner 25.11).
+    id: 'aws.redis_serverless',
+    name: 'Valkey Serverless (сравнение цены)',
+    purpose:
+      'ElastiCache Serverless для Valkey растёт сам, без узлов. «Авто» каждые несколько часов считает, что дешевле при нашей настоящей нагрузке: узлы или Serverless. Сам Valkey не переключает: переход по инструкции, без потери данных.',
+    kind: 'aws',
+    control: {
+      type: 'app-setting',
+      key: 'infra.valkey_serverless_mode',
+      map: { off: 'off', auto: 'auto' },
+    },
+    states: ['off', 'auto'],
+    defaultState: 'auto',
+    ceiling: tfCeil(
+      'redis_serverless_max_data_gb',
+      'Потолок Serverless: ГБ данных и ECPU в секунду (cache_usage_limits)',
+    ),
+    price: {
+      model: 'unit',
+      text: 'Serverless Valkey: $0,084 за ГБ в час (не меньше 100 МБ) + $0,0023 за миллион ECPU (1 ECPU ≈ команда до 1 КБ); 0,1 ГБ ≈ $6/мес, 1 ГБ ≈ $61/мес, 10 ГБ ≈ $613/мес плюс ECPU',
+      sourceUrl: U.cache,
+      checkedAt: '2026-11-25',
+      verified: true,
+    },
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(6, 130),
+    needed: 'later',
+    neededNote:
+      'Сравнение бесплатно. Переходить стоит, только когда «Авто» пишет «пора переходить» (Serverless дешевле каждый день недели).',
+    alarm: null,
+    awsTypes: [
+      'aws_elasticache_serverless_cache',
+      'aws_elasticache_user',
+      'aws_elasticache_user_group',
+    ],
+  },
+  {
+    // Item 27 (AU1, owner 25.11).
+    id: 'aws.ecs_predictive',
+    name: 'Прогноз нагрузки API (серверы заранее)',
+    purpose:
+      'Как Netflix и AWS: по прошлым неделям прогноз добавляет серверы API до часа пик. «Авто» включает прогноз, только когда он много дней подряд точный; обычный рост по процессору и запросам работает всегда.',
+    kind: 'aws',
+    control: {
+      type: 'app-setting',
+      key: 'infra.predictive_scaling_mode',
+      map: { off: 'forecast', on: 'on', auto: 'auto' },
+    },
+    states: ['off', 'on', 'auto'],
+    defaultState: 'auto',
+    ceiling: setCeil(
+      'scale.max_tasks.api',
+      'Потолок серверов API (прогноз его не превышает)',
+    ),
+    price: {
+      model: 'free',
+      text: 'Политика прогноза бесплатна (AWS); платите только за серверы, которые она добавит, не выше потолка',
+      sourceUrl:
+        'https://docs.aws.amazon.com/AmazonECS/latest/developerguide/predictive-auto-scaling.html',
+      checkedAt: '2026-11-25',
+      verified: true,
+    },
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'auto',
+    neededNote:
+      'Выкл — только прогноз, серверы не трогает. Авто — серверы заранее после infra.predictive_good_days точных дней.',
+    alarm: null,
+  },
+  {
     id: 'aws.capacity_ceiling',
     name: 'Потолок размера базы и Valkey «по деньгам»',
     purpose:

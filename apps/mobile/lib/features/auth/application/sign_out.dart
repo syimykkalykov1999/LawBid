@@ -8,6 +8,7 @@ import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/network/request_flags.dart';
 import 'package:lawbid/core/session/session_providers.dart';
+import 'package:lawbid/core/session/sign_out_hooks.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
@@ -38,9 +39,21 @@ Future<void> signOut(WidgetRef ref) async {
   final dio = ref.read(dioProvider);
   // docs/05 §9.5: this device stops getting pushes for the account.
   final tokens = ref.read(pushServiceProvider).detachForSignOut();
+  // Steps owned by features (core/session/sign_out_hooks.dart), e.g.
+  // item 25: the MLS keys and groups of this device are deleted and the
+  // device is signed out on the server (WhatsApp).
+  final featureCalls = await SignOutHooks.run(ref);
   await ref.read(sessionControllerProvider.notifier).clear();
   if (bearer != null) {
-    unawaited(_tellServer(dio, bearer, voip: tokens.voip, push: tokens.push));
+    unawaited(
+      _tellServer(
+        dio,
+        bearer,
+        voip: tokens.voip,
+        push: tokens.push,
+        featureCalls: featureCalls,
+      ),
+    );
   }
   // The browser's copies of queued media go with the account.
   try {
@@ -77,6 +90,7 @@ Future<void> _tellServer(
   String bearer, {
   required String? voip,
   required String? push,
+  List<SignOutServerCall> featureCalls = const [],
 }) async {
   final extras = <String, dynamic>{
     RequestFlags.bearer: bearer,
@@ -99,6 +113,7 @@ Future<void> _tellServer(
           extras: extras,
         ),
       ),
+    for (final c in featureCalls) _repeated(() => c(dio, extras)),
   ]);
   await _repeated(() => api.AuthClient(dio).logout(extras: extras));
 }

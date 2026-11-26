@@ -620,4 +620,21 @@ export enum ErrorCode {
   // be reached (admin «send a test to myself»); the message carries the
   // provider's reason instead of a generic «server did not answer».
   EMAIL_SEND_FAILED = 'EMAIL_SEND_FAILED',
+  // Item 25 (E2EE on MLS). 409: end-to-end encryption is off for this chat
+  // (chat.e2ee_mode, demo, contacts not unlocked, too many members).
+  // details: { reason }.
+  E2EE_OFF = 'E2EE_OFF',
+  // 409: the chat is end-to-end encrypted; plain text is refused (update the
+  // app).
+  E2EE_REQUIRED = 'E2EE_REQUIRED',
+  // 409: the commit / message is for another epoch than the group's.
+  // details: { epoch } (the group's current epoch).
+  E2EE_EPOCH_CONFLICT = 'E2EE_EPOCH_CONFLICT',
+  // 409: chat.e2ee_max_devices devices already read encrypted chats.
+  // details: { max }.
+  E2EE_DEVICE_LIMIT = 'E2EE_DEVICE_LIMIT',
+  // 400: the commit adds or removes a device it may not (not a member's,
+  // revoked, already in / not in the group, or leaves a removed member in).
+  // details: { deviceIds }.
+  E2EE_MEMBERSHIP_INVALID = 'E2EE_MEMBERSHIP_INVALID',
 }

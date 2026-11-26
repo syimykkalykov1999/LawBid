@@ -106,6 +106,20 @@ variable "tuning" {
   default     = {}
   description = "Overrides of decision.Config numbers, e.g. { up_cpu_pct = 75, down_window_h = 96 } (infra/modules/db-autoscale/lambda/decision.py)."
 }
+# Item 28 (AU4, owner 25.11): the owner's «read copy first» control
+# (`scale.db_replica_first.*`) reaches the Lambda in ops/scale-controls.json,
+# the same object as modules/endpoints-autoscale (KNOWN_ERRORS 183: both
+# variables must reach the environment). Empty bucket = no control = the
+# primary is resized as before.
+variable "controls_bucket" {
+  type        = string
+  default     = ""
+  description = "Bucket with ops/scale-controls.json (section db_replica_first, written by the economy job). Empty = today's resize, no read-copy-first wait."
+}
+variable "controls_key" {
+  type    = string
+  default = "ops/scale-controls.json"
+}
 variable "log_group_class" {
   type        = string
   default     = "INFREQUENT_ACCESS"
@@ -268,6 +282,14 @@ data "aws_iam_policy_document" "lambda" {
     resources = ["*"]
   }
   dynamic "statement" {
+    for_each = var.controls_bucket == "" ? [] : [1]
+    content {
+      sid       = "ReadOwnerControl"
+      actions   = ["s3:GetObject"]
+      resources = ["arn:aws:s3:::${var.controls_bucket}/${var.controls_key}"]
+    }
+  }
+  dynamic "statement" {
     for_each = var.cluster_name == "" ? [] : [1]
     content {
       sid       = "EcsRolloutsOfThisCluster"
@@ -349,6 +371,8 @@ resource "aws_lambda_function" "this" {
       CLUSTER          = var.cluster_name
       SERVICES         = join(",", var.service_names)
       NIGHT_TZ         = var.night_timezone
+      CONTROLS_BUCKET  = var.controls_bucket
+      CONTROLS_KEY     = var.controls_key
     }
   }
   tags       = var.tags

@@ -422,6 +422,12 @@
         "pg-repack"
       ]
     },
+    "predictive-and-read-first.md": {
+      "owner": true,
+      "guides": [
+        "auto-forecast-replica-serverless"
+      ]
+    },
     "prelaunch-wipe.md": {
       "owner": false,
       "skip": "Одноразовая очистка тестовых данных перед запуском (инженер, с подтверждением владельца в чате)."
@@ -516,6 +522,12 @@
       "owner": false,
       "guides": [
         "treasury"
+      ]
+    },
+    "valkey-serverless.md": {
+      "owner": true,
+      "guides": [
+        "auto-forecast-replica-serverless"
       ]
     }
   }
