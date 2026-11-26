@@ -270,6 +270,11 @@ export class PasswordAuthService {
       where: { id: current.sub },
       // S10 (#17): the current password is checked below.
       omit: { password_hash: false },
+      // #11: the usernames are context words for the new password.
+      include: {
+        client_profile: { select: { username: true } },
+        attorney_profile: { select: { username: true } },
+      },
     });
     // Owner 2026-10-22 (security audit #3, finding 1): an account that signs
     // in by SMS has no password — before, anyone holding its access token
@@ -290,7 +295,16 @@ export class PasswordAuthService {
         });
       }
     }
-    await this.passwords.assertNotCompromised(dto.password);
+    // #11: the person's own name, username, e-mail and phone count as
+    // context words too.
+    await this.passwords.assertNotCompromised(dto.password, {
+      firstName: user.first_name,
+      lastName: user.last_name,
+      username:
+        user.client_profile?.username ?? user.attorney_profile?.username,
+      email: user.email,
+      phone: user.phone_e164,
+    });
     await this.storePassword(user.id, dto.password);
     await this.authEvents.record({
       userId: user.id,
@@ -398,7 +412,13 @@ export class PasswordAuthService {
     const deviceInfo: DeviceInfo = dto.deviceInfo ?? {};
     this.assertResetByPhone(channel);
     // Owner 2026-10-25: a refused password does not spend the sign-in code.
-    await this.passwords.assertNotCompromised(dto.newPassword);
+    // #11: only the typed identifier counts as context here (before the
+    // code is checked the account must not be looked up for its names: the
+    // answer would tell whether the number belongs to someone).
+    await this.passwords.assertNotCompromised(dto.newPassword, {
+      phone: channel === 'phone' ? identifier : undefined,
+      email: channel === 'email' ? identifier : undefined,
+    });
     await this.limit(
       ['pwd-reset-verify', 'id', this.rateLimit.hashIdentifier(identifier)],
       RESET_VERIFY_PER_IDENTIFIER,

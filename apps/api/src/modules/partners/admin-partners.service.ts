@@ -55,6 +55,7 @@ import {
   type PartnerStatus,
 } from './partners.settings';
 import type { DbTx } from '../../prisma/secret-columns';
+import { csvCell } from '../../common/csv/csv-cell';
 
 const PAGE = 50;
 
@@ -936,12 +937,4 @@ export class AdminPartnersService {
       eventRef: c.event_ref,
     }));
   }
-}
-
-function csvCell(v: string | number | null | undefined): string {
-  if (v === null || v === undefined) return '';
-  const s = typeof v === 'number' ? String(v) : v;
-  // Neutralize spreadsheet formula injection, then quote.
-  const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
-  return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }

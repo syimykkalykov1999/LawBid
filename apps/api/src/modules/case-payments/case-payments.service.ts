@@ -94,6 +94,7 @@ import {
   quotePayment,
 } from './case-payments.settings';
 import type { DbTx } from '../../prisma/secret-columns';
+import { csvQuoted } from '../../common/csv/csv-cell';
 
 export const CASE_PAYMENT_CHECKOUT_KIND = 'case_payment';
 const PAGE = 30;
@@ -2630,8 +2631,9 @@ export class CasePaymentsService {
       'payment_id',
     ];
     const usd = (c: number) => (c / 100).toFixed(2);
-    const esc = (v: string | null | undefined) =>
-      `"${(v ?? '').replace(/"/g, '""')}"`;
+    // ASVS V1.2.10 (STAGE2_SECURITY #10): case titles, notes and names are
+    // user text and this file opens in Excel — the OWASP rule, not only quotes.
+    const esc = (v: string | null | undefined) => csvQuoted(v);
     const lines = items.map((p, i) => {
       const r = rows[i];
       return [
