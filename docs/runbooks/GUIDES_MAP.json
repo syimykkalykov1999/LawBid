@@ -349,6 +349,12 @@
       "owner": false,
       "skip": "Скорость локальной разработки (инженер)."
     },
+    "dns-firewall.md": {
+      "owner": true,
+      "guides": [
+        "dns-firewall"
+      ]
+    },
     "ecs-capacity.md": {
       "owner": false,
       "skip": "Тревога процессора серверов для инженера; владельцу — «Масштаб»."
