@@ -102,6 +102,14 @@ jobs:
       - name: Docs name the real migration DB user
         run: node scripts/ci/migration-role-check.mjs
 
+      # STAGE2_SECURITY #20 (ASVS 5.0 documentation requirements, 25.11):
+      # every security / sign-in setting, encryption key and sign-in method
+      # has a line in docs/security/ASVS_DOCUMENTATION.md.
+      - name: ASVS documentation is complete
+        run: |
+          node --test scripts/ci/asvs-doc-check.test.mjs
+          node scripts/ci/asvs-doc-check.mjs
+
       # Owner rule 2026-11-03 «правка в приложении = правка в вебе» (B-c15):
       # a PR touching apps/mobile/lib/{features,core} must say what the web
       # does (the owner's table or a «## Веб» section) or carry label web-n/a.
