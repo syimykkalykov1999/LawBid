@@ -113,3 +113,34 @@ run "canary_without_the_green_group_is_refused" {
   }
   expect_failures = [aws_ecs_service.api]
 }
+
+run "canary_with_the_socket_group_shifts_both_groups" {
+  command = plan
+  variables {
+    api_deployment_strategy             = "CANARY"
+    api_alternate_target_group_arn      = "arn:aws:elasticloadbalancing:us-east-1:111111111111:targetgroup/api-green/2"
+    api_production_listener_rule_arn    = "arn:aws:elasticloadbalancing:us-east-1:111111111111:listener-rule/app/lb/1/l/2/r/3"
+    api_ws_target_group_arn             = "arn:aws:elasticloadbalancing:us-east-1:111111111111:targetgroup/api-ws/4"
+    api_ws_alternate_target_group_arn   = "arn:aws:elasticloadbalancing:us-east-1:111111111111:targetgroup/api-ws-green/5"
+    api_ws_production_listener_rule_arn = "arn:aws:elasticloadbalancing:us-east-1:111111111111:listener-rule/app/lb/1/l/2/r/6"
+  }
+  assert {
+    condition     = length(aws_ecs_service.api.load_balancer) == 2 && alltrue([for lb in aws_ecs_service.api.load_balancer : length(lb.advanced_configuration) == 1])
+    error_message = "every load balancer of a CANARY service has advanced_configuration (AWS requirement)"
+  }
+  assert {
+    condition     = contains([for lb in aws_ecs_service.api.load_balancer : lb.advanced_configuration[0].alternate_target_group_arn], var.api_ws_alternate_target_group_arn)
+    error_message = "the socket group shifts to its own green group"
+  }
+}
+
+run "canary_with_the_socket_group_but_no_socket_pair_is_refused" {
+  command = plan
+  variables {
+    api_deployment_strategy          = "CANARY"
+    api_alternate_target_group_arn   = "arn:aws:elasticloadbalancing:us-east-1:111111111111:targetgroup/api-green/2"
+    api_production_listener_rule_arn = "arn:aws:elasticloadbalancing:us-east-1:111111111111:listener-rule/app/lb/1/l/2/r/3"
+    api_ws_target_group_arn          = "arn:aws:elasticloadbalancing:us-east-1:111111111111:targetgroup/api-ws/4"
+  }
+  expect_failures = [aws_ecs_service.api]
+}

@@ -18,6 +18,10 @@ export function detectMime(
   declared?: string,
 ): FileMime | null {
   const b = Buffer.from(buf.buffer, buf.byteOffset, buf.byteLength);
+  // Item 25: a file encrypted on the phone (format of e2ee-file.ts).
+  if (b.length >= 11 && b.subarray(0, 4).toString('latin1') === 'LBE1') {
+    return FILE_MIME.e2ee;
+  }
   if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) {
     return FILE_MIME.jpeg;
   }

@@ -57,6 +57,8 @@ describe('SessionService.rotate (atomic, idempotent retry)', () => {
     };
     const prisma = {
       session: {
+        // STAGE2_SECURITY #13: the chain's first row (start of the chain).
+        findFirst: jest.fn(() => Promise.resolve(null)),
         findUnique: jest.fn((args: { where: Record<string, string> }) =>
           Promise.resolve(
             args.where.id === 's2'
@@ -277,5 +279,21 @@ describe('SessionService.rotate (atomic, idempotent retry)', () => {
     const out = await loser.service.rotate('raw-old', {}, {});
     expect(out).toEqual({ status: 'busy', retryAfterSeconds: 2 });
     expect(loser.tx.session.create).not.toHaveBeenCalled();
+  });
+
+  // STAGE2_SECURITY #13 (ASVS 5.0 V7.3.2): an absolute lifetime from the
+  // sign-in, whatever the refreshes.
+  it('#13: a chain older than auth.session_absolute_days is refused and ended', async () => {
+    const { service, revocation, current } = make();
+    current.row = {
+      ...current.row,
+      chain_started_at: new Date(Date.now() - 400 * 86_400_000),
+    };
+    const out = await service.rotate('raw', {}, {});
+    expect(out).toEqual({ status: 'expired' });
+    expect(revocation.revokeChain).toHaveBeenCalledWith(
+      'chain',
+      'session_expired',
+    );
   });
 });

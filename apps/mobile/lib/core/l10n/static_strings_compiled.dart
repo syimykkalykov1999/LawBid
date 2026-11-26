@@ -32,6 +32,7 @@ import 'package:lawbid/core/l10n/strings/deadline_strings.dart';
 import 'package:lawbid/core/l10n/strings/deal_record_strings.dart';
 import 'package:lawbid/core/l10n/strings/demo_strings.dart';
 import 'package:lawbid/core/l10n/strings/disappearing_strings.dart';
+import 'package:lawbid/core/l10n/strings/e2ee_strings.dart';
 import 'package:lawbid/core/l10n/strings/email_flows_strings.dart';
 import 'package:lawbid/core/l10n/strings/feed_content_strings.dart';
 import 'package:lawbid/core/l10n/strings/feed_fresh_strings.dart';
@@ -1120,6 +1121,7 @@ const Map<String, String> compiledStringsRu = {
   ...casesFilterRu,
   ...storageRu,
   ...storageScreenRu,
+  ...e2eeRu,
   ...supportRu,
   ...caseCoverRu,
   ...caseUrgencyRu,
@@ -2548,6 +2550,7 @@ const Map<String, String> compiledStringsEn = {
   ...casesFilterEn,
   ...storageEn,
   ...storageScreenEn,
+  ...e2eeEn,
   ...supportEn,
   ...caseCoverEn,
   ...caseUrgencyEn,

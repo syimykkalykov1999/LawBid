@@ -185,6 +185,11 @@ enum FilePurpose {
   // technician / AI employee; private bucket, owner-only, deleted
   // ai.retention_images_days after the task or item closes.
   ai_attachment
+  // Item 25 (E2EE): a chat file encrypted on the phone (the server keeps
+  // only ciphertext; its key travels inside the MLS message).
+  chat_e2ee
+  // Item 25: a person's encrypted chat backup (key: their 64-digit code).
+  chat_backup_e2ee
 
   @@map("file_purpose")
 }
@@ -980,6 +985,7 @@ model User {
   quiet_hours                 NotificationQuietHours?
   push_tokens                 PushToken[]
   mls_devices                 MlsDevice[]
+  e2ee_backup                 E2eeBackup?
   voip_tokens                 VoipToken[]
   stripe_customer             StripeCustomer?
   subscription                Subscription?
@@ -1223,6 +1229,9 @@ model Session {
   // logic anymore (see session_chain_id above), kept as a bare pointer
   // (not an enforced FK) purely for forensic "what replaced what" queries.
   replaced_by_session_id String?   @db.Uuid
+  /// STAGE2_SECURITY #13: the sign-in that opened this chain (copied on
+  /// rotation); the absolute lifetime auth.session_absolute_days counts from it.
+  chain_started_at       DateTime? @db.Timestamptz
   created_at             DateTime  @default(now()) @db.Timestamptz
   updated_at             DateTime  @updatedAt @db.Timestamptz
 
@@ -3267,6 +3276,11 @@ model Message {
   /// the server) and the group epoch it was sent in.
   ciphertext            Bytes?
   mls_epoch             Int?
+  /// Item 25 (message franking, as Messenger): HMAC-SHA256 of the
+  /// message's plaintext under a key that is inside the plaintext. A report
+  /// reveals both and the server checks them against this, so a report can
+  /// be neither forged nor denied.
+  franking_tag          Bytes?
   hidden_for            MessageHidden[]
   reactions             MessageReaction[]
   edits                 MessageEdit[]
@@ -3410,6 +3424,44 @@ model MlsGroupDevice {
   @@index([device_id])
   @@index([conversation_id, user_id])
   @@map("mls_group_devices")
+}
+
+/// Item 25 (docs/architecture/E2EE_MLS_PLAN_2026-11-25.md §6): a person's
+/// end-to-end encrypted chat backup — the file (chat_backup_e2ee) the phone
+/// encrypted with a key from the 64-digit code only the person knows. One
+/// per person; a new backup replaces the old one.
+model E2eeBackup {
+  user_id    String   @id @db.Uuid
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  file_id    String   @db.Uuid
+  /// Which 64-digit key locks it (HMAC id of the key; the key stays on the
+  /// phone). The same key serves every backup until the person makes a new one.
+  key_id     String?  @db.VarChar(24)
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @updatedAt @db.Timestamptz
+
+  @@map("e2ee_backups")
+}
+
+/// Item 25 (WhatsApp «Пожаловаться» in an encrypted chat): the messages the
+/// reporter's phone handed over with the report — the plaintext (sealed at
+/// rest like message bodies) and whether its franking tag matched the one
+/// stored when the message was sent.
+model E2eeReportEvidence {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  report_id       String   @db.Uuid
+  report          Report   @relation(fields: [report_id], references: [id], onDelete: Cascade)
+  message_id      String   @db.Uuid
+  conversation_id String   @db.Uuid
+  sender_id       String?  @db.Uuid
+  /// The message text (sealed with MESSAGE_ENC_KEYS like body_original).
+  body            String
+  verified        Boolean
+  sent_at         DateTime @db.Timestamptz
+  created_at      DateTime @default(now()) @db.Timestamptz
+
+  @@index([report_id])
+  @@map("e2ee_report_evidence")
 }
 
 /// Item 25: a Welcome for one device (it joins the group from it). Kept
@@ -4291,6 +4343,7 @@ model Report {
 
   actions      ModerationAction[]
   dmca_notices DmcaNotice[]
+  e2ee_evidence E2eeReportEvidence[]
 
   @@index([status, created_at])
   // Duplicate-report lookup per target and "my reports" (stage 4.1

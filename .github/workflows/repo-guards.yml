@@ -93,6 +93,8 @@ jobs:
           node --test scripts/ci/ci-engines-match-prod.test.mjs
           # S12 #25: the app's certificate pins (Android pin-set = iOS NSPinnedDomains).
           node --test scripts/ci/cert-pins-check.test.mjs
+          # STAGE2 G2 25.11: prod REST least-outstanding, stickiness only on /socket.io.
+          node --test scripts/ci/prod-alb-balancing.test.mjs
 
       # S12 #25 (25.11): both platforms pin the same hosts and keys, and the
       # Android pin-set expiration is still ahead. The live-chain half runs

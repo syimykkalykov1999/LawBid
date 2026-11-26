@@ -9,6 +9,10 @@ import '../models/claim_key_packages_dto.dart';
 import '../models/claimed_key_package_list_envelope.dart';
 import '../models/conversation_e2ee_envelope.dart';
 import '../models/create_mls_group_dto.dart';
+import '../models/e2ee_backup_envelope.dart';
+import '../models/e2ee_backup_put_dto.dart';
+import '../models/e2ee_report_dto.dart';
+import '../models/e2ee_report_result_envelope.dart';
 import '../models/key_package_count_envelope.dart';
 import '../models/mls_commit_dto.dart';
 import '../models/mls_commit_row_list_envelope.dart';
@@ -123,4 +127,29 @@ abstract class E2eeClient {
     @Query('after') num? after,
     @Extras() Map<String, dynamic>? extras,
   });
+
+  /// Report a person of an encrypted chat with their last messages (WhatsApp)
+  @POST('/e2ee/conversations/{id}/reports')
+  Future<E2eeReportResultEnvelope> reportInE2eeChat({
+    @Path('id') required String id,
+    @Body() required E2eeReportDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My encrypted chat backup
+  @GET('/e2ee/backup')
+  Future<E2eeBackupEnvelope> getE2eeBackup({
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Keep this encrypted file as my backup
+  @POST('/e2ee/backup')
+  Future<E2eeBackupEnvelope> putE2eeBackup({
+    @Body() required E2eeBackupPutDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Delete my encrypted chat backup
+  @DELETE('/e2ee/backup')
+  Future<void> deleteE2eeBackup({@Extras() Map<String, dynamic>? extras});
 }
