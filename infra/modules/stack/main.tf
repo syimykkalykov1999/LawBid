@@ -960,6 +960,11 @@ variable "backup_age_missing_data" {
   default     = "breaching"
   description = "breaching (steady state) or notBreaching ONLY until the first backup job completes, so the backup-age alarm cannot fire falsely (docs/runbooks/restore-drill.md)."
 }
+variable "cost_allocation_tags" {
+  type        = list(string)
+  default     = []
+  description = "Б9: tag keys activated as cost allocation tags by code (modules/budget). Account-wide, so only prod sets it. [] = not managed."
+}
 variable "service_budgets" {
   type = map(number)
   default = {
@@ -1214,7 +1219,7 @@ module "s3" {
 variable "cdn_additional_metrics" {
   type        = bool
   default     = true
-  description = "S8-6: CloudFront additional metrics + 2 alarms on the media CDN (cache-hit ratio, origin latency). ~$0.16 + $0.20 a month, fixed. Off on load-test stacks."
+  description = "S8-6: CloudFront additional metrics + 2 alarms on the media CDN (cache-hit ratio, origin latency); Б6: also the web distribution, with OriginLatency p95 alarms for web and documents. ~$0.25 + $0.40 a month, fixed. Off on load-test stacks."
 }
 
 variable "replicate_media" {
@@ -3153,6 +3158,7 @@ module "budget" {
   anomaly_extra_emails         = var.anomaly_extra_emails
   anomaly_sns_topic_arn        = var.anomaly_to_alerts_topic ? module.monitoring.alerts_topic_arn : ""
   service_budgets              = var.service_budgets
+  cost_allocation_tags         = var.cost_allocation_tags
 }
 
 module "monitoring" {
@@ -3182,7 +3188,10 @@ module "monitoring" {
   api_two_target_groups             = var.api_native_deploy != "off"
   api_green_target_group_arn_suffix = module.alb.api_green_target_group_arn_suffix
   media_cdn_distribution_id         = var.cdn_additional_metrics && !var.ephemeral && data.aws_region.current.region == "us-east-1" ? module.s3.media_distribution_id : ""
-  admin_target_group_arn_suffix     = module.alb.admin_target_group_arn_suffix
+  # Б6: the web distribution gets the additional metrics too, and web +
+  # documents get OriginLatency p95 alarms (CloudFront metrics: us-east-1 only).
+  cdn_additional_metrics        = var.cdn_additional_metrics && !var.ephemeral && data.aws_region.current.region == "us-east-1"
+  admin_target_group_arn_suffix = module.alb.admin_target_group_arn_suffix
   # D1-35: same switch as module.ecs api_admin_enabled (a literal, known at plan).
   api_admin_deploy_alarms           = true
   api_admin_target_group_arn_suffix = module.alb.api_admin_target_group_arn_suffix

@@ -4,6 +4,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/config/client_tuning.dart';
+import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
 import 'package:lawbid/core/diagnostics/sentry_native.dart';
 import 'package:lawbid/core/diagnostics/sentry_reporter.dart';
@@ -36,6 +38,14 @@ class _FakeSdk implements SentryNativeSdk {
     String? route,
   }) async =>
       captured.add((error: error, fatal: fatal, route: route));
+}
+
+/// Б6 / G7: a fake SDK that also ends time-to-full-display spans.
+class _DisplaySdk extends _FakeSdk implements SentryDisplaySdk {
+  int fullyDisplayed = 0;
+
+  @override
+  Future<void> reportFullyDisplayed() async => fullyDisplayed++;
 }
 
 class _Envelopes implements HttpClientAdapter {
@@ -236,6 +246,41 @@ void main() {
     test('dev and staging still never start it', () async {
       await SentryNative.start(prefs, AppFlavor.dev);
       expect(sdk.inits, isEmpty);
+    });
+  });
+
+  group('Б6 / G7: screens and time to full display', () {
+    late _DisplaySdk display;
+    setUp(() {
+      display = _DisplaySdk();
+      SentryNative.debugReset(sdk: display, release: true, supported: true);
+    });
+    tearDown(() {
+      AppEvents.setConsent(granted: null, prefs: prefs);
+      ClientTuning.reset();
+    });
+
+    test('with consent and a traced session the feed / chat report full display',
+        () async {
+      AppEvents.setConsent(granted: true, prefs: prefs);
+      ClientTuning.apply({'client.sentry_traces_percent': '100'});
+      await SentryNative.start(prefs, AppFlavor.prod);
+      await SentryNative.configure(dsn, AppFlavor.prod);
+      expect(SentryNative.screenTracing, isTrue);
+      SentryNative.reportFullyDisplayed();
+      await Future<void>.delayed(Duration.zero);
+      expect(display.fullyDisplayed, 1);
+      expect(SentryNative.navigatorObservers(), hasLength(1));
+    });
+
+    test('without consent nothing is traced or reported', () async {
+      AppEvents.setConsent(granted: false, prefs: prefs);
+      ClientTuning.apply({'client.sentry_traces_percent': '100'});
+      await SentryNative.configure(dsn, AppFlavor.prod);
+      expect(SentryNative.screenTracing, isFalse);
+      SentryNative.reportFullyDisplayed();
+      await Future<void>.delayed(Duration.zero);
+      expect(display.fullyDisplayed, 0);
     });
   });
 }

@@ -475,6 +475,22 @@ ElastiCache Serverless для Valkey растёт сам, без узлов. «�
 3. Попросите Claude: «примени Terraform» (он выполнит terraform plan, прогонит plan-guard.sh и покажет вам итог).
 4. Прочитайте итог плана (строку Plan: X to add, Y to change, Z to destroy) и скажите «да».
 
+### Теги расходов (Cost allocation tags)
+
+Включает ключи Project / Env / Component / ManagedBy в биллинге, чтобы расходы делились по проду, тесту и частям сервиса. Цена: Бесплатно: AWS не берёт денег за включение тегов расходов. Старт $0, 100 тыс. человек $0, 1 млн $0. По умолчанию: Выкл. Нужно, чтобы видеть, на что уходят деньги. Сначала владелец применяет infra/bootstrap, потом список ключей и apply прода.
+
+Положение **Выкл**:
+1. Откройте файл infra/envs/prod/terraform.tfvars (его нет в репозитории, он только у вас на Mac).
+2. Впишите или замените строку: cost_allocation_tags = []
+3. Попросите Claude: «примени Terraform» (он выполнит terraform plan, прогонит plan-guard.sh и покажет вам итог).
+4. Прочитайте итог плана (строку Plan: X to add, Y to change, Z to destroy) и скажите «да».
+
+Положение **Вкл**:
+1. Откройте файл infra/envs/prod/terraform.tfvars (его нет в репозитории, он только у вас на Mac).
+2. Впишите или замените строку: cost_allocation_tags = ["Project", "Env", "Component", "ManagedBy"]
+3. Попросите Claude: «примени Terraform» (он выполнит terraform plan, прогонит plan-guard.sh и покажет вам итог).
+4. Прочитайте итог плана (строку Plan: X to add, Y to change, Z to destroy) и скажите «да».
+
 ### Замок и хранилище состояния Terraform
 
 Таблица блокировки Terraform, чтобы два человека не применили изменения одновременно. Цена: DynamoDB по запросам: копейки. Старт $0, 100 тыс. человек $0, 1 млн $0. По умолчанию: Вкл. Нужен.

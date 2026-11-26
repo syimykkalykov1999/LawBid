@@ -181,6 +181,7 @@ module "stack" {
   anomaly_threshold_usd            = var.anomaly_threshold_usd
   backup_age_missing_data          = var.backup_age_missing_data
   service_budgets                  = var.service_budgets
+  cost_allocation_tags             = var.cost_allocation_tags
   guardduty_enabled                = var.guardduty_enabled
   guardduty_s3_events              = var.guardduty_s3_events
   guardduty_rds_login              = var.guardduty_rds_login

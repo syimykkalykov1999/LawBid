@@ -8,6 +8,7 @@ import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/config/app_environment.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/connectivity/reachability.dart';
+import 'package:lawbid/core/diagnostics/client_sli.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 
 import 'package:lawbid/core/network/app_check_interceptor.dart';
@@ -103,6 +104,9 @@ final dioProvider = Provider<Dio>((ref) {
     dio.interceptors.add(ref.watch(httpCacheInterceptorProvider));
   }
   dio.interceptors.add(RetryInterceptor(dio));
+  // Б6: the six SLO flows as the person sees them, after the retries
+  // (core/diagnostics/client_sli.dart; opt-in usage events only).
+  dio.interceptors.add(ClientSliInterceptor());
   // Last on purpose: feeds the offline banner's reachability signal from
   // real traffic, seeing only failures the retries could not fix
   // (docs/01 §8.3; core/connectivity/reachability.dart).

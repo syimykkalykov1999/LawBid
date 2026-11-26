@@ -197,6 +197,7 @@
 | Исходящий трафик не через CloudFront | $0,09 за ГБ после 100 ГБ в месяц | $1 | $50 | $500 | тревога NAT за сутки (nat-bytes) | [2026-10-25](https://aws.amazon.com/ec2/pricing/on-demand/#Data_Transfer) |
 | Бесплатная «сантехника» AWS (права, сети, группы доступа, события) | Бесплатно (оплата идёт за ресурсы, которые они соединяют) | $0 | $0 | $0 | — | [2026-10-25](https://aws.amazon.com/vpc/pricing/) |
 | Бюджеты и «Охотник за аномалиями» расходов (Budgets, Cost Anomaly) | Два бюджета бесплатно, каждый следующий ≈ $0,60 в месяц; Cost Anomaly бесплатно | $1,2 | $1,2 | $1,2 | письма AWS Budgets (50/80/100 %) и Cost Anomaly | [2026-10-25](https://aws.amazon.com/aws-cost-management/aws-budgets/pricing/) |
+| Теги расходов (Cost allocation tags) | Бесплатно: AWS не берёт денег за включение тегов расходов | $0 | $0 | $0 | — | [2026-11-25](https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/activating-tags.html) |
 | Замок и хранилище состояния Terraform | DynamoDB по запросам: копейки | $0 | $0 | $0 | — | [2026-10-25](https://aws.amazon.com/dynamodb/pricing/on-demand/) |
 | Подробные графики серверов (Container Insights) | Платные метрики и журналы CloudWatch ≈ $30 в месяц при нашем размере (уточнить) | $0 | $0 | $0 | — | [2026-10-25](https://aws.amazon.com/cloudwatch/pricing/) |
 | Расширенная диагностика базы (Database Insights Advanced) | ≈ $0,0125 за vCPU-час базы (t4g.micro 2 vCPU ≈ $18 в месяц; копии чтения — отдельно); стандартный режим $0 (уточнить) | $0 | $0 | $0 | — | [2026-10-25](https://aws.amazon.com/cloudwatch/pricing/) |

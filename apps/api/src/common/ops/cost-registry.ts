@@ -1426,6 +1426,38 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     note: 'V3',
   },
   {
+    id: 'aws.cost_allocation_tags',
+    name: 'Теги расходов (Cost allocation tags)',
+    purpose:
+      'Включает ключи Project / Env / Component / ManagedBy в биллинге, чтобы расходы делились по проду, тесту и частям сервиса.',
+    kind: 'aws',
+    control: tf(['cost_allocation_tags'], {
+      off: 'cost_allocation_tags = []',
+      on: 'cost_allocation_tags = ["Project", "Env", "Component", "ManagedBy"]',
+    }),
+    states: ['off', 'on'],
+    // Б9: the apply role gets ce:UpdateCostAllocationTagsStatus only from
+    // infra/bootstrap (owner applies it by hand) -> off until then.
+    defaultState: 'off',
+    ceiling: null,
+    price: {
+      model: 'free',
+      // AWS Billing user guide: activating user-defined cost allocation tags
+      // has no charge; only Cost Explorer API calls are billed (not used here).
+      text: 'Бесплатно: AWS не берёт денег за включение тегов расходов',
+      sourceUrl:
+        'https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/activating-tags.html',
+      checkedAt: '2026-11-25',
+      verified: true,
+    },
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'yes',
+    neededNote:
+      'Нужно, чтобы видеть, на что уходят деньги. Сначала владелец применяет infra/bootstrap, потом список ключей и apply прода.',
+    alarm: null,
+    awsTypes: ['aws_ce_cost_allocation_tag'],
+  },
+  {
     id: 'aws.tf_state_lock',
     name: 'Замок и хранилище состояния Terraform',
     purpose:
