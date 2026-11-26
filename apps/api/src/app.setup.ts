@@ -13,6 +13,7 @@ import helmet from 'helmet';
 import { Logger } from 'nestjs-pino';
 import { AppSettingsService } from './common/app-settings/app-settings.service';
 import { CorsPolicy } from './common/cors/cors-policy';
+import { installSocketOriginPolicy } from './common/cors/socket-origin';
 import type { AppEnv } from './config/env.schema';
 import { buildOpenApiDocument } from './openapi/openapi.config';
 import { ADMIN_BULK_BODY_LIMIT } from './common/admin-bulk/admin-bulk';
@@ -196,6 +197,9 @@ export function configureApp(
   const cors = new CorsPolicy(adminOrigins, nodeEnv, () =>
     settings.stringList('web.allowed_origins'),
   );
+  // ASVS V4.4.2 (STAGE2_SECURITY #6): the same allowlist for every
+  // Socket.IO handshake (common/cors/socket-origin.ts).
+  installSocketOriginPolicy(cors);
   app.enableCors(
     cors.delegate({
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
