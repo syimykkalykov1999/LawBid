@@ -80,11 +80,16 @@ Replication), один раз. Маркеры удаления не копиру
 
 - Сейчас: липкость 24 часа на всю группу API. Это перекашивает нагрузку после
   роста и «прибивает» обычные запросы к одной задаче.
-- С 25.11 (G2, STAGE2_ARCH_PERF_2026-11-25) это значение по умолчанию в
-  `infra/envs/prod/variables.tf` вместе с `alb_least_outstanding_requests = true`:
-  первый apply прода после слияния делать в тихое время. Проверка после apply:
-  `/health` без `Set-Cookie: AWSALB`, `/socket.io/?EIO=4&transport=polling` с ней.
-  Откат: обе переменные `false` в tfvars.
+- С 25.11 (G2, STAGE2_ARCH_PERF_2026-11-25) код готов, но в
+  `infra/envs/prod/variables.tf` оба переключателя по умолчанию `false`: иначе
+  каждый план «Авто»/«Масштаб» из админки нёс бы смену ALB и ECS до ночного
+  apply владельца. Владелец: в tfvars прода `alb_websocket_target_group = true`
+  и `alb_least_outstanding_requests = true`, apply ночью (по Неваде). Проверка
+  после apply: `/health` без `Set-Cookie: AWSALB`,
+  `/socket.io/?EIO=4&transport=polling` с ней. Откат: обе переменные `false`.
+- Со встроенным canary ECS (`api_native_deploy`) совместимо: на `prepare` для
+  сокетов появляется `api-ws-green` и правило с весами с приоритетом 7 (8 занят
+  правилом админ-API `api_admin`), на `on` убирается правило 9.
 - Включение: `alb_websocket_target_group = true` — отдельная липкая группа
   только для `/socket.io/*`, остальной API без липкости и с
   `least_outstanding_requests`. **Внимание:** провайдер AWS пересоздаёт ECS-сервис

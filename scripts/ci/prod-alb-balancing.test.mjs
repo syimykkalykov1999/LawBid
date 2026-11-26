@@ -1,9 +1,12 @@
 // G2 (docs/dev/STAGE2_ARCH_PERF_2026-11-25.md): prod REST must not stick to one
 // api task. AWS ELB "Edit target group attributes" (least outstanding requests
 // for requests of unequal cost); only /socket.io/* keeps the AWSALB cookie on
-// its own target group (infra/modules/alb). The module code was ready but OFF
-// in prod; this guard keeps the prod defaults ON so nobody turns it back by
-// accident.
+// its own target group (infra/modules/alb).
+// The first apply with the switches ON re-registers the api ECS service, so the
+// prod DEFAULTS stay false: the owner sets both true in tfvars and applies at
+// night (docs/runbooks/infra-hardening.md §6). A default of true would put that
+// ALB + ECS change into every admin «Авто» / «Масштаб» infra plan before then.
+// This guard keeps the defaults off and both switches wired to the stack.
 //   node --test scripts/ci/prod-alb-balancing.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -18,12 +21,12 @@ function boolDefault(name) {
   return m?.[1];
 }
 
-test('prod sends REST by least outstanding requests', () => {
-  assert.equal(boolDefault('alb_least_outstanding_requests'), 'true');
+test('least outstanding requests: off by default, the owner turns it on with a night apply', () => {
+  assert.equal(boolDefault('alb_least_outstanding_requests'), 'false');
 });
 
-test('prod keeps stickiness only on the /socket.io target group', () => {
-  assert.equal(boolDefault('alb_websocket_target_group'), 'true');
+test('socket-only stickiness group: off by default, the owner turns it on with a night apply', () => {
+  assert.equal(boolDefault('alb_websocket_target_group'), 'false');
 });
 
 test('prod passes both switches to the stack', () => {

@@ -94,8 +94,18 @@ run "socket_group_prepare_adds_its_green_pair_in_front_of_rule_9" {
     error_message = "prepare: a sticky green socket group"
   }
   assert {
-    condition     = aws_lb_listener_rule.api_ws_weighted[0].priority == 8 && contains([[100, 0], [0, 100]], [for t in aws_lb_listener_rule.api_ws_weighted[0].action[0].forward[0].target_group : t.weight])
+    condition     = aws_lb_listener_rule.api_ws_weighted[0].priority == 7 && contains([[100, 0], [0, 100]], [for t in aws_lb_listener_rule.api_ws_weighted[0].action[0].forward[0].target_group : t.weight])
     error_message = "prepare: the weighted socket rule sends everything to the same (blue) group"
+  }
+  assert {
+    # AWS refuses two rules with one priority on a listener (PriorityInUse):
+    # api_admin (8, on by default) and the weighted socket rule must differ.
+    condition = length(distinct(concat(
+      [for r in aws_lb_listener_rule.api_admin : r.priority],
+      [for r in aws_lb_listener_rule.api_ws : r.priority],
+      [for r in aws_lb_listener_rule.api_ws_weighted : r.priority],
+    ))) == length(aws_lb_listener_rule.api_admin) + length(aws_lb_listener_rule.api_ws) + length(aws_lb_listener_rule.api_ws_weighted)
+    error_message = "every listener rule priority is unique"
   }
   assert {
     condition     = aws_lb_listener_rule.api_ws_weighted[0].action[0].forward[0].stickiness[0].enabled

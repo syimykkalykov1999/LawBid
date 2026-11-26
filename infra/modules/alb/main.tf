@@ -345,8 +345,9 @@ resource "aws_lb_listener_rule" "api_ws" {
 # "required for all loadBalancers when using a non-ROLLING deployment
 # strategy", so the socket group gets its own green pair and production rule,
 # exactly like api / api_green / api_weighted below, and ECS shifts both rules
-# in one deployment. Priority 8 sits in front of rule 9 while the stage is
-# `prepare`; with blue 100 / green 0 it forwards to the same sticky group rule 9
+# in one deployment. Priority 7 sits in front of rule 9 while the stage is
+# `prepare` (8 is api_admin on the same listener: AWS refuses a duplicate
+# priority with PriorityInUse; the paths do not overlap); with blue 100 / green 0 it forwards to the same sticky group rule 9
 # does, so no request changes server. `on` removes rule 9. The forward-level
 # stickiness (AWS ELB user guide, "Group-level stickiness") keeps a polling
 # session in one group while ECS moves the weights during a deployment.
@@ -377,7 +378,7 @@ resource "aws_lb_target_group" "api_ws_green" {
 resource "aws_lb_listener_rule" "api_ws_weighted" {
   count        = var.ws_target_group_enabled && var.api_native_deploy_stage != "off" ? 1 : 0
   listener_arn = aws_lb_listener.https.arn
-  priority     = 8
+  priority     = 7
   action {
     type = "forward"
     forward {

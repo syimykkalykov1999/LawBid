@@ -978,16 +978,19 @@ variable "alb_deletion_protection" {
 # with no stickiness (AWS ELB "Edit target group attributes": least outstanding
 # requests for requests of unequal cost); only /socket.io/* stays sticky on its
 # own target group. The first apply with these ON re-registers the api service
-# in the second group: owner applies it in a quiet window
-# (docs/runbooks/infra-hardening.md, section 6). Incompatible with the ECS built-in
-# canary (api_native_deploy canary/linear): modules/ecs refuses that combination.
+# in the second group, so both stay OFF here: otherwise every admin «Авто» /
+# «Масштаб» infra plan would carry that ALB + ECS change before the owner's
+# night apply. Owner: set both true in tfvars and apply at night
+# (docs/runbooks/infra-hardening.md, section 6). Works with the ECS built-in
+# canary (api_native_deploy): the socket group gets its own green pair
+# (api-ws-green, weighted rule 7) on `prepare`.
 variable "alb_least_outstanding_requests" {
   type    = bool
-  default = true
+  default = false
 }
 variable "alb_websocket_target_group" {
   type    = bool
-  default = true
+  default = false
 }
 
 # Observability round 12: everything billable starts OFF (docs/runbooks/slo.md).
