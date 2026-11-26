@@ -23,6 +23,7 @@ import { AppSettingsService } from '../common/app-settings/app-settings.service'
 import { infraWritesOff } from '../common/ops/infra-writes';
 import { replicaLive } from './replica-live';
 import { PrismaReadService } from './prisma-read.service';
+import { AWS_API_REQUEST_HANDLER } from '../common/http/aws-request-handler';
 
 export type ReplicaState =
   | 'unavailable' // not on AWS, or the IAM switch is off
@@ -107,10 +108,16 @@ export class ReplicaAdminService implements OnModuleInit, OnModuleDestroy {
   }
 
   private rdsClient(): RDSClient {
-    return (this.rds ??= new RDSClient({ region: this.region() }));
+    return (this.rds ??= new RDSClient({
+      region: this.region(),
+      requestHandler: AWS_API_REQUEST_HANDLER,
+    }));
   }
   private cwClient(): CloudWatchClient {
-    return (this.cw ??= new CloudWatchClient({ region: this.region() }));
+    return (this.cw ??= new CloudWatchClient({
+      region: this.region(),
+      requestHandler: AWS_API_REQUEST_HANDLER,
+    }));
   }
 
   onModuleInit(): void {

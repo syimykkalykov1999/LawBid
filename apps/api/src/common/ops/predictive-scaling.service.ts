@@ -33,6 +33,7 @@ import {
   type PredictiveDecision,
   type PredictiveMode,
 } from './predictive-scaling.logic';
+import { AWS_API_REQUEST_HANDLER } from '../http/aws-request-handler';
 
 const LOCK_KEY = 'ops:predictive:lock';
 /** Plain-Russian status for «Расходы → Реестр» (row aws.ecs_predictive). */
@@ -111,12 +112,14 @@ export class PredictiveScalingService implements OnModuleInit, OnModuleDestroy {
   }
   private scalingClient(): ApplicationAutoScalingClient {
     return (this.scaling ??= new ApplicationAutoScalingClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: this.region(),
       credentials: opsCredentials((n) => this.env(n), this.region()),
     }));
   }
   private cwClient(): CloudWatchClient {
     return (this.cw ??= new CloudWatchClient({
+      requestHandler: AWS_API_REQUEST_HANDLER,
       region: this.region(),
       credentials: opsCredentials((n) => this.env(n), this.region()),
     }));

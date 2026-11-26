@@ -22,6 +22,7 @@ import {
   type PublicStatus,
 } from './public-status';
 import { StatusProbesService, type ProbeResult } from './status-probes.service';
+import { STORAGE_REQUEST_HANDLER } from '../../http/aws-request-handler';
 
 export const STATUS_OBJECT_KEY = 'status.json';
 /** Stage 2 SRE (Б4): the backup copy outside AWS, in the public R2 bucket. */
@@ -204,6 +205,7 @@ export class PublicStatusService {
   private async publishAws(bucket: string, body: string): Promise<boolean> {
     try {
       this.client ??= new S3Client({
+        requestHandler: STORAGE_REQUEST_HANDLER,
         region: this.config.get<string>('S3_REGION') ?? 'us-east-1',
       });
       await this.client.send(

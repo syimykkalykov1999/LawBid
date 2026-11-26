@@ -200,7 +200,15 @@ export class LegalQaService {
       });
     }
     const text = q.q?.trim();
-    if (text) where.push({ id: { in: await this.searchIds(text) } });
+    if (text) {
+      return this.listBest(
+        user,
+        where,
+        await this.searchIds(text),
+        q.cursor,
+        limit,
+      );
+    }
     if (q.cursor) {
       const c = decodeCursor(q.cursor);
       where.push(createdBefore({ t: c.createdAt, id: c.id }));
@@ -217,6 +225,58 @@ export class LegalQaService {
       items: await this.presentQuestions(page, user),
       nextCursor:
         rows.length > limit && last
+          ? encodeCursor({ createdAt: last.created_at, id: last.id })
+          : null,
+    };
+  }
+
+  /**
+   * F5 (26.11, docs/dev/SECOND_PASS_2026-11-26.md): a text search lists by
+   * relevance — the order [searchIds] gives, best match first — not by
+   * date, so an old exact answer is on the first page. [where] holds the
+   * list's other filters. The cursor is the last question shown; the next
+   * page starts right after it in the same order (a question removed in
+   * between ends the list rather than repeat a page).
+   */
+  private async listBest(
+    user: RequestUser,
+    where: Prisma.LegalQuestionWhereInput[],
+    ids: string[],
+    cursor: string | undefined,
+    limit: number,
+  ): Promise<QuestionPage> {
+    if (ids.length === 0) return { items: [], nextCursor: null };
+    const allowed = new Set(
+      (
+        await this.prisma.legalQuestion.findMany({
+          where: { AND: [...where, { id: { in: ids } }] },
+          select: { id: true },
+        })
+      ).map((r) => r.id),
+    );
+    const ordered = ids.filter((id) => allowed.has(id));
+    let start = 0;
+    if (cursor) {
+      const at = ordered.indexOf(decodeCursor(cursor).id);
+      start = at === -1 ? ordered.length : at + 1;
+    }
+    const pageIds = ordered.slice(start, start + limit);
+    const rows =
+      pageIds.length > 0
+        ? await this.prisma.legalQuestion.findMany({
+            where: { id: { in: pageIds } },
+            include: QUESTION_INCLUDE,
+          })
+        : [];
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const page = pageIds
+      .map((id) => byId.get(id))
+      .filter((r): r is (typeof rows)[number] => r !== undefined);
+    const last = page[page.length - 1];
+    return {
+      items: await this.presentQuestions(page, user),
+      nextCursor:
+        start + limit < ordered.length && last
           ? encodeCursor({ createdAt: last.created_at, id: last.id })
           : null,
     };
