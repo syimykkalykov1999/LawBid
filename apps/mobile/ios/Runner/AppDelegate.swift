@@ -1354,13 +1354,13 @@ enum PushPreviewKeychain {
     return key.publicKey.rawRepresentation.base64EncodedString()
   }
 
-  private static func read() -> Data? {
+  private static func read() -> Foundation.Data? {
     var q = query
     q[kSecReturnData as String] = true
     q[kSecMatchLimit as String] = kSecMatchLimitOne
     var out: CFTypeRef?
     guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess else { return nil }
-    return out as? Data
+    return out as? Foundation.Data
   }
 
   /// Sign-out: the next account on this phone gets a new key.
