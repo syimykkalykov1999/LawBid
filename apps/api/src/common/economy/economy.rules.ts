@@ -441,3 +441,45 @@ export function affordableTier(
   if (maxIdx >= 0 && tiers.indexOf(best) > maxIdx) best = tiers[maxIdx];
   return best;
 }
+
+/** Item 28 (AU4, owner 25.11): what the database size Lambda reads from
+ * ops/scale-controls.json (`db_replica_first`). */
+export interface ReplicaFirstControl {
+  mode: 'off' | 'on' | 'auto';
+  /** Longest wait for a read copy before the primary grows anyway. */
+  wait_minutes: number;
+  /** With this many copies running the primary grows without waiting. */
+  max_replicas: number;
+  /** A read copy can really come and take reads: copies not switched off,
+   * reads from a copy not off, «Авто» of the cloud not off. Авто waits only
+   * while this is true (a copy that cannot come is not worth waiting for). */
+  possible: boolean;
+}
+
+/**
+ * Leaders: AWS RDS user guide ("Working with DB instance read replicas":
+ * read replicas scale beyond one instance for read-heavy loads), the
+ * Instagram and OpenAI (January 2026) Postgres write-ups: reads are scaled
+ * out with copies first, the primary is made bigger for writes. Junk
+ * numbers fall back to the defaults (60 minutes, 5 copies).
+ */
+export function replicaFirstControl(s: {
+  mode: string;
+  wait: number;
+  max: number;
+  replicas: string;
+  reads: string;
+  auto: string;
+}): ReplicaFirstControl {
+  const m = (s.mode ?? '').trim().toLowerCase();
+  const mode = m === 'off' || m === 'on' ? m : 'auto';
+  const off = (v: string) => (v ?? '').trim().toLowerCase() === 'off';
+  const num = (v: number, d: number, hi: number) =>
+    Number.isFinite(v) && v >= 0 ? Math.min(Math.floor(v), hi) : d;
+  return {
+    mode,
+    wait_minutes: num(s.wait, 60, 1_000_000_000),
+    max_replicas: num(s.max, 5, 5),
+    possible: !off(s.replicas) && !off(s.reads) && !off(s.auto),
+  };
+}

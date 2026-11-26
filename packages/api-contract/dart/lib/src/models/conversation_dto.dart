@@ -34,6 +34,7 @@ class ConversationDto {
     this.lastMessage,
     this.lastMessageAt,
     this.disappearAfterS,
+    this.e2eeSince,
     this.mutedUntil,
     this.counterpartLastReadMessageId,
     this.counterpartLastReadAt,
@@ -62,6 +63,9 @@ class ConversationDto {
 
   /// Disappearing messages: seconds a new message lives (86400 / 604800 / 7776000); null = off.
   final num? disappearAfterS;
+
+  /// Item 25: since when the chat is end-to-end encrypted (MLS); null = server-side encryption. GET /e2ee/conversations/:id has the details.
+  final DateTime? e2eeSince;
   final DateTime? mutedUntil;
 
   /// Calls of this chat ring silently for me.

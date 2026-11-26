@@ -30,6 +30,7 @@ class RealtimeClient {
     RealtimeTimings Function()? timings,
     Future<void> Function()? ensureFreshToken,
     Future<Map<String, Object?>?> Function(int since)? fetchMissed,
+    this.transform,
   })  : _origin = _originOf(apiBaseUrl),
         _token = token,
         _refreshToken = refreshToken,
@@ -61,6 +62,29 @@ class RealtimeClient {
   late final ReconnectController _policy;
   late final MissedPoller _poller;
   final _events = StreamController<RealtimeEvent>.broadcast();
+
+  /// Item 25: an end-to-end encrypted message is opened before any screen
+  /// sees the event. Events keep their order (one chain).
+  final Future<Object?> Function(String name, Object? data)? transform;
+  Future<void> _chain = Future<void>.value();
+
+  void _emit(String name, Object? data) {
+    final t = transform;
+    if (t == null) {
+      _events.add(RealtimeEvent(name, data));
+      return;
+    }
+    _chain = _chain.then((_) async {
+      var out = data;
+      try {
+        out = await t(name, data);
+      } on Object {
+        out = data;
+      }
+      if (!_events.isClosed) _events.add(RealtimeEvent(name, out));
+    });
+  }
+
   final Set<String> _rooms = {};
   final Set<String> _watched = {};
   final Set<String> _channels = {};
@@ -95,6 +119,9 @@ class RealtimeClient {
     'message:read',
     // Owner 2026-10-22 (load audit finding 2): I read a chat (any device).
     'conversation:read',
+    // Item 25: a chat's encryption group changed / a Welcome waits for me.
+    'e2ee:commit',
+    'e2ee:welcome',
     // Owner 2026-10-20: the message reached the other device (grey ticks).
     'message:delivered',
     // OQ-040: the other side played a voice note.
@@ -269,7 +296,7 @@ class RealtimeClient {
     for (final name in _serverEvents) {
       socket.on(name, (data) {
         _noteSeq(data);
-        _events.add(RealtimeEvent(name, data));
+        _emit(name, data);
       });
     }
     socket.connect();
@@ -382,7 +409,7 @@ class RealtimeClient {
       }
       _noteSeq(raw);
       _noteSeq(raw['data']);
-      _events.add(RealtimeEvent(name, raw['data']));
+      _emit(name, raw['data']);
     }
     final top = answer['seq'];
     if (top is int && top > (_lastSeq ?? -1)) _lastSeq = top;

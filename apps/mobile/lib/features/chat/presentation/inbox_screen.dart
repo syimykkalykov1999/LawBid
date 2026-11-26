@@ -33,6 +33,7 @@ import 'package:lawbid/features/chat/application/chat_thread_memory.dart';
 import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_service.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/chat/presentation/chat_note_sheet.dart';
 import 'package:lawbid/features/chat/presentation/chat_peek.dart';
@@ -845,6 +846,10 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
   // Owner 2026-10-20: deleted for everyone.
   if (m.revoked) {
     return '🚫 ${t.t(m.senderId != null && m.senderId == me ? 'chat.deletedMine' : 'chat.deleted')}';
+  }
+  // Item 25: an end-to-end encrypted message this device has not opened.
+  if (m.body.isEmpty && E2eeService.isWaiting(m.id)) {
+    return '🔒 ${t.t('chat.e2ee.waiting')}';
   }
   // OQ-041: "📞 Missed call".
   if (m.kind == MessageKind.call && m.callLog != null) {

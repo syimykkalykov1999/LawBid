@@ -518,7 +518,64 @@ export class AwsOpsService {
       );
       changed.push(key);
     }
+    // Item 27 (AU1): the api predictive policy forecasts on the same signal
+    // as `api_requests` (requests per healthy target), so its target is the
+    // admin's `api_requests.target` too; Mode and the rest stay as they are
+    // (PredictiveScalingService owns Mode).
+    const want = tuning['api_requests.target'] ?? refs.api_requests?.target;
+    if (typeof want === 'number') {
+      const r = await this.syncPredictiveTarget(want);
+      if (r === 'changed') changed.push('api_predictive');
+      if (r === 'missing') missing.push('api_predictive');
+    }
     return { changed, missing };
+  }
+
+  /** Item 27: TargetValue of the api predictive policy = `target`. */
+  async syncPredictiveTarget(
+    target: number,
+  ): Promise<'changed' | 'same' | 'missing' | 'off'> {
+    let refs: Record<
+      string,
+      { name: string; resource_id: string; dimension: string }
+    > = {};
+    try {
+      const raw = this.env('OPS_ECS_PREDICTIVE_POLICIES');
+      refs = raw ? (JSON.parse(raw) as typeof refs) : {};
+    } catch {
+      refs = {};
+    }
+    const p = refs.api;
+    if (!p) return 'off';
+    const res = await this.scalingClient().send(
+      new DescribeScalingPoliciesCommand({
+        ServiceNamespace: 'ecs',
+        ResourceId: p.resource_id,
+        PolicyNames: [p.name],
+      }),
+    );
+    const live = res.ScalingPolicies?.[0]?.PredictiveScalingPolicyConfiguration;
+    if (!live?.MetricSpecifications?.length) return 'missing';
+    if (live.MetricSpecifications.every((m) => m.TargetValue === target)) {
+      return 'same';
+    }
+    await this.scalingClient().send(
+      new PutScalingPolicyCommand({
+        PolicyName: p.name,
+        ServiceNamespace: 'ecs',
+        ResourceId: p.resource_id,
+        ScalableDimension: p.dimension as never,
+        PolicyType: 'PredictiveScaling',
+        PredictiveScalingPolicyConfiguration: {
+          ...live,
+          MetricSpecifications: live.MetricSpecifications.map((m) => ({
+            ...m,
+            TargetValue: target,
+          })),
+        },
+      }),
+    );
+    return 'changed';
   }
 
   /** Tasks running / wanted now per service (null off AWS). Owner 15.11
