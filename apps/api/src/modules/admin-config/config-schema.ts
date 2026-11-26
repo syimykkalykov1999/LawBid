@@ -2804,11 +2804,11 @@ export const NO_CEILING: readonly string[] = [
   'infra.waf_calm_off_hours',
   'infra.waf_calm_off_minutes',
   'partition.auto_rows',
-  'infra.edge_on_api_tasks',
   'infra.tracing_on_p95_ms',
   'infra.tracing_on_error_pct',
   'infra.tracing_min_requests',
   'infra.cdc_prepare_on_api_tasks',
+  'infra.edge_on_api_tasks',
 ];
 
 /** Owner 2026-10-27: scores take decimals, modes take fixed words,
