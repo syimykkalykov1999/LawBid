@@ -15,7 +15,10 @@ import { unwrapKmsWrappedKeys } from './common/secrets/kms-env';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ConfigCanaryCohortService } from './common/app-settings/config-canary';
-import { installOutboundAgents } from './common/http/outbound-agent';
+import {
+  installDeadlineFetch,
+  installOutboundAgents,
+} from './common/http/outbound-agent';
 import { configureApp } from './app.setup';
 
 /** ALB idle_timeout in infra/modules/alb/main.tf — keep the two in sync. */
@@ -27,6 +30,8 @@ async function bootstrap(): Promise<void> {
   await unwrapKmsWrappedKeys();
   // S8-3: keep-alive agent for every outbound fetch, HTTP/2 agent for FCM.
   installOutboundAgents();
+  // Stage 2 SRE (Б5): a read's outbound fetch stops with its request.
+  installDeadlineFetch();
   // S3-3: plaintext keys live in a module holder, not in process.env.
   captureKeyEnv();
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {

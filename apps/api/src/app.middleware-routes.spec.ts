@@ -103,6 +103,7 @@ describe('middleware on all routes (14.11 F9)', () => {
   it('AppModule uses ALL_ROUTES, never the legacy "*"', () => {
     const src = readFileSync(join(__dirname, 'app.module.ts'), 'utf8');
     expect(src).not.toMatch(/forRoutes\(\s*['"]\*['"]/);
-    expect(src.match(/forRoutes\(ALL_ROUTES\)/g)).toHaveLength(5);
+    // 6 since Б5 (RequestDeadlineMiddleware, #1319).
+    expect(src.match(/forRoutes\(ALL_ROUTES\)/g)).toHaveLength(6);
   });
 });

@@ -5,6 +5,8 @@ import 'package:dio/dio.dart';
 
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/network/request_flags.dart';
+import 'package:lawbid/core/network/request_priority.dart';
+import 'package:lawbid/core/network/retry_budget.dart';
 
 /// Retries transient failures with exponential backoff + jitter
 /// (docs/01_FOUNDATION_AUTH.md §15 "Этап 1.7": "dio interceptors (auth,
@@ -23,6 +25,17 @@ import 'package:lawbid/core/network/request_flags.dart';
 /// At most 2 retries (3 attempts): a struggling server isn't hammered. A
 /// `Retry-After` header (seconds) replaces the backoff, capped at
 /// [maxRetryAfter].
+///
+/// Stage 2 SRE (Б5, 25.11) — two more brakes so repeats never multiply the
+/// load on a sick server (before: every refusal was repeated twice, up to
+/// ×3 the load, also during load shedding):
+/// - a retry budget for the whole client, gRFC A6 retry throttling
+///   ([RetryThrottle], Apache-2.0): failures take tokens, answers give
+///   them back, no repeat while half or fewer are left;
+/// - client-side adaptive throttling, SRE ch. 21 ([AdaptiveThrottle]):
+///   while the server refuses work, the app drops part of its own prefetch
+///   and background requests before they are sent. A request a person
+///   waits for ([RequestPriority.user]) is never dropped.
 class RetryInterceptor extends Interceptor {
   RetryInterceptor(
     this._dio, {
@@ -31,11 +44,38 @@ class RetryInterceptor extends Interceptor {
     Duration? maxRetryAfter,
     Future<void> Function(Duration)? sleep,
     Random? random,
+    AdaptiveThrottle? throttle,
   })  : _maxRetries = maxRetries,
         _baseDelay = baseDelay,
         _maxRetryAfter = maxRetryAfter,
         _sleep = sleep ?? Future<void>.delayed,
-        _random = random ?? Random();
+        _random = random ?? Random(),
+        throttle = throttle ??
+            AdaptiveThrottle(
+              k: () => ClientTuning.throttleK,
+              window: () => ClientTuning.throttleWindow,
+              random: random,
+            );
+
+  /// Client-side adaptive throttling (SRE ch. 21) of this client.
+  final AdaptiveThrottle throttle;
+
+  RetryThrottle? _budget;
+  (double, double)? _budgetOf;
+
+  /// The retry budget of this client (one per Dio, as gRPC has one per
+  /// channel); rebuilt full when the server changes its numbers.
+  RetryThrottle get budget {
+    final want = (ClientTuning.retryTokensMax, ClientTuning.retryTokenRatio);
+    if (_budget == null || _budgetOf != want) {
+      _budget = RetryThrottle(maxTokens: want.$1, tokenRatio: want.$2);
+      _budgetOf = want;
+    }
+    return _budget!;
+  }
+
+  /// `DioException.error` of a request the app dropped itself (SRE ch. 21).
+  static const clientThrottled = 'client_throttled';
 
   final Dio _dio;
   final int? _maxRetries;
@@ -54,13 +94,51 @@ class RetryInterceptor extends Interceptor {
   static const _retryableStatuses = {502, 503, 504};
 
   @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final mayReject = RequestPriority.of(options) != RequestPriority.user;
+    if (!throttle.admit(mayReject: mayReject)) {
+      handler.reject(
+        DioException(
+          requestOptions: options,
+          type: DioExceptionType.cancel,
+          error: clientThrottled,
+          message: 'Dropped by the app: the server is refusing work.',
+        ),
+      );
+      return;
+    }
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(
+    Response<dynamic> response,
+    ResponseInterceptorHandler handler,
+  ) {
+    throttle.settle(accepted: true);
+    budget.onSuccess();
+    handler.next(response);
+  }
+
+  @override
   Future<void> onError(
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
     final options = err.requestOptions;
+    if (err.error == clientThrottled) {
+      handler.next(err);
+      return;
+    }
+    _settle(err);
     final attempt = (options.extra[RequestFlags.retryAttempt] as int?) ?? 0;
-    if (attempt >= maxRetries || !isRetryable(err)) {
+    final retryable = isRetryable(err);
+    // gRFC A6: every failed attempt of a retryable kind takes a token, the
+    // last one too; any answer from the server gives tokens back.
+    final budgetLeft = retryable
+        ? budget.onQualifiedFailureThenCheckIsAboveThreshold()
+        : _answered(err);
+    if (attempt >= maxRetries || !retryable || !budgetLeft) {
       handler.next(err);
       return;
     }
@@ -73,6 +151,30 @@ class RetryInterceptor extends Interceptor {
     } on DioException catch (e) {
       handler.next(e);
     }
+  }
+
+  /// SRE ch. 21: the server «accepted» every answer but an overload
+  /// refusal (429, or a 502/503/504 without a domain code, SERVER_BUSY).
+  void _settle(DioException err) {
+    if (err.type == DioExceptionType.cancel) {
+      throttle.forget();
+      return;
+    }
+    final status = err.response?.statusCode;
+    final refused = status == null ||
+        status == 429 ||
+        (_retryableStatuses.contains(status) &&
+            (_isServerBusy(err.response?.data) ||
+                !_hasDomainErrorCode(err.response?.data)));
+    throttle.settle(accepted: !refused);
+  }
+
+  /// A non-retryable failure that still is an answer (a 404, a 409 …)
+  /// gives tokens back like a success, as in grpc-java (only a retryable
+  /// status takes them). Returns false: nothing to repeat anyway.
+  bool _answered(DioException err) {
+    if (err.response != null) budget.onSuccess();
+    return false;
   }
 
   /// Exponential backoff (base × 2^attempt) with up to 30% jitter so a

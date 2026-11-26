@@ -24,6 +24,8 @@ import {
 import { softDeleteExtension } from './soft-delete.extension';
 import { transientRetryExtension } from './transient-retry.extension';
 import { jobStopExtension } from './job-stop.extension';
+import { requestDeadlineExtension } from './request-deadline.extension';
+import { deadlineStatementTimeoutMs } from '../common/resilience/request-deadline';
 import {
   parentShardLookup,
   shardExtension,
@@ -140,7 +142,9 @@ export function extend(client: SecretOmittingClient, primary?: () => unknown) {
     )
     .$extends(transientRetryExtension())
     // Batch D (14.11): a stopped cron job (lock lost, time limit) stops here.
-    .$extends(jobStopExtension());
+    .$extends(jobStopExtension())
+    // Stage 2 SRE (Б5): a read of a request the app already gave up on.
+    .$extends(requestDeadlineExtension());
   // Shard-ready step 6: a client of a NON-primary database loads the global
   // rows an include asks for (user, practice area ...) from the primary one.
   return primary ? base.$extends(crossFamilyStitchExtension(primary)) : base;
@@ -576,8 +580,19 @@ export class PrismaService
                     )
                   : tx;
                 scope = openCommitScope(t);
-                return withTxShardLookup(txParentShardLookup(tx), () =>
-                  (arg as (t: object) => unknown)(t),
+                const body = () =>
+                  withTxShardLookup(txParentShardLookup(tx), () =>
+                    (arg as (t: object) => unknown)(t),
+                  );
+                // Stage 2 SRE (Б5): a read request with a deadline lowers
+                // `statement_timeout` for this transaction only (SET LOCAL
+                // semantics, safe behind PgBouncer), so Postgres cancels a
+                // query that runs past the time the app still waits.
+                const ms = deadlineStatementTimeoutMs();
+                if (ms === null) return body();
+                return (tx as SecretOmittingClient)
+                  .$executeRaw`SELECT set_config('statement_timeout', ${String(ms)}, true)`.then(
+                  body,
                 );
               },
               ...rest,

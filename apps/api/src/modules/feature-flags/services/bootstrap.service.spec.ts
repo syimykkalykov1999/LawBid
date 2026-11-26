@@ -427,6 +427,9 @@ describe('BootstrapService.build', () => {
       // Holes re-check (25.11, item 21): this server allows the request
       // priority header, always sent (the website waits for it).
       'client.request_priority_enabled': true,
+      // Stage 2 SRE (Б5): this server allows the deadline header, always
+      // sent (the website waits for it).
+      'client.deadline_header_enabled': true,
       // D1-53: the days the biometric consent text names, always sent.
       'verification.face_match.retention_days': 30,
       // Row 173: the website's cross-origin isolation, always sent (off).

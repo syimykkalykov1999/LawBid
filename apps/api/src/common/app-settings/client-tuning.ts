@@ -42,6 +42,58 @@ export const CLIENT_TUNING_DEFS = {
     description:
       'The longest Retry-After wait (seconds) the app obeys. Raise it, and send Retry-After from the server, to calm a stampede.',
   },
+  // Stage 2 SRE (Б5, 25.11): the app's retry budget — gRFC A6 «gRPC Retry
+  // Design» retry throttling (Apache-2.0), the token bucket of grpc-java
+  // `RetriableStream.Throttle`: start full at `retry_tokens_max`, a failed
+  // attempt takes 1 token, an answered one gives back `retry_token_ratio`,
+  // and a repeat is sent only while more than half the tokens are left. So
+  // in an outage the apps stop multiplying the load (SRE Book ch. 22
+  // «retry budget») and repeat again as soon as answers come back.
+  'client.retry_tokens_max': {
+    default: 10,
+    min: 1,
+    max: 1000,
+    description:
+      'Retry budget (gRPC A6): tokens the app starts with; a failed try takes 1, a repeat is sent only while more than half are left.',
+  },
+  'client.retry_token_ratio': {
+    default: 0.1,
+    min: 0.01,
+    max: 1,
+    description:
+      'Retry budget (gRPC A6): tokens an answered request gives back (0.1 = ten good answers earn one repeat).',
+  },
+  // Stage 2 SRE (Б5): client-side adaptive throttling, SRE Book ch. 21
+  // «Handling Overload»: the app keeps `requests` and `accepts` of the last
+  // `throttle_window_s` and drops background / prefetch requests itself with
+  // probability max(0, (requests − K·accepts) / (requests + 1)) before they
+  // reach a server that is refusing work. What a person waits for is never
+  // dropped. 0 = off.
+  'client.throttle_k': {
+    default: 2,
+    min: 0,
+    max: 10,
+    description:
+      'Client-side throttling K (Google SRE ch. 21): the app drops its own background and prefetch requests once the server refuses more than 1/K of them (2 = default, 0 = off). Requests a person waits for are never dropped.',
+  },
+  'client.throttle_window_s': {
+    default: 120,
+    min: 10,
+    max: 600,
+    description:
+      'Client-side throttling: the window (seconds) of requests and accepts the app remembers (Google SRE: 2 minutes).',
+  },
+  // Stage 2 SRE (Б5): deadline propagation (SRE Book ch. 22; Envoy
+  // `x-envoy-expected-rq-timeout-ms`, Apache-2.0). The apps send
+  // `X-Request-Timeout-Ms` = how long they wait; a read the app gave up on
+  // stops on the server (database, outbound calls). The website sends it
+  // only while the bootstrap says this server allows the header (CORS).
+  // Off = no header, and the server ignores one at once.
+  'client.deadline_header_enabled': {
+    default: true,
+    description:
+      'The app and the website tell the server how long they wait for an answer (X-Request-Timeout-Ms); a read nobody waits for any more stops on the server (off = no header, nothing stops).',
+  },
   'client.outbox_retry_max_s': {
     default: 30,
     min: 5,

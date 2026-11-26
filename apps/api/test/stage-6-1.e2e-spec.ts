@@ -123,6 +123,18 @@ describe('Stage 6.1 — base security + migration (e2e)', () => {
     );
   });
 
+  // Stage 2 SRE (Б5): the website says how long it waits (deadline).
+  it('CORS preflight allows X-Request-Timeout-Ms', async () => {
+    const pre = await request(baseUrl)
+      .options('/api/v1/feed')
+      .set('Origin', 'https://lawbid.dev')
+      .set('Access-Control-Request-Method', 'GET')
+      .set('Access-Control-Request-Headers', 'x-request-timeout-ms');
+    expect(String(pre.headers['access-control-allow-headers'] ?? '')).toMatch(
+      /X-Request-Timeout-Ms/i,
+    );
+  });
+
   it('CORS preflight allows the App Check and Turnstile headers (2026-11-08)', async () => {
     const pre = await request(baseUrl)
       .options('/api/v1/auth/otp/request')

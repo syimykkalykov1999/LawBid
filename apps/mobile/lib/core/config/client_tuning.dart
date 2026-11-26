@@ -96,6 +96,34 @@ abstract final class ClientTuning {
   /// Longest wait between retries of an unsent message / upload.
   static int get outboxRetryMaxS => _outboxRetryMaxS;
 
+  /// Stage 2 SRE (Б5): the retry budget (gRFC A6 retry throttling,
+  /// retry_budget.dart): tokens to start with and the share of a token an
+  /// answered request gives back (`client.retry_tokens_max` /
+  /// `client.retry_token_ratio`).
+  static double get retryTokensMax => _retryTokensMax;
+  static double get retryTokenRatio => _retryTokenRatio;
+
+  /// Stage 2 SRE (Б5): client-side adaptive throttling of prefetch and
+  /// background requests (SRE ch. 21): K (0 = off) and the window.
+  static double get throttleK => _throttleK;
+  static Duration get throttleWindow => Duration(seconds: _throttleWindowS);
+
+  /// Stage 2 SRE (Б5): whether the app sends `X-Request-Timeout-Ms`.
+  /// Phones: unless the admin switched it off. The website: only once the
+  /// bootstrap of THIS server said it allows the header in CORS (an older
+  /// API would fail the browser's preflight) — the same rule as
+  /// `X-Request-Priority`.
+  static bool deadlineHeaderAllowed({required bool web}) {
+    final v = RequestPriority.lastConfig?['client.deadline_header_enabled'];
+    if (v == 'false') return false;
+    return !web || v == 'true';
+  }
+
+  static double _retryTokensMax = 10;
+  static double _retryTokenRatio = 0.1;
+  static double _throttleK = 2;
+  static int _throttleWindowS = 120;
+
   /// Server kill switch of the usage events (on top of the user's consent
   /// and the `app_events` flag).
   static bool get eventsEnabled => _eventsEnabled;
@@ -336,6 +364,16 @@ abstract final class ClientTuning {
     _retryBaseMs = pick('client.retry_base_ms', 1000, 200, 30000);
     _retryAfterMaxS = pick('client.retry_after_max_s', 10, 1, 120);
     _outboxRetryMaxS = pick('client.outbox_retry_max_s', 30, 5, 600);
+    double pickD(String key, double fallback, double min, double max) {
+      final v = num.tryParse(config[key] ?? '')?.toDouble();
+      return (v ?? fallback).clamp(min, max);
+    }
+
+    // Stage 2 SRE (Б5): same bounds as api client-tuning.ts.
+    _retryTokensMax = pickD('client.retry_tokens_max', 10, 1, 1000);
+    _retryTokenRatio = pickD('client.retry_token_ratio', 0.1, 0.01, 1);
+    _throttleK = pickD('client.throttle_k', 2, 0, 10);
+    _throttleWindowS = pick('client.throttle_window_s', 120, 10, 600);
     _eventsEnabled = config['client.events_enabled'] != 'false';
     _eventsFlushS = pick('client.events_flush_s', 60, 15, 3600);
     _sliEnabled = config['client.sli_enabled'] != 'false';
