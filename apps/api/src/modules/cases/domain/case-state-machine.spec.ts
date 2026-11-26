@@ -1,5 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import type { CaseStatus, Prisma } from '../../../generated/prisma/client';
+import type { CaseStatus } from '../../../generated/prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import {
   AUTO_CLOSE_AFTER_MS,
@@ -8,6 +8,7 @@ import {
   planCaseTransition,
   type CaseAction,
 } from './case-state-machine';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 const STATUSES: CaseStatus[] = [
   'open',
@@ -304,7 +305,7 @@ describe('CaseStateMachine (docs/04 §10.1)', () => {
           findFirstOrThrow: jest.fn().mockResolvedValue({ id: 'c1', status }),
         },
       };
-      return { tx, client: tx as unknown as Prisma.TransactionClient };
+      return { tx, client: tx as unknown as DbTx };
     }
     const machine = new CaseStateMachine();
 

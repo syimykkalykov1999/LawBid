@@ -1,9 +1,9 @@
 import { ForbiddenException } from '@nestjs/common';
-import type { Prisma } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { PrismaService } from '../../prisma/prisma.service';
+import type { DbTx } from '../../prisma/secret-columns';
 
-type Db = PrismaService | Prisma.TransactionClient;
+type Db = PrismaService | DbTx;
 
 /** True when either of the two blocked the other (no DI — usable from
  * modules that can't import BlocksModule without a cycle). */

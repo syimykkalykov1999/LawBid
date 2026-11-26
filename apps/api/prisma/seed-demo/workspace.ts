@@ -1,4 +1,4 @@
-import type { PrismaClient } from '../../src/generated/prisma/client';
+import type { SecretOmittingClient } from '../../src/prisma/secret-columns';
 
 /**
  * Owner 2026-10-13: demo data for the case workspace. One accepted case
@@ -11,7 +11,7 @@ const AMELIA_PHONE = '+14155552681';
 const id = (key: string): string => `md5('ws:${key}')::uuid`;
 
 export async function seedCaseWorkspace(
-  prisma: PrismaClient,
+  prisma: SecretOmittingClient,
 ): Promise<{ acceptedCaseId: string | null; lockedCaseId: string | null }> {
   const amelia = await prisma.user.findFirst({
     where: { phone_e164: AMELIA_PHONE },

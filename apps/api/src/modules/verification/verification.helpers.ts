@@ -11,8 +11,9 @@ import {
   LICENSE_RECHECK_NOTE_PREFIX,
   PROFILE_STATUS_FOR_REQUEST,
 } from './verification.constants';
+import type { DbTx } from '../../prisma/secret-columns';
 
-type Tx = Prisma.TransactionClient;
+type Tx = DbTx;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 export const SUBMISSION_WINDOW_MS = 30 * DAY_MS;

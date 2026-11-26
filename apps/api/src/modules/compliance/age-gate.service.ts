@@ -1,5 +1,4 @@
 import { ForbiddenException, Injectable, Optional } from '@nestjs/common';
-import type { Prisma, PrismaClient } from '../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
@@ -11,6 +10,8 @@ import {
   type AgeGatePolicy,
   type AgeVerdict,
 } from './age-gate.logic';
+import type { DbTx } from '../../prisma/secret-columns';
+import type { SecretOmittingClient } from '../../prisma/secret-columns';
 
 export type AgeSource = 'otp' | 'link' | 'social' | 'admin';
 
@@ -83,7 +84,7 @@ export class AgeGateService {
   /** Stores the attestation of a freshly created account (same
    * transaction as the account). No-op in `off` mode or without input. */
   async record(
-    client: Prisma.TransactionClient | PrismaClient | PrismaService,
+    client: DbTx | SecretOmittingClient | PrismaService,
     userId: string,
     input: AgeAttestationInput | undefined | null,
     source: AgeSource,

@@ -4,6 +4,7 @@ import type {
   StaffSwitchKey,
 } from '../staff-core/staff-settings.defaults';
 import type { WorkLeaseKind } from '../../common/staff-events';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /**
  * Staff package T3: how each work queue plugs into the lease engine.
@@ -41,25 +42,11 @@ export interface LeaseQueueSource {
   switch: StaffSwitchKey;
   /** Lease length setting, minutes. */
   ttlSetting: StaffNumberKey;
-  candidates(
-    tx: Prisma.TransactionClient,
-    q: CandidateQuery,
-  ): Promise<LeaseCandidate[]>;
-  onClaimed(
-    tx: Prisma.TransactionClient,
-    adminId: string,
-    itemId: string,
-  ): Promise<boolean>;
-  onReleased?(
-    tx: Prisma.TransactionClient,
-    adminId: string,
-    itemId: string,
-  ): Promise<void>;
+  candidates(tx: DbTx, q: CandidateQuery): Promise<LeaseCandidate[]>;
+  onClaimed(tx: DbTx, adminId: string, itemId: string): Promise<boolean>;
+  onReleased?(tx: DbTx, adminId: string, itemId: string): Promise<void>;
   /** Of these held items, the ones that still count against capacity. */
-  stillOpen?(
-    tx: Prisma.TransactionClient,
-    itemIds: string[],
-  ): Promise<string[]>;
+  stillOpen?(tx: DbTx, itemIds: string[]): Promise<string[]>;
 }
 
 /** `true` while somebody else holds the item or it excludes this admin. */

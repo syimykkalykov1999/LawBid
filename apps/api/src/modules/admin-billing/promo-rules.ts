@@ -1,10 +1,11 @@
-import type { Prisma, PromoCode } from '../../generated/prisma/client';
+import type { PromoCode } from '../../generated/prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 import { withTxRetry } from '../../prisma/tx-retry.util';
 import type {
   PaymentProvider,
   ProviderCouponInput,
 } from '../billing/payment-provider';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /**
  * Owner 2026-10-02: promo code rules shared by the admin, the app's
@@ -107,7 +108,7 @@ export type PromoCheck =
 
 /** Looks the code up and applies the rule for this user. */
 export async function checkPromo(
-  db: Pick<Prisma.TransactionClient, 'promoCode' | 'promoRedemption'>,
+  db: Pick<DbTx, 'promoCode' | 'promoRedemption'>,
   input: {
     code: string;
     userId: string;

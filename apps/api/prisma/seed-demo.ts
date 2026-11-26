@@ -10,7 +10,7 @@
 // Idempotent. Needs DATABASE_URL (and S3_* for pictures). Reads apps/api/.env.
 // Set DEMO_SEED_VIDEO_STUBS=1 to add reel posts (they only play when a
 // Bunny library is configured).
-import { PrismaClient } from '../src/generated/prisma/client';
+import { newSecretOmittingClient } from '../src/prisma/secret-columns';
 import { seedDemoWorld } from '../src/modules/demo/demo-seed';
 import { seedDemoContent } from './seed-demo/content';
 import { seedActiveExamples } from './seed-demo/active-examples';
@@ -35,9 +35,9 @@ async function main(): Promise<void> {
       'seed:demo refuses to run against a production-looking DATABASE_URL',
     );
   }
-  const prisma = new PrismaClient({
-    adapter: pgAdapter(process.env.DATABASE_URL),
-  });
+  // The app's demo client omits the secret columns (S10 #17); the seed
+  // functions are typed for it.
+  const prisma = newSecretOmittingClient(pgAdapter(process.env.DATABASE_URL));
   try {
     const world = await seedDemoWorld(prisma);
     console.log('world  :', world);

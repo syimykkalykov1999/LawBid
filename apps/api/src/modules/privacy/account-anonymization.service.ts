@@ -56,6 +56,7 @@ import { forEachDatabase } from '../../sharding/for-each-database';
 import { shardContext } from '../../sharding/shard-context';
 import { notifySeoPagesChanged } from '../../common/seo/seo-generator.trigger';
 import { userDirectory } from '../../sharding/user-directory';
+import type { DbTx } from '../../prisma/secret-columns';
 
 export interface AnonymizationResult {
   anonymized: string[];
@@ -303,7 +304,7 @@ export class AccountAnonymizationService implements AccountEraser {
   }
 
   private async removeComments(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     userId: string,
     now: Date,
   ): Promise<
@@ -1109,7 +1110,7 @@ export class AccountAnonymizationService implements AccountEraser {
    * on every database after the commit).
    */
   private async scrubRegistryRows(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     userId: string,
     role: string | null,
   ): Promise<void> {

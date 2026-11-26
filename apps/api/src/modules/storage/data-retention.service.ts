@@ -1,6 +1,6 @@
 import { Injectable, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma, PrismaClient } from '../../generated/prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import { allHeldIds, heldSqlFor } from '../../common/privacy/legal-hold';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -17,6 +17,10 @@ import {
   retentionPace,
   type RetentionPace,
 } from './retention-batches';
+import {
+  newSecretOmittingClient,
+  type SecretOmittingClient,
+} from '../../prisma/secret-columns';
 
 const DAY_MS = 24 * 3600 * 1000;
 
@@ -87,7 +91,7 @@ export interface RetentionResult {
  */
 @Injectable()
 export class DataRetentionService implements OnApplicationShutdown {
-  private retentionDb?: PrismaClient;
+  private retentionDb?: SecretOmittingClient;
   /** Pace of the run in progress (settings read once per run). */
   private pace!: RetentionPace;
 
@@ -381,10 +385,10 @@ export class DataRetentionService implements OnApplicationShutdown {
     }
   }
 
-  private retention(): PrismaClient | PrismaService {
+  private retention(): SecretOmittingClient | PrismaService {
     const url = this.config.get<string>('RETENTION_DATABASE_URL');
     if (!url) return this.prisma;
-    this.retentionDb ??= new PrismaClient({ adapter: pgAdapter(url) });
+    this.retentionDb ??= newSecretOmittingClient(pgAdapter(url));
     return this.retentionDb;
   }
 

@@ -1,7 +1,7 @@
-import type { PrismaClient } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { cached } from '../../common/cache/cached';
 import { delSafe } from '../../redis/redis-cluster-safe';
+import type { SecretOmittingClient } from '../../prisma/secret-columns';
 
 /**
  * Owner 2026-10-18 (speed): every feed page, reels page and People search
@@ -20,7 +20,7 @@ const BLOCK_SET_TTL_SECONDS = 60;
 const blockSetKey = (userId: string) => `blocks:${userId}`;
 
 export function cachedBlockSet(
-  prisma: Pick<PrismaClient, 'userBlock'>,
+  prisma: Pick<SecretOmittingClient, 'userBlock'>,
   redis: Redis,
   userId: string,
 ): Promise<string[]> {

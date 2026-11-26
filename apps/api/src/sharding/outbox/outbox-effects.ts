@@ -1,5 +1,6 @@
 import type { Prisma } from '../../generated/prisma/client';
 import { recalcAttorneyRating } from '../../modules/reviews/review-rating';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /**
  * Shard-ready step 7: the EFFECTS of cross-family outbox events, i.e. the
@@ -17,7 +18,7 @@ import { recalcAttorneyRating } from '../../modules/reviews/review-rating';
  *    next to, a sharded write (consent records, rating averages, counters):
  *    an event.
  */
-export type GlobalClient = Prisma.TransactionClient;
+export type GlobalClient = DbTx;
 
 export interface EffectContext {
   /** Primary-database client (a transaction: the effect and its inbox row

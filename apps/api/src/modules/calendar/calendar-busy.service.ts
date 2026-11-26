@@ -99,6 +99,8 @@ export class CalendarBusyService {
         status: 'active',
         provider: { in: providers },
       },
+      // S10 (#17): the busy read refreshes the access token.
+      omit: { refresh_token_enc: false },
     });
     const out: BusyInterval[] = [];
     await Promise.all(

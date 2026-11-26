@@ -1,6 +1,6 @@
 import { ServerTextsService } from '../../common/i18n/server-texts.service';
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import type { Prisma, SupportTicket } from '../../generated/prisma/client';
+import type { SupportTicket } from '../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { AppSettingsWriter } from '../../common/app-settings/app-settings.writer';
@@ -25,8 +25,9 @@ import type {
   UpdateSupportDeskSettingsDto,
 } from './support.dto';
 import { nameOf } from './support.rules';
+import type { DbTx } from '../../prisma/secret-columns';
 
-type Tx = Prisma.TransactionClient;
+type Tx = DbTx;
 
 /** Bounded sweep: a burst of late tickets is handled over a few runs. */
 const SWEEP_BATCH = 200;

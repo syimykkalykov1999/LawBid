@@ -252,6 +252,9 @@ module "stack" {
   waf_atp_action                 = var.waf_atp_action
   cdn_waf_rate_limit_per_5m      = var.cdn_waf_rate_limit_per_5m
   security_hub_enabled           = var.security_hub_enabled
+  dns_firewall_enabled           = var.dns_firewall_enabled
+  dns_firewall_mode              = var.dns_firewall_mode
+  dns_firewall_extra_domains     = var.dns_firewall_extra_domains
   guardduty_alert_severity       = var.guardduty_alert_severity
 
   # Security & legal pass 2026-10-24.

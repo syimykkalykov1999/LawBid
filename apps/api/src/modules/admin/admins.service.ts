@@ -38,6 +38,7 @@ import {
 import { StaffSettingsService } from '../staff-core/staff-settings.service';
 import { effectiveWorkspace } from '../staff-core/workspace-scope';
 import type { AdminAccountDto, AdminRoleName } from './admin.dto';
+import type { DbTx } from '../../prisma/secret-columns';
 
 export const ADMINS_AUDIT = {
   create: 'admins.create',
@@ -819,7 +820,7 @@ export class AdminsService {
    * that default into the same workspace do not count). */
   private async assertHeadSeat(
     workspace: AdminWorkspace,
-    db: Pick<Prisma.TransactionClient, 'adminProfile'> = this.prisma,
+    db: Pick<DbTx, 'adminProfile'> = this.prisma,
   ): Promise<void> {
     if (!this.staff) return;
     const max = await this.staff.number('staff.head.max_admins');
@@ -850,8 +851,7 @@ export class AdminsService {
    * otherwise (paused or disabled partnership, or the team is full). */
   private async assertPartnerSeat(
     partnerId: string,
-    db: Pick<Prisma.TransactionClient, 'adminProfile' | 'countryPartner'> = this
-      .prisma,
+    db: Pick<DbTx, 'adminProfile' | 'countryPartner'> = this.prisma,
   ): Promise<{ id: string; country_code: string }> {
     const partner = await db.countryPartner.findUnique({
       where: { id: partnerId },
@@ -912,10 +912,7 @@ export class AdminsService {
     return present(updated);
   }
 
-  private async load(
-    tx: Prisma.TransactionClient | PrismaService,
-    id: string,
-  ): Promise<AdminRow> {
+  private async load(tx: DbTx | PrismaService, id: string): Promise<AdminRow> {
     const user = await tx.user.findFirst({
       where: { id, role: 'admin', deleted_at: null },
       select: ADMIN_SELECT,
@@ -1084,10 +1081,7 @@ const lastSuperAdmin = () =>
     message: 'This is the last active super_admin.',
   });
 
-async function assertNotLastSuperAdmin(
-  tx: Prisma.TransactionClient,
-  id: string,
-): Promise<void> {
+async function assertNotLastSuperAdmin(tx: DbTx, id: string): Promise<void> {
   const others = await tx.user.count({
     where: {
       id: { not: id },

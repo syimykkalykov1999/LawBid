@@ -10,10 +10,13 @@ import {
   Optional,
 } from '@nestjs/common';
 import { AppSettingsService } from '../common/app-settings/app-settings.service';
-import { PrismaClient } from '../generated/prisma/client';
 import { demoContext } from '../common/demo/demo-context';
 import { withPoolerRouting } from './pooler-url';
 import { pgAdapter } from './pg-adapter';
+import {
+  newSecretOmittingClient,
+  SecretOmittingClient,
+} from './secret-columns';
 import { resolveReplicaUrl, resolveReplicaUrls } from './replica-url';
 import { shardContext } from '../sharding/shard-context';
 import { isTransientInfraError } from '../common/resilience/transient-errors';
@@ -106,7 +109,7 @@ export function readOnPrimary(
 /** One read copy: its client, its own health (rows 8 / 9). */
 interface Copy {
   url: string;
-  raw: PrismaClient;
+  raw: SecretOmittingClient;
   client: PrismaService;
   /** Last sampled lag; null = no good sample yet or the last one failed. */
   lagMs: number | null;
@@ -358,7 +361,7 @@ export class PrismaReadService implements OnModuleInit, OnApplicationShutdown {
   /** One read copy client. A copy that does not answer is out for 15 s, and
    * the read that met it is asked again of the primary. */
   private makeCopy(url: string): {
-    raw: PrismaClient;
+    raw: SecretOmittingClient;
     client: PrismaService;
     bind: (c: Copy) => void;
   } {
@@ -367,7 +370,8 @@ export class PrismaReadService implements OnModuleInit, OnApplicationShutdown {
       process.env,
       'DB_READ_POOL_SIZE',
     );
-    const raw = new PrismaClient({ adapter: pgAdapter(datasourceUrl) });
+    // S10 (#17): a read copy omits the same secret columns as the primary.
+    const raw = newSecretOmittingClient(pgAdapter(datasourceUrl));
     let self: Copy | null = null;
     const primary = this.primary;
     const log = this.log;

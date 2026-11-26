@@ -42,6 +42,7 @@ import type {
   UpdateTimeDto,
 } from './billing.dto';
 import { renderInvoicePdf, type InvoiceLine } from './invoice.pdf';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 type Entry = Prisma.CaseTimeEntryGetPayload<object>;
 type Expense = Prisma.CaseExpenseGetPayload<object>;
@@ -553,7 +554,7 @@ export class CaseBillingService {
   /** The file in the case's Files tab, the chat line and the client's
    * bell — what "sent" means. */
   private async announce(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     user: RequestUser,
     s: { attorneyId: string; clientId: string },
     inv: {

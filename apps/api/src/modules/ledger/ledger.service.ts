@@ -1,15 +1,15 @@
 import { shardContext } from '../../sharding/shard-context';
 import { inShardTx } from '../../sharding/tx-global-facade';
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { hashShard } from '../../sharding/shard-id';
 import { PLATFORM_OWNER, typeOf } from './ledger.chart';
 import { isBalanced, type Line } from './ledger.recipes';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** A transaction client (or the root client) with the ledger delegates. */
 export type LedgerDb = Pick<
-  Prisma.TransactionClient,
+  DbTx,
   'ledgerAccount' | 'ledgerEntry' | 'ledgerLine'
 >;
 

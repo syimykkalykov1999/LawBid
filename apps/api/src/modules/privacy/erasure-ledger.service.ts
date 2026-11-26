@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '../../generated/prisma/client';
 import { PinoLogger } from 'nestjs-pino';
 import { PrismaService } from '../../prisma/prisma.service';
 import { S3StorageService } from '../files/storage/s3-storage.service';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** Where the object copies live (private documents bucket). */
 export const ERASURE_LEDGER_PREFIX = 'erasure-ledger/';
@@ -55,7 +55,7 @@ export class ErasureLedgerService {
     userId: string,
     anonymizedAt: Date,
     reason: ErasureReason,
-    tx?: Prisma.TransactionClient,
+    tx?: DbTx,
   ): Promise<void> {
     await (tx ?? this.prisma).erasureLedger.upsert({
       where: { user_id: userId },

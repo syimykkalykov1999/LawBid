@@ -11,6 +11,7 @@ import type {
 import { PrismaService } from '../../prisma/prisma.service';
 import { caseNotFound } from '../cases/domain/case-state-machine';
 import { canonicalJson } from './canonical-json';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** docs/04 §1, docs/02 §6.4: journal rows are kept 5 years. */
 export const JOURNAL_RETENTION_YEARS = 5;
@@ -78,7 +79,7 @@ export interface ChainVerification {
   brokenAt?: { id: string; reason: ChainBreakReason };
 }
 
-type JournalReader = Pick<Prisma.TransactionClient, 'caseJournal'>;
+type JournalReader = Pick<DbTx, 'caseJournal'>;
 
 /**
  * docs/02_DATABASE.md §4.D / §6.2 — the ONLY writer of case_journal
@@ -105,10 +106,7 @@ export class CaseJournalService {
     @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
-  async append(
-    tx: Prisma.TransactionClient,
-    input: JournalAppendInput,
-  ): Promise<CaseJournal> {
+  async append(tx: DbTx, input: JournalAppendInput): Promise<CaseJournal> {
     // 12.11 (KNOWN_ERRORS 121): NO KEY UPDATE, not UPDATE. A bid inserted in
     // the same transaction already holds the FK's KEY SHARE lock on this case
     // row; FOR UPDATE conflicts with another bid's KEY SHARE and two bids on

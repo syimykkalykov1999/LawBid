@@ -44,12 +44,13 @@ import {
   type PartnerProgramSettings,
   type PartnerStatus,
 } from './partners.settings';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const DAY_MS = 86_400_000;
 const CODE_ATTEMPTS = 6;
 const LIST_LIMIT = 200;
 
-type Db = Prisma.TransactionClient | PrismaService;
+type Db = DbTx | PrismaService;
 
 /** Commission kinds tied to one referred person. */
 const PER_PERSON_KINDS: CommissionKind[] = [

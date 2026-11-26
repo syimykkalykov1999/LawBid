@@ -11,6 +11,7 @@ import {
   trimmedHeadAllowed,
   verifyRows,
 } from './case-journal.service';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** In-memory stand-in for the transaction: one case, its journal rows. */
 function fakeTx(clientId: string | null = 'client-1') {
@@ -47,7 +48,7 @@ function fakeTx(clientId: string | null = 'client-1') {
       }),
     },
   };
-  return { rows, tx: tx as unknown as Prisma.TransactionClient, raw: tx };
+  return { rows, tx: tx as unknown as DbTx, raw: tx };
 }
 
 const service = new CaseJournalService({} as PrismaService);
@@ -247,7 +248,7 @@ describe('CaseJournalService (docs/02 §4.D hash chain)', () => {
       const findMany = jest.fn().mockResolvedValue(rows);
       const res = await service.verifyChain('case-1', {
         caseJournal: { findMany },
-      } as unknown as Prisma.TransactionClient);
+      } as unknown as DbTx);
       expect(res).toEqual({ valid: true, checked: 4 });
       expect(findMany).toHaveBeenCalledWith({
         where: { case_id: 'case-1' },

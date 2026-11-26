@@ -6,6 +6,7 @@ import { Prisma } from '../generated/prisma/client';
 import { sqlStateOf } from '../common/resilience/transient-errors';
 import type { PrismaService } from './prisma.service';
 import pino from 'pino';
+import type { DbTx } from './secret-columns';
 
 // docs/06 §8 "число повторов транзакций (40001)": one JSON line per retry,
 // picked up by the CloudWatch metric filter (infra/modules/monitoring).
@@ -53,7 +54,7 @@ const DEADLOCK_DETECTED = '40P01';
 
 export async function withTxRetry<T>(
   prisma: PrismaService,
-  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  fn: (tx: DbTx) => Promise<T>,
   options: TxRetryOptions = {},
 ): Promise<T> {
   // docs/02_DATABASE.md §1.1: "до 5 попыток с jitter".
