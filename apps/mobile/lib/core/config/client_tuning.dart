@@ -21,6 +21,10 @@ abstract final class ClientTuning {
   static int _outboxRetryMaxS = 30;
   static bool _eventsEnabled = true;
   static int _eventsFlushS = 60;
+  static bool _sliEnabled = true;
+  static int _sliFeedSlowMs = 3000;
+  static int _sliMessageSlowMs = 5000;
+  static bool _webVitalsEnabled = true;
   static int _callSyncS = 30;
   static int _callEndedMs = 1600;
   static int _callEndedHoldS = 0;
@@ -96,6 +100,22 @@ abstract final class ClientTuning {
   /// and the `app_events` flag).
   static bool get eventsEnabled => _eventsEnabled;
   static Duration get eventsFlush => Duration(seconds: _eventsFlushS);
+
+  /// Б6 (`client.sli_enabled`): count the six SLO flows as the person sees
+  /// them (core/diagnostics/client_sli.dart). Also needs the usage events
+  /// consent and switch ([eventsEnabled]).
+  static bool get sliEnabled => _sliEnabled;
+
+  /// Б6: the feed answer counts as slow for the person above this.
+  static Duration get sliFeedSlow => Duration(milliseconds: _sliFeedSlowMs);
+
+  /// Б6: sending a message counts as slow for the person above this.
+  static Duration get sliMessageSlow =>
+      Duration(milliseconds: _sliMessageSlowMs);
+
+  /// Б6 / G8 (`client.web_vitals_enabled`): the website sends its Core Web
+  /// Vitals rating (web/js/web_vitals_beacon.js).
+  static bool get webVitalsEnabled => _webVitalsEnabled;
   static Duration get callSync => Duration(seconds: _callSyncS);
 
   /// Row 166: how long the short «Call ended» screen stays
@@ -318,6 +338,10 @@ abstract final class ClientTuning {
     _outboxRetryMaxS = pick('client.outbox_retry_max_s', 30, 5, 600);
     _eventsEnabled = config['client.events_enabled'] != 'false';
     _eventsFlushS = pick('client.events_flush_s', 60, 15, 3600);
+    _sliEnabled = config['client.sli_enabled'] != 'false';
+    _sliFeedSlowMs = pick('client.sli_feed_slow_ms', 3000, 500, 30000);
+    _sliMessageSlowMs = pick('client.sli_message_slow_ms', 5000, 1000, 60000);
+    _webVitalsEnabled = config['client.web_vitals_enabled'] != 'false';
     _callSyncS = pick('client.call_sync_s', 30, 10, 300);
     _callEndedMs = pick('client.call_ended_ms', 1600, 500, 10000);
     _callEndedHoldS = pick('client.call_ended_hold_s', 0, 0, 600);
@@ -361,7 +385,14 @@ abstract final class ClientTuning {
         pick('client.verification_photo_quality', 90, 50, 100);
     _sentryTracesPercent = pick('client.sentry_traces_percent', 0, 0, 100);
     _traceparentPercent = pick('client.traceparent_percent', 5, 0, 100);
+    // Б6 / G8: the website's Web Vitals glue follows the new switches.
+    try {
+      onApplied?.call();
+    } catch (_) {}
   }
+
+  /// Called after every [apply] (set by AppEvents: web vitals go-ahead).
+  static void Function()? onApplied;
 
   /// Back to the starter values (tests).
   static void reset() {
