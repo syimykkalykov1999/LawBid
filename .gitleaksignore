@@ -85,3 +85,6 @@ f664e10bea6316ed309c03b4d6dd573523bd63e3:apps/api/src/modules/files/files.servic
 # 'infra.edge_on_api_tasks' in the NO_CEILING list of config-schema.ts (keyword
 # «api» + a string), not a secret; the next commit reorders the list.
 e45e880c05014f0b3259455aebfa46e04b6caabd:apps/api/src/modules/admin-config/config-schema.ts:generic-api-key:2807
+# Third pass M12 (26.11): `keyB64` is the name of a function parameter
+# (a base64 PUBLIC key is checked), not a secret; renamed in 8b1c00968.
+0d093b19cde2ceac2c8d0a01ceb27697a002e4e1:apps/api/src/common/push-previews/push-previews.ts:generic-api-key:43
