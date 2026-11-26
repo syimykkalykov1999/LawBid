@@ -57,8 +57,13 @@ on:
 permissions:
   contents: read
 
+# One queue per trigger. GitHub keeps one running and ONE pending run per group
+# and cancels the older pending one when a newer run arrives; with one shared
+# group the hourly watch would cancel an owner's pending halt or rollout. The
+# watch only reads the store and halts, so running it next to an owner action
+# is safe (halting twice is a no-op).
 concurrency:
-  group: store-release
+  group: store-release-${{ github.event_name }}
   cancel-in-progress: false
 
 env:
