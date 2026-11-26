@@ -1216,6 +1216,9 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   'security.password_breach_timeout_ms': 1500,
   /** Refuse passwords from the bundled list of the most common ones. */
   'security.password_common_list_enabled': true,
+  /** O4 (ASVS V6.3.8): «is this number registered?» answers after at least
+   * this many ms, registered or not (0 = no floor, at most 2000). */
+  'security.phone_status_min_ms': 150,
   /** ASVS V6.2.11 (STAGE2_SECURITY #11): words a password may not be built
    * from (half or more of it); the person's own name, username, e-mail and
    * phone are added per check. */

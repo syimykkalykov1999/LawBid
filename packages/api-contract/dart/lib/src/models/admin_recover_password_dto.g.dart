@@ -12,6 +12,7 @@ AdminRecoverPasswordDto _$AdminRecoverPasswordDtoFromJson(
   login: json['login'] as String,
   answer: json['answer'] as String,
   newPassword: json['newPassword'] as String,
+  ticket: json['ticket'] as String?,
 );
 
 Map<String, dynamic> _$AdminRecoverPasswordDtoToJson(
@@ -20,4 +21,5 @@ Map<String, dynamic> _$AdminRecoverPasswordDtoToJson(
   'login': instance.login,
   'answer': instance.answer,
   'newPassword': instance.newPassword,
+  'ticket': ?instance.ticket,
 };
