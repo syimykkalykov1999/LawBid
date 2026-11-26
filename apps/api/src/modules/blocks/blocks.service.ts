@@ -6,7 +6,6 @@ import {
   Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { Prisma } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -23,8 +22,9 @@ import { shardContext } from '../../sharding/shard-context';
 import { dropPresencePerms } from '../presence/presence-perm';
 import type { BlockedUserDto } from './blocks.dto';
 import { userDirectory } from '../../sharding/user-directory';
+import type { DbTx } from '../../prisma/secret-columns';
 
-type Db = PrismaService | Prisma.TransactionClient;
+type Db = PrismaService | DbTx;
 
 /**
  * Owner decision 2026-09-29 (OQ-028): any signed-in user can block any

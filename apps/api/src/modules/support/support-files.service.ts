@@ -1,5 +1,5 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import type { Prisma, SupportMessageFile } from '../../generated/prisma/client';
+import type { SupportMessageFile } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FilesService } from '../files/files.service';
@@ -8,8 +8,9 @@ import type {
   SupportAttachmentDto,
   SupportAttachmentInputDto,
 } from './support.dto';
+import type { DbTx } from '../../prisma/secret-columns';
 
-type Tx = Prisma.TransactionClient;
+type Tx = DbTx;
 
 /** Name the sender gave → a safe display / download name. */
 export function cleanAttachmentName(name: string): string {

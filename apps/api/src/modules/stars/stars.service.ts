@@ -74,6 +74,7 @@ import {
   STARS_SETTINGS_KEY,
   type StarPack,
 } from './stars.settings';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** Lists leave the interceptor as `data: items` + `meta.nextCursor`. */
 export interface Page<T> {
@@ -81,7 +82,7 @@ export interface Page<T> {
   nextCursor: string | null;
 }
 
-type Tx = Prisma.TransactionClient;
+type Tx = DbTx;
 type Db = PrismaService | Tx;
 
 const PAGE = 30;

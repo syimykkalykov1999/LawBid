@@ -1,5 +1,4 @@
 import { HttpException } from '@nestjs/common';
-import type { Prisma } from '../../../generated/prisma/client';
 import { APP_SETTINGS } from '../../../common/app-settings/app-settings.defaults';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { syncProfileStatus } from '../verification.helpers';
@@ -8,6 +7,7 @@ import {
   identityCompleteness,
   submissionPhotoMissing,
 } from './verification-requests.service';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 function codeOf(fn: () => unknown): string | undefined {
   try {
@@ -103,7 +103,7 @@ describe('syncProfileStatus (§2.3 mapping)', () => {
             Promise.resolve({ first_name: 'Anna', last_name: 'Kim' }),
           ),
         },
-      } as unknown as Prisma.TransactionClient,
+      } as unknown as DbTx,
     };
   }
 

@@ -35,6 +35,7 @@ import {
   type InviteListQueryDto,
   type InviteStatus,
 } from './dto/case-invites.dto';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 const DAY_MS = 24 * 3600 * 1000;
 
@@ -167,9 +168,7 @@ export class CaseInvitesService {
     // under one advisory lock per client and per attorney, so parallel
     // invites cannot all pass the same count (the read outside is only a
     // fast refusal).
-    const assertCaps = async (
-      db: Pick<Prisma.TransactionClient, 'caseInvite'>,
-    ): Promise<void> => {
+    const assertCaps = async (db: Pick<DbTx, 'caseInvite'>): Promise<void> => {
       const dayAgo = new Date(now.getTime() - DAY_MS);
       // Owner 2026-10-15 (anti-spam both ways): an attorney is not flooded by
       // invites (from anyone, nor from one client over and over), and the same

@@ -1,7 +1,7 @@
-import type { Prisma } from '../../../generated/prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import type { PrismaService } from '../../../prisma/prisma.service';
 import { CaseAccessPolicy, type CaseViewer } from './case-access.policy';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 function fakeDb(opts: {
   caseRow?: { client_id: string } | null;
@@ -135,11 +135,7 @@ describe('CaseAccessPolicy (deny by default)', () => {
     const { policy } = fakeDb({});
     const tx = fakeDb({ caseRow: { client_id: 'client-1' } }).db;
     expect(
-      await policy.decide(
-        client,
-        'c1',
-        tx as unknown as Prisma.TransactionClient,
-      ),
+      await policy.decide(client, 'c1', tx as unknown as DbTx),
     ).toMatchObject({ kind: 'owner' });
   });
 });

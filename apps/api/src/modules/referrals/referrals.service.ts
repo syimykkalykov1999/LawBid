@@ -46,11 +46,12 @@ import {
   type ReferralRewardSnapshot,
   type ReferralRole,
 } from './referrals.settings';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const DAY_MS = 86_400_000;
 const CODE_ATTEMPTS = 6;
 
-type Db = Prisma.TransactionClient | PrismaService;
+type Db = DbTx | PrismaService;
 
 function notAllowed(reason: string, message: string): ConflictException {
   return new ConflictException({
@@ -799,7 +800,7 @@ export class ReferralsService {
 
   /** Spends up to [days] credit days on a promotion; returns how many. */
   async consumePromotionCredits(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     userId: string,
     promotionId: string,
     days: number,
@@ -827,7 +828,7 @@ export class ReferralsService {
 
   /** Gives back the days a promotion took (it never ran). */
   async restorePromotionCredits(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     userId: string,
     promotionId: string,
   ): Promise<number> {
@@ -863,7 +864,7 @@ export class ReferralsService {
    * meanwhile (the caller then refunds the payment instead of reviving).
    */
   async reconsumePromotionCredits(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     userId: string,
     promotionId: string,
   ): Promise<boolean> {

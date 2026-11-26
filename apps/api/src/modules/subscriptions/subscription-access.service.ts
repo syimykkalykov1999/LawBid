@@ -1,5 +1,4 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import type { Prisma } from '../../generated/prisma/client';
 import type Redis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { REDIS_CACHE_CLIENT } from '../../redis/redis.constants';
@@ -11,8 +10,9 @@ import {
   findActiveGrant,
   type GrantDb,
 } from './contract-grant.util';
+import type { DbTx } from '../../prisma/secret-columns';
 
-type Db = Pick<Prisma.TransactionClient, 'subscription' | 'contractGrant'>;
+type Db = Pick<DbTx, 'subscription' | 'contractGrant'>;
 
 const CACHE_TTL_SECONDS = 60;
 const key = (userId: string) => `sub:active:${userId}`;

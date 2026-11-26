@@ -144,6 +144,7 @@ import { demoContext } from '../../common/demo/demo-context';
 import { FileAccessService } from './file-access.service';
 import { HeavyHittersService } from '../../common/heavy-hitters/heavy-hitters.service';
 import { DEMO_SETTINGS_KEY, parseDemoSettings } from '../demo/demo.settings';
+import type { DbTx } from '../../prisma/secret-columns';
 export interface SignedAttachment {
   url: string;
   previewUrl: string | null;
@@ -959,7 +960,7 @@ export class FilesService {
     purposes: readonly FilePurpose[],
     // Row 69 (KE 123): a caller inside a transaction passes it, so this read
     // does not take a second pool connection while the transaction holds one.
-    db: Pick<Prisma.TransactionClient, 'file'> = this.prisma,
+    db: Pick<DbTx, 'file'> = this.prisma,
     // M3 (owner 25.11, Slack / Telegram): a chat message goes while the
     // antivirus still checks its file; the file is shown to the others only
     // once clean (ChatService / GroupPresenter hide its link till then).

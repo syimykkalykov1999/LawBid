@@ -8,6 +8,12 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaClient } from '../generated/prisma/client';
 import { queryTap } from './query-tap';
+import {
+  newSecretOmittingClient,
+  SECRET_COLUMNS_OMIT,
+  SecretOmittingClient,
+  SecretOmittingOptions,
+} from './secret-columns';
 import { demoContext } from '../common/demo/demo-context';
 import { withPoolerRouting } from './pooler-url';
 import { pgAdapter, poolMaxOf, poolWarmEnabled, warmPool } from './pg-adapter';
@@ -119,7 +125,7 @@ function shardMapTtlMs(
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
-export function extend(client: PrismaClient, primary?: () => unknown) {
+export function extend(client: SecretOmittingClient, primary?: () => unknown) {
   const base = client
     .$extends(softDeleteExtension())
     // Row 69: inside `$transaction(fn)` the parent lookup runs on the
@@ -177,9 +183,16 @@ export function demoDatabaseName(): string | null {
 /** Optional environment for a PrismaService built by hand (read copies). */
 export const PRISMA_ENV = Symbol('PRISMA_ENV');
 
+/**
+ * S10 (#17): the class is the Prisma client typed with the global omit of
+ * secret-columns.ts (the construct signature's own `Options` type argument,
+ * the same inference `new PrismaClient({ omit })` does), so every delegate,
+ * `$transaction` client and extension knows those columns are absent unless
+ * a query selects them.
+ */
 @Injectable()
 export class PrismaService
-  extends PrismaClient
+  extends PrismaClient<SecretOmittingOptions>
   implements OnModuleInit, OnApplicationShutdown
 {
   /**
@@ -196,6 +209,7 @@ export class PrismaService
     );
     super({
       adapter: pgAdapter(datasourceUrl),
+      omit: SECRET_COLUMNS_OMIT,
       ...queryTap.clientOptions(),
     });
     if (queryTap.enabled()) {
@@ -210,11 +224,11 @@ export class PrismaService
     // consumer; only prototype methods survive. State lives in the
     // closure below.
     const real = extend(this) as unknown as PrismaService;
-    const rawPrimary = this as PrismaClient;
+    const rawPrimary = this as SecretOmittingClient;
     const shardUrls = shardDatabaseUrlsFromEnv(e, (m) => shardLog.error(m));
     const shardClients = new Map<
       string,
-      { raw: PrismaClient; ext: PrismaService }
+      { raw: SecretOmittingClient; ext: PrismaService }
     >();
     const router = new ShardRouter(
       async () => {
@@ -233,15 +247,15 @@ export class PrismaService
       if (hit) return hit.ext;
       const url = shardUrls[key];
       if (!url) throw new ShardDatabaseNotConfiguredError(key);
-      const raw = new PrismaClient({
-        adapter: pgAdapter(withPoolDefaults(url, e, 'DB_POOL_SIZE_SHARD')),
-      });
+      const raw = newSecretOmittingClient(
+        pgAdapter(withPoolDefaults(url, e, 'DB_POOL_SIZE_SHARD')),
+      );
       const ext = extend(raw, () => real) as unknown as PrismaService;
       shardClients.set(key, { raw, ext });
       return ext;
     };
     let demo: ExtendedClient | null = null;
-    let demoRaw: PrismaClient | null = null;
+    let demoRaw: SecretOmittingClient | null = null;
     let demoReady = false;
     let demoReason = 'not initialised';
 
@@ -395,16 +409,14 @@ export class PrismaService
       demoContext.isDemo() ? demoClient() : clientFor(key());
 
     const control: PrismaRoutingControl = {
-      demoClient(): PrismaClient | null {
+      demoClient(): SecretOmittingClient | null {
         if (demoRaw) return demoRaw;
         const url = demoDatabaseUrl();
         if (!url) {
           demoReason = 'DEMO_DATABASE_URL is off';
           return null;
         }
-        demoRaw = new PrismaClient({
-          adapter: pgAdapter(withPoolDefaults(url)),
-        });
+        demoRaw = newSecretOmittingClient(pgAdapter(withPoolDefaults(url)));
         demo = extend(demoRaw);
         return demoRaw;
       },
@@ -639,7 +651,7 @@ export const ROUTING = Symbol('prisma.routing');
 export interface PrismaRoutingControl {
   /** The raw (unextended) demo client, created on first call; null when
    * the demo database is switched off. */
-  demoClient(): PrismaClient | null;
+  demoClient(): SecretOmittingClient | null;
   markDemoReady(ready: boolean, reason?: string): void;
   demoState(): { ready: boolean; reason: string };
   realClient(): PrismaService;

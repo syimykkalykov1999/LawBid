@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException, Optional } from '@nestjs/common';
-import type { Prisma } from '../../../generated/prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { caseNotFound } from '../domain/case-state-machine';
 import { readsAreSplit } from '../../../sharding/split-reads';
 import { BidTeamService } from '../../firms/bid-team.service';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 export interface CaseViewer {
   userId: string;
@@ -54,7 +54,7 @@ export const GENERAL_PRACTICE_CODES = [
   NOT_SURE_OR_OTHER_CODE,
 ] as const;
 
-type Db = Pick<Prisma.TransactionClient, 'case' | '$queryRaw'>;
+type Db = Pick<DbTx, 'case' | '$queryRaw'>;
 
 interface DecideRow {
   participant: boolean;

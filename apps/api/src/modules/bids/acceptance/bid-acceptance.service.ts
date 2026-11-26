@@ -2,7 +2,7 @@ import { BidTeamService } from '../../firms/bid-team.service';
 import { assertExpectedVersion } from '../../../common/concurrency/optimistic-lock';
 import { assertNoBlockBetween } from '../../blocks/block-check';
 import { ConflictException, Injectable, Optional } from '@nestjs/common';
-import type { PartyRole, Prisma } from '../../../generated/prisma/client';
+import type { PartyRole } from '../../../generated/prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { withTxRetry } from '../../../prisma/tx-retry.util';
@@ -34,6 +34,7 @@ import { disclosedFieldsOf } from './contact-disclosure.util';
 import { touchClientActive } from '../../cases/cases.public';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
 import { RankingEventsService } from '../../experiments/ranking-events.service';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 /** docs/04 §7 step 8: why the losing bids were rejected. */
 export const REJECT_REASON_ANOTHER_BID = 'another_bid_accepted';
@@ -185,7 +186,7 @@ export class BidAcceptanceService {
   /** The accept transaction body; public for the deal record's second
    * signature (same transaction as the signature row). */
   async acceptInTx(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     bidId: string,
     by: PartyRole,
     actorId: string,

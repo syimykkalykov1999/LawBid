@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { User } from '../../generated/prisma/client';
+import type { UserRow } from '../../prisma/secret-columns';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -267,6 +268,8 @@ export class PasswordAuthService {
     await this.loginMethods.assertEnabled('password');
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: current.sub },
+      // S10 (#17): the current password is checked below.
+      omit: { password_hash: false },
     });
     // Owner 2026-10-22 (security audit #3, finding 1): an account that signs
     // in by SMS has no password — before, anyone holding its access token
@@ -501,7 +504,7 @@ export class PasswordAuthService {
     deviceInfo: DeviceInfo,
     meta: RequestMeta,
   ): Promise<AuthTokensResult> {
-    let account = user;
+    let account: UserRow = user;
     let deletionCancelled = false;
     if (
       user.status === 'deletion_pending' &&
@@ -539,7 +542,10 @@ export class PasswordAuthService {
     }
   }
 
-  private async storePassword(userId: string, password: string): Promise<User> {
+  private async storePassword(
+    userId: string,
+    password: string,
+  ): Promise<UserRow> {
     const hash = await this.passwords.hash(password);
     return this.prisma.user.update({
       where: { id: userId },
@@ -555,7 +561,9 @@ export class PasswordAuthService {
       where: {
         provider_provider_uid: { provider: channel, provider_uid: identifier },
       },
-      include: { user: true },
+      // S10 (#17): sign-in checks the password; status and reset only need
+      // to know whether there is one.
+      include: { user: { omit: { password_hash: false } } },
     });
     return row?.user ?? null;
   }

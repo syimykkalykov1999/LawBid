@@ -1,10 +1,11 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { Prisma, PrismaClient } from '../generated/prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import { SOFT_DELETE_META, withDeleted } from '../prisma/soft-delete.extension';
 import { hashShard, isShardedId, newShardedId, shardOf } from './shard-id';
 import { SHARDED_MODELS, ShardKey } from './shard-manifest';
 import { shardStats } from './shard-stats';
 import { datamodel as prismaDatamodel } from '../generated/prisma-dmmf';
+import type { SecretOmittingClient } from '../prisma/secret-columns';
 
 /**
  * Shard-ready steps 1 and 2 (docs/architecture/SHARDING_READY.md §4): a
@@ -41,7 +42,9 @@ export type ParentShardLookup = (
  * no soft-delete filter, no recursion). Only used for legacy parents whose
  * id is a random v4 uuid, i.e. rows created before this change.
  */
-export function parentShardLookup(client: PrismaClient): ParentShardLookup {
+export function parentShardLookup(
+  client: SecretOmittingClient,
+): ParentShardLookup {
   return async (model, id) => {
     const delegate = (
       client as unknown as Record<

@@ -58,6 +58,7 @@ import {
   type OutboxTicket,
 } from '../../sharding/outbox/cross-family-outbox';
 import { attachUsers, userDirectory } from '../../sharding/user-directory';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -151,10 +152,7 @@ export class ReviewsService {
    * applied right after the commit (see CrossFamilyOutbox).
    */
   private async ratingTx<T>(
-    fn: (
-      tx: Prisma.TransactionClient,
-      recalc: (attorneyId: string) => Promise<void>,
-    ) => Promise<T>,
+    fn: (tx: DbTx, recalc: (attorneyId: string) => Promise<void>) => Promise<T>,
   ): Promise<T> {
     const tickets: Array<OutboxTicket | null> = [];
     const result = await withTxRetry(this.prisma, (tx) => {
@@ -1115,7 +1113,7 @@ export class ReviewsService {
    */
   async requestReview(
     input: { caseId: string; clientId: string; attorneyId: string },
-    tx?: Prisma.TransactionClient,
+    tx?: DbTx,
   ): Promise<void> {
     await this.notifications.emit(
       {
@@ -1169,7 +1167,7 @@ export class ReviewsService {
 /** The review's latest admin action (moderation or content screen, both
  * audited) left it `removed` — the author's own delete is not audited. */
 export async function removedByModeration(
-  tx: Prisma.TransactionClient | PrismaService,
+  tx: DbTx | PrismaService,
   reviewId: string,
   targetType: 'review' | 'client_review' = 'review',
 ): Promise<boolean> {
@@ -1181,7 +1179,7 @@ export async function removedByModeration(
  * Verify 17.11: `hidden` means a moderator hid it — rewriting it after the
  * author's own delete goes back to the moderators hidden. */
 export async function lastModeration(
-  tx: Prisma.TransactionClient | PrismaService,
+  tx: DbTx | PrismaService,
   reviewId: string,
   targetType: 'review' | 'client_review' = 'review',
 ): Promise<string | null> {

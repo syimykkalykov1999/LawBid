@@ -1,6 +1,7 @@
 import { Prisma } from '../../generated/prisma/client';
 import type { PrismaService } from '../../prisma/prisma.service';
 import { readsAreSplit } from '../../sharding/split-reads';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /**
  * Owner 2026-10-25 (privacy round 13, S13-6): ONE answer to "is this held?"
@@ -31,7 +32,7 @@ export interface HoldTarget {
 
 /** The only thing a hold check needs from the database client. */
 export interface HoldReader {
-  legalHold: Pick<Prisma.LegalHoldDelegate, 'findFirst'>;
+  legalHold: Pick<DbTx['legalHold'], 'findFirst'>;
 }
 
 const inForce = (now: Date): Prisma.LegalHoldWhereInput => ({

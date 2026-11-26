@@ -1,5 +1,4 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
-import type { Prisma } from '../../generated/prisma/client';
 import { randomUUID } from 'node:crypto';
 import type Redis from 'ioredis';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
@@ -17,6 +16,7 @@ import type {
   DomainEventType,
   EventsSink,
 } from './domain-event.types';
+import type { DbTx } from '../../prisma/secret-columns';
 
 export const AUTO_SINK_KEY = 'events:sink:auto';
 const SINK_CACHE_MS = 15_000;
@@ -115,7 +115,7 @@ export class DomainEvents {
 
   /** Call inside the business transaction. Null when the sink is off. */
   async emit<T extends DomainEventType>(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     type: T,
     payload: DomainEventMap[T],
     opts: EmitOptions = {},

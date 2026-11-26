@@ -835,6 +835,8 @@ export class AdminAuthService {
     await this.limit(['admin-own-cred', actor.id], 10);
     const cred = await this.prisma.adminCredential.findUnique({
       where: { user_id: actor.id },
+      // S10 (#17): the current password is checked below.
+      omit: { password_hash: false },
     });
     if (cred?.password_hash) {
       const ok = await verifySecret(
@@ -1289,7 +1291,10 @@ export class AdminAuthService {
         status: true,
         deleted_at: true,
         admin_profile: { select: { admin_role: true } },
-        admin_credential: true,
+        // S10 (#17): step 2 checks the authenticator code or a recovery code.
+        admin_credential: {
+          omit: { totp_secret_enc: false, recovery_codes_hash: false },
+        },
       },
     });
     if (
@@ -1397,6 +1402,8 @@ export class AdminAuthService {
     }
     const cred = await this.prisma.adminCredential.findUnique({
       where: { user_id: adminId },
+      // S10 (#17): the step-up code is checked against the secret.
+      omit: { totp_secret_enc: false },
     });
     if (!cred?.totp_enabled_at) {
       // Unreachable through the guard (no session without an

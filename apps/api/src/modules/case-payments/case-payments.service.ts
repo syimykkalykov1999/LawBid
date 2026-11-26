@@ -93,6 +93,7 @@ import {
   parsePaymentSettings,
   quotePayment,
 } from './case-payments.settings';
+import type { DbTx } from '../../prisma/secret-columns';
 
 export const CASE_PAYMENT_CHECKOUT_KIND = 'case_payment';
 const PAGE = 30;
@@ -112,7 +113,7 @@ const DAY_MS = 86_400_000;
 export const EXPIRE_PAGE = 200;
 export const EXPIRE_MAX_CHECKS = 1000;
 
-type Db = Prisma.TransactionClient | PrismaService;
+type Db = DbTx | PrismaService;
 
 export interface Party extends CasePaymentPartyDto {
   email: string | null;
@@ -1822,10 +1823,7 @@ export class CasePaymentsService {
 
   /** `SELECT … FOR UPDATE` on the payment row, then its fresh values.
    * Every writer of `refunded_cents` (refund, webhook) takes it first. */
-  private async lockPayment(
-    tx: Prisma.TransactionClient,
-    id: string,
-  ): Promise<CasePayment | null> {
+  private async lockPayment(tx: DbTx, id: string): Promise<CasePayment | null> {
     await tx.$queryRaw`SELECT 1 FROM case_payments WHERE id = ${id}::uuid FOR UPDATE`;
     return tx.casePayment.findUnique({ where: { id } });
   }
@@ -1833,7 +1831,7 @@ export class CasePaymentsService {
   /** Refund rows that moved or are moving money (pending incl. a call to
    * Stripe still in flight, and succeeded). */
   private async liveRefundedCents(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     paymentId: string,
   ): Promise<number> {
     const sum = await tx.casePaymentRefund.aggregate({

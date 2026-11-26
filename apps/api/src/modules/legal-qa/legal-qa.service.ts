@@ -54,6 +54,7 @@ import {
 
 import { QaSnapshotService } from '../recommendations/qa-snapshot.service';
 import { qaActor } from './qa-actor';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const PAGE = 20;
 /** R-401: the attorney's recommended questions, one page, no cursor. */
@@ -1136,10 +1137,7 @@ export class LegalQaService {
   }
 
   /** Counts one more answer unless the question already has the maximum. */
-  private async takeSlot(
-    tx: Prisma.TransactionClient,
-    id: string,
-  ): Promise<void> {
+  private async takeSlot(tx: DbTx, id: string): Promise<void> {
     const r = await tx.legalQuestion.updateMany({
       where: { id, answer_count: { lt: MAX_ANSWERS } },
       data: { answer_count: { increment: 1 } },

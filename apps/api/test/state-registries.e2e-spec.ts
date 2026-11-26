@@ -292,6 +292,7 @@ describe('State bar registries (e2e, owner 2026-10-05)', () => {
     expect(JSON.stringify(saved.body)).not.toContain(API_KEY);
     const row = await prisma.stateBarRegistry.findUniqueOrThrow({
       where: { state_code: STATE },
+      select: { secret_enc: true },
     });
     expect(row.secret_enc).not.toContain(API_KEY);
 

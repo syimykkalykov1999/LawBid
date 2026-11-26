@@ -44,6 +44,7 @@ import {
   type ConsultationsQueryDto,
   type UpdateConsultationSettingsDto,
 } from './consultations.dto';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const PAGE = 20;
 const HOUR_MS = 3_600_000;
@@ -207,7 +208,7 @@ export class ConsultationsService {
    * reads took up to six more pool connections while it held its own. */
   private async settingsOf(
     attorneyId: string,
-    tx?: Prisma.TransactionClient,
+    tx?: DbTx,
   ): Promise<ConsultationSettingsDto> {
     const db = tx ?? this.prisma;
     const [row, windows, timeOff, user, profile, subscribed] =
@@ -340,7 +341,7 @@ export class ConsultationsService {
     to: string,
     now: Date,
     ignoreId: string | undefined,
-    db: Prisma.TransactionClient | PrismaService = this.prisma,
+    db: DbTx | PrismaService = this.prisma,
     extraBusy: { startsAt: Date; endsAt: Date }[] = [],
   ): Promise<Date[]> {
     const lo = new Date(`${from}T00:00:00Z`);
@@ -407,7 +408,7 @@ export class ConsultationsService {
 
   private async loadBookable(
     attorneyId: string,
-    db: Prisma.TransactionClient | PrismaService = this.prisma,
+    db: DbTx | PrismaService = this.prisma,
   ): Promise<BookableAttorney> {
     const s = await this.settingsOf(
       attorneyId,
@@ -564,7 +565,7 @@ export class ConsultationsService {
 
   /** The slot must be one the attorney offers right now (not just free). */
   private async assertSlotFree(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     a: BookableAttorney,
     startsAt: Date,
     now: Date,
@@ -591,7 +592,7 @@ export class ConsultationsService {
 
   /** The direct chat of the pair (created when new) and the booking line. */
   private async ensureChat(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     c: Consultation,
     confirmed: boolean,
   ): Promise<string> {
@@ -623,10 +624,7 @@ export class ConsultationsService {
   }
 
   /** A confirmed consultation opens calls in the pair's direct chat. */
-  private async unlockChat(
-    tx: Prisma.TransactionClient,
-    conversationId: string,
-  ): Promise<void> {
+  private async unlockChat(tx: DbTx, conversationId: string): Promise<void> {
     await tx.conversation.updateMany({
       where: { id: conversationId, status: { not: 'closed' } },
       data: { contacts_unlocked: true, request_status: 'accepted' },
@@ -911,7 +909,7 @@ export class ConsultationsService {
    * or cancelled booking cancels it (archive).
    */
   async syncMirrors(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     c: Consultation,
     names?: { attorneyName: string; clientName: string },
   ): Promise<void> {
@@ -1109,7 +1107,7 @@ export class ConsultationsService {
   }
 
   private async mineAs(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     id: string,
     userId: string,
     side: 'attorney' | 'client',
@@ -1125,7 +1123,7 @@ export class ConsultationsService {
   }
 
   private async mineAny(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     id: string,
     userId: string,
   ): Promise<Consultation> {

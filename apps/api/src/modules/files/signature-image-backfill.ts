@@ -1,6 +1,6 @@
-import type { PrismaClient } from '../../generated/prisma/client';
 import { storeSignatureImage } from './signature-image';
 import type { S3StorageService } from './storage/s3-storage.service';
+import type { SecretOmittingClient } from '../../prisma/secret-columns';
 
 /**
  * CONTENT_MEDIA_VERIFY 17.11 №7, step 1 backfill: copies the bytes of old
@@ -38,7 +38,7 @@ interface Row {
 export interface SignatureBackfillDeps {
   prisma: {
     caseSignature: Pick<
-      PrismaClient['caseSignature'],
+      SecretOmittingClient['caseSignature'],
       'findMany' | 'updateMany'
     >;
   };

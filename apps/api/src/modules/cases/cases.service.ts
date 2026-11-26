@@ -105,6 +105,7 @@ import {
   DomainEvents,
   type DomainEventTicket,
 } from '../events/domain-events.service';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** docs/04 §11.1 tab filters -> case_status values. */
 const FILTER_STATUSES: Record<MyCasesFilter, Prisma.CaseWhereInput['status']> =
@@ -1314,10 +1315,7 @@ export class CasesService {
   /** `case_alerts.realert_enabled` (algo audit 2026-10-27, CASES C-1). */
   /** Owner 2026-11-05: the case changed under active bids; they wait for the
    * attorney (`bids.confirmation_required`, off by default). */
-  private async askBidsToConfirm(
-    tx: Prisma.TransactionClient,
-    caseId: string,
-  ): Promise<void> {
+  private async askBidsToConfirm(tx: DbTx, caseId: string): Promise<void> {
     if (!(await this.settings?.boolean('bids.confirmation_required'))) return;
     await tx.bid.updateMany({
       where: { case_id: caseId, status: 'active' },
@@ -1338,7 +1336,7 @@ export class CasesService {
   /** Bumps `cases.alert_generation` inside the change's transaction, so
    * the new alert round has its own dedupe key and job id (M-2). */
   private async bumpAlertGeneration(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     caseId: string,
   ): Promise<boolean> {
     await tx.case.update({
@@ -1661,7 +1659,7 @@ export class CasesService {
 
   private async assertValidStateCodes(
     codes: string[],
-    db: Pick<Prisma.TransactionClient, 'state'> = this.prisma,
+    db: Pick<DbTx, 'state'> = this.prisma,
   ): Promise<void> {
     const rows = await db.state.findMany({
       where: { code: { in: codes }, is_active: true },

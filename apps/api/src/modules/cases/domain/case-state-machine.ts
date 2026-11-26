@@ -15,6 +15,7 @@ import {
 } from '../../../common/concurrency/optimistic-lock';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
 import { withDeleted } from '../../../prisma/soft-delete.extension';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 /**
  * docs/04_CASES_BIDS.md §10.1 — the case lifecycle. Every change of a
@@ -383,7 +384,7 @@ export class CaseStateMachine {
    * CASE_NOT_FOUND.
    */
   async apply(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     input: ApplyCaseActionInput,
   ): Promise<{ case: Case; plan: CaseTransitionPlan }> {
     const current = await tx.case.findUnique({

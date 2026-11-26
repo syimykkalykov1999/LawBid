@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { CrossFamilyOutbox } from '../../sharding/outbox/cross-family-outbox';
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { AUTO_HOLD_NOTE } from './auto-hold.service';
-import type { Prisma, ReportTargetType } from '../../generated/prisma/client';
+import type { ReportTargetType } from '../../generated/prisma/client';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { FilesService } from '../files/files.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -18,8 +18,9 @@ import { MessageBodyCipher } from '../../common/secrets/message-body-cipher';
 import { AutoModerationService } from './auto-moderation.service';
 import { ReporterReputationService } from './reporter-reputation.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import type { DbTx } from '../../prisma/secret-columns';
 
-export type Tx = Prisma.TransactionClient;
+export type Tx = DbTx;
 
 /** What a moderator (or the auto-hide rule) sees about a reported object. */
 export interface ModerationTarget {
