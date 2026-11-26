@@ -540,6 +540,16 @@ enum ErrorCode {
   roleSwitchNotAllowed('ROLE_SWITCH_NOT_ALLOWED'),
   @JsonValue('EMAIL_SEND_FAILED')
   emailSendFailed('EMAIL_SEND_FAILED'),
+  @JsonValue('E2EE_OFF')
+  e2eeOff('E2EE_OFF'),
+  @JsonValue('E2EE_REQUIRED')
+  e2eeRequired('E2EE_REQUIRED'),
+  @JsonValue('E2EE_EPOCH_CONFLICT')
+  e2eeEpochConflict('E2EE_EPOCH_CONFLICT'),
+  @JsonValue('E2EE_DEVICE_LIMIT')
+  e2eeDeviceLimit('E2EE_DEVICE_LIMIT'),
+  @JsonValue('E2EE_MEMBERSHIP_INVALID')
+  e2eeMembershipInvalid('E2EE_MEMBERSHIP_INVALID'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

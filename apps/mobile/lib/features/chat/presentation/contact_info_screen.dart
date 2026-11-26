@@ -20,6 +20,7 @@ import 'package:lawbid/features/chat/application/presence_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/disappearing.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_notice.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart';
 import 'package:lawbid/features/chat/presentation/chat_folders.dart';
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
@@ -436,6 +437,15 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
                   trailingText: disappearValue(t, c.disappearAfterS),
                   showChevron: false,
                   onTap: () => _disappearing(c),
+                ),
+              // Item 25 (WhatsApp «Шифрование»): the security code.
+              if (c.e2eeSince != null)
+                AppListRow(
+                  key: const ValueKey('contact-e2ee'),
+                  icon: AppIcons.lockOutlineRounded,
+                  label: t.t('chat.e2ee.encryption'),
+                  subtitle: t.t('chat.e2ee.encryptionHint'),
+                  onTap: () => openE2eeInfo(context, ref, c),
                 ),
               AppListRow(
                 key: const ValueKey('contact-calls-mute'),

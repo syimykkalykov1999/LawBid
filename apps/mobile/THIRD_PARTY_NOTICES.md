@@ -946,6 +946,40 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
+## ts-mls 1.6.4 with @hpke/core 1.9.0, @hpke/common, @noble/hashes 2.4.0, @noble/curves 2.0.1, @noble/ciphers 2.4.0 — MIT
+
+Item 25 (end-to-end encrypted chats on MLS, RFC 9420): the web app's MLS
+client. `web/vendor/ts-mls-1.6.4/ts-mls.min.js` is the npm package
+`ts-mls@1.6.4` (https://github.com/LukaJCB/ts-mls) and its dependencies
+bundled **unmodified** into one ES module by esbuild 0.28.2
+(`tool/web_mls/build.sh`, entry `tool/web_mls/entry.mjs`); sha256
+e2fdcabfb4e05195fa7f9735602240e221ef5c9802c924c13f19f3403a2982f4. Our own
+glue is `web/js/mls.js`. The phones use OpenMLS through the `openmls` pub
+package (MIT; Flutter adds its LICENSE to the app's licence list itself).
+
+ts-mls — Copyright (c) 2025 Luka Jacobowitz.
+@hpke/core, @hpke/common — Copyright (c) 2023–2024 Ajitomi Daisuke.
+@noble/hashes, @noble/curves, @noble/ciphers — Copyright (c) 2022–2023 Paul
+Miller (paulmillr.com).
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
 ## coi-serviceworker — MIT
 
 The mechanism of `web/coi_sw.js` (a service worker that serves the page's
