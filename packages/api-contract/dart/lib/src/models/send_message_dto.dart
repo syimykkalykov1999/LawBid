@@ -12,6 +12,9 @@ part 'send_message_dto.g.dart';
 class SendMessageDto {
   const SendMessageDto({
     required this.clientMessageId,
+    this.ciphertext,
+    this.mlsEpoch,
+    this.mlsDeviceId,
     this.giftId,
     this.contactUserId,
     this.postId,
@@ -33,6 +36,16 @@ class SendMessageDto {
   /// App-generated id (UUID), idempotency key.
   final String clientMessageId;
   final SendMessageType type;
+
+  /// Item 25 (E2EE, type=mls): base64 of the MLS PrivateMessage (an.
+  /// application message of the chat's group). The server stores only this.
+  final String? ciphertext;
+
+  /// Item 25 (type=mls): the group epoch the message was encrypted in.
+  final int? mlsEpoch;
+
+  /// Item 25 (type=mls): the sending MLS device (POST /e2ee/devices).
+  final String? mlsDeviceId;
 
   /// Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is.
   /// the optional note (≤200).

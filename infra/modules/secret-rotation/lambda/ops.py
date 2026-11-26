@@ -222,12 +222,19 @@ def reconcile_redis(state):
                     notify("Ротация токена Redis", f"{short}: старый токен пока не отключён — не все сервисы перезапущены с новым.")
                 continue
             token = kl.redis_url_token(secret_text(r["arn"]))
-            ec.modify_replication_group(
-                ReplicationGroupId=r["group"],
-                ApplyImmediately=True,
-                AuthToken=token,
-                AuthTokenUpdateStrategy="SET",  # only the new token stays valid
-            )
+            if r.get("user"):
+                # Item 29: Serverless Valkey user — keep only the new password.
+                ec.modify_user(
+                    UserId=r["user"],
+                    AuthenticationMode={"Type": "password", "Passwords": [token]},
+                )
+            else:
+                ec.modify_replication_group(
+                    ReplicationGroupId=r["group"],
+                    ApplyImmediately=True,
+                    AuthToken=token,
+                    AuthTokenUpdateStrategy="SET",  # only the new token stays valid
+                )
             st.pop("strict_at")
             st.pop("strict_wait_told", None)
             st["strict_done_at"] = now()

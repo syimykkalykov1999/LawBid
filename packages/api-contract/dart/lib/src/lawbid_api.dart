@@ -124,6 +124,7 @@ import 'clients/admin_client_badge_client.dart';
 import 'clients/realtime_client.dart';
 import 'clients/admin_realtime_client.dart';
 import 'clients/chat_client.dart';
+import 'clients/e2ee_client.dart';
 import 'clients/chat_saved_client.dart';
 import 'clients/quick_replies_client.dart';
 import 'clients/translations_client.dart';
@@ -283,6 +284,7 @@ class LawbidApi {
   RealtimeClient? _realtime;
   AdminRealtimeClient? _adminRealtime;
   ChatClient? _chat;
+  E2eeClient? _e2ee;
   ChatSavedClient? _chatSaved;
   QuickRepliesClient? _quickReplies;
   TranslationsClient? _translations;
@@ -656,6 +658,8 @@ class LawbidApi {
       _adminRealtime ??= AdminRealtimeClient(_dio, baseUrl: _baseUrl);
 
   ChatClient get chat => _chat ??= ChatClient(_dio, baseUrl: _baseUrl);
+
+  E2eeClient get e2ee => _e2ee ??= E2eeClient(_dio, baseUrl: _baseUrl);
 
   ChatSavedClient get chatSaved =>
       _chatSaved ??= ChatSavedClient(_dio, baseUrl: _baseUrl);

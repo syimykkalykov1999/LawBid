@@ -49,7 +49,10 @@ resource "aws_instance" "second" {
     on_demand    = false
     secret_param = aws_ssm_parameter.secret.name
     region       = data.aws_region.current.region
-    denied       = var.denied_peer_cidrs
+    denied       = local.denied_peer_ranges
+    user_quota   = var.turn_user_quota
+    max_lifetime = var.turn_max_allocate_lifetime
+    max_bps      = var.turn_max_bps
     quota        = local.quota
   })
   user_data_replace_on_change = true
