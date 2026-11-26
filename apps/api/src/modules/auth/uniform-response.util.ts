@@ -33,6 +33,15 @@ export async function timedSend<T>(work: () => Promise<T>): Promise<T> {
   }
 }
 
+/** O4 (STAGE2_SECURITY, ASVS V6.3.8): resolves at [deadline] (epoch ms),
+ * at once when it has passed — every answer of a route then takes the
+ * same minimum time, known account or not. */
+export async function waitUntil(deadline: number): Promise<void> {
+  const ms = deadline - Date.now();
+  if (ms <= 0) return;
+  await new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
 /** Test hook. */
 export function resetSendLatency(): void {
   averageSendMs = null;

@@ -603,6 +603,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'off | on | auto (default). Load shedding by priority: background first, then prefetch / suggestions, then normal requests; sign-in, payments, calls and sending a message last. on = the fixed thresholds realtime.server.shed_*; auto = the same plus an adaptive concurrency limit (Netflix Gradient2) that sheds only above realtime.server.shed_cpu_start_pct.',
     pattern: /^(off|on|auto)$/,
   };
+  // G6 (25.11): websocket compression, Выкл / Вкл / Авто.
+  out['realtime.server.ws_compression_mode'] = {
+    ...out['realtime.server.ws_compression_mode'],
+    description:
+      'off | on | auto (default). Websocket permessage-deflate for frames of realtime.server.ws_compression_threshold_bytes and more. on = every new socket; auto = new sockets while this server holds fewer than realtime.server.ws_compression_auto_max_sockets compressed sockets. Applies to new sockets at once.',
+    pattern: /^(off|on|auto)$/,
+  };
   out['security.password_hash_concurrency'] = {
     ...out['security.password_hash_concurrency'],
     description:
@@ -619,6 +626,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['security.password_breach_timeout_ms'],
     min: 200,
     max: 10000,
+  };
+  out['security.phone_status_min_ms'] = {
+    ...out['security.phone_status_min_ms'],
+    description:
+      'The «is this number registered?» check answers after at least this many ms, registered or not, so its timing tells nothing (150; 0 = no floor).',
+    min: 0,
+    max: 2000,
   };
   out['realtime.max_sockets_per_user'] = {
     ...out['realtime.max_sockets_per_user'],

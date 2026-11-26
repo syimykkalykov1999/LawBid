@@ -96,6 +96,14 @@ void main() {
       ),
     );
     await tester.pump();
+    // Wait for the condition, not a fixed time (KNOWN_ERRORS 246): on a busy
+    // runner the visibility callback and the frame lookup land later.
+    for (var i = 0; i < 100 && frames.asked.isEmpty; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump();
+    }
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 20)),
     );

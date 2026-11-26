@@ -6,6 +6,10 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { DATABASE_READY_GRACE_MS } from '../src/modules/health/indicators/database.health';
+import {
+  HealthController,
+  READY_PROBE_CACHE_MS,
+} from '../src/modules/health/health.controller';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { BOOTSTRAP_CACHE_KEY } from '../src/modules/feature-flags/services/bootstrap.service';
@@ -48,18 +52,31 @@ describe('Security hardening (e2e)', () => {
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
+    // STAGE2_SECURITY #9 (#1334): the dependency detail needs X-Health-Token.
+    process.env.HEALTH_DETAIL_TOKEN = HEALTH_TOKEN;
     sigtermBefore = process.listeners('SIGTERM').length;
     app = await createApp();
     sigtermAfter = process.listeners('SIGTERM').length;
     prisma = app.get(PrismaService);
     redis = app.get<Redis>(REDIS_CLIENT);
+    // #1334 reuses one readiness probe for READY_PROBE_CACHE_MS; each check
+    // here moves the controller's clock past it so it sees the live state.
+    const health = app.get(HealthController);
+    health.now = () => Date.now() + probeShift;
   });
 
   afterAll(async () => {
     await app.close();
   });
 
+  const HEALTH_TOKEN = 'e2e-health-detail-token-0123456789';
+  let probeShift = 0;
   const api = () => request(app.getHttpServer());
+  const readyProbe = () => {
+    // Ten minutes per call: always past the cache, also after a mocked Date.now.
+    probeShift += Math.max(READY_PROBE_CACHE_MS + 1, 600_000);
+    return api().get('/health/ready');
+  };
 
   /** Really takes the shared Redis connection down (commands fail with
    * "Connection is closed"), then brings it back and waits until ready. */
@@ -79,7 +96,9 @@ describe('Security hardening (e2e)', () => {
   // -------------------------------------------------------------------
   describe('GET /health/ready', () => {
     it('is 200 with database and redis up', async () => {
-      const res = await api().get('/health/ready').expect(200);
+      const res = await readyProbe()
+        .set('x-health-token', HEALTH_TOKEN)
+        .expect(200);
       expect(res.body.data ?? res.body).toMatchObject({
         status: 'ok',
         info: { database: { status: 'up' }, redis: { status: 'up' } },
@@ -88,10 +107,10 @@ describe('Security hardening (e2e)', () => {
 
     it('is 503 while Redis is unreachable, and recovers when it is back', async () => {
       await withRedisDown(async () => {
-        const down = await api().get('/health/ready');
+        const down = await readyProbe();
         expect(down.status).toBe(503);
       });
-      await api().get('/health/ready').expect(200);
+      await readyProbe().expect(200);
     });
 
     it('is 503 while the database is unreachable', async () => {
@@ -105,7 +124,7 @@ describe('Security hardening (e2e)', () => {
         .spyOn(Date, 'now')
         .mockImplementation(() => realNow + DATABASE_READY_GRACE_MS + 1_000);
       try {
-        const down = await api().get('/health/ready');
+        const down = await readyProbe();
         expect(down.status).toBe(503);
         // Unauthenticated probe must not leak connection details.
         expect(JSON.stringify(down.body)).not.toContain('connection refused');
@@ -113,7 +132,7 @@ describe('Security hardening (e2e)', () => {
         clock.mockRestore();
         spy.mockRestore();
       }
-      await api().get('/health/ready').expect(200);
+      await readyProbe().expect(200);
     });
 
     it('live does not depend on Redis', async () => {

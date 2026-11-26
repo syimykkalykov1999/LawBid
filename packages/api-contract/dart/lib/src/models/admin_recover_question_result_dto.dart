@@ -8,13 +8,19 @@ part 'admin_recover_question_result_dto.g.dart';
 
 @JsonSerializable()
 class AdminRecoverQuestionResultDto {
-  const AdminRecoverQuestionResultDto({required this.question});
+  const AdminRecoverQuestionResultDto({
+    required this.question,
+    required this.ticket,
+  });
 
   factory AdminRecoverQuestionResultDto.fromJson(Map<String, Object?> json) =>
       _$AdminRecoverQuestionResultDtoFromJson(json);
 
-  /// The super admin’s own security question (a neutral text for any other login).
+  /// The super admin’s own security question, shown only after the second factor.
   final String question;
+
+  /// Single-use recovery ticket (10 minutes) for POST /admin/auth/recover/password.
+  final String ticket;
 
   Map<String, Object?> toJson() => _$AdminRecoverQuestionResultDtoToJson(this);
 }

@@ -1,0 +1,9 @@
+# terraform init -backend-config=backend.hcl   (copy this file, fill in)
+# A bucket IN THE DR REGION (us-west-2): the main state bucket lives in us-east-1.
+# The bootstrap replica bucket (state_replica_enabled) holds a copy of the prod
+# state there; the DR stack keeps its own state under its own key.
+bucket       = "lawbid-prod-tfstate-replica"
+key          = "dr/terraform.tfstate"
+region       = "us-west-2"
+use_lockfile = true
+encrypt      = true

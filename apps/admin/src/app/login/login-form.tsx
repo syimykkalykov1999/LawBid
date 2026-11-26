@@ -14,7 +14,7 @@ import { PASSKEY_CANCELLED_TEXT, passkeyCancelled, passkeysSupported, signWithPa
 type Step =
   | { kind: 'password' }
   | { kind: 'forgot-login' }
-  | { kind: 'forgot-answer'; login: string; question: string }
+  | { kind: 'forgot-answer'; login: string; question: string; ticket: string }
   | { kind: 'totp'; ticket: string; useRecovery: boolean; passkey: boolean }
   | { kind: 'setup'; ticket: string; secret: string | null; uri: string | null }
   | { kind: 'codes'; codes: string[] };
@@ -24,8 +24,9 @@ type Step =
  * authenticator app — for every admin. An admin without an authenticator
  * yet sets it up right here (QR + ten recovery codes) before the panel
  * opens. The old "code from the email" sign-in is gone. The super admin
- * can reset a forgotten password by answering the security question (the
- * authenticator is still asked afterwards). Owner 2026-10-22: an admin
+ * can reset a forgotten password by answering the security question —
+ * STAGE2_SECURITY O2 (25.11): only after the authenticator code (or a
+ * recovery code); the question is no longer shown for the bare login. Owner 2026-10-22: an admin
  * who added a passkey (Face ID / Touch ID / Windows Hello / hardware key)
  * can pass step 2 with it instead of the code.
  *
@@ -92,15 +93,21 @@ export function LoginForm() {
   const askQuestion = () =>
     run(async () => {
       const { data } = await publicApi.POST('/admin/auth/recover/question', {
-        body: { login: login.trim() },
+        body: { login: login.trim(), code: code.trim() },
       });
-      setStep({ kind: 'forgot-answer', login: login.trim(), question: data!.data.question });
+      setCode('');
+      setStep({
+        kind: 'forgot-answer',
+        login: login.trim(),
+        question: data!.data.question,
+        ticket: data!.data.ticket,
+      });
     });
 
-  const resetPassword = (loginName: string) =>
+  const resetPassword = (loginName: string, ticket: string) =>
     run(async () => {
       await publicApi.POST('/admin/auth/recover/password', {
-        body: { login: loginName, answer, newPassword },
+        body: { login: loginName, answer, newPassword, ticket },
       });
       setAnswer('');
       setNewPassword('');
@@ -300,8 +307,9 @@ export function LoginForm() {
         }}
       >
         <p className="text-sm text-muted">
-          Восстановление пароля — только для супер-админа: ответьте на секретный вопрос. Остальным админам пароль задаёт
-          супер-админ или тот, кому он дал право управлять админами.
+          Восстановление пароля — только для супер-админа: код из приложения-аутентификатора (или recovery-код), затем
+          ответ на секретный вопрос. Остальным админам пароль задаёт супер-админ или тот, кому он дал право управлять
+          админами.
         </p>
         <div className="space-y-1.5">
           <Label htmlFor="forgot-login">Логин</Label>
@@ -315,8 +323,20 @@ export function LoginForm() {
             onChange={(e) => setLogin(e.target.value)}
           />
         </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="forgot-code">Код из приложения или recovery-код</Label>
+          <Input
+            id="forgot-code"
+            autoComplete="one-time-code"
+            autoCapitalize="none"
+            spellCheck={false}
+            required
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+        </div>
         <ErrorNote text={error} />
-        <Button type="submit" className="w-full" disabled={busy || !login.trim()}>
+        <Button type="submit" className="w-full" disabled={busy || !login.trim() || code.trim().length < 6}>
           Показать вопрос
         </Button>
         <button
@@ -339,7 +359,7 @@ export function LoginForm() {
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
-          void resetPassword(step.login);
+          void resetPassword(step.login, step.ticket);
         }}
       >
         <div className="rounded-[var(--radius-md)] border border-line bg-surface-2 px-3.5 py-3">

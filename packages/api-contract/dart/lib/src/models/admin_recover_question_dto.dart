@@ -8,12 +8,15 @@ part 'admin_recover_question_dto.g.dart';
 
 @JsonSerializable()
 class AdminRecoverQuestionDto {
-  const AdminRecoverQuestionDto({required this.login});
+  const AdminRecoverQuestionDto({required this.login, this.code});
 
   factory AdminRecoverQuestionDto.fromJson(Map<String, Object?> json) =>
       _$AdminRecoverQuestionDtoFromJson(json);
 
   final String login;
+
+  /// The 6-digit authenticator code, or one recovery code (it is spent). Required by the server.
+  final String? code;
 
   Map<String, Object?> toJson() => _$AdminRecoverQuestionDtoToJson(this);
 }

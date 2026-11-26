@@ -12,6 +12,9 @@ const securityHeaders = [
   { key: 'Referrer-Policy', value: 'no-referrer' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
   { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
+  // ASVS 5.0 V3.4.8 (STAGE2_SECURITY #5): no other window keeps a handle on
+  // an admin page. The passkey prompt is the browser's own, not a popup.
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
 ];
 
 // No scripts at all; default-src 'self' keeps a proxied PDF viewable.

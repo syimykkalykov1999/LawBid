@@ -185,6 +185,15 @@ export const envSchema = z
       .min(0)
       .max(5000)
       .default(350),
+    // ASVS 5.0 V4.1.3 (STAGE2_SECURITY #8): the value our CDN puts in
+    // `X-LawBid-Edge` on its way to the API (CloudFront custom origin
+    // header). Only with it are the CDN's country headers believed
+    // (auth/request-country.util.ts). Unset = never believed. 16+ chars.
+    EDGE_ORIGIN_SECRET: z.string().min(16).optional(),
+    // ASVS 5.0 V13.4.5 (STAGE2_SECURITY #9): `X-Health-Token` that unlocks
+    // the per-dependency detail of GET /health/ready. Unset = public answer
+    // only ({ status, version }) for everyone. 24+ chars.
+    HEALTH_DETAIL_TOKEN: z.string().min(24).optional(),
 
     // --- Stage 1.4: OTP ---
     OTP_CODE_SECRET: z.string().min(32),
