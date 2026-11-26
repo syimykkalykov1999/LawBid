@@ -83,4 +83,24 @@ void main() {
     // A ring arriving after its stop does not ring for 45 s.
     expect(src, contains('if wasEndedByPush(callId)'));
   });
+
+  /// Third pass M14 (Apple PushKit, iOS 13+): no VoIP push finishes
+  /// without a reported call — not even when the CallKit plugin could not
+  /// be brought up. The fallback reports through the plugin's own class.
+  test('iOS: a VoIP push without the plugin still reports a call', () {
+    final src = File('ios/Runner/AppDelegate.swift').readAsStringSync();
+    final guardBlock = RegExp(
+      r'guard let callkit = callkitPlugin\(\) else \{([\s\S]*?)\n    \}',
+    ).firstMatch(src);
+    expect(guardBlock, isNotNull);
+    final body = guardBlock!.group(1)!;
+    expect(body, contains('SwiftFlutterCallkitIncomingPlugin('));
+    expect(body, contains('reportThrowaway(spare)'));
+    // completion() only inside the report's callback, never bare.
+    expect(
+      RegExp(r'^\s*completion\(\)\s*\n\s*return', multiLine: true)
+          .hasMatch(body),
+      isFalse,
+    );
+  });
 }
