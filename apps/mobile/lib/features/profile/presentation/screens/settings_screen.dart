@@ -11,6 +11,7 @@ import 'package:lawbid/features/auth/application/sign_out.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_backup_screen.dart';
 import 'package:lawbid/features/consultations/application/consultations_providers.dart';
 import 'package:lawbid/features/consultations/consultations_routes.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
@@ -408,6 +409,14 @@ class SettingsScreen extends ConsumerWidget {
             label: t.t('settings.storage.title'),
             subtitle: t.t('settings.storage.hint'),
             onTap: () => openSettingsRoute(context, AppRoutes.storage),
+          ),
+          // Item 25, PR 4 (WhatsApp «End-to-end encrypted backup»): the
+          // messages of encrypted chats, locked with the person's own key.
+          AppListRow(
+            key: const ValueKey('settings-e2ee-backup'),
+            icon: AppIcons.lockOutlineRounded,
+            label: t.t('chat.e2ee.backupTitle'),
+            onTap: () => openE2eeBackup(context),
           ),
         ],
       ),

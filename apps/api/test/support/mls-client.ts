@@ -1,4 +1,9 @@
-import { randomUUID } from 'node:crypto';
+import {
+  createCipheriv,
+  createHmac,
+  randomBytes,
+  randomUUID,
+} from 'node:crypto';
 import {
   acceptAll,
   createApplicationMessage,
@@ -316,6 +321,35 @@ export class MlsDeviceClient {
     });
   }
 
+  /** PR 4: the app's payload with a franking key `k` inside and the tag
+   * HMAC-SHA256(k, P) next to the ciphertext (Messenger's franking). */
+  async sendFranked(
+    conversationId: string,
+    payload: Record<string, unknown>,
+    extra: { fileId?: string } = {},
+  ): Promise<{
+    res: { status: number; body: { data?: unknown; error?: unknown } };
+    plaintext: string;
+  }> {
+    const k = randomBytes(32);
+    const plaintext = JSON.stringify({ v: 1, ...payload, k: b64(k) });
+    const tag = createHmac('sha256', k).update(plaintext).digest();
+    const { ciphertext, epoch } = await this.encrypt(conversationId, plaintext);
+    const res = await this.http.post(
+      `/api/v1/conversations/${conversationId}/messages`,
+      {
+        clientMessageId: randomUUID(),
+        type: 'mls',
+        ciphertext,
+        mlsEpoch: epoch,
+        mlsDeviceId: this.deviceId,
+        frankingTag: b64(tag),
+        ...(extra.fileId ? { fileId: extra.fileId } : {}),
+      },
+    );
+    return { res, plaintext };
+  }
+
   async decrypt(conversationId: string, ciphertext: string): Promise<string> {
     const s = await cs();
     const state = this.groups.get(conversationId)!;
@@ -343,4 +377,27 @@ function leafOf(state: ClientState, deviceId: string): number {
     }
   }
   throw new Error(`device ${deviceId} is not in my tree`);
+}
+
+/** PR 4: a file encrypted the way the app does it (format of
+ * src/modules/chat/e2ee/e2ee-file.ts): "LBE1", a 7-byte nonce prefix,
+ * then AES-256-GCM segments of 64 KiB. */
+export function encryptE2eeFile(plain: Buffer, key: Buffer): Buffer {
+  const prefix = randomBytes(7);
+  const parts: Buffer[] = [Buffer.from('LBE1', 'latin1'), prefix];
+  const seg = 64 * 1024;
+  const count = Math.max(1, Math.ceil(plain.length / seg));
+  for (let i = 0; i < count; i++) {
+    const nonce = Buffer.alloc(12);
+    prefix.copy(nonce, 0);
+    nonce.writeUInt32BE(i, 7);
+    nonce[11] = i === count - 1 ? 1 : 0;
+    const c = createCipheriv('aes-256-gcm', key, nonce);
+    parts.push(
+      c.update(plain.subarray(i * seg, (i + 1) * seg)),
+      c.final(),
+      c.getAuthTag(),
+    );
+  }
+  return Buffer.concat(parts);
 }

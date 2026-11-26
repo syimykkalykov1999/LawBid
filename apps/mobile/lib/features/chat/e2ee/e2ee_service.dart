@@ -2,9 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
+import 'package:cryptography/cryptography.dart' show Hkdf, SecretKey;
+import 'package:cryptography/cryptography.dart' as cg show Hmac;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, debugPrint, defaultTargetPlatform, kIsWeb;
+import 'package:lawbid/features/chat/e2ee/e2ee_file.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_media.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_payload.dart';
 import 'package:lawbid/features/chat/e2ee/mls_engine.dart';
 import 'package:lawbid/features/chat/e2ee/safety_number.dart';
@@ -15,17 +20,28 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 abstract class E2eePlaintextStore {
   Future<String?> get(String id);
   Future<void> put(String id, String conversationId, String payload);
+
+  /// Every row of the account (the backup): id → (conversation, payload).
+  Future<Map<String, (String, String)>> all();
 }
 
 class MemoryE2eePlaintextStore implements E2eePlaintextStore {
   final Map<String, String> rows = {};
+  final Map<String, String> chats = {};
 
   @override
   Future<String?> get(String id) async => rows[id];
 
   @override
-  Future<void> put(String id, String conversationId, String payload) async =>
-      rows[id] = payload;
+  Future<void> put(String id, String conversationId, String payload) async {
+    rows[id] = payload;
+    chats[id] = conversationId;
+  }
+
+  @override
+  Future<Map<String, (String, String)>> all() async => {
+        for (final e in rows.entries) e.key: (chats[e.key] ?? '', e.value),
+      };
 }
 
 /// The chat is end-to-end encrypted but this device cannot write yet (its
@@ -58,8 +74,17 @@ class E2eeService {
     required this.plaintexts,
     required Future<MlsEngine> Function(String userId) openEngine,
     api.MlsDevicePlatform? platform,
+    this.upload,
+    this.download,
   })  : _openEngine = openEngine,
         _platform = platform ?? _platformNow();
+
+  /// PR 4: puts encrypted bytes into storage as `purpose`; the file id.
+  final Future<String> Function(Uint8List bytes, api.FilePurpose purpose)?
+      upload;
+
+  /// PR 4: the bytes behind a short link (an encrypted file / backup).
+  final Future<Uint8List> Function(String url)? download;
 
   final api.E2eeClient client;
   final String ownerId;
@@ -324,8 +349,9 @@ class E2eeService {
   Future<api.SendMessageDto?> seal(
     String conversationId,
     String clientMessageId,
-    E2eePayload payload,
-  ) =>
+    E2eePayload payload, {
+    String? fileId,
+  }) =>
       _serial(conversationId, () async {
         // Pending = every member can read encrypted: this send starts it.
         final now = await state(conversationId);
@@ -336,17 +362,36 @@ class E2eeService {
         final s = await state(conversationId);
         final gid = base64Decode(s.groupId!);
         final epoch = await e.epoch(gid);
-        final ct = await e.encrypt(gid, payload.encode());
-        final json = jsonEncode(payload.toJson());
-        // My own message cannot be decrypted by me: kept now.
-        await plaintexts.put('c:$clientMessageId', conversationId, json);
-        _memory['c:$clientMessageId'] = payload;
+        // Message franking (Messenger): a fresh key k inside the plaintext
+        // P, and HMAC-SHA256(k, P) next to the ciphertext, so a report of
+        // this message can be checked and not forged.
+        final k = E2eeFile.newKey();
+        final franked = E2eePayload(
+          kind: payload.kind,
+          body: payload.body,
+          replyToId: payload.replyToId,
+          forwarded: payload.forwarded,
+          extra: {...payload.extra, 'k': base64Encode(k)},
+        );
+        final plain = franked.encode();
+        final tag = Hmac(sha256, k).convert(plain).bytes;
+        final ct = await e.encrypt(gid, plain);
+        // My own message cannot be decrypted by me: kept now, byte for byte
+        // (a report hands exactly these bytes over).
+        await plaintexts.put(
+          'c:$clientMessageId',
+          conversationId,
+          utf8.decode(plain),
+        );
+        _memory['c:$clientMessageId'] = franked;
         return api.SendMessageDto(
           clientMessageId: clientMessageId,
           type: api.SendMessageType.mls,
           ciphertext: base64Encode(ct),
           mlsEpoch: epoch,
           mlsDeviceId: e.deviceId,
+          frankingTag: base64Encode(tag),
+          fileId: fileId,
           // Which message it answers is metadata the server already orders
           // by (the quoted text stays inside the encryption).
           replyToId: payload.replyToId,
@@ -358,7 +403,38 @@ class E2eeService {
   Future<api.MessageDto> open(api.MessageDto d) async {
     if (d.type != api.MessageDtoType.mls) return d;
     final payload = await _payloadOf(d);
+    // PR 4: a file is made readable on this device before the bubble shows.
+    final fileId = payload == null ? null : _registerFile(d, payload);
+    if (fileId != null) await E2eeMedia.prepare(fileId);
     return withPayload(d, payload);
+  }
+
+  /// Remembers the key, link and type of an encrypted file message; its
+  /// file id (null: not a file).
+  String? _registerFile(api.MessageDto d, E2eePayload p) {
+    final fk = p.extra['fk'];
+    if (p.kind != 'file' || fk is! String || d.blobUrl == null) return null;
+    final fileId = p.extra['fid'] as String? ?? d.id;
+    fileKeys[fileId] = base64Decode(fk);
+    _blobUrls[fileId] = d.blobUrl!;
+    _mimes[fileId] = p.extra['mime'] as String? ?? 'application/octet-stream';
+    return fileId;
+  }
+
+  static final Map<String, String> _blobUrls = {};
+  static final Map<String, String> _mimes = {};
+
+  /// What E2eeMedia reads: the decrypted bytes of [fileId] and their type.
+  static Future<E2eeMediaBytes?> mediaOf(
+    String fileId,
+    Future<Uint8List> Function(String url) download,
+  ) async {
+    final bytes = await fileBytes(fileId, _blobUrls[fileId], download);
+    if (bytes == null) return null;
+    return (
+      bytes: bytes,
+      mime: _mimes[fileId] ?? 'application/octet-stream',
+    );
   }
 
   Future<List<api.MessageDto>> openAll(List<api.MessageDto> ds) async {
@@ -403,7 +479,8 @@ class E2eeService {
         final plain = await e.decrypt(gid, base64Decode(d.ciphertext!));
         if (plain == null) return null;
         final p = E2eePayload.decode(plain);
-        await plaintexts.put(d.id, d.conversationId, jsonEncode(p.toJson()));
+        // Byte for byte: a report hands exactly what was decrypted.
+        await plaintexts.put(d.id, d.conversationId, utf8.decode(plain));
         _memory[d.id] = p;
         return p;
       } on Object catch (x) {
@@ -420,6 +497,41 @@ class E2eeService {
       ..['type'] = 'text'
       ..['ciphertext'] = null
       ..['body'] = p?.body ?? '';
+    // PR 4: an encrypted file — the bubble of a photo / document / voice
+    // note over the ciphertext link; the key stays on the device.
+    final fileId = p == null ? null : _registerFile(d, p);
+    if (p != null && fileId != null) {
+      final mime = _mimes[fileId]!;
+      // The local address of the decrypted bytes (null until readable).
+      final local = E2eeMedia.urlOf(fileId);
+      final voiceMs = (p.extra['ms'] as num?)?.toInt();
+      if (voiceMs != null) {
+        j
+          ..['type'] = 'voice'
+          ..['voice'] = {
+            'url': local,
+            'durationMs': voiceMs,
+            'waveform': p.extra['wave'] ?? const <int>[],
+            'listened': false,
+          };
+      } else {
+        j
+          ..['type'] = 'attachment'
+          ..['attachment'] = {
+            'fileId': fileId,
+            'name': p.extra['name'] as String? ?? 'file',
+            'mime': mime,
+            'sizeBytes': p.extra['size'],
+            'isImage': mime.startsWith('image/'),
+            'url': local,
+            'previewUrl': null,
+            'width': p.extra['w'],
+            'height': p.extra['h'],
+            'blurhash': null,
+            'state': 'ready',
+          };
+      }
+    }
     if (p != null && p.forwarded) j['forwarded'] = true;
     // The quote of an encrypted message: its text from this device.
     final reply = j['replyTo'];
@@ -466,6 +578,209 @@ class E2eeService {
           otherKeys: theirs,
         );
       });
+
+  // ------------------------------------------------------------ files (PR 4)
+
+  /// Encrypts a chat file on the device and uploads only the ciphertext;
+  /// the payload of its message (key inside). Null when the chat is not
+  /// end-to-end encrypted (the file goes the normal, scanned way).
+  Future<({String fileId, E2eePayload payload})?> encryptFile(
+    String conversationId,
+    Uint8List bytes, {
+    required String name,
+    required String mime,
+    int? width,
+    int? height,
+    int? durationMs,
+    List<int>? waveform,
+    String? caption,
+    String? replyToId,
+  }) async {
+    if (upload == null) return null;
+    final s = await state(conversationId);
+    if (s.state == api.ConversationE2eeState.off) return null;
+    final key = E2eeFile.newKey();
+    final blob = await E2eeFile.encrypt(bytes, key);
+    final fileId = await upload!(blob, api.FilePurpose.chatE2ee);
+    fileKeys[fileId] = key;
+    _fileCache[fileId] = bytes;
+    _mimes[fileId] = mime;
+    return (
+      fileId: fileId,
+      payload: E2eePayload(
+        kind: 'file',
+        body: caption ?? '',
+        replyToId: replyToId,
+        extra: {
+          'fid': fileId,
+          'fk': base64Encode(key),
+          'name': name,
+          'mime': mime,
+          'size': bytes.length,
+          'sha': sha256.convert(blob).toString(),
+          if (width != null) 'w': width,
+          if (height != null) 'h': height,
+          if (durationMs != null) 'ms': durationMs,
+          if (waveform != null) 'wave': waveform,
+        },
+      ),
+    );
+  }
+
+  // ------------------------------------------------------- report (PR 4)
+
+  /// WhatsApp «Пожаловаться»: this phone hands over the reported person's
+  /// last messages it decrypted ([messageIds], newest last; at most the
+  /// server's chat.e2ee_report_messages), byte for byte, so the server can
+  /// check each against its franking tag. The number checked as genuine.
+  Future<int> report(
+    String conversationId,
+    String reportedUserId,
+    String reason,
+    List<String> messageIds, {
+    String? note,
+    int max = 5,
+  }) async {
+    final picked = <api.E2eeReportedMessageDto>[];
+    for (final id in messageIds.reversed) {
+      if (picked.length >= max) break;
+      final raw = await plaintexts.get(id);
+      if (raw == null) continue;
+      picked.add(
+        api.E2eeReportedMessageDto(
+          messageId: id,
+          plaintext: base64Encode(utf8.encode(raw)),
+        ),
+      );
+    }
+    final api.E2eeReportResultDto r;
+    try {
+      r = (await client.reportInE2eeChat(
+        id: conversationId,
+        body: api.E2eeReportDto(
+          reportedUserId: reportedUserId,
+          reason: api.E2eeReportReason.values.firstWhere(
+            (v) => v.json == reason,
+            orElse: () => api.E2eeReportReason.other,
+          ),
+          note: note,
+          messages: picked.reversed.toList(),
+        ),
+      ))
+          .data;
+    } on DioException catch (e) {
+      // The admin lowered chat.e2ee_report_messages: the newest that fit.
+      final data = e.response?.data;
+      final error = data is Map ? data['error'] : null;
+      final details = error is Map ? error['details'] : null;
+      final allowed = details is Map ? details['max'] : null;
+      if (allowed is num && allowed.toInt() < picked.length) {
+        return report(
+          conversationId,
+          reportedUserId,
+          reason,
+          messageIds,
+          note: note,
+          max: allowed.toInt(),
+        );
+      }
+      rethrow;
+    }
+    return r.verified.toInt();
+  }
+
+  // ------------------------------------------------------- backup (PR 4)
+
+  /// The 64-digit recovery code's key (HKDF-SHA256; the code has ~212 bits).
+  static Future<Uint8List> backupKey(String code) async {
+    final k = await Hkdf(hmac: cg.Hmac.sha256(), outputLength: 32).deriveKey(
+      secretKey: SecretKey(utf8.encode(code.replaceAll(RegExp(r'\D'), ''))),
+      nonce: utf8.encode('lawbid-e2ee-backup-v1'),
+    );
+    return Uint8List.fromList(await k.extractBytes());
+  }
+
+  /// A new 64-digit recovery code (WhatsApp: shown once, kept by the person).
+  static String newBackupCode() {
+    final r = E2eeFile.newKey();
+    final digits = StringBuffer();
+    var i = 0;
+    while (digits.length < 64) {
+      final b = r[i % r.length] ^ (i * 31 & 0xff);
+      if (b < 250) digits.write(b % 10);
+      i++;
+      if (i % 32 == 0) r.setAll(0, E2eeFile.newKey());
+    }
+    return digits.toString();
+  }
+
+  /// Encrypts every decrypted message of this device with [code] and keeps
+  /// the file as the account's backup (a new one replaces the old).
+  Future<int> createBackup(String code) async {
+    if (upload == null) throw const E2eeNotReady('no_upload');
+    final rows = await plaintexts.all();
+    final json = jsonEncode({
+      'v': 1,
+      'rows': [
+        for (final e in rows.entries)
+          {'id': e.key, 'c': e.value.$1, 'p': e.value.$2},
+      ],
+    });
+    final blob = await E2eeFile.encrypt(
+      Uint8List.fromList(utf8.encode(json)),
+      await backupKey(code),
+    );
+    final fileId = await upload!(blob, api.FilePurpose.chatBackupE2ee);
+    await client.putE2eeBackup(body: api.E2eeBackupPutDto(fileId: fileId));
+    return rows.length;
+  }
+
+  /// Restores a backup made with [code] into this device's store; the
+  /// number of messages. A wrong code fails (the AES-GCM tag does not match).
+  Future<int> restoreBackup(String code) async {
+    if (download == null) throw const E2eeNotReady('no_download');
+    final b = (await client.getE2eeBackup()).data;
+    if (b.url == null) throw const E2eeNotReady('no_backup');
+    final plain = await E2eeFile.decrypt(
+      await download!(b.url!),
+      await backupKey(code),
+    );
+    final data = jsonDecode(utf8.decode(plain)) as Map<String, dynamic>;
+    var n = 0;
+    for (final r in data['rows'] as List) {
+      final m = r as Map<String, dynamic>;
+      await plaintexts.put(
+        m['id'] as String,
+        m['c'] as String,
+        m['p'] as String,
+      );
+      n++;
+    }
+    _memory.clear();
+    return n;
+  }
+
+  /// PR 4: keys of the encrypted files this device opened (fileId → key);
+  /// the bubbles decrypt the ciphertext with them.
+  static final Map<String, Uint8List> fileKeys = {};
+
+  /// The decrypted bytes of an encrypted chat file (memory-cached).
+  static Future<Uint8List?> fileBytes(
+    String fileId,
+    String? url,
+    Future<Uint8List> Function(String url) download,
+  ) async {
+    final hit = _fileCache[fileId];
+    if (hit != null) return hit;
+    final key = fileKeys[fileId];
+    if (key == null || url == null) return null;
+    final plain = await E2eeFile.decrypt(await download(url), key);
+    _fileCache[fileId] = plain;
+    if (_fileCache.length > 40) _fileCache.remove(_fileCache.keys.first);
+    return plain;
+  }
+
+  static final Map<String, Uint8List> _fileCache = {};
 
   /// Messages this device could not open (shown as «waiting»).
   static final Set<String> _waiting = {};

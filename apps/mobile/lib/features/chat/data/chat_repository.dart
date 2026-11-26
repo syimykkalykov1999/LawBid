@@ -686,6 +686,25 @@ class ApiChatRepository implements ChatRepository {
     return _m((await _open([sent])).single);
   }
 
+  /// Item 25, PR 4: an end-to-end encrypted file message — the ciphertext
+  /// [fileId] is already in storage; the key, name and type go sealed in
+  /// [payload] (E2eeService.encryptFile).
+  Future<ChatMessage> sendSealedFile(
+    String id,
+    String clientMessageId,
+    E2eePayload payload, {
+    required String fileId,
+  }) async {
+    final sealed =
+        await e2ee?.seal(id, clientMessageId, payload, fileId: fileId);
+    if (sealed == null) throw const E2eeNotReady('off');
+    final sent = (await guardApiCall(
+      () => _chat.sendMessage(id: id, body: sealed),
+    ))
+        .data;
+    return _m((await _open([sent])).single);
+  }
+
   @override
   Future<ChatMessage> editMessage(
     String id,

@@ -11,6 +11,7 @@ import {
   IsUUID,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 /**
@@ -304,4 +305,92 @@ export class ConversationE2eeDto {
       'Devices still in the group that must be removed first (signed out, or their person left the chat). MLS messages are refused until a commit removes them.',
   })
   removeDevices!: string[];
+}
+
+// ------------------------------------------------------------------ PR 4
+
+export const E2EE_REPORT_REASONS = [
+  'spam',
+  'abuse',
+  'harassment',
+  'hate_speech',
+  'fraud',
+  'inappropriate',
+  'personal_info',
+  'other',
+] as const;
+
+export class E2eeReportedMessageDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all')
+  messageId!: string;
+
+  @ApiProperty({
+    description:
+      'Base64 of the message plaintext exactly as this device decrypted it (it holds the franking key `k`).',
+  })
+  @IsBase64()
+  @MaxLength(MLS_MESSAGE_MAX_B64)
+  plaintext!: string;
+}
+
+export class E2eeReportDto {
+  @ApiProperty({ format: 'uuid', description: 'The person reported.' })
+  @IsUUID('all')
+  reportedUserId!: string;
+
+  @ApiProperty({ enum: E2EE_REPORT_REASONS, enumName: 'E2eeReportReason' })
+  @IsIn(E2EE_REPORT_REASONS)
+  reason!: (typeof E2EE_REPORT_REASONS)[number];
+
+  @ApiPropertyOptional({ maxLength: 1000 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  note?: string;
+
+  @ApiProperty({
+    type: [E2eeReportedMessageDto],
+    description:
+      "The reported person's last messages (at most chat.e2ee_report_messages), as WhatsApp sends them.",
+  })
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => E2eeReportedMessageDto)
+  messages!: E2eeReportedMessageDto[];
+}
+
+export class E2eeReportResultDto {
+  @ApiProperty({ format: 'uuid' })
+  reportId!: string;
+
+  @ApiProperty({ description: 'Messages whose franking tag matched.' })
+  verified!: number;
+
+  @ApiProperty({ description: 'Messages handed over in all.' })
+  total!: number;
+}
+
+export class E2eeBackupPutDto {
+  @ApiProperty({
+    format: 'uuid',
+    description: 'A clean chat_backup_e2ee file of mine.',
+  })
+  @IsUUID('all')
+  fileId!: string;
+}
+
+export class E2eeBackupDto {
+  @ApiProperty({ format: 'uuid' })
+  fileId!: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  url!: string | null;
+
+  @ApiProperty()
+  sizeBytes!: number;
+
+  @ApiProperty({ type: Date })
+  updatedAt!: Date;
 }

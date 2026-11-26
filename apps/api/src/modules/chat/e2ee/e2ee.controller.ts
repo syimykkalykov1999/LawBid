@@ -26,7 +26,11 @@ import {
   ClaimKeyPackagesDto,
   ConversationE2eeDto,
   CreateMlsGroupDto,
+  E2eeBackupDto,
+  E2eeBackupPutDto,
   E2eeDeviceIdParamDto,
+  E2eeReportDto,
+  E2eeReportResultDto,
   KeyPackageCountDto,
   MlsCommitDto,
   MlsCommitRowDto,
@@ -191,6 +195,54 @@ export class E2eeController {
     @Body() dto: MlsCommitDto,
   ): Promise<MlsEpochDto> {
     return this.e2ee.commit(user, p.id, dto);
+  }
+
+  @Post('conversations/:id/reports')
+  @ApiOperation({
+    summary:
+      'Report a person of an encrypted chat with their last messages (WhatsApp)',
+  })
+  @ApiEnvelopeResponse(E2eeReportResultDto, { status: 201 })
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR, ErrorCode.E2EE_MEMBERSHIP_INVALID],
+    404: [ErrorCode.CONVERSATION_NOT_FOUND],
+  })
+  reportInE2eeChat(
+    @CurrentUser() user: RequestUser,
+    @Param() p: ConversationIdParamDto,
+    @Body() dto: E2eeReportDto,
+  ): Promise<E2eeReportResultDto> {
+    return this.e2ee.report(user, p.id, dto);
+  }
+
+  @Get('backup')
+  @ApiOperation({ summary: 'My encrypted chat backup' })
+  @ApiEnvelopeResponse(E2eeBackupDto)
+  @ApiErrors({ 404: [ErrorCode.NOT_FOUND] })
+  getE2eeBackup(@CurrentUser() user: RequestUser): Promise<E2eeBackupDto> {
+    return this.e2ee.backup(user);
+  }
+
+  @Post('backup')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Keep this encrypted file as my backup' })
+  @ApiEnvelopeResponse(E2eeBackupDto)
+  @ApiErrors({
+    400: [ErrorCode.VALIDATION_ERROR],
+    404: [ErrorCode.NOT_FOUND],
+  })
+  putE2eeBackup(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: E2eeBackupPutDto,
+  ): Promise<E2eeBackupDto> {
+    return this.e2ee.putBackup(user, dto.fileId);
+  }
+
+  @Delete('backup')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Delete my encrypted chat backup' })
+  deleteE2eeBackup(@CurrentUser() user: RequestUser): Promise<void> {
+    return this.e2ee.deleteBackup(user);
   }
 
   @Get('conversations/:id/commits')

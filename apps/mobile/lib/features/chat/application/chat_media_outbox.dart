@@ -11,6 +11,8 @@ import 'package:lawbid/features/chat/data/chat_media_seed.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_payload.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_service.dart';
 import 'package:lawbid/features/stickers/application/stickers_providers.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -55,9 +57,16 @@ class ChatMediaHandler extends UploadJobHandler {
 
   ChatRepository get _repo => _ref.read(chatRepositoryProvider);
 
+  /// Item 25, PR 4: the job's sealed payload once its file went up
+  /// encrypted (the key stays in the job on this device until it is sent).
+  static const e2eeKey = 'e2ee';
+
   @override
   Future<void> prepare(UploadJob job, UploadJobScope scope) async {
     if (kind == ChatMediaKind.sticker || job.fileId != null) return;
+    final repo = _repo;
+    final e2ee = repo is ApiChatRepository ? repo.e2ee : null;
+    if (e2ee != null && await _encrypted(e2ee, job, scope)) return;
     final String fileId;
     if (kind == ChatMediaKind.voice) {
       fileId = await uploadChatVoiceJob(job, scope);
@@ -67,11 +76,75 @@ class ChatMediaHandler extends UploadJobHandler {
     await scope.saveFileId(fileId);
   }
 
+  /// WhatsApp: in an end-to-end encrypted chat the phone encrypts the file
+  /// and uploads only ciphertext. False when the chat is not encrypted (the
+  /// file goes the normal, scanned way).
+  Future<bool> _encrypted(
+    E2eeService e2ee,
+    UploadJob job,
+    UploadJobScope scope,
+  ) async {
+    final bytes = await scope.bytes();
+    if (bytes == null) {
+      throw const ApiException(
+        code: UploadQueue.localFileMissing,
+        message: 'e2ee',
+      );
+    }
+    final p = job.payload;
+    final voice = kind == ChatMediaKind.voice;
+    final webm = voice && isWebmVoice(bytes);
+    final caption = p['caption'] as String?;
+    final r = await e2ee.encryptFile(
+      job.target,
+      bytes,
+      name: voice
+          ? (webm ? 'voice.webm' : 'voice.m4a')
+          : p['name'] as String? ?? 'file',
+      mime: voice
+          ? (webm ? 'audio/webm' : 'audio/mp4')
+          : job.mime ?? 'application/octet-stream',
+      width: (p['width'] as num?)?.toInt(),
+      height: (p['height'] as num?)?.toInt(),
+      durationMs: voice ? (p['durationMs'] as num?)?.toInt() ?? 0 : null,
+      waveform: voice
+          ? [
+              for (final v in (p['waveform'] as List?) ?? const [])
+                (v as num).toInt(),
+            ]
+          : null,
+      caption: caption == null || caption.isEmpty ? null : caption,
+      replyToId: p['replyToId'] as String?,
+    );
+    if (r == null) return false;
+    scope.reportProgress(1);
+    await scope.saveProgress({e2eeKey: r.payload.toJson()});
+    await scope.saveFileId(r.fileId);
+    return true;
+  }
+
   @override
   Future<void> commit(UploadJob job, UploadJobScope scope) async {
     final p = job.payload;
+    final sealed = job.progress[e2eeKey];
+    final repo = _repo;
     try {
       final ChatMessage sent;
+      if (sealed is Map && repo is ApiChatRepository) {
+        sent = await repo.sendSealedFile(
+          job.target,
+          job.id,
+          E2eePayload.fromJson(Map<String, dynamic>.from(sealed)),
+          fileId: job.fileId!,
+        );
+        if (kind == ChatMediaKind.voice) {
+          _sentIds[job.id] = sent.id;
+        } else {
+          unawaited(_ref.read(appSoundsProvider).messageOut());
+        }
+        _ref.read(outboxSenderProvider).announceSent(sent);
+        return;
+      }
       switch (kind) {
         case ChatMediaKind.voice:
           sent = await _repo.sendVoice(

@@ -312,6 +312,15 @@ export class SendMessageDto {
   @IsUUID('all')
   mlsDeviceId?: string;
 
+  /** Item 25 (type=mls, message franking): base64 of HMAC-SHA256(k, P)
+   * where P is the message's plaintext and k the 32-byte key inside it. A
+   * report reveals P; the server checks it against this tag. */
+  @ApiPropertyOptional({ maxLength: 64 })
+  @IsOptional()
+  @IsBase64()
+  @MaxLength(64)
+  frankingTag?: string;
+
   /** Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is
    * the optional note (≤200). */
   @ApiPropertyOptional({ format: 'uuid' })
@@ -741,6 +750,14 @@ export class MessageDto {
     description: 'Item 25 (type=mls): the group epoch of the message.',
   })
   mlsEpoch!: number | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      "Item 25 (type=mls with an encrypted file): a short link to the file's ciphertext (its key is inside the message).",
+  })
+  blobUrl!: string | null;
 
   /** Owner 2026-10-20: the gift of a gift message. */
   @ApiPropertyOptional({ type: () => GiftSendDto, nullable: true })

@@ -219,6 +219,7 @@ dependencies:
   wakelock_plus: 1.8.0
   cupertino_interactive_keyboard: ^1.0.0
   openmls: ^4.0.0
+  cryptography: 2.9.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

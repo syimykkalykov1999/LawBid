@@ -61,6 +61,8 @@ export const SWEEPS: Readonly<Record<string, readonly string[]>> = {
   // them, FK cascade) and their places in chat groups.
   MlsDevice: ['user_id'],
   MlsGroupDevice: ['user_id'],
+  // The person's encrypted backup pointer (the file goes with their files).
+  E2eeBackup: ['user_id'],
   SavedItem: ['user_id'],
   SavedChatMessage: ['user_id'],
   QuickReply: ['user_id'],
@@ -255,6 +257,8 @@ export const MODEL_POLICY: Readonly<Record<ErasurePolicy, readonly string[]>> =
       'OutreachActivity',
       'AttorneyTrust',
       'Report',
+      // Item 25: what an encrypted-chat report carried stays with the report.
+      'E2eeReportEvidence',
       'ModerationAppeal',
       'DmcaNotice',
       'CountryPartner',
