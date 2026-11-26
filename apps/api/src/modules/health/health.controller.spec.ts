@@ -6,6 +6,13 @@ import {
 } from './health.controller';
 
 /** S11-5 + ASVS 5.0 V13.4.5 (STAGE2_SECURITY #9). */
+
+/** A request with (or without) the X-Health-Token header. */
+const req = (token?: string) =>
+  ({
+    headers: token === undefined ? {} : { 'x-health-token': token },
+  }) as never;
+
 describe('HealthController', () => {
   const TOKEN = 'test-health-detail-token-0123456789';
   const detail = {
@@ -40,28 +47,30 @@ describe('HealthController', () => {
   });
 
   it('public ready: only status and version, no dependency names', async () => {
-    const r = await controller.ready(undefined);
+    const r = await controller.ready(req(undefined));
     expect(r).toEqual({ status: 'ok', version: 'abc1234' });
     expect(JSON.stringify(r)).not.toMatch(/database|redis/);
-    expect(await controller.ready('wrong-token')).toEqual({
+    expect(await controller.ready(req('wrong-token'))).toEqual({
       status: 'ok',
       version: 'abc1234',
     });
   });
 
   it('the health token unlocks the per-dependency detail', async () => {
-    const r = await controller.ready(TOKEN);
+    const r = await controller.ready(req(TOKEN));
     expect(r).toMatchObject({ version: 'abc1234', details: detail.details });
   });
 
   it('a flood reuses one probe for 2 s, then probes again', async () => {
-    await Promise.all(Array.from({ length: 50 }, () => controller.ready()));
+    await Promise.all(
+      Array.from({ length: 50 }, () => controller.ready(req())),
+    );
     expect(health.check).toHaveBeenCalledTimes(1);
     clock += READY_PROBE_CACHE_MS - 1;
-    await controller.ready();
+    await controller.ready(req());
     expect(health.check).toHaveBeenCalledTimes(1);
     clock += 2;
-    await controller.ready();
+    await controller.ready(req());
     expect(health.check).toHaveBeenCalledTimes(2);
   });
 
@@ -72,12 +81,14 @@ describe('HealthController', () => {
         error: { database: { status: 'down' } },
       }),
     );
-    const err = await controller.ready().catch((e: unknown) => e);
+    const err = await controller.ready(req()).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ServiceUnavailableException);
     const body = (err as ServiceUnavailableException).getResponse();
     expect(body).toEqual({ status: 'error', version: 'abc1234' });
     clock += READY_PROBE_CACHE_MS;
-    const withToken = await controller.ready(TOKEN).catch((e: unknown) => e);
+    const withToken = await controller
+      .ready(req(TOKEN))
+      .catch((e: unknown) => e);
     expect(
       JSON.stringify((withToken as ServiceUnavailableException).getResponse()),
     ).toContain('database');

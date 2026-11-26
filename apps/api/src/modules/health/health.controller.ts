@@ -1,11 +1,16 @@
 import {
   Controller,
   Get,
-  Headers,
+  Req,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
-import { HealthCheckService, type HealthCheckResult } from '@nestjs/terminus';
+import { ApiHeader, ApiTags } from '@nestjs/swagger';
+import {
+  HealthCheck,
+  HealthCheckService,
+  type HealthCheckResult,
+} from '@nestjs/terminus';
+import type { Request } from 'express';
 import { SkipThrottle } from '@nestjs/throttler';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { Public } from '../auth/decorators/public.decorator';
@@ -76,6 +81,9 @@ export class HealthController {
   @Public()
   @SkipVersionCheck()
   @Get('live')
+  // Terminus' own 200 / 503 response docs and Cache-Control: no-cache, as
+  // before (the API contract keeps its response shapes).
+  @HealthCheck()
   live() {
     return { status: 'ok', version: appVersion() };
   }
@@ -83,7 +91,19 @@ export class HealthController {
   @Public()
   @SkipVersionCheck()
   @Get('ready')
-  async ready(@Headers('x-health-token') token?: string) {
+  @HealthCheck()
+  // Review of #1334: the token is optional. `@Headers('x-health-token')`
+  // made the OpenAPI header required (a breaking change for every probe);
+  // it is read from the request and documented as optional.
+  @ApiHeader({
+    name: 'x-health-token',
+    required: false,
+    description:
+      'HEALTH_DETAIL_TOKEN: with it the answer lists the dependencies (database, redis) and their state.',
+  })
+  async ready(@Req() req: Request) {
+    const raw: unknown = req.headers['x-health-token'];
+    const token = typeof raw === 'string' ? raw : undefined;
     const probe = await this.probe();
     if (healthDetailAllowed(token)) {
       if (!probe.ok) {
