@@ -2668,6 +2668,10 @@ export const OWNER_ADDRESS_SETTINGS = {
 export const OWNER_SETTINGS_ROLLOUT_SETTINGS = {
   'settings.canary_percent': 10,
   'settings.watch_minutes': 5,
+  /** Review of #1332: an SLO alarm that was already open, or closed less
+   * than this many minutes before a change started, means an incident is
+   * going on: its next firing alerts on-call instead of reverting. */
+  'settings.incident_quiet_minutes': 30,
   'settings.canary_skip_prefixes': [
     'billing.',
     'payments.',

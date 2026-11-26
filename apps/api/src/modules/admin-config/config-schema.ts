@@ -1658,6 +1658,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Minutes a changed setting stays on the canary servers before it reaches everyone; an SLO fast-burn alarm in that time puts the old value back for everyone. 0 = every change applies at once (as before).',
     min: 0,
   };
+  out['settings.incident_quiet_minutes'] = {
+    ...out['settings.incident_quiet_minutes'],
+    description:
+      'Minutes before a change: if the same SLO alarm was open then, or closed less than this long before, an alarm during the watch is treated as the incident still going on — on-call gets an alert and the change is NOT reverted automatically. 0 = only an alarm open at the start counts.',
+    min: 0,
+    max: 1440,
+  };
   out['settings.canary_skip_prefixes'] = {
     ...out['settings.canary_skip_prefixes'],
     description:

@@ -23,6 +23,7 @@ import {
   Roles,
 } from '../admin-auth/admin-auth.decorators';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
+import { AdminConfigService } from './admin-config.service';
 
 const E = ErrorCode;
 
@@ -64,6 +65,7 @@ export class SettingsRolloutController {
   constructor(
     private readonly rollouts: ConfigRolloutService,
     private readonly auth: AdminAuthService,
+    private readonly config: AdminConfigService,
   ) {}
 
   @Get()
@@ -129,7 +131,7 @@ export class SettingsRolloutController {
   @ApiEnvelopeResponse(SettingsRevertResultDto)
   @ApiErrors({
     400: [E.VALIDATION_ERROR],
-    403: [E.ADMIN_STEP_UP_REQUIRED],
+    403: [E.ADMIN_STEP_UP_REQUIRED, E.FORBIDDEN],
     404: [E.NOT_FOUND],
     409: [E.STALE_VERSION],
   })
@@ -138,6 +140,14 @@ export class SettingsRolloutController {
     @Param('auditId', new ParseUUIDPipe()) auditId: string,
   ): Promise<SettingsRevertResultDto> {
     await this.auth.assertStepUp(admin.sessionId);
-    return this.rollouts.revertChange(admin.id, auditId, admin.ip ?? undefined);
+    // Review of #1332: the old values pass the same checks as a save.
+    return this.rollouts.revertChange(
+      admin.id,
+      auditId,
+      admin.ip ?? undefined,
+      async (key, value) => {
+        await this.config.assertWritable(admin, key, value);
+      },
+    );
   }
 }

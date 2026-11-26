@@ -19,8 +19,9 @@ import {
   ROLLOUT_AUDIT,
   ROLLOUTS_KEY,
   addRollout,
+  alarmKey,
   auditChange,
-  breachOf,
+  judgeAlarms,
   newRollout,
   parseRollouts,
   rolloutSettings,
@@ -41,7 +42,17 @@ export interface StagedChange {
 export interface WatchResult {
   promoted: string[];
   reverted: { id: string; alarm: string }[];
+  /** Review of #1332: an alarm fired during the watch, but the same alarm
+   * was already open (or just closed) before the change: an incident in
+   * progress. Nothing was reverted; on-call is told (the job). */
+  held: { id: string; alarm: string; keys: string[] }[];
 }
+
+/** A settings change that the admin's «Вернуть» puts back must pass the
+ * same checks as a normal save of that value (AdminConfigService
+ * assertWritable: owner-only keys + fresh 2FA, R2 / LiveKit / … keys,
+ * schema min / max). null = the key goes back to its default. */
+export type RevertCheck = (key: string, value: Json | null) => Promise<void>;
 
 /**
  * Б3: the rollout records of setting changes (config-rollout.ts has the
@@ -104,44 +115,99 @@ export class ConfigRolloutService {
     return parseRollouts(row?.value);
   }
 
-  /** The worker, every minute: revert on a fresh SLO alarm, else promote
-   * once the window is over. */
+  /** The worker, every minute: revert the change a fresh SLO alarm is
+   * blamed on (judgeAlarms: the newest change, never during an incident
+   * that was already going on), else promote once the window is over. */
   async watch(now = new Date()): Promise<WatchResult> {
-    const result: WatchResult = { promoted: [], reverted: [] };
+    const result: WatchResult = { promoted: [], reverted: [], held: [] };
     const list = await this.pending();
     if (list.length === 0) return result;
-    const earliest = new Date(
-      Math.min(...list.map((r) => Date.parse(r.startedAt))),
-    );
+    const row = await this.prisma.appConfig.findUnique({
+      where: { key: 'settings.incident_quiet_minutes' },
+    });
+    const quietMs =
+      rolloutSettings({ 'settings.incident_quiet_minutes': row?.value })
+        .incidentQuietMinutes * 60_000;
+    const earliest = Math.min(...list.map((r) => Date.parse(r.startedAt)));
+    const since = new Date(earliest - quietMs);
+    // Alarms that fired in a window, AND the ones open or recently closed
+    // before it (they tell an incident in progress from a new breach).
     const alarms = await this.prisma.systemIncident.findMany({
       where: {
         component: { startsWith: 'alarm:' },
-        opened_at: { gte: earliest },
+        OR: [
+          { opened_at: { gte: since } },
+          { closed_at: null },
+          { closed_at: { gte: since } },
+        ],
       },
       select: { component: true, opened_at: true, closed_at: true },
     });
+    const verdict = judgeAlarms(list, alarms, quietMs);
+    const revertedIds = new Set<string>();
+    for (const { rollout: r, alarm } of verdict.revert) {
+      if (await this.finish(r.id, 'revert', null, alarm.component)) {
+        revertedIds.add(r.id);
+        result.reverted.push({ id: r.id, alarm: alarm.component });
+        this.log.warn(
+          {
+            alert: 'settings_auto_revert',
+            rollout: r.id,
+            keys: r.keys,
+            alarm: alarm.component,
+          },
+          `setting change reverted: ${alarm.component} fired during its watch`,
+        );
+      }
+    }
+    for (const { rollout: r, alarm } of verdict.held) {
+      result.held.push({ id: r.id, alarm: alarm.component, keys: r.keys });
+      this.log.warn(
+        {
+          alert: 'settings_auto_revert_held',
+          rollout: r.id,
+          keys: r.keys,
+          alarm: alarm.component,
+          firing: alarmKey(alarm),
+        },
+        `setting change NOT reverted: ${alarm.component} was already firing before it (incident in progress)`,
+      );
+    }
+    await this.excuse(verdict.excuse, revertedIds);
     for (const r of list) {
-      const alarm = breachOf(r, alarms);
-      if (alarm) {
-        if (await this.finish(r.id, 'revert', null, alarm.component)) {
-          result.reverted.push({ id: r.id, alarm: alarm.component });
-          this.log.warn(
-            {
-              alert: 'settings_auto_revert',
-              rollout: r.id,
-              keys: r.keys,
-              alarm: alarm.component,
-            },
-            `setting change reverted: ${alarm.component} fired during its watch`,
-          );
-        }
-      } else if (Date.parse(r.watchUntil) <= now.getTime()) {
+      if (revertedIds.has(r.id)) continue;
+      if (Date.parse(r.watchUntil) <= now.getTime()) {
         if (await this.finish(r.id, 'promote', null, null)) {
           result.promoted.push(r.id);
         }
       }
     }
     return result;
+  }
+
+  /** Stores the alarm firings that no longer count for each rollout. */
+  private async excuse(
+    byId: Map<string, string[]>,
+    skip: Set<string>,
+  ): Promise<void> {
+    const ids = [...byId.keys()].filter((id) => !skip.has(id));
+    if (ids.length === 0) return;
+    await withTxRetry(this.prisma, async (tx) => {
+      const row = await tx.appConfig.findUnique({
+        where: { key: ROLLOUTS_KEY },
+      });
+      const list = parseRollouts(row?.value).map((r) =>
+        ids.includes(r.id)
+          ? {
+              ...r,
+              excused: [
+                ...new Set([...(r.excused ?? []), ...(byId.get(r.id) ?? [])]),
+              ],
+            }
+          : r,
+      );
+      await this.save(tx, list);
+    });
   }
 
   /** «Применить всем сейчас» (emergency, 2FA in the controller). */
@@ -173,7 +239,8 @@ export class ConfigRolloutService {
   async revertChange(
     adminId: string,
     auditId: string,
-    ip?: string,
+    ip: string | undefined,
+    check: RevertCheck,
   ): Promise<{ keys: string[] }> {
     const row = await this.prisma.auditLog.findUnique({
       where: { id: auditId },
@@ -198,6 +265,10 @@ export class ConfigRolloutService {
         message: 'This row is not a settings change that can be reverted.',
       });
     }
+    // Review of #1332: the old values go through the normal save checks
+    // (owner-only keys + fresh 2FA, required keys of R2 / LiveKit / …,
+    // min / max) before anything is written.
+    for (const k of keys) await check(k, change.before[k] ?? null);
     await withTxRetry(this.prisma, async (tx) => {
       const now = await tx.appConfig.findMany({
         where: { key: { in: [...keys, ROLLOUTS_KEY] } },

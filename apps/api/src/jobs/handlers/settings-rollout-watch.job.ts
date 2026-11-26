@@ -27,8 +27,33 @@ export class SettingsRolloutWatchJob {
 
   async run(now: Date = new Date()): Promise<WatchResult> {
     const result = await this.rollouts.watch(now);
-    if (result.reverted.length === 0) return result;
+    if (result.reverted.length === 0 && result.held.length === 0) {
+      return result;
+    }
     const people = (await this.incidents?.recipients()) ?? [];
+    // Review of #1332: an alarm during the watch while the same alarm was
+    // already firing before the change — nothing is undone automatically
+    // in the middle of an incident; on-call decides («Вернуть» in the
+    // admin, or wait for the window).
+    for (const h of result.held) {
+      for (const p of people) {
+        await this.push?.enqueueOpsAlert({
+          recipientId: p.userId,
+          title:
+            p.lang === 'ru'
+              ? 'Тревога во время проверки настроек'
+              : 'Alarm while a settings change is watched',
+          body:
+            p.lang === 'ru'
+              ? `Тревога ${h.alarm} уже была до изменения (${h.keys.join(', ')}), поэтому автоотката нет. Если виновато изменение — «Вернуть» в Настройки → Изменения под наблюдением.`
+              : `Alarm ${h.alarm} was already firing before the change (${h.keys.join(', ')}), so it was NOT reverted automatically. If the change is to blame, press «Вернуть» in Settings → Changes under watch.`,
+          incidentId: h.id,
+          event: 'settings_auto_revert_held',
+          seq: 0,
+          email: Boolean(p.email),
+        });
+      }
+    }
     for (const r of result.reverted) {
       for (const p of people) {
         await this.push?.enqueueOpsAlert({

@@ -3,6 +3,9 @@ import {
   addRollout,
   auditChange,
   breachOf,
+  expiredHoldIds,
+  judgeAlarms,
+  ROLLOUTS_KEY as ROLLOUTS_KEY_FOR_HOLDS,
   canaryView,
   controlView,
   inCanary,
@@ -184,6 +187,105 @@ describe('config rollout rules', () => {
         },
       ]),
     ).toBeNull();
+  });
+
+  describe('review #1332: who an alarm is blamed on', () => {
+    const at = (min: number) => new Date(t0.getTime() + min * 60_000);
+    const fired = (min: number, component = 'alarm:slo-login-fast') => ({
+      component,
+      opened_at: at(min),
+      closed_at: null,
+    });
+
+    it('only the NEWEST change before the alarm is reverted; the older one excuses it', () => {
+      const older = rollout({ id: 'old', startedAt: at(0).toISOString() });
+      const newer = rollout({ id: 'new', startedAt: at(3).toISOString() });
+      const v = judgeAlarms([older, newer], [fired(4)], 30 * 60_000);
+      expect(v.revert.map((x) => x.rollout.id)).toEqual(['new']);
+      expect(v.held).toEqual([]);
+      expect(v.excuse.get('old')).toEqual([
+        `alarm:slo-login-fast@${at(4).toISOString()}`,
+      ]);
+      // A change saved after the alarm is not blamed for it at all.
+      const later = rollout({ id: 'later', startedAt: at(5).toISOString() });
+      expect(
+        judgeAlarms([older, later], [fired(4)], 0).revert.map(
+          (x) => x.rollout.id,
+        ),
+      ).toEqual(['old']);
+    });
+
+    it('two saves within a minute share the blame', () => {
+      const a = rollout({ id: 'a', startedAt: at(0).toISOString() });
+      const b = rollout({ id: 'b', startedAt: at(0.5).toISOString() });
+      const v = judgeAlarms([a, b], [fired(2)], 0);
+      expect(v.revert.map((x) => x.rollout.id).sort()).toEqual(['a', 'b']);
+    });
+
+    it('the same alarm open at the start = incident in progress: held, not reverted', () => {
+      const r = rollout({ id: 'r', startedAt: at(0).toISOString() });
+      const open = {
+        component: 'alarm:slo-login-fast',
+        opened_at: at(-20),
+        closed_at: null,
+      };
+      // (a flap: a new row for the same alarm during the watch)
+      const v = judgeAlarms([r], [open, fired(2)], 30 * 60_000);
+      expect(v.revert).toEqual([]);
+      expect(v.held.map((x) => x.rollout.id)).toEqual(['r']);
+      expect(v.excuse.get('r')).toEqual([
+        `alarm:slo-login-fast@${at(2).toISOString()}`,
+      ]);
+    });
+
+    it('closed less than incident_quiet_minutes before = held; longer ago = revert', () => {
+      const r = rollout({ id: 'r', startedAt: at(0).toISOString() });
+      const closedRecently = {
+        component: 'alarm:slo-login-fast',
+        opened_at: at(-40),
+        closed_at: at(-10),
+      };
+      expect(
+        judgeAlarms([r], [closedRecently, fired(2)], 30 * 60_000).held,
+      ).toHaveLength(1);
+      expect(
+        judgeAlarms([r], [closedRecently, fired(2)], 5 * 60_000).revert,
+      ).toHaveLength(1);
+      // Another alarm's incident does not excuse this one.
+      expect(
+        judgeAlarms(
+          [r],
+          [{ ...closedRecently, component: 'alarm:slo-feed-fast' }, fired(2)],
+          30 * 60_000,
+        ).revert,
+      ).toHaveLength(1);
+    });
+
+    it('an excused firing never counts again', () => {
+      const key = `alarm:slo-login-fast@${at(2).toISOString()}`;
+      const r = rollout({ id: 'r', excused: [key] });
+      expect(judgeAlarms([r], [fired(2)], 0)).toEqual({
+        revert: [],
+        held: [],
+        excuse: new Map(),
+      });
+    });
+
+    it('incident_quiet_minutes: default 30, read from the admin', () => {
+      expect(settings.incidentQuietMinutes).toBe(30);
+      expect(
+        rolloutSettings({ 'settings.incident_quiet_minutes': 5 })
+          .incidentQuietMinutes,
+      ).toBe(5);
+    });
+  });
+
+  it('review #1332: an expired hold is reported once its window + grace is over', () => {
+    const r = rollout();
+    const config = { [ROLLOUTS_KEY_FOR_HOLDS]: [r] };
+    expect(expiredHoldIds(config, t0.getTime() + 60_000)).toEqual([]);
+    expect(expiredHoldIds(config, t0.getTime() + 16 * 60_000)).toEqual([r.id]);
+    expect(expiredHoldIds({}, t0.getTime())).toEqual([]);
   });
 
   it('reads both audit shapes of a settings save', () => {

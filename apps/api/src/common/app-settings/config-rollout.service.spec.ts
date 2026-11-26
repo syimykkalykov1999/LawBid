@@ -47,8 +47,21 @@ function store(initial: Record<string, unknown> = {}) {
   const tx = {
     appConfig,
     systemIncident: {
-      findMany: resolved(({ where }: { where: { opened_at: { gte: Date } } }) =>
-        incidents.filter((i) => i.opened_at >= where.opened_at.gte),
+      // Review of #1332: fired since, OR still open, OR closed since.
+      findMany: resolved(
+        ({
+          where,
+        }: {
+          where: { OR: [{ opened_at: { gte: Date } }, unknown, unknown] };
+        }) => {
+          const since = where.OR[0].opened_at.gte;
+          return incidents.filter(
+            (i) =>
+              i.opened_at >= since ||
+              i.closed_at === null ||
+              i.closed_at >= since,
+          );
+        },
       ),
     },
     auditLog: {
@@ -153,7 +166,7 @@ describe('ConfigRolloutService', () => {
       'feed.reco_scan_max': 900,
     });
     const mid = await s.service.watch(new Date(t0.getTime() + 2 * 60_000));
-    expect(mid).toEqual({ promoted: [], reverted: [] });
+    expect(mid).toEqual({ promoted: [], reverted: [], held: [] });
     const end = await s.service.watch(new Date(t0.getTime() + 5 * 60_000));
     expect(end.promoted).toHaveLength(1);
     expect(s.rows.get('feed.reco_scan_max')).toBe(900);
@@ -232,6 +245,90 @@ describe('ConfigRolloutService', () => {
     expect(s.audits.at(-1)).toMatchObject({ action: 'settings.revert' });
   });
 
+  const pass = () => Promise.resolve();
+
+  it('review #1332: an alarm already firing before the change = alert, NOT reverted', async () => {
+    const s = store({ 'feed.reco_scan_max': 600 });
+    // The incident began before the save and is still going on…
+    s.incidents.push({
+      component: 'alarm:slo-feed-fast',
+      opened_at: new Date(t0.getTime() - 20 * 60_000),
+      closed_at: new Date(t0.getTime() - 5 * 60_000),
+    });
+    await s.writer.write('admin-1', 'feed.settings', {
+      'feed.reco_scan_max': 900,
+    });
+    // …and fires again during the watch.
+    s.incidents.push({
+      component: 'alarm:slo-feed-fast',
+      opened_at: new Date(t0.getTime() + 2 * 60_000),
+      closed_at: null,
+    });
+    const res = await s.service.watch(new Date(t0.getTime() + 3 * 60_000));
+    expect(res.reverted).toEqual([]);
+    expect(res.held).toEqual([
+      {
+        id: expect.any(String),
+        alarm: 'alarm:slo-feed-fast',
+        keys: ['feed.reco_scan_max'],
+      },
+    ]);
+    expect(s.rows.get('feed.reco_scan_max')).toBe(900);
+    // Alerted once: the next minute does not alert again.
+    const again = await s.service.watch(new Date(t0.getTime() + 4 * 60_000));
+    expect(again.held).toEqual([]);
+  });
+
+  it('review #1332: two changes under watch, an alarm → only the newest is reverted', async () => {
+    const s = store({
+      'feed.reco_scan_max': 600,
+      'search.weight_priority': 1000,
+    });
+    await s.writer.write('admin-1', 'feed.settings', {
+      'feed.reco_scan_max': 900,
+    });
+    jest.setSystemTime(new Date(t0.getTime() + 2 * 60_000));
+    await s.writer.write('admin-1', 'search.settings', {
+      'search.weight_priority': 2000,
+    });
+    s.incidents.push({
+      component: 'alarm:slo-search-fast',
+      opened_at: new Date(t0.getTime() + 3 * 60_000),
+      closed_at: null,
+    });
+    const res = await s.service.watch(new Date(t0.getTime() + 4 * 60_000));
+    expect(res.reverted).toHaveLength(1);
+    expect(s.rows.get('search.weight_priority')).toBe(1000);
+    expect(s.rows.get('feed.reco_scan_max')).toBe(900);
+    const left = parseRollouts(s.rows.get(ROLLOUTS_KEY));
+    expect(left.map((r) => r.keys)).toEqual([['feed.reco_scan_max']]);
+    // The older change keeps watching; this firing no longer counts for it.
+    const later = await s.service.watch(new Date(t0.getTime() + 4.5 * 60_000));
+    expect(later.reverted).toEqual([]);
+  });
+
+  it('review #1332: «Вернуть» runs the normal save checks; a refused value writes nothing', async () => {
+    const s = store({ 'feed.reco_scan_max': 900, 'settings.watch_minutes': 0 });
+    s.auditRows.set('22222222-2222-2222-2222-222222222222', {
+      target_type: 'app_config',
+      before: { key: 'feed.reco_scan_max', value: 600 },
+      after: { key: 'feed.reco_scan_max', value: 900 },
+    });
+    const check = jest.fn(() =>
+      Promise.reject(new Error('Only the owner can change this setting.')),
+    );
+    await expect(
+      s.service.revertChange(
+        'admin-2',
+        '22222222-2222-2222-2222-222222222222',
+        undefined,
+        check,
+      ),
+    ).rejects.toThrow('Only the owner');
+    expect(check).toHaveBeenCalledWith('feed.reco_scan_max', 600);
+    expect(s.rows.get('feed.reco_scan_max')).toBe(900);
+  });
+
   it('«Вернуть» on an audit row: old value back; refused when changed again since', async () => {
     const s = store({ 'feed.reco_scan_max': 900, 'settings.watch_minutes': 0 });
     s.auditRows.set('11111111-1111-1111-1111-111111111111', {
@@ -240,7 +337,12 @@ describe('ConfigRolloutService', () => {
       after: { key: 'feed.reco_scan_max', value: 900 },
     });
     await expect(
-      s.service.revertChange('owner', '11111111-1111-1111-1111-111111111111'),
+      s.service.revertChange(
+        'owner',
+        '11111111-1111-1111-1111-111111111111',
+        undefined,
+        pass,
+      ),
     ).resolves.toEqual({ keys: ['feed.reco_scan_max'] });
     expect(s.rows.get('feed.reco_scan_max')).toBe(600);
     expect(s.audits.at(-1)).toMatchObject({
@@ -249,7 +351,12 @@ describe('ConfigRolloutService', () => {
     });
     // Now the value (600) is not what that row wrote (900): refused.
     await expect(
-      s.service.revertChange('owner', '11111111-1111-1111-1111-111111111111'),
+      s.service.revertChange(
+        'owner',
+        '11111111-1111-1111-1111-111111111111',
+        undefined,
+        pass,
+      ),
     ).rejects.toMatchObject({ status: 409 });
   });
 });

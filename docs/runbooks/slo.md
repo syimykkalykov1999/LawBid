@@ -82,6 +82,10 @@ A save of a setting (Настройки, or a section's own settings card) is wr
 
 - only `settings.canary_percent` % of the API tasks (default 10, at least one task) read the new value; the other API tasks, the workers and the app start answer (`/config/bootstrap`) read the old one;
 - for `settings.watch_minutes` (default 5) the worker job `settings.rollout-watch` (every minute) looks at the alarm rows above: an `alarm:slo-*-fast` or `alarm:availability-fast` that opened AFTER the save = the old value goes back for everyone (audit `settings.auto_revert`, push + e-mail to the on-call admins); one already open before the save does not count;
+- review of #1332: an alarm is blamed on the NEWEST change that started before it (plus changes saved within a minute of it), never on every change under watch; the older ones keep their window. If the same alarm was already open when that change started, or closed less than `settings.incident_quiet_minutes` (default 30) before it, an incident is going on: nothing is reverted automatically, the on-call admins get «Тревога во время проверки настроек» (log `settings_auto_revert_held`) and decide themselves;
+- a hold whose window plus 10 minutes ran out without the worker (missed promotion) drops every config cache once, so the app start answer gets the new value too;
+- the canary heartbeat runs only in the HTTP API process after it listens (`main.ts`), never in the worker, a CLI script or a test;
+- «Вернуть» in the audit log runs the same checks as a save of that value (owner-only keys with a fresh 2FA code, R2 / LiveKit / … keys, min / max).
 - no alarm until the window ends = everyone reads the new value (audit `settings.rollout_promoted`);
 - money, «Авто», calls, realtime and the `settings.*` keys themselves apply at once (`settings.canary_skip_prefixes`); `settings.watch_minutes = 0` = every change at once, as before.
 

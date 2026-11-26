@@ -21524,7 +21524,7 @@
             }
           },
           "403": {
-            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED",
+            "description": "Forbidden: ADMIN_STEP_UP_REQUIRED, FORBIDDEN",
             "content": {
               "application/json": {
                 "schema": {
