@@ -10,6 +10,7 @@ import type { RequestUser } from '../auth/decorators/current-user.decorator';
 import { REALTIME_NAMESPACE } from '../realtime/realtime-publisher.service';
 import { HotlineService } from './hotline.service';
 import { hotlineCounterRoom } from './hotline-sweeper.service';
+import { SOCKET_SERVER_OPTIONS } from '../../common/cors/socket-server-options';
 
 interface HotlineSocketData {
   user?: { sub?: string };
@@ -39,7 +40,12 @@ const MAX_WATCH = 10;
  *  - `hotline:watch` / `hotline:unwatch` — the counters rooms (only sockets
  *    on the hotline screen get counters).
  */
-@WebSocketGateway({ namespace: REALTIME_NAMESPACE })
+@WebSocketGateway({
+  namespace: REALTIME_NAMESPACE,
+  // One Socket.IO server for all namespaces: the same options on every
+  // gateway, whichever starts first (common/cors/socket-server-options.ts).
+  ...SOCKET_SERVER_OPTIONS,
+})
 export class HotlineGateway implements OnGatewayDisconnect {
   constructor(private readonly hotline: HotlineService) {}
 

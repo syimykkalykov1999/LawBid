@@ -6,7 +6,7 @@ Generated from `apps/api/prisma/schema.prisma` by
 GIN indexes, CHECKs and DB roles live in raw-SQL migrations and are not
 drawn here.
 
-320 tables.
+322 tables.
 
 ```mermaid
 erDiagram
@@ -109,6 +109,7 @@ erDiagram
     DateTime revoked_at "nullable"
     String revoked_reason "nullable"
     String replaced_by_session_id "nullable"
+    DateTime chain_started_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
@@ -975,6 +976,7 @@ erDiagram
     String forwarded_from_name "nullable"
     Bytes ciphertext "nullable"
     Int mls_epoch "nullable"
+    Bytes franking_tag "nullable"
     DateTime created_at
     DateTime updated_at
     Int shard_id
@@ -1024,6 +1026,24 @@ erDiagram
     Int joined_epoch
     DateTime created_at
     DateTime rejoin_at "nullable"
+  }
+  e2ee_backups {
+    String user_id PK,FK
+    String file_id
+    String key_id "nullable"
+    DateTime created_at
+    DateTime updated_at
+  }
+  e2ee_report_evidence {
+    String id PK
+    String report_id FK
+    String message_id
+    String conversation_id
+    String sender_id "nullable"
+    String body
+    Boolean verified
+    DateTime sent_at
+    DateTime created_at
   }
   mls_welcomes {
     String id PK
@@ -4205,6 +4225,8 @@ erDiagram
   messages }o--o| messages : "conversation_id, reply_to_id"
   mls_devices }o--|| users : "user_id"
   mls_key_packages }o--|| mls_devices : "device_id"
+  e2ee_backups |o--|| users : "user_id"
+  e2ee_report_evidence }o--|| reports : "report_id"
   message_hidden }o--|| messages : "conversation_id, message_id"
   message_reactions }o--|| messages : "conversation_id, message_id"
   message_edits }o--|| messages : "conversation_id, message_id"

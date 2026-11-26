@@ -171,6 +171,11 @@ jobs:
             APP_VERSION=${{ env.IMAGE_TAG }}
             WITH_FFMPEG=${{ vars.WITH_FFMPEG == '1' && '1' || '0' }}
           outputs: type=image,name=${{ env.ECR_REGISTRY }}/lawbid-api,push-by-digest=true,name-canonical=true,push=true
+          # ASVS 5.0 V15.1.2 (STAGE2_SECURITY #19): BuildKit's own SLSA provenance
+          # (every build parameter and source) and an SPDX SBOM, attached to the
+          # image index; imagetools create keeps them in the multi-arch list.
+          provenance: mode=max
+          sbom: true
           cache-from: type=gha,scope=api-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=api-${{ matrix.arch }},ignore-error=true
       - name: Build & push admin (linux/${{ matrix.arch }}, by digest)
@@ -182,6 +187,11 @@ jobs:
           file: apps/admin/Dockerfile
           platforms: linux/${{ matrix.arch }}
           outputs: type=image,name=${{ env.ECR_REGISTRY }}/lawbid-admin,push-by-digest=true,name-canonical=true,push=true
+          # ASVS 5.0 V15.1.2 (STAGE2_SECURITY #19): BuildKit's own SLSA provenance
+          # (every build parameter and source) and an SPDX SBOM, attached to the
+          # image index; imagetools create keeps them in the multi-arch list.
+          provenance: mode=max
+          sbom: true
           cache-from: type=gha,scope=admin-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=admin-${{ matrix.arch }},ignore-error=true
       - name: Save the digest
@@ -209,6 +219,12 @@ jobs:
     # always(): runs even when build-arch failed, so the guard step below turns
     # that into a FAILED `build` (a skipped `build` would let deploy-* go on).
     if: ${{ always() && vars.DEPLOY_ENABLED == 'true' && !inputs.image_tag && needs.gate.result == 'success' }}
+    # attestations: write = GitHub artifact attestations (#19); id-token for
+    # the AWS role and Sigstore, as before.
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: OIDC diagnostics (prints the token's sub, never the token)
@@ -330,6 +346,49 @@ jobs:
           set -eu
           cosign attest --yes --type spdxjson --predicate sbom-api.spdx.json "$ECR_REGISTRY/lawbid-api@$API_DIGEST"
           cosign attest --yes --type spdxjson --predicate sbom-admin.spdx.json "$ECR_REGISTRY/lawbid-admin@$ADMIN_DIGEST"
+      # ASVS 5.0 V15.1.2 (STAGE2_SECURITY #19): SLSA build provenance for the
+      # shipped digests (GitHub artifact attestations, Sigstore-signed with
+      # this workflow's identity). Check: `gh attestation verify
+      # oci://<registry>/lawbid-api@<digest> --repo <owner>/LawBid`.
+      - name: Build provenance api (GitHub attestation)
+        if: steps.have.outputs.exists != 'true'
+        continue-on-error: ${{ vars.SIGN_REQUIRED != 'true' }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.ECR_REGISTRY }}/lawbid-api
+          subject-digest: ${{ steps.build_api.outputs.digest }}
+          push-to-registry: false
+      - name: Build provenance admin (GitHub attestation)
+        if: steps.have.outputs.exists != 'true'
+        continue-on-error: ${{ vars.SIGN_REQUIRED != 'true' }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.ECR_REGISTRY }}/lawbid-admin
+          subject-digest: ${{ steps.build_admin.outputs.digest }}
+          push-to-registry: false
+      # The dependency trees as CycloneDX (Syft): every npm package of the
+      # API, admin and tools, and every pub package of the app. Kept as
+      # artifacts of this release run.
+      - name: SBOM npm dependencies (CycloneDX)
+        if: steps.have.outputs.exists != 'true'
+        continue-on-error: true
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          file: package-lock.json
+          format: cyclonedx-json
+          output-file: sbom-npm.cdx.json
+          artifact-name: sbom-npm.cdx.json
+          upload-release-assets: false
+      - name: SBOM app dependencies (CycloneDX)
+        if: steps.have.outputs.exists != 'true'
+        continue-on-error: true
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          file: apps/mobile/pubspec.lock
+          format: cyclonedx-json
+          output-file: sbom-pub.cdx.json
+          artifact-name: sbom-pub.cdx.json
+          upload-release-assets: false
 
   deploy-staging:
     name: Deploy staging
@@ -473,6 +532,15 @@ jobs:
           LAST=$(aws ssm get-parameter --name "/lawbid-prod/deploy/last_good_tag" --query Parameter.Value --output text 2>/dev/null || true)
           echo "LAST_GOOD_TAG=${LAST}" >> "$GITHUB_ENV"
           echo "running release: ${LAST:-unknown}"
+      # Б1 (25.11): error budget policy (docs/runbooks/error-budget-policy.md,
+      # SRE Workbook "Example Error Budget Policy"). An SLO that spent its
+      # 28-day budget (alarm <env>-slo-<flow>-budget-exhausted) lets only fixes,
+      # reverts, security changes and rollbacks through, before anything in prod
+      # changes. Owner override: repository variable BUDGET_GATE=off (warn = report only).
+      - name: Error budget gate (only fixes while an SLO budget is spent)
+        env:
+          BUDGET_GATE: ${{ vars.BUDGET_GATE || 'on' }}
+        run: scripts/deploy/budget-gate.sh lawbid-prod "$IMAGE_TAG"
       # S11-14: the real check: the database's newest restorable point (RDS
       # LatestRestorableTime) must be younger than 26 h. BACKUP_CHECK_STRICT=true
       # (repository variable) also fails when the role may not read it.
@@ -604,6 +672,16 @@ jobs:
           SYNTHETIC_IDENTIFIER: ${{ secrets.SYNTHETIC_IDENTIFIER }}
           SYNTHETIC_PASSWORD: ${{ secrets.SYNTHETIC_PASSWORD }}
         run: node scripts/ops/synthetic-check.mjs "${{ secrets.PROD_API_URL }}" --expect-version "$IMAGE_TAG"
+      # Б6: the website and the status page after every release. Only a
+      # report: a website fault is not this API release's fault, so it never
+      # rolls the API back (the step is not in the rollback condition below).
+      - name: Synthetic website (lawbid.dev + status page, report only)
+        continue-on-error: true
+        env:
+          SYNTHETIC_ONLY_WEB: "1"
+          SYNTHETIC_WEB_URL: ${{ vars.SYNTHETIC_WEB_URL || 'https://lawbid.dev' }}
+          SYNTHETIC_STATUS_URL: ${{ vars.SYNTHETIC_STATUS_URL || 'https://status.lawbid.dev' }}
+        run: node scripts/ops/synthetic-check.mjs "${{ secrets.PROD_API_URL }}"
       # Owner 15.11 («разреши "Авто" само применять обновления кода своих
       # функций без меня»): the autoscale Lambdas' source hash on main. The
       # API compares it with deploy/autoscale_code_applied (written by the

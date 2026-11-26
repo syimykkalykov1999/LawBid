@@ -1,8 +1,13 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_providers.dart';
 import 'package:lawbid/features/chat/e2ee/security_code_screen.dart';
+import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Item 25: the row of the thread where the notice goes — the first
@@ -87,4 +92,50 @@ void openE2eeInfo(BuildContext context, WidgetRef ref, Conversation c) {
       ),
     ),
   );
+}
+
+/// Item 25, PR 4 (WhatsApp «Пожаловаться» in an encrypted chat): the report
+/// carries [userId]'s last messages this phone decrypted, byte for byte;
+/// the server checks each against its franking tag. The error, null when
+/// sent.
+Future<Object?> reportE2eeChat(
+  WidgetRef ref,
+  String conversationId,
+  String userId,
+  ReportReason reason,
+) async {
+  final e2ee = ref.read(e2eeServiceProvider);
+  if (e2ee == null) {
+    return const ApiException(
+      code: ApiException.networkErrorCode,
+      message: 'e2ee',
+    );
+  }
+  final thread = ref.read(chatThreadProvider(conversationId));
+  // Newest first on screen; the report takes them oldest first.
+  final ids = [
+    for (final m in thread.messages)
+      if (m.senderId == userId) m.id,
+  ].reversed.toList();
+  final json = switch (reason) {
+    ReportReason.spam => 'spam',
+    ReportReason.abuse => 'abuse',
+    ReportReason.fraud => 'fraud',
+    ReportReason.inappropriate => 'inappropriate',
+    _ => 'other',
+  };
+  try {
+    await e2ee.report(
+      conversationId,
+      userId,
+      json,
+      ids,
+      note: json == 'other' ? reason.name : null,
+    );
+    return null;
+  } on DioException catch (e) {
+    return ApiException.fromDioException(e);
+  } on Object catch (e) {
+    return e;
+  }
 }

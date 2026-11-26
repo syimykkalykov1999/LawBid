@@ -170,8 +170,22 @@ export interface ModerationQueuePage {
   nextCursor: string | null;
 }
 
+/** Item 25: a message the reporter's phone handed over from an end-to-end
+ * encrypted chat; `verified` = its franking tag matched (not forged). */
+export class ModerationE2eeEvidenceDto {
+  @ApiProperty({ format: 'uuid' }) messageId!: string;
+  @ApiProperty() text!: string;
+  @ApiProperty() verified!: boolean;
+  @ApiProperty({ format: 'date-time' }) sentAt!: string;
+}
+
 export class ModerationReportDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
+  @ApiProperty({
+    type: [ModerationE2eeEvidenceDto],
+    description: 'Item 25: messages handed over from an encrypted chat.',
+  })
+  e2eeEvidence!: ModerationE2eeEvidenceDto[];
   @ApiProperty({ format: 'uuid' }) reporterId!: string;
   @ApiProperty() reason!: string;
   @ApiProperty({ type: String, nullable: true }) note!: string | null;

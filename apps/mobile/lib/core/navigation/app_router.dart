@@ -6,6 +6,7 @@ import 'package:lawbid/core/deeplinks/deep_link.dart';
 import 'package:lawbid/core/deeplinks/deep_link_routes.dart';
 import 'package:lawbid/core/diagnostics/app_events.dart';
 import 'package:lawbid/core/diagnostics/crash_reporter.dart';
+import 'package:lawbid/core/diagnostics/sentry_native.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/deferred_screen.dart';
@@ -163,7 +164,13 @@ GoRouter appRouter(Ref ref) {
     // goes through the splash like every start; DeepLinkController opens it
     // right after (and after sign-in).
     overridePlatformDefaultLocation: kIsWeb,
-    observers: [routeObserver, UnfocusOnNavigateObserver()],
+    // Б6 / G7: Sentry screen transactions (frames, time to display); none
+    // on the web or before tracing is on.
+    observers: [
+      routeObserver,
+      UnfocusOnNavigateObserver(),
+      ...SentryNative.navigatorObservers(),
+    ],
     refreshListenable: refresh,
     // Row 148: go_router 17's Material error page (see RouterErrorScreen).
     errorPageBuilder: (context, state) => AppPageTransitions.material(
@@ -215,7 +222,10 @@ GoRouter appRouter(Ref ref) {
         ),
         branches: [
           StatefulShellBranch(
-            observers: [UnfocusOnNavigateObserver()],
+            observers: [
+              UnfocusOnNavigateObserver(),
+              ...SentryNative.navigatorObservers(),
+            ],
             routes: [
               GoRoute(
                 path: AppRoutes.feed,
@@ -227,7 +237,10 @@ GoRouter appRouter(Ref ref) {
             ],
           ),
           StatefulShellBranch(
-            observers: [UnfocusOnNavigateObserver()],
+            observers: [
+              UnfocusOnNavigateObserver(),
+              ...SentryNative.navigatorObservers(),
+            ],
             routes: [
               GoRoute(
                 path: AppRoutes.search,
@@ -242,7 +255,10 @@ GoRouter appRouter(Ref ref) {
             ],
           ),
           StatefulShellBranch(
-            observers: [UnfocusOnNavigateObserver()],
+            observers: [
+              UnfocusOnNavigateObserver(),
+              ...SentryNative.navigatorObservers(),
+            ],
             routes: [
               GoRoute(
                 path: AppRoutes.mine,
@@ -252,7 +268,10 @@ GoRouter appRouter(Ref ref) {
             ],
           ),
           StatefulShellBranch(
-            observers: [UnfocusOnNavigateObserver()],
+            observers: [
+              UnfocusOnNavigateObserver(),
+              ...SentryNative.navigatorObservers(),
+            ],
             routes: [
               GoRoute(
                 path: AppRoutes.profile,

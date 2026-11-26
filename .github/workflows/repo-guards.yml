@@ -64,7 +64,7 @@ jobs:
 
       - name: Self-tests of the CI helper scripts
         run: |
-          node --test scripts/ci/flag-first-check.test.mjs scripts/ci/npm-audit-gate.test.mjs scripts/ci/rollout-guard.test.mjs scripts/ci/pgbouncer-switch-on.test.mjs scripts/infra/pooler-switch.test.mjs scripts/infra/plan-summary.test.mjs scripts/deploy/autoscale-code-hash.test.mjs scripts/deploy/bunny-stream-settings.test.mjs apps/api/prisma/verify-schema-runtime.test.mjs
+          node --test scripts/ci/flag-first-check.test.mjs scripts/ci/npm-audit-gate.test.mjs scripts/ci/rollout-guard.test.mjs scripts/ci/pgbouncer-switch-on.test.mjs scripts/infra/pooler-switch.test.mjs scripts/infra/plan-summary.test.mjs scripts/infra/prod-security-defaults.test.mjs scripts/deploy/autoscale-code-hash.test.mjs scripts/deploy/bunny-stream-settings.test.mjs apps/api/prisma/verify-schema-runtime.test.mjs
           bash scripts/ci/require-green.test.sh
           bash scripts/ci/require-secrets.test.sh
           bash scripts/ci/wait-earlier-prod-change.test.sh
@@ -72,6 +72,7 @@ jobs:
           bash scripts/deploy/run-migrations.test.sh
           bash scripts/infra/pooler-roll.test.sh
           bash scripts/deploy/roll-services.test.sh
+          bash scripts/deploy/budget-gate.test.sh
           bash scripts/deploy/i18n-needed.test.sh
           bash scripts/deploy/wait-data-stores-idle.test.sh
           bash scripts/deploy/web-font-base.test.sh
@@ -84,6 +85,8 @@ jobs:
           # Row 170: the engine folder, the compressed small files, the prune guard.
           python3 -m unittest discover -s scripts/deploy -p 'test_*.py'
           node scripts/deploy/web-boot-head.test.mjs
+          node scripts/deploy/web-vitals-beacon.test.mjs
+          node --test scripts/ops/synthetic-check.test.mjs
           # Pack F: the «Open in LawBid» offer (no Safari error, no Play link before Play).
           node scripts/deploy/web-open-app-bar.test.mjs
           bash scripts/deploy/web-gzip-big.test.sh
@@ -91,6 +94,8 @@ jobs:
           node --test scripts/ci/migration-role-check.test.mjs
           # CONTENT_MEDIA_VERIFY 17.11 №1: CI and the Mac run prod's engines (PostgreSQL 18, Valkey 9.1).
           node --test scripts/ci/ci-engines-match-prod.test.mjs
+          # STAGE2 G2 25.11: prod REST least-outstanding, stickiness only on /socket.io.
+          node --test scripts/ci/prod-alb-balancing.test.mjs
 
       # OPEN_ITEMS_SWEEP 2026-11-09 C-c9: the docs name the DB user migrations
       # really run under (infra/postgres/migration-role.txt); drift fails here.

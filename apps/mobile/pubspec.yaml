@@ -205,6 +205,9 @@ dependencies:
   image: ^4.12.0
   geolocator: ^14.0.2
   flutter_blurhash: ^0.9.1
+  # Item 25: the blurhash preview inside an encrypted photo's message
+  # (WhatsApp sends a thumbnail inside the encryption; MIT, encoder only).
+  blurhash_dart: ^1.2.1
   fl_chart: ^1.3.0
   desktop_drop: ^0.8.4
   battery_plus: ^7.1.2
@@ -219,6 +222,7 @@ dependencies:
   wakelock_plus: 1.8.0
   cupertino_interactive_keyboard: ^1.0.0
   openmls: ^4.0.0
+  cryptography: 2.9.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -338,6 +342,17 @@ dependency_overrides:
   # keep the patch (test/core/navigation/last_page_guard_test.dart).
   go_router:
     path: third_party/go_router
+
+# S13 #26 (MASVS-STORAGE-1), drift «Encryption» (drift 2.32+, sqlite3 3.x):
+# the sqlite3 build hook links SQLite3MultipleCiphers (MIT, utelle) instead
+# of plain SQLite, so the account's local databases are encrypted with
+# `PRAGMA key` (lib/core/persistence/encrypted_database.dart). The prebuilt
+# libraries come from the sqlite3.dart release with pinned SHA-256
+# (sqlite3 lib/src/hook/asset_hashes.dart). Web keeps sqlite3.wasm (web/).
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc
 
 # Owner 2026-10-22 (audit #11): `dart run sentry_dart_plugin` after a prod
 # release build (fastlane `sentry_symbols`) uploads the Dart symbols of
