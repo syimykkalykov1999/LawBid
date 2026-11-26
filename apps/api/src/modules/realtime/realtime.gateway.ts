@@ -629,6 +629,8 @@ export class RealtimeGateway
       socket.handshake.headers,
       socket.handshake.address,
       Number(process.env.TRUST_PROXY_HOPS ?? 0) || 0,
+      // G1: through the API edge one more hop (CloudFront) is trusted.
+      process.env.API_EDGE_ORIGIN_VERIFY ?? '',
     );
     const ip = rawIp && isIP(rawIp) ? rawIp : undefined;
     const perIp = await this.connectLimit(

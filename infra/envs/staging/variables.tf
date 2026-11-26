@@ -364,3 +364,19 @@ variable "backup_restore_validation_min_users" {
   type    = number
   default = 0
 }
+
+# G1 (STAGE2_ARCH_PERF_2026-11-25): API through the CloudFront edge, three
+# steps in order (apps/admin/content/guides/api-edge.md): api_edge_enabled ->
+# DNS (api_edge_dns with Route 53, or by hand) -> api_edge_origin_lock.
+variable "api_edge_enabled" {
+  type    = bool
+  default = false
+}
+variable "api_edge_dns" {
+  type    = bool
+  default = false
+}
+variable "api_edge_origin_lock" {
+  type    = bool
+  default = false
+}
