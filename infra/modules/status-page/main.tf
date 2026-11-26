@@ -43,6 +43,15 @@ variable "web_acl_arn" {
   type    = string
   default = ""
 }
+variable "status_backup_url" {
+  type        = string
+  default     = ""
+  description = "Stage 2 SRE (Б4): https URL of the status.json copy outside AWS (the worker writes it to the public Cloudflare R2 bucket, e.g. https://media.lawbid.dev/status/status.json). The page reads it when its own file does not answer or is stale. Empty = no backup."
+  validation {
+    condition     = var.status_backup_url == "" || can(regex("^https://[^/\\s]+/\\S*$", var.status_backup_url))
+    error_message = "status_backup_url must be empty or an https URL."
+  }
+}
 
 data "aws_region" "current" {}
 
@@ -69,6 +78,11 @@ resource "aws_acm_certificate_validation" "status" {
 }
 
 locals {
+  # The page with the backup address filled in (apps/status-page/index.html keeps a placeholder).
+  page_html     = replace(file("${path.module}/../../../apps/status-page/index.html"), "__STATUS_BACKUP_URL__", var.status_backup_url)
+  backup_origin = var.status_backup_url == "" ? "" : regex("^https://[^/]+", var.status_backup_url)
+  # The page may read its own host and, when set, the backup's origin (nothing else).
+  connect_src     = trimspace("'self' ${local.backup_origin}")
   certificate_arn = var.certificate_arn != "" ? var.certificate_arn : (length(aws_acm_certificate_validation.status) > 0 ? aws_acm_certificate_validation.status[0].certificate_arn : "")
   has_host        = var.status_host != "" && local.certificate_arn != ""
 }
@@ -106,8 +120,8 @@ resource "aws_cloudfront_origin_access_control" "status" {
 resource "aws_s3_object" "index" {
   bucket        = aws_s3_bucket.status.id
   key           = "index.html"
-  source        = "${path.module}/../../../apps/status-page/index.html"
-  etag          = filemd5("${path.module}/../../../apps/status-page/index.html")
+  content       = local.page_html
+  etag          = md5(local.page_html)
   content_type  = "text/html; charset=utf-8"
   cache_control = "public, max-age=300"
 }
@@ -146,7 +160,7 @@ resource "aws_cloudfront_response_headers_policy" "status" {
       override        = true
     }
     content_security_policy {
-      content_security_policy = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"
+      content_security_policy = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src ${local.connect_src}; base-uri 'none'; frame-ancestors 'none'"
       override                = true
     }
   }

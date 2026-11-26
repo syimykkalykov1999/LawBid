@@ -69,10 +69,10 @@ class _FakeDevicesRepo implements ActiveDevicesRepository {
   }
 
   @override
-  Future<void> revoke(String sessionId) async {}
+  Future<void> revoke(String sessionId, {String? reauthToken}) async {}
 
   @override
-  Future<void> logoutOthers() async {}
+  Future<void> logoutOthers({String? reauthToken}) async {}
 }
 
 void main() {
