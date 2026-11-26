@@ -92,7 +92,9 @@ jobs:
           context: infra/pgbouncer
           platforms: linux/amd64,linux/arm64
           push: true
-          provenance: false
+          # ASVS 5.0 V15.1.2 (STAGE2_SECURITY #19): SLSA provenance + SBOM.
+          provenance: mode=max
+          sbom: true
           tags: ${{ env.ECR_REGISTRY }}/lawbid-pgbouncer:${{ inputs.tag }}
       - name: Proof - the image has both architectures
         env:
