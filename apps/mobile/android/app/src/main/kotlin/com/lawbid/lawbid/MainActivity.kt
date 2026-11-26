@@ -120,6 +120,8 @@ class MainActivity : FlutterFragmentActivity() {
         }
         // Owner row 106: chat video tiles draw a first-frame picture.
         VideoFrameChannel.register(flutterEngine.dartExecutor.binaryMessenger)
+        // G9: the phone's Data Saver turns off background media work.
+        DataSaverChannel.register(this, flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             "lawbid/call_pip",

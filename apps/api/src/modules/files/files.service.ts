@@ -100,6 +100,11 @@ import {
   pendingUploadMember,
 } from './storage/pending-uploads';
 
+/** Item 25: ciphertext the server cannot read, so cannot scan. */
+const E2EE_PURPOSES: ReadonlySet<string> = new Set([
+  'chat_e2ee',
+  'chat_backup_e2ee',
+]);
 /** Owner 2026-10-05: uploads that never count against a user's storage
  * cap — a profile photo, identity documents, exports, admin templates. */
 const QUOTA_FREE_PURPOSES: readonly FilePurpose[] = [
@@ -836,6 +841,12 @@ export class FilesService {
           // hash must never point this row at someone else's object.
           sha256: sha256 ?? intent.sha256,
           source_sha256: sha256,
+          // Item 25: a file the phone encrypted cannot be scanned here (the
+          // server holds no key) — as WhatsApp, it is checked when someone
+          // reports it (E2eeService.report), so it is never held back.
+          ...(E2EE_PURPOSES.has(intent.purpose)
+            ? { scan_status: 'clean' }
+            : {}),
         },
       });
     } catch (err) {
@@ -870,11 +881,13 @@ export class FilesService {
     void this.dropObjects(fileId, intent.bucket, [intent.key]);
     // Owner row 106: the bytes just checked and stored wait for the scan
     // job in Redis, so the worker does not read them from storage again.
-    if (directData && (await this.handoff?.stash(fileId, directData))) {
-      lap('handoff');
+    if (!E2EE_PURPOSES.has(intent.purpose)) {
+      if (directData && (await this.handoff?.stash(fileId, directData))) {
+        lap('handoff');
+      }
+      await this.scans.enqueueScan(fileId, userId);
+      lap('enqueue');
     }
-    await this.scans.enqueueScan(fileId, userId);
-    lap('enqueue');
     const answer = await this.get(userId, fileId);
     const totalMs = Date.now() - started;
     if (totalMs >= CONFIRM_SLOW_MS) {
@@ -1330,6 +1343,34 @@ export class FilesService {
     fileIds: string[],
   ): Promise<Map<string, SignedAttachment>> {
     return this.signedAttachments('chat_attachment', fileIds);
+  }
+
+  /**
+   * Item 25: short signed links to end-to-end encrypted chat files (the
+   * ciphertext; the key is inside the MLS message). The caller has checked
+   * chat membership.
+   */
+  async e2eeBlobUrls(
+    fileIds: string[],
+  ): Promise<Map<string, SignedAttachment>> {
+    return this.signedAttachments('chat_e2ee', fileIds);
+  }
+
+  /** Item 25: the link to a person's own encrypted backup. */
+  async e2eeBackupUrl(fileId: string): Promise<string | null> {
+    return (
+      (await this.signedAttachments('chat_backup_e2ee', [fileId])).get(fileId)
+        ?.url ?? null
+    );
+  }
+
+  /** Item 25: the ciphertext of an encrypted chat file (a report decrypts
+   * it with the key the reporter hands over). Null when gone. */
+  async readE2eeFile(fileId: string): Promise<Buffer | null> {
+    const f = await this.prisma.file.findUnique({ where: { id: fileId } });
+    if (!f || f.deleted_at !== null || f.purpose !== 'chat_e2ee') return null;
+    if (!this.storage.configured) return null;
+    return this.storage.read(f.s3_bucket, f.s3_key);
   }
 
   /**

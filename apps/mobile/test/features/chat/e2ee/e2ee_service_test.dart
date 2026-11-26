@@ -1,9 +1,16 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
+import 'package:lawbid/core/uploads/upload_body.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_file.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_media.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_payload.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_scratch_mem.dart' as mem;
 import 'package:lawbid/features/chat/e2ee/e2ee_service.dart';
 import 'package:lawbid/features/chat/e2ee/mls_engine_io.dart';
 import 'package:lawbid/features/chat/e2ee/mls_key_vault.dart';
@@ -35,13 +42,31 @@ void main() {
       platform: api.MlsDevicePlatform.ios,
       openEngine: (u) =>
           OpenMlsEngine.open(userId: u, vault: v, dbPath: dbPath),
+      upload: (body, purpose) async {
+        final id = 'f${ds.nextId()}';
+        final out = BytesBuilder(copy: false);
+        await for (final c in body.open()) {
+          out.add(c);
+        }
+        ds.storage[id] = out.takeBytes();
+        ds.purposes[id] = purpose;
+        return id;
+      },
+      download: (url) =>
+          Stream.value(ds.storage[Uri.parse(url).pathSegments.last]!),
+      scratch: mem.create(),
     );
     // The `e2ee:commit` events of the chat reach every device.
     ds.devices.add(s);
     return s;
   }
 
-  api.MessageDto delivered(api.SendMessageDto s, String from) {
+  api.MessageDto delivered(
+    api.SendMessageDto s,
+    String from, {
+    String? blobUrl,
+    String? frankingTag,
+  }) {
     final m = api.MessageDto.fromJson({
       'id': 'm${ds.messages++}',
       'conversationId': 'c1',
@@ -59,6 +84,8 @@ void main() {
       'ciphertext': s.ciphertext,
       'mlsEpoch': s.mlsEpoch,
       'clientMessageId': s.clientMessageId,
+      'blobUrl': blobUrl,
+      'frankingTag': frankingTag ?? s.frankingTag,
     });
     // The Delivery Service takes a message only in the group's epoch.
     expect(s.mlsEpoch, ds.epoch, reason: 'sent in the current epoch');
@@ -371,7 +398,304 @@ void main() {
     expect((await again.engine()).deviceId, isNot(id));
     expect(ds.revoked, isEmpty);
   });
+
+  // ---- PR 4 + review fixes 9–12 -------------------------------------------
+
+  test(
+      'franking: the tag is HMAC(k, the exact plaintext); a report hands '
+      'over those bytes', () async {
+    final (alice, bob) = await pair();
+    final s = await say(alice, 'pay me off the platform');
+    final m = delivered(s, 'ua');
+    expect((await bob.open(m)).body, 'pay me off the platform');
+    final checked = await bob.report('c1', 'ua', 'harassment', [m.id]);
+    expect(checked, 1);
+    final sent = ds.reports.single;
+    expect(sent.reportedUserId, 'ua');
+    expect(sent.reason, api.E2eeReportReason.harassment);
+    final plain = base64Decode(sent.messages.single.plaintext);
+    final k = base64Decode(
+      (jsonDecode(utf8.decode(plain)) as Map<String, dynamic>)['k'] as String,
+    );
+    // What the server checks (e2ee.service.ts): HMAC-SHA256(k, P) == tag.
+    expect(base64Encode(Hmac(sha256, k).convert(plain).bytes), s.frankingTag);
+    // The admin's lower chat.e2ee_report_messages: the newest that fit.
+    ds.reportMax = 1;
+    final m2 = delivered(await say(alice, 'or else'), 'ua');
+    await bob.open(m2);
+    expect(await bob.report('c1', 'ua', 'spam', [m.id, m2.id]), 1);
+    expect(ds.reports.last.messages.single.messageId, m2.id);
+  });
+
+  test(
+      'franking on receipt: a message whose stored tag does not match what '
+      'was encrypted (or has none) is dropped, never shown or stored',
+      () async {
+    final (alice, bob) = await pair();
+    final forged = delivered(
+      await say(alice, 'forged record'),
+      'ua',
+      frankingTag: base64Encode(List<int>.filled(32, 7)),
+    );
+    expect((await bob.open(forged)).body, '');
+    expect(await bob.plaintexts.get(forged.id), isNull);
+    // Not tried again either (its key is used up).
+    expect((await bob.open(forged)).body, '');
+    final bare = api.MessageDto.fromJson({
+      ...delivered(await say(alice, 'no tag at all'), 'ua').toJson(),
+      'frankingTag': null,
+    });
+    expect((await bob.open(bare)).body, '');
+    // A genuine one still opens.
+    final ok = delivered(await say(alice, 'genuine'), 'ua');
+    expect((await bob.open(ok)).body, 'genuine');
+  });
+
+  test(
+      'an encrypted file: only ciphertext in storage, streamed in segments; '
+      'the other side checks its SHA-256 and reads it through a local '
+      'address', () async {
+    final (alice, bob) = await pair();
+    final secret = Uint8List.fromList(
+      utf8.encode('Contract draft, privileged. ' * 4000),
+    );
+    final f = await alice.encryptFile(
+      'c1',
+      UploadBody.bytes(secret),
+      name: 'draft.txt',
+      mime: 'text/plain',
+      caption: 'see attached',
+    );
+    expect(ds.purposes[f!.fileId], api.FilePurpose.chatE2ee);
+    expect(
+      utf8.decode(ds.storage[f.fileId]!, allowMalformed: true),
+      isNot(contains('privileged')),
+    );
+    expect(
+      f.payload.extra['sha'],
+      sha256.convert(ds.storage[f.fileId]!).toString(),
+    );
+    final s = await alice.seal('c1', 'cmf', f.payload, fileId: f.fileId);
+    expect(s!.fileId, f.fileId);
+    final m = delivered(
+      s,
+      'ua',
+      blobUrl: 'https://storage.test/blob/${f.fileId}',
+    );
+    E2eeMedia.resolve = bob.mediaOf;
+    final atBob = await bob.open(m);
+    expect(atBob.type, api.MessageDtoType.attachment);
+    expect(atBob.body, 'see attached');
+    expect(atBob.attachment!.name, 'draft.txt');
+    final local = atBob.attachment!.url!;
+    expect(local, startsWith('http://127.0.0.1:'));
+    // The players ask for parts (Range), as AVPlayer / ExoPlayer do.
+    // flutter_test answers every HttpClient with 400; this one is real.
+    Future<void> fetch() async {
+      final http = HttpClient();
+      final req = await http.getUrl(Uri.parse(local));
+      req.headers.set(HttpHeaders.rangeHeader, 'bytes=0-13');
+      final res = await req.close();
+      expect(res.statusCode, HttpStatus.partialContent);
+      expect(
+        utf8.decode(await res.expand((b) => b).toList()),
+        'Contract draft',
+      );
+      final whole = await (await http.getUrl(Uri.parse(local))).close();
+      expect((await whole.expand((b) => b).toList()).length, secret.length);
+      // Another launch's address (wrong token) is refused.
+      final wrong = await (await http.getUrl(
+        Uri.parse(local.replaceFirst(RegExp('/[0-9a-f]{32}/'), '/x/')),
+      ))
+          .close();
+      expect(wrong.statusCode, HttpStatus.notFound);
+      http.close();
+    }
+
+    await HttpOverrides.runWithHttpOverrides(fetch, _RealHttp());
+  });
+
+  test(
+      'a plain chat: the file is not touched here (it streams the normal, '
+      'scanned way); an encrypted one goes from a file on disk', () async {
+    ds.mode = 'off';
+    final plain = await device('ua');
+    expect(await plain.encryptsFiles('c1'), isFalse);
+    expect(
+      await plain.encryptFile(
+        'c1',
+        UploadBody.bytes(Uint8List(3)),
+        name: 'x',
+        mime: 'text/plain',
+      ),
+      isNull,
+    );
+    expect(ds.storage, isEmpty);
+
+    ds.mode = 'auto';
+    final (alice, bob) = await pair();
+    final dir = Directory.systemTemp.createTempSync('e2ee_file');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final big = File('${dir.path}/video.mp4')
+      ..writeAsBytesSync(
+        List<int>.generate(5 * E2eeFile.segment + 123, (i) => i * 7 & 0xff),
+      );
+    final f = await alice.encryptFile(
+      'c1',
+      UploadBody.file(big.path),
+      name: 'video.mp4',
+      mime: 'video/mp4',
+      localPath: big.path,
+    );
+    expect(
+      ds.storage[f!.fileId]!.length,
+      E2eeFile.sealedLength(big.lengthSync()),
+    );
+    // The sender reads its own file, nothing downloaded.
+    expect((await alice.fileCopy(f.fileId))!.path, big.path);
+    final s = await alice.seal('c1', 'cmv', f.payload, fileId: f.fileId);
+    final m = delivered(
+      s!,
+      'ua',
+      blobUrl: 'https://storage.test/blob/${f.fileId}',
+    );
+    await bob.open(m);
+    final copy = await bob.fileCopy(f.fileId);
+    expect(copy!.bytes, big.readAsBytesSync());
+  });
+
+  test('a file swapped in storage does not open (SHA-256 from the message)',
+      () async {
+    final (alice, bob) = await pair();
+    final f = await alice.encryptFile(
+      'c1',
+      UploadBody.bytes(Uint8List.fromList(utf8.encode('original'))),
+      name: 'a.txt',
+      mime: 'text/plain',
+    );
+    final s = await alice.seal('c1', 'cms', f!.payload, fileId: f.fileId);
+    // The same key over other words, put in the file's place.
+    final key = base64Decode(f.payload.extra['fk']! as String);
+    ds.storage[f.fileId] = await E2eeFile.encrypt(
+      Uint8List.fromList(utf8.encode('swapped!')),
+      Uint8List.fromList(key),
+    );
+    final m = delivered(
+      s!,
+      'ua',
+      blobUrl: 'https://storage.test/blob/${f.fileId}',
+    );
+    await bob.open(m);
+    await expectLater(bob.fileCopy(f.fileId), throwsA(anything));
+  });
+
+  test('a photo carries its blurhash preview inside the encryption', () async {
+    final (alice, bob) = await pair();
+    final picture = img.Image(width: 64, height: 48);
+    img.fill(picture, color: img.ColorRgb8(200, 40, 40));
+    final png = Uint8List.fromList(img.encodePng(picture));
+    final f = await alice.encryptFile(
+      'c1',
+      UploadBody.bytes(png),
+      name: 'p.png',
+      mime: 'image/png',
+      width: 64,
+      height: 48,
+      preview: png,
+    );
+    final bh = f!.payload.extra['bh'] as String?;
+    expect(bh, isNotNull);
+    final s = await alice.seal('c1', 'cmp', f.payload, fileId: f.fileId);
+    final m = delivered(
+      s!,
+      'ua',
+      blobUrl: 'https://storage.test/blob/${f.fileId}',
+    );
+    final atBob = await bob.open(m);
+    expect(atBob.attachment!.isImage, isTrue);
+    expect(atBob.attachment!.blurhash, bh);
+  });
+
+  test(
+      '«The security code in this chat changed» when the other member’s '
+      'keys change (WhatsApp / Signal)', () async {
+    final (alice, bob) = await pair();
+    await alice.sync('c1'); // the first look only remembers
+    final lines = <api.MessageDto>[];
+    final sub = alice.opened.listen(lines.add);
+    // Bob signs in on a tablet: his keys in the chat change.
+    final bobPad = await device('ub');
+    await bobPad.engine();
+    await bob.sync('c1');
+    await alice.sync('c1');
+    await pumpEventQueue();
+    await sub.cancel();
+    final line = lines.singleWhere((d) => d.type == api.MessageDtoType.system);
+    expect(line.body, E2eeService.codeChangedLine);
+    expect(line.senderId, 'ub');
+    // Nothing changed since: no second line.
+    final again = <api.MessageDto>[];
+    final sub2 = alice.opened.listen(again.add);
+    await alice.sync('c1');
+    await pumpEventQueue();
+    await sub2.cancel();
+    expect(again.where((d) => d.type == api.MessageDtoType.system), isEmpty);
+  });
+
+  test(
+      'backup: the same 64-digit key for every backup until a new one is '
+      'asked for; its identity is stored; a new phone restores; a wrong key '
+      'opens nothing', () async {
+    final (alice, bob) = await pair();
+    final m = delivered(await say(alice, 'kept for later'), 'ua');
+    await bob.open(m);
+    expect(await bob.hasBackupKey(), isFalse);
+    final code = E2eeService.newBackupCode();
+    expect(code, matches(RegExp(r'^\d{64}$')));
+    expect(await bob.createBackup(newCode: code), greaterThan(0));
+    expect(ds.purposes[ds.backup!], api.FilePurpose.chatBackupE2ee);
+    expect(
+      utf8.decode(ds.storage[ds.backup!]!, allowMalformed: true),
+      isNot(contains('kept for later')),
+    );
+    final keyId = ds.backupKeyId;
+    expect(keyId, E2eeService.backupKeyId(await E2eeService.backupKey(code)));
+    // WhatsApp: the next backup needs no code — the same key.
+    expect(await bob.hasBackupKey(), isTrue);
+    await bob.createBackup();
+    expect(ds.backupKeyId, keyId);
+    // This device's bookkeeping (the key itself) is not in the backup.
+    final rows = jsonDecode(
+      utf8.decode(
+        await E2eeFile.decrypt(
+          ds.storage[ds.backup!]!,
+          await E2eeService.backupKey(code),
+        ),
+      ),
+    ) as Map<String, dynamic>;
+    expect(
+      [for (final r in rows['rows'] as List) (r as Map)['id'] as String]
+          .where(isE2eeBookkeepingRow),
+      isEmpty,
+    );
+
+    final newPhone = await device('ub');
+    await expectLater(
+      newPhone.restoreBackup(E2eeService.newBackupCode()),
+      throwsA(anything),
+    );
+    expect(await newPhone.restoreBackup(code), greaterThan(0));
+    expect((await newPhone.open(m)).body, 'kept for later');
+    // The restored key serves the new phone's backups too.
+    await newPhone.createBackup();
+    expect(ds.backupKeyId, keyId);
+    // A new key only when asked for.
+    await newPhone.createBackup(newCode: E2eeService.newBackupCode());
+    expect(ds.backupKeyId, isNot(keyId));
+  });
 }
+
+class _RealHttp extends HttpOverrides {}
 
 /// The LawBid Delivery Service's rules, in memory.
 class _FakeDs {
@@ -413,6 +737,12 @@ class _FakeDs {
   int stateReads = 0;
   int commitReads = 0;
   int _ids = 0;
+  final Map<String, Uint8List> storage = {};
+  final Map<String, api.FilePurpose> purposes = {};
+  final List<api.E2eeReportDto> reports = [];
+  int reportMax = 5;
+  String? backup;
+  String? backupKeyId;
 
   api.E2eeClient clientFor(String user) => _FakeClient(this, user);
 
@@ -692,4 +1022,69 @@ class _FakeClient implements api.E2eeClient {
     ds.lastResort.remove(id);
     ds.announce();
   }
+
+  @override
+  Future<api.E2eeReportResultEnvelope> reportInE2eeChat({
+    required String id,
+    required api.E2eeReportDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    if (body.messages.length > ds.reportMax) {
+      throw DioException(
+        requestOptions: RequestOptions(),
+        response: Response(
+          requestOptions: RequestOptions(),
+          statusCode: 400,
+          data: {
+            'error': {
+              'code': 'VALIDATION_ERROR',
+              'message': 'too many',
+              'details': {'field': 'messages', 'max': ds.reportMax},
+            },
+          },
+        ),
+      );
+    }
+    ds.reports.add(body);
+    return api.E2eeReportResultEnvelope(
+      data: api.E2eeReportResultDto(
+        reportId: 'r${ds.reports.length}',
+        verified: body.messages.length,
+        total: body.messages.length,
+      ),
+    );
+  }
+
+  api.E2eeBackupEnvelope _backup() => api.E2eeBackupEnvelope(
+        data: api.E2eeBackupDto(
+          fileId: ds.backup!,
+          keyId: ds.backupKeyId,
+          url: 'https://storage.test/blob/${ds.backup}',
+          sizeBytes: ds.storage[ds.backup]!.length,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+  @override
+  Future<api.E2eeBackupEnvelope> getE2eeBackup({
+    Map<String, dynamic>? extras,
+  }) async {
+    if (ds.backup == null) throw _FakeDs.error(404, 'NOT_FOUND');
+    return _backup();
+  }
+
+  @override
+  Future<api.E2eeBackupEnvelope> putE2eeBackup({
+    required api.E2eeBackupPutDto body,
+    Map<String, dynamic>? extras,
+  }) async {
+    ds
+      ..backup = body.fileId
+      ..backupKeyId = body.keyId;
+    return _backup();
+  }
+
+  @override
+  Future<void> deleteE2eeBackup({Map<String, dynamic>? extras}) async =>
+      ds.backup = null;
 }

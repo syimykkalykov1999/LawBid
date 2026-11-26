@@ -57,7 +57,7 @@ final chatListCacheProvider = Provider<ChatListCache>(
 final messageStoreProvider = Provider<MessageStore?>((ref) {
   final owner = ref.watch(currentUserIdProvider);
   if (owner == null) return null;
-  return MessageStore(
+  final store = MessageStore(
     ref.watch(cacheDatabaseProvider),
     owner,
     limitBytes: () =>
@@ -66,6 +66,16 @@ final messageStoreProvider = Provider<MessageStore?>((ref) {
     prime: (rows) =>
         ref.read(e2eeServiceProvider)?.prime(rows) ?? Future<void>.value(),
   );
+  // Item 25: «The security code in this chat changed» is a line of this
+  // device's copy of the chat (WhatsApp keeps it in the history too), also
+  // when the chat is not open.
+  final lines = ref.watch(e2eeServiceProvider)?.opened.listen((d) {
+    if (d.type == api.MessageDtoType.system) {
+      unawaited(store.put(d.conversationId, [d]));
+    }
+  });
+  ref.onDispose(() => lines?.cancel());
+  return store;
 });
 
 final chatRepositoryProvider = Provider<ChatRepository>(
@@ -937,8 +947,9 @@ class ChatThread extends Notifier<ChatThreadState> {
       // Item 25: an encrypted message that waited («Ожидание сообщения»)
       // opened after a catch-up: its text takes the bubble's place.
       if (ref.read(e2eeServiceProvider) case final e2ee?)
+        // A «security code changed» line arrives the same way (merged in).
         e2ee.opened.listen((d) {
-          if (d.conversationId == id) _apply(ChatMappers.message(d));
+          if (d.conversationId == id) _merge([ChatMappers.message(d)]);
         }),
       if (owner != null)
         ref

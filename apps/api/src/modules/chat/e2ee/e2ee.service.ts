@@ -1,9 +1,16 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
+import { MessageBodyCipher } from '../../../common/secrets/message-body-cipher';
+import { FilesService } from '../../files/files.service';
+import { VIRUS_SCANNER, type VirusScanner } from '../../files/files.public';
+import { decryptE2eeFile } from './e2ee-file';
 import type { Conversation, MlsDevice } from '../../../generated/prisma/client';
 import { Prisma } from '../../../generated/prisma/client';
 import { ErrorCode } from '../../../common/errors/error-code.enum';
@@ -19,6 +26,9 @@ import {
   type ClaimedKeyPackageDto,
   type ConversationE2eeDto,
   type CreateMlsGroupDto,
+  type E2eeBackupDto,
+  type E2eeReportDto,
+  type E2eeReportResultDto,
   type E2eeOffReason,
   type E2eeState,
   type KeyPackageCountDto,
@@ -116,6 +126,10 @@ export class E2eeService {
     private readonly prisma: PrismaService,
     private readonly settings: AppSettingsService,
     private readonly realtime: RealtimePublisher,
+    // PR 4: encrypted files, backups and the antivirus of reported files.
+    @Optional() private readonly files?: FilesService,
+    @Optional() @Inject(VIRUS_SCANNER) private readonly scanner?: VirusScanner,
+    @Optional() private readonly cipher?: MessageBodyCipher,
   ) {}
 
   mode(): Promise<SwitchMode> {
@@ -853,6 +867,177 @@ export class E2eeService {
       code: ErrorCode.E2EE_REQUIRED,
       message:
         'This chat is end-to-end encrypted. Update the app to write here.',
+    });
+  }
+
+  // ---------------------------------------------- reports and backups (PR 4)
+
+  /**
+   * WhatsApp «Пожаловаться» in an end-to-end encrypted chat: the reporter's
+   * phone hands over the reported person's last messages decrypted. Each is
+   * checked against the franking tag stored when it was sent (Messenger's
+   * message franking): HMAC-SHA256(k, P) with k inside P. A file a message
+   * carries is decrypted with its key and goes through the antivirus. The
+   * report itself is an ordinary report on the person (moderation queue).
+   */
+  async report(
+    user: RequestUser,
+    id: string,
+    dto: E2eeReportDto,
+  ): Promise<E2eeReportResultDto> {
+    const { users } = await this.member(user, id);
+    if (
+      !users.includes(dto.reportedUserId) ||
+      dto.reportedUserId === user.sub
+    ) {
+      throw membershipInvalid([dto.reportedUserId], 'not_a_member');
+    }
+    const max = await this.settings.number('chat.e2ee_report_messages');
+    if (max > 0 && dto.messages.length > max) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: `At most ${max} messages go with a report.`,
+        details: { field: 'messages', max },
+      });
+    }
+    const rows = dto.messages.length
+      ? await this.prisma.message.findMany({
+          where: {
+            conversation_id: id,
+            id: { in: dto.messages.map((m) => m.messageId) },
+          },
+        })
+      : [];
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const evidence: {
+      message_id: string;
+      sender_id: string | null;
+      body: string;
+      verified: boolean;
+      sent_at: Date;
+    }[] = [];
+    let infected = false;
+    for (const m of dto.messages) {
+      const row = byId.get(m.messageId);
+      if (!row || row.type !== 'mls' || row.sender_id !== dto.reportedUserId) {
+        throw membershipInvalid([m.messageId], 'not_their_message');
+      }
+      const plain = Buffer.from(m.plaintext, 'base64');
+      let body = '';
+      let verified = false;
+      let fileKey: Buffer | null = null;
+      try {
+        const p = JSON.parse(plain.toString('utf8')) as Record<string, unknown>;
+        body = typeof p.b === 'string' ? p.b : '';
+        const k = typeof p.k === 'string' ? Buffer.from(p.k, 'base64') : null;
+        if (k && k.length === 32 && row.franking_tag) {
+          const tag = createHmac('sha256', k).update(plain).digest();
+          verified = timingSafeEqual(tag, Buffer.from(row.franking_tag));
+        }
+        if (typeof p.fk === 'string') fileKey = Buffer.from(p.fk, 'base64');
+      } catch {
+        verified = false;
+      }
+      if (verified && fileKey && row.file_id && this.files && this.scanner) {
+        const blob = await this.files.readE2eeFile(row.file_id);
+        if (blob) {
+          try {
+            const verdict = await this.scanner.scan(
+              decryptE2eeFile(blob, fileKey),
+            );
+            if (verdict.infected) infected = true;
+          } catch {
+            // A file that does not open with its key is reported as is.
+          }
+        }
+      }
+      evidence.push({
+        message_id: row.id,
+        sender_id: row.sender_id,
+        body: this.cipher ? this.cipher.seal(body, row.id) : body,
+        verified,
+        sent_at: row.created_at,
+      });
+    }
+    const report = await this.prisma.report.create({
+      data: {
+        reporter_id: user.sub,
+        target_type: 'user',
+        target_id: dto.reportedUserId,
+        reason: dto.reason,
+        note: dto.note ?? null,
+        target_author_id: dto.reportedUserId,
+        // A file the antivirus flags goes to a person first.
+        priority_review: infected,
+        e2ee_evidence: {
+          create: evidence.map((e) => ({ ...e, conversation_id: id })),
+        },
+      },
+    });
+    return {
+      reportId: report.id,
+      verified: evidence.filter((e) => e.verified).length,
+      total: evidence.length,
+    };
+  }
+
+  /** The person's encrypted backup, or 404. */
+  async backup(user: RequestUser): Promise<E2eeBackupDto> {
+    const b = await this.prisma.e2eeBackup.findUnique({
+      where: { user_id: user.sub },
+    });
+    const f = b
+      ? await this.prisma.file.findUnique({ where: { id: b.file_id } })
+      : null;
+    if (!b || !f || f.deleted_at !== null) {
+      throw new NotFoundException({
+        code: ErrorCode.NOT_FOUND,
+        message: 'No backup yet.',
+      });
+    }
+    return {
+      fileId: b.file_id,
+      keyId: b.key_id,
+      url: (await this.files?.e2eeBackupUrl(b.file_id)) ?? null,
+      sizeBytes: Number(f.size_bytes),
+      updatedAt: b.updated_at,
+    };
+  }
+
+  /** A new backup replaces the old one (whose file is released). */
+  async putBackup(
+    user: RequestUser,
+    fileId: string,
+    keyId: string,
+  ): Promise<E2eeBackupDto> {
+    if (!this.files) throw deviceNotFound();
+    await this.files.assertAttachable(user.sub, fileId, ['chat_backup_e2ee']);
+    const old = await this.prisma.e2eeBackup.findUnique({
+      where: { user_id: user.sub },
+    });
+    await this.prisma.e2eeBackup.upsert({
+      where: { user_id: user.sub },
+      create: { user_id: user.sub, file_id: fileId, key_id: keyId },
+      update: { file_id: fileId, key_id: keyId },
+    });
+    if (old && old.file_id !== fileId) {
+      await this.prisma.file.updateMany({
+        where: { id: old.file_id, owner_user_id: user.sub },
+        data: { deleted_at: new Date() },
+      });
+    }
+    return this.backup(user);
+  }
+
+  async deleteBackup(user: RequestUser): Promise<void> {
+    const old = await this.prisma.e2eeBackup.findUnique({
+      where: { user_id: user.sub },
+    });
+    if (!old) return;
+    await this.prisma.e2eeBackup.delete({ where: { user_id: user.sub } });
+    await this.prisma.file.updateMany({
+      where: { id: old.file_id, owner_user_id: user.sub },
+      data: { deleted_at: new Date() },
     });
   }
 

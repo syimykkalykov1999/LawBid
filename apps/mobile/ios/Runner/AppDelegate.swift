@@ -2,6 +2,7 @@ import AVFoundation
 import CallKit
 import CoreSpotlight
 import Flutter
+import Network
 import PushKit
 import UIKit
 import UniformTypeIdentifiers
@@ -351,6 +352,10 @@ import flutter_callkit_incoming
     // Owner rows 101/102: the video re-encode (VideoEncoder.swift).
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidVideoEncoder") {
       VideoEncoderChannel.shared.register(registrar.messenger())
+    }
+    // G9: Low Data Mode turns off background media work (DataSaverBridge).
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "LawbidDataSaver") {
+      DataSaverBridge.shared.register(registrar.messenger())
     }
   }
 
@@ -1134,5 +1139,67 @@ enum VideoFrameBridge {
     let seconds = CMTimeGetSeconds(asset.duration)
     let durationMs = seconds.isFinite ? Int(seconds * 1000) : 0
     return ["jpeg": FlutterStandardTypedData(bytes: jpeg), "durationMs": durationMs]
+  }
+}
+
+// MARK: - Data saver (G9)
+
+/// G9 (25.11): the phone's Low Data Mode, so the app stops background media
+/// work by itself (lib/core/platform/system_data_saver.dart). Apple's
+/// documented signal: `NWPath.isConstrained` (Network framework, iOS 13;
+/// WWDC 2019 «Advances in Networking, Part 1»), true while Low Data Mode is
+/// on for the path in use. One `NWPathMonitor` per process, on its own queue.
+///
+/// Channels: `lawbid/data_saver` method `isOn` -> Bool;
+/// `lawbid/data_saver/changes` events: Bool on every change.
+final class DataSaverBridge: NSObject, FlutterStreamHandler {
+  static let shared = DataSaverBridge()
+
+  private let monitor = NWPathMonitor()
+  private let queue = DispatchQueue(label: "lawbid.data-saver")
+  private var started = false
+  private var constrained = false
+  private var sink: FlutterEventSink?
+
+  func register(_ messenger: FlutterBinaryMessenger) {
+    start()
+    FlutterMethodChannel(name: "lawbid/data_saver", binaryMessenger: messenger)
+      .setMethodCallHandler { [weak self] call, result in
+        guard call.method == "isOn" else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        result(self?.constrained ?? false)
+      }
+    FlutterEventChannel(name: "lawbid/data_saver/changes", binaryMessenger: messenger)
+      .setStreamHandler(self)
+  }
+
+  private func start() {
+    guard !started else { return }
+    started = true
+    constrained = monitor.currentPath.isConstrained
+    monitor.pathUpdateHandler = { [weak self] path in
+      let now = path.isConstrained
+      DispatchQueue.main.async {
+        guard let self = self, now != self.constrained else { return }
+        self.constrained = now
+        self.sink?(now)
+      }
+    }
+    monitor.start(queue: queue)
+  }
+
+  func onListen(withArguments arguments: Any?, eventSink events: @escaping FlutterEventSink)
+    -> FlutterError?
+  {
+    sink = events
+    events(constrained)
+    return nil
+  }
+
+  func onCancel(withArguments arguments: Any?) -> FlutterError? {
+    sink = nil
+    return nil
   }
 }

@@ -2,6 +2,7 @@ import { Prisma } from '../../generated/prisma/client';
 import { ConfigService } from '@nestjs/config';
 import type { PinoLogger } from 'nestjs-pino';
 import { NotificationsRetentionJob } from '../../jobs/handlers/notifications-retention.job';
+import { PushTokensStaleJob } from '../../jobs/handlers/push-tokens-stale.job';
 import { SessionsCleanupJob } from '../../jobs/handlers/sessions-cleanup.job';
 import { TaskArchivePurgeJob } from '../../jobs/handlers/tasks-planner.jobs';
 import { ClientFraudService } from '../../modules/client-fraud/client-fraud.service';
@@ -118,6 +119,16 @@ describe('every deletion job respects a legal hold', () => {
       prismaWith({ $queryRaw }),
       settings({ 'notifications.retention_days': 180 }),
       { invalidateNotificationsMany: jest.fn() } as never,
+    );
+    await job.run();
+    expect(heldInSql($queryRaw.mock.calls[0])).toBe(true);
+  });
+
+  it('push.tokens-stale', async () => {
+    const $queryRaw = jest.fn().mockResolvedValue([{ n: 0n }]);
+    const job = new PushTokensStaleJob(
+      prismaWith({ $queryRaw }),
+      settings({ 'push.token_stale_days': 270 }),
     );
     await job.run();
     expect(heldInSql($queryRaw.mock.calls[0])).toBe(true);

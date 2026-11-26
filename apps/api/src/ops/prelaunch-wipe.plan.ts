@@ -274,6 +274,8 @@ export const WIPE_TABLES: Readonly<Record<string, string>> = {
   mls_commits: 'encryption group changes',
   mls_group_devices: 'devices in each encryption group',
   mls_welcomes: 'invitations of devices into encryption groups',
+  e2ee_backups: 'encrypted chat backups (pointers)',
+  e2ee_report_evidence: 'messages handed over with encrypted-chat reports',
   chat_groups: 'group chats',
   chat_group_members: 'group members',
   chat_group_messages: 'group messages',

@@ -38,6 +38,7 @@ import {
 } from '../../calls/video-call-provider';
 import { SecretsService } from '../../../common/secrets/secrets.service';
 import { AppSettingsService } from '../../../common/app-settings/app-settings.service';
+import { parseSwitchMode } from '../../../common/app-settings/switch-mode';
 import { CodeChannelService } from '../../../common/app-settings/code-channel.service';
 import { EMAIL_FLOWS_FLAG } from '../email-flows';
 import {
@@ -641,6 +642,12 @@ export class BootstrapService {
           Object.entries(appConfig).filter(([k]) =>
             PUBLIC_CONFIG_PREFIXES.some((p) => k.startsWith(p)),
           ),
+        ),
+        // Item 25 (owner switch rule): the app hides what belongs to
+        // end-to-end encryption (the encrypted backup row) while the admin's
+        // chat.e2ee_mode is Выкл. Always present, as off / on / auto.
+        'chat.e2ee_mode': parseSwitchMode(
+          appConfig['chat.e2ee_mode'] ?? APP_SETTINGS['chat.e2ee_mode'],
         ),
         // Dedup D-12: `guest.browsing_enabled` is the one master switch (it is
         // also the server's gate for token-less reads). The apps are told
