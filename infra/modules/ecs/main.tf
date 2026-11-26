@@ -400,6 +400,47 @@ variable "api_deployment_alarm_names" {
   default     = []
   description = "Alarms watched while the api rolls out (ALB 5xx ratio, p95, unhealthy hosts, optionally SLO composites). Empty = no alarm rollback for the api."
 }
+# 25.11 (owner decision, «Авто» items 19/27): with the built-in canary / linear
+# deployment ECS moves the live api traffic to the other target group on every
+# release. ALBRequestCountPerTarget has ONE resource label, so after every
+# second release the request policy saw 0 requests. true = the request policy
+# (and the predictive policy below) read BOTH groups with metric math that is
+# AWS's own definition of the metric: "RequestCountPerTarget = RequestCount of
+# the target group / healthy targets" (ELB user guide, "CloudWatch metrics for
+# your Application Load Balancer"); both groups summed. A literal, like
+# modules/monitoring api_two_target_groups (the green ARN is unknown at plan).
+variable "api_two_target_groups" {
+  type        = bool
+  default     = false
+  description = "true = the api request scaling reads both api target groups (blue + green, var.api_green_target_group_arn_suffix). false = ALBRequestCountPerTarget on alb_resource_label, exactly as before."
+}
+variable "api_green_target_group_arn_suffix" {
+  type        = string
+  default     = ""
+  description = "targetgroup/<name>/<id> of the green api target group (modules/alb api_green). Used while api_two_target_groups is true."
+}
+# Item 27 (AU1, 25.11): ECS predictive scaling (AWS since 21.11.2024; ECS
+# developer guide "Use historical patterns to scale Amazon ECS services with
+# predictive scaling"). AWS: start in «forecast only», combine with the
+# target-tracking policies (the larger desired count wins), predictive scaling
+# never scales in by itself. The policy is created in ForecastOnly mode: it
+# changes no task count and costs nothing. The API switches its Mode
+# (admin `infra.predictive_scaling_mode`: Выкл / Прогноз / Вкл / Авто,
+# PredictiveScalingService), so Terraform ignores `mode` after creation.
+variable "predictive_scaling_enabled" {
+  type        = bool
+  default     = true
+  description = "Create the api predictive scaling policy (ForecastOnly at creation; the admin moves it to ForecastAndScale). false = no policy."
+}
+variable "predictive_scheduling_buffer_seconds" {
+  type        = number
+  default     = 300
+  description = "SchedulingBufferTime: tasks for the forecast hour start this many seconds early (an api task needs ~2-3 minutes to pass health checks). AWS: 0..3600."
+  validation {
+    condition     = var.predictive_scheduling_buffer_seconds >= 0 && var.predictive_scheduling_buffer_seconds <= 3600
+    error_message = "predictive_scheduling_buffer_seconds: 0..3600."
+  }
+}
 variable "worker_deployment_alarm_names" {
   type        = list(string)
   default     = []
@@ -1710,6 +1751,132 @@ output "migrate_task_family" { value = aws_ecs_task_definition.migrate.family }
 output "migrate_task_role_arns" { value = [aws_iam_role.execution.arn, aws_iam_role.task_minimal.arn] }
 output "log_group_names" { value = { for k, g in aws_cloudwatch_log_group.svc : k => g.name } }
 
+locals {
+  # alb_resource_label = "app/<lb>/<id>/targetgroup/<tg>/<id>": the ALB
+  # metric dimensions are its two halves (ELB user guide, metric dimensions).
+  api_label_parts   = split("/", var.alb_resource_label)
+  api_alb_dimension = join("/", slice(local.api_label_parts, 0, min(3, length(local.api_label_parts))))
+  api_blue_tg       = join("/", slice(local.api_label_parts, min(3, length(local.api_label_parts)), length(local.api_label_parts)))
+  # Request count (Sum) and healthy targets (Average) per api target group.
+  api_request_series = merge(
+    {
+      rb = { metric = "RequestCount", stat = "Sum", tg = local.api_blue_tg }
+      hb = { metric = "HealthyHostCount", stat = "Average", tg = local.api_blue_tg }
+    },
+    var.api_two_target_groups ? {
+      rg = { metric = "RequestCount", stat = "Sum", tg = var.api_green_target_group_arn_suffix }
+      hg = { metric = "HealthyHostCount", stat = "Average", tg = var.api_green_target_group_arn_suffix }
+    } : {},
+  )
+  api_requests_expr            = var.api_two_target_groups ? "FILL(rb, 0) + FILL(rg, 0)" : "FILL(rb, 0)"
+  api_hosts_expr               = var.api_two_target_groups ? "FILL(hb, 0) + FILL(hg, 0)" : "FILL(hb, 0)"
+  api_requests_per_target_expr = "(${local.api_requests_expr}) / (${local.api_hosts_expr})"
+}
+
+check "api_two_target_groups_need_green" {
+  assert {
+    condition     = !var.api_two_target_groups || var.api_green_target_group_arn_suffix != ""
+    error_message = "api_two_target_groups = true needs api_green_target_group_arn_suffix (modules/alb api_green_target_group_arn_suffix)."
+  }
+}
+
+# Item 27 (AU1): predictive scaling of the api, on the same signal as the
+# request policy (requests of both target groups, per healthy target), so the
+# forecast also survives the built-in canary moving the traffic between the
+# groups (ECS guide, custom metrics: "the load metric ... represents the load
+# ... as a whole", "the scaling metric ... average throughput ... per task").
+# Load = hourly Sum of the requests; scaling = requests per target per minute
+# with the same target as the request policy. ForecastOnly at creation; the API
+# switches Mode. HonorMaxCapacity: the owner's ceiling (scale.max_tasks.api,
+# RegisterScalableTarget) is never passed. It never scales in (AWS); the
+# target-tracking policies above stay and the larger desired count wins.
+resource "aws_appautoscaling_policy" "api_predictive" {
+  count              = var.predictive_scaling_enabled ? 1 : 0
+  name               = "${var.name}-api-predictive"
+  policy_type        = "PredictiveScaling"
+  service_namespace  = aws_appautoscaling_target.svc["api"].service_namespace
+  scalable_dimension = aws_appautoscaling_target.svc["api"].scalable_dimension
+  resource_id        = aws_appautoscaling_target.svc["api"].resource_id
+  predictive_scaling_policy_configuration {
+    mode                         = "ForecastOnly"
+    scheduling_buffer_time       = var.predictive_scheduling_buffer_seconds
+    max_capacity_breach_behavior = "HonorMaxCapacity"
+    metric_specification {
+      target_value = var.api_requests_per_task
+      customized_load_metric_specification {
+        dynamic "metric_data_query" {
+          for_each = { for k, v in local.api_request_series : k => v if v.metric == "RequestCount" }
+          content {
+            id          = metric_data_query.key
+            return_data = false
+            metric_stat {
+              stat = "Sum"
+              metric {
+                metric_name = "RequestCount"
+                namespace   = "AWS/ApplicationELB"
+                dimension {
+                  name  = "LoadBalancer"
+                  value = local.api_alb_dimension
+                }
+                dimension {
+                  name  = "TargetGroup"
+                  value = metric_data_query.value.tg
+                }
+              }
+            }
+          }
+        }
+        metric_data_query {
+          id          = "load"
+          label       = "ALB requests, all api target groups"
+          expression  = local.api_requests_expr
+          return_data = true
+        }
+      }
+      customized_scaling_metric_specification {
+        dynamic "metric_data_query" {
+          for_each = local.api_request_series
+          content {
+            id          = metric_data_query.key
+            return_data = false
+            metric_stat {
+              stat = metric_data_query.value.stat
+              metric {
+                metric_name = metric_data_query.value.metric
+                namespace   = "AWS/ApplicationELB"
+                dimension {
+                  name  = "LoadBalancer"
+                  value = local.api_alb_dimension
+                }
+                dimension {
+                  name  = "TargetGroup"
+                  value = metric_data_query.value.tg
+                }
+              }
+            }
+          }
+        }
+        metric_data_query {
+          id          = "per_target"
+          label       = "ALB requests per healthy api target"
+          expression  = local.api_requests_per_target_expr
+          return_data = true
+        }
+      }
+    }
+  }
+  # The admin's Выкл / Прогноз / Вкл / Авто (PutScalingPolicy, the rest of the
+  # configuration kept) and the admin's `api_requests.target`, which this
+  # policy follows (AwsOpsService.syncPredictiveTarget); an apply must not put
+  # ForecastOnly or the Terraform target back.
+  lifecycle {
+    ignore_changes = [
+      predictive_scaling_policy_configuration[0].mode,
+      predictive_scaling_policy_configuration[0].metric_specification[0].target_value,
+    ]
+  }
+}
+
 # Load review: CPU alone lags a traffic spike; requests per task scales
 # out before saturation (both policies apply, the higher desired count wins).
 resource "aws_appautoscaling_policy" "api_requests" {
@@ -1722,9 +1889,49 @@ resource "aws_appautoscaling_policy" "api_requests" {
     target_value       = var.api_requests_per_task
     scale_in_cooldown  = 600
     scale_out_cooldown = 180 # 13.11 (KE 133): > metric lag + task start, else stale numbers add tasks
-    predefined_metric_specification {
-      predefined_metric_type = "ALBRequestCountPerTarget"
-      resource_label         = var.alb_resource_label
+    dynamic "predefined_metric_specification" {
+      for_each = var.api_two_target_groups ? [] : [1]
+      content {
+        predefined_metric_type = "ALBRequestCountPerTarget"
+        resource_label         = var.alb_resource_label
+      }
+    }
+    # Both api target groups (built-in canary / linear): requests of blue +
+    # green per healthy target of blue + green, per minute (the
+    # ALBRequestCountPerTarget definition). Application Auto Scaling
+    # "Create a target tracking scaling policy using metric math".
+    dynamic "customized_metric_specification" {
+      for_each = var.api_two_target_groups ? [1] : []
+      content {
+        dynamic "metrics" {
+          for_each = local.api_request_series
+          content {
+            id          = metrics.key
+            return_data = false
+            metric_stat {
+              metric {
+                metric_name = metrics.value.metric
+                namespace   = "AWS/ApplicationELB"
+                dimensions {
+                  name  = "LoadBalancer"
+                  value = local.api_alb_dimension
+                }
+                dimensions {
+                  name  = "TargetGroup"
+                  value = metrics.value.tg
+                }
+              }
+              stat = metrics.value.stat
+            }
+          }
+        }
+        metrics {
+          id          = "per_target"
+          label       = "ALB requests per healthy api target, both target groups"
+          expression  = local.api_requests_per_target_expr
+          return_data = true
+        }
+      }
     }
   }
   # Owner 14.11: target and pauses are changed from the admin (API, SSM
@@ -1882,4 +2089,12 @@ output "scaling_policies" {
     target = 70, in_s = 900, out_s = 180 }) } : {},
   )
   description = "Target-tracking policies the admin may tune (name, resource, Terraform defaults). A policy that does not exist is reported as missing by the API."
+}
+# Item 27: the predictive policies the API switches (PredictiveScalingService,
+# OPS_ECS_PREDICTIVE_POLICIES). From variables only (no cycle, see above).
+output "predictive_policies" {
+  value = var.predictive_scaling_enabled ? {
+    api = merge(local.svc_policy, { name = "${var.name}-api-predictive", resource_id = "service/${var.name}/api" })
+  } : {}
+  description = "Predictive scaling policies (name, resource) whose Mode the admin switches."
 }

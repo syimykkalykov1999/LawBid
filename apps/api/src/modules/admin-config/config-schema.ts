@@ -734,6 +734,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'On (default): a re-authentication or add-a-sign-in-method code asked by an older app build (without its purpose) is still accepted. Off: a code works only for the flow it was asked for.',
   };
+  // Owner 25.11: SMS by default until SES is connected (a typo must not act).
+  out['auth.code_channel'] = {
+    ...out['auth.code_channel'],
+    description:
+      'Where a confirmation code of a signed-in person goes (case history, data export, account deletion, contact change, first password): sms (default) = the verified phone | email = the verified e-mail | auto = the e-mail while SES is configured and out of its sandbox, else the phone. A person without the chosen contact gets the code on the other verified one.',
+    pattern: /^(sms|email|auto)$/,
+  };
   out['security.signup_block_disposable_email'] = {
     ...out['security.signup_block_disposable_email'],
     description:
@@ -1976,7 +1983,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['reco.ranker.mode'] = {
     ...out['reco.ranker.mode'],
     description:
-      'Learned posts ranker (Search «For you»): off (formula for everyone), on (A/B test whenever a model is loaded), auto (default; only while the model beat the formula offline and scores inside the latency budget).',
+      'Learned posts ranker (Search «For you» and Feed «Posts»): off (formula for everyone), on (A/B test whenever a model is loaded), auto (default; only while the model beat the formula offline and scores inside the latency budget).',
     pattern: /^(off|on|auto)$/,
   };
   out['reco.ranker.traffic_percent'] = {
@@ -2004,6 +2011,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ...out['reco.ranker.latency_budget_ms'],
     min: 1,
     max: 1000,
+  };
+  out['reco.ranker.feed_window'] = {
+    ...out['reco.ranker.feed_window'],
+    description:
+      'Feed «Posts» (GET /feed), model arm: how many posts of the feed as it is the posts model orders at the start of a scroll (the scroll pages that order, then goes on newest first).',
+    min: 20,
+    max: 400,
   };
   // Owner 25.11: the reels' and the case feed's own learned rankers.
   for (const feed of ['reels', 'cases'] as const) {
@@ -2370,6 +2384,94 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       'Read copies CPU % (average): above it «Авто» adds copy 2..5, below half of it the last extra copy goes. 0 = same as economy.db_cpu_limit_percent (default).',
     min: 0,
     max: 100,
+  };
+  // Items 27-29 (owner 25.11, «Авто» like the big platforms).
+  out['infra.predictive_scaling_mode'] = {
+    ...out['infra.predictive_scaling_mode'],
+    description:
+      'API predictive scaling (ECS): forecast (= Выкл) only forecasts, never adds a task; on adds tasks before the forecast hour; auto (default) = on after infra.predictive_good_days days with the forecast error at or under infra.predictive_max_error_pct.',
+    pattern: /^(forecast|on|auto)$/,
+  };
+  out['infra.predictive_max_error_pct'] = {
+    ...out['infra.predictive_max_error_pct'],
+    description:
+      'Auto: the largest daily forecast error (WAPE, %) that still counts as a good day (default 20).',
+    min: 1,
+    max: 100,
+  };
+  out['infra.predictive_good_days'] = {
+    ...out['infra.predictive_good_days'],
+    description:
+      'Auto: good days in a row before the forecast may add tasks (default 14; AWS: two weeks of history is ideal; max 29).',
+    min: 1,
+    max: 29,
+  };
+  out['infra.predictive_check_minutes'] = {
+    ...out['infra.predictive_check_minutes'],
+    description: 'How often the forecast is compared, minutes (default 60).',
+    min: 1,
+  };
+  out['scale.db_replica_first.mode'] = {
+    ...out['scale.db_replica_first.mode'],
+    description:
+      'Database busy on CPU: off = resize as before; on = first wait for a read copy; auto (default) = wait only while a read copy can come.',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['scale.db_replica_first.wait_minutes'] = {
+    ...out['scale.db_replica_first.wait_minutes'],
+    description:
+      'Longest wait for a read copy before the primary is resized anyway, minutes (default 60).',
+    min: 0,
+  };
+  out['scale.db_replica_first.max_replicas'] = {
+    ...out['scale.db_replica_first.max_replicas'],
+    description:
+      'With this many read copies running the primary is resized without waiting (default 5, the most «Авто» adds).',
+    min: 0,
+    max: 5,
+  };
+  out['infra.valkey_serverless_mode'] = {
+    ...out['infra.valkey_serverless_mode'],
+    description:
+      'Valkey: off = no comparison; auto (default) = price the measured load on nodes and on ElastiCache Serverless and say which is cheaper (never switches by itself).',
+    pattern: /^(off|auto)$/,
+  };
+  out['infra.valkey_serverless_min_saving_pct'] = {
+    ...out['infra.valkey_serverless_min_saving_pct'],
+    description:
+      'Serverless must be cheaper by at least this % every day of the window before «пора переходить» (default 10).',
+    min: 0,
+    max: 100,
+  };
+  out['infra.valkey_serverless_days'] = {
+    ...out['infra.valkey_serverless_days'],
+    description: 'Days of measured load the comparison uses (default 7).',
+    min: 1,
+    max: 30,
+  };
+  out['infra.valkey_serverless_check_hours'] = {
+    ...out['infra.valkey_serverless_check_hours'],
+    description: 'How often the comparison runs, hours (default 6).',
+    min: 1,
+  };
+  out['infra.valkey_serverless_ecpu_factor'] = {
+    ...out['infra.valkey_serverless_ecpu_factor'],
+    description:
+      'ECPU per command of our load (default 1.5: Lua scripts of the queues use more than a simple GET).',
+    min: 1,
+    max: 100,
+  };
+  out['infra.valkey_serverless_gb_hour_usd'] = {
+    ...out['infra.valkey_serverless_gb_hour_usd'],
+    description:
+      'Serverless Valkey price per GB-hour stored, USD (AWS us-east-1, 25.11.2026: 0.084).',
+    min: 0,
+  };
+  out['infra.valkey_serverless_million_ecpu_usd'] = {
+    ...out['infra.valkey_serverless_million_ecpu_usd'],
+    description:
+      'Serverless Valkey price per million ECPU, USD (AWS us-east-1, 25.11.2026: 0.0023).',
+    min: 0,
   };
   out['partition.auto_rows'] = {
     ...out['partition.auto_rows'],

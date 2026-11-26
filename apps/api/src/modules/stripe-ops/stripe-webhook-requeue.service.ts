@@ -1,11 +1,15 @@
 import {
+  Inject,
   Injectable,
   Logger,
   OnApplicationBootstrap,
   OnModuleDestroy,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../redis/redis.constants';
 import { bullOptions } from '../../redis/redis-connection';
 import { PrismaService } from '../../prisma/prisma.service';
 import { STRIPE_WEBHOOKS_QUEUE } from '../billing/billing.constants';
@@ -17,6 +21,12 @@ const MIN_AGE_MS = 2 * 60_000;
 const BATCH = 200;
 /** Rows looked at per run (5 keyset pages). */
 const MAX_PER_RUN = 1000;
+/** Where the last run stopped at the cap (state, so the main Redis). */
+export const REQUEUE_CURSOR_KEY = 'stripe:webhooks:requeue:cursor';
+/** A cursor older than a day is stale: the next run starts from the oldest. */
+const CURSOR_TTL_SEC = 24 * 3600;
+
+type Cursor = { created_at: Date; id: string };
 
 /**
  * Stripe robustness: the intake stores the event first and queues it second.
@@ -37,6 +47,15 @@ const MAX_PER_RUN = 1000;
  * the next run goes on from there; a run that reaches the end starts the
  * next one from the oldest row again. Every unprocessed event is looked at
  * within (count / 1 000) runs.
+ *
+ * Foreman re-check 25.11 (item 8): that position lived in ONE process's
+ * memory (lost on every restart or deploy, unknown to another worker) and
+ * the dead events were still read on every lap. Now `toDlq` stamps dead_at
+ * and the sweep reads only `dead_at IS NULL` (partial index
+ * stripe_webhook_events_live_idx), and the position is kept in Redis
+ * (REQUEUE_CURSOR_KEY, one day TTL), like a Kafka consumer offset; with
+ * Redis down the sweep does nothing anyway (no queue), memory is the
+ * fallback only for a Redis that answers the queue but not the cursor.
  */
 @Injectable()
 export class StripeWebhookRequeueService
@@ -44,13 +63,45 @@ export class StripeWebhookRequeueService
 {
   private readonly logger = new Logger(StripeWebhookRequeueService.name);
   queue?: Pick<Queue<StripeWebhookJobData>, 'add' | 'getJob' | 'close'>;
-  /** Where the last run stopped at the cap (null: start from the oldest). */
-  private resumeAt: { created_at: Date; id: string } | null = null;
+  /** Fallback copy of the cursor when Redis does not answer. */
+  private resumeAt: Cursor | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    @Optional() @Inject(REDIS_CLIENT) private readonly redis?: Redis,
   ) {}
+
+  private async loadCursor(): Promise<Cursor | null> {
+    if (!this.redis) return this.resumeAt;
+    try {
+      const raw = await this.redis.get(REQUEUE_CURSOR_KEY);
+      if (!raw) return null;
+      const c = JSON.parse(raw) as { t: string; id: string };
+      return { created_at: new Date(c.t), id: c.id };
+    } catch {
+      return this.resumeAt;
+    }
+  }
+
+  private async saveCursor(c: Cursor | null): Promise<void> {
+    this.resumeAt = c;
+    if (!this.redis) return;
+    try {
+      if (c) {
+        await this.redis.set(
+          REQUEUE_CURSOR_KEY,
+          JSON.stringify({ t: c.created_at.toISOString(), id: c.id }),
+          'EX',
+          CURSOR_TTL_SEC,
+        );
+      } else {
+        await this.redis.del(REQUEUE_CURSOR_KEY);
+      }
+    } catch (e) {
+      this.logger.warn(`requeue cursor not saved: ${(e as Error).message}`);
+    }
+  }
 
   onApplicationBootstrap(): void {
     const url = this.config.get<string>('REDIS_URL');
@@ -68,9 +119,9 @@ export class StripeWebhookRequeueService
   async sweep(now = new Date()): Promise<{ found: number; requeued: number }> {
     if (!this.queue) return { found: 0, requeued: 0 };
     const cutoff = new Date(now.getTime() - MIN_AGE_MS);
-    let after = this.resumeAt;
+    let after = await this.loadCursor();
     // Reached the end: the next run starts from the oldest row again.
-    this.resumeAt = null;
+    let resume: Cursor | null = null;
     let found = 0;
     let requeued = 0;
     while (found < MAX_PER_RUN) {
@@ -78,6 +129,8 @@ export class StripeWebhookRequeueService
         await this.prisma.stripeWebhookEvent.findMany({
           where: {
             processed_at: null,
+            // Dead (in the DLQ): the admin «Повторить» owns it, not this sweep.
+            dead_at: null,
             created_at: { lt: cutoff },
             type: { in: [...HANDLED_STRIPE_EVENTS] },
             ...(after
@@ -111,8 +164,9 @@ export class StripeWebhookRequeueService
       const last = rows[rows.length - 1];
       after = { created_at: last.created_at, id: last.stripe_event_id };
       // Stopped at the cap with more to read: go on from here next run.
-      if (found >= MAX_PER_RUN) this.resumeAt = after;
+      if (found >= MAX_PER_RUN) resume = after;
     }
+    await this.saveCursor(resume);
     if (requeued > 0)
       this.logger.warn(
         `stripe webhook events requeued from the database: ${requeued}`,

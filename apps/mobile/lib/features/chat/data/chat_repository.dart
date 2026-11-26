@@ -91,7 +91,8 @@ abstract interface class ChatRepository {
     bool forwarded = false,
   });
 
-  /// OQ-040: presign → upload → confirm → clean scan of an m4a note.
+  /// OQ-040: presign → upload → confirm of an m4a note (M3: the scan is not
+  /// waited for; the server shows the note to the others once it is clean).
   Future<String> uploadVoice(Uint8List bytes);
 
   /// OQ-040: a voice message with an uploaded [fileId].
@@ -104,8 +105,8 @@ abstract interface class ChatRepository {
     String? replyToId,
   });
 
-  /// OQ-047: presign → upload → confirm → clean scan of a photo or a
-  /// document; [mime] comes from `sniffChatMime`.
+  /// OQ-047: presign → upload → confirm of a photo or a document; [mime]
+  /// comes from `sniffChatMime` (M3: the scan is not waited for).
   Future<String> uploadAttachment(
     Uint8List bytes,
     String mime, {
@@ -252,6 +253,10 @@ class ApiChatRepository implements ChatRepository {
       mime: webm ? 'audio/webm' : 'audio/mp4',
       filename: webm ? 'voice.webm' : 'voice.m4a',
       scanMaxPolls: _scanMaxPolls,
+      // M3 (owner 25.11, Slack / Telegram), as the queue jobs: the message
+      // goes once storage has the note; the server shows it to the others
+      // after a clean scan, so no 28 s wait and no «scan» failure here.
+      waitScan: false,
     );
   }
 
@@ -301,6 +306,11 @@ class ApiChatRepository implements ChatRepository {
       mime: mime,
       onProgress: onProgress,
       scanMaxPolls: _scanMaxPolls,
+      // M3 (owner 25.11): group files with `group_files_from_disk` off come
+      // here; like `uploadChatAttachmentJob` they no longer wait for the
+      // antivirus (the server holds the file back from the others until it
+      // is clean, PR #1300).
+      waitScan: false,
     );
   }
 

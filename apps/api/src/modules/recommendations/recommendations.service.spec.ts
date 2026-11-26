@@ -406,6 +406,75 @@ describe('RecommendationsService.postsFor', () => {
       ).toEqual(['hot', 'mid', 'low', 'tail']);
       expect(ranker.score).toHaveBeenCalledTimes(1);
     });
+
+    describe('owner 25.11: Feed → «Посты» (home feed window)', () => {
+      const window = ['hot', 'mid', 'low', 'tail'];
+
+      it('the model orders the whole window; the lead stays on top', async () => {
+        const ranker = fakeRanker('reverse', 1);
+        const out = await withRanker(ranker).rankHomeWindow(
+          'viewer',
+          ['tail', ...window.slice(0, 3)],
+          new Set(['tail']),
+          MODEL_ARM,
+        );
+        // The whole window (not top_n = 1), the model's order, lead first.
+        expect(out?.ids).toEqual(['tail', 'low', 'mid', 'hot']);
+        expect(ranker.seen[0]).toHaveLength(3);
+        // The same rows Search «Для вас» scores and logs.
+        expect(out?.rows.get('low')).toMatchObject({ kind_reel: 1, seen: 0 });
+      });
+
+      it('no model or scoring failed: null (the feed stays as it is)', async () => {
+        expect(
+          await withRanker(fakeRanker('fail')).rankHomeWindow(
+            'viewer',
+            window,
+            new Set(),
+            MODEL_ARM,
+          ),
+        ).toBeNull();
+        expect(
+          await new RecommendationsService(
+            makePrisma({ posts: posts() }) as never,
+            makeRedis() as never,
+          ).rankHomeWindow('viewer', window, new Set(), MODEL_ARM),
+        ).toBeNull();
+      });
+
+      it('served pages are logged on their own surface with the model input rows', async () => {
+        const logList = jest.fn().mockResolvedValue(undefined);
+        const events = {
+          keepsImpressionsOf: jest.fn().mockResolvedValue(true),
+          logList,
+        };
+        const s = new RecommendationsService(
+          makePrisma({ posts: posts() }) as never,
+          makeRedis() as never,
+          undefined,
+          undefined,
+          undefined,
+          events as never,
+          fakeRanker('reverse') as never,
+        );
+        await s.logHomeServed('viewer', ['mid', 'hot'], 20, null);
+        const list = logList.mock.calls[0][0] as {
+          surface: string;
+          offset: number;
+          formulaVersion: string;
+          features: Map<string, Record<string, number>>;
+        };
+        expect(list.surface).toBe('home_feed');
+        expect(list.offset).toBe(20);
+        expect(list.formulaVersion).toBe('home-2026-11');
+        expect([...list.features.keys()].sort()).toEqual(['hot', 'mid']);
+        expect(list.features.get('hot')).toMatchObject({ kind_photo: 1 });
+        // Not in the impression sample: nothing read, nothing logged.
+        events.keepsImpressionsOf.mockResolvedValue(false);
+        await s.logHomeServed('viewer', ['mid'], 0, null);
+        expect(logList).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 });
 

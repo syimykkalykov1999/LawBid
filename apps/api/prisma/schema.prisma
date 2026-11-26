@@ -4311,6 +4311,8 @@ model StripeWebhookEvent {
   processed_at    DateTime? @db.Timestamptz
   attempts        Int       @default(0)
   created_at      DateTime  @default(now()) @db.Timestamptz
+  /// Item 8 (25.11): set when the job went to the DLQ; the requeue sweep skips it.
+  dead_at         DateTime? @db.Timestamptz
 
   @@map("stripe_webhook_events")
 }
