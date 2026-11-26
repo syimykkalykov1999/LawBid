@@ -91,6 +91,8 @@ jobs:
           node --test scripts/ci/migration-role-check.test.mjs
           # CONTENT_MEDIA_VERIFY 17.11 №1: CI and the Mac run prod's engines (PostgreSQL 18, Valkey 9.1).
           node --test scripts/ci/ci-engines-match-prod.test.mjs
+          # STAGE2 G2 25.11: prod REST least-outstanding, stickiness only on /socket.io.
+          node --test scripts/ci/prod-alb-balancing.test.mjs
 
       # OPEN_ITEMS_SWEEP 2026-11-09 C-c9: the docs name the DB user migrations
       # really run under (infra/postgres/migration-role.txt); drift fails here.
