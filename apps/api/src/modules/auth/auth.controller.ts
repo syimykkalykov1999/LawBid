@@ -524,7 +524,17 @@ export class AuthController {
   }
 
   @Public()
-  @RequireAppCheck({ group: 'sms', consumeWhen: () => true })
+  // STAGE2_SECURITY O4 (ASVS 5.0 V6.3.8), decided 25.11: the same bot
+  // check as the password sign-in — App Check of the group, and the
+  // challenge after repeated failures for this number or address
+  // (`challenge: 'password', always`). The group stays `sms`: the app and
+  // the web widget already send that group's token for this route.
+  @RequireAppCheck({
+    group: 'sms',
+    consumeWhen: () => true,
+    challenge: 'password',
+    always: true,
+  })
   @Post('phone/status')
   @HttpCode(HttpStatus.OK)
   @ApiEnvelopeResponse(PhoneStatusResultDto)

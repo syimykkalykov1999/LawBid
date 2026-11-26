@@ -1216,6 +1216,9 @@ export const OWNER_RATE_LIMIT_SETTINGS = {
   'security.password_breach_timeout_ms': 1500,
   /** Refuse passwords from the bundled list of the most common ones. */
   'security.password_common_list_enabled': true,
+  /** O4 (ASVS V6.3.8): «is this number registered?» answers after at least
+   * this many ms, registered or not (0 = no floor, at most 2000). */
+  'security.phone_status_min_ms': 150,
   /** Password hashes (scrypt) running at once on one server; the rest wait,
    * so a sign-in flood cannot starve the server's file / DNS work. 2 (not 4):
    * each scrypt is 64 MiB and about 100-200 ms of CPU, and the launch task

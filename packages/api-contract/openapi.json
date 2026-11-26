@@ -5035,6 +5035,16 @@
               }
             }
           },
+          "401": {
+            "description": "Unauthorized: ADMIN_RECOVERY_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
           "426": {
             "description": "Upgrade required: APP_UPDATE_REQUIRED",
             "content": {
@@ -5076,7 +5086,7 @@
             }
           }
         },
-        "summary": "Show the super admin security question",
+        "summary": "Super admin recovery, step 1: login + authenticator (or recovery) code → the security question and a ticket",
         "tags": [
           "admin-auth"
         ]
@@ -143384,11 +143394,16 @@
         "properties": {
           "question": {
             "type": "string",
-            "description": "The super admin’s own security question (a neutral text for any other login)."
+            "description": "The super admin’s own security question, shown only after the second factor."
+          },
+          "ticket": {
+            "type": "string",
+            "description": "Single-use recovery ticket (10 minutes) for POST /admin/auth/recover/password."
           }
         },
         "required": [
-          "question"
+          "question",
+          "ticket"
         ]
       },
       "AdminRecoverQuestionDto": {
@@ -143397,6 +143412,12 @@
           "login": {
             "type": "string",
             "maxLength": 40
+          },
+          "code": {
+            "type": "string",
+            "description": "The 6-digit authenticator code, or one recovery code (it is spent). Required by the server.",
+            "minLength": 6,
+            "maxLength": 64
           }
         },
         "required": [
@@ -143444,6 +143465,12 @@
             "type": "string",
             "maxLength": 128,
             "minLength": 10
+          },
+          "ticket": {
+            "type": "string",
+            "description": "Single-use ticket from POST /admin/auth/recover/question. Required by the server.",
+            "minLength": 16,
+            "maxLength": 128
           }
         },
         "required": [

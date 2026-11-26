@@ -620,6 +620,13 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 200,
     max: 10000,
   };
+  out['security.phone_status_min_ms'] = {
+    ...out['security.phone_status_min_ms'],
+    description:
+      'The «is this number registered?» check answers after at least this many ms, registered or not, so its timing tells nothing (150; 0 = no floor).',
+    min: 0,
+    max: 2000,
+  };
   out['realtime.max_sockets_per_user'] = {
     ...out['realtime.max_sockets_per_user'],
     description:
