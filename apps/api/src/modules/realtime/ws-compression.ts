@@ -1,4 +1,5 @@
 import type { IncomingMessage, Server as HttpServer } from 'node:http';
+import { WS_PER_MESSAGE_DEFLATE } from '../../common/cors/socket-server-options';
 import {
   parseSwitchMode,
   type SwitchMode,
@@ -32,11 +33,9 @@ import {
  * extension), so a change applies to new sockets at once and open ones keep
  * what they negotiated.
  */
-export const WS_PER_MESSAGE_DEFLATE = {
-  threshold: 1024,
-  zlibDeflateOptions: { level: 1 },
-  concurrencyLimit: 10,
-};
+// The option itself lives with the other server options: every gateway
+// passes the same object, whichever one Nest connects first.
+export { WS_PER_MESSAGE_DEFLATE };
 
 export interface WsCompressionSettings {
   mode: SwitchMode;

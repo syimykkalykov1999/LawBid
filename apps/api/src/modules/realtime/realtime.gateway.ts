@@ -22,7 +22,7 @@ import type { Namespace, Socket } from 'socket.io';
 import { AssistantContextService } from '../auth/assistant/assistant-context';
 import { isIP } from 'node:net';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
-import { WS_PER_MESSAGE_DEFLATE, WsCompressionGate } from './ws-compression';
+import { WsCompressionGate } from './ws-compression';
 import type { AppSettingKey } from '../../common/app-settings/app-settings.defaults';
 import { RealtimeStatsService } from '../../common/ops/realtime-stats.service';
 import { RuntimeStatsService } from '../../common/ops/runtime-stats.service';
@@ -79,6 +79,7 @@ import {
   takeSocketEvent,
   type SocketEventBucket,
 } from './socket-event-bucket';
+import { SOCKET_SERVER_OPTIONS } from '../../common/cors/socket-server-options';
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -209,20 +210,9 @@ function expiryOf(token: string): number | null {
  */
 @WebSocketGateway({
   namespace: REALTIME_NAMESPACE,
-  cors: { origin: true },
-  transports: ['websocket', 'polling'],
-  // Owner 2026-10-15: limits so one heavy or broken client cannot hurt the
-  // rest. Every socket event is small (join, typing, presence, a call's
-  // SDP/ICE of a few KB); files go through the REST API, not the socket.
-  maxHttpBufferSize: 64 * 1024,
-  // G6 (25.11): permessage-deflate for frames of 1 KB and more; which new
-  // sockets may use it is the admin switch realtime.server.ws_compression_mode
-  // (ws-compression.ts). engine.io copies this object, the threshold follows
-  // the admin number.
-  perMessageDeflate: { ...WS_PER_MESSAGE_DEFLATE },
-  pingInterval: 25_000,
-  pingTimeout: 20_000,
-  connectTimeout: 10_000,
+  // One Socket.IO server for all namespaces: the same options on every
+  // gateway, whichever starts first (common/cors/socket-server-options.ts).
+  ...SOCKET_SERVER_OPTIONS,
 })
 export class RealtimeGateway
   implements
