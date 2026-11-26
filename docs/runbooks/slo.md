@@ -25,6 +25,10 @@ Every API and worker process writes one log line a minute: `{"metric":"slo","sig
 - Fewer events than the floor of a window count as 0 % errors: 5 min window 2 (`slo_min_events_5m`), 1 h window 5 (`slo_min_events_1h`), 6 h and 30 min windows 20 (`slo_min_events`). Both windows of a pair must agree, so two failed events alone never page.
 - Pages (phone): otp, call, push, login, message, pay and the availability fast burn. The feed SLO and the slow burns only send mail.
 
+## Error budget (28 days) and the release gate
+
+`<env>-slo-<flow>-budget-exhausted` (mail): the SLO spent its error budget over the last 28 days (`SloBudgetRemaining` ≤ 0, measured hourly by the `<env>-error-budget` function, `error-budget.tf`). While any of them is in ALARM, `deploy.yml` lets only fix: / revert: / security: commits and rollbacks through. Rules, override (`BUDGET_GATE`) and the decision log: [error-budget-policy.md](error-budget-policy.md).
+
 ## What to do
 
 ### otp

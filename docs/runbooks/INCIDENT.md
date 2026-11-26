@@ -141,7 +141,7 @@ any alarm that should have fired and did not; anything the owner asks for.
 | Now | owner + Claude | owner is IC and only pager; Claude is operations and scribe |
 | First hire | +1 engineer | engineer is primary on-call, owner is secondary and approves spend/comms |
 | 3 to 5 people | rotation | weekly rotation in PagerDuty, separate IC and operations on SEV1, status page automated, game-day once per quarter (AWS FIS planned) |
-| Larger | team | add customer liaison and scribe roles per PagerDuty model; SLO targets drive severity; error budgets in [slo.md](slo.md) |
+| Larger | team | add customer liaison and scribe roles per PagerDuty model; SLO targets drive severity; error budgets: [error-budget-policy.md](error-budget-policy.md) (only fixes ship while an SLO has spent its 28-day budget) |
 
 Review this file after every SEV1 and at least once a quarter, together with the toil
 register [toil.md](toil.md) (SRE Workbook ch. 6).

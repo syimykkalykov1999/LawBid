@@ -532,6 +532,15 @@ jobs:
           LAST=$(aws ssm get-parameter --name "/lawbid-prod/deploy/last_good_tag" --query Parameter.Value --output text 2>/dev/null || true)
           echo "LAST_GOOD_TAG=${LAST}" >> "$GITHUB_ENV"
           echo "running release: ${LAST:-unknown}"
+      # Б1 (25.11): error budget policy (docs/runbooks/error-budget-policy.md,
+      # SRE Workbook "Example Error Budget Policy"). An SLO that spent its
+      # 28-day budget (alarm <env>-slo-<flow>-budget-exhausted) lets only fixes,
+      # reverts, security changes and rollbacks through, before anything in prod
+      # changes. Owner override: repository variable BUDGET_GATE=off (warn = report only).
+      - name: Error budget gate (only fixes while an SLO budget is spent)
+        env:
+          BUDGET_GATE: ${{ vars.BUDGET_GATE || 'on' }}
+        run: scripts/deploy/budget-gate.sh lawbid-prod "$IMAGE_TAG"
       # S11-14: the real check: the database's newest restorable point (RDS
       # LatestRestorableTime) must be younger than 26 h. BACKUP_CHECK_STRICT=true
       # (repository variable) also fails when the role may not read it.
