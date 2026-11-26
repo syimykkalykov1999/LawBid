@@ -42,6 +42,9 @@ static-auth-secret=$SECRET
 no-multicast-peers
 no-tcp-relay
 total-quota=${quota}
+user-quota=${user_quota}
+max-allocate-lifetime=${max_lifetime}
+max-bps=${max_bps}
 bps-capacity=0
 stale-nonce=600
 # stdout -> journal of the coturn unit (journalctl -u coturn), as syslog was.
@@ -85,6 +88,9 @@ static-auth-secret=$SECRET
 no-multicast-peers
 no-tcp-relay
 total-quota=${quota}
+user-quota=${user_quota}
+max-allocate-lifetime=${max_lifetime}
+max-bps=${max_bps}
 bps-capacity=0
 stale-nonce=600
 # stdout -> journal of the coturn unit (journalctl -u coturn), as syslog was.

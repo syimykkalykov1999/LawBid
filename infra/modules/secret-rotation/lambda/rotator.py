@@ -32,6 +32,9 @@ ec = boto3.client("elasticache")
 kms = boto3.client("kms")
 
 REDIS_GROUPS = json.loads(os.environ.get("REDIS_GROUPS", "{}"))  # {"REDIS_URL": "lawbid-prod-redis"}
+# Item 29: ElastiCache Serverless Valkey has no AUTH token; its password is an
+# ElastiCache user's. {"REDIS_SERVERLESS_URL": "lawbid-prod-svl-default"}
+VALKEY_USERS = json.loads(os.environ.get("VALKEY_USERS", "{}"))
 KEY_SECRETS = set(json.loads(os.environ.get("KEY_SECRETS", "[]")))
 KMS_KEY_ARN = os.environ.get("KMS_KEY_ARN", "")
 KMS_APP = os.environ.get("KMS_APP", "")
@@ -53,7 +56,9 @@ def lambda_handler(event, context):
         raise ValueError("version is not AWSPENDING")
 
     short = meta["Name"].rsplit("/", 1)[-1]
-    if short in REDIS_GROUPS:
+    if short in VALKEY_USERS:
+        kind = "valkey_user"
+    elif short in REDIS_GROUPS:
         kind = "redis"
     elif short in KEY_SECRETS:
         kind = "keys"
@@ -65,6 +70,9 @@ def lambda_handler(event, context):
         ("redis", "createSecret"): redis_create,
         ("redis", "setSecret"): redis_set,
         ("redis", "testSecret"): redis_test,
+        ("valkey_user", "createSecret"): redis_create,  # same URL, new password
+        ("valkey_user", "setSecret"): valkey_user_set,
+        ("valkey_user", "testSecret"): valkey_user_test,
         ("keys", "createSecret"): keys_create,
         ("keys", "setSecret"): lambda *_: None,  # nothing outside the secret changes
         ("keys", "testSecret"): keys_test,
@@ -169,6 +177,44 @@ def redis_test(arn, token, short):
     # available; the connection itself is proven by the first task that
     # starts with the new token (ops.py redeploys, ECS keeps the old task
     # until the new one is healthy).
+    kl.redis_url_token(get_value(arn, "AWSPENDING", token))
+
+
+# --- Serverless Valkey user password (item 29) --------------------------------
+# AWS ElastiCache «Authenticating users with Role-Based Access Control»: a user
+# may hold up to two passwords, so the new one is ADDED (both valid), the
+# services roll, and ops.py later keeps only the new one: the same overlap as
+# the AUTH token ROTATE -> SET above.
+
+def _user_status(user_id):
+    return ec.describe_users(UserId=user_id)["Users"][0]["Status"]
+
+
+def _wait_user_active(user_id):
+    deadline = time.time() + WAIT_SECONDS
+    while time.time() < deadline:
+        if _user_status(user_id) == "active":
+            return
+        time.sleep(5)
+    raise TimeoutError("elasticache user did not become active")
+
+
+def valkey_user_set(arn, token, short):
+    user_id = VALKEY_USERS[short]
+    new_pw = kl.redis_url_token(get_value(arn, "AWSPENDING", token))
+    old_pw = kl.redis_url_token(get_value(arn, "AWSCURRENT"))
+    _wait_user_active(user_id)
+    pws = [old_pw, new_pw] if old_pw != new_pw else [new_pw]
+    ec.modify_user(UserId=user_id, AuthenticationMode={"Type": "password", "Passwords": pws})
+    time.sleep(2)
+    _wait_user_active(user_id)
+
+
+def valkey_user_test(arn, token, short):
+    if _user_status(VALKEY_USERS[short]) != "active":
+        raise RuntimeError("elasticache user is not active")
+    # Same reason as redis_test: no Lambda inside the VPC; the first task
+    # that starts with the new password proves the connection.
     kl.redis_url_token(get_value(arn, "AWSPENDING", token))
 
 

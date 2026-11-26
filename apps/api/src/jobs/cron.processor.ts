@@ -110,6 +110,7 @@ import { StorageStatsService } from '../modules/storage/storage-stats.service';
 import { QaSnapshotService } from '../modules/recommendations/qa-snapshot.service';
 import { EconomyService } from '../common/economy/economy.service';
 import { ChatService } from '../modules/chat/chat.service';
+import { E2eeService } from '../modules/chat/e2ee/e2ee.service';
 import { DisappearingSweepService } from '../modules/chat/disappearing-sweep.service';
 import { TreasuryService } from '../modules/treasury/treasury.service';
 import { AutoAppealsService } from '../modules/moderation/auto-appeals.service';
@@ -215,6 +216,7 @@ export class CronProcessor {
     @Optional() private readonly opsGuard?: OpsGuardJob,
     @Optional() private readonly statusWatchdog?: StatusWatchdogJob,
     @Optional() private readonly settingsRolloutWatch?: SettingsRolloutWatchJob,
+    @Optional() private readonly e2ee?: E2eeService,
     @Optional() private readonly legalReminders?: LegalRemindersJob,
     @Optional() private readonly usagePoll?: UsagePollJob,
     @Optional() private readonly opsState?: OpsStateService,
@@ -598,6 +600,8 @@ export class CronProcessor {
         return this.crashReports?.purge();
       case CRON_JOBS.searchTagTopics:
         return this.searchSynonyms?.tagRecent();
+      case CRON_JOBS.chatE2eeWelcomeSweep:
+        return this.e2ee?.sweepWelcomes();
       case CRON_JOBS.notificationsRetention:
         return this.notificationsRetention.run();
       case CRON_JOBS.privacyAnonymize:
