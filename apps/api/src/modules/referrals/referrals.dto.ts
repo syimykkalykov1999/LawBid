@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsDefined,
   IsIn,
   IsInt,
   IsNumber,
@@ -141,11 +142,13 @@ export class ReferralTextsDto {
 
 export class ReferralTextsByLangDto {
   @ApiProperty({ type: ReferralTextsDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ReferralTextsDto)
   en!: ReferralTextsDto;
 
   @ApiProperty({ type: ReferralTextsDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ReferralTextsDto)
   ru!: ReferralTextsDto;
@@ -389,6 +392,7 @@ export class ReferralSettingsDto {
     type: ReferralRewardDto,
     description: 'Attorney who invited (balance_cents).',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ReferralRewardDto)
   attorneyReferrerReward!: ReferralRewardDto;
@@ -398,6 +402,7 @@ export class ReferralSettingsDto {
     description:
       'Invited attorney (percent_first_invoice or balance_cents); qualifies on the first paid invoice.',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ReferralRewardDto)
   attorneyRefereeReward!: ReferralRewardDto;
@@ -406,6 +411,7 @@ export class ReferralSettingsDto {
     type: ReferralRewardDto,
     description: 'Client who invited (promotion_days).',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ReferralRewardDto)
   clientReferrerReward!: ReferralRewardDto;
@@ -415,6 +421,7 @@ export class ReferralSettingsDto {
     description:
       'Invited client (promotion_days); qualifies on the first case.',
   })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ReferralRewardDto)
   clientRefereeReward!: ReferralRewardDto;
@@ -462,6 +469,7 @@ export class ReferralSettingsDto {
   clientQualifyOn?: 'case_published' | 'case_completed';
 
   @ApiProperty({ type: ReferralTextsByLangDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => ReferralTextsByLangDto)
   texts!: ReferralTextsByLangDto;

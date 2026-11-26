@@ -34,7 +34,7 @@
 
 ## Шаги владельца (в конце)
 
-1. Terraform: в `infra/envs/prod/terraform.tfvars` поставить `database_logical_replication = true` (по желанию `database_max_slot_wal_keep_size_mb = 20480`: встроенная защита PostgreSQL, место чтения старше 20 ГБ журнала помечается потерянным). Применить (Claude делает plan, владелец — apply).
+1. `database_logical_replication = true`. С 26.11 его ставит «Авто» само (строка `aws.db_logical_replication` на «Масштабе», `infra.mode.db_logical_replication`): когда API хочет не меньше `infra.cdc_prepare_on_api_tasks` (4) серверов; план меняет только группы параметров базы и применяется сам (`infra-auto-growth.logic.ts`). Само не выключается (снять параметр может только `ResetDBParameterGroup`, KNOWN_ERRORS 173). По желанию `database_max_slot_wal_keep_size_mb = 20480` в `terraform.tfvars` (встроенная защита PostgreSQL, место чтения старше 20 ГБ журнала помечается потерянным).
 2. В воскресное окно перезагрузить базу (`rds.logical_replication` применяется только после перезагрузки): AWS Console → **RDS** → **Databases** → `lawbid-prod-postgres` → **Actions** → **Reboot** (с Multi-AZ — **Reboot with failover**).
 3. Дать пользователю приложения право читать журнал. AWS Console → **RDS** → **Query Editor** (или psql под главным пользователем) → выполнить: `GRANT rds_replication TO lawbid_app;`
 4. Админка → Настройки → `db.cdc_mode` → **Авто**. Через минуту «Здоровье системы» → «Сброс кэша по журналу базы» — зелёная, «работает».

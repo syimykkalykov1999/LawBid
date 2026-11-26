@@ -31,6 +31,11 @@ on:
       - ".github/pub-audit-allowlist.json"
       - "scripts/ci/pub-*.mjs"
       - "scripts/ci/check-web-*.sh"
+      # Tests read these files outside apps/mobile (KNOWN_ERRORS 259).
+      - "infra/modules/web/main.tf"
+      - "docs/deeplinks/**"
+      - "docs/analytics_events.md"
+      - "docs/i18n-pending/**"
   push:
     branches: [main, master]
     paths:
@@ -41,6 +46,11 @@ on:
       - ".github/pub-audit-allowlist.json"
       - "scripts/ci/pub-*.mjs"
       - "scripts/ci/check-web-*.sh"
+      # Tests read these files outside apps/mobile (KNOWN_ERRORS 259).
+      - "infra/modules/web/main.tf"
+      - "docs/deeplinks/**"
+      - "docs/analytics_events.md"
+      - "docs/i18n-pending/**"
 
 # S11-1: only a superseded PR run is cancelled; a push to main must always finish
 # (its result is what the deploy gate reads) and a merge-queue run is never cancelled.

@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsDefined,
   IsIn,
   IsInt,
   IsOptional,
@@ -12,6 +13,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import {
@@ -181,11 +183,13 @@ export class PartnerTextsDto {
 
 export class PartnerTextsByLangDto {
   @ApiProperty({ type: PartnerTextsDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => PartnerTextsDto)
   en!: PartnerTextsDto;
 
   @ApiProperty({ type: PartnerTextsDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => PartnerTextsDto)
   ru!: PartnerTextsDto;
@@ -345,6 +349,7 @@ export class PartnerSettingsDto {
   requireW9?: boolean;
 
   @ApiProperty({ type: PartnerTextsByLangDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => PartnerTextsByLangDto)
   texts!: PartnerTextsByLangDto;
@@ -608,7 +613,7 @@ class PartnerFieldsDto {
   clientRateCents?: number | null;
 
   @ApiPropertyOptional({ type: 'integer' })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsInt()
   @Min(0)
   @Max(MAX_RATE_CENTS)
@@ -683,21 +688,21 @@ export class CreatePartnerDto extends PartnerFieldsDto {
 
 export class UpdatePartnerDto extends PartnerFieldsDto {
   @ApiPropertyOptional({ enum: PARTNER_STATUSES, enumName: 'PartnerStatus' })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsIn(PARTNER_STATUSES)
   status?: PartnerStatus;
 
   @ApiPropertyOptional({
     description: 'true = W-9 received now; false = clear it.',
   })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsBoolean()
   w9Received?: boolean;
 
   @ApiPropertyOptional({
     description: 'Owner 2026-10-05 («Продвижение»): may create demo accounts.',
   })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsBoolean()
   demoAccess?: boolean;
 

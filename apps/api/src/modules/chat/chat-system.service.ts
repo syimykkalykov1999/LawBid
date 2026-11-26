@@ -3,6 +3,7 @@ import type { Prisma } from '../../generated/prisma/client';
 import { randomUUID } from 'node:crypto';
 import { BadgesService } from '../notifications/badges.service';
 import { RealtimePublisher } from '../realtime/realtime-publisher.service';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** docs/05 §8.2 system messages; the app localizes `chat.system.<key>`. */
 export type ChatSystemKey =
@@ -55,7 +56,7 @@ export class ChatSystemMessages {
   ) {}
 
   async post(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     where: Prisma.ConversationWhereInput,
     key: ChatSystemKey,
     opts: { close?: boolean; param?: string } = {},

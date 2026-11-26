@@ -19,6 +19,7 @@ import { BadgesService } from './badges.service';
 import { dedupeKeyFor } from './notification-rules';
 import { PushQueueService } from './push/push-queue.service';
 import { blockedEitherWay } from '../blocks/block-guard';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** docs/05_FEED_SEARCH_CHAT_NOTIFICATIONS.md §9.2: category of every
  * notification type (drives the per-category settings of §9.5). Typed as
@@ -426,7 +427,7 @@ export class NotificationsService {
   /** Returns the stored row id, or null for `new_message`. */
   async emit(
     input: NotificationEmit,
-    tx?: Prisma.TransactionClient,
+    tx?: DbTx,
   ): Promise<{ id: string } | null> {
     if (input.type === 'new_message') {
       const p = input.payload as Record<string, unknown>;

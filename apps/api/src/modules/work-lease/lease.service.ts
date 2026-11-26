@@ -28,6 +28,7 @@ import {
 } from './staff-presence.service';
 import { StaffEventsPublisher } from './staff-events.publisher';
 import { incrWithTtl } from '../../redis/incr-with-ttl';
+import type { DbTx } from '../../prisma/secret-columns';
 
 const log = new Logger('WorkLease');
 
@@ -322,16 +323,13 @@ export class LeaseService implements LeasePort {
     return lease;
   }
 
-  private async lockPerson(
-    tx: Prisma.TransactionClient,
-    adminId: string,
-  ): Promise<void> {
+  private async lockPerson(tx: DbTx, adminId: string): Promise<void> {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`lease:${adminId}`}))`;
   }
 
   /** The atomic claim: free or expired, and not excluding this person. */
   private async tryClaim(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     src: LeaseQueueSource,
     itemId: string,
     adminId: string,
@@ -422,7 +420,7 @@ export class LeaseService implements LeasePort {
   // --- capacity -----------------------------------------------------------
 
   private async heldInHands(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     adminId: string,
   ): Promise<Array<{ view: LeaseView; counts: boolean }>> {
     const rows = await tx.$queryRaw<LeaseRow[]>`
@@ -925,7 +923,7 @@ export class LeaseService implements LeasePort {
   // --- journal, events, timers ------------------------------------------------
 
   private async writeEvent(
-    db: Prisma.TransactionClient | PrismaService,
+    db: DbTx | PrismaService,
     kind: string,
     itemId: string,
     adminId: string | null,

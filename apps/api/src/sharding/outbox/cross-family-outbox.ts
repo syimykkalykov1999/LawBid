@@ -4,6 +4,7 @@ import { PrismaService, routingOf } from '../../prisma/prisma.service';
 import { shardContext } from '../shard-context';
 import { PRIMARY_DB } from '../shard-router';
 import { EFFECTS, EffectContext } from './outbox-effects';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /**
  * Shard-ready step 7 (docs/architecture/SHARDING_READY.md §6 "Transactions"):
@@ -90,7 +91,7 @@ export class CrossFamilyOutbox {
 
   private databases(): Array<{
     key: string;
-    client: Prisma.TransactionClient;
+    client: DbTx;
   }> {
     const routing = routingOf(this.prisma);
     if (!routing) return [];
@@ -109,7 +110,7 @@ export class CrossFamilyOutbox {
    * null when the effect already ran inline.
    */
   async emit(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     type: string,
     payload: Record<string, unknown>,
     key: string,
@@ -219,7 +220,7 @@ export class CrossFamilyOutbox {
    */
   private async reportOldestPending(
     database: string,
-    client: Prisma.TransactionClient,
+    client: DbTx,
   ): Promise<void> {
     try {
       const rows = await (client as unknown as PrismaService).$queryRaw<

@@ -81,3 +81,7 @@ f664e10bea6316ed309c03b4d6dd573523bd63e3:apps/api/src/modules/files/files.servic
 # replaced by low-entropy keys in the next commit.
 251520bfa069bbb30e7abd09ec6348289175a157:apps/api/test/owner-chat-e2ee-mls.e2e-spec.ts:generic-api-key:137
 251520bfa069bbb30e7abd09ec6348289175a157:apps/api/test/owner-chat-e2ee-mls.e2e-spec.ts:generic-api-key:148
+# 26.11 (PR auto-growth-items): the setting name 'infra.tracing_on_p95_ms' after
+# 'infra.edge_on_api_tasks' in the NO_CEILING list of config-schema.ts (keyword
+# «api» + a string), not a secret; the next commit reorders the list.
+e45e880c05014f0b3259455aebfa46e04b6caabd:apps/api/src/modules/admin-config/config-schema.ts:generic-api-key:2807

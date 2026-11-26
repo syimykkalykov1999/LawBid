@@ -2108,6 +2108,145 @@ export const COST_REGISTRY: readonly CostEntry[] = [
       'Вместо RDS Proxy, дешевле. Нужен раньше, чем серверов станет больше 16.',
     alarm: null,
   },
+  // Owner 26.11 («автоматизируй их не мучая меня»): the growth items that
+  // were a tfvars line each are «Авто» rows on «Масштаб» now
+  // (modules/admin-launch/infra/infra-auto-growth.logic.ts).
+  {
+    id: 'aws.alb_balancing',
+    name: 'Балансировка API: наименее занятый сервер и своя группа сокетов',
+    purpose:
+      'Обычные запросы идут на сервер с меньшей очередью, а не по кругу; сокеты (/socket.io) живут в своей липкой группе.',
+    kind: 'aws',
+    control: tf(
+      ['alb_least_outstanding_requests', 'alb_websocket_target_group'],
+      {
+        off: 'alb_least_outstanding_requests = false\nalb_websocket_target_group = false',
+        on: 'alb_least_outstanding_requests = true\nalb_websocket_target_group = true',
+      },
+    ),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: null,
+    price: {
+      model: 'free',
+      text: 'Бесплатно: группа и правило балансировщика без доплаты, платите только LCU за трафик, как сейчас',
+      sourceUrl: 'https://aws.amazon.com/elasticloadbalancing/pricing/',
+      checkedAt: '2026-11-26',
+      verified: true,
+    },
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'auto',
+    neededNote:
+      'Авто: включается само, когда серверов API не меньше infra.edge_on_api_tasks (2). Само не выключается: стоит $0, а выключение удаляет работающую группу балансировщика (только с кодом 2FA).',
+    alarm: null,
+  },
+  {
+    id: 'aws.api_canary_prepare',
+    name: 'Встроенный canary ECS: подготовка (вторая группа серверов API)',
+    purpose:
+      'Готовит выкат силами самого ECS: вторая («зелёная») группа серверов и правило балансировщика за старым, трафик не двигается.',
+    kind: 'aws',
+    control: tf(['api_native_deploy'], {
+      off: 'api_native_deploy = "off"',
+      on: 'api_native_deploy = "prepare"',
+    }),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: null,
+    price: {
+      model: 'free',
+      text: 'Бесплатно: вторая группа и правило балансировщика без доплаты; больше 10 правил на запрос — копейки LCU',
+      sourceUrl: 'https://aws.amazon.com/elasticloadbalancing/pricing/',
+      checkedAt: '2026-11-26',
+      verified: true,
+    },
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0, 1),
+    needed: 'auto',
+    neededNote:
+      'Авто: включается само, когда серверов API не меньше infra.edge_on_api_tasks (2) и балансировка API уже включена. Само не выключается (стоит около $0).',
+    alarm: null,
+  },
+  {
+    id: 'aws.api_canary',
+    name: 'Встроенный canary ECS: выкат API малой долей с откатом',
+    purpose:
+      'Новая версия API сначала получает малую долю трафика; при тревоге ECS сам возвращает старую.',
+    kind: 'aws',
+    control: tf(['api_native_deploy'], {
+      off: 'api_native_deploy = "prepare"',
+      on: 'api_native_deploy = "canary"',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: {
+      model: 'free',
+      text: 'Бесплатно: вторая группа и правило балансировщика без доплаты; больше 10 правил на запрос — копейки LCU',
+      sourceUrl: 'https://aws.amazon.com/elasticloadbalancing/pricing/',
+      checkedAt: '2026-11-26',
+      verified: true,
+    },
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0, 1),
+    needed: 'later',
+    neededNote:
+      'Не «Авто»: этот шаг удаляет старое правило балансировщика, а автоматический план никогда сам не удаляет работающие части сайта. Один раз: «Вкл» и код 2FA, после подготовки и прав роли выката (infra/bootstrap).',
+    alarm: null,
+  },
+  {
+    id: 'aws.tracing',
+    name: 'Трассы запросов (ADOT → X-Ray): все медленные и ошибочные',
+    purpose:
+      'Показывает, где именно теряется время в медленном или ошибочном запросе: API, база, кэш, внешние сервисы.',
+    kind: 'aws',
+    control: tf(['tracing_enabled'], {
+      off: 'tracing_enabled = false',
+      on: 'tracing_enabled = true',
+    }),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: null,
+    price: {
+      model: 'unit',
+      text: 'X-Ray: первые 100 000 трасс в месяц бесплатно, дальше $5 за миллион; помощник ADOT живёт в той же задаче',
+      sourceUrl: 'https://aws.amazon.com/xray/pricing/',
+      checkedAt: '2026-11-26',
+      verified: true,
+    },
+    usd: { launch: R(0), k100: R(0, 5), m1: R(5, 40) },
+    ifOnUsd: R(0, 10),
+    needed: 'auto',
+    neededNote:
+      'Авто: включается само, когда API медленный (p95 за 15 минут не ниже infra.tracing_on_p95_ms, 600 мс) или ошибок 5xx не меньше infra.tracing_on_error_pct (2 %); выключается само после infra.auto_off_hours спокойствия (деньги).',
+    alarm: null,
+  },
+  {
+    id: 'aws.db_logical_replication',
+    name: 'Журнал изменений базы для сброса кэша (подготовка)',
+    purpose:
+      'Включает в базе логическую репликацию, нужную для сброса кэша по журналу изменений (db.cdc_mode).',
+    kind: 'aws',
+    control: tf(['database_logical_replication'], {
+      off: 'database_logical_replication = false',
+      on: 'database_logical_replication = true',
+    }),
+    states: ['off', 'on', 'auto'],
+    defaultState: 'off',
+    ceiling: null,
+    price: {
+      model: 'free',
+      text: 'Бесплатно: настройка базы; журнал растёт, только пока его читает сброс кэша',
+      sourceUrl: 'https://aws.amazon.com/rds/postgresql/pricing/',
+      checkedAt: '2026-11-26',
+      verified: true,
+    },
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    needed: 'auto',
+    neededNote:
+      'Авто только готовит базу (когда серверов API не меньше infra.cdc_prepare_on_api_tasks, 4). Действует после перезагрузки базы и GRANT rds_replication — шаги владельца (docs/runbooks/cache-cdc.md). Само не выключается: снять настройку может только владелец.',
+    alarm: null,
+  },
   {
     id: 'aws.partition_role',
     name: 'Вход для деления больших таблиц (роль lawbid_partition)',
@@ -3774,6 +3913,11 @@ export const INFRA_MODE_KEYS: Readonly<Record<string, string>> = {
   'aws.db_shards_14': 'infra.mode.db_shards_14',
   'aws.db_shards_15': 'infra.mode.db_shards_15',
   'aws.redis_cache': 'cache.redis_mode',
+  // Owner 26.11: the growth items made «Авто» (infra-auto-growth.logic.ts).
+  'aws.alb_balancing': 'infra.mode.alb_balancing',
+  'aws.api_canary_prepare': 'infra.mode.api_canary_prepare',
+  'aws.tracing': 'infra.mode.tracing',
+  'aws.db_logical_replication': 'infra.mode.db_logical_replication',
 };
 
 export function stepsFor(entry: CostEntry, state: CostState): string[] {

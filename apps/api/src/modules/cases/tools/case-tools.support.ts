@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import {
   ChatSystemMessages,
@@ -8,6 +7,7 @@ import {
 } from '../../chat/chat-system.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import type { RequestUser } from '../../auth/decorators/current-user.decorator';
+import type { DbTx } from '../../../prisma/secret-columns';
 
 export type ToolsKind =
   | 'invoice'
@@ -52,7 +52,7 @@ export class CaseToolsSupport {
 
   /** Puts [fileId] in the case's Files tab (both sides read it there). */
   async linkFile(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     caseId: string,
     fileId: string,
     userId: string,
@@ -76,7 +76,7 @@ export class CaseToolsSupport {
 
   /** A system line in the case chat, inside the caller's transaction. */
   async chatLine(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     caseId: string,
     key: ChatSystemKey,
     param?: string,
@@ -94,7 +94,7 @@ export class CaseToolsSupport {
     recipientId: string,
     caseId: string,
     kind: ToolsKind,
-    tx?: Prisma.TransactionClient,
+    tx?: DbTx,
   ): Promise<void> {
     await this.notifications.emit(
       {

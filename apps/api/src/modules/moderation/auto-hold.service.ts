@@ -4,6 +4,7 @@ import { AppSettingsService } from '../../common/app-settings/app-settings.servi
 import { APP_SETTINGS } from '../../common/app-settings/app-settings.defaults';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import type { DbTx } from '../../prisma/secret-columns';
 
 /** The `note` prefix of a system report (never a person's complaint). */
 export const AUTO_HOLD_NOTE = 'auto_hold';
@@ -133,7 +134,7 @@ export class AutoHoldService {
    * publishing must not fail because the queue row could not be written. */
   async queue(
     input: AutoHoldInput,
-    db: Prisma.TransactionClient | PrismaService = this.prisma,
+    db: DbTx | PrismaService = this.prisma,
   ): Promise<boolean> {
     try {
       if (!(await this.enabled())) return false;

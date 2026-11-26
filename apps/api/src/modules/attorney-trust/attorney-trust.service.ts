@@ -52,8 +52,9 @@ import {
   type TrustSignals,
 } from './trust-level';
 import type { CountryScope } from '../countries/country-scope';
+import type { DbTx } from '../../prisma/secret-columns';
 
-type Db = PrismaService | Prisma.TransactionClient;
+type Db = PrismaService | DbTx;
 
 export interface TrustActor {
   type: (typeof TRUST_ACTOR)[keyof typeof TRUST_ACTOR];
@@ -347,11 +348,11 @@ export class AttorneyTrustService {
   async recompute(
     attorneyId: string,
     actor: TrustActor = SYSTEM,
-    tx?: Prisma.TransactionClient,
+    tx?: DbTx,
     /** Filled with the level / badge this run found (and replaced). */
     seen?: { level?: number; badge?: boolean },
   ): Promise<TrustSnapshot | null> {
-    const run = async (db: Prisma.TransactionClient) => {
+    const run = async (db: DbTx) => {
       const row = await db.attorneyProfile.findUnique({
         where: { user_id: attorneyId },
         select: PROFILE_SELECT,
@@ -644,9 +645,9 @@ export class AttorneyTrustService {
     attorneyId: string,
     actor: TrustActor,
     note: string | null,
-    tx?: Prisma.TransactionClient,
+    tx?: DbTx,
   ): Promise<TrustSnapshot | null> {
-    const run = async (db: Prisma.TransactionClient) => {
+    const run = async (db: DbTx) => {
       await this.ensureRow(db, attorneyId);
       await db.attorneyTrust.update({
         where: { attorney_id: attorneyId },
@@ -873,7 +874,7 @@ export class AttorneyTrustService {
   /** Registry firm = Stripe company, or firm e-mail domain = Stripe
    * company website: the link is confirmed without a person. */
   private async tryAutoFirmLink(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     attorneyId: string,
     trust: {
       firm_link_status: string;
@@ -917,7 +918,7 @@ export class AttorneyTrustService {
   }
 
   private async setFirmLink(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     attorneyId: string,
     source: FirmLinkSource,
     actor: TrustActor,
@@ -1224,9 +1225,9 @@ export class AttorneyTrustService {
     attorneyId: string,
     actor: TrustActor,
     note: string | null,
-    opts: { tx?: Prisma.TransactionClient; notify?: boolean } = {},
+    opts: { tx?: DbTx; notify?: boolean } = {},
   ): Promise<TrustSnapshot | null> {
-    const run = async (tx: Prisma.TransactionClient) => {
+    const run = async (tx: DbTx) => {
       const trust = await this.ensureRow(tx, attorneyId);
       const seen = await this.decisionContext(tx, attorneyId, trust);
       const now = new Date();
@@ -1766,7 +1767,7 @@ export class AttorneyTrustService {
   }
 
   private async holdInTx(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     attorneyId: string,
     input: {
       payments: boolean;
@@ -1840,7 +1841,7 @@ export class AttorneyTrustService {
    * (verification_status → suspended, active bids withdrawn, notice). A
    * verifier restores from Admin → Верификация as usual. */
   private async autoSuspend(
-    tx: Prisma.TransactionClient,
+    tx: DbTx,
     attorneyId: string,
     actor: TrustActor,
     details: Prisma.InputJsonObject,

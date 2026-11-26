@@ -331,6 +331,21 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
   // Valkey 9.1 in place.
   database_major_version: choice('database_major_version', ['16', '18']),
   redis_engine: choice('redis_engine', ['redis', 'valkey']),
+  // Owner 26.11 («автоматизируй их не мучая меня»): growth items whose code
+  // was merged behind a manual tfvars line become «Авто» rows
+  // (infra-auto-growth.logic.ts). S4-7 / S8: the ALB least-outstanding
+  // balancing and the separate sticky socket group (one row: least
+  // outstanding has no effect while the api group is sticky).
+  alb_least_outstanding_requests: bool('alb_least_outstanding_requests'),
+  alb_websocket_target_group: bool('alb_websocket_target_group'),
+  // X1: the ECS built-in canary of the api, two steps (prepare, canary).
+  // `linear` stays a tfvars-only choice.
+  api_native_deploy: choice('api_native_deploy', ['off', 'prepare', 'canary']),
+  // O7 / item 14: ADOT collector + tail sampling (X-Ray).
+  tracing_enabled: bool('tracing_enabled'),
+  // C2: rds.logical_replication on the database parameter group (STATIC:
+  // applied by the next reboot, which stays the owner's step).
+  database_logical_replication: bool('database_logical_replication'),
 };
 
 export type InfraTarget = 'off' | 'on';
@@ -749,6 +764,57 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     },
     impact:
       'Первое включение Spot пересоздаёт пять сервисов (API, API админки, админка, фоновые задачи, пул базы): несколько минут простоя, делать до запуска. Дальше без перерыва. Нужен образ для ARM (выкат делает его сам).',
+  },
+  // Owner 26.11 («автоматизируй их не мучая меня»), FIX_PLAN «Шаги владельца»
+  // 9 (#1313), 8 (#1296), 10 (#1288), 11 (#1298): the growth items that were
+  // a tfvars line each. Decisions: infra-auto-growth.logic.ts.
+  {
+    id: 'aws.alb_balancing',
+    values: {
+      off: {
+        alb_least_outstanding_requests: false,
+        alb_websocket_target_group: false,
+      },
+      on: {
+        alb_least_outstanding_requests: true,
+        alb_websocket_target_group: true,
+      },
+    },
+    impact:
+      'Почти без перерыва: появляется отдельная липкая группа для сокетов (/socket.io), обычные запросы идут на наименее занятый сервер; серверы API перезапускаются по очереди, открытые сокеты переподключаются сами.',
+  },
+  {
+    id: 'aws.api_canary_prepare',
+    values: {
+      off: { api_native_deploy: 'off' },
+      on: { api_native_deploy: 'prepare' },
+    },
+    impact:
+      'Без перерыва: появляется вторая («зелёная») группа серверов API и правило за старым; трафик никуда не переходит, выкат идёт как раньше.',
+  },
+  {
+    id: 'aws.api_canary',
+    values: {
+      off: { api_native_deploy: 'prepare' },
+      on: { api_native_deploy: 'canary' },
+    },
+    impact:
+      'Без перерыва: выкат API делает сам ECS — сначала малая доля трафика на новую версию, при тревоге ECS сам возвращает старую. Старое правило балансировщика удаляется, поэтому только с вашим кодом 2FA.',
+  },
+  {
+    id: 'aws.tracing',
+    values: { off: { tracing_enabled: false }, on: { tracing_enabled: true } },
+    impact:
+      'Без перерыва: серверы API и фоновые перезапускаются по очереди с помощником трасс (ADOT) рядом; сохраняются все медленные и ошибочные запросы.',
+  },
+  {
+    id: 'aws.db_logical_replication',
+    values: {
+      off: { database_logical_replication: false },
+      on: { database_logical_replication: true },
+    },
+    impact:
+      'Без перерыва: меняется только настройка базы, она начнёт действовать после следующей перезагрузки базы (это ваш шаг в воскресное окно).',
   },
 ];
 

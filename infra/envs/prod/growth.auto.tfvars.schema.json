@@ -8,6 +8,12 @@
     "admin_spot": {
       "type": "boolean"
     },
+    "alb_least_outstanding_requests": {
+      "type": "boolean"
+    },
+    "alb_websocket_target_group": {
+      "type": "boolean"
+    },
     "api_admin_spot": {
       "type": "boolean"
     },
@@ -15,6 +21,14 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 4
+    },
+    "api_native_deploy": {
+      "type": "string",
+      "enum": [
+        "off",
+        "prepare",
+        "canary"
+      ]
     },
     "api_spot": {
       "type": "boolean"
@@ -48,6 +62,9 @@
         "X86_64",
         "ARM64"
       ]
+    },
+    "database_logical_replication": {
+      "type": "boolean"
     },
     "database_major_version": {
       "type": "string",
@@ -148,6 +165,9 @@
       "type": "boolean"
     },
     "security_hub_enabled": {
+      "type": "boolean"
+    },
+    "tracing_enabled": {
       "type": "boolean"
     },
     "turn_enabled": {

@@ -6,6 +6,7 @@ import {
   ArrayMinSize,
   IsArray,
   IsBoolean,
+  IsDefined,
   IsIn,
   IsInt,
   IsOptional,
@@ -166,7 +167,7 @@ export class CopyTemplateDto {
 
 export class AdminTemplatesQueryDto extends TemplatesQueryDto {
   @ApiPropertyOptional({ description: 'true = published, false = drafts.' })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @Transform(bool)
   @IsBoolean()
   published?: boolean;
@@ -212,7 +213,7 @@ export class AdminTemplateFileParamDto {
 
 class TemplateFieldsDto {
   @ApiPropertyOptional({ maxLength: 2000 })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @Transform(trim)
   @IsString()
   @MaxLength(2000)
@@ -222,7 +223,7 @@ class TemplateFieldsDto {
     maxLength: 200,
     description: 'Name the file is saved under, e.g. "lease.pdf".',
   })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @Transform(trim)
   @IsString()
   @MinLength(1)
@@ -247,7 +248,7 @@ class TemplateFieldsDto {
   state?: string | null;
 
   @ApiPropertyOptional({ example: 'en' })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @Matches(LANGUAGE)
   language?: string;
 
@@ -255,12 +256,12 @@ class TemplateFieldsDto {
     enum: TEMPLATE_AUDIENCES,
     enumName: 'TemplateAudience',
   })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsIn(TEMPLATE_AUDIENCES)
   audience?: TemplateAudience;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsBoolean()
   published?: boolean;
 }
@@ -335,6 +336,8 @@ export class AdminTemplatesBulkDto {
 /** Row 179 B6: how many templates the list filter matches, before acting. */
 export class AdminTemplatesBulkPreviewDto {
   @ApiProperty({ type: () => AdminTemplatesFilterDto })
+  // DAST 26.11: a body without filter was a 500 (undefined filter field).
+  @IsDefined()
   @ValidateNested()
   @Type(() => AdminTemplatesFilterDto)
   filter!: AdminTemplatesFilterDto;
