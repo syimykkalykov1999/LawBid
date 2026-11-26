@@ -345,6 +345,13 @@ variable "partition_role_enabled" {
   default = false
 }
 
+# D8 (26.11): migrations as the narrow role lawbid_migrator instead of the RDS
+# master user (admin switch aws.db_migrator_role; docs/runbooks/db-migrator-role.md).
+variable "db_migrator_role_enabled" {
+  type    = bool
+  default = false
+}
+
 # Owner 2026-10-24: our own PgBouncer (docs/architecture/DB_POOLER.md,
 # runbook docs/runbooks/DB_POOLER.md). false = direct database connection.
 variable "db_pooler_enabled" {

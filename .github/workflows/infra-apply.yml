@@ -297,10 +297,12 @@ jobs:
       # now. Before, that waited for the next deploy, and until then the
       # emptiness check could not read the server, so «Авто» never removed
       # an empty one and no data part could move to it. Idempotent.
-      - name: Migrate now (partition login, new database server)
+      # D8 (26.11): aws.db_migrator_role hands the schema to lawbid_migrator
+      # in this run (prisma/ensure-migrator-role.mjs), not at the next deploy.
+      - name: Migrate now (partition login, new database server, migrator role)
         if: >-
           steps.apply.outcome == 'success' &&
-          contains(fromJSON('["aws.partition_role","aws.db_shards","aws.db_shards_2","aws.db_shards_3","aws.db_shards_4","aws.db_shards_5","aws.db_shards_6","aws.db_shards_7","aws.db_shards_8","aws.db_shards_9","aws.db_shards_10","aws.db_shards_11","aws.db_shards_12","aws.db_shards_13","aws.db_shards_14","aws.db_shards_15"]'), steps.job.outputs.item)
+          contains(fromJSON('["aws.partition_role","aws.db_migrator_role","aws.db_shards","aws.db_shards_2","aws.db_shards_3","aws.db_shards_4","aws.db_shards_5","aws.db_shards_6","aws.db_shards_7","aws.db_shards_8","aws.db_shards_9","aws.db_shards_10","aws.db_shards_11","aws.db_shards_12","aws.db_shards_13","aws.db_shards_14","aws.db_shards_15"]'), steps.job.outputs.item)
         run: |
           # KNOWN_ERRORS 181: run-migrations.sh needs ECR_REGISTRY with a tag;
           # take both from the image the live api runs (registry/repo:tag).

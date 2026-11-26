@@ -56,6 +56,9 @@
         "18"
       ]
     },
+    "db_migrator_role_enabled": {
+      "type": "boolean"
+    },
     "db_pooler_enabled": {
       "type": "boolean"
     },

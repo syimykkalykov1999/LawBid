@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 // Docs say the truth about the migration DB user (OPEN_ITEMS_SWEEP 2026-11-09
-// C-c9). The one source of truth is infra/postgres/migration-role.txt (today
-// `lawbid_admin`: the RDS master user in the secret MIGRATOR_DATABASE_URL, the
-// owner of every table; `lawbid_migrator` is the planned least-privilege role
-// that is NOT used yet — docs/runbooks/TF_CATCHUP.md «Про пользователя
-// миграций»). Every operational document that names the user migrations run
-// under must name the truth; a line that mentions the other role must say in
-// the same line that it is planned / not in use (план, planned, не
-// используется, not used, not in use, вместо, instead). History (CHANGELOG,
-// changelog.d, journal) is not checked.
+// C-c9; D8 26.11). The truth is the admin switch aws.db_migrator_role, i.e.
+// `db_migrator_role_enabled` in infra/envs/prod/growth.auto.tfvars.json (the
+// infra-apply workflow commits that file to main after every apply):
+//   true          -> the schema steps of the migrate task run as lawbid_migrator
+//                    (prisma/ensure-migrator-role.mjs, docs/runbooks/db-migrator-role.md);
+//   false/missing -> they run as lawbid_admin, the RDS master user (as before).
+// Every operational document that names the user migrations run under must
+// name the truth; a line that names the other role must name the switch in
+// the same line (db_migrator_role), i.e. say it depends on it. «План / not in
+// use» no longer excuses a line: it would turn false the day the switch is on.
+// History (CHANGELOG, changelog.d, journal) is not checked.
 //
-//   node scripts/ci/migration-role-check.mjs [--root <repo>] [--truth <file>]
+//   node scripts/ci/migration-role-check.mjs [--root <repo>] [--tfvars <file>]
 //
 // Exit 1 with the offending file:line when the docs diverge again.
 import { readFileSync, existsSync } from 'node:fs';
@@ -19,10 +21,17 @@ import { join } from 'node:path';
 const args = process.argv.slice(2);
 const opt = (name, dflt) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : dflt; };
 const root = opt('--root', process.cwd());
-const truthFile = opt('--truth', join(root, 'infra/postgres/migration-role.txt'));
+const tfvarsFile = opt('--tfvars', join(root, 'infra/envs/prod/growth.auto.tfvars.json'));
 
 export const ROLES = ['lawbid_admin', 'lawbid_migrator'];
-export const MARKERS = /план|planned|не используется|not used|not in use|вместо|instead|не чинить|do not fix/i;
+export const MARKERS = /db_migrator_role/;
+
+
+/** The role the migrations run under, from the parsed growth.auto.tfvars.json. */
+export function truthOf(tfvars) {
+  return tfvars && tfvars.db_migrator_role_enabled === true ? 'lawbid_migrator' : 'lawbid_admin';
+}
+
 export const FILES = [
   'docs/02_DATABASE.md',
   'docs/06_PRODUCTION.md',
@@ -63,13 +72,12 @@ export function check(files, truth, read) {
 }
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop())) {
-  const truth = readFileSync(truthFile, 'utf8').trim();
-  if (!ROLES.includes(truth)) { console.error(`::error::${truthFile}: unknown role "${truth}"`); process.exit(2); }
+  const truth = truthOf(JSON.parse(readFileSync(tfvarsFile, 'utf8')));
   const read = (f) => (existsSync(join(root, f)) ? readFileSync(join(root, f), 'utf8') : null);
   const problems = check(FILES, truth, read);
   for (const p of problems) console.error(`::error title=Migration user in docs::${p}`);
   if (problems.length) {
-    console.error(`Миграции на проде идут под ${truth} (infra/postgres/migration-role.txt). Исправьте документ или, если роль действительно сменилась, этот файл.`);
+    console.error(`Миграции на проде идут под ${truth} (переключатель aws.db_migrator_role, db_migrator_role_enabled в infra/envs/prod/growth.auto.tfvars.json). Исправьте документ: назовите ${truth} или напишите в той же строке, что роль зависит от переключателя db_migrator_role.`);
     process.exit(1);
   }
   console.log(`migration-role-check: every operational doc names ${truth} as the migration user`);

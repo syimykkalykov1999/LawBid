@@ -460,7 +460,7 @@ Prisma `@@index/@@unique` создаёт обычные индексы. Част
 ### 6.3 Роли БД
 | Роль | Права |
 |---|---|
-| `lawbid_admin` | DDL: миграции при деплое (`prisma migrate deploy`, секрет `MIGRATOR_DATABASE_URL`). Это мастер-пользователь RDS и владелец всех таблиц; роль `lawbid_migrator` создана как план с меньшими правами и пока **не используется** — под ней первая же миграция упадёт «must be owner of table» (`docs/runbooks/TF_CATCHUP.md`). Истина в одном месте: `infra/postgres/migration-role.txt`, проверка `scripts/ci/migration-role-check.mjs` |
+| `lawbid_admin` / `lawbid_migrator` | DDL: миграции при деплое (`prisma migrate deploy`). Задача миграций держит мастер-пользователя RDS `lawbid_admin` (секрет `MIGRATOR_DATABASE_URL`). Переключатель админки `aws.db_migrator_role` (`db_migrator_role_enabled`): Вкл — сама схема меняется под узкой ролью `lawbid_migrator` (без SUPERUSER, CREATEDB, CREATEROLE; владеет таблицами схемы public, базу удалить не может; `apps/api/prisma/migrator-role.sql`), Выкл — под `lawbid_admin`, как раньше. Истина: `infra/envs/prod/growth.auto.tfvars.json`, проверка `scripts/ci/migration-role-check.mjs`, инструкция `docs/runbooks/db-migrator-role.md` |
 | `lawbid_app` | DML на рабочие таблицы, только INSERT/SELECT на append-only |
 | `lawbid_retention` | DELETE только на `case_journal` (`retain_until < now()`) |
 | `lawbid_readonly` | SELECT для аналитики (без таблиц с документами и контактами) |

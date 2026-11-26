@@ -2099,6 +2099,34 @@ export const COST_REGISTRY: readonly CostEntry[] = [
     alarm: null,
   },
   {
+    // D8 (26.11, docs/runbooks/db-migrator-role.md): the secret always exists
+    // (so Выкл never deletes it); the switch only gives it to the migrate task.
+    id: 'aws.db_migrator_role',
+    name: 'Миграции базы под узкой ролью (lawbid_migrator)',
+    purpose:
+      'Изменения схемы базы идут не под главным пользователем базы, а под ролью, которая не может создавать роли и удалить базу.',
+    kind: 'aws',
+    control: tf(['db_migrator_role_enabled'], {
+      off: 'db_migrator_role_enabled = false',
+      on: 'db_migrator_role_enabled = true',
+    }),
+    states: ['off', 'on'],
+    defaultState: 'off',
+    ceiling: null,
+    price: price(
+      'unit',
+      '≈ $0,40 в месяц (один секрет, есть всегда)',
+      U.sm,
+      false,
+    ),
+    usd: { launch: R(0), k100: R(0), m1: R(0) },
+    ifOnUsd: R(0),
+    needed: 'yes',
+    neededNote:
+      'Нужна для безопасности: AWS советует не пускать программы под главным пользователем базы. Включается кнопкой «Вкл», откат кнопкой «Выкл».',
+    alarm: null,
+  },
+  {
     id: 'aws.security_hub',
     name: 'Проверки безопасности (Security Hub)',
     purpose: 'Каждые 12 часов сверяет аккаунт со стандартами CIS и AWS.',

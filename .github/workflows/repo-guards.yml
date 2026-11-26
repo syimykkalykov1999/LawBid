@@ -108,7 +108,8 @@ jobs:
         run: node scripts/ci/cert-pins-check.mjs
 
       # OPEN_ITEMS_SWEEP 2026-11-09 C-c9: the docs name the DB user migrations
-      # really run under (infra/postgres/migration-role.txt); drift fails here.
+      # really run under (D8: the switch aws.db_migrator_role in
+      # infra/envs/prod/growth.auto.tfvars.json); drift fails here.
       - name: Docs name the real migration DB user
         run: node scripts/ci/migration-role-check.mjs
 

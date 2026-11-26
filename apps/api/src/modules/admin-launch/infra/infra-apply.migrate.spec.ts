@@ -27,4 +27,9 @@ describe('infra-apply: migrate right after a database server switch', () => {
   it('the partition login keeps its migrate run', () => {
     expect(condition).toContain('"aws.partition_role"');
   });
+
+  // D8 (26.11): the migrator role is made ready right after the switch.
+  it('the migrator role switch runs the migrate task after the apply', () => {
+    expect(condition).toContain('"aws.db_migrator_role"');
+  });
 });

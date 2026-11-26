@@ -262,6 +262,8 @@ export const INFRA_KEYS: Readonly<Record<string, InfraKey>> = {
   livekit_enabled: bool('livekit_enabled'),
   db_pooler_enabled: bool('db_pooler_enabled'),
   partition_role_enabled: bool('partition_role_enabled'),
+  // D8 (26.11): migrations as lawbid_migrator, not the RDS master user.
+  db_migrator_role_enabled: bool('db_migrator_role_enabled'),
   security_hub_enabled: bool('security_hub_enabled'),
   inspector_enabled: bool('inspector_enabled'),
   config_enabled: bool('config_enabled'),
@@ -592,6 +594,19 @@ export const INFRA_SWITCHES: readonly InfraSwitch[] = [
     },
     impact:
       'Без перерыва: фоновые серверы перезапускаются по очереди и получают вход для деления больших таблиц.',
+  },
+  {
+    // D8 (26.11, docs/runbooks/db-migrator-role.md): Вкл = the migrate task
+    // gets the login of lawbid_migrator, hands the schema to it and runs the
+    // migrations as that role (the master user if anything is not ready);
+    // Выкл = the master user again, one step, nothing is deleted.
+    id: 'aws.db_migrator_role',
+    values: {
+      off: { db_migrator_role_enabled: false },
+      on: { db_migrator_role_enabled: true },
+    },
+    impact:
+      'Без перерыва: меняется только задача миграций, сервисы не перезапускаются. Сразу после включения задача миграций один раз передаёт таблицы узкой роли (меньше секунды на таблицу, по одной).',
   },
   {
     id: 'aws.security_hub',

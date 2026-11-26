@@ -234,7 +234,7 @@ jobs:
       - name: Online DDL rules and the concurrent-migration folder
         # docs/architecture/ONLINE_DDL.md: new migrations must not lock big tables.
         working-directory: apps/api
-        run: node --test scripts/online-ddl.test.mjs scripts/ensure-partition-login.test.mjs scripts/migrate-shards.test.mjs
+        run: node --test scripts/online-ddl.test.mjs scripts/ensure-partition-login.test.mjs scripts/ensure-migrator-role.test.mjs scripts/migrate-shards.test.mjs
 
       - name: Migrations are expand/contract and online-DDL safe (rolling deploy + rollback safe)
         # Squawk judges only the migration folders THIS change adds: on a PR the
@@ -253,6 +253,22 @@ jobs:
         # transaction); a broken file must fail the PR, not the deploy.
         working-directory: apps/api
         run: node prisma/run-concurrent.mjs && node prisma/run-concurrent.mjs
+
+      - name: Migrations run as the narrow role lawbid_migrator (D8)
+        # docs/runbooks/db-migrator-role.md: the migrate task's first step makes
+        # the role ready on the migrated database (prisma/migrator-role.sql),
+        # then the schema steps run as that role and the probe proves its
+        # rights (DDL + lawbid_app's grants on new tables, no role or database
+        # powers). Last of the migration steps: the role owns the schema after it.
+        working-directory: apps/api
+        env:
+          MIGRATOR_ROLE_PASSWORD: ci-only-migrator-login
+        run: |
+          MIGRATE_URL="$(node prisma/ensure-migrator-role.mjs)"
+          node -e 'if (new URL(process.argv[1]).username !== "lawbid_migrator") { console.error("::error::lawbid_migrator was not made ready (see the lines above)"); process.exit(1); }' "$MIGRATE_URL"
+          DATABASE_URL="$MIGRATE_URL" npx prisma migrate deploy
+          DATABASE_URL="$MIGRATE_URL" node prisma/run-concurrent.mjs
+          DATABASE_URL="$MIGRATE_URL" node scripts/migrator-role-probe.mjs
 
       - name: Translations are complete in every language
         run: node scripts/i18n-audit.mjs --ci
