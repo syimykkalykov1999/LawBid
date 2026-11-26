@@ -91,6 +91,7 @@ class WebE2eePlaintextStore implements E2eePlaintextStore {
   }
 
   /// Every decrypted message: id → (conversationId, payload).
+  @override
   Future<Map<String, (String, String)>> all() async {
     final out = (await (await _m()).ptAll().toDart).toDart;
     return {

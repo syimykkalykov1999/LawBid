@@ -1009,6 +1009,16 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       365,
       'Days an undelivered MLS Welcome is kept.',
     ],
+    [
+      'chat.e2ee_file_max_mb',
+      4096,
+      'MB of one end-to-end encrypted chat file.',
+    ],
+    [
+      'chat.e2ee_backup_max_mb',
+      16384,
+      'MB of one person’s encrypted chat backup.',
+    ],
   ] as const) {
     out[key] = { ...out[key], description: text, min: 0, max };
   }
