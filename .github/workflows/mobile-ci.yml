@@ -31,7 +31,7 @@ on:
       - ".github/pub-audit-allowlist.json"
       - "scripts/ci/pub-*.mjs"
       - "scripts/ci/check-web-*.sh"
-      # Tests read these files outside apps/mobile (KNOWN_ERRORS 256).
+      # Tests read these files outside apps/mobile (KNOWN_ERRORS 257).
       - "infra/modules/web/main.tf"
       - "docs/deeplinks/**"
       - "docs/analytics_events.md"
@@ -46,7 +46,7 @@ on:
       - ".github/pub-audit-allowlist.json"
       - "scripts/ci/pub-*.mjs"
       - "scripts/ci/check-web-*.sh"
-      # Tests read these files outside apps/mobile (KNOWN_ERRORS 256).
+      # Tests read these files outside apps/mobile (KNOWN_ERRORS 257).
       - "infra/modules/web/main.tf"
       - "docs/deeplinks/**"
       - "docs/analytics_events.md"
