@@ -212,7 +212,8 @@ jobs:
       # (benchmarkIndex 2390-4020 on 26 jobs, the same code gave TBT 150 vs 334),
       # and a fixed x4 multiplied that. Lighthouse docs/throttling.md
       # «Calibrating the CPU slowdown»: measure the host's benchmarkIndex first,
-      # then pick cpuSlowdownMultiplier from it (apps/admin/lighthouse-cpu.cjs).
+      # then pick cpuSlowdownMultiplier from it (apps/admin/lighthouse-cpu.cjs:
+      # a table fitted on 3662 reports of 160 jobs, KNOWN_ERRORS 261).
       # Three short runs of the same Lighthouse as lhci 0.15.1 (12.6.1), median.
       # Blocking: without a measured runner the Lighthouse step must not run.
       - name: Calibrate the CPU slowdown to this runner (benchmarkIndex)
@@ -230,11 +231,15 @@ jobs:
               --chrome-flags="--headless=new --no-sandbox --disable-dev-shm-usage"
           done
           out=$(node lighthouse-cpu.cjs "$dir"/run-*.json)
-          bi=${out% *}
-          mult=${out#* }
-          echo "benchmarkIndex $bi -> cpuSlowdownMultiplier $mult"
+          read -r bi mult range <<< "$out"
+          echo "benchmarkIndex $bi -> cpuSlowdownMultiplier $mult (fit range: $range)"
+          # Outside the fitted range the table is clamped: say so, a refit
+          # (scripts/ci/lighthouse-cpu-fit.py) is due.
+          if [ "$range" != in ]; then
+            echo "::warning title=Lighthouse CPU calibration::benchmarkIndex $bi is outside the fitted range 2200-4500, the multiplier is clamped to $mult. Refit the table (KNOWN_ERRORS 261)."
+          fi
           echo "LHCI_BENCHMARK_INDEX=$bi" >> "$GITHUB_ENV"
-          { echo "benchmark_index=$bi"; echo "multiplier=$mult"; } >> "$GITHUB_OUTPUT"
+          { echo "benchmark_index=$bi"; echo "multiplier=$mult"; echo "range=$range"; } >> "$GITHUB_OUTPUT"
       # Blocking: the Total Blocking Time budget is an error (lighthouserc.cjs);
       # the stand steps above stay non-blocking (an infra hiccup skips this).
       - name: Lighthouse (9 runs per page, median)
@@ -250,7 +255,7 @@ jobs:
           {
             echo "## Admin Lighthouse (desktop, CPU calibrated to the runner)"
             echo "stand: api=${{ steps.api.outcome }} token=${{ steps.admin_token.outcome }} admin=${{ steps.admin.outcome }} (non-blocking first runs)"
-            echo "calibration: benchmarkIndex **${{ steps.calibrate.outputs.benchmark_index }}** -> cpuSlowdownMultiplier **${{ steps.calibrate.outputs.multiplier }}** (x4 at benchmarkIndex 2950, Lighthouse CPU throttling calculator, KNOWN_ERRORS 260)"
+            echo "calibration: benchmarkIndex **${{ steps.calibrate.outputs.benchmark_index }}** -> cpuSlowdownMultiplier **${{ steps.calibrate.outputs.multiplier }}** (fit range: ${{ steps.calibrate.outputs.range }}; x4 at benchmarkIndex 2950, table fitted on 160 jobs, KNOWN_ERRORS 261)"
             echo "| page | performance | accessibility | LCP ms | TBT ms | CLS | benchmarkIndex | CPU x |"
             echo "|---|---|---|---|---|---|---|---|"
             for f in .lighthouseci/lhr-*.json; do
