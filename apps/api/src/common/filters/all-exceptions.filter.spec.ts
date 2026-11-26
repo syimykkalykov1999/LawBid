@@ -214,6 +214,29 @@ describe('AllExceptionsFilter (docs/01 §7 error envelope)', () => {
     expect(run(e).status).toBe(500);
   });
 
+  it('maps a value PostgreSQL refuses (Prisma P2007, e.g. a bad uuid) to 400 VALIDATION_ERROR', () => {
+    const e = new Prisma.PrismaClientKnownRequestError(
+      'Invalid input value: invalid input syntax for type uuid: "0"',
+      { code: 'P2007', clientVersion: 'test' },
+    );
+    const { status, body } = run(e);
+    expect(status).toBe(400);
+    expect(body).toMatchObject({
+      error: { code: ErrorCode.VALIDATION_ERROR },
+    });
+  });
+
+  it('maps a write conflict left after the retries (Prisma P2034) to 503 SERVER_BUSY', () => {
+    const e = new Prisma.PrismaClientKnownRequestError(
+      'Transaction failed due to a write conflict or a deadlock. Please retry your transaction',
+      { code: 'P2034', clientVersion: 'test' },
+    );
+    const { status, body, headers } = run(e);
+    expect(status).toBe(503);
+    expect(body).toMatchObject({ error: { code: 'SERVER_BUSY' } });
+    expect(headers['Retry-After']).toBe('5');
+  });
+
   it('keeps other Prisma errors a 500', () => {
     const e = new Prisma.PrismaClientKnownRequestError('x', {
       code: 'P2002',

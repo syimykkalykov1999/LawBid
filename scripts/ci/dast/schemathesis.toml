@@ -1,0 +1,10 @@
+# X3 (SECOND_PASS_2026-11-26, AWS WA SEC11-BP02): API fuzzing of the OpenAPI
+# contract against the throw-away CI stand (api-dast.yml). Never prod.
+# Docs: https://schemathesis.readthedocs.io/en/stable/reference/configuration/
+#
+# Only an unhandled crash (HTTP 500) is a finding. 401/403/404/422/429 are the
+# API doing its job (guards, validation, rate limits). 501-504 are expected on
+# the stand: it has no Stripe, Twilio, Bunny or R2 keys, so routes that need
+# them answer "not configured / dependency unavailable" on purpose.
+[checks.not_a_server_error]
+expected-statuses = ["2xx", "3xx", "4xx", "501", "502", "503", "504"]

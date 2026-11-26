@@ -23,6 +23,10 @@ describe('isDbBusyError', () => {
     ).toBe(true);
   });
 
+  it('a write conflict or deadlock left after withTxRetry (P2034) is busy', () => {
+    expect(isDbBusyError(known('P2034'))).toBe(true);
+  });
+
   it('other errors are not', () => {
     expect(isDbBusyError(known('P2028', 'Transaction already closed'))).toBe(
       false,

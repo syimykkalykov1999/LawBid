@@ -5,19 +5,20 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsDefined,
   IsIn,
-  IsISO8601,
   IsInt,
+  IsISO8601,
   IsOptional,
   IsString,
   IsUUID,
-  Max,
   Matches,
+  Max,
   MaxLength,
   Min,
+  MinLength,
   ValidateIf,
   ValidateNested,
-  MinLength,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -182,6 +183,8 @@ export class AdminUsersBulkDto {
 /** S18-10: how many users a filter matches, before the action. */
 export class AdminUsersBulkPreviewDto {
   @ApiProperty({ type: () => AdminUsersFilterDto })
+  // DAST 26.11: a body without filter was a 500 (undefined filter field).
+  @IsDefined()
   @ValidateNested()
   @Type(() => AdminUsersFilterDto)
   filter!: AdminUsersFilterDto;

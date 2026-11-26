@@ -657,21 +657,21 @@ export class CreateSupportMacroDto {
   category?: SupportCategory | null;
 
   @ApiPropertyOptional({ default: true })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsBoolean()
   active?: boolean;
 }
 
 export class UpdateSupportMacroDto {
   @ApiPropertyOptional({ minLength: 1, maxLength: 120 })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @Transform(trim)
   @IsString()
   @Length(1, 120)
   title?: string;
 
   @ApiPropertyOptional({ minLength: 1, maxLength: SUPPORT_BODY_MAX })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @Transform(trim)
   @IsString()
   @MinLength(1)
@@ -697,7 +697,7 @@ export class UpdateSupportMacroDto {
   category?: SupportCategory | null;
 
   @ApiPropertyOptional()
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsBoolean()
   active?: boolean;
 }
@@ -721,9 +721,12 @@ export class SupportAgentDto {
 }
 
 export class UpdateSupportAgentDto {
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() onShift?: boolean;
+  @ApiPropertyOptional()
+  @ValidateIf((_o, v) => v !== undefined)
+  @IsBoolean()
+  onShift?: boolean;
   @ApiPropertyOptional({ minimum: 1, maximum: 500 })
-  @IsOptional()
+  @ValidateIf((_o, v) => v !== undefined)
   @IsInt()
   @Min(1)
   @Max(500)

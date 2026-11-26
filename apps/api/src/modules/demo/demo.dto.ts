@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsDefined,
   IsIn,
   IsInt,
   IsOptional,
@@ -180,6 +181,7 @@ export class DemoSettingsDto {
   uploadQuotaMb!: number;
 
   @ApiProperty({ type: DemoBannerTextDto })
+  @IsDefined()
   @ValidateNested()
   @Type(() => DemoBannerTextDto)
   bannerText!: DemoBannerTextDto;
