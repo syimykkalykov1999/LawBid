@@ -113,6 +113,9 @@ CREATE INDEX "mls_welcomes_device_id_created_at_idx" ON "mls_welcomes"("device_i
 -- CreateIndex
 CREATE INDEX "mls_welcomes_conversation_id_idx" ON "mls_welcomes"("conversation_id");
 
+-- CreateIndex
+CREATE INDEX "mls_welcomes_created_at_idx" ON "mls_welcomes"("created_at");
+
 -- AddForeignKey
 ALTER TABLE "mls_devices" ADD CONSTRAINT "mls_devices_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 

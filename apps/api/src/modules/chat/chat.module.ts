@@ -47,6 +47,6 @@ import { E2eeService } from './e2ee/e2ee.service';
     // M3 (owner 25.11): the end of a file's check reaches its chat message.
     { provide: CHAT_FILE_SCAN_LISTENER, useExisting: ChatService },
   ],
-  exports: [ChatService],
+  exports: [ChatService, E2eeService],
 })
 export class ChatModule {}

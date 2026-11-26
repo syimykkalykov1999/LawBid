@@ -3422,6 +3422,7 @@ model MlsWelcome {
 
   @@index([device_id, created_at])
   @@index([conversation_id])
+  @@index([created_at])
   @@map("mls_welcomes")
 }
 
