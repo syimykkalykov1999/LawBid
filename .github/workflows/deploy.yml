@@ -34,6 +34,8 @@
 #
 # Required repository/environment secrets (never in the repo):
 #   AWS_DEPLOY_ROLE_STAGING / AWS_DEPLOY_ROLE_PROD  — OIDC role ARNs
+#   AWS_BUILD_ROLE_PROD  C4: image builds (ECR push only, terraform output
+#                        build_role_arn in infra/bootstrap); unset = deploy role
 #   AWS_REGION, ECR_REGISTRY (123456789012.dkr.ecr.<region>.amazonaws.com)
 #   STAGING_API_URL / PROD_API_URL, STAGING_ADMIN_URL / PROD_ADMIN_URL
 # The `production` environment must require reviewers (the manual gate).
@@ -136,7 +138,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ vars.STAGING_ENABLED == 'true' && secrets.AWS_DEPLOY_ROLE_STAGING || secrets.AWS_DEPLOY_ROLE_PROD }}
+          role-to-assume: ${{ vars.STAGING_ENABLED == 'true' && secrets.AWS_DEPLOY_ROLE_STAGING || secrets.AWS_BUILD_ROLE_PROD || secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
       - uses: aws-actions/amazon-ecr-login@7290e214a610b32bc0eef81748948b6d466a8783 # v2.2.0
       # ECR tags are IMMUTABLE (infra/bootstrap): a re-run on a commit whose
@@ -232,7 +234,7 @@ jobs:
         run: scripts/deploy/oidc-sub.sh
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ vars.STAGING_ENABLED == 'true' && secrets.AWS_DEPLOY_ROLE_STAGING || secrets.AWS_DEPLOY_ROLE_PROD }}
+          role-to-assume: ${{ vars.STAGING_ENABLED == 'true' && secrets.AWS_DEPLOY_ROLE_STAGING || secrets.AWS_BUILD_ROLE_PROD || secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
       - uses: aws-actions/amazon-ecr-login@7290e214a610b32bc0eef81748948b6d466a8783 # v2.2.0
       # ECR tags are IMMUTABLE (infra/bootstrap): re-running Deploy on a

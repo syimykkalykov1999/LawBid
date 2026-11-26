@@ -1117,6 +1117,17 @@ variable "web_csp_exact_connect_enforced" {
   description = "Enforce the exact storage hosts in the web CSP (after a week of Report-Only)."
 }
 
+# C5 (THIRD_PASS_B 26.11): every role carries the CI permissions boundary
+# (infra/bootstrap/ci-guard.tf). ON by default (STRICT_RULES №6); until the
+# owner applies infra/bootstrap the plan gets `-var=...=false` from
+# scripts/infra/rights-gate.mjs (the boundary policy and the right to set it do
+# not exist yet), the first plan after the bootstrap apply puts it on.
+variable "iam_permissions_boundary_enabled" {
+  type        = bool
+  default     = true
+  description = "Permissions boundary lawbid-prod-ci-boundary on every role the pipeline manages."
+}
+
 # S10 (SECOND_PASS_2026-11-26, ASVS 5.0 V13.2.4/V13.2.5): Route 53 Resolver
 # DNS Firewall for the app VPC. Default OFF (owner applies, docs/runbooks/
 # dns-firewall.md). First ALERT for 2 weeks (logs only), then BLOCK.

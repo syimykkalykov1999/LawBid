@@ -128,6 +128,39 @@ IP+устройство разводит их. Запрос БЕЗ заголо�
 `aws-inventory.yml`. Иначе эти запуски перестанут входить в AWS. Тогда любой
 push в main больше не получит права ECS без вашего подтверждения.
 
+### 8а. Три роли вместо одной и граница прав (C4 + C5, 26.11)
+
+Что было: роль выкладки могла сама переписать свои права (встроенная политика
+`"*"` или удаление политики с запретами) — это полный доступ к AWS для любого
+кода, получившего её токен. Теперь (`infra/bootstrap/ci-guard.tf`, `main.tf`,
+`infra-apply.tf`):
+- **выкладка** (`lawbid-prod-github-deploy`) — только файлы `deploy.yml`,
+  `rollback.yml`, `web-deploy.yml`, `seo-deploy.yml`, `self-check.yml`;
+  образы больше не пушит;
+- **сборка** (`lawbid-prod-github-build`) — только запись образов в ECR, файлы
+  `deploy.yml`, `build-pgbouncer.yml`, `mirror-clamav.yml`;
+- **облако из админки** (`lawbid-prod-github-infra-apply`) — только
+  `infra-apply.yml` в окружении `infra-apply`;
+- ни одна из них не может менять IAM у ролей bootstrap (себя тоже) и у
+  break-glass, снимать границу прав и править политики-стражи; новую роль или
+  новые права роли — только с границей `lawbid-prod-ci-boundary` (AWS
+  «Permissions boundaries for IAM entities»). Все прежние запреты остались.
+
+Шаги владельца (один раз, в этом порядке, в одну сессию):
+1. `cd infra/bootstrap && terraform apply` (тот же bootstrap apply, что уже в
+   списке). В плане: 2 новые роли, 3 управляемые политики, перенос прав
+   «infra-apply» на новую роль.
+2. Сразу после него — 3 секрета репозитория (Settings → Secrets and variables →
+   Actions → New repository secret), значения из `terraform output`:
+   `AWS_BUILD_ROLE_PROD` = `build_role_arn`,
+   `AWS_INFRA_APPLY_ROLE_PROD` = `infra_apply_role_arn`,
+   `AWS_INVENTORY_ROLE` = `inventory_role_arn`.
+   Между шагом 1 и 2 сборка образов, «Облако из админки» и «AWS inventory»
+   не войдут в AWS (выкладка, откат, сайт и самопроверка работают).
+3. Ничего больше: первое «Облако из админки» после шага 1 само ставит границу
+   на все роли (`iam_permissions_boundary_enabled`, до bootstrap его держит
+   `scripts/infra/rights-gate.mjs`).
+
 ## 9. Состояние Terraform (S4-14)
 
 `state_replica_enabled = true` в `infra/bootstrap`: копия bucket состояния в

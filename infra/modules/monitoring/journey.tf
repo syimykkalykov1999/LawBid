@@ -109,8 +109,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "journey" {
 }
 
 resource "aws_iam_role" "journey" {
-  count = local.journey_on ? 1 : 0
-  name  = "${var.name}-journey-canary"
+  count                = local.journey_on ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-journey-canary"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -276,8 +277,9 @@ resource "aws_cloudwatch_log_group" "alarm_hook" {
 }
 
 resource "aws_iam_role" "alarm_hook" {
-  count = local.hook_on ? 1 : 0
-  name  = "${var.name}-alarm-hook"
+  count                = local.hook_on ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-alarm-hook"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{

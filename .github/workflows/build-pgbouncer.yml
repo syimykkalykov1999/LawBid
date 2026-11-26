@@ -8,7 +8,8 @@
 #   pgbouncer_image = "<ECR_REGISTRY>/lawbid-pgbouncer:<tag>"
 # ECR tags are IMMUTABLE: to change the image, change infra/pgbouncer and use a
 # new tag (the tag is also printed in the run summary).
-# Secrets used: AWS_DEPLOY_ROLE_PROD, AWS_REGION, ECR_REGISTRY (same as deploy.yml).
+# Secrets used: AWS_BUILD_ROLE_PROD (C4: ECR-push-only role, terraform output
+# build_role_arn in infra/bootstrap; falls back to AWS_DEPLOY_ROLE_PROD), AWS_REGION, ECR_REGISTRY.
 # The repository lawbid-pgbouncer comes from infra/bootstrap. The push job checks
 # that FIRST (scripts/ci/require-ecr.sh): a missing repository stops the run in
 # seconds with the exact fix, not after a 10-minute multi-arch build
@@ -66,7 +67,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          role-to-assume: ${{ secrets.AWS_BUILD_ROLE_PROD || secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
       - uses: aws-actions/amazon-ecr-login@7290e214a610b32bc0eef81748948b6d466a8783 # v2.2.0
       - name: The ECR repository exists (fail now, not after the build)

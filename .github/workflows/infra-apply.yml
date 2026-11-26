@@ -25,8 +25,10 @@
 # Concurrency 1 (also enforced by the API's database). Never runs on a PR.
 #
 # Repository secrets / variables (never in the repo):
-#   AWS_DEPLOY_ROLE_PROD   the OIDC deploy role (infra/bootstrap, extended with
-#                          the infra-apply policy when infra_apply_enabled = true)
+#   AWS_INFRA_APPLY_ROLE_PROD  C4: the own OIDC role of this workflow (terraform
+#                          output infra_apply_role_arn in infra/bootstrap); until it
+#                          is set, AWS_DEPLOY_ROLE_PROD (the old deploy role,
+#                          which held the infra-apply policy before 26.11)
 #   AWS_REGION
 #   vars.LAWBID_API_URL    https://api.lawbid.dev (default when unset)
 name: Infra apply (from the admin)
@@ -124,7 +126,7 @@ jobs:
 
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          role-to-assume: ${{ secrets.AWS_INFRA_APPLY_ROLE_PROD || secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
           role-duration-seconds: 3600
 
@@ -240,7 +242,7 @@ jobs:
         if: steps.wait.outputs.go == 'true'
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          role-to-assume: ${{ secrets.AWS_INFRA_APPLY_ROLE_PROD || secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
           role-duration-seconds: ${{ (contains(fromJSON('["aws.opensearch_2_19","aws.opensearch_3"]'), steps.job.outputs.item) && '14400') || vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
 
@@ -262,7 +264,7 @@ jobs:
         if: steps.drain.outcome == 'success'
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          role-to-assume: ${{ secrets.AWS_INFRA_APPLY_ROLE_PROD || secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
           role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
 
@@ -294,7 +296,7 @@ jobs:
         if: always() && steps.wait.outputs.go == 'true' && (steps.apply.outcome == 'success' || steps.apply.outcome == 'failure')
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          role-to-assume: ${{ secrets.AWS_INFRA_APPLY_ROLE_PROD || secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
           role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
       - name: Services follow the pooler setting (on, off, left-over)
@@ -336,7 +338,7 @@ jobs:
         if: steps.apply.outcome == 'success' && steps.job.outputs.item == 'aws.postgres_major'
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          role-to-assume: ${{ secrets.AWS_INFRA_APPLY_ROLE_PROD || secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
           role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
       - name: Database upgrade, part 1 (reboot for logical replication, green copy)
@@ -352,7 +354,7 @@ jobs:
         if: steps.pgmajor1.outcome == 'success'
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_PROD }}
+          role-to-assume: ${{ secrets.AWS_INFRA_APPLY_ROLE_PROD || secrets.AWS_DEPLOY_ROLE_PROD }}
           aws-region: ${{ env.AWS_REGION }}
           role-duration-seconds: ${{ vars.AWS_APPLY_SESSION_SECONDS || 3600 }}
       - name: Database upgrade, part 2 (switchover about a minute, Terraform state)

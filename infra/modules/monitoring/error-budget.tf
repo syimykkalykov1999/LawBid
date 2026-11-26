@@ -88,8 +88,9 @@ resource "aws_cloudwatch_log_group" "error_budget" {
 }
 
 resource "aws_iam_role" "error_budget" {
-  count = local.eb_on ? 1 : 0
-  name  = local.eb_fn
+  count                = local.eb_on ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = local.eb_fn
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -146,8 +147,9 @@ resource "aws_lambda_function" "error_budget" {
 
 # Scheduler -> Lambda, no retries (the next hour is the retry), as in modules/endpoints-autoscale.
 resource "aws_iam_role" "error_budget_scheduler" {
-  count = local.eb_on ? 1 : 0
-  name  = "${local.eb_fn}-scheduler"
+  count                = local.eb_on ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${local.eb_fn}-scheduler"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{

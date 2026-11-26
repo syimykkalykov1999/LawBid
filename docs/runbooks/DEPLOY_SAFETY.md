@@ -204,7 +204,8 @@ sigstore/cosign-installer и anchore/sbom-action (GitHub, 2026).
    -> `main` (то же для `release` и `load-test`). Это вторая половина защиты: первая
    в Terraform (`job_workflow_ref`, `infra/bootstrap`): роль деплоя отдаётся только
    workflow-файлам `deploy.yml`, `rollback.yml`, `web-deploy.yml`... из `main`.
-   Новый workflow, которому нужна роль, надо сначала добавить в `deploy_workflows`.
+   Новый workflow, которому нужна роль, надо сначала добавить в `deploy_workflows`
+   (сборка образов: `build_workflows`, роль build; «Облако из админки» — своя роль, C4 26.11).
 4. **Terraform apply** в `infra/bootstrap` (новые права: StopTask/ListTasks, RDS
    describe+snapshot, SSM `/lawbid-prod/deploy/*`, роль `lawbid-prod-github-notify`).
    Claude делает plan, вы подтверждаете.

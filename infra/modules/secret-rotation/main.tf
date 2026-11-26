@@ -190,10 +190,11 @@ resource "aws_cloudwatch_log_group" "rotator" {
 }
 
 resource "aws_iam_role" "rotator" {
-  count              = local.need_rotator ? 1 : 0
-  name               = "${local.fn_prefix}-rotator"
-  assume_role_policy = data.aws_iam_policy_document.assume.json
-  tags               = var.tags
+  count                = local.need_rotator ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${local.fn_prefix}-rotator"
+  assume_role_policy   = data.aws_iam_policy_document.assume.json
+  tags                 = var.tags
 }
 
 data "aws_iam_policy_document" "rotator" {
@@ -379,9 +380,10 @@ resource "aws_cloudwatch_log_group" "ops" {
 }
 
 resource "aws_iam_role" "ops" {
-  name               = "${local.fn_prefix}-ops"
-  assume_role_policy = data.aws_iam_policy_document.assume.json
-  tags               = var.tags
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${local.fn_prefix}-ops"
+  assume_role_policy   = data.aws_iam_policy_document.assume.json
+  tags                 = var.tags
 }
 
 data "aws_iam_policy_document" "ops" {

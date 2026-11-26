@@ -1135,6 +1135,22 @@ locals {
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
+# C5 (THIRD_PASS_B 26.11, AWS «Permissions boundaries for IAM entities»): every
+# role of this stack (modules included, break-glass excepted: the owner applies
+# it, it is an administrator by design) carries the boundary that
+# infra/bootstrap/ci-guard.tf creates. The pipeline may create or extend a
+# role ONLY with it on (condition iam:PermissionsBoundary), so a role it makes
+# can never write IAM or delete the data stores.
+variable "iam_permissions_boundary_enabled" {
+  type        = bool
+  default     = false
+  description = "Put the lawbid-<env>-ci-boundary permissions boundary on every role (prod: on; held by scripts/infra/rights-gate.mjs until infra/bootstrap is applied)."
+}
+
+locals {
+  permissions_boundary_arn = var.iam_permissions_boundary_enabled ? "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/${local.name}-ci-boundary" : null
+}
+
 module "kms" {
   source = "../kms"
   name   = local.name
@@ -1184,13 +1200,14 @@ module "network" {
 }
 
 module "turn" {
-  count     = var.turn_enabled ? 1 : 0
-  source    = "../turn"
-  name      = local.name
-  vpc_id    = module.network.vpc_id
-  subnet_id = module.network.public_subnet_ids[0]
-  realm     = var.domain
-  tags      = local.tags
+  count                    = var.turn_enabled ? 1 : 0
+  source                   = "../turn"
+  permissions_boundary_arn = local.permissions_boundary_arn
+  name                     = local.name
+  vpc_id                   = module.network.vpc_id
+  subnet_id                = module.network.public_subnet_ids[0]
+  realm                    = var.domain
+  tags                     = local.tags
 
   # Second relay in the next Availability Zone, health checks, alarms.
   secondary_subnet_id      = var.turn_second_enabled ? module.network.public_subnet_ids[1] : null
@@ -1242,33 +1259,35 @@ resource "aws_iam_role_policy" "turn_on_demand" {
 
 # Owner 2026-10-22: self-hosted LiveKit SFU (off until livekit_enabled).
 module "livekit" {
-  count                   = var.livekit_enabled ? 1 : 0
-  source                  = "../livekit"
-  name                    = local.name
-  vpc_id                  = module.network.vpc_id
-  subnet_id               = module.network.public_subnet_ids[0]
-  domain                  = var.domain
-  hosted_zone_id          = var.hosted_zone_id
-  instance_type           = var.livekit_instance_type
-  use_redis               = var.livekit_use_redis
-  redis_endpoint          = module.redis.primary_endpoint == null ? "" : module.redis.primary_endpoint
-  redis_url_secret_arn    = module.redis.redis_url_secret_arn == null ? "" : module.redis.redis_url_secret_arn
-  redis_security_group_id = module.redis.security_group_id
-  kms_key_arn             = module.kms.key_arn
-  alerts_topic_arn        = module.monitoring.alerts_topic_arn
-  egress_alarm_gb_per_day = var.livekit_egress_alarm_gb_per_day
-  tags                    = local.tags
+  count                    = var.livekit_enabled ? 1 : 0
+  source                   = "../livekit"
+  permissions_boundary_arn = local.permissions_boundary_arn
+  name                     = local.name
+  vpc_id                   = module.network.vpc_id
+  subnet_id                = module.network.public_subnet_ids[0]
+  domain                   = var.domain
+  hosted_zone_id           = var.hosted_zone_id
+  instance_type            = var.livekit_instance_type
+  use_redis                = var.livekit_use_redis
+  redis_endpoint           = module.redis.primary_endpoint == null ? "" : module.redis.primary_endpoint
+  redis_url_secret_arn     = module.redis.redis_url_secret_arn == null ? "" : module.redis.redis_url_secret_arn
+  redis_security_group_id  = module.redis.security_group_id
+  kms_key_arn              = module.kms.key_arn
+  alerts_topic_arn         = module.monitoring.alerts_topic_arn
+  egress_alarm_gb_per_day  = var.livekit_egress_alarm_gb_per_day
+  tags                     = local.tags
 
   recovery_window_in_days = var.ephemeral ? 0 : 30
 }
 
 module "s3" {
-  source              = "../s3"
-  providers           = { aws = aws, aws.replica = aws.replica }
-  name                = local.name
-  kms_key_arn         = module.kms.key_arn
-  replica_kms_key_arn = module.kms_replica.key_arn
-  tags                = local.tags
+  source                   = "../s3"
+  providers                = { aws = aws, aws.replica = aws.replica }
+  permissions_boundary_arn = local.permissions_boundary_arn
+  name                     = local.name
+  kms_key_arn              = module.kms.key_arn
+  replica_kms_key_arn      = module.kms_replica.key_arn
+  tags                     = local.tags
 
   cors_allowed_origins         = local.web_cors_origins
   media_web_acl_arn            = module.cdn_waf.web_acl_arn
@@ -1550,11 +1569,12 @@ locals {
 }
 
 module "postgres" {
-  count      = var.create_database ? 1 : 0
-  source     = "../postgres"
-  name       = local.name
-  vpc_id     = module.network.vpc_id
-  subnet_ids = module.network.private_subnet_ids
+  count                    = var.create_database ? 1 : 0
+  source                   = "../postgres"
+  permissions_boundary_arn = local.permissions_boundary_arn
+  name                     = local.name
+  vpc_id                   = module.network.vpc_id
+  subnet_ids               = module.network.private_subnet_ids
   # KNOWN_ERRORS 99: the pooler's access is part of the group's own inline
   # list. A separate rule next to inline ones was removed by every change of
   # the group (11.11 13:02 → prod down 13:25–14:15).
@@ -1610,6 +1630,7 @@ locals {
 module "postgres_shard" {
   count                      = var.db_shards
   source                     = "../postgres"
+  permissions_boundary_arn   = local.permissions_boundary_arn
   name                       = "${local.name}-db${count.index + 1}"
   vpc_id                     = module.network.vpc_id
   subnet_ids                 = module.network.private_subnet_ids
@@ -1652,10 +1673,11 @@ module "postgres_shard" {
 # its own server (prisma-read.service.ts); a server without a copy is read
 # from itself.
 module "growth_shard" {
-  count  = var.db_shards
-  source = "../growth"
-  name   = "${local.name}-db${count.index + 1}"
-  tags   = local.tags
+  count                    = var.db_shards
+  source                   = "../growth"
+  permissions_boundary_arn = local.permissions_boundary_arn
+  name                     = "${local.name}-db${count.index + 1}"
+  tags                     = local.tags
 
   vpc_id                  = module.network.vpc_id
   private_subnet_ids      = module.network.private_subnet_ids
@@ -1843,15 +1865,16 @@ resource "aws_db_instance_automated_backups_replication" "this" {
 }
 
 module "backup" {
-  count               = var.backup_enabled && (var.create_database || var.existing_database_identifier != "") ? 1 : 0
-  source              = "../backup"
-  providers           = { aws = aws, aws.replica = aws.replica }
-  name                = local.name
-  resource_arns       = [local.database_arn]
-  kms_key_arn         = module.kms.key_arn
-  replica_kms_key_arn = module.kms_replica.key_arn
-  retention_days      = var.backup_retention_days
-  copy_retention_days = var.backup_retention_days
+  count                    = var.backup_enabled && (var.create_database || var.existing_database_identifier != "") ? 1 : 0
+  source                   = "../backup"
+  providers                = { aws = aws, aws.replica = aws.replica }
+  permissions_boundary_arn = local.permissions_boundary_arn
+  name                     = local.name
+  resource_arns            = [local.database_arn]
+  kms_key_arn              = module.kms.key_arn
+  replica_kms_key_arn      = module.kms_replica.key_arn
+  retention_days           = var.backup_retention_days
+  copy_retention_days      = var.backup_retention_days
   copy_account_vault_arn = var.backup_copy_account_id == "" ? "" : (
     "arn:aws:backup:${var.backup_copy_region == "" ? data.aws_region.current.region : var.backup_copy_region}:${var.backup_copy_account_id}:backup-vault:${var.backup_copy_vault_name}"
   )
@@ -2484,8 +2507,9 @@ resource "aws_secretsmanager_secret_version" "active_kid" {
 }
 
 module "secret_rotation" {
-  count  = local.rot_any ? 1 : 0
-  source = "../secret-rotation"
+  count                    = local.rot_any ? 1 : 0
+  source                   = "../secret-rotation"
+  permissions_boundary_arn = local.permissions_boundary_arn
 
   name         = local.name
   cluster_name = module.ecs.cluster_name
@@ -2543,8 +2567,9 @@ resource "aws_ssm_parameter" "ecs_scaling_tuning" {
 }
 
 module "pgbouncer" {
-  count  = var.db_pooler_enabled ? 1 : 0
-  source = "../pgbouncer"
+  count                    = var.db_pooler_enabled ? 1 : 0
+  source                   = "../pgbouncer"
+  permissions_boundary_arn = local.permissions_boundary_arn
 
   name                       = local.name
   vpc_id                     = module.network.vpc_id
@@ -2614,6 +2639,7 @@ locals {
 
 module "ecs" {
   source                          = "../ecs"
+  permissions_boundary_arn        = local.permissions_boundary_arn
   name                            = local.name
   readonly_root_filesystem        = var.ecs_readonly_root_filesystem
   fault_injection_enabled         = var.ecs_fault_injection_enabled
@@ -3172,8 +3198,9 @@ variable "db_replica_monitoring" {
 }
 
 resource "aws_iam_role" "db_replica_monitoring" {
-  count = var.db_replica_toggle && var.db_replica_monitoring ? 1 : 0
-  name  = "${local.name}-rds-replica-monitoring"
+  count                = var.db_replica_toggle && var.db_replica_monitoring ? 1 : 0
+  permissions_boundary = local.permissions_boundary_arn
+  name                 = "${local.name}-rds-replica-monitoring"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -3236,6 +3263,7 @@ data "aws_iam_policy_document" "ops_trust" {
 
 resource "aws_iam_role" "ops" {
   count                = local.ops_split_on ? 1 : 0
+  permissions_boundary = local.permissions_boundary_arn
   name                 = "${local.name}-ops"
   assume_role_policy   = data.aws_iam_policy_document.ops_trust[0].json
   max_session_duration = 3600
@@ -3332,6 +3360,7 @@ module "budget" {
 
 module "monitoring" {
   source                           = "../monitoring"
+  permissions_boundary_arn         = local.permissions_boundary_arn
   name                             = local.name
   alert_emails                     = var.alert_emails
   slack_webhook_url                = var.slack_webhook_url
@@ -3413,11 +3442,12 @@ locals {
 }
 
 module "db_autoscale" {
-  count          = local.db_autoscale_on ? 1 : 0
-  source         = "../db-autoscale"
-  name           = local.name
-  db_instance_id = local.db_identifier
-  cluster_name   = module.ecs.cluster_name
+  count                    = local.db_autoscale_on ? 1 : 0
+  source                   = "../db-autoscale"
+  permissions_boundary_arn = local.permissions_boundary_arn
+  name                     = local.name
+  db_instance_id           = local.db_identifier
+  cluster_name             = module.ecs.cluster_name
   # D1-42: every service of the cluster counts as «deploying» (a pooler task
   # swap or an api-admin rollout is a connection-path change too); a missing
   # one (pooler off) is skipped by the function.
@@ -3438,6 +3468,7 @@ module "db_autoscale" {
 # Owner 2026-10-24: Redis size follows the load too (modules/redis ignores
 # node_type changes, so terraform apply never undoes it).
 module "redis_autoscale" {
+  permissions_boundary_arn = local.permissions_boundary_arn
   # Not for a cluster-mode group (the Lambda would skip it anyway: cluster_mode).
   count                = local.redis_autoscale_on ? 1 : 0
   source               = "../redis-autoscale"
@@ -3461,21 +3492,22 @@ module "redis_autoscale" {
 # Owner rule 2026-10-25: nothing is "off forever". Start without interface
 # endpoints; this Lambda adds them when NAT traffic makes them cheaper.
 module "endpoints_autoscale" {
-  count             = var.endpoints_autoscale_enabled ? 1 : 0
-  source            = "../endpoints-autoscale"
-  name              = local.name
-  vpc_id            = module.network.vpc_id
-  subnet_ids        = slice(module.network.private_subnet_ids, 0, var.interface_endpoint_azs == 0 ? length(var.azs) : min(var.interface_endpoint_azs, length(var.azs)))
-  security_group_id = module.network.endpoints_security_group_id
-  nat_gateway_ids   = module.network.nat_gateway_ids
-  services          = tolist(setsubtract(["ecr.api", "ecr.dkr", "logs", "secretsmanager"], var.interface_endpoints))
-  alerts_topic_arn  = module.monitoring.alerts_topic_arn
-  kms_key_arn       = module.kms.key_arn
-  mode              = var.endpoints_autoscale_mode
-  ceiling           = var.endpoints_autoscale_ceiling
-  tuning            = var.endpoints_autoscale_tuning
-  controls_bucket   = module.s3.documents_bucket
-  tags              = local.tags
+  count                    = var.endpoints_autoscale_enabled ? 1 : 0
+  source                   = "../endpoints-autoscale"
+  permissions_boundary_arn = local.permissions_boundary_arn
+  name                     = local.name
+  vpc_id                   = module.network.vpc_id
+  subnet_ids               = slice(module.network.private_subnet_ids, 0, var.interface_endpoint_azs == 0 ? length(var.azs) : min(var.interface_endpoint_azs, length(var.azs)))
+  security_group_id        = module.network.endpoints_security_group_id
+  nat_gateway_ids          = module.network.nat_gateway_ids
+  services                 = tolist(setsubtract(["ecr.api", "ecr.dkr", "logs", "secretsmanager"], var.interface_endpoints))
+  alerts_topic_arn         = module.monitoring.alerts_topic_arn
+  kms_key_arn              = module.kms.key_arn
+  mode                     = var.endpoints_autoscale_mode
+  ceiling                  = var.endpoints_autoscale_ceiling
+  tuning                   = var.endpoints_autoscale_tuning
+  controls_bucket          = module.s3.documents_bucket
+  tags                     = local.tags
 }
 
 # Owner 2026-11-12 (row 67): Fargate Spot without capacity -> regular Fargate,
@@ -3513,19 +3545,20 @@ resource "aws_ssm_parameter" "autoscale_code_applied" {
 }
 
 module "spot_fallback" {
-  count            = length(local.spot_watch) > 0 ? 1 : 0
-  source           = "../spot-fallback"
-  name             = local.name
-  cluster_name     = module.ecs.cluster_name
-  cluster_arn      = module.ecs.cluster_arn
-  services         = { for k, arn in local.spot_watch : k => { arn = arn, base = local.spot_strategy.base, fargate = local.spot_strategy.fargate_weight, spot = local.spot_strategy.spot_weight } }
-  alerts_topic_arn = module.monitoring.alerts_topic_arn
-  kms_key_arn      = module.kms.key_arn
-  mode             = var.spot_fallback_mode
-  tuning           = var.spot_fallback_tuning
-  tuning_param     = "/${local.name}/spot-fallback/tuning"
-  controls_bucket  = module.s3.documents_bucket
-  tags             = local.tags
+  count                    = length(local.spot_watch) > 0 ? 1 : 0
+  source                   = "../spot-fallback"
+  permissions_boundary_arn = local.permissions_boundary_arn
+  name                     = local.name
+  cluster_name             = module.ecs.cluster_name
+  cluster_arn              = module.ecs.cluster_arn
+  services                 = { for k, arn in local.spot_watch : k => { arn = arn, base = local.spot_strategy.base, fargate = local.spot_strategy.fargate_weight, spot = local.spot_strategy.spot_weight } }
+  alerts_topic_arn         = module.monitoring.alerts_topic_arn
+  kms_key_arn              = module.kms.key_arn
+  mode                     = var.spot_fallback_mode
+  tuning                   = var.spot_fallback_tuning
+  tuning_param             = "/${local.name}/spot-fallback/tuning"
+  controls_bucket          = module.s3.documents_bucket
+  tags                     = local.tags
 }
 
 # Read replicas no longer pause the database autoscaler (KNOWN_ERRORS 109):
@@ -3572,13 +3605,14 @@ module "security_baseline" {
 # AWS guardrails pass 2026-10-25 (docs/runbooks/aws-guardrails.md).
 # AWS Config: recorder + 11 AWS-managed rules. ~$1-4/month, default off.
 module "aws_config" {
-  count            = var.ephemeral ? 0 : 1 # account singleton, like CloudTrail
-  source           = "../aws-config"
-  name             = local.name
-  enabled          = var.config_enabled
-  alerts_topic_arn = module.monitoring.alerts_topic_arn
-  retention_days   = var.config_retention_days
-  tags             = local.tags
+  count                    = var.ephemeral ? 0 : 1 # account singleton, like CloudTrail
+  source                   = "../aws-config"
+  permissions_boundary_arn = local.permissions_boundary_arn
+  name                     = local.name
+  enabled                  = var.config_enabled
+  alerts_topic_arn         = module.monitoring.alerts_topic_arn
+  retention_days           = var.config_retention_days
+  tags                     = local.tags
 }
 
 # Emergency administrator role (MFA, named principals, pages on use). Free.

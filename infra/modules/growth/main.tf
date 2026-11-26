@@ -171,8 +171,9 @@ data "aws_caller_identity" "current" {}
 # ===== read replicas ==========================================================
 # Enhanced monitoring role: only when a replica exists.
 resource "aws_iam_role" "replica_monitoring" {
-  count = var.has_source_db && var.rds_read_replicas > 0 ? 1 : 0
-  name  = "${var.name}-rds-replica-monitoring"
+  count                = var.has_source_db && var.rds_read_replicas > 0 ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-rds-replica-monitoring"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -293,10 +294,11 @@ data "aws_iam_policy_document" "proxy_assume" {
 }
 
 resource "aws_iam_role" "proxy" {
-  count              = var.db_proxy_enabled ? 1 : 0
-  name               = "${var.name}-db-proxy"
-  assume_role_policy = data.aws_iam_policy_document.proxy_assume.json
-  tags               = var.tags
+  count                = var.db_proxy_enabled ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-db-proxy"
+  assume_role_policy   = data.aws_iam_policy_document.proxy_assume.json
+  tags                 = var.tags
 }
 
 data "aws_iam_policy_document" "proxy_secret" {

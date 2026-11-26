@@ -220,10 +220,11 @@ data "aws_iam_policy_document" "assume" {
 }
 
 resource "aws_iam_role" "config" {
-  count              = local.on
-  name               = "${var.name}-config-recorder"
-  assume_role_policy = data.aws_iam_policy_document.assume[0].json
-  tags               = var.tags
+  count                = local.on
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-config-recorder"
+  assume_role_policy   = data.aws_iam_policy_document.assume[0].json
+  tags                 = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "config" {

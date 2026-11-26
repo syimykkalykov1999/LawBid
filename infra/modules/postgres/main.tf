@@ -272,8 +272,9 @@ locals {
 
 # Enhanced Monitoring needs a role RDS can assume (only when switched on).
 resource "aws_iam_role" "monitoring" {
-  count = var.monitoring_interval > 0 ? 1 : 0
-  name  = "${var.name}-rds-monitoring"
+  count                = var.monitoring_interval > 0 ? 1 : 0
+  permissions_boundary = var.permissions_boundary_arn
+  name                 = "${var.name}-rds-monitoring"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{

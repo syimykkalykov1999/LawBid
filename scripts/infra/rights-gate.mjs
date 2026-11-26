@@ -27,6 +27,25 @@ export const GATES = {
   ],
 };
 
+/**
+ * C5 (26.11): switches that are ON by default in infra/envs/prod/variables.tf
+ * (not written to growth.auto.tfvars.json) and still need bootstrap rights.
+ * Held unless the file sets them to false. `check(roleArn)` gives the actions,
+ * the resource and the IAM condition context to simulate with: the role writes
+ * are allowed only WITH the ci-boundary (iam:PermissionsBoundary).
+ */
+export const DEFAULT_ON_GATES = {
+  iam_permissions_boundary_enabled: (roleArn) => {
+    const m = /^arn:(aws[\w-]*):iam::(\d{12}):role\/(lawbid-[a-z0-9]+)-/.exec(String(roleArn ?? ''));
+    if (!m) return null;
+    return {
+      actions: ['iam:PutRolePermissionsBoundary', 'iam:CreateRole', 'iam:PutRolePolicy'],
+      resource: `arn:${m[1]}:iam::${m[2]}:role/${m[3]}-rights-gate-check`,
+      context: { 'iam:PermissionsBoundary': `arn:${m[1]}:iam::${m[2]}:policy/${m[3]}-ci-boundary` },
+    };
+  },
+};
+
 /** arn:aws:sts::1:assumed-role/NAME/session → arn:aws:iam::1:role/NAME. */
 export function roleArnOf(callerArn) {
   const m = /^arn:(aws[\w-]*):sts::(\d{12}):assumed-role\/([\w+=,.@-]+)\/[^/]+$/.exec(
@@ -51,16 +70,33 @@ export function decide(file, roleArn, simulate) {
     }
     if (!ok) held.push(name);
   }
+  for (const [name, check] of Object.entries(DEFAULT_ON_GATES)) {
+    if (file?.[name] === false) continue;
+    let ok = false;
+    try {
+      const c = roleArn ? check(roleArn) : null;
+      ok = c ? simulate(roleArn, c.actions, c) === true : false;
+    } catch {
+      ok = false;
+    }
+    if (!ok) held.push(name);
+  }
   return { held, args: held.map((n) => `-var=${n}=false`) };
 }
 
-function awsSimulate(roleArn, actions) {
+function awsSimulate(roleArn, actions, extra) {
+  const more = [];
+  if (extra?.resource) more.push('--resource-arns', extra.resource);
+  for (const [k, v] of Object.entries(extra?.context ?? {})) {
+    more.push('--context-entries', `ContextKeyName=${k},ContextKeyValues=${v},ContextKeyType=string`);
+  }
   const out = execFileSync(
     'aws',
     [
       'iam', 'simulate-principal-policy',
       '--policy-source-arn', roleArn,
       '--action-names', ...actions,
+      ...more,
       '--query', 'EvaluationResults[].EvalDecision',
       '--output', 'json',
     ],

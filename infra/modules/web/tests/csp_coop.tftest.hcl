@@ -93,3 +93,30 @@ run "bad_report_uri_refused" {
   }
   expect_failures = [var.csp_report_uri]
 }
+
+# H3 (THIRD_PASS_B 26.11): Permissions-Policy on every page kind, only what
+# the web app uses (camera/microphone for calls and voice, geolocation for
+# «send my location», fullscreen for video), everything else off.
+run "permissions_policy_only_what_is_used" {
+  command = plan
+  assert {
+    condition     = alltrue([for k in ["app", "site", "pay"] : length([for i in aws_cloudfront_response_headers_policy.web[k].custom_headers_config[0].items : i if i.header == "Permissions-Policy" && i.value == output.permissions_policy[k] && i.override]) == 1])
+    error_message = "Every page kind sends its Permissions-Policy (override on)."
+  }
+  assert {
+    condition     = alltrue([for f in ["camera=(self)", "microphone=(self)", "geolocation=(self)", "fullscreen=(self)", "payment=()", "usb=()", "display-capture=()", "browsing-topics=()"] : strcontains(output.permissions_policy["app"], f)])
+    error_message = "App pages: camera, microphone, location and fullscreen for itself only; payment and the rest off."
+  }
+  assert {
+    condition     = alltrue([for f in ["camera=()", "microphone=()", "geolocation=()"] : strcontains(output.permissions_policy["site"], f) && strcontains(output.permissions_policy["pay"], f)])
+    error_message = "The company site and the card page get no camera, microphone or location."
+  }
+  assert {
+    condition     = strcontains(output.permissions_policy["pay"], "payment=(self \"https://js.stripe.com\")") && !strcontains(output.permissions_policy["app"], "js.stripe.com")
+    error_message = "Only the card page lets the Stripe frame use the Payment Request API."
+  }
+  assert {
+    condition     = !strcontains(output.permissions_policy["app"], "*")
+    error_message = "No wildcard allowlist anywhere."
+  }
+}
