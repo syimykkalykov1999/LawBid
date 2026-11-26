@@ -9,6 +9,8 @@ import { LaunchChecksService } from './launch/launch-checks.service';
 import { SpendService } from './spend/spend.service';
 import { AwsOpsService } from './aws-ops.service';
 import { HaAutoService } from './ha-auto.service';
+import { PredictiveScalingService } from './predictive-scaling.service';
+import { ValkeyServerlessService } from './valkey-serverless.service';
 import { HttpStatsService } from './http-stats.service';
 import { RouteMetricsService } from './route-metrics.service';
 import { RealtimeStatsService } from './realtime-stats.service';
@@ -32,6 +34,10 @@ import { BotCheckStatsService } from '../security/bot-check-stats';
     AwsOpsService,
     AwsCapacityService,
     HaAutoService,
+    // Item 27 (AU1): ECS predictive scaling Выкл / Прогноз / Вкл / Авто.
+    PredictiveScalingService,
+    // Item 29 (AU5): node Valkey vs ElastiCache Serverless, priced on our load.
+    ValkeyServerlessService,
     OpsStateService,
     CronIdleBackoffService,
     SecretRotationService,

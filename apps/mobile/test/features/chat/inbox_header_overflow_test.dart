@@ -117,7 +117,8 @@ void main() {
         // the folder pills share the row in equal widths; the «+» floats.
         expect(find.byKey(const ValueKey('inbox-channels')), findsNothing);
         final w = [
-          for (final f in ['all', 'waiting', 'requests'])
+          // Owner 2026-11-25: «Все · Группы · Запросы» (no «Ожидают»).
+          for (final f in ['all', 'groups', 'requests'])
             tester.getSize(find.byKey(ValueKey('chat-folder-$f'))).width,
         ];
         for (final x in w) {

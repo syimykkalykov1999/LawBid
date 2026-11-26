@@ -132,6 +132,7 @@ def read_state(name):
         last_down=j.get("last_down"),
         last_change=j.get("last_change"),
         notified=j.get("notified", {}),
+        read_out_since=j.get("read_out_since"),
     )
 
 
@@ -142,9 +143,39 @@ def write_state(name, s):
         "last_down": s.last_down,
         "last_change": s.last_change,
         "notified": s.notified,
+        "read_out_since": s.read_out_since,
     }
     client("ssm").put_parameter(
         Name=name, Value=json.dumps(body), Type="String", Overwrite=True
+    )
+
+
+def read_replica_first(env=os.environ):
+    """Item 28 (AU4): the owner's «read copy first» control from the S3 object
+    the economy job writes (ops/scale-controls.json, `db_replica_first`), the
+    same path as modules/endpoints-autoscale and spot-fallback (KNOWN_ERRORS
+    183: the bucket and key are passed in the environment). Unreadable or
+    missing = off: the primary is resized exactly as before."""
+    bucket, key = env.get("CONTROLS_BUCKET"), env.get("CONTROLS_KEY")
+    if not bucket or not key:
+        return d.ReplicaFirst()
+    try:
+        raw = client("s3").get_object(Bucket=bucket, Key=key)["Body"].read()
+        j = json.loads(raw).get("db_replica_first") or {}
+    except Exception as e:  # noqa: BLE001 - never block on the control file
+        log(event="replica_first_unread", error=type(e).__name__)
+        return d.ReplicaFirst()
+    mode = j.get("mode") if j.get("mode") in ("off", "on", "auto") else "off"
+
+    def num(k, dflt):
+        v = j.get(k)
+        return int(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0 else dflt
+
+    return d.ReplicaFirst(
+        mode=mode,
+        wait_min=num("wait_minutes", 60),
+        max_replicas=num("max_replicas", 5),
+        possible=j.get("possible") is True,
     )
 
 
@@ -442,8 +473,21 @@ def handler(event, context=None, now=None):
     hours = cfg.down_window_h if mode == "night" or guards.night_ok else cfg.period_s * max(4, cfg.single_up_points) / 3600
     m = metric_series(db_id, cfg, hours, cur is not None and cur.baseline_pct is not None, now)
     dec = d.decide(cfg, mode, inst, guards, state, m, now)
+    # Item 28 (AU4): reads out first (a read copy), the primary up second.
+    rf = read_replica_first(env)
+    dec, s3 = d.replica_first(dec, rf, inst, state, now)
+    if s3 != state:
+        write_state(state_name, s3)
+        state = s3
     log(event="decision", mode=mode, switch=switch, cls=inst.cls, action=dec.action,
-        reason=dec.reason, target=dec.target, facts=dec.facts)
+        reason=dec.reason, target=dec.target, facts=dec.facts, replica_first=rf.mode)
+    if dec.reason == "replica_first" and due(state, "replica_first", now, 6):
+        f = dec.facts
+        notify(topic, f"База занята по процессору ({d.explain_triggers(f['triggers'])}). "
+                      f"Сначала разгружаем чтение копией базы (копий сейчас {f['copies']}); "
+                      f"если через {f['wait_min']} мин нагрузка останется, база вырастет до {f['target']}.")
+        state = stamp(state, "replica_first", now)
+        write_state(state_name, state)
 
     # Owner row 6: when the primary itself stays as it is this tick, its read
     # copies catch up with its class (this also brings a copy created smaller,
