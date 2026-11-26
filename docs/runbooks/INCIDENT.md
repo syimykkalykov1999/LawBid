@@ -7,8 +7,9 @@
 часа), **SEV3** (мелочь: в рабочее время). Сейчас компания из двух ролей: вы
 (принимаете решения) и Claude (ищет и чинит). Когда появятся люди, роли
 раздаются по этой же таблице. После каждой SEV1/SEV2 пишем разбор **без поиска
-виноватых** по шаблону внизу. Публичной страницы статуса пока нет: в SEV1 пишем
-пользователям через приложение и магазины, пункт 4.
+виноватых** по шаблону внизу (готовые разборы: `docs/postmortems/`). Для людей есть
+страница статуса `status.lawbid.dev` ([STATUS_PAGE.md](STATUS_PAGE.md)) и её запасная копия
+вне AWS (Cloudflare R2), пункт 4.
 
 ---
 
@@ -62,7 +63,7 @@ with the "Дежурный" right and repeats every 15 minutes; the daily GitHub
 
 ## 3. Steps
 
-1. **Notice and acknowledge.** Acknowledge the page. Open an incident note (a GitHub issue labelled `incident`, title `SEVn short name`, private details go in a private place, never in the public repo).
+1. **Notice and acknowledge.** Acknowledge the page. Open an incident note: GitHub → Issues → New issue → «Авария (incident)» (template `.github/ISSUE_TEMPLATE/incident.md`, label `incident`, title `SEVn short name`; write the detection time at once). Private details go in a private place, never in the public repo.
 2. **Classify.** Pick SEV with the table. Write the start time (UTC) and who is IC.
 3. **Stop the bleeding first, understand later.** In this order of safety:
    1. Roll back the last deploy if one happened in the last 2 hours: GitHub Actions, workflow "Rollback production" ([DEPLOY_SAFETY.md](DEPLOY_SAFETY.md)).
@@ -79,19 +80,27 @@ without noting it, delete logs, or skip the note. Preserve evidence (logs, task 
 
 ## 4. Communication and the status page
 
-**Today:** there is **no public status page** (gap recorded in `docs/perf/SYSTEMS_CHECKLIST_2026-10-22.md`).
-Until one exists:
+**Status page:** `status.lawbid.dev`, module `infra/modules/status-page` (S3 + CloudFront,
+independent of the API, the load balancer and ECS; how it works and how to switch it on:
+[STATUS_PAGE.md](STATUS_PAGE.md)). The worker publishes `status.json` every minute; an incident
+text is posted from Admin → System → «Страница статуса» (`/admin/status-page`, super_admin,
+audited). Components: app, chats, calls, payments, notifications.
 
+**Backup outside AWS** (SRE Workbook ch. 9: the channel to users must not depend on the system
+that is down): the worker writes the same `status.json` and the page itself to the public
+Cloudflare R2 bucket (`status/` folder, e.g. `https://media.lawbid.dev/status/index.html`), and
+the main page reads the R2 copy when its own file does not answer. If AWS itself is down and the
+worker is silent, both pages say «data may be out of date» after 6 minutes; then the owner
+uploads a hand-written `status.json` to R2 (steps in [STATUS_PAGE.md](STATUS_PAGE.md), «Если
+лежит AWS»).
+
+Also:
 - Admin broadcast / in-app banner for users who can still open the app (Admin, Communications).
 - Short text in the app-store "What's new" is not for incidents; use the support e-mail auto-reply for a SEV1.
 - For vendor-caused incidents link the vendor's own status page in the note.
 
-**Plan (owner decision needed, cost about 0 to 30 USD per month):** a hosted status page
-on a separate domain/provider from our AWS account (an AWS outage must not take the
-status page with it) with automatic monitors for `api`, `web`, `admin` and manual notices.
-Options to evaluate: Instatus, Better Stack, Upptime (free, GitHub Pages). Components to publish:
-Sign-in, Cases and bids, Chat and push, Calls, Payments, Video. Wording rules: say what users
-see, what we know, next update time; never guess a cause; never name an individual.
+Wording rules: say what users see, what we know, next update time; never guess a cause; never
+name an individual.
 
 Template (copy, fill, send):
 
@@ -103,7 +112,9 @@ Template (copy, fill, send):
 Principle (Google SRE): find contributing causes, assume everyone acted in good faith
 with what they knew, fix systems and processes, not people. Publish internally;
 keep personal data and secrets out (the repo is public: store the filled copy in
-`docs/runbooks/postmortems/` only after removing anything private).
+`docs/postmortems/` only after removing anything private). Examples:
+[2026-11-11 database access rule removed](../postmortems/2026-11-11-db-sg-pooler.md),
+[2026-11-13 «Авто» switched PgBouncer off](../postmortems/2026-11-13-auto-pgbouncer-off.md).
 
 ```markdown
 # Postmortem: {short title} - SEV{n} - {date}
@@ -132,4 +143,5 @@ any alarm that should have fired and did not; anything the owner asks for.
 | 3 to 5 people | rotation | weekly rotation in PagerDuty, separate IC and operations on SEV1, status page automated, game-day once per quarter (AWS FIS planned) |
 | Larger | team | add customer liaison and scribe roles per PagerDuty model; SLO targets drive severity; error budgets in [slo.md](slo.md) |
 
-Review this file after every SEV1 and at least once a quarter.
+Review this file after every SEV1 and at least once a quarter, together with the toil
+register [toil.md](toil.md) (SRE Workbook ch. 6).

@@ -1841,6 +1841,12 @@ export const OWNER_STORAGE_SETTINGS = {
 /** Owner 2026-10-05: zero-maintenance operations (admin Система →
  * Здоровье системы). Every automatic reaction has a switch, default on. */
 export const OWNER_OPS_SETTINGS = {
+  /** Stage 2 SRE (Б4, SRE Workbook ch. 9): the worker also writes the
+   * public status (status.json + the page) to the Cloudflare R2 bucket,
+   * `status/` folder, so people still see it when AWS is down. Needs the
+   * R2 keys (Интеграции → Cloudflare R2); without them nothing happens.
+   * About 45 000 small writes a month = inside the R2 free tier. */
+  'ops.status_page_backup_enabled': true,
   /** DB answers slower than ops.db_slow_ms → heavy background jobs pause
    * for 15 minutes on their own (renewed while it stays slow). */
   'ops.auto_pause_heavy_jobs': true,

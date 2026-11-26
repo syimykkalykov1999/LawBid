@@ -288,6 +288,11 @@ variable "status_create_certificate" {
   type    = bool
   default = false
 }
+# Stage 2 SRE (Б4): the status.json copy outside AWS (public R2 bucket, status/ folder).
+variable "status_backup_url" {
+  type    = string
+  default = ""
+}
 variable "hosted_zone_id" {
   type    = string
   default = null
@@ -1298,6 +1303,7 @@ module "status_page" {
   certificate_arn    = var.status_certificate_arn
   create_certificate = var.status_create_certificate
   hosted_zone_id     = var.hosted_zone_id == null ? "" : var.hosted_zone_id
+  status_backup_url  = var.status_backup_url
   tags               = local.tags
 }
 
@@ -3198,6 +3204,12 @@ module "monitoring" {
   alarm_incident_hook_url           = "https://${var.api_host}/api/v1/internal/alarm-events"
   alarm_incident_hook_token         = var.alarm_incident_hook_enabled ? random_password.alarm_hook[0].result : null
   tags                              = local.tags
+
+  # Stage 2 SRE (Б4): a rule removed from the database / pooler group pages (11.11).
+  db_security_group_ids = concat(
+    var.create_database ? [module.postgres[0].security_group_id] : [],
+    var.db_pooler_enabled ? [module.pgbouncer[0].security_group_id] : [],
+  )
 }
 
 # Owner 2026-10-24: database size follows the load (up fast, down at night).

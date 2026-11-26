@@ -416,6 +416,11 @@ variable "status_create_certificate" {
   type    = bool
   default = false
 }
+variable "status_backup_url" {
+  type        = string
+  default     = ""
+  description = "Stage 2 SRE (Б4): https URL of the status.json copy in the public R2 bucket, e.g. https://media.lawbid.dev/status/status.json (docs/runbooks/STATUS_PAGE.md)."
+}
 variable "create_database" {
   type    = bool
   default = false

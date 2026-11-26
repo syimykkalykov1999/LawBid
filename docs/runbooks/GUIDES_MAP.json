@@ -518,6 +518,10 @@
         "table-partitioning"
       ]
     },
+    "toil.md": {
+      "owner": true,
+      "skip": "Реестр ручной рутины для пересмотра раз в квартал; кнопок и шагов владельца в админке нет."
+    },
     "treasury.md": {
       "owner": false,
       "guides": [
