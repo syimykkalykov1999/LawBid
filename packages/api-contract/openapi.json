@@ -1196,7 +1196,17 @@
     "/auth/logout-others": {
       "post": {
         "operationId": "logoutOthers",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "ASVS V7.5.2 (STAGE2_SECURITY #12): a fresh single-use token from POST /auth/reauth, unless this session signed in within the last 10 minutes.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success envelope (docs/01 §7).",
@@ -1209,7 +1219,17 @@
             }
           },
           "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED, REAUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {
@@ -1404,6 +1424,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "X-Reauth-Token",
+            "in": "header",
+            "description": "ASVS V7.5.2 (STAGE2_SECURITY #12): ending ANOTHER session needs a fresh single-use token from POST /auth/reauth, unless this session signed in within the last 10 minutes. Ending this very session needs none.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1418,7 +1447,17 @@
             }
           },
           "401": {
-            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED, REAUTH_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: REAUTH_REQUIRED",
             "content": {
               "application/json": {
                 "schema": {

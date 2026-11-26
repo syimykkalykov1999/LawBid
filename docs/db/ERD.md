@@ -109,6 +109,7 @@ erDiagram
     DateTime revoked_at "nullable"
     String revoked_reason "nullable"
     String replaced_by_session_id "nullable"
+    DateTime chain_started_at "nullable"
     DateTime created_at
     DateTime updated_at
   }
