@@ -84,8 +84,9 @@ const LOCAL_MAX_KEYS = 50_000;
  * Audit 17.11 (problem 2): while Valkey is unreachable every limit runs in
  * this process instead (the «insurance limiter» of rate-limiter-flexible,
  * ISC — idea only): the same limit and window per key, counted per API
- * task. Before, the error went up and nobody could send a message; the
- * global throttler already fails open (RedisThrottlerStorageService).
+ * task. Before, the error went up and nobody could send a message. The
+ * global throttler (RedisThrottlerStorageService) does the same since
+ * THIRD_PASS_A R2 (26.11), with @nestjs/throttler's in-memory storage.
  */
 class LocalFixedWindows {
   private readonly windows = new Map<

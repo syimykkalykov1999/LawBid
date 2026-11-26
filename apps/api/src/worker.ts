@@ -10,6 +10,7 @@ installProcessGuards();
 
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { installOutboundAgents } from './common/http/outbound-agent';
 import { captureKeyEnv, scrubKeyEnv } from './common/secrets/key-holder';
 import { unwrapKmsWrappedKeys } from './common/secrets/kms-env';
 import { Logger } from 'nestjs-pino';
@@ -28,6 +29,12 @@ async function bootstrap(): Promise<void> {
   // KMS-wrapped MESSAGE_ENC_KEYS / SECRETS_MASTER_KEYS entries → plaintext
   // in memory, before any module reads the config.
   await unwrapKmsWrappedKeys();
+  // THIRD_PASS_A O1 (26.11): the same outbound agents as the API (main.ts).
+  // In prod the push queue runs HERE (API: JOBS_ENABLED=false), so without
+  // this every FCM push used Node's default agent (HTTP/1.1, 4 s keep-alive,
+  // a new TLS handshake per burst) and fcmDispatcher() was undefined; the
+  // Bunny / Cloudflare / Stripe calls of jobs paid the same.
+  installOutboundAgents();
   captureKeyEnv();
   const app = await NestFactory.createApplicationContext(WorkerModule, {
     bufferLogs: true,

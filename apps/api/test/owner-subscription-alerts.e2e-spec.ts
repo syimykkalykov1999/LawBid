@@ -3,9 +3,13 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type Redis from 'ioredis';
 import { AppModule } from '../src/app.module';
-import { PrismaService } from '../src/prisma/prisma.service';
+import { PrismaService, routingOf } from '../src/prisma/prisma.service';
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { shardContext } from '../src/sharding/shard-context';
+import {
+  CrossFamilyOutbox,
+  type OutboxTicket,
+} from '../src/sharding/outbox/cross-family-outbox';
 import { CasesService } from '../src/modules/cases/cases.service';
 import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 import { CaseFanoutService } from '../src/modules/notifications/case-fanout/case-fanout.service';
@@ -471,6 +475,79 @@ describe('Opt-in follow / new-case alerts (e2e, owner 2026-09-30)', () => {
         ),
       ).toBe(0);
     });
+  });
+
+  // THIRD_PASS_A X1 (26.11): the round is a durable record written with the
+  // case; a process that dies before starting it loses nothing.
+  it('a recorded round that was never started (crash after the commit) is delivered by the outbox relay', async () => {
+    const leaf = await prisma.practiceArea.findUniqueOrThrow({
+      where: {
+        code: 'civil_litigation.arbitration_and_mediation_representation',
+      },
+    });
+    const client = await prisma.user.create({ data: { role: 'client' } });
+    const u = await prisma.user.create({ data: { role: 'attorney' } });
+    const username = `ob_${u.id.slice(0, 8)}`;
+    await prisma.attorneyProfile.create({
+      data: {
+        user_id: u.id,
+        username,
+        username_lower: username,
+        languages: ['en'],
+        verification_status: 'verified',
+      },
+    });
+    await prisma.attorneyLicense.create({
+      data: {
+        attorney_id: u.id,
+        state_code: 'NJ',
+        bar_number: `NJ-${randomUUID()}`,
+        license_status: 'verified',
+      },
+    });
+    await prisma.attorneyPracticeArea.create({
+      data: { attorney_id: u.id, practice_area_id: leaf.id },
+    });
+    const caseId = randomUUID();
+    let ticket = null as OutboxTicket | null;
+    // The case and its alert record commit together; flushCaseAlerts is
+    // never called (the process "died" right after the commit).
+    await shardContext.runForCase(caseId, () =>
+      prisma.$transaction(async (tx) => {
+        await tx.case.create({
+          data: {
+            id: caseId,
+            client_id: client.id,
+            title: 'Crash right after publishing',
+            description: 'Nobody started the alert round in-process',
+            practice_area_id: leaf.id,
+            primary_state_code: 'NJ',
+            budget_mode: 'clarify_later',
+          },
+        });
+        await tx.caseState.create({
+          data: { case_id: caseId, state_code: 'NJ', is_primary: true },
+        });
+        ticket = (await alerts.recordCaseAlerts(tx, caseId, 0)).ticket;
+      }),
+    );
+    expect(await notifs(u.id, 'new_case')).toBe(0);
+    const key = `case_alerts:start:${caseId}:g0`;
+    if (!ticket) throw new Error('the round was not recorded');
+    // The row lives on the case's database (a shard in two-database mode).
+    const db = routingOf(app.get(PrismaService)).clientFor(ticket.database);
+    // The lease for the in-process start ran out.
+    await db.$executeRaw`UPDATE cross_family_outbox SET next_attempt_at = now()
+      WHERE idempotency_key = ${key}`;
+    await app.get(CrossFamilyOutbox).sweep('on');
+    expect(await waitForNotifs(u.id, 'new_case', 1)).toBe(1);
+    const rows = await db.$queryRaw<{ status: string }[]>`
+      SELECT status FROM cross_family_outbox WHERE idempotency_key = ${key}`;
+    expect(rows).toEqual([{ status: 'done' }]);
+    // Run again (a duplicate relay): nobody is alerted twice.
+    await app.get(CrossFamilyOutbox).flush([ticket]);
+    expect(await alerts.attorneysForCase(caseId)).toBe(0);
+    expect(await notifs(u.id, 'new_case')).toBe(1);
   });
 
   // Algo audit 2026-10-27 (CASES H-1).

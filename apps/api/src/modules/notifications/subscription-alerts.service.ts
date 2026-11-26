@@ -1,8 +1,44 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  Optional,
+  type OnModuleInit,
+} from '@nestjs/common';
+import { demoContext } from '../../common/demo/demo-context';
 import { CaseFanoutService } from './case-fanout/case-fanout.service';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { DbTx } from '../../prisma/secret-columns';
+import { withTxRetry } from '../../prisma/tx-retry.util';
+import {
+  CrossFamilyOutbox,
+  type OutboxTicket,
+} from '../../sharding/outbox/cross-family-outbox';
+import { registerAfterCommitEffect } from '../../sharding/outbox/outbox-effects';
+import {
+  shardCarry,
+  shardContext,
+  shardKeyOf,
+} from '../../sharding/shard-context';
 import { readsAreSplit } from '../../sharding/split-reads';
 import { NotificationsService } from './notifications.service';
+
+/** X1: the outbox event of a recorded new-case alert round. */
+export const CASE_ALERTS_EVENT = 'case.alerts.start';
+
+export interface CaseAlertsPayload {
+  caseId: string;
+  /** `start`: the round of the current generation (publish, re-alert);
+   * `urgent_top_up`: the extra round of a case that became urgent. */
+  mode: 'start' | 'urgent_top_up';
+  /** The case's shard context (`case:<uuid>`), restored by the relay. */
+  shardKey?: string;
+}
+
+export interface CaseAlertsTicket {
+  readonly caseId: string;
+  readonly mode: CaseAlertsPayload['mode'];
+  readonly ticket: OutboxTicket | null;
+}
 
 /** One post alerts at most this many people (a later stage can
  * fan out through a queue). Audit A-1: raised from 5000 now that the
@@ -20,14 +56,115 @@ export const ALERT_BATCH = 500;
  * either way are skipped. Fire-and-forget after the change commits.
  */
 @Injectable()
-export class SubscriptionAlertsService {
+export class SubscriptionAlertsService implements OnModuleInit {
   private readonly log = new Logger(SubscriptionAlertsService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     @Optional() private readonly fanout?: CaseFanoutService,
+    @Optional() private readonly outbox?: CrossFamilyOutbox,
   ) {}
+
+  /** X1: the relay (`outbox.sweep`, in the worker) and `flush` (in the API)
+   * both run the recorded case-alert starts through this. */
+  onModuleInit(): void {
+    registerAfterCommitEffect(CASE_ALERTS_EVENT, (p: CaseAlertsPayload) =>
+      shardContext.runFromKey(p.shardKey, async () => {
+        if (p.mode === 'urgent_top_up') await this.urgentTopUp(p.caseId);
+        else await this.attorneysForCase(p.caseId);
+      }),
+    );
+  }
+
+  /**
+   * THIRD_PASS_A X1 (26.11): the new-case alert round of [caseId] as a
+   * durable record (transactional outbox) written in the caller's
+   * transaction [tx], next to the case change itself. Before, the round was
+   * a bare `setImmediate` after the commit: a crash, an OOM, a deploy kill,
+   * a Redis error or a database blip in that window lost the alerts for
+   * good. Now `flushCaseAlerts` starts it right after the commit and the
+   * every-minute `outbox.sweep` relay re-runs whatever did not finish
+   * (backoff 5 s … 1 h, dead letter `cross_family_outbox_dead` after 8
+   * tries). Safe to run twice: the wave job id and the per-person dedupe key
+   * are per case and generation. Null (old in-process path) without the
+   * outbox (unit tests) and in the demo world (a separate database the relay
+   * does not sweep; demo pushes are off anyway).
+   */
+  async recordCaseAlerts(
+    tx: DbTx,
+    caseId: string,
+    generation: number,
+    mode: CaseAlertsPayload['mode'] = 'start',
+  ): Promise<CaseAlertsTicket> {
+    if (!this.outbox || !this.fanout || demoContext.isDemo()) {
+      return { caseId, mode, ticket: null };
+    }
+    const payload: CaseAlertsPayload = {
+      caseId,
+      mode,
+      shardKey: shardCarry().shardKey ?? shardKeyOf.case(caseId),
+    };
+    const ticket = await this.outbox.emit(
+      tx,
+      CASE_ALERTS_EVENT,
+      { ...payload },
+      `case_alerts:${mode}:${caseId}:g${generation}`,
+    );
+    return { caseId, mode, ticket };
+  }
+
+  /** After the commit: runs the recorded round now, after the response
+   * (the relay retries it when this attempt does not finish). */
+  flushCaseAlerts(t: CaseAlertsTicket): void {
+    const outbox = this.outbox;
+    const ticket = t.ticket;
+    if (outbox && ticket) {
+      // flush never throws; a failure stays pending for the sweep.
+      this.later(() => outbox.flush([ticket]), { caseId: t.caseId });
+      return;
+    }
+    this.later(
+      () =>
+        t.mode === 'urgent_top_up'
+          ? this.urgentTopUp(t.caseId)
+          : this.attorneysForCase(t.caseId),
+      { caseId: t.caseId },
+    );
+  }
+
+  /** [recordCaseAlerts] in its own small transaction, for a change that
+   * already committed (the urgent top-up is decided after the update). */
+  async recordAndFlushCaseAlerts(
+    caseId: string,
+    mode: CaseAlertsPayload['mode'],
+  ): Promise<void> {
+    let t: CaseAlertsTicket = { caseId, mode, ticket: null };
+    try {
+      await withTxRetry(
+        this.prisma,
+        async (tx) => {
+          const kase = await tx.case.findUnique({
+            where: { id: caseId },
+            select: { alert_generation: true },
+          });
+          if (!kase) return;
+          t = await this.recordCaseAlerts(
+            tx,
+            caseId,
+            kase.alert_generation,
+            mode,
+          );
+        },
+        { isolation: 'readCommitted' },
+      );
+    } catch (e) {
+      // The record failed (database blip): still try in-process, as before.
+      this.log.error(`alert record failed for case ${caseId}: ${String(e)}`);
+      t = { caseId, mode, ticket: null };
+    }
+    this.flushCaseAlerts(t);
+  }
 
   /** A published post / news of [authorId], alerted right here batch after
    * batch (no Redis, tests). With Redis PostFanoutService queues the same
