@@ -99,7 +99,17 @@
     "/health/ready": {
       "get": {
         "operationId": "ready",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "x-health-token",
+            "in": "header",
+            "description": "HEALTH_DETAIL_TOKEN: with it the answer lists the dependencies (database, redis) and their state.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "The Health Check is successful",
