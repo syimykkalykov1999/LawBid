@@ -1190,6 +1190,41 @@ adaptive throttling next to it (`AdaptiveThrottle`) is the formula published
 in the Google SRE Book, ch. 21 «Handling Overload» (no code copied).
 License: Apache License 2.0, https://www.apache.org/licenses/LICENSE-2.0
 
+## SQLite3MultipleCiphers (prebuilt by sqlite3.dart 3.9.1) — MIT
+
+S13 #26 (26.11): on Android and iOS the `sqlite3` build hook links
+SQLite3MultipleCiphers instead of plain SQLite (`hooks: user_defines:
+sqlite3: source: sqlite3mc` in `pubspec.yaml`, drift «Encryption»), so the
+account's local databases are encrypted. Unmodified prebuilt libraries of the
+release `sqlite3-3.9.1` (https://github.com/simolus3/sqlite3.dart/releases),
+checked by the SHA-256 list in sqlite3's `lib/src/hook/asset_hashes.dart`;
+sources https://github.com/utelle/SQLite3MultipleCiphers (SQLite itself is in
+the public domain; sqlite3.dart's MIT licence is above).
+
+```
+MIT License
+
+Copyright (c) 2019-2026 Ulrich Telle
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
 ## Native iOS / Android SDKs linked by the Flutter plugins (licence audit 2026-11-17)
 
 Flutter puts the LICENSE of every Dart package into the app by itself. The
