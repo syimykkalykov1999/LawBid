@@ -146,10 +146,15 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     super.dispose();
   }
 
+  /// The chosen chip as Chats shows it: a chip that is gone (owner
+  /// 2026-11-25: «Ожидают ответа»; «Группы» while groups are off) is «Все».
+  ChatListFolder get _chatsFolder =>
+      shownChatFolder(_folder, groupsOn: ref.read(groupsEnabledProvider));
+
   /// The folder on screen: the «Кейсы» tab is the cases folder, «Чаты» the
   /// chosen chip.
   ChatListFolder get _shownFolder =>
-      _shownTab == InboxTab.cases ? ChatListFolder.cases : _folder;
+      _shownTab == InboxTab.cases ? ChatListFolder.cases : _chatsFolder;
 
   /// The rows of the folder on screen (Select all, the bulk bar): direct
   /// chats and, in «All», my groups.
@@ -206,6 +211,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
     final badges = ref.watch(
       badgesProvider.select((b) => (b.chats, b.notifications)),
     );
+    // [_chatsFolder] reads it: «Группы» off while its chip was chosen.
+    ref.watch(groupsEnabledProvider);
+    // Owner 2026-11-25: «Все» has no case chats, so the «Чаты» tab does not
+    // count their unread either — the «Кейсы» tab keeps its own count.
+    final caseUnread = ref.watch(caseChatsUnreadProvider);
     final selection = ref.watch(chatSelectionProvider);
     final selecting = selection != null;
     final requests = ref.watch(messageRequestsCountProvider).value ?? 0;
@@ -368,7 +378,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                 // reads «Ожидание сети…» / «Соединение…».
                                 connectionTitle(t, watchOfflineReason(ref)) ??
                                     t.t('inbox.tab.chats'),
-                                badges.$1 + requests,
+                                chatsTabCount(
+                                  badges.$1,
+                                  caseUnread: caseUnread,
+                                  requests: requests,
+                                ),
                               ),
                             // Owner 2026-11-18: «Чаты | Кейсы | Команда».
                             if (chatsAllowed)
@@ -552,7 +566,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                 valueListenable: _query,
                                 builder: (context, query, _) =>
                                     ConversationsView(
-                                  folder: _folder,
+                                  folder: _chatsFolder,
                                   onFolder: (f) => setState(() => _folder = f),
                                   query: query,
                                   onQuery: (q) => _query.value = q,

@@ -179,13 +179,14 @@ void main() {
   });
 
   testWidgets(
-      '«All»: the Chats list shows one row per person; a tap on a person '
-      'without a direct chat starts it', (tester) async {
+      'owner 2026-11-25: «All» shows no case chat — a person row is just '
+      'their direct chat; «Cases with this person» still finds the case '
+      'chats', (tester) async {
     final repo = _Chats([
       _conv('k1', with_: 'u2', caseId: 'A', minute: 3),
-      _conv('k2', with_: 'u2', caseId: 'B', minute: 8),
-      _conv('dm', with_: 'u1', minute: 5),
-      _conv('k3', with_: 'u1', caseId: 'C', minute: 1),
+      _conv('k2', with_: 'u2', caseId: 'B', minute: 8, unread: 4),
+      _conv('dm', with_: 'u1', minute: 5, unread: 1),
+      _conv('k3', with_: 'u1', caseId: 'C', minute: 20, unread: 2),
     ]);
     final router = GoRouter(
       routes: [
@@ -218,23 +219,31 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    // Four conversations, two people, two rows.
-    expect(find.byType(ConversationRow), findsNWidgets(2));
+    // Four conversations, one direct chat: one row.
+    expect(find.byType(ConversationRow), findsOneWidget);
     expect(find.text('Person u1'), findsOneWidget);
-    expect(find.text('Person u2'), findsOneWidget);
+    expect(find.text('Person u2'), findsNothing);
     expect(find.byKey(const ValueKey('chat-organize-dm')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('chat-organize-person-u2')),
-      findsOneWidget,
+      findsNothing,
     );
-    // The person's row previews the newest message of all their chats.
-    expect(find.text('from k2'), findsOneWidget);
+    // The row previews the direct chat itself, not the newer case chat.
+    expect(find.text('from dm'), findsOneWidget);
     expect(find.text('from k3'), findsNothing);
-
-    await tester.tap(find.text('Person u2'));
-    await tester.pumpAndSettle();
-    expect(repo.started, ['u2']);
-    expect(find.text('chat dm-new'), findsOneWidget);
+    expect(find.text('from k2'), findsNothing);
+    // The direct chat's «Cases with this person (N)» reads the same list.
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ConversationsView)),
+    );
+    expect(
+      container.read(caseChatsWithProvider('u1')).map((c) => c.id),
+      ['k3'],
+    );
+    expect(
+      container.read(caseChatsWithProvider('u2')).map((c) => c.id),
+      ['k2', 'k1'],
+    );
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(minutes: 5));
   });
