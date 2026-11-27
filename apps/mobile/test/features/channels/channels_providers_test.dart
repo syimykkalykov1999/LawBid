@@ -327,20 +327,46 @@ void main() {
             shortSide: 480,
           ),
         );
+      // Owner 26.11 (Instagram «upload while you edit»): the video goes to
+      // Bunny while the text is written, without the composer looking busy.
+      await _until(() => repo.uploadedVideos.isNotEmpty);
+      expect(repo.uploadedVideos, [3]);
+      expect(phases, isNot(contains(ChannelComposePhase.uploading)));
 
       final post = await compose.publish('Watch');
       expect(post, isNotNull);
-      expect(repo.uploadedVideos, [3]);
+      expect(compose.lastPublishHadVideo, isTrue);
+      expect(repo.uploadedVideos, [3], reason: 'not uploaded twice');
       expect(repo.calls, contains('createPost:Watch::va-1'));
       expect(
         phases,
         containsAllInOrder([
-          ChannelComposePhase.uploading,
           ChannelComposePhase.processing,
           ChannelComposePhase.posting,
           ChannelComposePhase.idle,
         ]),
       );
+    });
+
+    test('a removed video stops and deletes its early upload', () async {
+      final repo = FakeChannelsRepository(feed: []);
+      final c = boot(repo);
+      final sub = c.listen(channelComposeProvider('ch-1'), (_, __) {});
+      addTearDown(sub.close);
+      final compose = c.read(channelComposeProvider('ch-1').notifier)
+        ..setVideo(
+          ChannelVideoDraft(
+            file: XFile.fromData(px(), name: 'v.mp4'),
+            durationSec: 12,
+            size: 3,
+            shortSide: 480,
+          ),
+        );
+      await _until(() => repo.uploadedVideos.isNotEmpty);
+      compose.removeVideo();
+      await _until(() => repo.calls.contains('cancelVideo'));
+      expect(repo.calls, contains('cancelVideo'));
+      expect(c.read(channelComposeProvider('ch-1')).video, isNull);
     });
 
     test('a failed post cancels the uploaded video and keeps the error',
@@ -369,4 +395,12 @@ void main() {
       );
     });
   });
+}
+
+/// Waits (up to 2 s) for [done]: wait for the condition, not a number of
+/// ticks (KNOWN_ERRORS 246).
+Future<void> _until(bool Function() done) async {
+  for (var i = 0; i < 100 && !done(); i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
 }

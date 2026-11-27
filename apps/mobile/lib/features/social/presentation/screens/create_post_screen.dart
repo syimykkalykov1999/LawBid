@@ -930,6 +930,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
             ),
         ],
         thumbnail: _photos.firstOrNull?.bytes,
+        // Owner 26.11: the live post shows these, not a download of them.
+        localPhotos: [for (final p in _photos) p.bytes],
         onPublished: (post) {
           // The author's profile grids and post counters follow at
           // once (the screen is gone; its container is not).

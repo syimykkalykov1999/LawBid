@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
@@ -236,7 +237,8 @@ class _PlusBadge extends StatelessWidget {
 }
 
 /// A finished publish ends here (the creator screen only closes itself), so
-/// the "posted" note shows once, whichever screen the viewer is on. Mounted
+/// the "posted" note (or a failure's reason) shows once, whichever screen
+/// the viewer is on. Mounted
 /// once for the whole feed (an always-live tab), not by the tray.
 class StoryPublishWatcher extends ConsumerWidget {
   const StoryPublishWatcher({super.key});
@@ -249,6 +251,12 @@ class StoryPublishWatcher extends ConsumerWidget {
           prev?.phase != StoryPublishPhase.done) {
         ref.read(storyPublishJobProvider.notifier).dismiss();
         showAppSnackBar(context, t.t('story.publish.done'));
+      } else if (next.phase == StoryPublishPhase.failed &&
+          prev?.phase != StoryPublishPhase.failed) {
+        // Owner 26.11: «Share» closes the creator at once, so a failure is
+        // told here; the job keeps it, the tray's own bubble offers «Try
+        // again» (the same note the creator used to show).
+        showAppSnackBar(context, errorText(t, next.error ?? Object()));
       }
     });
     return const SizedBox.shrink();
