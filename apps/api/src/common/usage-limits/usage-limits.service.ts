@@ -27,14 +27,11 @@ export type LimitedAction =
   | 'video_upload'
   | 'sticker_pack_create'
   | 'sticker_add'
-  // Owner 2026-10-20: stories and channels.
+  // Owner 2026-10-20: stories.
   | 'story_create'
-  | 'channel_create'
   // Owner 2026-10-22 (audit #4 §6): groups per day, posts per hour.
   | 'group_create'
   | 'post_create_hourly'
-  | 'channel_post'
-  | 'channel_comment'
   | 'consultation_book'
   | 'question_create'
   | 'answer_create'
@@ -83,24 +80,12 @@ export const USAGE_LIMITS: Record<
   },
   sticker_add: { setting: 'rate_limit.sticker_add_per_hour', windowSec: HOUR },
   story_create: { setting: 'rate_limit.story_create_per_day', windowSec: DAY },
-  channel_create: {
-    setting: 'rate_limit.channel_create_per_day',
-    windowSec: DAY,
-  },
   group_create: {
     setting: 'rate_limit.group_create_per_day',
     windowSec: DAY,
   },
   post_create_hourly: {
     setting: 'rate_limit.post_create_per_hour',
-    windowSec: HOUR,
-  },
-  channel_post: {
-    setting: 'rate_limit.channel_post_per_hour',
-    windowSec: HOUR,
-  },
-  channel_comment: {
-    setting: 'rate_limit.channel_comment_per_hour',
     windowSec: HOUR,
   },
   // Owner 2026-10-20: consultations and «Вопрос юристу».

@@ -6,7 +6,6 @@ import 'package:lawbid/core/audio/web_audio_support_stub.dart'
     if (dart.library.js_interop) 'package:lawbid/core/audio/web_audio_support_web.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/features/stars/domain/stars_models.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 
 enum ConversationStatus { preAcceptance, active, closed }
@@ -290,7 +289,6 @@ enum MessageKind {
   call,
   attachment,
   sticker,
-  gift,
   contact,
   place,
   // Owner 2026-10-21 (Instagram «Поделиться»): a post sent as a card.
@@ -635,7 +633,6 @@ class ChatMessage {
     this.attachment,
     this.sentByAssistant,
     this.sticker,
-    this.gift,
     this.contact,
     this.post,
     this.editedAt,
@@ -667,9 +664,6 @@ class ChatMessage {
   /// could not open. [body] is then '' and a text bubble says «Couldn't
   /// decrypt this message» — the ciphertext is never shown.
   final bool unreadable;
-
-  /// Owner 2026-10-20: set for [MessageKind.gift]; the note is [body].
-  final GiftSend? gift;
 
   /// Owner 2026-10-20: set for [MessageKind.contact] (null when that
   /// attorney is gone).
@@ -768,7 +762,6 @@ class ChatMessage {
         attachment: attachment ?? this.attachment,
         sentByAssistant: sentByAssistant,
         sticker: sticker,
-        gift: gift,
         contact: contact,
         post: post,
         unreadable: unreadable,

@@ -19,17 +19,11 @@ export const FORWARD_MAX_PAIRS = 200;
 export const FORWARD_SOURCE_KINDS = [
   'message',
   'group_message',
-  'channel_post',
   'group_link',
-  'channel_link',
 ] as const;
 export type ForwardSourceKind = (typeof FORWARD_SOURCE_KINDS)[number];
 
-export const FORWARD_TARGET_KINDS = [
-  'conversation',
-  'group',
-  'channel',
-] as const;
+export const FORWARD_TARGET_KINDS = ['conversation', 'group'] as const;
 export type ForwardTargetKind = (typeof FORWARD_TARGET_KINDS)[number];
 
 export class ForwardSourceDto {
@@ -37,7 +31,7 @@ export class ForwardSourceDto {
     enum: FORWARD_SOURCE_KINDS,
     enumName: 'ForwardSourceKind',
     description:
-      'message: a direct / case chat message; group_message; channel_post; group_link / channel_link: a protected group / channel shared as its link (id = the group / channel).',
+      'message: a direct / case chat message; group_message; group_link: a protected group shared as its link (id = the group).',
   })
   @IsIn(FORWARD_SOURCE_KINDS)
   kind!: ForwardSourceKind;
@@ -119,7 +113,7 @@ export class ForwardResultDto {
     type: String,
     nullable: true,
     format: 'uuid',
-    description: 'sent: the new message (or channel post).',
+    description: 'sent: the new message.',
   })
   messageId!: string | null;
 }

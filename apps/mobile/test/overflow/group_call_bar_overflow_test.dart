@@ -6,23 +6,18 @@ import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/features/channels/presentation/channel_widgets.dart'
-    show ChannelRow;
 import 'package:lawbid/features/groups/application/group_call_port.dart';
-import 'package:lawbid/features/groups/domain/ongoing_call.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 import 'package:material_ui/material_ui.dart';
 
-import '../features/channels/channels_fakes.dart';
 import '../features/groups/fake_group_repository.dart';
 import '../helpers/long_locale.dart';
 import '../helpers/pending_strings.dart';
 
-/// Owner 2026-10-21 (inbox 20e/20f): the running call of a group / channel —
-/// the bar under the header, the people list and the rows of the Groups |
-/// Channels lists — every theme, Russian / Nepali / Arabic (right-to-left),
+/// Owner 2026-10-21 (inbox 20e/20f): the running call of a group — the bar
+/// under the header, the people list and the group row — every theme, Russian / Nepali / Arabic (right-to-left),
 /// 360 dp, text x1 and x1.1. Any overflow fails.
 const _longName = 'Maximilian-Alexander Montgomery-Wellington';
 
@@ -40,17 +35,6 @@ GroupRunningCall _running() => GroupRunningCall(
       ],
       join: (_, __) async => null,
     );
-
-const _summary = OngoingCallSummary(
-  id: 'c1',
-  video: true,
-  count: 9,
-  faces: [
-    CallFace(userId: 'a', name: _longName),
-    CallFace(userId: 'b', name: _longName),
-    CallFace(userId: 'c', name: _longName),
-  ],
-);
 
 void main() {
   setUpAll(initializeDateFormatting);
@@ -70,8 +54,7 @@ void main() {
   for (final theme in AppThemeId.values) {
     for (final scale in [1.0, 1.1, 1.3]) {
       for (final MapEntry(key: name, value: (t, dir)) in locales.entries) {
-        group('group / channel call: 360 dp, ${theme.name}, $name, x$scale',
-            () {
+        group('group call: 360 dp, ${theme.name}, $name, x$scale', () {
           Future<void> pump(WidgetTester tester, Widget body) async {
             useNarrowPhone(tester);
             await tester.pumpWidget(
@@ -143,18 +126,10 @@ void main() {
                       ),
                     ),
                   ),
-                  ChannelRow(
-                    channel: fakeChannel(
-                      title: _longName * 2,
-                      subscribed: true,
-                      ongoingCall: _summary,
-                    ),
-                    onTap: () {},
-                  ),
                 ],
               ),
             );
-            expect(find.byType(OngoingCallLine), findsNWidgets(2));
+            expect(find.byType(OngoingCallLine), findsOneWidget);
             expect(tester.takeException(), isNull);
           });
         });

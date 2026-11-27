@@ -6,8 +6,7 @@ import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-11-16 (row 183): wraps a group screen — with the admin switch
-/// «Группы» off the route shows nothing (an empty page with a way back), the
-/// same as `ChannelsGate` for channels (channel_widgets.dart).
+/// «Группы» off the route shows nothing (an empty page with a way back).
 class GroupsGate extends ConsumerWidget {
   const GroupsGate({required this.child, super.key});
 

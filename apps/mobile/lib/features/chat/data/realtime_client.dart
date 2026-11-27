@@ -87,7 +87,6 @@ class RealtimeClient {
 
   final Set<String> _rooms = {};
   final Set<String> _watched = {};
-  final Set<String> _channels = {};
   final Set<String> _posts = {};
   io.Socket? _socket;
   bool _everConnected = false;
@@ -137,8 +136,8 @@ class RealtimeClient {
     'call:removed',
     'call:vote',
     'call:invite',
-    // Owner 2026-10-22 (load audit finding 3): a group's / an open
-    // channel's call started, changed or ended (no polling).
+    // Owner 2026-10-22 (load audit finding 3): a group's call started,
+    // changed or ended (no polling).
     'call:ongoing',
     'call:ongoing_ended',
     'typing',
@@ -159,12 +158,10 @@ class RealtimeClient {
     'group:member_removed',
     'poll:update',
     // Owner 2026-10-22 (client economy plan, packages E / F): a case or a
-    // consultation changed (re-read one card), a channel posted, a comment
-    // under an open post.
+    // consultation changed (re-read one card), a comment under an open
+    // post.
     'case:update',
     'consultation:update',
-    'channel:post',
-    'channel:update',
     'comment:new',
     // Pack B (25.11): a comment under the open post was deleted.
     'comment:deleted',
@@ -251,9 +248,6 @@ class RealtimeClient {
         }
         for (final id in _watched) {
           s0(socket, id);
-        }
-        for (final id in _channels) {
-          socket.emit('channel:watch', {'channelId': id});
         }
         for (final id in _posts) {
           socket.emit('post:watch', {'postId': id});
@@ -604,20 +598,6 @@ class RealtimeClient {
   void unwatchPresence(String userId) {
     _watched.remove(userId);
     if (connected) _socket!.emit('presence:unwatch', {'userId': userId});
-  }
-
-  /// Owner 2026-10-22 (load audit finding 3): hear this channel's call
-  /// start / change / end while it is open (re-sent after a reconnect).
-  void watchChannel(String channelId) {
-    _channels.add(channelId);
-    if (connected) _socket!.emit('channel:watch', {'channelId': channelId});
-  }
-
-  void unwatchChannel(String channelId) {
-    _channels.remove(channelId);
-    if (connected) {
-      _socket!.emit('channel:unwatch', {'channelId': channelId});
-    }
   }
 
   /// Package F: hear new comments under [postId] while it is open

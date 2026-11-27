@@ -67,7 +67,6 @@ describe('pack C (round 2 #23): a missing row reads as the catalog value', () =>
 
   it.each([
     // [flag, the caller's old fallback, the catalog]
-    ['channels', true, false],
     ['email_login', true, false],
     ['files_multipart', false, true],
   ])(

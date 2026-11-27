@@ -5,7 +5,6 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/features/channels/presentation/sections_archive.dart';
 import 'package:lawbid/features/demo/application/demo_providers.dart';
 import 'package:lawbid/features/demo/domain/demo_models.dart';
 import 'package:lawbid/features/demo/presentation/demo_section.dart';
@@ -16,8 +15,8 @@ import '../helpers/overflow_fixtures.dart';
 import '../helpers/overflow_harness.dart';
 
 /// Owner 2026-11-02, batch 6 of the screens no overflow test had covered:
-/// the demo accounts section and its role picker, the "Archive (N)" row of
-/// a section, and the footer of a paginated list (loading, error, end).
+/// the demo accounts section and its role picker, and the footer of a
+/// paginated list (loading, error, end).
 /// 360 dp, the longest text of every key, right-to-left, ne, de, mr, ar, ru,
 /// at text scale 1 and 1.3; then the four themes.
 typedef _Case = (
@@ -110,13 +109,6 @@ void main() {
         }
       },
       demo(),
-    ),
-    'section archive row': (
-      () => const Scaffold(
-            body: SectionArchiveRow(count: 99999999, route: '/x'),
-          ),
-      overflowShows(find.byKey(const ValueKey('section-archive-row'))),
-      const [],
     ),
     'pagination footer (loading)': (
       () => _footer(AppPaginationStatus.loading),

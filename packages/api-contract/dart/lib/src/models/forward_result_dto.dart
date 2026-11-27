@@ -29,7 +29,7 @@ class ForwardResultDto {
   /// failed: the error code of the target (UNSUPPORTED_IN_TARGET, GROUP_FORBIDDEN, CONVERSATION_CLOSED, MESSAGE_REQUEST_DECLINED, FORBIDDEN…).
   final String? code;
 
-  /// sent: the new message (or channel post).
+  /// sent: the new message.
   final String? messageId;
 
   Map<String, Object?> toJson() => _$ForwardResultDtoToJson(this);

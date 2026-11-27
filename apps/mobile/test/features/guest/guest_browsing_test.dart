@@ -14,7 +14,6 @@ import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/session/guest_mode.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
 import 'package:lawbid/features/auth/auth_routes.dart';
-import 'package:lawbid/features/channels/presentation/channel_screen.dart';
 import 'package:lawbid/features/chat/application/link_preview_providers.dart';
 import 'package:lawbid/features/feed/presentation/screens/feed_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_profile_screen.dart';
@@ -76,10 +75,6 @@ void main() {
           path: '/tag/:tag',
           builder: (_, s) => TagScreen(tag: s.pathParameters['tag']!),
         ),
-        GoRoute(
-          path: '/c/:u',
-          builder: (_, s) => ChannelScreen(channelRef: s.pathParameters['u']!),
-        ),
       ],
     );
     addTearDown(router.dispose);
@@ -126,7 +121,7 @@ void main() {
     return RegExp(
           '^/(feed|reels|practice-areas|posts/[^/]+|attorneys/[^/]+/posts|'
           'search/(attorneys|suggest|practices|posts|tags|trending-tags|latest-posts)|'
-          r'tags/[^/]+/posts|channels/[^/]+|channels/[^/]+/posts(/[^/]+)?)$',
+          r'tags/[^/]+/posts)$',
         ).hasMatch(p) ||
         (RegExp(r'^/attorneys/[^/]+$').hasMatch(p) &&
             !p.startsWith('/attorneys/me') &&
@@ -403,7 +398,6 @@ void main() {
       '/lawyer/a',
       '/u/a',
       '/post/1',
-      '/c/x',
       '/tag/x',
     ]) {
       expect(isGuestRoute(ok), isTrue, reason: ok);
@@ -418,15 +412,6 @@ void main() {
     ]) {
       expect(isGuestRoute(no), isFalse, reason: no);
     }
-  });
-
-  testWidgets('channel page reads GET /channels/:ref with no token', (
-    tester,
-  ) async {
-    final a = await pump(tester, '/c/news', _server);
-    expect(a.requests.map((r) => r.path), contains('/channels/news'));
-    expectOnlyGuestCalls(a);
-    await close(tester);
   });
 }
 
@@ -494,25 +479,6 @@ const _profile = {
   'publicUrl': 'https://lawbid.dev/attorneys/anna/',
 };
 
-const _channel = {
-  'id': 'ch1',
-  'title': 'News',
-  'username': 'news',
-  'commentsEnabled': false,
-  'status': 'active',
-  'subscriberCount': 3,
-  'postCount': 1,
-  'owner': {
-    'id': 'a1',
-    'role': 'attorney',
-    'username': 'anna',
-    'verifiedBadge': true,
-  },
-  'isSubscribed': false,
-  'isMuted': false,
-  'createdAt': '2026-10-01T10:00:00.000Z',
-};
-
 Future<ResponseBody> _server(RequestOptions o) async {
   final p = o.path;
   if (p == '/practice-areas') return ok(<Object>[]);
@@ -524,7 +490,6 @@ Future<ResponseBody> _server(RequestOptions o) async {
   }
   if (p == '/posts/p1') return ok(_post('p1'));
   if (p == '/attorneys/anna') return ok(_profile);
-  if (p == '/channels/news') return ok(_channel);
   if (p.startsWith('/search/')) return ok(<Object>[]);
   return apiError(401, 'UNAUTHORIZED');
 }

@@ -439,7 +439,7 @@ final mergedChatSearchProvider = Provider.autoDispose
 );
 
 /// How many of my loaded groups have something unread (the badge on the
-/// «Channels» door of Chats).
+/// «Группы» folder of Chats).
 final unreadGroupsProvider = Provider.autoDispose<int>(
   (ref) => [
     for (final g

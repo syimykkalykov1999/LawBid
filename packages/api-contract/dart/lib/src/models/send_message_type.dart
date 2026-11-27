@@ -14,8 +14,6 @@ enum SendMessageType {
   attachment('attachment'),
   @JsonValue('sticker')
   sticker('sticker'),
-  @JsonValue('gift')
-  gift('gift'),
   @JsonValue('contact')
   contact('contact'),
   @JsonValue('place')

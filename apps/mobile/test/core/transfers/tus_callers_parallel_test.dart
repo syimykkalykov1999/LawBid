@@ -5,7 +5,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/config/client_tuning.dart';
-import 'package:lawbid/features/channels/data/channels_repository.dart';
 import 'package:lawbid/features/stories/data/stories_repository.dart';
 
 /// Bunny: pieces joined by `Upload-Concat`; [refuseConcat] answers it with 4xx.
@@ -99,15 +98,6 @@ void main() {
     expire: 1,
     maxDurationSec: 15,
   );
-  const channel = ChannelVideoUpload(
-    videoAssetId: 'a',
-    tusEndpoint: 'https://video.test/tus',
-    libraryId: 'l',
-    videoId: 'v',
-    signature: 's',
-    expire: 1,
-    maxDurationSec: 180,
-  );
 
   final callers = <String,
       Future<void> Function(
@@ -120,11 +110,6 @@ void main() {
           apiDio: Dio(),
           storageDio: Dio()..httpClientAdapter = bunny,
         ).upload(f, story, parallel: parallel, onProgress: onProgress),
-    'channels': (bunny, f, onProgress, {required parallel}) =>
-        ChannelsRepository(
-          apiDio: Dio(),
-          storageDio: Dio()..httpClientAdapter = bunny,
-        ).uploadVideo(f, channel, parallel: parallel, onProgress: onProgress),
   };
 
   for (final MapEntry(key: name, value: send) in callers.entries) {

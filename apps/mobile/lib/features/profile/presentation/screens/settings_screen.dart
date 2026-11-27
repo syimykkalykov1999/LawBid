@@ -209,7 +209,7 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: t.t('packs.hint'),
               onTap: () => openSettingsRoute(context, AppRoutes.bidPacks),
             ),
-          // Owner 2026-10-20: stars — the balance, gifts, paid stickers
+          // Owner 2026-10-20: stars — the balance, paid stickers
           // (flag `stars`).
           if (!ref.watch(isAssistantProvider) &&
               ref.watch(featureFlagsControllerProvider).isEnabled('stars'))

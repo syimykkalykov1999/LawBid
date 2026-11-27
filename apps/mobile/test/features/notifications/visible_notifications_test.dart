@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -8,7 +7,7 @@ import 'package:lawbid/shared/domain/cursor_page.dart';
 AppNotification _n(String id, String type) => AppNotification(
       id: id,
       type: type,
-      category: NotifCategory.channels,
+      category: NotifCategory.system,
       payload: const {},
       aggregateCount: 1,
       createdAt: DateTime(2026, 11, 14, 12),
@@ -24,17 +23,15 @@ class _Fixed extends NotificationsNotifier {
       PaginatedList(items: items, nextCursor: 'c1');
 }
 
-// Detective R2 item 22 (14.11): with the `channels` flag off a «Today»
-// made only of channel posts showed an empty header, and a list made only
-// of them a blank page instead of the empty state.
+// Detective R2 item 22 (14.11): a «Today» made only of channel posts showed
+// an empty header, and a list made only of them a blank page instead of the
+// empty state. Owner 26.11: channels are gone; old rows never show.
 Future<PaginatedList<AppNotification>> _visible(
-  List<AppNotification> items, {
-  required bool channels,
-}) async {
+  List<AppNotification> items,
+) async {
   final c = ProviderContainer(
     overrides: [
       notificationsProvider.overrideWith(() => _Fixed(items)),
-      channelsEnabledProvider.overrideWithValue(channels),
     ],
   );
   addTearDown(c.dispose);
@@ -45,28 +42,23 @@ Future<PaginatedList<AppNotification>> _visible(
 }
 
 void main() {
-  test('channels off: channel posts are left out before grouping', () async {
+  test('old channel posts are left out before grouping', () async {
     final list = await _visible(
       [_n('1', 'channel_post'), _n('2', 'bid_new'), _n('3', 'channel_post')],
-      channels: false,
     );
     expect(list.items.map((n) => n.id), ['2']);
     expect(list.nextCursor, 'c1');
   });
 
-  test('channels off, only channel posts: the list is empty', () async {
+  test('only old channel posts: the list is empty', () async {
     final list = await _visible(
       [_n('1', 'channel_post'), _n('2', 'channel_post')],
-      channels: false,
     );
     expect(list.items, isEmpty);
   });
 
-  test('channels on: every row stays', () async {
-    final list = await _visible(
-      [_n('1', 'channel_post'), _n('2', 'bid_new')],
-      channels: true,
-    );
+  test('every other row stays', () async {
+    final list = await _visible([_n('1', 'bid_new'), _n('2', 'post_like')]);
     expect(list.items.map((n) => n.id), ['1', '2']);
   });
 }

@@ -8,12 +8,11 @@ import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/data/stars_repository.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
-import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
 import 'package:lawbid/features/stars/presentation/stars_screen.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 — stars: the balance screen prints no money price in
-/// the apps, the gift picker and the gift sheet.
+/// the apps.
 class _FakeStars extends StarsRepository {
   _FakeStars({this.balance = 120}) : super(Dio());
 
@@ -23,7 +22,6 @@ class _FakeStars extends StarsRepository {
   Future<StarsOverview> overview() async => StarsOverview(
         enabled: true,
         balance: balance,
-        giftConvertPercent: 70,
         packs: const [
           StarPack(id: 'p1', stars: 50, priceCents: 99),
           StarPack(id: 'p2', stars: 150, priceCents: 279),
@@ -47,18 +45,12 @@ class _FakeStars extends StarsRepository {
             id: 'l2',
             delta: -30,
             balanceAfter: 70,
-            kind: StarLedgerKind.giftSent,
+            kind: StarLedgerKind.stickerPack,
             createdAt: DateTime(2026, 10, 19, 9),
           ),
         ],
         next: null,
       );
-
-  @override
-  Future<List<Gift>> gifts() async => const [
-        Gift(id: 'g1', title: 'Gavel', priceStars: 30),
-        Gift(id: 'g2', title: 'Scales', priceStars: 200),
-      ];
 }
 
 Widget _app(Widget home, {int balance = 120}) => ProviderScope(
@@ -82,73 +74,8 @@ void main() {
     expect(find.text('Top up balance'), findsNothing);
     expect(find.byKey(const ValueKey('stars-topup-note')), findsOneWidget);
     expect(find.text('Top-up'), findsOneWidget);
-    expect(find.text('Gift sent'), findsOneWidget);
+    expect(find.text('Sticker pack'), findsOneWidget);
     expect(find.text('+50 ⭐'), findsOneWidget);
     expect(find.text('-30 ⭐'), findsOneWidget);
-  });
-
-  testWidgets('the gift picker shows every gift with its price',
-      (tester) async {
-    Gift? picked;
-    await tester.pumpWidget(
-      _app(Scaffold(body: GiftPicker(onGift: (g) => picked = g))),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('30 ⭐'), findsOneWidget);
-    expect(find.text('200 ⭐'), findsOneWidget);
-    expect(find.text('Balance: 120 ⭐'), findsOneWidget);
-    await tester.tap(find.text('30 ⭐'));
-    expect(picked?.id, 'g1');
-  });
-
-  testWidgets('enough stars: «Give for N», the draft carries one key',
-      (tester) async {
-    GiftDraft? sent;
-    await tester.pumpWidget(
-      _app(
-        Consumer(
-          builder: (context, ref, _) => TextButton(
-            onPressed: () => showGiftSheet(
-              context,
-              gift: const Gift(id: 'g1', title: 'Gavel', priceStars: 30),
-              onSend: (d) async => sent = d,
-            ),
-            child: const Text('open'),
-          ),
-        ),
-      ),
-    );
-    await tester.tap(find.text('open'));
-    await tester.pumpAndSettle();
-    expect(find.text('Give for 30 ⭐'), findsOneWidget);
-    await tester.enterText(find.byType(TextField), 'Congrats');
-    await tester.tap(find.byKey(const ValueKey('gift-send')));
-    await tester.pumpAndSettle();
-    expect(sent?.note, 'Congrats');
-    expect(sent?.clientMessageId, isNotEmpty);
-  });
-
-  testWidgets('too few stars: the sheet leads to the top-up', (tester) async {
-    await tester.pumpWidget(
-      _app(
-        Consumer(
-          builder: (context, ref, _) => TextButton(
-            onPressed: () => showGiftSheet(
-              context,
-              gift: const Gift(id: 'g2', title: 'Scales', priceStars: 200),
-              onSend: (_) async {},
-            ),
-            child: const Text('open'),
-          ),
-        ),
-        balance: 20,
-      ),
-    );
-    await tester.tap(find.text('open'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('gift-send')), findsNothing);
-    expect(find.byKey(const ValueKey('gift-topup')), findsNothing);
-    expect(find.byKey(const ValueKey('gift-topup-note')), findsOneWidget);
-    expect(find.text('Not enough stars: 200 ⭐ needed'), findsOneWidget);
   });
 }

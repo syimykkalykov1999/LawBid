@@ -37,9 +37,6 @@ import 'package:lawbid/features/calls/application/callkit_bridge.dart';
 import 'package:lawbid/features/calls/data/calls_repository.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
-import 'package:lawbid/features/channels/application/channel_forward_port.dart';
-import 'package:lawbid/features/chat/domain/forward.dart';
-import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_book_sync.dart';
 import 'package:lawbid/features/contacts_sync/data/contacts_sync_repository.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
@@ -171,12 +168,6 @@ Future<void> runLawBid(AppFlavor flavor) async {
       }),
       // Owner 2026-10-23: the Q&A's notification switch.
       qaNotifySwitchProvider.overrideWithValue(() => const QaNotifySwitch()),
-      // Owner 2026-10-21 (Telegram «Переслать»): a channel post into chats.
-      channelForwardPortProvider.overrideWithValue(
-        (context, ref, {required postId}) => forwardWithSheet(context, ref, [
-          ForwardSource(ForwardSourceKind.channelPost, postId),
-        ]),
-      ),
       groupCallPortProvider.overrideWith(
         (ref) => GroupCallPort(
           start:
@@ -203,25 +194,6 @@ Future<void> runLawBid(AppFlavor flavor) async {
             ref,
             await ref.read(callsRepositoryProvider).groupCall(groupId),
             ownerId: groupId,
-          ),
-          // Owner 2026-10-21 (inbox 20e): the call of a channel.
-          startChannel:
-              (channelId, {required title, avatarUrl, video = false}) => ref
-                  .read(callControllerProvider.notifier)
-                  .startChannelCall(
-                    channelId,
-                    peer: CallPeer(
-                      id: channelId,
-                      isAttorney: false,
-                      displayName: title,
-                      avatarUrl: avatarUrl,
-                    ),
-                    video: video,
-                  ),
-          runningChannel: (channelId) async => _runningCall(
-            ref,
-            await ref.read(callsRepositoryProvider).channelCall(channelId),
-            ownerId: channelId,
           ),
         ),
       ),
@@ -316,7 +288,7 @@ Future<void> runLawBid(AppFlavor flavor) async {
   );
 }
 
-/// A running group / channel call as the «Join» bar and its people list see
+/// A running group call as the «Join» bar and its people list see
 /// it (host first); null when there is none or we were taken out of it.
 GroupRunningCall? _runningCall(
   Ref ref,

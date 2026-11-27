@@ -46,7 +46,6 @@ import 'package:lawbid/features/cases/presentation/screens/owner_case_screen.dar
 import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart'
     deferred as d_work_case_screen;
 import 'package:lawbid/features/cases/presentation/widgets/case_sections.dart';
-import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/client_badge/presentation/client_badge_screen.dart'
     deferred as d_client_badge_screen;
@@ -121,8 +120,6 @@ import 'package:lawbid/features/settings/saved/saved_screen.dart'
 import 'package:lawbid/features/settings/storage/presentation/storage_screen.dart'
     deferred as d_storage_screen;
 import 'package:lawbid/features/social/social_routes.dart';
-import 'package:lawbid/features/stars/presentation/my_gifts_screen.dart'
-    deferred as d_my_gifts_screen;
 import 'package:lawbid/features/stars/presentation/stars_screen.dart'
     deferred as d_stars_screen;
 import 'package:lawbid/features/stories/stories_routes.dart';
@@ -715,20 +712,6 @@ GoRouter appRouter(Ref ref) {
             ),
           ),
         ),
-        routes: [
-          GoRoute(
-            path: 'gifts',
-            parentNavigatorKey: _rootNavigatorKey,
-            pageBuilder: (context, state) => AppPageTransitions.push(
-              state,
-              DeferredScreen(
-                id: 'my_gifts_screen',
-                load: d_my_gifts_screen.loadLibrary,
-                builder: (_) => d_my_gifts_screen.MyGiftsScreen(),
-              ),
-            ),
-          ),
-        ],
       ),
       GoRoute(
         path: AppRoutes.myFirm,
@@ -1007,9 +990,8 @@ GoRouter appRouter(Ref ref) {
       ...teamRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
       // Owner 2026-10-05: the attorney's own trust level.
       ...trustRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
-      // Owner 2026-10-20: stories (24 h) and Telegram-style channels.
+      // Owner 2026-10-20: stories (24 h).
       ...storiesRoutes(_rootNavigatorKey),
-      ...channelsRoutes(_rootNavigatorKey),
       ...privacyRoutes(_rootNavigatorKey, sectionPage: _settingsSection),
     ],
   );

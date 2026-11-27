@@ -31,7 +31,6 @@ export const QUEUE_COST_WEIGHT: Record<string, number> = {
   'cron-heavy': 5,
   'cron-heavy-frequent': 5,
   'case-fanout': 2,
-  'channel-fanout': 3,
   'post-fanout': 3,
   'admin-broadcast': 3,
   files: 5,

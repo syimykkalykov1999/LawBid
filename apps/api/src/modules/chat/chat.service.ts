@@ -10,8 +10,6 @@ import { BidTeamService } from '../firms/bid-team.service';
 import { readsAreSplit } from '../../sharding/split-reads';
 import { forEachDatabase } from '../../sharding/for-each-database';
 import { StickersService } from '../stickers/stickers.service';
-import { StarsService } from '../stars/stars.service';
-import type { GiftSendDto } from '../stars/stars.dto';
 import type { StickerDto } from '../stickers/stickers.dto';
 import {
   SharedPostCardsService,
@@ -23,7 +21,6 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
-  Logger,
   NotFoundException,
   Optional,
   Inject,
@@ -114,7 +111,6 @@ import {
   unsupportedInTarget,
 } from '../../common/forward/forward-content';
 
-const giftUndoLog = new Logger('ChatGiftUndo');
 const CONVERSATIONS_PAGE = 20;
 const MESSAGES_PAGE = 30;
 const CATCH_UP_MAX = 100;
@@ -201,7 +197,6 @@ export class ChatService implements FileScanListener {
     private readonly blocks: BlocksService,
     private readonly presence: PresenceService,
     private readonly stickers: StickersService,
-    private readonly stars: StarsService,
     // Scaling TZ point 11: message texts encrypted at rest.
     @Optional() private readonly cipher?: MessageBodyCipher,
     // Owner 2026-10-05 (docs/CLIENT_FRAUD.md): a restricted account cannot
@@ -1256,10 +1251,8 @@ export class ChatService implements FileScanListener {
     const attachment = dto.type === 'attachment';
     // Owner 2026-10-01: a sticker carries no text.
     const sticker = dto.type === 'sticker';
-    // Owner 2026-10-20: a gift paid in stars (`body` is its note), a shared
-    // attorney card (the body is the attorney's id) and a place (the body is
-    // the address).
-    const gift = dto.type === 'gift';
+    // Owner 2026-10-20: a shared attorney card (the body is the attorney's
+    // id) and a place (the body is the address).
     const contact = dto.type === 'contact';
     const place = dto.type === 'place';
     // Owner 2026-10-21 (Instagram «Поделиться»): a post card (the body is
@@ -1294,21 +1287,6 @@ export class ChatService implements FileScanListener {
           code: ErrorCode.VALIDATION_ERROR,
           message: 'An attachment needs fileId and fileName.',
           details: { fields: ['fileId', 'fileName'] },
-        });
-      }
-    } else if (gift) {
-      if (!dto.giftId) {
-        throw new BadRequestException({
-          code: ErrorCode.VALIDATION_ERROR,
-          message: 'A gift message needs giftId.',
-          details: { field: 'giftId' },
-        });
-      }
-      // An assistant never spends the attorney's stars.
-      if (user.assistant) {
-        throw new ForbiddenException({
-          code: ErrorCode.ASSISTANT_NOT_ALLOWED,
-          message: 'Assistants cannot give gifts.',
         });
       }
     } else if (sticker) {
@@ -1524,7 +1502,6 @@ export class ChatService implements FileScanListener {
       await this.files.assertChatRoom(id, dto.fileId!);
     }
     if (sticker) await this.stickers.useForMessage(user.sub, dto.stickerId!);
-    if (gift) await this.stars.assertMayGift(user.sub);
     if (voice) {
       scanPending =
         (
@@ -1590,24 +1567,22 @@ export class ChatService implements FileScanListener {
         ? 'attachment'
         : sticker
           ? 'sticker'
-          : gift
-            ? 'gift'
-            : contact
-              ? 'contact'
-              : place
-                ? 'place'
-                : post
-                  ? 'post'
-                  : mls
-                    ? 'mls'
-                    : 'text';
+          : contact
+            ? 'contact'
+            : place
+              ? 'place'
+              : post
+                ? 'post'
+                : mls
+                  ? 'mls'
+                  : 'text';
     // S3-5: the attachment's original name is sealed like the body.
     const fileName = attachment ? cleanFileName(dto.fileName!) : null;
     const storedFileName =
       fileName !== null && this.cipher
         ? await this.cipher.sealMetadata(fileName, fileNameAad(messageId))
         : fileName;
-    const bodyOriginal = this.seal(gift ? '' : body, messageId);
+    const bodyOriginal = this.seal(body, messageId);
     const prepare = (unlocked: boolean) => {
       const masked =
         voice || contact || post || mls || unlocked
@@ -1616,38 +1591,17 @@ export class ChatService implements FileScanListener {
       return {
         unlocked,
         masked,
-        giftNote: gift && masked.text ? masked.text.slice(0, 200) : null,
-        bodyDisplay: this.seal(gift ? '' : masked.text, messageId),
+        bodyDisplay: this.seal(masked.text, messageId),
         // BUG-1: the words of the shown text, as blind tokens.
         tokens: searchTokenRows(
           this.searchIndex,
           { id: messageId, conversation_id: id, type: messageType },
-          gift ? '' : masked.text,
+          masked.text,
           searchPrefixes,
         ),
       };
     };
     const prepared = prepare(conv.contacts_unlocked);
-    // Verifier 17.11 (two databases): the gift's charge commits on the
-    // primary database before the message commits on its own. Every gift
-    // charged by an attempt of the transaction below is listed here; any of
-    // them the stored message does not carry (the write failed, or a retry
-    // charged again) is paid back (StarsService.undoGift) — a saga with
-    // compensation. One database: the charge is in the same transaction and
-    // rolls back with it; the undo then finds nothing.
-    const giftSends: string[] = [];
-    const undoGifts = async (keep: string | null) => {
-      for (const sendId of giftSends) {
-        if (sendId === keep) continue;
-        await this.stars
-          .undoGift(sendId)
-          .catch((err: unknown) =>
-            giftUndoLog.error(
-              `gift ${sendId} not paid back (alert=gift_undo_failed): ${String(err)}`,
-            ),
-          );
-      }
-    };
     let message: Message;
     try {
       message = await withTxRetry(
@@ -1725,19 +1679,6 @@ export class ChatService implements FileScanListener {
             prepared.unlocked === locked.contacts_unlocked
               ? prepared
               : prepare(locked.contacts_unlocked);
-          const given = gift
-            ? await this.stars.giveGift(tx, {
-                giftId: dto.giftId!,
-                senderId: user.sub,
-                recipientId:
-                  user.sub === conv.client_id
-                    ? conv.attorney_id
-                    : conv.client_id,
-                conversationId: id,
-                note: p.giftNote,
-              })
-            : null;
-          if (given) giftSends.push(given.send.id);
           // Audit #6: the id was chosen above, the sealed bodies are bound to it.
           const m = await tx.message.create({
             data: {
@@ -1778,9 +1719,7 @@ export class ChatService implements FileScanListener {
                     }
                   : sticker
                     ? { sticker_id: dto.stickerId }
-                    : given
-                      ? { gift_send_id: given.send.id }
-                      : {}),
+                    : {}),
             },
           });
           // BUG-1: the blind tokens (prepared above) in the same transaction
@@ -1793,13 +1732,9 @@ export class ChatService implements FileScanListener {
           );
           return m;
         },
-        {
-          ...(gift ? {} : { isolation: 'readCommitted' as const }),
-          op: 'chat.send',
-        },
+        { isolation: 'readCommitted' as const, op: 'chat.send' },
       );
     } catch (error) {
-      await undoGifts(null);
       // Nothing was stored (or a retry's own request delivers): no effects owed.
       await this.clearEffectsPending(pending);
       // A concurrent retry with the same clientMessageId won the insert.
@@ -1819,9 +1754,6 @@ export class ChatService implements FileScanListener {
       }
       throw error;
     }
-    // A retried attempt charged again: only the gift the message carries
-    // stays paid.
-    if (giftSends.length > 1) await undoGifts(message.gift_send_id);
 
     // OQ-054: the client writing in their case's chat is their own action
     // on that case (the attorney writing never is).
@@ -2827,15 +2759,12 @@ export class ChatService implements FileScanListener {
   ): Promise<MediaLinks> {
     const ids = (type: Message['type']) =>
       rows.flatMap((m) => (m.type === type && m.file_id ? [m.file_id] : []));
-    const [voice, attachments, stickers, gifts, contacts, posts, blobs] =
+    const [voice, attachments, stickers, contacts, posts, blobs] =
       await Promise.all([
         this.files.voiceLinks(ids('voice')),
         this.files.attachmentUrls(ids('attachment')),
         this.stickers.forMessages(
           rows.flatMap((m) => (m.sticker_id ? [m.sticker_id] : [])),
-        ),
-        this.stars.forMessages(
-          rows.flatMap((m) => (m.gift_send_id ? [m.gift_send_id] : [])),
         ),
         this.contactCards(
           rows.flatMap((m) =>
@@ -2870,7 +2799,6 @@ export class ChatService implements FileScanListener {
       voice,
       attachments,
       stickers,
-      gifts,
       contacts,
       posts,
       blobs,
@@ -3081,10 +3009,6 @@ export class ChatService implements FileScanListener {
       sticker:
         m.type === 'sticker' && m.sticker_id && !revoked
           ? (media?.stickers.get(m.sticker_id) ?? null)
-          : null,
-      gift:
-        m.type === 'gift' && m.gift_send_id
-          ? (media?.gifts.get(m.gift_send_id) ?? null)
           : null,
       call:
         m.type === 'call'
@@ -3379,7 +3303,6 @@ interface MediaLinks {
   };
   voice: Map<string, { url: string; m4aUrl: string | null }>;
   stickers: Map<string, StickerDto>;
-  gifts: Map<string, GiftSendDto>;
   attachments: Awaited<ReturnType<FilesService['attachmentUrls']>>;
   contacts: Map<string, ContactCardDto>;
   posts: Map<string, SharedPostCardDto>;

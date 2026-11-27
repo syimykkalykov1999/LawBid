@@ -5,7 +5,6 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/persistence/saved_json.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/data/chat_list_cache.dart';
@@ -109,7 +108,6 @@ void main() {
             groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
             currentUserIdProvider.overrideWithValue('me'),
             currentUserRoleProvider.overrideWithValue(UserRole.attorney),
-            channelsEnabledProvider.overrideWithValue(true),
             realtimeClientProvider.overrideWithValue(null),
             messageStoreProvider.overrideWithValue(null),
           ],

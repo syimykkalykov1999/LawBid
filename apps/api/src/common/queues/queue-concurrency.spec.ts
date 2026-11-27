@@ -31,7 +31,7 @@ describe('queue worker concurrency (Q5)', () => {
     expect(queueConcurrency('case-fanout')).toBe(4);
     expect(queueConcurrency('data-export')).toBe(2);
     expect(queueConcurrency('admin-broadcast')).toBe(1);
-    expect(Object.keys(QUEUE_CONCURRENCY)).toHaveLength(14);
+    expect(Object.keys(QUEUE_CONCURRENCY)).toHaveLength(13);
     expect(() => queueConcurrency('nope')).toThrow();
   });
 

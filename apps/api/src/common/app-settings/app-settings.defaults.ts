@@ -284,18 +284,14 @@ export const OWNER_MEDIA_SETTINGS = {
   'stickers.recent_max': 30,
   'rate_limit.sticker_pack_create_per_day': 5,
   'rate_limit.sticker_add_per_hour': 60,
-  // Owner 2026-10-20: stories (24 h) and channels.
+  // Owner 2026-10-20: stories (24 h).
   'stories.max_active_per_user': 30,
   'stories.max_video_sec': 15,
   'stories.ttl_hours': 24,
   'rate_limit.story_create_per_day': 50,
   // Owner 2026-10-22 (audit #4 §6): generous caps instead of none (the
-  // 2026-10-21 removal opened spam and fan-out costs). Telegram allows 10
-  // public channels; WhatsApp groups hold 1 024 people.
-  'channels.max_owned': 50,
-  'channels.max_admins': 10,
-  'channels.max_post_media': 10,
-  'rate_limit.channel_create_per_day': 20,
+  // 2026-10-21 removal opened spam and fan-out costs). WhatsApp groups hold
+  // 1 024 people.
   'rate_limit.group_create_per_day': 50,
   'groups.max_members': 1024,
   // Audit 17.11 (problem 9): how many groups get their messages delivered
@@ -303,8 +299,6 @@ export const OWNER_MEDIA_SETTINGS = {
   // its order inside its queue). Was a fixed 8 for the whole cluster.
   'groups.fanout_partitions': 64,
   'rate_limit.post_create_per_hour': 30,
-  'rate_limit.channel_post_per_hour': 30,
-  'rate_limit.channel_comment_per_hour': 60,
   'files.sticker_max_size_mb': 1,
   // Owner 2026-10-05: a reel may be cut from a longer video (trim); the
   // played part stays ≤ video.max_duration_sec.
@@ -1960,7 +1954,6 @@ export const OWNER_OPS_SETTINGS = {
   'ops.queue_concurrency_admin_broadcast': 1,
   'ops.queue_concurrency_case_fanout': 4,
   'ops.queue_concurrency_case_history_export': 2,
-  'ops.queue_concurrency_channel_fanout': 4,
   'ops.queue_concurrency_data_export': 2,
   'ops.queue_concurrency_deal_record': 2,
   'ops.queue_concurrency_files': 2,

@@ -37,8 +37,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 Duration? _noRetry(int retryCount, Object error) => null;
 
 /// Owner 2026-11-16 (row 183): the admin switch «Группы в чатах» (flag
-/// `groups`, on by default, independent of `channelsEnabledProvider`; the
-/// same pattern). Off = no
+/// `groups`, on by default). Off = no
 /// group anywhere: the lists below are empty without a request, the saved
 /// copy is not shown, the group routes show nothing (GroupsGate).
 final groupsEnabledProvider = Provider<bool>(
@@ -47,7 +46,7 @@ final groupsEnabledProvider = Provider<bool>(
 
 /// Owner 2026-11-16 18:25 CT (row 183): «Звонки в группах» (flag
 /// `groups_calls`, on by default): off = no call button in group chats.
-/// 1:1 calls and channel calls read their own switches.
+/// 1:1 calls read their own switches.
 final groupChatCallsEnabledProvider = Provider<bool>(
   (ref) =>
       ref.watch(groupsEnabledProvider) &&

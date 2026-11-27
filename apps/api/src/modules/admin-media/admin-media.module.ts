@@ -4,8 +4,6 @@ import { AdminContentModule } from '../admin-content/admin-content.module';
 import { FilesModule } from '../files/files.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { VideosModule } from '../videos/videos.module';
-import { AdminChannelsController } from './admin-channels.controller';
-import { AdminChannelsService } from './admin-channels.service';
 import { AdminMediaController } from './admin-media.controller';
 import { AdminStickersService } from './admin-stickers.service';
 import { AdminVideosService } from './admin-videos.service';
@@ -20,7 +18,7 @@ import { AdminVideosService } from './admin-videos.service';
     NotificationsModule,
     VideosModule,
   ],
-  controllers: [AdminMediaController, AdminChannelsController],
-  providers: [AdminVideosService, AdminStickersService, AdminChannelsService],
+  controllers: [AdminMediaController],
+  providers: [AdminVideosService, AdminStickersService],
 })
 export class AdminMediaModule {}

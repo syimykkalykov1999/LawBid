@@ -18,7 +18,6 @@ class SendMessageDto {
     this.mlsDeviceId,
     this.frankingTag,
     this.pushPreviews,
-    this.giftId,
     this.contactUserId,
     this.postId,
     this.stickerId,
@@ -58,10 +57,6 @@ class SendMessageDto {
   /// M12 (type=mls): the message's push preview sealed to each recipient.
   /// phone (only kept for its push, never stored with the message).
   final List<SealedPushPreviewDto>? pushPreviews;
-
-  /// Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is.
-  /// the optional note (≤200).
-  final String? giftId;
 
   /// Owner 2026-10-20: the attorney whose card is shared (type=contact).
   final String? contactUserId;

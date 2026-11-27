@@ -3,8 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/cases/presentation/screens/attorney_cases_tab.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
-import 'package:lawbid/features/channels/presentation/channel_post_card.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_stats_screen.dart';
@@ -18,7 +16,6 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 import 'package:material_ui/material_ui.dart';
 
 import '../features/cases/cases_fakes.dart';
-import '../features/channels/channels_fakes.dart' as ch;
 import '../features/profile/profile_fakes.dart';
 import '../features/social/social_fakes.dart';
 import '../helpers/long_locale.dart';
@@ -26,8 +23,8 @@ import '../helpers/overflow_fixtures.dart';
 import '../helpers/overflow_harness.dart';
 
 /// Owner 2026-11-02, batch 2 of the screens no overflow test had covered:
-/// client profile, attorney cases tab, attorney statistics, a channel post,
-/// and the comments / post-text sheets, with long names, texts and counts.
+/// client profile, attorney cases tab, attorney statistics, and the
+/// comments / post-text sheets, with long names, texts and counts.
 /// 360 dp, the longest text of every key, right-to-left, ne, de, mr, ar, ru,
 /// at text scale 1 and 1.3; then the four themes in the longest text.
 typedef _Case = (
@@ -83,19 +80,6 @@ void main() {
   }
 
   const longBody = '$longText $longText';
-  final longChannelPost = ch.fakePost(
-    'cp1',
-    body: longBody,
-    comments: 1234567,
-    views: 98765432,
-    mine: '👍',
-  );
-  final channel = ch.fakeChannel(
-    title: 'Международная налоговая ${'консультация' * 4}',
-    username: 'a_very_long_channel_username_32ch',
-    subscribers: 9999999,
-  );
-
   final profileExtra = <Override>[
     attorneyProfileRepositoryProvider.overrideWithValue(
       FakeAttorneyRepo(
@@ -157,26 +141,6 @@ void main() {
                 clientsTotal: 99999999,
               ),
             ),
-          ],
-          null,
-          null,
-        ),
-        'channel post card': (
-          () => Scaffold(
-                body: SingleChildScrollView(
-                  child: ChannelPostCard(
-                    channel: channel,
-                    post: longChannelPost,
-                  ),
-                ),
-              ),
-          overflowShows(find.textContaining('The landlord')),
-          false,
-          [
-            channelsComingSoonProvider.overrideWithValue(false),
-            channelsRepositoryProvider
-                .overrideWithValue(ch.FakeChannelsRepository(channel: channel)),
-            currentUserIdProvider.overrideWithValue('me'),
           ],
           null,
           null,

@@ -20,7 +20,6 @@ describe('StarsService reads inside the caller transaction (row 69)', () => {
     {} as never,
     {} as never,
     {} as never,
-    {} as never,
   );
   const txWith = (enabled: boolean) => ({
     appConfig: {

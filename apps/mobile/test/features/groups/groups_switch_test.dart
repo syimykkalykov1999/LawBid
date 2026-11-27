@@ -8,7 +8,6 @@ import 'package:lawbid/core/cache/cache_database.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/feature_flags/default_feature_flags.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
@@ -143,7 +142,6 @@ void main() {
               n('5', 'bid_new', category: NotifCategory.bids),
             ]),
           ),
-          channelsEnabledProvider.overrideWithValue(true),
           groupsEnabledProvider.overrideWithValue(groups),
         ],
       );

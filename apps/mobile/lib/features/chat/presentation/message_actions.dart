@@ -798,7 +798,7 @@ class MessageReactionButton extends StatelessWidget {
   }
 }
 
-/// "Forward to…": chats, groups and channels as a multi-select list, then
+/// "Forward to…": chats and groups as a multi-select list, then
 /// Send (owner 2026-10-21: one server request for all of them).
 Future<void> pickForwardTargets(
   BuildContext context,
