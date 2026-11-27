@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/navigation/pop_then_push.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/cases/presentation/widgets/case_wizard_steps.dart'
@@ -19,11 +20,17 @@ class HotlineCaseSentScreen extends ConsumerWidget {
   const HotlineCaseSentScreen({super.key});
 
   void _back(BuildContext context, WidgetRef ref) {
+    final busy = ref.read(callControllerProvider).busy;
+    final nav = Navigator.maybeOf(context);
+    if (busy && nav != null && nav.canPop()) {
+      // The call page opens only after this one has gone (bug 27.11: a
+      // push sent first went away with this page).
+      unawaited(context.popThenPush<void>(ChatRoutes.call));
+      return;
+    }
     final router = GoRouter.of(context);
     context.safeBack();
-    if (ref.read(callControllerProvider).busy) {
-      unawaited(router.push<void>(ChatRoutes.call));
-    }
+    if (busy) unawaited(router.push<void>(ChatRoutes.call));
   }
 
   @override

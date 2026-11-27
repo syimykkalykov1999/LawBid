@@ -1,13 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart'
     show avatarFullUrlFor;
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
-import 'package:lawbid/core/navigation/pop_if_current.dart';
+import 'package:lawbid/core/navigation/pop_then_push.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/calls/domain/call_models.dart';
 import 'package:lawbid/features/calls/presentation/call_widgets.dart';
@@ -44,11 +43,10 @@ class HotlineCallClientPanel extends ConsumerWidget {
   final double bottomInset;
 
   void _openProfile(BuildContext context, String username) {
-    final router = GoRouter.of(context);
     // The call minimises (the green «Вернуться к звонку» bar) and the
-    // profile opens over it.
-    unawaited(Navigator.of(context).maybePop());
-    unawaited(router.push<void>(AppRoutes.lawyer(username)));
+    // profile opens over it — the push only after the call page has gone
+    // (bug 27.11: a push sent first went away with the call page).
+    unawaited(context.popThenPush<void>(AppRoutes.lawyer(username)));
   }
 
   /// «Предложить дело» (mockup c11b): one tap makes the case from the call
@@ -64,13 +62,11 @@ class HotlineCallClientPanel extends ConsumerWidget {
     required Set<String> states,
     required Set<String> practices,
   }) async {
-    final router = GoRouter.of(context);
     final t = ref.read(translatorProvider);
     final res = await ref.read(hotlineControllerProvider.notifier).offerCase();
     if (!context.mounted) return;
     if (res.caseId != null) {
-      unawaited(context.maybePopIfCurrent<void>());
-      unawaited(router.push<void>(HotlineRoutes.caseSent));
+      unawaited(context.popThenPush<void>(HotlineRoutes.caseSent));
       return;
     }
     if (res.code == ApiErrorCodes.rateLimited ||
