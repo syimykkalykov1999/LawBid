@@ -474,6 +474,12 @@ export const OWNER_MEDIA_SETTINGS = {
   // over `video.max_size_mb`) is shrunk on the phone. Off = as before.
   'media.bunny_one_encode': true,
   'media.chat_video_max_height': 720,
+  // Owner 26.11 (group chat, Samsung: 51 photos picked, nothing sent;
+  // WhatsApp takes up to 100 per send; owner 26.11: 30 by default): the
+  // most photos / videos one pick from
+  // the gallery takes in a chat, group, case chat or support chat. The
+  // phone's picker stops at it; at least 2, no ceiling (owner 14.11).
+  'media.chat_pick_max': 30,
   'media.voice_bitrate_kbps': 32,
   'media.voice_sample_rate_hz': 16000,
   // Owner row 146: a voice note recorded on the website in Firefox / Linux

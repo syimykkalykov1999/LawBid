@@ -2763,6 +2763,18 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   ] as const) {
     out[key] = { ...out[key], description, min, max };
   }
+  // Owner 26.11: one gallery pick in a chat, group or case chat. Owner
+  // 14.11 «no limits for me»: only the technical floor (the phone's picker
+  // needs 2), no ceiling — the phone's own picker caps it physically.
+  {
+    const key = 'media.chat_pick_max';
+    out[key] = {
+      ...out[key],
+      description:
+        'The most photos / videos one gallery pick takes in a chat, group or case chat (30 by default). At least 2, no ceiling.',
+      min: 2,
+    };
+  }
   out['media.voice_transcode_enabled'] = {
     ...out['media.voice_transcode_enabled'],
     description:
@@ -2914,6 +2926,8 @@ export const NO_CEILING: readonly string[] = [
   'infra.tracing_min_requests',
   'infra.cdc_prepare_on_api_tasks',
   'infra.edge_on_api_tasks',
+  // Owner 26.11: one gallery pick in a chat; floor 2 (the phone's picker).
+  'media.chat_pick_max',
 ];
 
 /** Owner 2026-10-27: scores take decimals, modes take fixed words,
