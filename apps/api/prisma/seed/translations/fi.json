@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Tiedosto",
   "chat.attach.photo": "Kuva",
   "chat.attach.photos": "Kuvakirjasto",
+  "chat.attach.pickMax": "Voit lähettää kerralla enintään {max} kuvaa ja videota",
   "chat.attach.removed": "Tiedosto poistettu: se ei läpäissyt turvatarkistusta",
   "chat.attach.skipped": "{count} ei lisätty: tiedostomuoto ei ole tuettu tai tiedosto on yli {max} Mt",
   "chat.attach.template": "Asiakirjapohja",

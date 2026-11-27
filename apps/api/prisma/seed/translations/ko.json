@@ -1261,6 +1261,7 @@
   "chat.attach.label": "파일",
   "chat.attach.photo": "사진",
   "chat.attach.photos": "사진 보관함",
+  "chat.attach.pickMax": "한 번에 사진과 동영상을 최대 {max}개까지 보낼 수 있습니다",
   "chat.attach.removed": "파일 삭제됨: 보안 검사를 통과하지 못했습니다",
   "chat.attach.skipped": "{count}개 추가되지 않음: 지원하지 않는 형식이거나 {max} MB를 초과함",
   "chat.attach.template": "문서 템플릿",

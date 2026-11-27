@@ -1261,6 +1261,7 @@
   "chat.attach.label": "檔案",
   "chat.attach.photo": "照片",
   "chat.attach.photos": "相簿",
+  "chat.attach.pickMax": "一次最多可傳送 {max} 張相片和影片",
   "chat.attach.removed": "檔案已移除：未通過安全檢查",
   "chat.attach.skipped": "{count} 個未加入：格式不支援或超過 {max} MB",
   "chat.attach.template": "文件範本",

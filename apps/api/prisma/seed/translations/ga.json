@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Comhad",
   "chat.attach.photo": "Grianghraf",
   "chat.attach.photos": "Leabharlann grianghraf",
+  "chat.attach.pickMax": "Is féidir suas le {max} grianghraf agus físeán a sheoladh ag an am céanna",
   "chat.attach.removed": "Baineadh an comhad: theip air sa seiceáil slándála",
   "chat.attach.skipped": "Níor cuireadh {count} leis: formáid nach dtacaítear leis nó níos mó ná {max} MB",
   "chat.attach.template": "Teimpléad doiciméid",

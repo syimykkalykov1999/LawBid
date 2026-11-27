@@ -1261,6 +1261,7 @@
   "chat.attach.label": "קובץ",
   "chat.attach.photo": "תמונה",
   "chat.attach.photos": "ספריית תמונות",
+  "chat.attach.pickMax": "אפשר לשלוח עד {max} תמונות וסרטונים בבת אחת",
   "chat.attach.removed": "הקובץ הוסר: הוא לא עבר את בדיקת האבטחה",
   "chat.attach.skipped": "{count} לא נוספו: פורמט לא נתמך או גודל מעל {max} MB",
   "chat.attach.template": "תבנית מסמך",

@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Dosya",
   "chat.attach.photo": "Fotoğraf",
   "chat.attach.photos": "Fotoğraf kitaplığı",
+  "chat.attach.pickMax": "Tek seferde en fazla {max} fotoğraf ve video gönderebilirsiniz",
   "chat.attach.removed": "Dosya kaldırıldı: güvenlik denetiminden geçemedi",
   "chat.attach.skipped": "{count} eklenmedi: desteklenmeyen biçim veya {max} MB üzeri",
   "chat.attach.template": "Belge şablonu",

@@ -1261,6 +1261,7 @@
   "chat.attach.label": "File",
   "chat.attach.photo": "Photo",
   "chat.attach.photos": "Photo library",
+  "chat.attach.pickMax": "You can send up to {max} photos and videos at once",
   "chat.attach.removed": "File removed: it failed the security check",
   "chat.attach.skipped": "{count} not added — unsupported format or over {max} MB",
   "chat.attach.template": "Document template",

@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fișier",
   "chat.attach.photo": "Fotografie",
   "chat.attach.photos": "Fototecă",
+  "chat.attach.pickMax": "Poți trimite cel mult {max} fotografii și videoclipuri odată",
   "chat.attach.removed": "Fișier eliminat: nu a trecut verificarea de securitate",
   "chat.attach.skipped": "{count} neadăugate: format nepermis sau peste {max} MB",
   "chat.attach.template": "Model de document",

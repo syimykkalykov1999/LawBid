@@ -1261,6 +1261,7 @@
   "chat.attach.label": "File",
   "chat.attach.photo": "Larawan",
   "chat.attach.photos": "Aklatan ng larawan",
+  "chat.attach.pickMax": "Maaari kang magpadala ng hanggang {max} larawan at video nang sabay-sabay",
   "chat.attach.removed": "Inalis ang file: hindi pumasa sa pagsusuri sa seguridad",
   "chat.attach.skipped": "Hindi naidagdag ang {count}: hindi suportadong format o lampas sa {max} MB",
   "chat.attach.template": "Template ng dokumento",

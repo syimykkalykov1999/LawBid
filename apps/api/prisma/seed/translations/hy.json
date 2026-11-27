@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Ֆայլ",
   "chat.attach.photo": "Լուսանկար",
   "chat.attach.photos": "Լուսանկարների գրադարան",
+  "chat.attach.pickMax": "Միանգամից կարող եք ուղարկել առավելագույնը {max} լուսանկար և տեսանյութ",
   "chat.attach.removed": "Ֆայլը հեռացվել է. այն չանցավ անվտանգության ստուգումը",
   "chat.attach.skipped": "{count}-ը չի ավելացվել. չաջակցվող ձևաչափ կամ {max} ՄԲ-ից մեծ",
   "chat.attach.template": "Փաստաթղթի ձևանմուշ",

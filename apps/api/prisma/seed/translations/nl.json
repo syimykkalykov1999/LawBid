@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Bestand",
   "chat.attach.photo": "Foto",
   "chat.attach.photos": "Fotobibliotheek",
+  "chat.attach.pickMax": "Je kunt maximaal {max} foto's en video's tegelijk versturen",
   "chat.attach.removed": "Bestand verwijderd: de veiligheidscontrole is mislukt",
   "chat.attach.skipped": "{count} niet toegevoegd: niet-ondersteund formaat of groter dan {max} MB",
   "chat.attach.template": "Documentsjabloon",

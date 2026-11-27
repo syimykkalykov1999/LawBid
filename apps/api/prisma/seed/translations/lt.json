@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Failas",
   "chat.attach.photo": "Nuotrauka",
   "chat.attach.photos": "Nuotraukų biblioteka",
+  "chat.attach.pickMax": "Vienu metu galite išsiųsti iki {max} nuotraukų ir vaizdo įrašų",
   "chat.attach.removed": "Failas pašalintas: nepraėjo saugumo patikros",
   "chat.attach.skipped": "Nepridėta: {count}. Nepalaikomas formatas arba didesnis nei {max} MB",
   "chat.attach.template": "Dokumento šablonas",

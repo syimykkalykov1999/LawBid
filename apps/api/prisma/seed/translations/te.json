@@ -1261,6 +1261,7 @@
   "chat.attach.label": "ఫైల్",
   "chat.attach.photo": "ఫోటో",
   "chat.attach.photos": "ఫోటో లైబ్రరీ",
+  "chat.attach.pickMax": "ఒకేసారి గరిష్ఠంగా {max} ఫోటోలు, వీడియోలు పంపవచ్చు",
   "chat.attach.removed": "ఫైల్ తొలగించబడింది: ఇది భద్రతా తనిఖీలో విఫలమైంది",
   "chat.attach.skipped": "{count} జోడించబడలేదు: మద్దతు లేని ఫార్మాట్ లేదా {max} MB కంటే ఎక్కువ",
   "chat.attach.template": "పత్రం టెంప్లేట్",

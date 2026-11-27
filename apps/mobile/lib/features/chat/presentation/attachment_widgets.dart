@@ -267,24 +267,31 @@ Future<List<PickedChatFile>> pickChatFiles(
       return const [];
     case 'photos':
       // Owner 2026-10-01: no count limit in chats and tasks (only
-      // publications keep 9 photos). Owner 2026-10-17: videos picked in
-      // the same gallery are compressed and sent too.
+      // publications keep 9 photos); owner 26.11: one pick takes at most
+      // `media.chat_pick_max` (30 by default). Owner 2026-10-17: videos
+      // picked in the same gallery are compressed and sent too.
       // Owner 2026-10-22 (client economy plan, package I): chat photos go
       // at 1600 px / q82 — a third of the bytes, no visible difference on
       // a phone; the original stays on the device.
-      final picked = videoOn
+      // Owner 26.11 (30 by default): the gallery stops at the
+      // admin's `media.chat_pick_max`.
+      final all = videoOn
           ? await ImagePicker().pickMultipleMedia(
               maxWidth: pickPx,
               maxHeight: pickPx,
               imageQuality: pickQuality,
+              limit: ClientTuning.chatPickMax,
               requestFullMetadata: false,
             )
           : await ImagePicker().pickMultiImage(
               maxWidth: pickPx,
               maxHeight: pickPx,
               imageQuality: pickQuality,
+              limit: ClientTuning.chatPickMax,
               requestFullMetadata: false,
             );
+      if (!context.mounted) return const [];
+      final picked = keepChatPickMax(context, t, all);
       for (final f in picked) {
         // Too big: said at once, never read whole into the page's memory
         // (a long iPhone clip could close a Safari tab). An original photo
@@ -470,6 +477,18 @@ String fileSizeLabel(int? bytes) => byteSizeLabel(bytes);
         ),
     };
 
+/// Owner 26.11 (group chat on a Samsung: 51 photos picked, nothing sent;
+/// 30 by default, owner 26.11): a chat's gallery stops at
+/// [ClientTuning.chatPickMax] (`media.chat_pick_max`; the phone's own picker
+/// says so). A picker that still hands over more (the browser) keeps the
+/// first ones and the chat says why.
+List<T> keepChatPickMax<T>(BuildContext context, Translator t, List<T> picked) {
+  final max = ClientTuning.chatPickMax;
+  if (picked.length <= max) return picked;
+  showAppSnackBar(context, t.t('chat.attach.pickMax', {'max': '$max'}));
+  return picked.sublist(0, max);
+}
+
 /// OQ-047: the inside of an attachment bubble — a photo (tap → full
 /// screen) or a document card (tap → the phone's viewer), the upload
 /// progress while sending, and the caption under it.
@@ -482,11 +501,16 @@ class AttachmentMessageBody extends ConsumerWidget {
     required this.message,
     required this.mine,
     this.captionPadding = EdgeInsets.zero,
+    this.onCancel,
     super.key,
   });
 
   final ChatMessage message;
   final bool mine;
+
+  /// Tapping the ring while it uploads. Null: the 1:1 chat's own (the send
+  /// stops and the message goes); a group passes its queue's discard.
+  final VoidCallback? onCancel;
 
   /// Owner 2026-10-22: the text inset of the caption when the photo fills
   /// the bubble edge to edge (Instagram / WhatsApp).
@@ -502,13 +526,15 @@ class AttachmentMessageBody extends ConsumerWidget {
     final fg = mine ? chat.onMine : chat.onTheirs;
     final pct = a.progress > 0 && a.progress < 1 ? a.progress : null;
     // Tap the ring while it uploads: the send stops and the message goes.
-    final cancel = sending && mine
-        ? () => unawaited(
-              ref
-                  .read(chatThreadProvider(message.conversationId).notifier)
-                  .discard(message),
-            )
-        : null;
+    final cancel = sending && mine && onCancel != null
+        ? onCancel
+        : sending && mine
+            ? () => unawaited(
+                  ref
+                      .read(chatThreadProvider(message.conversationId).notifier)
+                      .discard(message),
+                )
+            : null;
 
     final Widget content;
     var captionWidth = 240.0;

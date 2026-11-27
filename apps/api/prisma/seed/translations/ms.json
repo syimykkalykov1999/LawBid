@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fail",
   "chat.attach.photo": "Foto",
   "chat.attach.photos": "Pustaka foto",
+  "chat.attach.pickMax": "Anda boleh menghantar sehingga {max} foto dan video sekali gus",
   "chat.attach.removed": "Fail dibuang: gagal dalam semakan keselamatan",
   "chat.attach.skipped": "{count} tidak ditambah: format tidak disokong atau melebihi {max} MB",
   "chat.attach.template": "Templat dokumen",

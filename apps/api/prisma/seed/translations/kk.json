@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Файл",
   "chat.attach.photo": "Фото",
   "chat.attach.photos": "Фотокітапхана",
+  "chat.attach.pickMax": "Бір рет ең көбі {max} фото мен бейне жіберуге болады",
   "chat.attach.removed": "Файл жойылды: қауіпсіздік тексеруінен өтпеді",
   "chat.attach.skipped": "{count} қосылмады: қолдау көрсетілмейтін пішім немесе {max} МБ-тан асады",
   "chat.attach.template": "Құжат үлгісі",

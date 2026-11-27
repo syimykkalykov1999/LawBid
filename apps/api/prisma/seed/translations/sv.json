@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fil",
   "chat.attach.photo": "Foto",
   "chat.attach.photos": "Fotobibliotek",
+  "chat.attach.pickMax": "Du kan skicka upp till {max} bilder och videor åt gången",
   "chat.attach.removed": "Filen togs bort: den klarade inte säkerhetskontrollen",
   "chat.attach.skipped": "{count} lades inte till: formatet stöds inte eller så är filen större än {max} MB",
   "chat.attach.template": "Dokumentmall",

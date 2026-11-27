@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Berkas",
   "chat.attach.photo": "Foto",
   "chat.attach.photos": "Pustaka foto",
+  "chat.attach.pickMax": "Anda dapat mengirim hingga {max} foto dan video sekaligus",
   "chat.attach.removed": "File dihapus: tidak lolos pemeriksaan keamanan",
   "chat.attach.skipped": "{count} tidak ditambahkan: format tidak didukung atau melebihi {max} MB",
   "chat.attach.template": "Templat dokumen",
