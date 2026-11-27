@@ -268,12 +268,12 @@ Future<List<PickedChatFile>> pickChatFiles(
     case 'photos':
       // Owner 2026-10-01: no count limit in chats and tasks (only
       // publications keep 9 photos); owner 26.11: one pick takes at most
-      // `media.chat_pick_max` (WhatsApp: 100). Owner 2026-10-17: videos picked in
-      // the same gallery are compressed and sent too.
+      // `media.chat_pick_max` (30 by default). Owner 2026-10-17: videos
+      // picked in the same gallery are compressed and sent too.
       // Owner 2026-10-22 (client economy plan, package I): chat photos go
       // at 1600 px / q82 — a third of the bytes, no visible difference on
       // a phone; the original stays on the device.
-      // Owner 26.11 (WhatsApp: 100 per send): the gallery stops at the
+      // Owner 26.11 (30 by default): the gallery stops at the
       // admin's `media.chat_pick_max`.
       final all = videoOn
           ? await ImagePicker().pickMultipleMedia(
@@ -478,7 +478,7 @@ String fileSizeLabel(int? bytes) => byteSizeLabel(bytes);
     };
 
 /// Owner 26.11 (group chat on a Samsung: 51 photos picked, nothing sent;
-/// WhatsApp takes up to 100 per send): a chat's gallery stops at
+/// 30 by default, owner 26.11): a chat's gallery stops at
 /// [ClientTuning.chatPickMax] (`media.chat_pick_max`; the phone's own picker
 /// says so). A picker that still hands over more (the browser) keeps the
 /// first ones and the chat says why.

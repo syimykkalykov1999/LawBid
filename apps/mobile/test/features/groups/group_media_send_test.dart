@@ -39,14 +39,14 @@ void main() {
   const en = StaticTranslatorEn();
 
   group('1. one pick takes at most media.chat_pick_max', () {
-    test('100 by default (WhatsApp), the admin may change it, 2..1000', () {
-      expect(ClientTuning.chatPickMax, 100);
-      ClientTuning.apply(const {'media.chat_pick_max': '30'});
-      expect(ClientTuning.chatPickMax, 30);
+    test('30 by default (owner), the admin may change it, no ceiling', () {
+      expect(ClientTuning.chatPickMax, 30, reason: 'owner 26.11: 30');
+      ClientTuning.apply(const {'media.chat_pick_max': '40'});
+      expect(ClientTuning.chatPickMax, 40);
       ClientTuning.apply(const {'media.chat_pick_max': '1'});
       expect(ClientTuning.chatPickMax, 2, reason: 'the picker needs 2+');
       ClientTuning.apply(const {'media.chat_pick_max': '5000'});
-      expect(ClientTuning.chatPickMax, 1000);
+      expect(ClientTuning.chatPickMax, 5000, reason: 'owner: no ceiling');
     });
 
     testWidgets('more than the max keeps the first ones and says why',
@@ -90,7 +90,7 @@ void main() {
                 onPressed: () => kept = keepChatPickMax(
                   context,
                   en,
-                  List<int>.generate(51, (i) => i),
+                  List<int>.generate(30, (i) => i),
                 ),
                 child: const Text('pick'),
               ),
@@ -102,7 +102,7 @@ void main() {
       );
       await t.tap(find.text('pick'));
       await t.pump();
-      expect(kept, hasLength(51));
+      expect(kept, hasLength(30));
       expect(find.byType(SnackBar), findsNothing);
     });
   });

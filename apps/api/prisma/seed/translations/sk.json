@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Súbor",
   "chat.attach.photo": "Fotografia",
   "chat.attach.photos": "Knižnica fotografií",
+  "chat.attach.pickMax": "Naraz môžete poslať najviac {max} fotiek a videí",
   "chat.attach.removed": "Súbor odstránený: neprešiel bezpečnostnou kontrolou",
   "chat.attach.skipped": "Nepridané: {count}. Nepodporovaný formát alebo viac než {max} MB",
   "chat.attach.template": "Šablóna dokumentu",

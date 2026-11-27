@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Ffeil",
   "chat.attach.photo": "Llun",
   "chat.attach.photos": "Llyfrgell luniau",
+  "chat.attach.pickMax": "Gallwch anfon hyd at {max} llun a fideo ar yr un pryd",
   "chat.attach.removed": "Ffeil wedi’i thynnu: methodd y gwiriad diogelwch",
   "chat.attach.skipped": "Heb ychwanegu {count}: fformat nad yw'n cael ei chefnogi neu dros {max} MB",
   "chat.attach.template": "Templed dogfen",

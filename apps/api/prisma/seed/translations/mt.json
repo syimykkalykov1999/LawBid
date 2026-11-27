@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fajl",
   "chat.attach.photo": "Ritratt",
   "chat.attach.photos": "Librerija tar-ritratti",
+  "chat.attach.pickMax": "Tista' tibgħat sa {max} ritratt u vidjo f'daqqa",
   "chat.attach.removed": "Il-fajl tneħħa: ma għaddiex mill-verifika tas-sigurtà",
   "chat.attach.skipped": "{count} ma ġewx miżjud: format mhux appoġġjat jew akbar minn {max} MB",
   "chat.attach.template": "Mudell ta' dokument",

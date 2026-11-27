@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Файл",
   "chat.attach.photo": "Сүрөт",
   "chat.attach.photos": "Сүрөт китепканасы",
+  "chat.attach.pickMax": "Бир жолу эң көп {max} сүрөт жана видео жөнөтсө болот",
   "chat.attach.removed": "Файл өчүрүлдү: коопсуздук текшерүүсүнөн өткөн жок",
   "chat.attach.skipped": "{count} кошулган жок: колдоого алынбаган формат же {max} МБ ашык",
   "chat.attach.template": "Документ үлгүсү",

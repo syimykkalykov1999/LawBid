@@ -1261,6 +1261,7 @@
   "chat.attach.label": "ឯកសារ",
   "chat.attach.photo": "រូបថត",
   "chat.attach.photos": "បណ្ណាល័យរូបថត",
+  "chat.attach.pickMax": "អាចផ្ញើរូបថត និងវីដេអូបានច្រើនបំផុត {max} ក្នុងពេលតែមួយ",
   "chat.attach.removed": "បានលុបឯកសារ៖ វាមិនបានឆ្លងកាត់ការត្រួតពិនិត្យសុវត្ថិភាពទេ",
   "chat.attach.skipped": "មិនបានបន្ថែម {count}: ទម្រង់មិនគាំទ្រ ឬលើសពី {max} MB",
   "chat.attach.template": "ពុម្ពឯកសារ",

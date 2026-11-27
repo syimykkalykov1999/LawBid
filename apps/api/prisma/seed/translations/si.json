@@ -1261,6 +1261,7 @@
   "chat.attach.label": "ගොනුව",
   "chat.attach.photo": "ඡායාරූපය",
   "chat.attach.photos": "ඡායාරූප පුස්තකාලය",
+  "chat.attach.pickMax": "එක වර උපරිම ඡායාරූප සහ වීඩියෝ {max}ක් යැවිය හැක",
   "chat.attach.removed": "ගොනුව ඉවත් කරන ලදී: එය ආරක්ෂක පරීක්ෂාව අසමත් විය",
   "chat.attach.skipped": "{count} එක් කළ නොහැකි විය: සහාය නොදක්වන ආකෘතියක් හෝ {max} MB ට වැඩි",
   "chat.attach.template": "ලේඛන ආකෘතිය",

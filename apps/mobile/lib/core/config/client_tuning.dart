@@ -74,7 +74,7 @@ abstract final class ClientTuning {
 
   static double _chatPhotoMaxPx = 1600;
   static int _chatPhotoQuality = 82;
-  static int _chatPickMax = 100;
+  static int _chatPickMax = 30;
   static int _pickedImageReadX = 4;
   static int _sentryTracesPercent = 0;
   static int _traceparentPercent = 5;
@@ -258,9 +258,10 @@ abstract final class ClientTuning {
   static double get chatPhotoMaxPx => _chatPhotoMaxPx;
   static int get chatPhotoQuality => _chatPhotoQuality;
 
-  /// Owner 26.11 (WhatsApp: 100 per send): the most photos / videos one
-  /// gallery pick takes in a chat, group or case chat
-  /// (`media.chat_pick_max`, 2..1000); the phone's picker stops at it.
+  /// Owner 26.11 (30 by default; WhatsApp takes 100): the most photos /
+  /// videos one gallery pick takes in a chat, group or case chat
+  /// (`media.chat_pick_max`, at least 2, no ceiling); the phone's picker
+  /// stops at it.
   static int get chatPickMax => _chatPickMax;
 
   /// Row 149: a photo picked from «Files» above the file limit is still read
@@ -418,7 +419,10 @@ abstract final class ClientTuning {
       4096,
     ).toDouble();
     _chatPhotoQuality = pick('media.chat_photo_quality', 82, 50, 100);
-    _chatPickMax = pick('media.chat_pick_max', 100, 2, 1000);
+    // Owner 14.11 «no limits for me»: only the floor the picker needs; a
+    // huge number is safe (the phone's picker stops at its own maximum).
+    final pickMax = num.tryParse(config['media.chat_pick_max'] ?? '')?.toInt();
+    _chatPickMax = pickMax == null ? 30 : (pickMax < 2 ? 2 : pickMax);
     _pickedImageReadX = pick('media.picked_image_read_x', 4, 0, 100);
     _verificationPhotoMaxPx = pick(
       'client.verification_photo_max_px',

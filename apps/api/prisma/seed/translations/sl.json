@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Datoteka",
   "chat.attach.photo": "Fotografija",
   "chat.attach.photos": "Knjižnica fotografij",
+  "chat.attach.pickMax": "Naenkrat lahko pošljete največ {max} fotografij in videoposnetkov",
   "chat.attach.removed": "Datoteka odstranjena: ni prestala varnostnega preverjanja",
   "chat.attach.skipped": "{count} ni dodanih: nepodprt format ali več kot {max} MB",
   "chat.attach.template": "Predloga dokumenta",

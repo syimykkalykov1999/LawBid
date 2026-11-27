@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Archivo",
   "chat.attach.photo": "Foto",
   "chat.attach.photos": "Fototeca",
+  "chat.attach.pickMax": "Puedes enviar hasta {max} fotos y vídeos a la vez",
   "chat.attach.removed": "Archivo eliminado: no superó la comprobación de seguridad",
   "chat.attach.skipped": "{count} no añadidos: formato no compatible o más de {max} MB",
   "chat.attach.template": "Plantilla de documento",

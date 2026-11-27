@@ -1261,6 +1261,7 @@
   "chat.attach.label": "ملف",
   "chat.attach.photo": "صورة",
   "chat.attach.photos": "مكتبة الصور",
+  "chat.attach.pickMax": "يمكنك إرسال {max} من الصور والفيديوهات كحد أقصى في المرة الواحدة",
   "chat.attach.removed": "تمت إزالة الملف: لم يجتز فحص الأمان",
   "chat.attach.skipped": "لم تتم إضافة {count}: صيغة غير مدعومة أو حجم يتجاوز {max} ميغابايت",
   "chat.attach.template": "نموذج مستند",

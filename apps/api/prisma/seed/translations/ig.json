@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Faịlụ",
   "chat.attach.photo": "Foto",
   "chat.attach.photos": "Ụlọ akwụkwọ foto",
+  "chat.attach.pickMax": "Ị nwere ike iziga ihe ruru foto na vidiyo {max} n'otu oge",
   "chat.attach.removed": "E wepụla faịlụ: ọ gafeghị nyocha nchekwa",
   "chat.attach.skipped": "Ejikwaghị {count}: ụdị a na-enweghị nkwado ma ọ bụ karịa {max} MB",
   "chat.attach.template": "Ụdị akwụkwọ",

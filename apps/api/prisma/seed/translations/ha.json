@@ -1261,6 +1261,7 @@
   "chat.attach.label": "Fayil",
   "chat.attach.photo": "Hoto",
   "chat.attach.photos": "Ɗakin hotuna",
+  "chat.attach.pickMax": "Za ka iya aika har hotuna da bidiyo {max} a lokaci guda",
   "chat.attach.removed": "An cire fayil: bai wuce binciken tsaro ba",
   "chat.attach.skipped": "Ba a ƙara {count} ba: tsarin da ba a tallafa masa ba ko sama da {max} MB",
   "chat.attach.template": "Samfurin takarda",
