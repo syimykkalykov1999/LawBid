@@ -616,7 +616,8 @@ void main() {
         status: base.status,
         firstName: 'Ann',
         lastName: 'Lee',
-        email: base.email,
+        // a valid e-mail: only the missing photo keeps Continue grey
+        email: 'ann@example.com',
         emailVerified: base.emailVerified,
         phone: base.phone,
         phoneVerified: base.phoneVerified,
