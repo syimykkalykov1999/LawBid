@@ -114,7 +114,7 @@ void main() {
     });
     expect(error, isA<ApiException>());
     expect(isGroupMuted(row('g1')), isFalse);
-    expect(rows().map((g) => g.id), before);
+    expect(rows().map((g) => g.id).toSet(), before.toSet());
   });
 
   testWidgets('delete: the group leaves at once, back on a refusal',

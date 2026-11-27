@@ -249,10 +249,6 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
   /// The rows on screen now (null: none yet, or this list is gone).
   List<Conversation>? _heldRows() => ref.mounted ? state.value?.items : null;
 
-  void _putRows(List<Conversation> rows) {
-    if (ref.mounted) setItems(rows);
-  }
-
   /// Applies [change] to the rows held; false when it did not find the
   /// chat. Nothing loaded yet: the first page in flight will have it.
   bool _edit(List<Conversation>? Function(List<Conversation>) change) {
@@ -340,40 +336,67 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
 /// Owner 26.11 (Telegram, WhatsApp): every chat list on screen (the inbox,
 /// its folders, the Archive, a search), so my own pin / mute / archive /
 /// delete of a chat shows in all of them at once, before the server
-/// answers; a refusal puts every list back as it was. The request and what
-/// follows it (the answer, the lists' re-read) stay the caller's.
+/// answers; a refusal puts that chat's row back in every list. The request
+/// and what follows it (the answer, the lists' re-read) stay the caller's.
 class ChatListsHub {
   final _lists = <ConversationsNotifier>{};
 
-  /// Applies my change of chat [id] to every list, then runs [call] (the
-  /// one request). [change] gives the new row (a pin, a mute); [leaves]
-  /// takes the row out (archive, unarchive, delete). Throws what [call]
-  /// threw, after the lists are back.
+  /// Applies my change of chat [id] to every list now. [change] gives the
+  /// new row (a pin, a mute); [leaves] takes the row out (archive,
+  /// unarchive, delete). Returns what puts this one row back in every list
+  /// (other chats changed meanwhile keep their change — a multi-chat action
+  /// rolls back only the chats the server refused).
+  void Function() show(
+    String id, {
+    Conversation Function(Conversation c)? change,
+    bool leaves = false,
+  }) {
+    final before = <ConversationsNotifier, Conversation>{};
+    for (final l in [..._lists]) {
+      final row = l._heldRows()?.where((c) => c.id == id).firstOrNull;
+      if (row == null) continue;
+      before[l] = row;
+      l._edit((items) {
+        if (leaves) {
+          return [
+            for (final c in items)
+              if (c.id != id) c,
+          ];
+        }
+        if (change == null) return items;
+        return sortedConversations([
+          for (final c in items)
+            if (c.id == id) change(c) else c,
+        ]);
+      });
+    }
+    return () {
+      for (final MapEntry(key: l, value: row) in before.entries) {
+        if (!_lists.contains(l) || l._heldRows() == null) continue;
+        l._edit(
+          (items) => sortedConversations([
+            for (final c in items)
+              if (c.id != id) c,
+            row,
+          ]),
+        );
+      }
+    };
+  }
+
+  /// [show], then [call] (the one request). Throws what [call] threw, after
+  /// the row is back.
   Future<T> run<T>(
     String id, {
     required Future<T> Function() call,
     Conversation Function(Conversation c)? change,
     bool leaves = false,
   }) async {
-    final before = <ConversationsNotifier, List<Conversation>>{
-      for (final l in [..._lists])
-        if (l._heldRows() case final rows?) l: rows,
-    };
-    for (final l in before.keys) {
-      l._edit((items) {
-        final i = items.indexWhere((c) => c.id == id);
-        if (i < 0) return items;
-        if (leaves) return [...items]..removeAt(i);
-        if (change == null) return items;
-        return sortedConversations([...items]..[i] = change(items[i]));
-      });
-    }
+    final undo = show(id, change: change, leaves: leaves);
     try {
       return await call();
     } on Object {
-      for (final MapEntry(key: l, value: rows) in before.entries) {
-        if (_lists.contains(l)) l._putRows(rows);
-      }
+      undo();
       rethrow;
     }
   }
@@ -523,6 +546,13 @@ final chatFolderCountsProvider = FutureProvider.autoDispose<
   },
   retry: _noRetry,
 );
+
+/// [refreshChatFolders] from a place whose widget is gone (a menu that
+/// closed before the answer).
+void refreshChatFoldersIn(ProviderContainer c) => c
+  ..invalidate(folderConversationsProvider)
+  ..invalidate(conversationsProvider)
+  ..invalidate(chatFolderCountsProvider);
 
 /// After organizing a chat every folder list and the badges reload.
 void refreshChatFolders(WidgetRef ref) {

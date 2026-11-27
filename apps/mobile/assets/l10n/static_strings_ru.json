@@ -2473,6 +2473,7 @@
 "chat.select.deleteTitle": "Удалить чатов: {count}?",
 "chat.select.deleteMessage": "Чаты пропадут только из вашего списка. Переписка у собеседника останется, а новое сообщение вернёт чат.",
 "chat.select.deleted": "Удалено из списка",
+"chat.select.partlyFailed": "Не получилось: {failed} из {total}. {reason}",
 "cbadge.title": "Подтвердить аккаунт",
 "cbadge.hint": "Золотая галочка рядом с именем",
 "cbadge.benefits.title": "Что даёт золотая галочка",

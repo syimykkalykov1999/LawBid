@@ -271,7 +271,9 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
     Future<Conversation> Function() call, {
     String? done,
     bool? undoArchived,
+    bool atOnce = false,
   }) async {
+    if (atOnce) return _runAtOnce(call, done: done, undoArchived: undoArchived);
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
     try {
@@ -305,6 +307,48 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
       }
     } on Object {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Owner 26.11 (Telegram, WhatsApp): pin, mute, unread, archive and delete
+  /// close the menu at once — the list behind it already changed
+  /// ([ChatListsHub]); the request runs on. A refusal puts the list back
+  /// (the hub) and the error shows on the screen under the menu; the
+  /// answer brings the usual message or «Undo».
+  Future<void> _runAtOnce(
+    Future<Conversation> Function() call, {
+    String? done,
+    bool? undoArchived,
+  }) async {
+    final t = ref.read(translatorProvider);
+    final container = ProviderScope.containerOf(context, listen: false);
+    // The screen under this menu outlives it and the chat row.
+    final host = Navigator.of(context).context;
+    // Starts the request; the hub has changed the lists before this returns.
+    final pending = call();
+    setState(() => _busy = true);
+    context.popIfCurrent();
+    try {
+      await pending;
+    } on Object catch (e) {
+      if (host.mounted) showAppSnackBar(host, errorText(t, e));
+      return;
+    }
+    try {
+      refreshChatFoldersIn(container);
+    } on Object {
+      // The app is closing: the next open reads the lists.
+    }
+    if (!host.mounted || done == null) return;
+    if (undoArchived != null) {
+      showChatMoveUndo(
+        host,
+        message: t.t(undoArchived ? 'chat.archived' : done),
+        chatIds: [widget.conversation.id],
+        archived: undoArchived,
+      );
+    } else {
+      showAppSnackBar(host, t.t(done));
     }
   }
 
@@ -353,6 +397,7 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                         done: c.pinned
                             ? 'chat.organize.unpinned'
                             : 'chat.organize.pinned',
+                        atOnce: true,
                       ),
             ),
             if (widget.noReplyMessageId != null)
@@ -400,6 +445,7 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                         done: span == null
                             ? 'chat.select.unmuted'
                             : 'chat.select.muted',
+                        atOnce: true,
                       );
                     },
             ),
@@ -430,6 +476,7 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                             change: (x) => x.withActivity(markedUnread: true),
                             call: () => repo.organize(c.id, unread: true),
                           ),
+                          atOnce: true,
                         ),
               ),
             AppListRow(
@@ -453,6 +500,7 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                             ? 'chat.unarchive'
                             : 'tasks.bulk.archive',
                         undoArchived: widget.inArchive ? null : true,
+                        atOnce: true,
                       ),
             ),
             AppListRow(
@@ -479,6 +527,7 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                         ),
                         done: 'chat.select.deleted',
                         undoArchived: false,
+                        atOnce: true,
                       );
                     },
             ),
