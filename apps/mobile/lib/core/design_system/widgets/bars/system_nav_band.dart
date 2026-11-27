@@ -37,17 +37,28 @@ class SystemNavBand extends StatefulWidget {
   /// code field (История кейсов) was closed, the phone kept reporting the
   /// keyboard height — every screen stayed squashed into the top half, the
   /// «+» floated mid-screen, the reels had black space below, across all
-  /// tabs. A keyboard can only be up for a focused field (a text field or
-  /// a platform view such as a web page): with no focused leaf at all, a
-  /// non-zero bottom inset is stale and is ignored here, once, for the
-  /// whole app. Upstream: flutter/flutter#191156 («(Android)
+  /// tabs. A keyboard can only be up for a focused text field: with no
+  /// focused field, a non-zero bottom inset is stale and is ignored here,
+  /// once, for the whole app. Upstream: flutter/flutter#191156 («(Android)
   /// viewInsets.bottom is restored to the keyboard height … while no
   /// TextField is focused», open in Flutter 3.44–3.47); only public
   /// framework API is used (FocusManager.primaryFocus + MediaQuery).
+  ///
+  /// Owner bug 2026-11-26 (Samsung S26 Ultra, Android 16): after «Новая
+  /// публикация» with the keyboard up, every next screen (Settings) lost
+  /// its bottom ~45 %. The phone log shows the hide animation cancelled by
+  /// the system (`ImeTracker … onCancelled at
+  /// PHASE_CLIENT_ON_CONTROLS_CHANGED`) and no keyboard shown again, so no
+  /// text field had focus — yet a plain focus node did (a navigator's own
+  /// `Focus`, a button, a shortcut listener), and «any focused leaf» let
+  /// the stale height through. Only a text field opens the keyboard (the
+  /// app has no platform views), so only a focus inside an [EditableText]
+  /// counts now.
   @visibleForTesting
   static bool keyboardCanBeOpen() {
     final focus = FocusManager.instance.primaryFocus;
-    return focus != null && focus is! FocusScopeNode;
+    if (focus == null || focus is FocusScopeNode) return false;
+    return focus.context?.findAncestorStateOfType<EditableTextState>() != null;
   }
 
   @override
