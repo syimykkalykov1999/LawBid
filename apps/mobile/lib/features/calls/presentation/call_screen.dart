@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
+import 'package:lawbid/core/navigation/pop_then_push.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/platform/app_settings_opener.dart';
 import 'package:lawbid/core/startup/app_startup.dart';
@@ -323,13 +324,19 @@ class _CallScreenState extends ConsumerState<CallScreen>
             !mounted) {
           return;
         }
-        final router = GoRouter.of(context);
         final path = planOfferPath(
           ref.read(currentUserRoleProvider),
           PaywallReason.videoCall,
         );
-        Navigator.of(context).maybePop();
-        unawaited(router.push(path));
+        // The plan page opens only after the call page has gone (bug
+        // 27.11: a push sent first went away with the call page).
+        unawaited(
+          popNavigatorThenPush<void>(
+            navigator: Navigator.of(context),
+            router: GoRouter.of(context),
+            location: path,
+          ),
+        );
       });
   }
 

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_router.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_then_push.dart';
 import 'package:lawbid/features/calls/application/call_foreground.dart';
 import 'package:lawbid/features/calls/application/call_screen_addon.dart';
 import 'package:lawbid/features/cases/domain/bid_from_call.dart';
@@ -81,12 +82,14 @@ class HotlineAttorneyHost extends ConsumerWidget {
               .caseOfferedShown();
           // The call minimises (it goes on in the green bar) and the bid
           // form opens over it.
-          if (_onCallScreen(ref)) {
-            unawaited(appRootNavigatorKey.currentState?.maybePop());
-          }
+          // The push waits for that pop (bug 27.11: a push sent first went
+          // away with the call page, leaving the page under the call).
           unawaited(
-            router.push<void>(
-              AppRoutes.placeBid(next.caseId),
+            popNavigatorThenPush<void>(
+              navigator: appRootNavigatorKey.currentState,
+              router: router,
+              pop: _onCallScreen(ref),
+              location: AppRoutes.placeBid(next.caseId),
               extra: BidFromCall(
                 topic: next.topic,
                 state: next.state,

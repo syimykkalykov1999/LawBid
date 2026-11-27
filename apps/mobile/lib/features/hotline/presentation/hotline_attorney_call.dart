@@ -1,10 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
+import 'package:lawbid/core/navigation/pop_then_push.dart';
 import 'package:lawbid/core/safety/block_and_report.dart';
 import 'package:lawbid/features/calls/application/call_controller.dart';
 import 'package:lawbid/features/calls/application/call_screen_addon.dart';
@@ -187,11 +187,11 @@ Future<void> showHotlineCallMenu(
                       Navigator.of(sheet).pop();
                       // The call minimises (the green bar) and the profile
                       // opens over it (mockup a9).
-                      final router = GoRouter.of(context);
-                      unawaited(Navigator.of(context).maybePop());
+                      // The push waits for the call page to go (bug 27.11).
                       unawaited(
-                        router
-                            .push<void>(AppRoutes.client(info.clientUsername!)),
+                        context.popThenPush<void>(
+                          AppRoutes.client(info.clientUsername!),
+                        ),
                       );
                     },
                   ),
