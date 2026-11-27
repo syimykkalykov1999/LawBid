@@ -10,7 +10,10 @@ browser asks for nothing at all on a repeat visit (Instagram / WhatsApp Web
 do the same with hashed file names).
 
 What it does, in a built `build/web`:
-  1. moves main.dart.* (+ lazy parts) and assets/ to v/<version>/, and the
+  1. moves main.dart.* (+ lazy parts: main.dart.js_<n>.part.js of the
+     JavaScript build and, 27.11 KNOWN_ERRORS 270, main.dart_module<n>.wasm
+     of the WebAssembly build made with --enable-wasm-deferred-loading; the
+     loader fetches both next to the entrypoint) and assets/ to v/<version>/, and the
      engine (canvaskit/) to v/<engineRevision>/canvaskit (row 170, 14.11):
      the engine is the same file in every build of one Flutter version
      (1.2 MB skwasm.wasm / 2.3 MB canvaskit.wasm, brotli), so its url now
@@ -99,7 +102,7 @@ def main() -> None:
         if name == "canvaskit":
             shutil.move(os.path.join(root, name), os.path.join(edir, name))
             moved.append(name)
-        elif name == "assets" or name.startswith("main.dart."):
+        elif name == "assets" or name.startswith(("main.dart.", "main.dart_module")):
             shutil.move(os.path.join(root, name), os.path.join(vdir, name))
             moved.append(name)
     for must in ("main.dart.wasm", "main.dart.mjs", "main.dart.js", "canvaskit", "assets"):
@@ -146,7 +149,7 @@ def main() -> None:
     js = js.replace("__LB_V__", prefix).replace("__LB_E__", engine).replace("__LB_D__", "|".join(db))
     open(path, "w", encoding="utf-8").write(js)
 
-    shown = ", ".join(n for n in moved if ".part." not in n and n != "canvaskit")
+    shown = ", ".join(n for n in moved if ".part." not in n and "_module" not in n and n != "canvaskit")
     print(f"moved to {prefix}/: {shown} ({len(moved) - 1} entries with the lazy parts)")
     print(f"engine (canvaskit/) in {engine}/" + ("" if rev else " (no engineRevision in the build: kept with the release)"))
     print(f"skwasm threads: {threads}")
