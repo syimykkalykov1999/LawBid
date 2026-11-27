@@ -113,6 +113,15 @@ void main() {
         expect(bar.height, ChatsFilterRow.height);
         // The segments sit in the exact centre of the screen.
         expect((tabs.center.dx - 180).abs(), lessThan(2));
+        // Owner 2026-11-26: the icons stand at the screen edge, and the
+        // room they gave makes the segments larger (they were 128 wide).
+        final bell = tester.getRect(find.byKey(const ValueKey('inbox-bell')));
+        if (dir == TextDirection.ltr) {
+          expect(bell.right, closeTo(360, 0.5));
+        } else {
+          expect(bell.left, closeTo(0, 0.5));
+        }
+        expect(tabs.width, greaterThan(140));
         // Owner 2026-10-22: no megaphone while channels are «coming soon»;
         // the folder pills share the row in equal widths; the «+» floats.
         expect(find.byKey(const ValueKey('inbox-channels')), findsNothing);
