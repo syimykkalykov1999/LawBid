@@ -7,6 +7,9 @@ import 'package:lawbid/core/design_system/widgets/inputs/field_counter.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_motion_bits.dart';
 import 'package:material_ui/material_ui.dart';
 
+/// The focused / error border width; the resting border is 1.
+const double _kMaxBorder = 1.5;
+
 /// General-purpose text field (file 07 §4 "AppTextField"): height 52, radius
 /// 12, `surface` fill, 1px `border`, focused border `gold` 1.5px, text 16.
 /// [leading] hosts the country-code chip on the phone screen (file 07 §6.2)
@@ -160,7 +163,7 @@ class _AppTextFieldState extends State<AppTextField> {
 
     final borderColor =
         hasError ? colors.danger : (_focused ? colors.gold : colors.border);
-    final borderWidth = _focused || hasError ? 1.5 : 1.0;
+    final borderWidth = _focused || hasError ? _kMaxBorder : 1.0;
 
     return Semantics(
       textField: true,
@@ -183,6 +186,11 @@ class _AppTextFieldState extends State<AppTextField> {
             child: _withCounter(
               Container(
                 constraints: BoxConstraints(minHeight: widget.minHeight),
+                // Owner 27.11 («скачки»): a BoxDecoration border counts as
+                // padding, so 1 → 1.5 on focus grew the field by 1 px and
+                // moved everything below it. Border + padding is 1.5 in
+                // both states, so focus only repaints.
+                padding: EdgeInsets.all(_kMaxBorder - borderWidth),
                 decoration: BoxDecoration(
                   color: colors.surface,
                   borderRadius: BorderRadius.circular(AppRadii.field),

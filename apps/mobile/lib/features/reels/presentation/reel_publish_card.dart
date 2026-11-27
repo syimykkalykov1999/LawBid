@@ -166,10 +166,19 @@ class _ReelPublishCardState extends ConsumerState<ReelPublishCard> {
                             ),
                           ),
                           const SizedBox(width: AppSpacing.sm),
-                          Text(
+                          // Owner 27.11 («скачки»): tabular digits in the
+                          // width of «100%», so the bar does not shorten
+                          // or lengthen at 10 % and 100 %.
+                          WidestOfText(
                             '$percent%',
-                            style: type.caption
-                                .copyWith(color: colors.textSecondary),
+                            all: const ['100%'],
+                            textAlign: TextAlign.end,
+                            style: type.caption.copyWith(
+                              color: colors.textSecondary,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
                           ),
                         ],
                       ),
@@ -210,13 +219,22 @@ class _ReelPublishCardState extends ConsumerState<ReelPublishCard> {
         ),
       ),
     );
-    return AnimatedSwitcher(
+    // Owner 27.11 («скачки»): the card's room closes with its fade (the
+    // switcher alone kept the card's height for the whole fade, then the
+    // feed snapped up in one frame).
+    return AnimatedSize(
       duration: context.reduceMotion
-          ? Duration.zero
+          ? const Duration(milliseconds: 1)
           : const Duration(milliseconds: 250),
-      child: hidden
-          ? const SizedBox.shrink(key: ValueKey('reel-publish-hidden'))
-          : card,
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+        duration: context.reduceMotion
+            ? Duration.zero
+            : const Duration(milliseconds: 250),
+        child: hidden
+            ? const SizedBox.shrink(key: ValueKey('reel-publish-hidden'))
+            : card,
+      ),
     );
   }
 }

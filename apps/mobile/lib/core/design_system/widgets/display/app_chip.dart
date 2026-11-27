@@ -61,14 +61,23 @@ class AppChip extends StatelessWidget {
         child: Container(
           constraints: BoxConstraints(minHeight: height),
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          // Owner 27.11 («скачки»): a BoxDecoration border counts as
+          // padding, so 1 → 1.5 made the picked chip 1 px bigger and moved
+          // the chips beside it. The laid-out border stays 1; the picked
+          // chip's 1.5 ring is painted over it (no layout change).
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(height / 2),
             border: Border.all(
               color: selected ? colors.gold : colors.border,
-              width: selected ? 1.5 : 1,
             ),
           ),
+          foregroundDecoration: selected
+              ? BoxDecoration(
+                  borderRadius: BorderRadius.circular(height / 2),
+                  border: Border.all(color: colors.gold, width: 1.5),
+                )
+              : null,
           child: Row(
             mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
             children: [

@@ -453,9 +453,35 @@ class _TermsLine extends ConsumerWidget {
     // leaves the line out instead of a skeleton that never ends.
     if (async.hasError && !async.hasValue) return const SizedBox.shrink();
     final bid = async.value;
-    if (bid == null) return const AppSkeleton(height: AppSpacing.xl);
+    // Owner 27.11 («скачки»): while the bid loads, the same card with its
+    // caption and a shimmering line where the money goes — the height the
+    // card will have, so the blocks below it do not move when it comes.
+    final money = bid == null
+        ? const Stack(
+            children: [
+              Opacity(opacity: 0, child: MoneyText('0')),
+              Positioned.fill(
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: FractionallySizedBox(
+                    widthFactor: 0.5,
+                    child: AppSkeleton(borderRadius: AppSpacing.xs),
+                  ),
+                ),
+              ),
+            ],
+          )
+        : MoneyText(
+            CaseFormat.terms(
+              t,
+              formats,
+              bid.feeType,
+              bid.amountCents,
+              percentBps: bid.percentBps,
+            ),
+          );
     return AppCard(
-      onTap: () => context.push(AppRoutes.bid(bidId)),
+      onTap: bid == null ? null : () => context.push(AppRoutes.bid(bidId)),
       child: Row(
         children: [
           Expanded(
@@ -474,15 +500,7 @@ class _TermsLine extends ConsumerWidget {
                       ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
-                MoneyText(
-                  CaseFormat.terms(
-                    t,
-                    formats,
-                    bid.feeType,
-                    bid.amountCents,
-                    percentBps: bid.percentBps,
-                  ),
-                ),
+                money,
               ],
             ),
           ),

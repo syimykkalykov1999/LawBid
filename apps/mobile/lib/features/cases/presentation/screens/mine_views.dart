@@ -263,6 +263,15 @@ class _ClientCasesGridState extends ConsumerState<_ClientCasesGrid> {
     final loadedSeen = ref.watch(seenBidCountsProvider(ids));
     if (loadedSeen.hasValue) _seen = loadedSeen.requireValue;
     final seen = _seen;
+    // Owner 27.11 («скачки»): a case whose seen count is not known yet
+    // shows no badge (rather than its full bid count that then shrinks or
+    // goes, shifting the line beside it).
+    int newBidsOf(CaseSummary c) {
+      final s = seen[c.id];
+      if (s == null && !loadedSeen.hasValue) return 0;
+      return (c.bidsCount - (s ?? 0)).clamp(0, c.bidsCount);
+    }
+
     final firstOpen = filter == MyCasesFilter.active && search.isEmpty;
     return MinePagedGrid<CaseSummary>(
       value: value,
@@ -291,12 +300,12 @@ class _ClientCasesGridState extends ConsumerState<_ClientCasesGrid> {
           ? ClientActiveCaseCard(
               item: c,
               scale: scale,
-              newBids: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
+              newBids: newBidsOf(c),
             )
           : MyCaseRow(
               item: c,
               swipe: true,
-              newBids: (c.bidsCount - (seen[c.id] ?? 0)).clamp(0, c.bidsCount),
+              newBids: newBidsOf(c),
             ),
     );
   }

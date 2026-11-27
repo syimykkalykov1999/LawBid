@@ -245,7 +245,14 @@ class AppPaginatedListView<T> extends StatefulWidget {
     this.controller,
     this.scrollCacheExtent,
     this.animateChanges = false,
+    this.rowLeading,
   });
+
+  /// Owner 27.11 («скачки»): with [animateChanges], what is drawn above a
+  /// row outside its grow / collapse motion (a «Today» group title), so a
+  /// row growing in above the first row of a group takes the title over
+  /// without the list jumping by the title's height.
+  final Widget? Function(BuildContext context, T item, int index)? rowLeading;
 
   /// Owner row 95 (motion catalog C3 / C4, Telegram / WhatsApp chat list,
   /// `UITableView` row animations): a row that comes in grows in, a row
@@ -491,15 +498,65 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>>
     return out.reversed.toList();
   }
 
+  /// Owner 27.11 («скачки»): a row is the same widget shape whether it is
+  /// moving or at rest (a still row runs on a finished animation). Before,
+  /// a row changed shape when a change began and again when it ended, so
+  /// every row on screen was built from scratch twice (pictures, videos,
+  /// opened text) right after an insert.
   Widget _moving(Object key, Widget child) {
     final c = _entering[key] ?? _leaving[key];
-    if (c == null) return child;
-    final curved = CurvedAnimation(parent: c, curve: Curves.easeInOut);
     return SizeTransition(
-      sizeFactor: curved,
+      sizeFactor: c == null
+          ? kAlwaysCompleteAnimation
+          : CurvedAnimation(parent: c, curve: Curves.easeInOut),
       alignment: Alignment.topCenter,
-      child: FadeTransition(opacity: c, child: child),
+      child: FadeTransition(
+        opacity: c ?? kAlwaysCompleteAnimation,
+        child: child,
+      ),
     );
+  }
+
+  /// A row of an [AppPaginatedListView.animateChanges] list, moving or not:
+  /// [AppPaginatedListView.rowLeading] (a group title) stays out of the
+  /// motion, so a title that passes to a row growing in above does not
+  /// collapse and grow with it. A ghost (index -1) has no title.
+  Widget _animatedRow(
+    BuildContext context,
+    Object key,
+    T item,
+    int index, {
+    bool ghost = false,
+  }) {
+    final built = Padding(
+      padding: EdgeInsets.only(bottom: widget.itemSpacing),
+      child: widget.itemBuilder(context, item, index < 0 ? 0 : index),
+    );
+    final moving = _moving(key, ghost ? IgnorePointer(child: built) : built);
+    final lead = widget.rowLeading;
+    if (lead == null) {
+      return KeyedSubtree(key: ValueKey<Object>(key), child: moving);
+    }
+    final title = ghost || index < 0 ? null : lead(context, item, index);
+    return Column(
+      key: ValueKey<Object>(key),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (title != null)
+          KeyedSubtree(key: const ValueKey(#lead), child: title),
+        KeyedSubtree(key: const ValueKey(#row), child: moving),
+      ],
+    );
+  }
+
+  /// The list position of the row keyed [key] (null: gone), so a row
+  /// keeps its element — and its pictures and state — when rows above it
+  /// come or go (`SliverChildBuilderDelegate.findChildIndexCallback`).
+  int? _indexOfKey(Key key, Map<Object, int> at) {
+    if (key is! ValueKey<Object>) return null;
+    final i = at[key.value];
+    return i == null ? null : i + (widget.header != null ? 1 : 0);
   }
 
   /// After layout: if the list is already near its end (short first page),
@@ -542,6 +599,15 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>>
     final length = rows?.length ?? widget.items.length;
     // header? + items + pagination footer + extra footer?
     final count = offset + length + 1 + (hasFooter ? 1 : 0);
+    final keyOf = widget.itemKey;
+    // Built at most once per frame, and only when a row asks.
+    Map<Object, int>? at;
+    Map<Object, int> positions() => at ??= rows != null
+        ? {for (var i = 0; i < rows.length; i++) rows[i].key: i}
+        : {
+            for (var i = 0; i < widget.items.length; i++)
+              keyOf!(widget.items[i]): i,
+          };
 
     Widget list = ListView.builder(
       controller: _controller,
@@ -549,26 +615,28 @@ class _AppPaginatedListViewState<T> extends State<AppPaginatedListView<T>>
       padding: widget.padding,
       scrollCacheExtent: widget.scrollCacheExtent,
       itemCount: count,
+      findChildIndexCallback:
+          keyOf == null ? null : (key) => _indexOfKey(key, positions()),
       itemBuilder: (context, index) {
         if (hasHeader && index == 0) return widget.header;
         final itemIndex = index - offset;
         if (rows != null && itemIndex < rows.length) {
           final row = rows[itemIndex];
           final real = row.ghost ? -1 : widget.items.indexOf(row.item);
-          final built = Padding(
-            padding: EdgeInsets.only(bottom: widget.itemSpacing),
-            child: widget.itemBuilder(context, row.item, real < 0 ? 0 : real),
-          );
-          return KeyedSubtree(
-            key: ValueKey<Object>(row.key),
-            child: _moving(
-              row.key,
-              row.ghost ? IgnorePointer(child: built) : built,
-            ),
+          return _animatedRow(
+            context,
+            row.key,
+            row.item,
+            real,
+            ghost: row.ghost,
           );
         }
         if (itemIndex < widget.items.length) {
           final item = widget.items[itemIndex];
+          if (widget.animateChanges && keyOf != null) {
+            // The same shape as a moving row (see [_moving]).
+            return _animatedRow(context, keyOf(item), item, itemIndex);
+          }
           return Padding(
             key: widget.itemKey == null
                 ? null

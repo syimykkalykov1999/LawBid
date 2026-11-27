@@ -130,39 +130,52 @@ class _AppButtonState extends State<AppButton> {
         foreground = colors.onDanger;
     }
 
+    final label = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Owner 2026-10-13: no icon inside buttons — text only.
+        Flexible(
+          child: widget.fitLabel
+              ? FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    widget.label,
+                    style: typography.button.copyWith(color: foreground),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    softWrap: false,
+                  ),
+                )
+              : Text(
+                  widget.label,
+                  style: typography.button.copyWith(color: foreground),
+                  textAlign: TextAlign.center,
+                  softWrap: true,
+                ),
+        ),
+      ],
+    );
+    // Owner 27.11 («скачки»): the label stays laid out (invisible) under
+    // the spinner, so a button whose label is taller than the spinner (two
+    // lines, large system font) keeps its height on tap and nothing below
+    // it moves.
     final content = widget.isLoading
-        ? SizedBox(
-            width: 20,
-            height: 20,
-            child:
-                CircularProgressIndicator(strokeWidth: 2.2, color: foreground),
-          )
-        : Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
+        ? Stack(
+            alignment: Alignment.center,
             children: [
-              // Owner 2026-10-13: no icon inside buttons — text only.
-              Flexible(
-                child: widget.fitLabel
-                    ? FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          widget.label,
-                          style: typography.button.copyWith(color: foreground),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          softWrap: false,
-                        ),
-                      )
-                    : Text(
-                        widget.label,
-                        style: typography.button.copyWith(color: foreground),
-                        textAlign: TextAlign.center,
-                        softWrap: true,
-                      ),
+              Opacity(opacity: 0, child: label),
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  color: foreground,
+                ),
               ),
             ],
-          );
+          )
+        : label;
 
     return AppTapTarget(
       child: Semantics(

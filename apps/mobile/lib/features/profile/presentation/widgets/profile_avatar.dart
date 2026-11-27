@@ -98,26 +98,34 @@ class ProfileAvatar extends StatelessWidget {
         child: avatar,
       );
     }
-    if (progress == null) return avatar;
-
+    // Owner 27.11 («скачки»): one shape with or without the upload ring,
+    // and the ring is drawn around the photo's own box, so starting or
+    // ending an upload neither rebuilds the photo nor moves the text beside
+    // it by the ring's 8 pt.
+    const ring = AppSpacing.sm;
     return Stack(
       alignment: Alignment.center,
+      clipBehavior: Clip.none,
       children: [
         avatar,
-        SizedBox.square(
-          dimension: size + AppSpacing.sm,
-          child: TweenAnimationBuilder<double>(
-            tween: Tween(end: progress!.clamp(0, 1)),
-            duration:
-                context.reduceMotion ? Duration.zero : AppMotion.stateChange,
-            builder: (context, v, _) => CircularProgressIndicator(
-              value: v == 0 ? null : v,
-              strokeWidth: AppSizes.footerSpinnerStroke + 1,
-              color: colors.gold,
-              backgroundColor: colors.goldTint,
+        if (progress != null)
+          Positioned(
+            left: -ring / 2,
+            top: -ring / 2,
+            width: size + ring,
+            height: size + ring,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(end: progress!.clamp(0, 1)),
+              duration:
+                  context.reduceMotion ? Duration.zero : AppMotion.stateChange,
+              builder: (context, v, _) => CircularProgressIndicator(
+                value: v == 0 ? null : v,
+                strokeWidth: AppSizes.footerSpinnerStroke + 1,
+                color: colors.gold,
+                backgroundColor: colors.goldTint,
+              ),
             ),
           ),
-        ),
       ],
     );
   }

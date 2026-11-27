@@ -512,7 +512,10 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
               builder: (context) {
                 final mineAsync = ref.watch(myAttorneyReviewProvider(p.id));
                 if (mineAsync.isLoading && !mineAsync.hasValue) {
-                  return const SizedBox.shrink();
+                  // Owner 27.11 («скачки»): the button's room is held while
+                  // my review is looked up, so the summary and the list
+                  // below do not drop when it appears.
+                  return const SizedBox(height: AppSizes.buttonHeight);
                 }
                 final error = mineAsync.error;
                 if (error is ApiException &&

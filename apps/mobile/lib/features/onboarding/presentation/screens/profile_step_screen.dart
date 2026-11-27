@@ -520,7 +520,15 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
               UsernameStatus.checking => t.t('profile.username.checking'),
               UsernameStatus.available => t.t('profile.username.available'),
               UsernameStatus.error => t.t('profile.username.checkFailed'),
-              _ => null,
+              // Owner 27.11 («скачки»): the caption line is always there
+              // (the same hint as the profile editor's), so the fields
+              // below do not move while the handle is checked letter by
+              // letter.
+              UsernameStatus.taken ||
+              UsernameStatus.reserved ||
+              UsernameStatus.invalid =>
+                null,
+              _ => t.t('profile.username.hint'),
             },
             errorText: switch (_usernameStatus) {
               UsernameStatus.taken => t.t('error.api.USERNAME_TAKEN'),

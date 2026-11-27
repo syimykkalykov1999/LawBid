@@ -24,14 +24,21 @@ class StoriesTray extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
     if (!ref.watch(storiesEnabledProvider)) return const SizedBox.shrink();
-    final items = ref.watch(storyTrayProvider).value;
-    if (items == null || items.isEmpty) return const SizedBox.shrink();
-    final job = ref.watch(storyPublishJobProvider);
+    final tray = ref.watch(storyTrayProvider);
+    final items = tray.value;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final label =
         MediaQuery.textScalerOf(context).scale(type.caption.fontSize ?? 12);
     final height =
         StoryRingAvatar.outerFor(_avatar) + AppSpacing.xs + label * 1.4;
+    // Owner 27.11 («скачки»): the row's height is held while the first
+    // load runs (my own «+» circle is always there), so the chats below do
+    // not drop down when it arrives.
+    if (items == null && tray.isLoading) {
+      return SizedBox(height: height + AppSpacing.sm);
+    }
+    if (items == null || items.isEmpty) return const SizedBox.shrink();
+    final job = ref.watch(storyPublishJobProvider);
     return SizedBox(
       height: height + AppSpacing.sm,
       child: ListView.separated(

@@ -372,8 +372,11 @@ class _HotlineWaitingBannerState extends ConsumerState<HotlineWaitingBanner> {
               }),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
+              // Tabular: the waiting time ticks without moving the words
+              // after it (owner 27.11).
               style: type.caption.copyWith(
                 color: AppCallColors.onStage.withValues(alpha: 0.7),
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
             const SizedBox(height: AppSpacing.sm),
@@ -411,11 +414,20 @@ class HotlineWaitingSlot extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final w =
         ref.watch(hotlineAttorneyControllerProvider.select((s) => s.waiting));
-    return AnimatedSwitcher(
-      duration: context.reduceMotion ? Duration.zero : CallMotion.quick,
-      child: w == null
-          ? const SizedBox.shrink()
-          : HotlineWaitingBanner(key: ValueKey(w.requestId), waiting: w),
+    // Owner 27.11 («скачки»): the banner's room opens and closes with its
+    // fade (the switcher alone gave the room at once and took it away in
+    // one frame after the fade).
+    return AnimatedSize(
+      duration: context.reduceMotion
+          ? const Duration(milliseconds: 1)
+          : CallMotion.quick,
+      alignment: Alignment.topCenter,
+      child: AnimatedSwitcher(
+        duration: context.reduceMotion ? Duration.zero : CallMotion.quick,
+        child: w == null
+            ? const SizedBox.shrink()
+            : HotlineWaitingBanner(key: ValueKey(w.requestId), waiting: w),
+      ),
     );
   }
 }

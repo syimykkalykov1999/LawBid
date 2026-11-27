@@ -170,6 +170,10 @@ class CasePhotosPicker extends ConsumerWidget {
               children: [
                 for (final p in photos)
                   SizedBox.square(
+                    // Owner 27.11 («скачки»): each tile stays with its own
+                    // photo, so removing one does not blank the ones after
+                    // it for a frame.
+                    key: ValueKey('case-photo-${p.key}'),
                     dimension: tile,
                     child: Stack(
                       fit: StackFit.expand,
@@ -197,6 +201,7 @@ class CasePhotosPicker extends ConsumerWidget {
                                             maxSide: tile,
                                           ),
                                           fit: BoxFit.cover,
+                                          gaplessPlayback: true,
                                         ),
                         ),
                         if (p.uploading)
