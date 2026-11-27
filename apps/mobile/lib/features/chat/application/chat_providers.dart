@@ -12,6 +12,8 @@ import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/media/image_size.dart';
+import 'package:lawbid/core/media/stable_network_image.dart'
+    show StableNetworkImage;
 import 'package:lawbid/core/media/video_size.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
@@ -1058,6 +1060,9 @@ class ChatThread extends Notifier<ChatThreadState> {
             .watchTarget(media.ownerId!, id, kindPrefix: ChatMediaKind.prefix)
             .listen((rows) => unawaited(_onMediaJobs(rows))),
       media.progress.listen(_onUploadProgress),
+      // Owner 27.11: a photo of this chat whose saved link ran out and that
+      // the phone has no copy of → the fresh links, then it loads.
+      StableNetworkImage.expiredLinks.listen(_onExpiredLink),
     ];
     ref.onDispose(() {
       for (final s in subs) {
@@ -1545,6 +1550,15 @@ class ChatThread extends Notifier<ChatThreadState> {
       }
     }
     final live = {for (final j in jobs) j.id};
+    // Owner 27.11 (Telegram keeps showing the sent file): a sent photo's
+    // picture stays the phone's own until the server's copy has loaded.
+    for (final j in _mediaJobs) {
+      final b = _previewBytes[j.id];
+      final f = j.fileId;
+      if (!live.contains(j.id) && b != null && f != null) {
+        SentMediaShapes.keepBytes(f, b);
+      }
+    }
     _previewBytes.removeWhere((k, _) => !live.contains(k));
     _localPaths.removeWhere((k, _) => !live.contains(k));
     _progress.removeWhere((k, _) => !live.contains(k));
@@ -2311,6 +2325,34 @@ class ChatThread extends Notifier<ChatThreadState> {
     } on Object {
       // Keep what is shown.
     }
+  }
+
+  /// When the fresh links were last asked for (at most once in
+  /// [freshLinksGap], however many pictures failed at once).
+  DateTime? _freshLinksAt;
+
+  /// The least time between two [ChatRepository.freshLinks] calls.
+  static const freshLinksGap = Duration(seconds: 30);
+
+  void _onExpiredLink(String url) {
+    bool linked(ChatMessage m) {
+      final a = m.attachment;
+      return a != null && (a.url == url || a.previewUrl == url) ||
+          m.voice?.url == url;
+    }
+
+    if (!ref.mounted || !state.messages.any(linked)) return;
+    final now = DateTime.now();
+    final last = _freshLinksAt;
+    if (last != null && now.difference(last) < freshLinksGap) return;
+    _freshLinksAt = now;
+    unawaited(() async {
+      try {
+        _merge(await _repo.freshLinks(id));
+      } on Object {
+        // The next failed picture asks again.
+      }
+    }());
   }
 
   /// §8.5: after a drop (or an open from the phone's copy), fetch

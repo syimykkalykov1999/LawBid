@@ -85,7 +85,10 @@ class StableNetworkImage extends ImageProvider<StableNetworkImage> {
   ) {
     if (kIsWeb) {
       // The browser loads pictures itself (an <img> needs no CORS); the
-      // retry on a fresh link still applies through [retryToken].
+      // retry on a fresh link still applies through [retryToken]. Owner
+      // 27.11: a saved link that already ran out is renewed by its chat
+      // (the browser would get 403 once its own copy is older than 1 h).
+      if (signedLinkExpired(key.url)) _expired.add(key.url);
       final web = CachedNetworkImageProvider(key.url, cacheKey: key.cacheKey);
       return web.loadImage(web, decode);
     }
@@ -103,25 +106,49 @@ class StableNetworkImage extends ImageProvider<StableNetworkImage> {
     Object? lastError;
     for (final link in candidates) {
       final key = stableImageCacheKey(link) ?? link;
+      var fromDisk = false;
       try {
-        final file = await cacheManager.getSingleFile(link, key: key);
+        // Owner 27.11 («отправленные фото спустя время заблурены»): the
+        // copy on the phone first, however old its HTTP freshness is. The
+        // bytes behind a file's address never change (package I), but
+        // chat media answers `Cache-Control: private, max-age=3600`, so an
+        // hour later `getSingleFile` downloaded the picture again — with
+        // the link saved in the chat, already expired (15 min) → 403 — and
+        // the catch below then deleted the good copy: blur for ever.
+        final kept = await _keptCopy(key);
+        final file =
+            kept?.file ?? await cacheManager.getSingleFile(link, key: key);
+        fromDisk = kept != null;
         final bytes = await file.readAsBytes();
         if (bytes.isEmpty) throw StateError('empty picture');
+        fromDisk = true;
         final codec =
             await decode(await ui.ImmutableBuffer.fromUint8List(bytes));
         _failedWith.remove(cacheKey);
         return codec;
       } on Object catch (e) {
         lastError = e;
-        // A broken file on the phone must not stick.
-        try {
-          await cacheManager.removeFile(key);
-        } on Object {
-          // nothing kept
+        // A broken file on the phone must not stick; a failed download
+        // leaves nothing to remove (and never takes a good copy away).
+        if (fromDisk) {
+          try {
+            await cacheManager.removeFile(key);
+          } on Object {
+            // nothing kept
+          }
         }
       }
     }
     _failedWith[cacheKey] = url;
+    // A saved link that ran out: the screen that owns it asks the server
+    // for a fresh one (Telegram's FILE_REFERENCE_EXPIRED), and the new link
+    // retries this picture through [retryToken].
+    for (final link in candidates) {
+      if (signedLinkExpired(link)) {
+        _expired.add(link);
+        break;
+      }
+    }
     // Reaches the Image's errorBuilder (the letters under the photo stay
     // visible) — never a red screen.
     final error = lastError;
@@ -129,6 +156,24 @@ class StableNetworkImage extends ImageProvider<StableNetworkImage> {
     if (error is Error) throw error;
     throw StateError('picture not loaded: $error');
   }
+
+  /// The phone's copy of [key], or null (an unreadable cache index is no
+  /// copy: the picture is downloaded as before).
+  Future<FileInfo?> _keptCopy(String key) async {
+    try {
+      return await cacheManager.getFileFromCache(key);
+    } on Object {
+      return null;
+    }
+  }
+
+  static final StreamController<String> _expired =
+      StreamController<String>.broadcast();
+
+  /// Signed links whose picture could not be loaded because the link ran
+  /// out (and the phone had no copy): the chat that shows them fetches its
+  /// messages' fresh links.
+  static Stream<String> get expiredLinks => _expired.stream;
 
   @override
   bool operator ==(Object other) =>
@@ -177,4 +222,37 @@ String? fullPictureOf(String url) {
   if (uri == null || !_variant.hasMatch(uri.path)) return null;
   if (stableImageCacheKey(url) != null) return null;
   return uri.replace(path: uri.path.replaceFirst(_variant, '')).toString();
+}
+
+/// Whether the signed link [url] has run out (or does within [margin]): a
+/// CloudFront link's `Expires` (epoch seconds), an S3 / R2 link's
+/// `X-Amz-Date` + `X-Amz-Expires`. False for a link that is not signed or
+/// whose expiry cannot be read.
+bool signedLinkExpired(
+  String url, {
+  DateTime? now,
+  Duration margin = const Duration(seconds: 30),
+}) {
+  final at = signedLinkExpiry(url);
+  if (at == null) return false;
+  return !at.isAfter((now ?? DateTime.now()).add(margin));
+}
+
+/// When the signed link [url] runs out (see [signedLinkExpired]).
+DateTime? signedLinkExpiry(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null || !uri.hasQuery) return null;
+  final q = uri.queryParameters;
+  final cf = int.tryParse(q['Expires'] ?? '');
+  if (cf != null) {
+    return DateTime.fromMillisecondsSinceEpoch(cf * 1000, isUtc: true);
+  }
+  final date = q['X-Amz-Date'];
+  final secs = int.tryParse(q['X-Amz-Expires'] ?? '');
+  if (date == null || secs == null || date.length != 16) return null;
+  // 20261127T222900Z
+  final signed = DateTime.tryParse(
+    '${date.substring(0, 8)}T${date.substring(9, 15)}Z',
+  );
+  return signed?.add(Duration(seconds: secs));
 }
