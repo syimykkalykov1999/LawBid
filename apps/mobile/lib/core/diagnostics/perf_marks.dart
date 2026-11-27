@@ -59,6 +59,28 @@ abstract final class PerfMarks {
     );
   }
 
+  /// Owner 26.11 (Instagram «upload while you edit»): «Publish» / «Share»
+  /// was tapped on [surface] (`post`, `reel`, `story`, `channel`); whether
+  /// the picked media was already in storage then. No content, no ids.
+  static void publishTap(String surface, {required bool mediaReady}) {
+    if (kReleaseMode) return;
+    _publishTaps.add((surface: surface, mediaReady: mediaReady));
+    if (_publishTaps.length > 50) _publishTaps.removeAt(0);
+    developer.Timeline.instantSync(
+      'lb.publish_tap',
+      arguments: {'surface': surface, 'mediaReady': mediaReady},
+    );
+  }
+
+  static final List<({String surface, bool mediaReady})> _publishTaps = [];
+
+  /// The publish taps since the last call (tests, the device perf suite).
+  static List<({String surface, bool mediaReady})> takePublishTaps() {
+    final out = List.of(_publishTaps);
+    _publishTaps.clear();
+    return out;
+  }
+
   /// Start times of the videos since the last call, in ms.
   static List<double> takeVideoStarts() {
     final out = List<double>.of(_videoStartMs);

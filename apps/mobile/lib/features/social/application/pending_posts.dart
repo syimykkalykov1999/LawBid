@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/diagnostics/perf_marks.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/idempotency_interceptor.dart';
 import 'package:lawbid/core/uploads/queued_photos.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/core/uploads/upload_queue_database.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
+import 'package:lawbid/features/social/data/post_media_seed.dart';
 import 'package:lawbid/features/social/data/social_repository.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 
@@ -115,13 +117,25 @@ class PendingPosts extends Notifier<List<PendingPost>> {
   /// Starts sending [draft] in the background; returns at once.
   /// [onPublished] runs with the live post (a snackbar, haptics). [photos]
   /// replace `draft.mediaFileIds` when given (some may still be uploading).
+  /// [localPhotos]: every photo as the phone sends it, in order — they
+  /// become the cached copy of the live post (no download back, no flash
+  /// when the card gives way to it).
   String submit(
     PostDraft draft, {
     Uint8List? thumbnail,
     void Function(Post post)? onPublished,
     List<PendingPhoto>? photos,
+    List<Uint8List>? localPhotos,
   }) {
     final id = draft.idempotencyKey ?? generateIdempotencyKey();
+    // Owner 26.11 (timing, debug only): were the photos already up?
+    PerfMarks.publishTap(
+      'post',
+      mediaReady: (photos ?? const []).every((p) => p.fileId != null),
+    );
+    if (localPhotos != null && localPhotos.isNotEmpty) {
+      _local[id] = localPhotos;
+    }
     final item = PendingPost(
       id: id,
       draft: _withKey(draft, id),
@@ -167,6 +181,26 @@ class PendingPosts extends Notifier<List<PendingPost>> {
 
   final _onPublished = <String, void Function(Post)?>{};
 
+  /// The photos of a post sent in this run, by job id ([submit]).
+  final _local = <String, List<Uint8List>>{};
+
+  /// The live post's photos come from the phone, not the network (owner
+  /// 26.11): the ones of this run, else those the queue kept (a restart).
+  Future<void> adoptPhotos(UploadJob job, Post post) async {
+    if (post.media.isEmpty) return;
+    final local = _local[job.id];
+    final files = ref.read(uploadFilesProvider);
+    final photos = <Uint8List?>[];
+    for (var i = 0; i < post.media.length; i++) {
+      photos.add(
+        local != null && i < local.length
+            ? local[i]
+            : await files.read(QueuedPhotos.nameOf(job.id, i)),
+      );
+    }
+    await ref.read(postPhotoAdopterProvider)(post, photos);
+  }
+
   /// Posts the queue sent in this run (a card restored late is not shown).
   final _done = <String>{};
 
@@ -181,6 +215,7 @@ class PendingPosts extends Notifier<List<PendingPost>> {
   void published(String id, Post post) {
     if (!ref.mounted) return;
     _done.add(id);
+    _local.remove(id);
     state = [
       for (final p in state)
         if (p.id != id) p,
@@ -216,6 +251,7 @@ class PendingPosts extends Notifier<List<PendingPost>> {
   /// «×» on a failed card: the job and its kept photos go.
   void dismiss(String id) {
     _onPublished.remove(id);
+    _local.remove(id);
     state = [
       for (final p in state)
         if (p.id != id) p,
@@ -321,6 +357,16 @@ class PostPublishHandler extends UploadJobHandler {
       _cards.failed(job.id, e);
       rethrow;
     }
+    // The photos go into the picture cache before the card gives way, so
+    // the live post shows them in its first frame (a local disk write;
+    // never holds the post longer than a moment, never fails it).
+    try {
+      await _cards
+          .adoptPhotos(job, post)
+          .timeout(const Duration(milliseconds: 800));
+    } on Object {
+      // Downloads as before.
+    }
     _cards.published(job.id, post);
   }
 
@@ -332,6 +378,16 @@ class PostPublishHandler extends UploadJobHandler {
   Future<void> removed(UploadJob job, {required bool sent}) =>
       QueuedPhotos.removeFiles(_ref.read(uploadFilesProvider), job);
 }
+
+/// Puts a published post's own photos into the picture cache; overridden in
+/// tests.
+typedef PostPhotoAdopter = Future<void> Function(
+  Post post,
+  List<Uint8List?> photos,
+);
+
+final postPhotoAdopterProvider =
+    Provider<PostPhotoAdopter>((_) => adoptPublishedPostPhotos);
 
 final pendingPostsProvider =
     NotifierProvider<PendingPosts, List<PendingPost>>(PendingPosts.new);
