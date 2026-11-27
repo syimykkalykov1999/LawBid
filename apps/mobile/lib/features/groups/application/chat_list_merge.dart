@@ -323,26 +323,22 @@ AsyncValue<PaginatedList<Conversation>> withoutCaseChats(
           : p,
     );
 
-/// The «All» view of Chats: direct chats + my groups (owner 2026-11-25: no
-/// case chats, see [withoutCaseChats]).
+/// The «All» view of Chats: the 1:1 chats only (owner 2026-11-25: no case
+/// chats, see [withoutCaseChats]; owner 2026-11-26: «Группы пусть будут
+/// только в вкладке для группы а не в чатах в все» — no group either, my
+/// groups live only under the «Группы» pill, like a WhatsApp / Telegram
+/// folder). The groups list is a separate list on the phone, so nothing of
+/// it reaches this one, also not from the saved copy after a restart.
 final mergedChatListProvider =
     Provider.autoDispose<AsyncValue<PaginatedList<ChatListEntry>>>((ref) {
   final live = ref.watch(conversationsProvider);
-  final groups = ref.watch(groupsProvider);
-  // R-404 (a): the first frame draws the chats kept in memory at once; the
-  // groups (their saved page is still being read) join a moment later
-  // instead of holding the whole list on a skeleton.
-  final fromMemory = !live.hasValue && !live.hasError;
   return combineChatLists(
     withoutCaseChats(
+      // R-404 (a): the first frame draws the chats kept in memory at once.
       chatsOrMemory(live, ref.watch(chatListCacheProvider).memory),
     ),
-    groups,
-    // Owner 2026-11-16 (chat-groups plan, step 4, WhatsApp): my groups are
-    // rows of the chat list next to the 1:1 chats while «Группы в чатах»
-    // is on (was: only in «Channels», owner 2026-10-21).
-    withGroups: ref.watch(groupsEnabledProvider) &&
-        (groups.hasValue || groups.hasError || !fromMemory),
+    const AsyncData(PaginatedList<api.GroupDto>(items: [])),
+    withGroups: false,
     onePerPerson: true,
   );
 });
@@ -408,9 +404,10 @@ int chatsTabCount(
   return (direct < 0 ? 0 : direct) + requests;
 }
 
-/// The Chats search: server-filtered chats + the loaded groups by title.
-/// Owner 2026-11-25: searching «Все» finds no case chat either (the
-/// «Кейсы» tab has its own search).
+/// The Chats search: server-filtered chats; the «Группы» pill searches the
+/// loaded groups by title. Owner 2026-11-25: searching «Все» finds no case
+/// chat (the «Кейсы» tab has its own search); owner 2026-11-26: nor a group
+/// (groups only under «Группы»).
 final mergedChatSearchProvider = Provider.autoDispose
     .family<AsyncValue<PaginatedList<ChatListEntry>>, ChatSearchKey>(
   (ref, key) {
@@ -429,11 +426,9 @@ final mergedChatSearchProvider = Provider.autoDispose
       key.folder == ChatListFolder.all || key.folder == ChatListFolder.unread
           ? withoutCaseChats(found)
           : found,
-      ref.watch(groupsProvider),
+      const AsyncData(PaginatedList<api.GroupDto>(items: [])),
       query: key.q,
-      // Owner 2026-11-16 (step 4): «Все» and «Непрочитанные» find groups
-      // by title too.
-      withGroups: groupsOn && _withGroups(key),
+      withGroups: false,
     );
   },
 );
@@ -466,12 +461,10 @@ Future<void> refreshChatList(
   await Future.wait([chats, groups]);
 }
 
-/// Whether the list for [search] (null = «Все») has the groups in it.
+/// Whether the list for [search] (null = «Все») has the groups in it: only
+/// the «Группы» pill (owner 2026-11-26).
 bool _withGroups(ChatSearchKey? search) =>
-    search == null ||
-    search.folder == ChatListFolder.all ||
-    search.folder == ChatListFolder.unread ||
-    search.folder == ChatListFolder.groups;
+    search?.folder == ChatListFolder.groups;
 
 /// Loads the next page of whichever list has one.
 void loadMoreChatList(WidgetRef ref, {ChatSearchKey? search}) {

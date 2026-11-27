@@ -75,8 +75,18 @@ enum InboxTab { chats, notifications, requests, team, cases }
 /// 2026-09-30: three compact tabs — Chats · Notifications · Requests — in
 /// one centered row on the level of the back arrow, each with its count.
 /// Both sides of the header's middle are as wide as the widest icon group, so
-/// the segments stay centred on the screen.
-const _headerSide = EdgeInsets.symmetric(horizontal: 116);
+/// the segments stay centred on the screen. Owner 2026-11-26: the icons at
+/// the right are a little smaller and stand at the edge, and the room they
+/// gave goes to the segments (was 116).
+const _headerSide = EdgeInsets.symmetric(horizontal: 106);
+
+/// While chats are picked: the «Select all» button (up to 108 wide) at the
+/// right edge.
+const _selectHeaderSide = EdgeInsets.symmetric(horizontal: 116);
+
+/// Owner 2026-11-26: the ⋮ and the magnifier of the top bar, a little
+/// smaller than the 22 of an icon button.
+const double _headerIconSize = 20;
 
 class InboxScreen extends ConsumerStatefulWidget {
   const InboxScreen({
@@ -156,7 +166,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
       _shownTab == InboxTab.cases ? ChatListFolder.cases : _chatsFolder;
 
   /// The rows of the folder on screen (Select all, the bulk bar): direct
-  /// chats and, in «All», my groups.
+  /// chats, or my groups under «Группы».
   List<ChatListEntry> _visibleEntries() {
     final folder = _shownFolder;
     if (folder == ChatListFolder.requests) return const [];
@@ -346,7 +356,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                   // count ellipsizes, the segments shrink on narrow phones.
                   if (selecting)
                     Padding(
-                      padding: _headerSide,
+                      padding: _selectHeaderSide,
                       child: Center(
                         child: Text(
                           t.t(
@@ -403,9 +413,11 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                     ),
                   Align(
                     alignment: AlignmentDirectional.centerEnd,
+                    // Owner 2026-11-26: the icons right at the edge.
                     child: Padding(
-                      padding:
-                          const EdgeInsetsDirectional.only(end: AppSpacing.xs),
+                      padding: EdgeInsetsDirectional.only(
+                        end: selecting ? AppSpacing.xs : 0,
+                      ),
                       child: selecting
                           ? ConstrainedBox(
                               constraints: const BoxConstraints(maxWidth: 108),
@@ -447,6 +459,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                     compact: true,
                                     icon: AppIcon(
                                       AppIcons.moreVertRounded,
+                                      size: _headerIconSize,
                                       color: colors.text,
                                     ),
                                     semanticLabel: t.t('chat.select.menu'),
@@ -464,7 +477,7 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                     compact: true,
                                     icon: AppIcon(
                                       AppIcons.searchRounded,
-                                      size: 22,
+                                      size: _headerIconSize,
                                       color: colors.text,
                                     ),
                                     semanticLabel: t.t('chat.search.hint'),
@@ -691,8 +704,9 @@ class InboxTabsBar extends StatelessWidget {
 
   // Owner 2026-11-18: «Чаты | Кейсы | Команда» take the bar's existing
   // narrow segment (it was the four-tab size), so the words stay readable.
+  // Owner 2026-11-26: the segments a little larger — taller, a bigger word.
   double get _segment => tabs.length > 2 ? 72.0 : 88.0;
-  static const _height = 36.0;
+  static const _height = 38.0;
 
   @override
   Widget build(BuildContext context) {
@@ -719,7 +733,8 @@ class InboxTabsBar extends StatelessWidget {
                   Flexible(
                     child: AnimatedDefaultTextStyle(
                       duration: d,
-                      style: type.caption.copyWith(
+                      // Owner 2026-11-26: one step up from the caption.
+                      style: type.bodySmall.copyWith(
                         color: selected ? colors.onAccent : colors.text,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1027,8 +1042,8 @@ class ConversationsView extends ConsumerWidget {
       // R-404 (c): the newest chats' first pages are read into memory while
       // the list is on screen, so a tap opens on the messages at once.
       ref.watch(chatPrewarmProvider);
-      // Direct chats and groups in ONE list: pinned first, then by the
-      // newest activity.
+      // The 1:1 chats, pinned first, then by the newest activity. Owner
+      // 2026-11-26: no group here, they live only under «Группы».
       body = PagedListBody<ChatListEntry>(
         value: ref.watch(mergedChatListProvider),
         t: t,
@@ -2058,8 +2073,9 @@ class _Bell extends StatelessWidget {
       child: AppPressable(
         key: const ValueKey('inbox-bell'),
         onTap: onTap,
+        // Owner 2026-11-26: a little smaller (was 40 wide, a 28 icon).
         child: SizedBox(
-          width: 40,
+          width: 36,
           height: AppSizes.touchTarget,
           child: Stack(
             alignment: Alignment.center,
@@ -2069,7 +2085,7 @@ class _Bell extends StatelessWidget {
                     ? AppIcons.notificationsRounded
                     : AppIcons.notificationsNoneRounded,
                 color: selected ? colors.iconTint : colors.text,
-                size: 28,
+                size: 25,
               ),
               if (count > 0)
                 PositionedDirectional(
