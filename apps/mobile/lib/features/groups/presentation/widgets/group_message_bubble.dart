@@ -663,7 +663,13 @@ class GroupPendingBubble extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
-    final f = ref.watch(l10nFormatsProvider);
+    // The width the delivered bubble's time takes, from the platform's own
+    // time format (no app date data needed: a failed bubble with «Retry»
+    // must always draw — CI #1394, KNOWN_ERRORS 275).
+    final timeSlot = MaterialLocalizations.of(context).formatTimeOfDay(
+      TimeOfDay.now(),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final chat = ChatColors.of(context);
@@ -863,7 +869,7 @@ class GroupPendingBubble extends ConsumerWidget {
                               child: Opacity(
                                 opacity: 0,
                                 child: Text(
-                                  f.time(DateTime.now()),
+                                  timeSlot,
                                   style: type.caption,
                                 ),
                               ),

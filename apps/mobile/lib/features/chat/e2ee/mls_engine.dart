@@ -112,11 +112,10 @@ abstract class MlsEngine {
   /// once it took the commit (a no-op where the library stored it merged);
   /// when it refused, [deleteGroup] (the device is not in that epoch).
   ///
-  /// Known limit (27.11): ts-mls 1.6.4 writes and reads the GroupInfo's
-  /// external_pub as the bare key, OpenMLS as RFC 9420 §12.4.3.2 says
-  /// (`HPKEPublicKey<V>`, length first), so a browser cannot join from a
-  /// phone's GroupInfo or the other way round; such a device is added by a
-  /// Welcome instead (GroupE2eeService).
+  /// Phones (OpenMLS) and browsers (ts-mls 1.6.4 with upstream
+  /// LukaJCB/ts-mls#449 backported, tool/web_mls/build.sh) both write and
+  /// read the GroupInfo's external_pub as RFC 9420 §12.4.3.2 says
+  /// (`HPKEPublicKey<V>`), so each joins the other's groups.
   Future<MlsExternalJoinOut> joinExternal(
     Uint8List groupInfo, {
     bool resync = false,

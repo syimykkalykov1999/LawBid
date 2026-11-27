@@ -65,11 +65,21 @@ class MainActivity : FlutterFragmentActivity() {
         window.decorView.setBackgroundColor(color)
     }
 
+    /** Owner bug 27.11: no stale keyboard height after coming back
+     *  (ImeInsetsRefresher.kt, flutter/flutter#191156). */
+    private val imeInsets = ImeInsetsRefresher(this)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         paintWindowBackground()
         super.onCreate(savedInstanceState)
         // super re-applies NormalTheme; paint again so its background loses.
         paintWindowBackground()
+        imeInsets.install()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) imeInsets.onWindowFocused()
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
