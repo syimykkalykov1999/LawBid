@@ -1932,10 +1932,10 @@ packages:
     dependency: "direct dev"
     description:
       name: sentry_dart_plugin
-      sha256: "0a1fdd7941f9811bd4a57862f4650b2deb1ac8d060f4c31cbd081fca26348672"
+      sha256: cc1adb7588488b397ba89ef72ba50eaa5852e44602094319128e95a9296e2a2e
       url: "https://pub.dev"
     source: hosted
-    version: "3.5.0"
+    version: "3.6.0"
   sentry_flutter:
     dependency: "direct main"
     description:

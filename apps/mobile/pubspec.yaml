@@ -272,7 +272,7 @@ dev_dependencies:
   video_player_platform_interface: ^6.9.0
   # Owner 2026-10-22: uploads the release symbols to Sentry (fastlane
   # `sentry_symbols`; config in `sentry:` below).
-  sentry_dart_plugin: ^3.4.0
+  sentry_dart_plugin: ^3.6.0
 flutter:
   uses-material-design: true
   # Plain `flutter run` / `flutter build` without --flavor builds the dev
