@@ -50,6 +50,13 @@ subset of §7.2's eventual PR-check list it covers today.
 - `analyze-and-test` in `mobile-ci.yml` runs on `ubuntu-latest` (CI audit
   2026-11-01); only the golden test files, which render real fonts and were
   generated on macOS, run in the `golden-tests` job on `macos-latest`.
+- `golden-tests-linux` in `mobile-ci.yml` (2026-11-14) runs the same golden
+  files on Linux against `goldens/linux/<name>.png` (per-OS goldens, the
+  alchemist layout; `apps/mobile/test/helpers/golden_platform.dart`), exact
+  comparison, on the self-hosted `lawbid-ci` runner (`vars.CI_RUNNER`, fork
+  guard); on the `ubuntu-latest` fallback it is advisory. Regenerate after an
+  approved look change on Linux: `apps/mobile/tool/ci/golden_linux.sh
+  --update-goldens`.
 - Flutter is pinned (S11-11) in ONE place, `apps/mobile/.fvmrc`; every Flutter
   workflow reads it (`jq -r .flutter apps/mobile/.fvmrc`) and passes it as
   `flutter-version`. Bump the file, not the workflows. Dart for the API

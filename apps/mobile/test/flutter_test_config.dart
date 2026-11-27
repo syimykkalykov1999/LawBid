@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:golden_toolkit/golden_toolkit.dart';
 
+import 'helpers/golden_platform.dart';
+
 /// Golden PNGs are rendered on the owner's Mac; the CI runner is another
 /// macOS version, and text / anti-aliasing differ by a fraction of a percent
 /// between them (107 goldens were red on main for that reason alone). Up to
@@ -39,8 +41,12 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   await loadAppFonts();
   final base = goldenFileComparator;
   if (base is LocalFileComparator) {
-    goldenFileComparator =
-        _TolerantComparator(base.basedir.resolve('golden_test.dart'));
+    final testFile = base.basedir.resolve('golden_test.dart');
+    // `--dart-define=GOLDEN_PLATFORM=linux`: the exact per-OS goldens
+    // (helpers/golden_platform.dart); otherwise the macOS PNGs as before.
+    goldenFileComparator = platformGoldens
+        ? PlatformGoldenComparator(testFile)
+        : _TolerantComparator(testFile);
   }
   return testMain();
 }
