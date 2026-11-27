@@ -1,0 +1,60 @@
+name: Tools missing on the self-hosted runner image
+description: >
+  Self-hosted runners only (lawbid-ci-N, scripts/ci/self-hosted-runner.sh):
+  apt-install the listed packages that the runner image lacks. The runner
+  container is ephemeral (one job, then destroyed), so this changes nothing
+  that outlives the job. Packages already present are skipped: once the image
+  ships them (Dockerfile in self-hosted-runner.sh) the step does nothing.
+  GitHub-hosted runners: does nothing.
+inputs:
+  apt:
+    description: Space-separated Debian package names
+    required: false
+    default: ""
+  gh:
+    description: >
+      "true" = also install the GitHub CLI (GitHub-hosted images ship it):
+      the pinned release from github.com/cli/cli, checked against its
+      published sha256, into RUNNER_TEMP (Ubuntu's own gh is years behind,
+      the cli.github.com apt repository keeps only the newest release).
+    required: false
+    default: "false"
+  gh-version:
+    description: >
+      Pinned GitHub CLI version: the newest stable
+      release that is at least 7 days old (owner rule); bump by hand.
+    required: false
+    default: "2.103.3"
+runs:
+  using: composite
+  steps:
+    - if: runner.environment == 'self-hosted'
+      shell: bash
+      env:
+        PKGS: ${{ inputs.apt }}
+        WANT_GH: ${{ inputs.gh }}
+        GH_VERSION: ${{ inputs.gh-version }}
+      run: |
+        set -euo pipefail
+        missing=()
+        for p in $PKGS; do dpkg-query -W -f='${Status}' "$p" 2>/dev/null | grep -q 'ok installed' || missing+=("$p"); done
+        if [ "$WANT_GH" = "true" ] && ! command -v gh >/dev/null 2>&1; then
+          # Release tarball + its published checksum, unpacked in RUNNER_TEMP.
+          arch=$(dpkg --print-architecture)
+          base="https://github.com/cli/cli/releases/download/v$GH_VERSION"
+          tgz="gh_${GH_VERSION}_linux_${arch}.tar.gz"
+          d="$RUNNER_TEMP/gh-cli"; mkdir -p "$d"
+          curl -fsSL --retry 3 -o "$d/$tgz" "$base/$tgz"
+          curl -fsSL --retry 3 -o "$d/sums.txt" "$base/gh_${GH_VERSION}_checksums.txt"
+          (cd "$d" && grep " $tgz\$" sums.txt | sha256sum -c -)
+          tar -xzf "$d/$tgz" -C "$d" --strip-components=1
+          echo "$d/bin" >> "$GITHUB_PATH"
+          "$d/bin/gh" --version | head -1
+        fi
+        if [ "${#missing[@]}" -eq 0 ]; then echo "already in the image: $PKGS"; exit 0; fi
+        echo "installing: ${missing[*]}"
+        for try in 1 2 3; do
+          if sudo apt-get update -qq && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends "${missing[@]}"; then exit 0; fi
+          echo "apt failed (try $try), retrying"; sleep 10
+        done
+        exit 1

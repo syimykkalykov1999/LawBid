@@ -74,7 +74,7 @@ jobs:
   # the app itself changed, not for a packages/api-contract-only PR.
   analyze-and-test:
     name: Analyze, lint checks, unit/widget tests
-    runs-on: ubuntu-latest
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -92,6 +92,13 @@ jobs:
           ALLOW_PHONE_GOLDEN_CHANGE: ${{ contains(github.event.pull_request.labels.*.name, 'phone-goldens-approved') && '1' || '0' }}
         run: scripts/ci/check-web-phone-goldens.sh
 
+      # The runner image (scripts/ci/self-hosted-runner.sh) has no xz, and the
+      # Linux Flutter SDK is a .tar.xz. Does nothing on GitHub-hosted runners.
+      - name: Tools the self-hosted runner image lacks
+        uses: ./.github/actions/self-hosted-tools
+        with:
+          apt: xz-utils zip
+
       - name: Flutter version (apps/mobile/.fvmrc is the single pin)
         id: fv
         run: echo "v=$(jq -r .flutter apps/mobile/.fvmrc)" >> "$GITHUB_OUTPUT"
@@ -99,7 +106,11 @@ jobs:
         with:
           flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
-          cache: true
+          # Self-hosted (lawbid-ci-N): no GitHub cache at all (never saved from the
+          # laptop, KNOWN_ERRORS 34); the SDK and the pub cache stay in the slot's
+          # tool cache volume (_work/_tool) between jobs.
+          cache: ${{ runner.environment == 'github-hosted' }}
+          pub-cache-path: ${{ runner.environment == 'self-hosted' && format('{0}/pub-cache', runner.tool_cache) || 'default' }}
 
       - name: flutter pub get
         working-directory: apps/mobile
@@ -128,6 +139,7 @@ jobs:
           FILES=$(grep -rLE 'golden_toolkit|matchesGoldenFile|screenMatchesGolden' test --include='*_test.dart' | sort)
           test -n "$FILES" || { echo "::error::no non-golden test files found"; exit 1; }
           echo "$(echo "$FILES" | wc -l) test files"
+          # shellcheck disable=SC2086 # one argument per test file: the split is the point
           flutter test $FILES
 
   # Does this PR touch the app itself? (a packages/api-contract-only change
@@ -181,7 +193,9 @@ jobs:
 
       - name: flutter test (golden files only)
         working-directory: apps/mobile
-        run: flutter test $(grep -rlE 'golden_toolkit|matchesGoldenFile|screenMatchesGolden' test --include='*_test.dart' | sort)
+        run: |
+          # shellcheck disable=SC2046 # one argument per test file: the split is the point
+          flutter test $(grep -rlE 'golden_toolkit|matchesGoldenFile|screenMatchesGolden' test --include='*_test.dart' | sort)
 
   # Mobile dependency audit (2026-10-22), docs/06 §4.4. Separate Ubuntu job:
   # the OSV-Scanner action is a Docker action (not available on macOS
@@ -190,10 +204,17 @@ jobs:
   # package, reason, expiry date; see scripts/ci/pub-audit-gate.mjs).
   dependency-audit:
     name: Dependency audit (OSV, blocking)
-    runs-on: ubuntu-latest
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The runner image (scripts/ci/self-hosted-runner.sh) has no xz, and the
+      # Linux Flutter SDK is a .tar.xz. Does nothing on GitHub-hosted runners.
+      - name: Tools the self-hosted runner image lacks
+        uses: ./.github/actions/self-hosted-tools
+        with:
+          apt: xz-utils zip
 
       - name: Flutter version (apps/mobile/.fvmrc is the single pin)
         id: fv
@@ -202,7 +223,11 @@ jobs:
         with:
           flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
-          cache: true
+          # Self-hosted (lawbid-ci-N): no GitHub cache at all (never saved from the
+          # laptop, KNOWN_ERRORS 34); the SDK and the pub cache stay in the slot's
+          # tool cache volume (_work/_tool) between jobs.
+          cache: ${{ runner.environment == 'github-hosted' }}
+          pub-cache-path: ${{ runner.environment == 'self-hosted' && format('{0}/pub-cache', runner.tool_cache) || 'default' }}
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -240,6 +265,11 @@ jobs:
   build-android:
     name: Build check — Android (debug)
     needs: analyze-and-test
+    # Stays on GitHub-hosted (14.11, measured in the self-hosted runner image): the
+    # debug build does not fit a laptop slot (RUNNER_MEM 5 GB live). With Gradle's
+    # heap sized to the slot (2.3 GB) D8 dex merging fails with «OutOfMemoryError:
+    # Java heap space» after 31 min on 4 CPUs; gradle.properties asks -Xmx8G (the
+    # GitHub runner has 16 GB). Move it with a larger slot, not before.
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -307,10 +337,17 @@ jobs:
   build-web:
     name: Build check — Web (wasm, no deploy)
     needs: analyze-and-test
-    runs-on: ubuntu-latest
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The runner image (scripts/ci/self-hosted-runner.sh) has no xz, and the
+      # Linux Flutter SDK is a .tar.xz. Does nothing on GitHub-hosted runners.
+      - name: Tools the self-hosted runner image lacks
+        uses: ./.github/actions/self-hosted-tools
+        with:
+          apt: xz-utils zip
 
       - name: Flutter version (apps/mobile/.fvmrc is the single pin)
         id: fv
@@ -319,7 +356,11 @@ jobs:
         with:
           flutter-version: ${{ steps.fv.outputs.v }}
           channel: "stable"
-          cache: true
+          # Self-hosted (lawbid-ci-N): no GitHub cache at all (never saved from the
+          # laptop, KNOWN_ERRORS 34); the SDK and the pub cache stay in the slot's
+          # tool cache volume (_work/_tool) between jobs.
+          cache: ${{ runner.environment == 'github-hosted' }}
+          pub-cache-path: ${{ runner.environment == 'self-hosted' && format('{0}/pub-cache', runner.tool_cache) || 'default' }}
 
       - name: flutter pub get
         working-directory: apps/mobile

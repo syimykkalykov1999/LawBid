@@ -43,7 +43,7 @@ permissions:
 jobs:
   build:
     name: Admin CI
-    runs-on: ubuntu-24.04-arm
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-24.04-arm' }}
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -60,7 +60,11 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "26.13.1"
-          cache: npm
+          # GitHub-hosted: restore + save. Self-hosted: never save (KNOWN_ERRORS 34),
+          # the restore-only step below + the per-runner ~/.npm volume replace it.
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
+      - name: Restore the npm cache (self-hosted, read-only)
+        uses: ./.github/actions/npm-cache-restore
       - run: npm ci --no-audit --no-fund
       - name: Generate API types
         run: npm run generate --workspace apps/admin
@@ -111,7 +115,9 @@ jobs:
     # Stays on x86 (2026-11-13): it measures the admin in the user's browser
     # (system Chrome, TBT budget calibrated on this runner), not the server's
     # CPU. The admin build/tests/lint run on ARM64 in the `build` job above.
-    runs-on: ubuntu-latest
+    # With CI_RUNNER=self it runs on the x86 laptop runners (lawbid-ci-N) like
+    # the API jobs; Chrome comes from setup-chrome there (step below).
+    runs-on: ${{ (vars.CI_RUNNER == 'self' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && fromJSON('["self-hosted","linux","lawbid-ci"]') || 'ubuntu-latest' }}
     timeout-minutes: 30
     services:
       postgres:
@@ -149,7 +155,11 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: "26.13.1"
-          cache: npm
+          # GitHub-hosted: restore + save. Self-hosted: never save (KNOWN_ERRORS 34),
+          # the restore-only step below + the per-runner ~/.npm volume replace it.
+          cache: ${{ runner.environment == 'github-hosted' && 'npm' || '' }}
+      - name: Restore the npm cache (self-hosted, read-only)
+        uses: ./.github/actions/npm-cache-restore
       - run: npm ci --no-audit --no-fund
       - name: Prisma generate + migrate a clean database
         working-directory: apps/api
@@ -242,11 +252,22 @@ jobs:
           { echo "benchmark_index=$bi"; echo "multiplier=$mult"; echo "range=$range"; } >> "$GITHUB_OUTPUT"
       # Blocking: the Total Blocking Time budget is an error (lighthouserc.cjs);
       # the stand steps above stay non-blocking (an infra hiccup skips this).
+      # GitHub-hosted images ship Chrome; the self-hosted runner image does not.
+      # browser-actions/setup-chrome (MIT): stable Chrome + its system libraries
+      # (apt, inside the ephemeral runner container). chrome-launcher (lhci)
+      # reads CHROME_PATH; it is empty (= system Chrome) on GitHub-hosted runners.
+      - name: Chrome for Lighthouse (self-hosted)
+        id: chrome
+        if: steps.admin.outcome == 'success' && runner.environment == 'self-hosted'
+        uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
+        with:
+          install-dependencies: true
       - name: Lighthouse (9 runs per page, median)
         if: steps.admin.outcome == 'success'
         working-directory: apps/admin
         env:
           LHCI_ADMIN_URL: http://localhost:3001
+          CHROME_PATH: ${{ steps.chrome.outputs.chrome-path }}
         run: npx --yes @lhci/cli@0.15.1 autorun --config=lighthouserc.cjs
       - name: Numbers into the job summary
         if: always()

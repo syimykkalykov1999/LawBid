@@ -1,9 +1,21 @@
 # Свой раннер CI на Linux-ноуте (32 ядра)
 
-Зачем: GitHub даёт ≈20 параллельных job на репозиторий, а у PR их 10–15. На ноуте тяжёлые job API CI (static, 3 × e2e, two-db, N-1) идут без очереди. Сборки Mobile (macOS) остаются на GitHub: ноут Linux. Mobile analyze/test на ubuntu переведём таким же условием после слияния #546.
+Зачем: GitHub даёт ≈20 параллельных job на репозиторий, а у PR их 10–15. На ноуте идут без очереди все Linux-job проверок PR:
+- API CI: static (с контрактом и OpenAPI), 3 × e2e, two-db, N-1, perf-user, perf-admin;
+- Mobile CI: analyze + тесты без golden, Dependency audit (OSV), сборка веба (wasm);
+- admin-ci: Admin CI и Admin Lighthouse;
+- Repo guards, Secret scan (gitleaks).
+
+На GitHub остаются: всё на macOS (golden-тесты, сборка iOS: ноут Linux); сборка Android (debug): в слот 5 ГБ не помещается — проверено 14.11 в образе раннера: при heap Gradle по размеру слота (2,3 ГБ) D8 падает с `OutOfMemoryError: Java heap space` через 31 мин на 4 CPU, а `gradle.properties` просит `-Xmx8G` (у раннера GitHub 16 ГБ); переводить только вместе со слотом ≥12 ГБ; крошечные job-развилки и итоговые (`changes`, `API CI`, `notify`: секунды работы, очередь им не мешает), выкаты и плановые job с доступом к AWS.
 
 ## Как это устроено
-- `api-ci.yml`: у 4 тяжёлых job `runs-on` выбирает раннер по переменной репозитория **`CI_RUNNER`**. `self` и (событие не PR или PR из ЭТОГО репозитория) → метки `self-hosted, linux, lawbid-ci`. Иначе `ubuntu-latest`. PR из форков на ноут не попадают никогда.
+- У каждого job из списка выше `runs-on` одно и то же выражение: раннер выбирает переменная репозитория **`CI_RUNNER`**. `self` и (событие не PR или PR из ЭТОГО репозитория) → метки `self-hosted, linux, lawbid-ci`. Иначе прежний раннер GitHub job (`ubuntu-24.04-arm` у API и Admin CI, `ubuntu-latest` у остальных). PR из форков на ноут не попадают никогда.
+- Чего нет в образе раннера и как job это получают (только на self-hosted, на GitHub шаги ничего не делают):
+  - `xz-utils`, `zip` (SDK Flutter для Linux — архив `.tar.xz`): шаг `.github/actions/self-hosted-tools` ставит недостающее через apt внутри одноразового контейнера; пакеты, которые уже есть в образе, шаг пропускает.
+  - `gh` (repo-guards, secret-scan) и `brotli` (repo-guards): тот же шаг; `gh` — закреплённый релиз с github.com/cli/cli со сверкой sha256 в `$RUNNER_TEMP` (не моложе 7 дней, `gh-version` в action.yml), `brotli` — apt.
+  - Flutter: `subosito/flutter-action` без кэша GitHub; SDK и pub-кэш лежат в tool cache слота (`_work/_tool`, том `lawbid-ci-work-N`) и переживают job до `down`.
+  - Chrome для Lighthouse: `browser-actions/setup-chrome` (MIT) со своими системными библиотеками (apt внутри одноразового контейнера).
+  - npm: кэш GitHub только читается (`.github/actions/npm-cache-restore`), как в API CI.
 - Раннер офлайн: GitHub сам на `ubuntu-latest` не переключит, поэтому `down` ставит `CI_RUNNER=github`. Если ноут выключился без `down`, в Settings → Secrets and variables → Actions → Variables поменять `CI_RUNNER` на `github` (или удалить). Job не потеряются, только встанут в очередь до смены.
 - Скрипт `scripts/ci/self-hosted-runner.sh`: N слотов (по умолчанию 4 × 6 CPU / 12 ГБ), в каждом раннер `lawbid-ci-N` **эфемерный**: один job, потом контейнер уничтожается и поднимается новый с новым токеном. Без монтирования домашней папки. Docker для service-контейнеров (Postgres, Redis, Mailpit, versitygw — локальный S3) — свой Docker-in-Docker sidecar `lawbid-ci-dind-N` рядом с каждым раннером (по умолчанию 2 CPU / 2 ГБ, `DIND_CPUS`, `DIND_MEM`), не сокет хоста. Раннер живёт в сетевом namespace своего sidecar, поэтому порты сервисов (5432, 6379, 1025, 9000) видны ему на `localhost`, как на ubuntu-latest, и у соседних слотов не сталкиваются. Рабочая папка `/home/runner/_work` — общий том раннера и sidecar: `docker run -v "$PWD/..."` из шага работает, а вот `/tmp` sidecar не видит, поэтому файлы для docker кладём в `$RUNNER_TEMP`. Токен регистрации берётся через `gh` в момент запуска и нигде не хранится. Логи супервизоров: `~/.local/state/lawbid-ci/slot-N.log`.
 
