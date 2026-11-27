@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} lõi grupi",
   "group.system.demoted": "{name} eemaldas admini õigused: {people}",
   "group.system.description": "{name} muutis kirjeldust",
+  "group.system.e2eeCodeChanged": "Kasutaja {name} turvakood muutus",
+  "group.system.e2eeOn": "Selle grupi sõnumid on nüüd otspunktkrüpteeritud. Keegi väljaspool gruppi, isegi mitte LawBid, ei saa neid lugeda.",
   "group.system.joined": "{name} liitus grupiga",
   "group.system.left": "{name} lahkus grupist",
   "group.system.photo": "{name} muutis grupi fotot",

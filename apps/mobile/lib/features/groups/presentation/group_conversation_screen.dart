@@ -26,6 +26,7 @@ import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_notice.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show PickedChatFile, droppedChatFiles;
 import 'package:lawbid/features/chat/presentation/chat_list_controller.dart';
@@ -39,6 +40,7 @@ import 'package:lawbid/features/groups/application/group_photo_outbox.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/application/group_typing.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
+import 'package:lawbid/features/groups/e2ee/group_e2ee_service.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/poll/create_poll_sheet.dart';
@@ -1514,7 +1516,11 @@ class _MessageList extends ConsumerWidget {
               final endsRun = !sameRun(newer);
 
               final Widget item;
-              if (m.isSystem) {
+              if (m.isSystem && m.systemKind == GroupE2eeService.onKind) {
+                // G2 (WhatsApp): where the group became end-to-end
+                // encrypted, the chats' yellow notice.
+                item = E2eeNotice(onTap: () {});
+              } else if (m.isSystem) {
                 item = GroupSystemLine(text: groupSystemText(t, m));
               } else {
                 item = GroupMessageBubble(

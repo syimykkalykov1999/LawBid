@@ -28,6 +28,8 @@ import 'package:lawbid/features/groups/application/group_media_outbox.dart';
 import 'package:lawbid/features/groups/data/group_list_cache.dart';
 import 'package:lawbid/features/groups/data/group_repository.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
+import 'package:lawbid/features/groups/e2ee/group_e2ee_providers.dart';
+import 'package:lawbid/features/groups/e2ee/group_e2ee_service.dart';
 import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -57,6 +59,8 @@ final groupChatCallsEnabledProvider = Provider<bool>(
 final groupRepositoryProvider = Provider<GroupRepository>(
   (ref) => GroupRepository(
     ref.watch(dioProvider),
+    // G2: rows of encrypted groups are opened / sealed on this device.
+    e2ee: () => ref.read(groupE2eeServiceProvider),
     // Owner 2026-11-03: group pictures are indexed as group media («Данные
     // и память»: the groups' auto-delete age). Never blocks the chat.
     noteMedia: (id, urls) => unawaited(
@@ -134,6 +138,26 @@ class GroupsNotifier extends SyncedListNotifier<api.GroupDto> {
       case 'group:message':
         final raw = data is Map ? data['message'] : null;
         if (raw is! Map) return;
+        final row = Map<String, dynamic>.from(raw);
+        final e2ee = ref.read(groupE2eeServiceProvider);
+        if (e2ee != null && GroupE2eeService.isSealed(row)) {
+          // G2: the line of the list is the text this device opens.
+          unawaited(
+            e2ee.open(row['groupId'] as String, row).then(
+              (shown) {
+                if (shown == null || !ref.mounted) return;
+                final m = api.GroupMessageDto.fromJson(shown);
+                final held = applyRow(
+                  m.groupId,
+                  (g) => g == null ? null : applyGroupMessage(g, m),
+                );
+                if (!held && !archived) catchUp();
+              },
+              onError: (Object _) {},
+            ),
+          );
+          return;
+        }
         final m = api.GroupMessageDto.fromJson(Map<String, Object?>.from(raw));
         final held = applyRow(
           m.groupId,
@@ -546,7 +570,9 @@ final groupMessageStoreProvider =
     limitBytes: () =>
         ref.read(cacheLimitsProvider).limitBytes(CacheStore.messages),
     decode: _groupMessageOf,
-    encode: (m) => m.toJson(),
+    // G2: an encrypted row is kept without its text (that stays in the
+    // encrypted-messages store, sealed on the web).
+    encode: (m) => GroupE2eeService.storable(m.toJson()),
     idOf: (m) => m.id,
     createdAtOf: (m) => m.createdAt,
     imageUrlsOf: (m) => [
@@ -849,7 +875,19 @@ class GroupThread extends Notifier<GroupThreadState> {
     final sent = ref.read(groupMediaSentProvider).stream.listen((m) {
       if (_inThisThread(m)) _upsert(m);
     });
+    // G2: a waiting message opened, a reaction / vote / edit applied, a
+    // member's security code changed.
+    final e2ee = ref.read(groupE2eeServiceProvider);
+    final changed = e2ee?.changed.listen((g) {
+      if (g == key.groupId) unawaited(_refreshSealed());
+    });
+    final codes = e2ee?.codeChanged.listen((c) {
+      if (c.groupId == key.groupId) _codeChangedLine(c.userId);
+    });
+    if (e2ee != null) unawaited(_syncE2ee(e2ee));
     ref.onDispose(() {
+      unawaited(changed?.cancel());
+      unawaited(codes?.cancel());
       sub.cancel();
       unawaited(jobs?.cancel());
       unawaited(sent.cancel());
@@ -905,6 +943,55 @@ class GroupThread extends Notifier<GroupThreadState> {
             nextCursor: localCursor,
             loading: false,
           );
+  }
+
+  /// G2: the group's encryption is brought up to date when it opens (a
+  /// new device joins by external commit, a stale copy catches up).
+  Future<void> _syncE2ee(GroupE2eeService e2ee) async {
+    try {
+      await e2ee.sync(key.groupId);
+    } on Object catch (_) {
+      // Tried again on the next event / send.
+    }
+  }
+
+  /// The encrypted rows shown again from what this device knows now.
+  Future<void> _refreshSealed() async {
+    final e2ee = ref.read(groupE2eeServiceProvider);
+    if (e2ee == null || !ref.mounted) return;
+    final rows = [for (final m in state.messages) m.toJson()];
+    final fresh = await e2ee.refresh(key.groupId, rows);
+    if (!ref.mounted) return;
+    final byId = {
+      for (final j in fresh) j['id'] as String: api.GroupMessageDto.fromJson(j),
+    };
+    state = state.copyWith(
+      messages: [for (final m in state.messages) byId[m.id] ?? m],
+    );
+  }
+
+  /// «Код безопасности {имя} изменился» (WhatsApp): a line of this device
+  /// only, never sent.
+  void _codeChangedLine(String userId) {
+    final now = DateTime.now().toUtc();
+    final line = api.GroupMessageDto.fromJson({
+      'id': 'e2ee-code-${key.groupId}-$userId-${now.microsecondsSinceEpoch}',
+      'groupId': key.groupId,
+      'topicId': key.topicId,
+      'type': 'system',
+      'body': '',
+      'mine': false,
+      'clientMessageId': 'e2ee-code-${now.microsecondsSinceEpoch}',
+      'systemKind': GroupE2eeService.codeChangedKind,
+      'systemPeople': [
+        {'userId': userId, 'kind': 'client', 'verifiedBadge': false},
+      ],
+      'mentions': const <Object>[],
+      'mentionsMe': false,
+      'deleted': false,
+      'createdAt': now.toIso8601String(),
+    });
+    state = state.copyWith(messages: [line, ...state.messages]);
   }
 
   /// The request of a pending text or (already uploaded) file.
@@ -973,8 +1060,17 @@ class GroupThread extends Notifier<GroupThreadState> {
   Future<void> load() async {
     final store = _store;
     if (store != null) {
-      final local = await store.page(_storeKey);
+      var local = await store.page(_storeKey);
       if (!ref.mounted) return;
+      // G2: the texts of encrypted rows come back from this device's store.
+      final e2ee = ref.read(groupE2eeServiceProvider);
+      if (e2ee != null && local.isNotEmpty) {
+        final rows = await e2ee.restore(key.groupId, [
+          for (final m in local) m.toJson(),
+        ]);
+        local = [for (final j in rows) api.GroupMessageDto.fromJson(j)];
+        if (!ref.mounted) return;
+      }
       final now = DateTime.now();
       final shown = [
         for (final m in local)
@@ -1192,6 +1288,27 @@ class GroupThread extends Notifier<GroupThreadState> {
     } else if (e.name == 'group:message' && data is Map) {
       final raw = data['message'];
       if (raw is! Map) return;
+      final row = Map<String, dynamic>.from(raw);
+      final e2ee = ref.read(groupE2eeServiceProvider);
+      if (e2ee != null &&
+          GroupE2eeService.isSealed(row) &&
+          row['groupId'] == key.groupId) {
+        // G2: opened on this device first (a control message changes its
+        // target: the `changed` stream redraws it).
+        unawaited(
+          e2ee.open(key.groupId, row).then(
+            (shown) {
+              if (shown == null || !ref.mounted) return;
+              final m = api.GroupMessageDto.fromJson(shown);
+              if (!_inThisThread(m)) return;
+              _upsert(m);
+              if (!m.mine) unawaited(markRead());
+            },
+            onError: (Object _) {},
+          ),
+        );
+        return;
+      }
       final m = api.GroupMessageDto.fromJson(Map<String, Object?>.from(raw));
       if (!_inThisThread(m)) return;
       _upsert(m);
@@ -1613,14 +1730,24 @@ class GroupThread extends Notifier<GroupThreadState> {
   }
 
   Future<void> edit(String messageId, String body) async {
-    final m = await _repo.edit(key.groupId, messageId, body);
+    final m = await _repo.edit(
+      key.groupId,
+      messageId,
+      body,
+      current: state.messages.where((x) => x.id == messageId).firstOrNull,
+    );
     if (ref.mounted) _upsert(m);
   }
 
   /// Groups WhatsApp parity (the 1:1 `ChatThread.react`): my emoji on a
   /// message, null takes it away; the answer replaces the message.
   Future<void> react(String messageId, String? emoji) async {
-    final m = await _repo.react(key.groupId, messageId, emoji);
+    final m = await _repo.react(
+      key.groupId,
+      messageId,
+      emoji,
+      current: state.messages.where((x) => x.id == messageId).firstOrNull,
+    );
     if (ref.mounted) _upsert(m);
   }
 

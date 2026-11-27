@@ -18,6 +18,7 @@ import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
 import 'package:lawbid/features/groups/domain/slow_mode.dart';
+import 'package:lawbid/features/groups/e2ee/group_e2ee_service.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/poll/poll_bubble.dart';
@@ -203,6 +204,26 @@ class GroupMessageBubble extends ConsumerWidget {
                   .where((x) => x.trim().isNotEmpty)
                   .join(' ')
               : groupPersonName(t, sender),
+        );
+      }
+      if (m.body.isEmpty && GroupE2eeService.isWaiting(m.id)) {
+        // G2 (WhatsApp «Ожидание сообщения»): this device could not open
+        // it (yet); the chats' line and lock.
+        return Text.rich(
+          TextSpan(
+            children: [
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Icon(AppIcons.lockOutlineRounded, size: 14, color: fg),
+              ),
+              TextSpan(text: ' ${t.t('chat.e2ee.waiting')}'),
+            ],
+          ),
+          style: type.body.copyWith(
+            color: fg,
+            fontStyle: FontStyle.italic,
+            height: 1.35,
+          ),
         );
       }
       return GroupRichText(

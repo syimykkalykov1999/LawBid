@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} stofnaði hópinn",
   "group.system.demoted": "{name} fjarlægði stjórnendaréttindi af {people}",
   "group.system.description": "{name} breytti lýsingunni",
+  "group.system.e2eeCodeChanged": "Öryggiskóði {name} breyttist",
+  "group.system.e2eeOn": "Skilaboð í þessum hópi eru nú dulkóðuð enda á milli. Enginn utan hópsins, ekki einu sinni LawBid, getur lesið þau.",
   "group.system.joined": "{name} gekk í hópinn",
   "group.system.left": "{name} yfirgaf hópinn",
   "group.system.photo": "{name} breytti hópmyndinni",

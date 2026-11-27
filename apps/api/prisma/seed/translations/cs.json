@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} vytvořil(a) skupinu",
   "group.system.demoted": "{name} odebral(a) {people} práva správce",
   "group.system.description": "{name} změnil(a) popis",
+  "group.system.e2eeCodeChanged": "Bezpečnostní kód uživatele {name} se změnil",
+  "group.system.e2eeOn": "Zprávy v této skupině jsou nyní koncově šifrované. Nikdo mimo skupinu, ani LawBid, je nemůže číst.",
   "group.system.joined": "{name} se připojil(a) ke skupině",
   "group.system.left": "{name} opustil(a) skupinu",
   "group.system.photo": "{name} změnil(a) fotku skupiny",

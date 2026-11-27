@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} membuat grup",
   "group.system.demoted": "{name} mencabut hak admin {people}",
   "group.system.description": "{name} mengubah deskripsi",
+  "group.system.e2eeCodeChanged": "Kode keamanan {name} berubah",
+  "group.system.e2eeOn": "Pesan di grup ini kini terenkripsi end-to-end. Tidak ada orang di luar grup, bahkan LawBid, yang dapat membacanya.",
   "group.system.joined": "{name} bergabung ke grup",
   "group.system.left": "{name} keluar dari grup",
   "group.system.photo": "{name} mengganti foto grup",

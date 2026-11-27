@@ -65,6 +65,31 @@ const handlers = {
       ? { text: new TextDecoder().decode(r.message) }
       : { epoch: Number(state.groupContext.epoch) };
   },
+  // G2: the browser joins the phone's group by external commit from the
+  // GroupInfo the phone's commit carried (an invite link, a new device).
+  async externalJoin({ groupInfo, identity }) {
+    const sign = await cs.signature.keygen();
+    kp = await t.generateKeyPackageWithKey(
+      { credentialType: 'basic', identity: new TextEncoder().encode(identity) },
+      t.defaultCapabilities(),
+      t.defaultLifetime,
+      [],
+      sign,
+      cs,
+    );
+    const gi = t.decodeMlsMessage(unb64(groupInfo), 0)[0].groupInfo;
+    const out = await t.joinGroupExternal(gi, kp.publicPackage, kp.privatePackage, false, cs);
+    state = out.newState;
+    return {
+      commit: b64(t.encodeMlsMessage({ publicMessage: out.publicMessage, wireformat: 'mls_public_message', version: 'mls10' })),
+      epoch: Number(state.groupContext.epoch),
+    };
+  },
+  // The browser's GroupInfo of its current epoch (the phone joins from it).
+  async groupInfo() {
+    const gi = await t.createGroupInfoWithExternalPubAndRatchetTree(state, [], cs);
+    return { groupInfo: b64(t.encodeMlsMessage({ groupInfo: gi, wireformat: 'mls_group_info', version: 'mls10' })) };
+  },
   async encrypt({ text }) {
     const out = await t.createApplicationMessage(state, new TextEncoder().encode(text), cs);
     state = out.newState;

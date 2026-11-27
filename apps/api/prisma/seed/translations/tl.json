@@ -2659,6 +2659,8 @@
   "group.system.created": "Ginawa ni {name} ang grupo",
   "group.system.demoted": "Inalis ni {name} ang pagiging admin ni {people}",
   "group.system.description": "Pinalitan ni {name} ang paglalarawan",
+  "group.system.e2eeCodeChanged": "Nagbago ang security code ni {name}",
+  "group.system.e2eeOn": "Naka-end-to-end encrypt na ngayon ang mga mensahe sa grupong ito. Walang sinuman sa labas ng grupo, kahit ang LawBid, ang makakabasa nito.",
   "group.system.joined": "Sumali si {name} sa grupo",
   "group.system.left": "Umalis si {name} sa grupo",
   "group.system.photo": "Pinalitan ni {name} ang larawan ng grupo",

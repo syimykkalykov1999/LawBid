@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} a créé le groupe",
   "group.system.demoted": "{name} a retiré les droits d'admin à {people}",
   "group.system.description": "{name} a modifié la description",
+  "group.system.e2eeCodeChanged": "Le code de sécurité de {name} a changé",
+  "group.system.e2eeOn": "Les messages de ce groupe sont désormais chiffrés de bout en bout. Personne en dehors du groupe, pas même LawBid, ne peut les lire.",
   "group.system.joined": "{name} a rejoint le groupe",
   "group.system.left": "{name} a quitté le groupe",
   "group.system.photo": "{name} a changé la photo du groupe",

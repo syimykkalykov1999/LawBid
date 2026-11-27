@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} สร้างกลุ่ม",
   "group.system.demoted": "{name} ถอดสิทธิ์ผู้ดูแลของ {people}",
   "group.system.description": "{name} เปลี่ยนคำอธิบาย",
+  "group.system.e2eeCodeChanged": "รหัสความปลอดภัยของ {name} เปลี่ยนไปแล้ว",
+  "group.system.e2eeOn": "ข้อความในกลุ่มนี้ได้รับการเข้ารหัสตั้งแต่ต้นทางถึงปลายทางแล้ว ไม่มีใครนอกกลุ่ม แม้แต่ LawBid ก็อ่านไม่ได้",
   "group.system.joined": "{name} เข้าร่วมกลุ่ม",
   "group.system.left": "{name} ออกจากกลุ่ม",
   "group.system.photo": "{name} เปลี่ยนรูปกลุ่ม",

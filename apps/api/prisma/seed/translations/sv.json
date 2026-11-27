@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} skapade gruppen",
   "group.system.demoted": "{name} tog bort administratörsrättigheterna från {people}",
   "group.system.description": "{name} ändrade beskrivningen",
+  "group.system.e2eeCodeChanged": "Säkerhetskoden för {name} har ändrats",
+  "group.system.e2eeOn": "Meddelanden i den här gruppen är nu end-to-end-krypterade. Ingen utanför gruppen, inte ens LawBid, kan läsa dem.",
   "group.system.joined": "{name} gick med i gruppen",
   "group.system.left": "{name} lämnade gruppen",
   "group.system.photo": "{name} bytte gruppbild",

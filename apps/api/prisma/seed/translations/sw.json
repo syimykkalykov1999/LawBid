@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} aliunda kikundi",
   "group.system.demoted": "{name} alimwondolea {people} haki za usimamizi",
   "group.system.description": "{name} alibadilisha maelezo",
+  "group.system.e2eeCodeChanged": "Msimbo wa usalama wa {name} umebadilika",
+  "group.system.e2eeOn": "Ujumbe katika kikundi hiki sasa umesimbwa kutoka mwanzo hadi mwisho. Hakuna mtu nje ya kikundi, hata LawBid, anayeweza kuusoma.",
   "group.system.joined": "{name} alijiunga na kikundi",
   "group.system.left": "{name} aliondoka kwenye kikundi",
   "group.system.photo": "{name} alibadilisha picha ya kikundi",

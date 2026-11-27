@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} създаде групата",
   "group.system.demoted": "{name} премахна администраторските права на {people}",
   "group.system.description": "{name} промени описанието",
+  "group.system.e2eeCodeChanged": "Кодът за сигурност на {name} се промени",
+  "group.system.e2eeOn": "Съобщенията в тази група вече са с шифроване от край до край. Никой извън групата, дори LawBid, не може да ги прочете.",
   "group.system.joined": "{name} се присъедини към групата",
   "group.system.left": "{name} напусна групата",
   "group.system.photo": "{name} промени снимката на групата",

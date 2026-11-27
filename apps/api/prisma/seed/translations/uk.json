@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} створює групу",
   "group.system.demoted": "{name} знімає з адмінів: {people}",
   "group.system.description": "{name} змінює опис",
+  "group.system.e2eeCodeChanged": "Код безпеки {name} змінився",
+  "group.system.e2eeOn": "Тепер повідомлення в цій групі захищені наскрізним шифруванням. Ніхто поза групою, навіть LawBid, не може їх прочитати.",
   "group.system.joined": "{name} приєднується до групи",
   "group.system.left": "{name} залишає групу",
   "group.system.photo": "{name} змінює фото групи",

@@ -2659,6 +2659,8 @@
   "group.system.created": "{name}さんがグループを作成しました",
   "group.system.demoted": "{name}さんが{people}の管理者権限を解除しました",
   "group.system.description": "{name}さんが説明を変更しました",
+  "group.system.e2eeCodeChanged": "{name} のセキュリティコードが変更されました",
+  "group.system.e2eeOn": "このグループのメッセージはエンドツーエンドで暗号化されるようになりました。グループ外の人は、LawBid でさえも読むことができません。",
   "group.system.joined": "{name}さんがグループに参加しました",
   "group.system.left": "{name}さんがグループを退会しました",
   "group.system.photo": "{name}さんがグループ写真を変更しました",

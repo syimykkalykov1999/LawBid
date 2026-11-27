@@ -63,12 +63,14 @@ class MemoryE2eePlaintextStore implements E2eePlaintextStore {
 
 /// Rows of [E2eePlaintextStore] that are not decrypted messages: this
 /// device's own bookkeeping (pending commit `p:`, outgoing file key `f:`,
-/// members' key fingerprints `k:`, the backup key `b:`). Never backed up.
+/// members' key fingerprints `k:`, the backup key `b:`, a group's last key
+/// update `u:`). Never backed up.
 bool isE2eeBookkeepingRow(String id) =>
     id.startsWith('p:') ||
     id.startsWith('f:') ||
     id.startsWith('k:') ||
-    id.startsWith('b:');
+    id.startsWith('b:') ||
+    id.startsWith('u:');
 
 /// The chat is end-to-end encrypted but this device cannot write yet (its
 /// Welcome has not come, or the server refused): the message waits.
@@ -209,6 +211,15 @@ class E2eeService {
   final Map<String, Set<String>> _unaddable = {};
 
   final _opened = StreamController<api.MessageDto>.broadcast();
+
+  /// G2: whether a Welcome is for a group chat (`chat_groups`), not a chat.
+  /// A group's device that cannot use its Welcome joins by external commit
+  /// itself (GroupE2eeService), so the Welcome is acknowledged instead of
+  /// asking the chat's members to add it again.
+  bool Function(String id)? isGroup;
+
+  /// G2: the Welcomes of this device (chats and groups share one engine).
+  Future<void> takeWelcomes() async => _takeWelcomes(await engine());
 
   /// A message that waited and is now opened (the screens put it in place).
   Stream<api.MessageDto> get opened => _opened.stream;
@@ -676,7 +687,7 @@ class E2eeService {
         final already = gid != null &&
             await e.hasGroup(gid) &&
             await e.epoch(gid) >= w.epoch.toInt();
-        if (!already) {
+        if (!already && !(isGroup?.call(w.conversationId) ?? false)) {
           // This device cannot join from it: not acknowledged; the members
           // remove and add it again, the server drops this Welcome.
           try {

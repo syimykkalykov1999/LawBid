@@ -2659,6 +2659,8 @@
   "group.system.created": "{name}-მა შექმნა ჯგუფი",
   "group.system.demoted": "{name}-მა {people}-ს ადმინისტრატორობა მოხსნა",
   "group.system.description": "{name}-მა აღწერა შეცვალა",
+  "group.system.e2eeCodeChanged": "{name}-ის უსაფრთხოების კოდი შეიცვალა",
+  "group.system.e2eeOn": "ამ ჯგუფის შეტყობინებები ახლა ბოლომდე დაშიფრულია. ჯგუფის გარეთ ვერავინ, თვით LawBid-იც კი, ვერ წაიკითხავს მათ.",
   "group.system.joined": "{name} შეუერთდა ჯგუფს",
   "group.system.left": "{name}-მა დატოვა ჯგუფი",
   "group.system.photo": "{name}-მა ჯგუფის ფოტო შეცვალა",

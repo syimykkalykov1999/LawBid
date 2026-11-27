@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} kreye gwoup la",
   "group.system.demoted": "{name} retire dwa administratè {people}",
   "group.system.description": "{name} chanje deskripsyon an",
+  "group.system.e2eeCodeChanged": "Kòd sekirite {name} chanje",
+  "group.system.e2eeOn": "Mesaj nan gwoup sa a kounye a chifre de bout an bout. Pèsonn andeyò gwoup la, menm LawBid, pa ka li yo.",
   "group.system.joined": "{name} rantre nan gwoup la",
   "group.system.left": "{name} kite gwoup la",
   "group.system.photo": "{name} chanje foto gwoup la",

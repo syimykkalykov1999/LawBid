@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} એ ગ્રુપ બનાવ્યું",
   "group.system.demoted": "{name} એ {people} ના એડમિન અધિકારો દૂર કર્યા",
   "group.system.description": "{name} એ વર્ણન બદલ્યું",
+  "group.system.e2eeCodeChanged": "{name} નો સુરક્ષા કોડ બદલાયો",
+  "group.system.e2eeOn": "આ જૂથના સંદેશા હવે એન્ડ-ટુ-એન્ડ એન્ક્રિપ્ટેડ છે. જૂથની બહાર કોઈ પણ, LawBid પણ, તેમને વાંચી શકતું નથી.",
   "group.system.joined": "{name} ગ્રુપમાં જોડાયા",
   "group.system.left": "{name} એ ગ્રુપ છોડ્યું",
   "group.system.photo": "{name} એ ગ્રુપનો ફોટો બદલ્યો",

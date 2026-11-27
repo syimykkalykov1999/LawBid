@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} komê afirand",
   "group.system.demoted": "{name} mafên rêveberiyê yên {people} rakir",
   "group.system.description": "{name} danasînê guhert",
+  "group.system.e2eeCodeChanged": "Koda ewlehiyê ya {name} hate guhertin",
+  "group.system.e2eeOn": "Peyamên vê komê niha ji serî heta dawiyê şîfrekirî ne. Tu kes li derveyî komê, ne jî LawBid, nikare wan bixwîne.",
   "group.system.joined": "{name} tev li komê bû",
   "group.system.left": "{name} ji komê derket",
   "group.system.photo": "{name} wêneyê komê guhert",

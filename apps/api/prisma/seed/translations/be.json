@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} стварыў(-ла) групу",
   "group.system.demoted": "{name} пазбавіў(-ла) {people} правоў адміністратара",
   "group.system.description": "{name} змяніў(-ла) апісанне",
+  "group.system.e2eeCodeChanged": "Код бяспекі {name} змяніўся",
+  "group.system.e2eeOn": "Цяпер паведамленні ў гэтай групе абаронены скразным шыфраваннем. Ніхто па-за групай, нават LawBid, не можа іх прачытаць.",
   "group.system.joined": "{name} далучыўся(-лася) да групы",
   "group.system.left": "{name} выйшаў(-ла) з групы",
   "group.system.photo": "{name} змяніў(-ла) фота групы",

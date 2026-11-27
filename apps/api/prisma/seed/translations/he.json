@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} יצר/ה את הקבוצה",
   "group.system.demoted": "{name} הסיר/ה את הרשאת המנהל של {people}",
   "group.system.description": "{name} שינה/תה את התיאור",
+  "group.system.e2eeCodeChanged": "קוד האבטחה של {name} השתנה",
+  "group.system.e2eeOn": "ההודעות בקבוצה הזו מוצפנות עכשיו מקצה לקצה. אף אחד מחוץ לקבוצה, אפילו לא LawBid, יכול לקרוא אותן.",
   "group.system.joined": "{name} הצטרף/ה לקבוצה",
   "group.system.left": "{name} עזב/ה את הקבוצה",
   "group.system.photo": "{name} שינה/תה את תמונת הקבוצה",

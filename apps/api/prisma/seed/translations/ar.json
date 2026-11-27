@@ -2659,6 +2659,8 @@
   "group.system.created": "أنشأ {name} المجموعة",
   "group.system.demoted": "أزال {name} صلاحيات الإشراف عن {people}",
   "group.system.description": "غيّر {name} الوصف",
+  "group.system.e2eeCodeChanged": "تغيّر رمز الأمان الخاص بـ {name}",
+  "group.system.e2eeOn": "أصبحت الرسائل في هذه المجموعة مشفرة تمامًا بين الطرفين. لا يمكن لأي شخص خارج المجموعة، ولا حتى LawBid، قراءتها.",
   "group.system.joined": "انضم {name} إلى المجموعة",
   "group.system.left": "غادر {name} المجموعة",
   "group.system.photo": "غيّر {name} صورة المجموعة",

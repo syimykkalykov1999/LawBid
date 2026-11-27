@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} utworzył(a) grupę",
   "group.system.demoted": "{name} odebrał(a) uprawnienia administratora: {people}",
   "group.system.description": "{name} zmienił(a) opis",
+  "group.system.e2eeCodeChanged": "Kod bezpieczeństwa użytkownika {name} zmienił się",
+  "group.system.e2eeOn": "Wiadomości w tej grupie są teraz szyfrowane end-to-end. Nikt spoza grupy, nawet LawBid, nie może ich przeczytać.",
   "group.system.joined": "{name} dołączył(a) do grupy",
   "group.system.left": "{name} opuścił(a) grupę",
   "group.system.photo": "{name} zmienił(a) zdjęcie grupy",

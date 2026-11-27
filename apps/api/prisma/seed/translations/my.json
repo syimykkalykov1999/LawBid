@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} က အုပ်စု ဖန်တီးခဲ့သည်",
   "group.system.demoted": "{name} က {people} ၏ အက်ဒမင်အခွင့်အရေးကို ဖယ်ရှားခဲ့သည်",
   "group.system.description": "{name} က ဖော်ပြချက် ပြောင်းခဲ့သည်",
+  "group.system.e2eeCodeChanged": "{name} ၏ လုံခြုံရေးကုဒ် ပြောင်းလဲသွားပါပြီ",
+  "group.system.e2eeOn": "ဤအဖွဲ့ရှိ မက်ဆေ့ချ်များကို ယခု အစမှအဆုံး ကုဒ်ဝှက်ထားပါသည်။ အဖွဲ့ပြင်ပရှိ မည်သူမျှ၊ LawBid ပင်လျှင် မဖတ်နိုင်ပါ။",
   "group.system.joined": "{name} အုပ်စုသို့ ဝင်ရောက်လာသည်",
   "group.system.left": "{name} အုပ်စုမှ ထွက်သွားသည်",
   "group.system.photo": "{name} က အုပ်စုဓာတ်ပုံ ပြောင်းခဲ့သည်",

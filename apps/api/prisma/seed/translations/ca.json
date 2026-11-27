@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} ha creat el grup",
   "group.system.demoted": "{name} ha tret els drets d'administrador a {people}",
   "group.system.description": "{name} ha canviat la descripció",
+  "group.system.e2eeCodeChanged": "El codi de seguretat de {name} ha canviat",
+  "group.system.e2eeOn": "Ara els missatges d'aquest grup estan xifrats d'extrem a extrem. Ningú fora del grup, ni tan sols LawBid, els pot llegir.",
   "group.system.joined": "{name} s'ha unit al grup",
   "group.system.left": "{name} ha sortit del grup",
   "group.system.photo": "{name} ha canviat la foto del grup",

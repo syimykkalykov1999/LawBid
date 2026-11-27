@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} mepụtara otu",
   "group.system.demoted": "{name} wepụrụ ikike onye nchịkwa n'aka {people}",
   "group.system.description": "{name} gbanwere nkọwa",
+  "group.system.e2eeCodeChanged": "Koodu nchekwa {name} agbanweela",
+  "group.system.e2eeOn": "Ozi dị n'otu a ka ezoro ezo ugbu a site na njedebe ruo na njedebe. Ọ dịghị onye nọ n'èzí otu ahụ, ọbụna LawBid, nwere ike ịgụ ha.",
   "group.system.joined": "{name} sonyere n'otu",
   "group.system.left": "{name} hapụrụ otu",
   "group.system.photo": "{name} gbanwere foto otu",

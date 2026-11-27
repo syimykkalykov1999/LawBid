@@ -21,6 +21,15 @@ extension type _Module._(JSObject _) implements JSObject {
     JSString gid,
     JSString keyPackages,
     JSString remove,
+    JSBoolean withInfo,
+  );
+  external JSPromise<JSString> exportGroupInfo(JSString gid);
+  external JSPromise<JSString> joinExternal(JSString info, JSBoolean resync);
+  external JSPromise<JSString> exportSecret(
+    JSString gid,
+    JSString label,
+    JSString context,
+    JSNumber length,
   );
   external JSPromise<JSAny?> merge(JSString gid);
   external JSPromise<JSAny?> discard(JSString gid);
@@ -166,23 +175,62 @@ class _WebMlsEngine implements MlsEngine {
     Uint8List groupId, {
     List<Uint8List> keyPackages = const [],
     List<String> removeDeviceIds = const [],
+    bool groupInfo = false,
   }) async {
     final out = (await _m
             .commit(
               _b(groupId),
               jsonEncode([for (final k in keyPackages) base64Encode(k)]).toJS,
               jsonEncode(removeDeviceIds).toJS,
+              groupInfo.toJS,
             )
             .toDart)
         .toDart;
     final r = jsonDecode(out) as Map<String, dynamic>;
     final welcome = r['welcome'] as String?;
+    final info = r['groupInfo'] as String?;
     return MlsCommitOut(
       commit: base64Decode(r['commit'] as String),
       epoch: (r['epoch'] as num).toInt(),
       welcome: welcome == null ? null : base64Decode(welcome),
+      groupInfo: info == null ? null : base64Decode(info),
     );
   }
+
+  @override
+  Future<Uint8List> exportGroupInfo(Uint8List groupId) async =>
+      base64Decode((await _m.exportGroupInfo(_b(groupId)).toDart).toDart);
+
+  @override
+  Future<MlsExternalJoinOut> joinExternal(
+    Uint8List groupInfo, {
+    bool resync = false,
+  }) async {
+    final out =
+        (await _m.joinExternal(_b(groupInfo), resync.toJS).toDart).toDart;
+    final r = jsonDecode(out) as Map<String, dynamic>;
+    final info = r['groupInfo'] as String?;
+    return MlsExternalJoinOut(
+      groupId: base64Decode(r['groupId'] as String),
+      commit: base64Decode(r['commit'] as String),
+      epoch: (r['epoch'] as num).toInt(),
+      groupInfo: info == null ? null : base64Decode(info),
+    );
+  }
+
+  @override
+  Future<Uint8List> exportSecret(
+    Uint8List groupId,
+    String label,
+    Uint8List context,
+    int length,
+  ) async =>
+      base64Decode(
+        (await _m
+                .exportSecret(_b(groupId), label.toJS, _b(context), length.toJS)
+                .toDart)
+            .toDart,
+      );
 
   @override
   Future<void> mergeCommit(Uint8List groupId) => _m.merge(_b(groupId)).toDart;

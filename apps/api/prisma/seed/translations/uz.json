@@ -2659,6 +2659,8 @@
   "group.system.created": "{name} guruhni yaratdi",
   "group.system.demoted": "{name} {people} ning adminlik huquqini oldi",
   "group.system.description": "{name} tavsifni o'zgartirdi",
+  "group.system.e2eeCodeChanged": "{name} xavfsizlik kodi o‘zgardi",
+  "group.system.e2eeOn": "Endi bu guruhdagi xabarlar uchdan-uchgacha shifrlanadi. Guruhdan tashqaridagi hech kim, hatto LawBid ham, ularni o‘qiy olmaydi.",
   "group.system.joined": "{name} guruhga qo'shildi",
   "group.system.left": "{name} guruhdan chiqdi",
   "group.system.photo": "{name} guruh rasmini o'zgartirdi",

@@ -2659,6 +2659,8 @@
   "group.system.created": "{name}-ը ստեղծեց խումբը",
   "group.system.demoted": "{name}-ը {people}-ից հանեց ադմինի իրավունքները",
   "group.system.description": "{name}-ը փոխեց նկարագրությունը",
+  "group.system.e2eeCodeChanged": "{name}-ի անվտանգության կոդը փոխվել է",
+  "group.system.e2eeOn": "Այս խմբի հաղորդագրություններն այժմ ծայրից ծայր գաղտնագրված են։ Խմբից դուրս ոչ ոք, նույնիսկ LawBid-ը, չի կարող դրանք կարդալ։",
   "group.system.joined": "{name}-ը միացավ խմբին",
   "group.system.left": "{name}-ը լքեց խումբը",
   "group.system.photo": "{name}-ը փոխեց խմբի նկարը",
