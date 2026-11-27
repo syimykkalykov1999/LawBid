@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// tabs use it — Web Locks keep two tabs from overwriting one group, a
 /// pending commit survives a reload and is the only one of its group, the
 /// last-resort KeyPackage serves several Welcomes, decrypted texts stay
-/// sealed, sign-out leaves nothing. Runs interop/mls_js_check.mjs in node
+/// sealed, sign-out leaves nothing; G2: external join, resync, exporter. Runs interop/mls_js_check.mjs in node
 /// (real WebCrypto and navigator.locks); skipped where node is missing.
 void main() {
   final node = Process.runSync('which', ['node']).exitCode == 0;
@@ -23,7 +23,7 @@ void main() {
       final answer = jsonDecode(out) as Map<String, dynamic>;
       expect(answer['error'], isNull, reason: '${r.stderr}');
       expect(answer['ok'], isTrue);
-      expect((answer['checks'] as List).length, 12);
+      expect((answer['checks'] as List).length, 19);
     },
     skip: node ? false : 'node is not installed',
     timeout: const Timeout(Duration(minutes: 2)),

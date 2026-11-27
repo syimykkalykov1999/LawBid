@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} oprettede gruppen",
   "group.system.demoted": "{name} fjernede administratorrettigheder fra {people}",
   "group.system.description": "{name} ændrede beskrivelsen",
+  "group.system.e2eeCodeChanged": "Sikkerhedskoden for {name} er ændret",
+  "group.system.e2eeOn": "Beskeder i denne gruppe er nu end-to-end-krypterede. Ingen uden for gruppen, ikke engang LawBid, kan læse dem.",
   "group.system.joined": "{name} er kommet med i gruppen",
   "group.system.left": "{name} forlod gruppen",
   "group.system.photo": "{name} ændrede gruppebilledet",

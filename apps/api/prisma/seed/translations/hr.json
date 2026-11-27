@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} je izradio/la grupu",
   "group.system.demoted": "{name} je ukinuo/la administratorska prava: {people}",
   "group.system.description": "{name} je promijenio/la opis",
+  "group.system.e2eeCodeChanged": "Sigurnosni kod korisnika {name} promijenio se",
+  "group.system.e2eeOn": "Poruke u ovoj grupi sada su sveobuhvatno šifrirane. Nitko izvan grupe, čak ni LawBid, ne može ih pročitati.",
   "group.system.joined": "{name} se pridružio/la grupi",
   "group.system.left": "{name} je napustio/la grupu",
   "group.system.photo": "{name} je promijenio/la fotografiju grupe",

@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} hat die Gruppe erstellt",
   "group.system.demoted": "{name} hat {people} die Admin-Rechte entzogen",
   "group.system.description": "{name} hat die Beschreibung geändert",
+  "group.system.e2eeCodeChanged": "Der Sicherheitscode von {name} hat sich geändert",
+  "group.system.e2eeOn": "Nachrichten in dieser Gruppe sind jetzt Ende-zu-Ende-verschlüsselt. Niemand außerhalb der Gruppe, nicht einmal LawBid, kann sie lesen.",
   "group.system.joined": "{name} ist der Gruppe beigetreten",
   "group.system.left": "{name} hat die Gruppe verlassen",
   "group.system.photo": "{name} hat das Gruppenfoto geändert",

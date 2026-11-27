@@ -141,6 +141,80 @@ void main() {
     await alice.discardCommit(group);
     expect(await alice.epoch(group), 0);
   });
+
+  test(
+      'groups (G2): a device joins by external commit from the GroupInfo, '
+      'a device that lost track rejoins with its old leaf removed', () async {
+    final alice = await device('ua', 'da');
+    final bob = await device('ub', 'db');
+    final g = Uint8List.fromList(utf8.encode('lawbid:g:grp-1'));
+    await alice.createGroup(g);
+    // A commit carries the GroupInfo of the epoch it makes.
+    final upd = await alice.commit(g, groupInfo: true);
+    expect(upd.groupInfo, isNotNull);
+    await alice.mergeCommit(g);
+    expect(await alice.epoch(g), 1);
+
+    // Bob came in by the invite link: he joins himself, nobody online.
+    final join = await bob.joinExternal(upd.groupInfo!);
+    expect(_same(join.groupId, g), isTrue);
+    expect(join.epoch, 1);
+    expect(join.groupInfo, isNotNull);
+    await bob.mergeCommit(g);
+    expect(await bob.epoch(g), 2);
+    await alice.applyCommit(g, join.commit);
+    expect(await alice.epoch(g), 2);
+    final hi = await alice.encrypt(g, text('добро пожаловать'));
+    expect(read(await bob.decrypt(g, hi)), 'добро пожаловать');
+
+    // The exported GroupInfo of the current epoch works the same way.
+    final carl = await device('uc', 'dc');
+    final j2 = await carl.joinExternal(await alice.exportGroupInfo(g));
+    await carl.mergeCommit(g);
+    await alice.applyCommit(g, j2.commit);
+    await bob.applyCommit(g, j2.commit);
+
+    // Bob misses a commit (his copy is stale): he rejoins, replacing it;
+    // his old leaf goes in the same commit (one leaf per device).
+    final missed = await alice.commit(g, groupInfo: true);
+    await alice.mergeCommit(g);
+    await carl.applyCommit(g, missed.commit);
+    final again = await bob.joinExternal(missed.groupInfo!, resync: true);
+    await bob.mergeCommit(g);
+    await alice.applyCommit(g, again.commit);
+    await carl.applyCommit(g, again.commit);
+    final ids = (await alice.members(g)).map((m) => m.identity).toList();
+    expect(ids..sort(), ['ua:da', 'ub:db', 'uc:dc']);
+    final now = await carl.encrypt(g, text('снова вместе'));
+    expect(read(await bob.decrypt(g, now)), 'снова вместе');
+    expect(read(await alice.decrypt(g, now)), 'снова вместе');
+
+    // MLS-Exporter: the same secret on every member of the epoch.
+    final ctx = Uint8List.fromList(utf8.encode('grp-1'));
+    final a = await alice.exportSecret(g, 'lawbid push preview', ctx, 32);
+    final b = await bob.exportSecret(g, 'lawbid push preview', ctx, 32);
+    expect(a.length, 32);
+    expect(_same(a, b), isTrue);
+  });
+
+  test(
+    'groups (G2): a refused external join is deleted, nothing kept',
+    () async {
+      final alice = await device('ua', 'da');
+      final bob = await device('ub', 'db');
+      final g = Uint8List.fromList(utf8.encode('lawbid:g:grp-2'));
+      await alice.createGroup(g);
+      final info = await alice.exportGroupInfo(g);
+      await bob.joinExternal(info);
+      await bob.deleteGroup(g);
+      expect(await bob.hasGroup(g), isFalse);
+      // A second try from the same GroupInfo works.
+      final j = await bob.joinExternal(info);
+      await bob.mergeCommit(g);
+      await alice.applyCommit(g, j.commit);
+      expect(await alice.epoch(g), 1);
+    },
+  );
 }
 
 bool _same(Uint8List a, Uint8List b) =>

@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} ഗ്രൂപ്പ് സൃഷ്ടിച്ചു",
   "group.system.demoted": "{name} {people} എന്നിവരുടെ അഡ്മിൻ അവകാശങ്ങൾ നീക്കി",
   "group.system.description": "{name} വിവരണം മാറ്റി",
+  "group.system.e2eeCodeChanged": "{name} എന്നയാളുടെ സുരക്ഷാ കോഡ് മാറി",
+  "group.system.e2eeOn": "ഈ ഗ്രൂപ്പിലെ സന്ദേശങ്ങൾ ഇപ്പോൾ എൻഡ്-ടു-എൻഡ് എൻക്രിപ്റ്റ് ചെയ്തിരിക്കുന്നു. ഗ്രൂപ്പിന് പുറത്തുള്ള ആർക്കും, LawBid-ന് പോലും, അവ വായിക്കാനാകില്ല.",
   "group.system.joined": "{name} ഗ്രൂപ്പിൽ ചേർന്നു",
   "group.system.left": "{name} ഗ്രൂപ്പ് വിട്ടു",
   "group.system.photo": "{name} ഗ്രൂപ്പ് ഫോട്ടോ മാറ്റി",

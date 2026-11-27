@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} criou o grupo",
   "group.system.demoted": "{name} removeu os direitos de administrador de {people}",
   "group.system.description": "{name} alterou a descrição",
+  "group.system.e2eeCodeChanged": "O código de segurança de {name} mudou",
+  "group.system.e2eeOn": "As mensagens deste grupo agora têm criptografia de ponta a ponta. Ninguém fora do grupo, nem mesmo a LawBid, pode lê-las.",
   "group.system.joined": "{name} entrou no grupo",
   "group.system.left": "{name} saiu do grupo",
   "group.system.photo": "{name} alterou a foto do grupo",

@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} ħalaq il-grupp",
   "group.system.demoted": "{name} neħħa d-drittijiet ta' amministratur minn {people}",
   "group.system.description": "{name} biddel id-deskrizzjoni",
+  "group.system.e2eeCodeChanged": "Il-kodiċi tas-sigurtà ta' {name} inbidel",
+  "group.system.e2eeOn": "Il-messaġġi f'dan il-grupp issa huma kriptati minn tarf għal tarf. Ħadd barra l-grupp, lanqas LawBid, ma jista' jaqrahom.",
   "group.system.joined": "{name} ingħaqad mal-grupp",
   "group.system.left": "{name} ħalla l-grupp",
   "group.system.photo": "{name} biddel ir-ritratt tal-grupp",

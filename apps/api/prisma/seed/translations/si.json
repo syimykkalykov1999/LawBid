@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} කණ්ඩායම සෑදීය",
   "group.system.demoted": "{name} {people} ගේ පරිපාලක අයිතිය ඉවත් කළා",
   "group.system.description": "{name} විස්තරය වෙනස් කළා",
+  "group.system.e2eeCodeChanged": "{name} ගේ ආරක්ෂක කේතය වෙනස් විය",
+  "group.system.e2eeOn": "මෙම කණ්ඩායමේ පණිවිඩ දැන් අන්තයේ සිට අන්තයට සංකේතනය කර ඇත. කණ්ඩායමෙන් පිටත කිසිවෙකුට, LawBid ට පවා, ඒවා කියවිය නොහැක.",
   "group.system.joined": "{name} කණ්ඩායමට සම්බන්ධ විය",
   "group.system.left": "{name} කණ්ඩායමෙන් ඉවත් විය",
   "group.system.photo": "{name} කණ්ඩායම් ඡායාරූපය වෙනස් කළා",

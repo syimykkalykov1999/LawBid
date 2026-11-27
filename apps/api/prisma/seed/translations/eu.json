@@ -2532,6 +2532,8 @@
   "group.system.created": "{name}(e)k taldea sortu du",
   "group.system.demoted": "{name}(e)k {people}(r)en admin-eskubideak kendu ditu",
   "group.system.description": "{name}(e)k deskribapena aldatu du",
+  "group.system.e2eeCodeChanged": "{name}(r)en segurtasun-kodea aldatu da",
+  "group.system.e2eeOn": "Talde honetako mezuak muturretik muturrera zifratuta daude orain. Taldetik kanpo inork ezin ditu irakurri, ezta LawBid-ek ere.",
   "group.system.joined": "{name} taldean sartu da",
   "group.system.left": "{name} taldetik atera da",
   "group.system.photo": "{name}(e)k taldearen argazkia aldatu du",

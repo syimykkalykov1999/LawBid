@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} je ustvaril(a) skupino",
   "group.system.demoted": "{name} je odvzel(a) skrbniške pravice: {people}",
   "group.system.description": "{name} je spremenil(a) opis",
+  "group.system.e2eeCodeChanged": "Varnostna koda osebe {name} se je spremenila",
+  "group.system.e2eeOn": "Sporočila v tej skupini so zdaj šifrirana od konca do konca. Nihče zunaj skupine, niti LawBid, jih ne more prebrati.",
   "group.system.joined": "{name} se je pridružil(a) skupini",
   "group.system.left": "{name} je zapustil(a) skupino",
   "group.system.photo": "{name} je spremenil(a) sliko skupine",

@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} topary döretdi",
   "group.system.demoted": "{name} {people} adamyň administrator hukugyny aldy",
   "group.system.description": "{name} beýany üýtgetdi",
+  "group.system.e2eeCodeChanged": "{name} howpsuzlyk kody üýtgedi",
+  "group.system.e2eeOn": "Indi bu toparyň habarlary başdan-aýak şifrlenýär. Toparyň daşyndaky hiç kim, hatda LawBid hem, olary okap bilmeýär.",
   "group.system.joined": "{name} topara goşuldy",
   "group.system.left": "{name} topardan çykdy",
   "group.system.photo": "{name} topar suratyny üýtgetdi",

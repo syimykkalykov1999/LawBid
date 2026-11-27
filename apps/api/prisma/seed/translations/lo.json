@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} ສ້າງກຸ່ມ",
   "group.system.demoted": "{name} ຖອນສິດແອດມິນຂອງ {people}",
   "group.system.description": "{name} ປ່ຽນຄຳອະທິບາຍ",
+  "group.system.e2eeCodeChanged": "ລະຫັດຄວາມປອດໄພຂອງ {name} ໄດ້ປ່ຽນແລ້ວ",
+  "group.system.e2eeOn": "ຂໍ້ຄວາມໃນກຸ່ມນີ້ຕອນນີ້ຖືກເຂົ້າລະຫັດແຕ່ຕົ້ນທາງຫາປາຍທາງແລ້ວ. ບໍ່ມີໃຜຢູ່ນອກກຸ່ມ, ແມ່ນແຕ່ LawBid, ສາມາດອ່ານໄດ້.",
   "group.system.joined": "{name} ເຂົ້າຮ່ວມກຸ່ມ",
   "group.system.left": "{name} ອອກຈາກກຸ່ມ",
   "group.system.photo": "{name} ປ່ຽນຮູບກຸ່ມ",

@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} 创建了群组",
   "group.system.demoted": "{name} 取消了 {people} 的管理员身份",
   "group.system.description": "{name} 修改了简介",
+  "group.system.e2eeCodeChanged": "{name} 的安全码已更改",
+  "group.system.e2eeOn": "此群组中的消息现已端到端加密。群组以外的任何人，包括 LawBid，都无法读取。",
   "group.system.joined": "{name} 加入了群组",
   "group.system.left": "{name} 退出了群组",
   "group.system.photo": "{name} 更换了群组头像",

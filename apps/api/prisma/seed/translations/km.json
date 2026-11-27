@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} បានបង្កើតក្រុម",
   "group.system.demoted": "{name} បានដកសិទ្ធិអ្នកគ្រប់គ្រងរបស់ {people}",
   "group.system.description": "{name} បានប្តូរការពិពណ៌នា",
+  "group.system.e2eeCodeChanged": "លេខកូដសុវត្ថិភាពរបស់ {name} បានផ្លាស់ប្តូរ",
+  "group.system.e2eeOn": "សារ​ក្នុង​ក្រុម​នេះ​ឥឡូវ​ត្រូវ​បាន​អ៊ិនគ្រីប​ពី​ចុង​ដល់​ចុង។ គ្មាន​អ្នក​ណា​នៅ​ក្រៅ​ក្រុម សូម្បី​តែ LawBid អាច​អាន​បាន​ទេ។",
   "group.system.joined": "{name} បានចូលរួមក្រុម",
   "group.system.left": "{name} បានចាកចេញពីក្រុម",
   "group.system.photo": "{name} បានប្តូររូបភាពក្រុម",

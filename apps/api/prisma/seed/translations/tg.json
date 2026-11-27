@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} гурӯҳро эҷод кард",
   "group.system.demoted": "{name} ҳуқуқи админии {people}-ро гирифт",
   "group.system.description": "{name} тавсифро иваз кард",
+  "group.system.e2eeCodeChanged": "Рамзи бехатарии {name} иваз шуд",
+  "group.system.e2eeOn": "Акнун паёмҳои ин гурӯҳ рамзгузории канор то канор доранд. Ҳеҷ кас берун аз гурӯҳ, ҳатто LawBid, онҳоро хонда наметавонад.",
   "group.system.joined": "{name} ба гурӯҳ ҳамроҳ шуд",
   "group.system.left": "{name} гурӯҳро тарк кард",
   "group.system.photo": "{name} акси гурӯҳро иваз кард",

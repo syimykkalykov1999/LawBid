@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} ਨੇ ਗਰੁੱਪ ਬਣਾਇਆ",
   "group.system.demoted": "{name} ਨੇ {people} ਦੇ ਐਡਮਿਨ ਅਧਿਕਾਰ ਹਟਾਏ",
   "group.system.description": "{name} ਨੇ ਵੇਰਵਾ ਬਦਲਿਆ",
+  "group.system.e2eeCodeChanged": "{name} ਦਾ ਸੁਰੱਖਿਆ ਕੋਡ ਬਦਲ ਗਿਆ",
+  "group.system.e2eeOn": "ਇਸ ਗਰੁੱਪ ਦੇ ਸੁਨੇਹੇ ਹੁਣ ਐਂਡ-ਟੂ-ਐਂਡ ਇਨਕ੍ਰਿਪਟਡ ਹਨ। ਗਰੁੱਪ ਤੋਂ ਬਾਹਰ ਕੋਈ ਵੀ, LawBid ਵੀ, ਇਨ੍ਹਾਂ ਨੂੰ ਨਹੀਂ ਪੜ੍ਹ ਸਕਦਾ।",
   "group.system.joined": "{name} ਗਰੁੱਪ ਵਿੱਚ ਸ਼ਾਮਲ ਹੋਇਆ",
   "group.system.left": "{name} ਨੇ ਗਰੁੱਪ ਛੱਡਿਆ",
   "group.system.photo": "{name} ਨੇ ਗਰੁੱਪ ਫੋਟੋ ਬਦਲੀ",

@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} grubu oluşturdu",
   "group.system.demoted": "{name}, {people} kişisinin yöneticiliğini kaldırdı",
   "group.system.description": "{name} açıklamayı değiştirdi",
+  "group.system.e2eeCodeChanged": "{name} adlı kişinin güvenlik kodu değişti",
+  "group.system.e2eeOn": "Bu gruptaki mesajlar artık uçtan uca şifreleniyor. Grubun dışındaki hiç kimse, LawBid bile, bunları okuyamaz.",
   "group.system.joined": "{name} gruba katıldı",
   "group.system.left": "{name} gruptan ayrıldı",
   "group.system.photo": "{name} grup fotoğrafını değiştirdi",

@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} ayaa abuuray kooxda",
   "group.system.demoted": "{name} ayaa ka qaaday maamulnimada {people}",
   "group.system.description": "{name} ayaa beddelay sharaxaadda",
+  "group.system.e2eeCodeChanged": "Koodhka amniga ee {name} wuu isbeddelay",
+  "group.system.e2eeOn": "Fariimaha kooxdan hadda waa la sir-qariyay dhammaad ilaa dhammaad. Qofna oo ka baxsan kooxda, xataa LawBid, ma akhrin karo.",
   "group.system.joined": "{name} ayaa ku biiray kooxda",
   "group.system.left": "{name} ayaa ka baxay kooxda",
   "group.system.photo": "{name} ayaa beddelay sawirka kooxda",

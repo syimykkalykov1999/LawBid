@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} ಗುಂಪನ್ನು ರಚಿಸಿದರು",
   "group.system.demoted": "{name} {people} ಅವರ ನಿರ್ವಾಹಕ ಹಕ್ಕುಗಳನ್ನು ತೆಗೆದರು",
   "group.system.description": "{name} ವಿವರಣೆಯನ್ನು ಬದಲಿಸಿದರು",
+  "group.system.e2eeCodeChanged": "{name} ಅವರ ಭದ್ರತಾ ಕೋಡ್ ಬದಲಾಗಿದೆ",
+  "group.system.e2eeOn": "ಈ ಗುಂಪಿನ ಸಂದೇಶಗಳು ಈಗ ಎಂಡ್-ಟು-ಎಂಡ್ ಎನ್‌ಕ್ರಿಪ್ಟ್ ಆಗಿವೆ. ಗುಂಪಿನ ಹೊರಗಿನ ಯಾರೂ, LawBid ಕೂಡ, ಅವುಗಳನ್ನು ಓದಲು ಸಾಧ್ಯವಿಲ್ಲ.",
   "group.system.joined": "{name} ಗುಂಪಿಗೆ ಸೇರಿದರು",
   "group.system.left": "{name} ಗುಂಪು ಬಿಟ್ಟರು",
   "group.system.photo": "{name} ಗುಂಪಿನ ಫೋಟೋ ಬದಲಿಸಿದರು",

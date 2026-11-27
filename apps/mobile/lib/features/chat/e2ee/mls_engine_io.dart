@@ -227,6 +227,7 @@ class OpenMlsEngine implements MlsEngine {
     Uint8List groupId, {
     List<Uint8List> keyPackages = const [],
     List<String> removeDeviceIds = const [],
+    bool groupInfo = false,
   }) async {
     final at = await epoch(groupId);
     final members = removeDeviceIds.isEmpty
@@ -246,12 +247,17 @@ class OpenMlsEngine implements MlsEngine {
         removeIndices: Uint32List.fromList(indices),
         forceSelfUpdate: true,
         consumePendingProposals: false,
-        createGroupInfo: false,
+        createGroupInfo: groupInfo,
         useRatchetTreeExtension: true,
         keepPending: true,
       ),
     );
-    return MlsCommitOut(commit: r.commit, epoch: at, welcome: r.welcome);
+    return MlsCommitOut(
+      commit: r.commit,
+      epoch: at,
+      welcome: r.welcome,
+      groupInfo: groupInfo ? r.groupInfo : null,
+    );
   }
 
   @override
@@ -271,6 +277,55 @@ class OpenMlsEngine implements MlsEngine {
     );
     return r.groupId;
   }
+
+  @override
+  Future<Uint8List> exportGroupInfo(Uint8List groupId) =>
+      _engine.exportGroupInfo(groupIdBytes: groupId, signerBytes: _signer);
+
+  @override
+  Future<MlsExternalJoinOut> joinExternal(
+    Uint8List groupInfo, {
+    bool resync = false,
+  }) async {
+    // OpenMLS's external commit removes the leaf with this device's
+    // signature key itself (resync, RFC 9420 §12.4.3.2); the stored copy
+    // of the group is replaced only for a GroupInfo from our Delivery
+    // Service, which speaks for the group.
+    final r = await _engine.joinGroupExternalCommit(
+      config: _config,
+      groupInfoBytes: groupInfo,
+      signerBytes: _signer,
+      credentialIdentity: _identity,
+      signerPublicKey: signaturePublicKey,
+      replaceStoredGroup: resync,
+    );
+    // OpenMLS stores the joined group with its external commit already
+    // merged (the epoch after the GroupInfo's); mergeCommit is then a no-op
+    // and a refusal deletes the group. The commit is made in the epoch
+    // before.
+    return MlsExternalJoinOut(
+      groupId: r.groupId,
+      commit: r.commit,
+      epoch: await epoch(r.groupId) - 1,
+      // The joined epoch's GroupInfo as an MLSMessage (what the Delivery
+      // Service keeps; the join's own is a bare GroupInfo).
+      groupInfo: await exportGroupInfo(r.groupId),
+    );
+  }
+
+  @override
+  Future<Uint8List> exportSecret(
+    Uint8List groupId,
+    String label,
+    Uint8List context,
+    int length,
+  ) =>
+      _engine.exportSecret(
+        groupIdBytes: groupId,
+        label: label,
+        context: context,
+        keyLength: length,
+      );
 
   @override
   Future<void> applyCommit(Uint8List groupId, Uint8List commit) async {

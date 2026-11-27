@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} создал(а) группу",
   "group.system.demoted": "{name} снял(а) права админа у {people}",
   "group.system.description": "{name} изменил(а) описание",
+  "group.system.e2eeCodeChanged": "Код безопасности {name} изменился",
+  "group.system.e2eeOn": "Теперь сообщения в этой группе защищены сквозным шифрованием. Никто вне группы, даже LawBid, не может их прочитать.",
   "group.system.joined": "{name} вступил(а) в группу",
   "group.system.left": "{name} вышел(а) из группы",
   "group.system.photo": "{name} изменил(а) фото группы",

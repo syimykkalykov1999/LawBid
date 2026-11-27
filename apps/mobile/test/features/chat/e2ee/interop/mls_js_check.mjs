@@ -145,6 +145,46 @@ try {
   await a.join(inv3.welcome);
   check('the last-resort package joins two groups', (await a.hasGroup(b64(g2))) && (await a.hasGroup(b64(g3))));
 
+  // G2 groups: an external join from a GroupInfo (invite link, new device)
+  // waits like a commit, merges once the server took it; a device that lost
+  // track rejoins with its old leaf removed (resync); the exporter matches.
+  const g4 = new TextEncoder().encode('lawbid:g:grp');
+  const own4 = await aliceKp();
+  let a4 = await t.createGroup(g4, own4.publicPackage, own4.privatePackage, [], cs);
+  const info4 = async (st) =>
+    b64(
+      t.encodeMlsMessage({
+        groupInfo: await t.createGroupInfoWithExternalPubAndRatchetTree(st, [], cs),
+        wireformat: 'mls_group_info',
+        version: 'mls10',
+      }),
+    );
+  const ext = JSON.parse(await a.joinExternal(await info4(a4), false));
+  check('an external join waits for the server', !(await a.hasGroup(b64(g4))) && ext.epoch === 0 && !!ext.groupInfo);
+  await a.merge(b64(g4));
+  check('merged: in the group at the next epoch', (await a.epoch(b64(g4))) === 1);
+  a4 = (await t.processMessage(t.decodeMlsMessage(unb64(ext.commit), 0)[0], a4, t.emptyPskIndex, t.acceptAll, cs)).newState;
+  const hello = await aliceRead(a4, await a.encrypt(b64(g4), text('joined by link')));
+  a4 = hello.state;
+  check('the joiner writes, the member reads', hello.text === 'joined by link');
+  const ctx = new TextEncoder().encode('grp');
+  const mine = await a.exportSecret(b64(g4), 'lawbid push preview', b64(ctx), 32);
+  const theirs = b64(await t.mlsExporter(a4.keySchedule.exporterSecret, 'lawbid push preview', ctx, 32, cs));
+  check('MLS-Exporter: the same secret on both sides', mine === theirs);
+  // The member moves on without this tab (a self-update it never saw).
+  const upd = await t.createCommit({ state: a4, cipherSuite: cs }, { wireAsPublicMessage: true });
+  a4 = upd.newState;
+  const again = JSON.parse(await a.joinExternal(await info4(a4), true));
+  await a.merge(b64(g4));
+  a4 = (await t.processMessage(t.decodeMlsMessage(unb64(again.commit), 0)[0], a4, t.emptyPskIndex, t.acceptAll, cs)).newState;
+  const leaves = a4.ratchetTree.filter((n) => n?.nodeType === 'leaf' && new TextDecoder().decode(n.leaf.credential.identity) === 'ub:dweb');
+  check('resync: one leaf for the device', leaves.length === 1);
+  const back = await aliceRead(a4, await a.encrypt(b64(g4), text('back again')));
+  check('after the resync it writes again', back.text === 'back again');
+  const withInfo = JSON.parse(await a.commit(b64(g4), '[]', '[]', true));
+  check('a group commit carries the next GroupInfo', !!withInfo.groupInfo);
+  await a.discard(b64(g4));
+
   // Decrypted texts stay sealed in IndexedDB.
   await a.ptPut('m1', 'c1', JSON.stringify({ b: 'privileged words' }));
   const raw = JSON.stringify([...stores.get('kv').values()].map((v) => (v?.ct ? Buffer.from(v.ct).toString() : '')));

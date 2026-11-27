@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} குழுவை உருவாக்கினார்",
   "group.system.demoted": "{name} {people} இன் நிர்வாகி உரிமையை நீக்கினார்",
   "group.system.description": "{name} விளக்கத்தை மாற்றினார்",
+  "group.system.e2eeCodeChanged": "{name} இன் பாதுகாப்புக் குறியீடு மாறியது",
+  "group.system.e2eeOn": "இந்தக் குழுவின் செய்திகள் இப்போது முழுமையான குறியாக்கத்துடன் உள்ளன. குழுவுக்கு வெளியே யாரும், LawBid கூட, அவற்றைப் படிக்க முடியாது.",
   "group.system.joined": "{name} குழுவில் சேர்ந்தார்",
   "group.system.left": "{name} குழுவிலிருந்து வெளியேறினார்",
   "group.system.photo": "{name} குழு புகைப்படத்தை மாற்றினார்",

@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} ṣẹ̀dá ẹgbẹ́",
   "group.system.demoted": "{name} yọ ẹ̀tọ́ adarí kúrò lọ́wọ́ {people}",
   "group.system.description": "{name} yí àpèjúwe padà",
+  "group.system.e2eeCodeChanged": "Kóòdù ààbò {name} ti yípadà",
+  "group.system.e2eeOn": "Àwọn ìfiránṣẹ́ inú ẹgbẹ́ yìí ti di àkọsílẹ̀ ìpamọ́ láti ìbẹ̀rẹ̀ dé òpin báyìí. Kò sí ẹnikẹ́ni lẹ́yìn ẹgbẹ́ náà, kódà LawBid, tí ó lè kà wọ́n.",
   "group.system.joined": "{name} darapọ̀ mọ́ ẹgbẹ́",
   "group.system.left": "{name} kúrò ní ẹgbẹ́",
   "group.system.photo": "{name} yí fọ́tò ẹgbẹ́ padà",

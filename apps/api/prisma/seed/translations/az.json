@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} qrupu yaratdı",
   "group.system.demoted": "{name} {people} adlı şəxsin admin hüququnu götürdü",
   "group.system.description": "{name} təsviri dəyişdi",
+  "group.system.e2eeCodeChanged": "{name} adlı şəxsin təhlükəsizlik kodu dəyişdi",
+  "group.system.e2eeOn": "Bu qrupdakı mesajlar indi başdan-başa şifrələnir. Qrupdan kənarda heç kim, hətta LawBid də, onları oxuya bilməz.",
   "group.system.joined": "{name} qrupa qoşuldu",
   "group.system.left": "{name} qrupdan çıxdı",
   "group.system.photo": "{name} qrupun şəklini dəyişdi",

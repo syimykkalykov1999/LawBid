@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} loi ryhmän",
   "group.system.demoted": "{name} poisti ylläpitäjän oikeudet: {people}",
   "group.system.description": "{name} muutti kuvausta",
+  "group.system.e2eeCodeChanged": "Henkilön {name} turvakoodi muuttui",
+  "group.system.e2eeOn": "Tämän ryhmän viestit on nyt salattu päästä päähän. Kukaan ryhmän ulkopuolinen, ei edes LawBid, voi lukea niitä.",
   "group.system.joined": "{name} liittyi ryhmään",
   "group.system.left": "{name} poistui ryhmästä",
   "group.system.photo": "{name} vaihtoi ryhmän kuvan",

@@ -2532,6 +2532,8 @@
   "group.system.created": "Creodd {name} y grŵp",
   "group.system.demoted": "Tynnodd {name} hawliau gweinyddwr {people}",
   "group.system.description": "Newidiodd {name} y disgrifiad",
+  "group.system.e2eeCodeChanged": "Mae cod diogelwch {name} wedi newid",
+  "group.system.e2eeOn": "Mae negeseuon yn y grŵp hwn bellach wedi'u hamgryptio o'r dechrau i'r diwedd. All neb y tu allan i'r grŵp, dim hyd yn oed LawBid, eu darllen.",
   "group.system.joined": "Ymunodd {name} â'r grŵp",
   "group.system.left": "Gadawodd {name} y grŵp",
   "group.system.photo": "Newidiodd {name} lun y grŵp",

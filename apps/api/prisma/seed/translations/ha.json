@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} ya ƙirƙiri ƙungiyar",
   "group.system.demoted": "{name} ya cire haƙƙin gudanarwa daga {people}",
   "group.system.description": "{name} ya canja bayanin",
+  "group.system.e2eeCodeChanged": "Lambar tsaro ta {name} ta canza",
+  "group.system.e2eeOn": "Saƙonni a wannan rukunin yanzu an ɓoye su daga ƙarshe zuwa ƙarshe. Babu wanda ke wajen rukunin, har LawBid, da zai iya karanta su.",
   "group.system.joined": "{name} ya shiga ƙungiyar",
   "group.system.left": "{name} ya bar ƙungiyar",
   "group.system.photo": "{name} ya canja hoton ƙungiyar",

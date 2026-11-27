@@ -2532,6 +2532,8 @@
   "group.system.created": "Chruthaigh {name} an grúpa",
   "group.system.demoted": "Bhain {name} cearta riarthóra de {people}",
   "group.system.description": "D'athraigh {name} an cur síos",
+  "group.system.e2eeCodeChanged": "D'athraigh cód slándála {name}",
+  "group.system.e2eeOn": "Tá teachtaireachtaí sa ghrúpa seo criptithe ó cheann ceann anois. Ní féidir le duine ar bith lasmuigh den ghrúpa, fiú LawBid, iad a léamh.",
   "group.system.joined": "Ghlac {name} páirt sa ghrúpa",
   "group.system.left": "D'fhág {name} an grúpa",
   "group.system.photo": "D'athraigh {name} grianghraf an ghrúpa",

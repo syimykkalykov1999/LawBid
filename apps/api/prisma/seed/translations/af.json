@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} het die groep geskep",
   "group.system.demoted": "{name} het {people} se adminregte verwyder",
   "group.system.description": "{name} het die beskrywing verander",
+  "group.system.e2eeCodeChanged": "{name} se sekuriteitskode het verander",
+  "group.system.e2eeOn": "Boodskappe in hierdie groep is nou end-tot-end-geënkripteer. Niemand buite die groep, nie eens LawBid nie, kan dit lees nie.",
   "group.system.joined": "{name} het by die groep aangesluit",
   "group.system.left": "{name} het die groep verlaat",
   "group.system.photo": "{name} het die groepfoto verander",

@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} mencipta kumpulan",
   "group.system.demoted": "{name} mengalih keluar hak admin daripada {people}",
   "group.system.description": "{name} menukar penerangan",
+  "group.system.e2eeCodeChanged": "Kod keselamatan {name} telah berubah",
+  "group.system.e2eeOn": "Mesej dalam kumpulan ini kini disulitkan hujung ke hujung. Tiada sesiapa di luar kumpulan, malah LawBid, boleh membacanya.",
   "group.system.joined": "{name} menyertai kumpulan",
   "group.system.left": "{name} meninggalkan kumpulan",
   "group.system.photo": "{name} menukar foto kumpulan",

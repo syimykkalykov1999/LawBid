@@ -2532,6 +2532,8 @@
   "group.system.created": "U-{name} udale iqembu",
   "group.system.demoted": "U-{name} ukhiphe u-{people} ebuphathini",
   "group.system.description": "U-{name} ushintshe incazelo",
+  "group.system.e2eeCodeChanged": "Ikhodi yokuphepha ka-{name} ishintshile",
+  "group.system.e2eeOn": "Imilayezo kuleli qembu manje ibethelwe kusukela ekuqaleni kuya ekugcineni. Akekho ongaphandle kweqembu, ngisho neLawBid, ongayifunda.",
   "group.system.joined": "U-{name} ujoyine iqembu",
   "group.system.left": "U-{name} uphume eqenjini",
   "group.system.photo": "U-{name} ushintshe isithombe seqembu",

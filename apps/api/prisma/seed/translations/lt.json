@@ -2532,6 +2532,8 @@
   "group.system.created": "{name} sukūrė grupę",
   "group.system.demoted": "{name} atėmė administratoriaus teises: {people}",
   "group.system.description": "{name} pakeitė aprašymą",
+  "group.system.e2eeCodeChanged": "{name} saugos kodas pasikeitė",
+  "group.system.e2eeOn": "Šios grupės žinutės dabar užšifruotos ištisiniu šifravimu. Niekas už grupės ribų, net LawBid, negali jų perskaityti.",
   "group.system.joined": "{name} prisijungė prie grupės",
   "group.system.left": "{name} paliko grupę",
   "group.system.photo": "{name} pakeitė grupės nuotrauką",
