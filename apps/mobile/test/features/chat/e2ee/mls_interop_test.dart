@@ -90,15 +90,13 @@ void main() {
   );
 
   test(
-    'G2 known limit: ts-mls 1.6.4 and OpenMLS encode the GroupInfo '
-    'external_pub differently, so cross-library external joins fail '
-    '(the app adds such a device by Welcome); flips when ts-mls is fixed',
+    'G2 groups: external joins across OpenMLS and ts-mls, both ways '
+    '(ts-mls 1.6.4 with LukaJCB/ts-mls#449 backported)',
     () async {
       final peer = await Process.start('node', [
         'test/features/chat/e2ee/interop/ts_mls_peer.mjs',
       ]);
-      // A failed expect must not leave node running (flutter test would
-      // never exit).
+      // A failed expect must not leave node running (KNOWN_ERRORS 269).
       addTearDown(peer.kill);
       final lines = peer.stdout
           .transform(utf8.decoder)
@@ -106,52 +104,62 @@ void main() {
           .asBroadcastStream();
       Future<Map<String, dynamic>> ask(Map<String, Object> cmd) async {
         peer.stdin.writeln(jsonEncode(cmd));
-        return jsonDecode(
+        final answer = jsonDecode(
           await lines.first.timeout(const Duration(seconds: 30)),
         ) as Map<String, dynamic>;
+        expect(answer['error'], isNull);
+        return answer;
       }
 
-      final alice = await OpenMlsEngine.open(
-        userId: 'ua',
-        vault: MemoryMlsKeyVault(),
-        dbPath: ':memory:',
-      );
-      await alice.setDeviceId('phone');
+      Future<OpenMlsEngine> phone(String user, String id) async {
+        final e = await OpenMlsEngine.open(
+          userId: user,
+          vault: MemoryMlsKeyVault(),
+          dbPath: ':memory:',
+        );
+        await e.setDeviceId(id);
+        return e;
+      }
+
+      final alice = await phone('ua', 'phone');
       final g = Uint8List.fromList(utf8.encode('lawbid:g:interop'));
       await alice.createGroup(g);
       final upd = await alice.commit(g, groupInfo: true);
       await alice.mergeCommit(g);
 
-      // RFC 9420 section 12.4.3.2: external_pub is HPKEPublicKey<V>
-      // (OpenMLS); ts-mls 1.6.4 reads the extension data as the bare key.
-      final fromPhone = await ask({
+      // The browser joins from the phone's GroupInfo.
+      final joined = await ask({
         'op': 'externalJoin',
         'groupInfo': base64Encode(upd.groupInfo!),
         'identity': 'ub:web',
       });
-      expect(fromPhone['error'], contains('Invalid public key'));
+      expect(joined['epoch'], 2);
+      await alice.applyCommit(g, base64Decode(joined['commit'] as String));
+      final hi = await ask({'op': 'encrypt', 'text': 'вошёл по ссылке'});
+      expect(
+        utf8.decode(
+          (await alice.decrypt(g, base64Decode(hi['message'] as String)))!,
+        ),
+        'вошёл по ссылке',
+      );
 
-      // The other way: a GroupInfo made by ts-mls does not parse in
-      // OpenMLS. The phone joins the browser's group by Welcome instead.
-      final kp = await alice.newKeyPackages(1);
-      final started = await ask({
-        'op': 'groupWith',
-        'keyPackage': base64Encode(kp.single),
-        'identity': 'ub:web',
-      });
-      expect(started['error'], isNull);
+      // A new phone joins from the browser's GroupInfo.
+      final carl = await phone('uc', 'phone2');
       final info = await ask({'op': 'groupInfo'});
-      final carl = await OpenMlsEngine.open(
-        userId: 'uc',
-        vault: MemoryMlsKeyVault(),
-        dbPath: ':memory:',
+      final j = await carl.joinExternal(
+        base64Decode(info['groupInfo'] as String),
       );
-      await carl.setDeviceId('phone2');
-      await expectLater(
-        carl.joinExternal(base64Decode(info['groupInfo'] as String)),
-        throwsA(anything),
-      );
-      peer.kill();
+      await carl.mergeCommit(g);
+      await alice.applyCommit(g, j.commit);
+      final seen = await ask({
+        'op': 'process',
+        'message': base64Encode(j.commit),
+      });
+      expect(seen['epoch'], 3);
+      final fromWeb = await ask({'op': 'encrypt', 'text': 'всем'});
+      final msg = base64Decode(fromWeb['message'] as String);
+      expect(utf8.decode((await carl.decrypt(g, msg))!), 'всем');
+      expect(utf8.decode((await alice.decrypt(g, msg))!), 'всем');
     },
     skip: node ? false : 'node is not installed',
     timeout: const Timeout(Duration(minutes: 2)),
