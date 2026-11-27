@@ -1467,6 +1467,7 @@
 "chat.attach.gallery": "Photos and videos",
 "chat.avatar.open": "Open photo",
 "chat.attach.videoPreparing": "Preparing the video…",
+"chat.attach.pickMax": "You can send up to {max} photos and videos at once",
 "chat.attach.videoPlay": "Watch the video",
 "chat.requests.block": "Block",
 "chat.requests.sentNote": "Request sent. Your messages wait in their Requests until they reply.",

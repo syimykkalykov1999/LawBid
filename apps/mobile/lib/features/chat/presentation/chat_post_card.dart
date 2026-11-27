@@ -1,9 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lawbid/core/config/app_environment.dart';
+import 'package:lawbid/core/deeplinks/deep_link.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/network/api_error.dart';
+import 'package:lawbid/features/chat/data/link_preview_repository.dart'
+    show firstUrlIn;
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/social/application/social_providers.dart'
+    show postProvider;
+import 'package:lawbid/features/social/domain/social_models.dart' show Post;
 import 'package:lawbid/features/social/presentation/widgets/attorney_tile.dart'
     show nameWithCheck;
 import 'package:lawbid/features/social/social_routes.dart';
@@ -176,3 +184,84 @@ class PostCardBody extends ConsumerWidget {
     );
   }
 }
+
+/// Owner 26.11 (Instagram / the 1:1 chat): the LawBid post a message's
+/// first link points to (`https://<our host>/post/<id>`, read by the app's
+/// own deep-link parser), or null.
+String? lawbidPostIdIn(String body, {required String host}) {
+  final url = firstUrlIn(body);
+  if (url == null) return null;
+  final uri = Uri.tryParse(url);
+  if (uri == null) return null;
+  final link = parseDeepLink(uri, host: host);
+  return link is ContentDeepLink && link.kind == ContentKind.post
+      ? link.id
+      : null;
+}
+
+/// The shared-post card of [p], as the server builds it for a 1:1 chat
+/// (apps/api/src/modules/posts/shared-post-cards.service.ts: the title,
+/// the first 200 characters of the text, the video cover or first photo).
+SharedPostCard sharedPostCardOf(Post p) {
+  final a = p.author;
+  final name = [a.firstName, a.lastName]
+      .whereType<String>()
+      .where((x) => x.trim().isNotEmpty)
+      .join(' ');
+  final text = p.body.trim();
+  final chars = text.characters;
+  final thumb = p.video?.thumbnailUrl ??
+      (p.media.isEmpty ? null : p.media.first.previewUrl);
+  return SharedPostCard(
+    id: p.id,
+    available: true,
+    authorId: a.id,
+    authorName: name.isEmpty ? a.username : name,
+    authorUsername: a.username,
+    authorAvatarUrl: a.avatarUrl,
+    authorVerified: a.verified,
+    title: (p.title?.trim().isEmpty ?? true) ? null : p.title!.trim(),
+    excerpt: text.isEmpty
+        ? null
+        : chars.length > 200
+            ? chars.take(200).toString()
+            : text,
+    thumbnailUrl: (thumb?.isEmpty ?? true) ? null : thumb,
+    isVideo: p.video != null,
+  );
+}
+
+/// Owner 26.11: a message carrying a LawBid post link (a group gets a
+/// shared post as its link) shows the same post card as a post shared into
+/// a 1:1 chat ([PostCardBody]). Nothing is drawn until the post came; a
+/// post deleted or hidden since says so; offline draws nothing.
+class PostLinkCard extends ConsumerWidget {
+  const PostLinkCard({required this.postId, required this.mine, super.key});
+
+  final String postId;
+  final bool mine;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final post = ref.watch(postProvider(postId));
+    final card = switch (post) {
+      AsyncData(:final value) => sharedPostCardOf(value),
+      AsyncError(:final error)
+          when error is ApiException &&
+              (error.statusCode == 404 ||
+                  error.statusCode == 403 ||
+                  error.statusCode == 410) =>
+        SharedPostCard(id: postId, available: false),
+      _ => null,
+    };
+    if (card == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      child: PostCardBody(card: card, mine: mine),
+    );
+  }
+}
+
+/// The host our own links use (`lawbid.dev`).
+String lawbidLinkHost(WidgetRef ref) =>
+    ref.read(appEnvironmentProvider).deepLinkHost;

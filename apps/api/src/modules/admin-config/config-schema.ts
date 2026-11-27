@@ -2715,6 +2715,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
       0,
       2160,
     ],
+    [
+      'media.chat_pick_max',
+      'The most photos / videos one gallery pick takes in a chat, group or case chat (WhatsApp: 100).',
+      2,
+      1000,
+    ],
     ['media.voice_bitrate_kbps', 'Voice note AAC bitrate, kbit/s.', 16, 256],
     [
       'media.voice_sample_rate_hz',
