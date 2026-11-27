@@ -75636,7 +75636,7 @@
             "name": "q",
             "required": true,
             "in": "query",
-            "description": "What the person typed so far. Fewer than 3 letters (after trimming) returns no suggestions without a provider call.",
+            "description": "What the person typed so far. Fewer than 3 letters (2 for kind=place, after trimming) returns no suggestions without a provider call.",
             "schema": {
               "minLength": 0,
               "maxLength": 200,
@@ -75647,9 +75647,9 @@
             "name": "kind",
             "required": false,
             "in": "query",
-            "description": "address (default): street addresses; city: cities only.",
+            "description": "address (default): US street addresses; city: US cities only; place: venues, cities and addresses anywhere (post location).",
             "schema": {
-              "pattern": "^(address|city)$",
+              "pattern": "^(address|city|place)$",
               "type": "string"
             }
           },
@@ -75732,7 +75732,7 @@
             "bearer": []
           }
         ],
-        "summary": "Address suggestions for what the person typed (US only). enabled=false: the field stays plain text.",
+        "summary": "Address / place suggestions for what the person typed (address and city: US only; place: anywhere, in the app language). enabled=false: the field stays plain text.",
         "tags": [
           "addresses"
         ]
@@ -183734,6 +183734,11 @@
             "items": {
               "$ref": "#/components/schemas/AddressSuggestionDto"
             }
+          },
+          "attribution": {
+            "type": "string",
+            "nullable": true,
+            "description": "Data credit the app shows under the list, e.g. \"© OpenStreetMap\" (absent when the provider needs none)."
           }
         },
         "required": [

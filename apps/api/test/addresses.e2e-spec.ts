@@ -128,6 +128,17 @@ describe('Address suggestions (e2e)', () => {
     });
   });
 
+  it('kind=place (post location, 26.11): 2 letters, app language from Accept-Language', async () => {
+    const r = await api()
+      .get('/api/v1/addresses/suggest')
+      .set('Authorization', await auth())
+      .set('Accept-Language', 'fr-FR,fr;q=0.9')
+      .query({ q: 'Re', kind: 'place' })
+      .expect(200);
+    expect(r.body.data.enabled).toBe(true);
+    expect(calls[0]).toMatchObject({ text: 're', kind: 'place', lang: 'fr' });
+  });
+
   it('refuses a bad kind or session (400)', async () => {
     const a = await auth();
     await api()

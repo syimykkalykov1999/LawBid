@@ -545,7 +545,7 @@ const file07Ru = <String, String>{
   'tasks.empty.body':
       'Звонки, встречи, суды, сроки, документы — всё в одном списке по дням.',
   'tasks.view.active': 'Все',
-  'tasks.view.done': 'Архив',
+  'tasks.view.done': 'Завершённые',
   'tasks.today': 'Сегодня',
   'tasks.yesterday': 'Вчера',
   'team.req.ask.post': 'просит опубликовать от вашего имени',

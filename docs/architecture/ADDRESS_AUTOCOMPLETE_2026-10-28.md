@@ -103,6 +103,33 @@ Assumption: one address typed per person every 1–6 months, 3–6 calls each
 
 Ceiling: `addresses.monthly_cap` (default 300 000 calls ≈ $60 on Amazon).
 
+## 4a. Keyless Photon + post location (owner 26.11)
+
+Owner: the «Новая публикация» location field (already an `AddressField`)
+gave no suggestions. Cause: with no `aws_location` region / Google key the
+server answers `enabled=false` and the field is plain text; and Amazon
+Autocomplete has no venues, so an Instagram-style place could not come
+from it anyway.
+
+- New provider `PhotonAddressProvider` (`address-providers.ts`): Photon by
+  komoot, Apache-2.0, OpenStreetMap data (ODbL), built for
+  search-as-you-type, no key. Default endpoint the public instance
+  `https://photon.komoot.io` (policy checked 26.11: «please be fair -
+  extensive usage will be throttled»); `addresses.photon_url` moves it to
+  our own Photon. `cacheable = true` (ODbL allows keeping answers): the
+  existing 7-day Redis cache (`addr:v1:`, key now includes the language)
+  and in-flight dedupe cut calls to the public instance.
+- New kind `place` (`GET /addresses/suggest?kind=place`): venues, cities
+  and addresses worldwide, 2+ letters, in the app language
+  (`Accept-Language`; Photon answers en/de/fr, other languages get local
+  names). Provider `addresses.place_provider` (photon | google).
+  `address` / `city` stay US-only (`countrycode=US`, `layer=city`).
+- A chosen provider without keys falls back to Photon (switch off still
+  means off). The answer carries `attribution` («© OpenStreetMap»); the
+  app shows it under the lines.
+- App: `AddressKind.place` on the post / reel place field; same
+  `AppListRow` lines, the credit in the form hint style.
+
 ## 5. Not verified here
 
 - No real Amazon Location / Google call was made (no IAM applied, no key);

@@ -1,4 +1,5 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import {
@@ -12,10 +13,11 @@ import {
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
 import { AddressSuggestQueryDto, AddressSuggestionsDto } from './addresses.dto';
-import { AddressesService } from './addresses.service';
+import { AddressesService, primaryLanguage } from './addresses.service';
 import { AssistantAllowed } from '../auth/assistant/assistant-context';
 
-/** Owner 2026-10-28: US address suggestions while typing. */
+/** Owner 2026-10-28: US address suggestions while typing; 26.11: any
+ * place for the post location (kind=place). */
 @ApiTags('addresses')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
@@ -28,7 +30,7 @@ export class AddressesController {
   @Throttle({ default: { limit: 90, ttl: 60_000 } })
   @ApiOperation({
     summary:
-      'Address suggestions for what the person typed (US only). enabled=false: the field stays plain text.',
+      'Address / place suggestions for what the person typed (address and city: US only; place: anywhere, in the app language). enabled=false: the field stays plain text.',
   })
   @ApiEnvelopeResponse(AddressSuggestionsDto)
   @ApiErrors({
@@ -38,12 +40,14 @@ export class AddressesController {
   suggestAddresses(
     @CurrentUser() user: RequestUser,
     @Query() q: AddressSuggestQueryDto,
+    @Req() req: Request,
   ): Promise<AddressSuggestionsDto> {
     return this.service.suggest(
       user.sub,
       q.q,
-      q.kind === 'city' ? 'city' : 'address',
+      q.kind === 'city' || q.kind === 'place' ? q.kind : 'address',
       q.session,
+      primaryLanguage(req.header('accept-language')),
     );
   }
 }

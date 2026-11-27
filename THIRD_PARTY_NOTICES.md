@@ -27,3 +27,9 @@ images, assets) with its verdict: [`docs/dev/LICENSE_AUDIT_2026-11-17.md`](docs/
 | `quay.io/minio/minio` (local dev and the hidden self-host stack only) | AGPL-3.0, used unmodified; see the audit |
 | `mailhog/mailhog` (local dev only) | MIT |
 | `public.ecr.aws/aws-observability/aws-otel-collector:v0.51.0` (ADOT collector sidecar, only while `tracing_enabled`; its `tail_sampling` processor is OpenTelemetry Collector contrib, configured as documented) | Apache-2.0, used unmodified |
+
+## Data services (called from our API, no code copied)
+
+| Service | Licence / terms |
+|---|---|
+| Photon geocoder by komoot (`https://photon.komoot.io`, address and place suggestions, `addresses.photon_url`) | Photon software Apache-2.0; public instance fair use («extensive usage will be throttled»). Data © OpenStreetMap contributors, ODbL 1.0: the app shows «© OpenStreetMap» under the suggestions. |

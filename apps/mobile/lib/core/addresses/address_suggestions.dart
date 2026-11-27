@@ -12,10 +12,17 @@ enum AddressKind {
   address('address'),
 
   /// A city only ("Hays, KS"); the field gets the city name.
-  city('city');
+  city('city'),
+
+  /// Any place, anywhere: a venue, a city or an address, like the
+  /// Instagram post location (owner 26.11, «Новая публикация»).
+  place('place');
 
   const AddressKind(this.wire);
   final String wire;
+
+  /// Letters needed before the server is asked (a place: 2, like Instagram).
+  int get minChars => this == AddressKind.place ? 2 : kAddressMinChars;
 }
 
 /// One line under an address field.
@@ -45,8 +52,13 @@ class AddressSuggestion {
 }
 
 /// The answer: `enabled` false = suggestions are off on the server (switch,
-/// no provider key, monthly cap) — the field is plain text.
-typedef AddressSuggestions = ({bool enabled, List<AddressSuggestion> items});
+/// no provider key, monthly cap) — the field is plain text. `attribution` is
+/// the data credit shown under the lines (e.g. «© OpenStreetMap»), or null.
+typedef AddressSuggestions = ({
+  bool enabled,
+  List<AddressSuggestion> items,
+  String? attribution,
+});
 
 /// The app waits this long after the last key stroke (owner 2026-10-28:
 /// ≥ 250 ms) and needs this many letters before asking the server.
@@ -67,8 +79,12 @@ class AddressSuggestionsRepository {
     String? session,
   }) async {
     final q = query.trim();
-    if (q.length < kAddressMinChars) {
-      return (enabled: true, items: const <AddressSuggestion>[]);
+    if (q.length < kind.minChars) {
+      return (
+        enabled: true,
+        items: const <AddressSuggestion>[],
+        attribution: null,
+      );
     }
     try {
       final res = await _client.suggestAddresses(
@@ -76,8 +92,10 @@ class AddressSuggestionsRepository {
         kind: kind == AddressKind.address ? null : kind.wire,
         session: session,
       );
+      final credit = res.data.attribution?.trim();
       return (
         enabled: res.data.enabled,
+        attribution: credit == null || credit.isEmpty ? null : credit,
         items: [
           for (final s in res.data.items)
             if (s.label.trim().isNotEmpty)
@@ -89,7 +107,11 @@ class AddressSuggestionsRepository {
         ],
       );
     } on Object {
-      return (enabled: true, items: const <AddressSuggestion>[]);
+      return (
+        enabled: true,
+        items: const <AddressSuggestion>[],
+        attribution: null,
+      );
     }
   }
 }

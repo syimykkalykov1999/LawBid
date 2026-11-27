@@ -99,6 +99,39 @@ void main() {
   });
 
   test(
+      'the live post gets the photos the phone sent (no download back, no '
+      'flash) before the card gives way to it', () async {
+    final repo = _CreatingRepo()..gate = Completer<Post>();
+    final adopted = <({String postId, List<int?> sizes})>[];
+    final c = ProviderContainer(
+      overrides: [
+        socialRepositoryProvider.overrideWithValue(repo),
+        ...uploadQueueOverrides(fixedOnline: true),
+        postPhotoAdopterProvider.overrideWithValue((post, photos) async {
+          adopted.add(
+            (postId: post.id, sizes: [for (final p in photos) p?.length]),
+          );
+        }),
+      ],
+    );
+    addTearDown(c.dispose);
+    final shown = <int>[];
+    c.listen(pendingPostsProvider, (_, next) => shown.add(next.length));
+    c.read(pendingPostsProvider.notifier).submit(
+      _draft(),
+      photos: [(fileId: 'ready-1', bytes: null, upload: null)],
+      localPhotos: [Uint8List(7)],
+    );
+    await _settle();
+    repo.gate!.complete(fakePost('new-1', mine: true, withPhoto: true));
+    await _until(() => c.read(pendingPostsProvider).isEmpty);
+    expect(adopted, hasLength(1));
+    expect(adopted.single.postId, 'new-1');
+    expect(adopted.single.sizes, [7]);
+    expect(shown.last, 0);
+  });
+
+  test(
       '«Publish» while a photo still uploads: the post waits for it, the '
       'photo is not sent twice', () async {
     final repo = _CreatingRepo();

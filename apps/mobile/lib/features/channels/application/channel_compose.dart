@@ -5,9 +5,11 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:lawbid/core/diagnostics/perf_marks.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/features/channels/application/channels_providers.dart';
+import 'package:lawbid/features/channels/data/channels_repository.dart';
 import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/reels/application/video_limits.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
@@ -115,6 +117,32 @@ class ChannelComposeState {
       );
 }
 
+/// Owner 26.11 (Instagram «upload while you edit», as R-396 does for reels):
+/// the picked video compresses and goes to Bunny while the text is still
+/// being written; «Publish» then only waits for what is left (and for
+/// Bunny to make it playable). Replacing or removing the video, or leaving
+/// the composer, stops it and deletes what had gone up.
+class _EarlyVideo {
+  _EarlyVideo(this.draft);
+
+  final ChannelVideoDraft draft;
+  final cancel = CancelToken();
+  VideoCompressor? compressor;
+  late final Future<ChannelVideoUpload> uploaded;
+  String? assetId;
+  bool done = false;
+
+  ChannelComposePhase phase = ChannelComposePhase.compressing;
+  double progress = 0;
+  void Function(ChannelComposePhase phase, double progress)? onStep;
+
+  void step(ChannelComposePhase p, double v) {
+    phase = p;
+    progress = v;
+    onStep?.call(p, v);
+  }
+}
+
 /// Owner 2026-10-20: writing a channel post — photos (up to the admin's
 /// limit) OR one video, text up to 4000. Photos upload as soon as they are
 /// added; a video is compressed, sent to Bunny over TUS, then waited for
@@ -129,11 +157,89 @@ class ChannelCompose extends Notifier<ChannelComposeState> {
   CancelToken? _cancel;
   VideoCompressor? _compressor;
 
+  /// The picked video's early upload ([_EarlyVideo]), and the one a
+  /// running [publish] took over.
+  _EarlyVideo? _early;
+  _EarlyVideo? _claimed;
+
+  /// Whether the picked video was already on Bunny at the last «Publish»
+  /// (tests; the debug timing mark says the same).
+  bool? lastPublishHadVideo;
+
   @override
   ChannelComposeState build() {
-    ref.onDispose(() => _cancel?.cancel());
+    // Read now: no `ref` in the dispose callback.
+    final repo = ref.read(channelsRepositoryProvider);
+    ref.onDispose(() {
+      _cancel?.cancel();
+      final e = _early;
+      _early = null;
+      if (e != null) _drop(e, repo);
+    });
     return const ChannelComposeState();
   }
+
+  void _startEarly(ChannelVideoDraft v) {
+    final repo = ref.read(channelsRepositoryProvider);
+    final e = _early = _EarlyVideo(v);
+    e.uploaded = () async {
+      final file = await _compressed(
+        v,
+        (p) => e.step(ChannelComposePhase.compressing, p),
+        (c) => e.compressor = c,
+      );
+      if (e.cancel.isCancelled) {
+        throw DioException.requestCancelled(
+          requestOptions: RequestOptions(),
+          reason: 'dropped',
+        );
+      }
+      e.step(ChannelComposePhase.uploading, 0);
+      final upload = await repo.createVideoUpload(
+        sizeBytes: await file.length(),
+        durationSec: v.durationSec,
+      );
+      e.assetId = upload.videoAssetId;
+      if (e.cancel.isCancelled) {
+        _cancelAsset(repo, upload.videoAssetId);
+        throw DioException.requestCancelled(
+          requestOptions: RequestOptions(),
+          reason: 'dropped',
+        );
+      }
+      await repo.uploadVideo(
+        file,
+        upload,
+        cancel: e.cancel,
+        parallel: ref
+            .read(featureFlagsControllerProvider)
+            .isEnabled('reels_tus_parallel'),
+        onProgress: (p) => e.step(ChannelComposePhase.uploading, p),
+      );
+      e.done = true;
+      return upload;
+    }();
+    // A failure is handled at «Publish» (it uploads again then).
+    e.uploaded.ignore();
+  }
+
+  void _dropEarly() {
+    final e = _early;
+    _early = null;
+    if (e != null) _drop(e, ref.read(channelsRepositoryProvider));
+  }
+
+  static void _drop(_EarlyVideo e, ChannelsRepository repo) {
+    e
+      ..onStep = null
+      ..cancel.cancel();
+    e.compressor?.cancel().ignore();
+    final asset = e.assetId;
+    if (asset != null) _cancelAsset(repo, asset);
+  }
+
+  static void _cancelAsset(ChannelsRepository repo, String id) =>
+      unawaited(repo.cancelVideo(id).then((_) {}, onError: (_) {}));
 
   /// Adds what fits under [max]; returns how many were left out.
   int addPhotos(List<Uint8List> picked, {required int max}) {
@@ -186,11 +292,14 @@ class ChannelCompose extends Notifier<ChannelComposeState> {
 
   void setVideo(ChannelVideoDraft v) {
     if (state.photos.isNotEmpty || state.busy) return;
+    _dropEarly();
     state = state.copyWith(video: v, clearError: true);
+    _startEarly(v);
   }
 
   void removeVideo() {
     if (state.busy) return;
+    _dropEarly();
     state = state.copyWith(clearVideo: true, clearError: true);
   }
 
@@ -216,25 +325,63 @@ class ChannelCompose extends Notifier<ChannelComposeState> {
     var posted = false;
     _cancel = CancelToken();
     state = state.copyWith(clearError: true);
+    final early = _early;
+    _early = null;
+    final mine = early != null && identical(early.draft, video);
+    lastPublishHadVideo = mine && early.done;
+    PerfMarks.publishTap(
+      'channel',
+      mediaReady: video == null ? state.photosReady : mine && early.done,
+    );
+    if (early != null && !mine) _drop(early, repo);
     try {
       if (video != null) {
-        final file = await _compressed(video);
-        if (_cancel?.isCancelled ?? true) return null;
-        _set(ChannelComposePhase.uploading);
-        final upload = await repo.createVideoUpload(
-          sizeBytes: await file.length(),
-          durationSec: video.durationSec,
-        );
+        ChannelVideoUpload? upload;
+        if (mine) {
+          // Picked up where the early upload is.
+          _cancel = early.cancel;
+          _claimed = early;
+          if (!early.done) _set(early.phase, early.progress);
+          early.onStep = _set;
+          try {
+            upload = await early.uploaded;
+          } on DioException catch (e) {
+            if (CancelToken.isCancel(e)) rethrow;
+          } on Object {
+            // Sent again below.
+          } finally {
+            early.onStep = null;
+            _claimed = null;
+          }
+          if (upload == null && early.assetId != null) {
+            _cancelAsset(repo, early.assetId!);
+          }
+          if (_cancel!.isCancelled) return null;
+        }
+        if (upload == null) {
+          final file = await _compressed(
+            video,
+            (p) => _set(ChannelComposePhase.compressing, p),
+            (c) => _compressor = c,
+          );
+          if (_cancel?.isCancelled ?? true) return null;
+          _set(ChannelComposePhase.uploading);
+          upload = await repo.createVideoUpload(
+            sizeBytes: await file.length(),
+            durationSec: video.durationSec,
+          );
+          assetId = upload.videoAssetId;
+          await repo.uploadVideo(
+            file,
+            upload,
+            cancel: _cancel,
+            parallel: ref
+                .read(featureFlagsControllerProvider)
+                .isEnabled('reels_tus_parallel'),
+            onProgress: (v) => _set(ChannelComposePhase.uploading, v),
+          );
+        }
         assetId = upload.videoAssetId;
-        await repo.uploadVideo(
-          file,
-          upload,
-          cancel: _cancel,
-          parallel: ref
-              .read(featureFlagsControllerProvider)
-              .isEnabled('reels_tus_parallel'),
-          onProgress: (v) => _set(ChannelComposePhase.uploading, v),
-        );
         _set(ChannelComposePhase.processing, 1);
         await _waitReady(upload.videoAssetId);
       }
@@ -293,7 +440,11 @@ class ChannelCompose extends Notifier<ChannelComposeState> {
     }
   }
 
-  Future<XFile> _compressed(ChannelVideoDraft v) async {
+  Future<XFile> _compressed(
+    ChannelVideoDraft v,
+    void Function(double progress) onProgress,
+    void Function(VideoCompressor c) running,
+  ) async {
     // Owner 2026-11-08: the browser re-encodes too (WebCodecs).
     final flags = ref.read(featureFlagsControllerProvider);
     final limits = videoLimitsOf(flags);
@@ -307,13 +458,13 @@ class ChannelCompose extends Notifier<ChannelComposeState> {
       maxBytes: videoMaxBytesOf(flags),
     );
     if (!need) return v.file;
-    _set(ChannelComposePhase.compressing);
+    onProgress(0);
     final compressor = ref.read(videoCompressorProvider);
-    _compressor = compressor;
+    running(compressor);
     final out = await compressor.compress(
       v.file,
       limits: limits,
-      onProgress: (p) => _set(ChannelComposePhase.compressing, p),
+      onProgress: onProgress,
     );
     return out ?? v.file;
   }
@@ -322,6 +473,9 @@ class ChannelCompose extends Notifier<ChannelComposeState> {
   void cancel() {
     _cancel?.cancel();
     _compressor?.cancel().ignore();
+    final claimed = _claimed;
+    _claimed = null;
+    if (claimed != null) _drop(claimed, ref.read(channelsRepositoryProvider));
     if (ref.mounted) {
       state = state.copyWith(phase: ChannelComposePhase.idle, progress: 0);
     }
