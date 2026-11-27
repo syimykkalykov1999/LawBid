@@ -1,0 +1,41 @@
+--- a/dist/src/createCommit.js
++++ b/dist/src/createCommit.js
+@@ -21,6 +21,8 @@
+ import { defaultClientConfig } from "./clientConfig.js";
+ import { extensionsSupportedByCapabilities } from "./extension.js";
+ import { encode } from "./codec/tlsEncoder.js";
++// LawBid: backport of LukaJCB/ts-mls#449 (external_pub is HPKEPublicKey<V>, RFC 9420 §12.4.3.2).
++import { decodeVarLenData, varLenDataEncoder } from "./codec/variableLength.js";
+ /** @public */
+ export async function createCommit(context, options) {
+     const { state, pskIndex = makePskIndex(state, {}), cipherSuite } = context;
+@@ -141,7 +143,7 @@
+ export async function createGroupInfoWithExternalPub(state, extensions, cs) {
+     const externalKeyPair = await cs.hpke.deriveKeyPair(state.keySchedule.externalSecret);
+     const externalPub = await cs.hpke.exportPublicKey(externalKeyPair.publicKey);
+-    const gi = await createGroupInfo(state.groupContext, state.confirmationTag, state, [...extensions, { extensionType: "external_pub", extensionData: externalPub }], cs);
++    const gi = await createGroupInfo(state.groupContext, state.confirmationTag, state, [...extensions, { extensionType: "external_pub", extensionData: encode(varLenDataEncoder)(externalPub) }], cs);
+     return gi;
+ }
+ /** @public */
+@@ -151,7 +153,7 @@
+     const externalPub = await cs.hpke.exportPublicKey(externalKeyPair.publicKey);
+     const gi = await createGroupInfo(state.groupContext, state.confirmationTag, state, [
+         ...extensions,
+-        { extensionType: "external_pub", extensionData: externalPub },
++        { extensionType: "external_pub", extensionData: encode(varLenDataEncoder)(externalPub) },
+         { extensionType: "ratchet_tree", extensionData: encodedTree },
+     ], cs);
+     return gi;
+@@ -196,7 +198,10 @@
+     const allExtensionsSupported = extensionsSupportedByCapabilities(groupInfo.groupContext.extensions, keyPackage.leafNode.capabilities);
+     if (!allExtensionsSupported)
+         throw new UsageError("client does not support every extension in the GroupContext");
+-    const { enc, secret: initSecret } = await exportSecret(externalPub.extensionData, cs);
++    const externalPubKey = decodeVarLenData(externalPub.extensionData, 0)?.[0];
++    if (externalPubKey === undefined)
++        throw new UsageError("Could not decode external_pub extension");
++    const { enc, secret: initSecret } = await exportSecret(externalPubKey, cs);
+     const ratchetTree = ratchetTreeFromExtension(groupInfo) ?? tree;
+     if (ratchetTree === undefined)
+         throw new UsageError("No RatchetTree passed and no ratchet_tree extension");
