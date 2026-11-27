@@ -315,6 +315,9 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final c = widget.conversation;
     final repo = ref.read(chatRepositoryProvider);
+    // Owner 26.11 (Telegram, WhatsApp): the list behind this menu changes at
+    // once; a refusal puts it back (ChatListsHub).
+    final lists = ref.read(chatListsHubProvider);
     final compact = widget.compact;
     return Padding(
       padding: compact
@@ -342,7 +345,11 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
               onTap: _busy
                   ? null
                   : () => _run(
-                        () => repo.organize(c.id, pinned: !c.pinned),
+                        () => lists.run(
+                          c.id,
+                          change: (x) => x.withMine(pinned: !c.pinned),
+                          call: () => repo.organize(c.id, pinned: !c.pinned),
+                        ),
                         done: c.pinned
                             ? 'chat.organize.unpinned'
                             : 'chat.organize.pinned',
@@ -379,10 +386,16 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                         if (pick == null || !mounted) return;
                         span = muteDuration(pick);
                       }
+                      final until =
+                          span == null ? null : DateTime.now().add(span);
                       await _run(
-                        () => repo.mute(
+                        () => lists.run(
                           c.id,
-                          span == null ? null : DateTime.now().add(span),
+                          change: (x) => x.withMine(
+                            mutedUntil: until,
+                            unmute: until == null,
+                          ),
+                          call: () => repo.mute(c.id, until),
                         ),
                         done: span == null
                             ? 'chat.select.unmuted'
@@ -411,7 +424,13 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                 label: t.t('chat.markUnread'),
                 onTap: _busy
                     ? null
-                    : () => _run(() => repo.organize(c.id, unread: true)),
+                    : () => _run(
+                          () => lists.run(
+                            c.id,
+                            change: (x) => x.withActivity(markedUnread: true),
+                            call: () => repo.organize(c.id, unread: true),
+                          ),
+                        ),
               ),
             AppListRow(
               key: const ValueKey('organize-archive'),
@@ -424,7 +443,12 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
               onTap: _busy
                   ? null
                   : () => _run(
-                        () => repo.organize(c.id, archived: !widget.inArchive),
+                        () => lists.run(
+                          c.id,
+                          leaves: true,
+                          call: () =>
+                              repo.organize(c.id, archived: !widget.inArchive),
+                        ),
                         done: widget.inArchive
                             ? 'chat.unarchive'
                             : 'tasks.bulk.archive',
@@ -448,7 +472,11 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                       );
                       if (!ok || !mounted) return;
                       await _run(
-                        () => repo.organize(c.id, hidden: true),
+                        () => lists.run(
+                          c.id,
+                          leaves: true,
+                          call: () => repo.organize(c.id, hidden: true),
+                        ),
                         done: 'chat.select.deleted',
                         undoArchived: false,
                       );

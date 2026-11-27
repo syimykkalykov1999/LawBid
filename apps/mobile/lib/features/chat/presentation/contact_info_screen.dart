@@ -205,8 +205,17 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
 
   Future<void> _pin(Conversation c) async {
     final t = ref.read(translatorProvider);
+    // Owner 26.11 (Telegram, WhatsApp): the pin shows here and in the lists
+    // at once; a refusal puts both back.
+    final thread = _thread..showMine(c.withMine(pinned: !c.pinned));
     try {
-      await ref.read(chatRepositoryProvider).organize(c.id, pinned: !c.pinned);
+      await ref.read(chatListsHubProvider).run(
+            c.id,
+            change: (x) => x.withMine(pinned: !c.pinned),
+            call: () => ref
+                .read(chatRepositoryProvider)
+                .organize(c.id, pinned: !c.pinned),
+          );
       refreshChatFolders(ref);
       unawaited(_thread.refreshConversation());
       if (mounted) {
@@ -216,6 +225,7 @@ class _ContactInfoScreenState extends ConsumerState<ContactInfoScreen> {
         );
       }
     } on Object catch (e) {
+      thread.showMine(c);
       if (mounted) showAppSnackBar(context, errorText(t, e));
     }
   }

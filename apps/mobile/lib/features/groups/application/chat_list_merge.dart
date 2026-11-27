@@ -502,6 +502,10 @@ void retryChatListMore(WidgetRef ref, {ChatSearchKey? search}) {
 /// The generated client cannot send `mutedUntil: null` (null fields are
 /// dropped), so «unmute» sends a moment in the past, which the server
 /// stores and every reader treats as «not muted» ([isGroupMuted]).
+///
+/// Owner 26.11 (Telegram, WhatsApp): the chats list shows the change at
+/// once (the row moves, gets its mark, or leaves); a refusal puts the list
+/// back as it was and the error goes to the caller's snackbar.
 Future<void> updateMyGroup(
   WidgetRef ref,
   String id, {
@@ -512,21 +516,46 @@ Future<void> updateMyGroup(
   bool? archived,
 }) async {
   final now = DateTime.now();
-  final updated = await ref.read(groupRepositoryProvider).updateMine(
-        id,
-        api.UpdateGroupMeDto(
-          pinned: pinned,
-          hidden: hidden,
-          archived: archived,
-          mutedUntil: mutedFor != null
-              ? now.add(mutedFor)
-              : muted == null
-                  ? null
-                  : muted
-                      ? now.add(kMuteForever)
-                      : now.subtract(const Duration(seconds: 1)),
-        ),
-      );
+  final mutedUntil = mutedFor != null
+      ? now.add(mutedFor)
+      : muted == null
+          ? null
+          : muted
+              ? now.add(kMuteForever)
+              : now.subtract(const Duration(seconds: 1));
+  final list = ref.read(groupsProvider.notifier);
+  final before = ref.read(groupsProvider).value?.items;
+  final held = before?.where((g) => g.id == id).firstOrNull;
+  if ((hidden ?? false) || archived != null) {
+    list.removeWhere((g) => g.id == id);
+  } else if (held != null) {
+    list.applyMine(
+      api.GroupDto.fromJson({
+        ...held.toJson(),
+        if (pinned != null) 'pinned': pinned,
+        if (mutedUntil != null) 'mutedUntil': mutedUntil.toIso8601String(),
+      }),
+    );
+  }
+  final api.GroupDto updated;
+  try {
+    updated = await ref.read(groupRepositoryProvider).updateMine(
+          id,
+          api.UpdateGroupMeDto(
+            pinned: pinned,
+            hidden: hidden,
+            archived: archived,
+            mutedUntil: mutedUntil,
+          ),
+        );
+  } on Object {
+    try {
+      if (before != null) list.setItems(before);
+    } on Object {
+      // The list is gone; the next open reads it again.
+    }
+    rethrow;
+  }
   // The write is done: updating the lists is best-effort, never an error.
   try {
     if (!ref.context.mounted) return;

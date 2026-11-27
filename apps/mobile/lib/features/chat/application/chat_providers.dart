@@ -176,11 +176,15 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
     // socket gap (`updatedSince`) or for a chat this list does not hold.
     final sub = ref.watch(realtimeEventsProvider).listen(_onEvent);
     final local = ref.watch(localChatEventsProvider).stream.listen(_onEvent);
+    // Owner 26.11: my own pin / mute / archive / delete reaches this list
+    // at once (ChatListsHub).
+    final hub = ref.read(chatListsHubProvider).._lists.add(this);
     ref.onDispose(() {
       sub.cancel();
       local.cancel();
       _debounce?.cancel();
       _pullTimer?.cancel();
+      hub._lists.remove(this);
     });
     return super.build();
   }
@@ -240,6 +244,13 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
           _catchUp(since);
         }
     }
+  }
+
+  /// The rows on screen now (null: none yet, or this list is gone).
+  List<Conversation>? _heldRows() => ref.mounted ? state.value?.items : null;
+
+  void _putRows(List<Conversation> rows) {
+    if (ref.mounted) setItems(rows);
   }
 
   /// Applies [change] to the rows held; false when it did not find the
@@ -325,6 +336,50 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
   @override
   Object idOf(Conversation item) => item.id;
 }
+
+/// Owner 26.11 (Telegram, WhatsApp): every chat list on screen (the inbox,
+/// its folders, the Archive, a search), so my own pin / mute / archive /
+/// delete of a chat shows in all of them at once, before the server
+/// answers; a refusal puts every list back as it was. The request and what
+/// follows it (the answer, the lists' re-read) stay the caller's.
+class ChatListsHub {
+  final _lists = <ConversationsNotifier>{};
+
+  /// Applies my change of chat [id] to every list, then runs [call] (the
+  /// one request). [change] gives the new row (a pin, a mute); [leaves]
+  /// takes the row out (archive, unarchive, delete). Throws what [call]
+  /// threw, after the lists are back.
+  Future<T> run<T>(
+    String id, {
+    required Future<T> Function() call,
+    Conversation Function(Conversation c)? change,
+    bool leaves = false,
+  }) async {
+    final before = <ConversationsNotifier, List<Conversation>>{
+      for (final l in [..._lists])
+        if (l._heldRows() case final rows?) l: rows,
+    };
+    for (final l in before.keys) {
+      l._edit((items) {
+        final i = items.indexWhere((c) => c.id == id);
+        if (i < 0) return items;
+        if (leaves) return [...items]..removeAt(i);
+        if (change == null) return items;
+        return sortedConversations([...items]..[i] = change(items[i]));
+      });
+    }
+    try {
+      return await call();
+    } on Object {
+      for (final MapEntry(key: l, value: rows) in before.entries) {
+        if (_lists.contains(l)) l._putRows(rows);
+      }
+      rethrow;
+    }
+  }
+}
+
+final chatListsHubProvider = Provider<ChatListsHub>((ref) => ChatListsHub());
 
 final conversationsProvider = AsyncNotifierProvider.autoDispose<
     ConversationsNotifier, PaginatedList<Conversation>>(
@@ -1948,27 +2003,39 @@ class ChatThread extends Notifier<ChatThreadState> {
   }
 
   // ignore: avoid_positional_boolean_parameters
-  Future<void> setMuted(bool muted) async {
-    final updated = await _repo.mute(
-      id,
-      muted ? DateTime.now().add(kMuteForever) : null,
-    );
+  Future<void> setMuted(bool muted) =>
+      setMutedUntil(muted ? DateTime.now().add(kMuteForever) : null);
+
+  /// Owner 2026-10-21 (WhatsApp): mute for an hour, 8 hours, a week, always.
+  /// Owner 26.11 (Telegram, WhatsApp): the mark shows here and in the lists
+  /// at once; a refusal puts both back (ChatListsHub).
+  Future<void> setMutedUntil(DateTime? until) async {
+    final before = state.conversation;
+    if (before != null) {
+      showMine(before.withMine(mutedUntil: until, unmute: until == null));
+    }
+    final Conversation updated;
+    try {
+      updated = await ref.read(chatListsHubProvider).run(
+            id,
+            change: (x) => x.withMine(mutedUntil: until, unmute: until == null),
+            call: () => _repo.mute(id, until),
+          );
+    } on Object {
+      if (before != null) showMine(before);
+      rethrow;
+    }
     if (!ref.mounted) return;
     state = state.copyWith(conversation: updated);
-    // Audit 2026-10-04: the lists show the mute mark at once.
     ref
       ..invalidate(conversationsProvider)
       ..invalidate(folderConversationsProvider);
   }
 
-  /// Owner 2026-10-21 (WhatsApp): mute for an hour, 8 hours, a week, always.
-  Future<void> setMutedUntil(DateTime? until) async {
-    final updated = await _repo.mute(id, until);
-    if (!ref.mounted) return;
-    state = state.copyWith(conversation: updated);
-    ref
-      ..invalidate(conversationsProvider)
-      ..invalidate(folderConversationsProvider);
+  /// Owner 26.11: my own change of this chat (a pin, a mute) shown before
+  /// the server's answer, or put back after a refusal.
+  void showMine(Conversation c) {
+    if (ref.mounted) state = state.copyWith(conversation: c);
   }
 
   // ignore: avoid_positional_boolean_parameters
