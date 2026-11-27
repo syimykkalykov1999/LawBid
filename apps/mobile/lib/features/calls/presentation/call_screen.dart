@@ -1383,6 +1383,9 @@ String callStatusText(Translator t, CallSession s, {DateTime? now}) {
         case 'CONVERSATION_CLOSED':
         case 'CALL_STATE_CONFLICT':
         case 'CALL_NOT_FOUND':
+        // 26.11 (call spam): too many call starts, or too many unanswered
+        // rings in a row to this person — «Too many attempts…».
+        case 'RATE_LIMITED':
           return t.t('error.api.${s.errorCode}');
       }
       final outcome = s.outcome ?? CallStatus.ended;

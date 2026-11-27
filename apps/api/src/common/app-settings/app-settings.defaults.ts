@@ -1496,6 +1496,16 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
    * per address: many phones share a carrier / office address). A phone
    * asks about 8 times a minute. 0 = no limit. */
   'calls.ring_status_rate_limit_per_minute': 60,
+  /** 26.11 (call spam, like WhatsApp's «4 unanswered calls in a row»
+   * rule): 1:1 calls one person may start per minute / per day (0 = no
+   * limit), and after this many unanswered rings in a row to the same
+   * person (missed, declined or canceled, no call back, nothing answered)
+   * the next ring to them waits the cooldown (0 = off). Admins are never
+   * capped. */
+  'calls.start_rate_limit_per_minute': 15,
+  'calls.start_rate_limit_per_day': 300,
+  'calls.unanswered_in_row_limit': 5,
+  'calls.unanswered_cooldown_minutes': 60,
   /** Owner 2026-10-22: guest browsing (reading with no account). Kill
    * switch and the per-IP budgets of token-less reads. */
   'guest.browsing_enabled': true,
@@ -2150,6 +2160,11 @@ export const OWNER_OPS_SETTINGS = {
    * running; off = never (stopped at once when no call runs). Only counts
    * when the box exists (TURN_ONDEMAND_INSTANCE_ID). */
   'calls.own_turn.mode': 'auto',
+  /** 26.11: our own TURN is also offered as TURN over TCP on port 443
+   * (`turn:<host>:443?transport=tcp`) for networks that let only 443 out
+   * (offices, hotels), like Cloudflare's list. The box forwards 443 to
+   * coturn's 3478 (infra/modules/turn). Off = 3478 only, as before. */
+  'calls.own_turn.port_443': true,
   /** This month's AWS bill when AWS Budgets cannot be read (≈ $150 for
    * the launch size). */
   'economy.aws_fallback_usd': 150,
