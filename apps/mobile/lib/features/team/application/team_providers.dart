@@ -298,6 +298,20 @@ class TasksHub {
     }
   }
 
+  /// What every list shows now — taken before a change made on this phone
+  /// ahead of the server's answer, put back by [restore] on a refusal.
+  Map<TasksController, List<TaskItem>> snapshot() => {
+        for (final c in _lists)
+          if (c._rows() case final rows?) c: rows,
+      };
+
+  /// A refused change: every list shows what it showed before it.
+  void restore(Map<TasksController, List<TaskItem>> before) {
+    for (final MapEntry(key: c, value: rows) in before.entries) {
+      if (_lists.contains(c)) c._putRows(rows);
+    }
+  }
+
   /// Something changed that the phone cannot place (a bulk action, a new
   /// task from another screen): one small request per live list.
   void catchUp() {
@@ -449,6 +463,12 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
     );
   }
 
+  List<TaskItem>? _rows() => ref.mounted ? state.value : null;
+
+  void _putRows(List<TaskItem> rows) {
+    if (ref.mounted) state = AsyncData(rows);
+  }
+
   void dropTask(String id) {
     final current = state.value;
     if (!ref.mounted || current == null) return;
@@ -459,8 +479,12 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
     ]);
   }
 
-  /// Applies a status change; a failure keeps the row. The answered copy
-  /// goes into every list (it may move to the other view).
+  /// Applies a status change. Owner 26.11 (Apple Reminders, Todoist): the
+  /// checkmark moves the row at once in every list, before the server's
+  /// answer; a refusal puts every list back as it was (then a stale one is
+  /// re-read, see [whenStaleRefetch]). The answered copy then goes into
+  /// every list (it may move to the other view). A move to another time
+  /// waits for the answer (the new time is the server's).
   Future<TaskItem> setStatus(
     TaskItem task,
     TaskStatus status, {
@@ -468,19 +492,29 @@ class TasksController extends AsyncNotifier<List<TaskItem>> {
     DateTime? rescheduleTo,
   }) async {
     final repo = ref.read(teamRepositoryProvider);
+    final hub = ref.read(tasksHubProvider);
+    final before = rescheduleTo == null ? hub.snapshot() : null;
+    if (before != null) hub.apply(task.withStatus(status));
     final updated = await whenStaleRefetch(
       repo,
-      ref.read(tasksHubProvider),
+      hub,
       task.id,
-      () => repo.setTaskStatus(
-        task.id,
-        status,
-        note: note,
-        rescheduleTo: rescheduleTo,
-        version: task.version,
-      ),
+      () async {
+        try {
+          return await repo.setTaskStatus(
+            task.id,
+            status,
+            note: note,
+            rescheduleTo: rescheduleTo,
+            version: task.version,
+          );
+        } on Object {
+          if (before != null) hub.restore(before);
+          rethrow;
+        }
+      },
     );
-    ref.read(tasksHubProvider).apply(updated);
+    hub.apply(updated);
     return updated;
   }
 

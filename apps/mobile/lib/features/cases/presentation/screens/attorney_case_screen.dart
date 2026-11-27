@@ -70,6 +70,11 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
   bool _messaging = false;
   bool? _savedOverride;
   bool _openedWork = false;
+
+  /// Owner 26.11: «Отозвать» / «Бид в силе» is on its way (its key) — the
+  /// pressed button spins, the other waits (a bid change is
+  /// server-confirmed, a second tap sends nothing).
+  String? _bidBusy;
   final CaseSectionsBar _sections = CaseSectionsBar();
 
   @override
@@ -151,23 +156,30 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
       confirmLabel: t.t('cases.withdraw.confirm'),
       destructive: true,
     );
-    if (!ok || !mounted) return;
+    if (!ok || !mounted || _bidBusy != null) return;
+    setState(() => _bidBusy = 'withdraw');
     try {
       await ref.read(caseActionsProvider).withdraw(bid);
       if (mounted) showAppSnackBar(context, t.t('cases.withdraw.done'));
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
+    } finally {
+      if (mounted) setState(() => _bidBusy = null);
     }
   }
 
   /// Owner 2026-11-05: «Бид в силе».
   Future<void> _confirmBid(CaseBid bid) async {
+    if (_bidBusy != null) return;
     final t = ref.read(translatorProvider);
+    setState(() => _bidBusy = 'keep');
     try {
       await ref.read(caseActionsProvider).confirmBid(bid);
       if (mounted) showAppSnackBar(context, t.t('cases.changes.keep'));
     } on Object catch (e) {
       if (mounted) showAppSnackBar(context, errorText(t, e));
+    } finally {
+      if (mounted) setState(() => _bidBusy = null);
     }
   }
 
@@ -240,6 +252,7 @@ class _AttorneyCaseScreenState extends ConsumerState<AttorneyCaseScreen> {
             sections: _sections,
             onWithdraw: _withdraw,
             onConfirm: _confirmBid,
+            bidBusy: _bidBusy,
           ),
         ),
       ),
@@ -316,11 +329,15 @@ class _Body extends ConsumerStatefulWidget {
     required this.sections,
     required this.onWithdraw,
     required this.onConfirm,
+    this.bidBusy,
   });
 
   final CaseSectionsBar sections;
   final ValueChanged<CaseBid> onWithdraw;
   final ValueChanged<CaseBid> onConfirm;
+
+  /// A withdraw (`withdraw`) / keep (`keep`) of my bid is on its way.
+  final String? bidBusy;
   final FeedCase kase;
   final Translator t;
   final L10nFormats formats;
@@ -678,7 +695,9 @@ class _BodyState extends ConsumerState<_Body> {
             child: AppButton(
               key: const ValueKey('case-bid-keep'),
               label: t.t('cases.changes.keep'),
-              onPressed: () => widget.onConfirm(bid),
+              isLoading: widget.bidBusy == 'keep',
+              onPressed:
+                  widget.bidBusy != null ? null : () => widget.onConfirm(bid),
             ),
           ),
         // Without a change of the case, only on the attorney's turn.
@@ -705,7 +724,9 @@ class _BodyState extends ConsumerState<_Body> {
             key: const ValueKey('case-withdraw'),
             label: t.t('cases.withdraw.bid'),
             variant: AppButtonVariant.secondary,
-            onPressed: () => widget.onWithdraw(bid),
+            isLoading: widget.bidBusy == 'withdraw',
+            onPressed:
+                widget.bidBusy != null ? null : () => widget.onWithdraw(bid),
           ),
         ),
       ],
