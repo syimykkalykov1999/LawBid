@@ -30,7 +30,7 @@ import 'package:lawbid/features/chat/application/chat_thread_memory.dart'
     show CachedMessageStore, ThreadMemory;
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart'
-    show ChatAttachment, VoiceNote;
+    show ChatAttachment, SentMediaShapes, VoiceNote;
 import 'package:lawbid/features/groups/application/group_media_outbox.dart';
 import 'package:lawbid/features/groups/data/group_list_cache.dart';
 import 'package:lawbid/features/groups/data/group_repository.dart';
@@ -1645,6 +1645,15 @@ class GroupThread extends Notifier<GroupThreadState> {
     if (!ref.mounted) return;
     final live = {for (final j in jobs) j.id};
     _voicePaths.removeWhere((k, _) => !live.contains(k));
+    // Owner 27.11 (Telegram keeps showing the sent file): a sent photo's
+    // picture stays the phone's own until the server's copy has loaded.
+    for (final j in _mediaJobs) {
+      final b = _previewBytes[j.id];
+      final f = j.fileId;
+      if (!live.contains(j.id) && b != null && f != null) {
+        SentMediaShapes.keepBytes(f, b);
+      }
+    }
     _previewBytes.removeWhere((k, _) => !live.contains(k));
     _progress.removeWhere((k, _) => !live.contains(k));
     _mediaJobs = jobs;

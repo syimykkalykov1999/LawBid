@@ -60,8 +60,10 @@ ChatAttachment groupChatAttachment(api.ChatAttachmentDto a) => ChatAttachment(
       sizeBytes: a.sizeBytes,
       url: a.url,
       previewUrl: a.previewUrl,
-      width: a.width,
-      height: a.height,
+      // Owner 27.11: my own photo keeps its picked shape until the server's
+      // check writes its own (the bubble never jumps).
+      width: a.width ?? SentMediaShapes.of(a.fileId)?.width,
+      height: a.height ?? SentMediaShapes.of(a.fileId)?.height,
       blurhash: a.blurhash,
       removed: a.state == api.ChatMediaState.removed,
     );

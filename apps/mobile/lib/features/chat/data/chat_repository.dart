@@ -82,6 +82,11 @@ abstract interface class ChatRepository {
 
   /// Catch-up after a reconnect (§8.5), oldest first.
   Future<List<ChatMessage>> messagesAfter(String id, String afterId);
+
+  /// Owner 27.11 (Telegram's FILE_REFERENCE_EXPIRED → getMessages): the
+  /// newest page again only for its fresh media links; the phone's copy
+  /// takes them, its paging cursor stays.
+  Future<List<ChatMessage>> freshLinks(String id);
   Future<ChatMessage> send(
     String id,
     String clientMessageId,
@@ -649,6 +654,14 @@ class ApiChatRepository implements ChatRepository {
   }
 
   @override
+  Future<List<ChatMessage>> freshLinks(String id) async {
+    final env = await guardApiCall(() => _chat.listMessages(id: id));
+    final data = await _open(env.data);
+    unawaited(messageStore?.put(id, data) ?? Future.value());
+    return data.map(ChatMappers.message).toList();
+  }
+
+  @override
   Future<List<ChatMessage>> messagesAfter(String id, String afterId) async {
     final env = await guardApiCall(
       () => _chat.listMessages(id: id, afterId: afterId),
@@ -1046,8 +1059,10 @@ abstract final class ChatMappers {
                 sizeBytes: d.attachment!.sizeBytes,
                 url: d.attachment!.url,
                 previewUrl: d.attachment!.previewUrl,
-                width: d.attachment!.width,
-                height: d.attachment!.height,
+                width: d.attachment!.width ??
+                    SentMediaShapes.of(d.attachment!.fileId)?.width,
+                height: d.attachment!.height ??
+                    SentMediaShapes.of(d.attachment!.fileId)?.height,
                 blurhash: d.attachment!.blurhash,
                 removed: d.attachment!.state == api.ChatMediaState.removed,
               ),

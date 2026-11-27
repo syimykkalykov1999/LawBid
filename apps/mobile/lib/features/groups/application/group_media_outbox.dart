@@ -49,6 +49,14 @@ class GroupMediaHandler extends UploadJobHandler {
   Future<void> commit(UploadJob job, UploadJobScope scope) async {
     final p = job.payload;
     final caption = p['caption'] as String?;
+    // Owner 27.11 (as the 1:1 chat): the server's answer and its realtime
+    // echo have no width / height while it still checks the file; the
+    // picked shape stands in until the check writes its own.
+    SentMediaShapes.note(
+      job.fileId ?? '',
+      (p['width'] as num?)?.toInt(),
+      (p['height'] as num?)?.toInt(),
+    );
     final sent = await _ref.read(groupRepositoryProvider).send(
           job.target,
           api.SendGroupMessageDto(
