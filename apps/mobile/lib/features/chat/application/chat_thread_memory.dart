@@ -85,6 +85,13 @@ class ChatPrewarmer {
         (_, list) => _onList(list.value?.items ?? const []),
         fireImmediately: true,
       )
+      // Owner 26.11: groups live only under the «Группы» pill now, so the
+      // newest groups are taken from that list (still the phone's copy).
+      ..listen(
+        groupChatListProvider,
+        (_, list) => _onGroups(list.value?.items ?? const []),
+        fireImmediately: true,
+      )
       ..onDispose(() => _cancelled = true);
   }
 
@@ -110,8 +117,12 @@ class ChatPrewarmer {
         else if (e case PersonChatEntry(:final row))
           row.id,
     ];
+    _running ??= _warm().whenComplete(() => _running = null);
+  }
+
+  void _onGroups(List<ChatListEntry> entries) {
     _wantedGroups = <String>[
-      for (final e in newest)
+      for (final e in entries.take(kChatPrewarmCount))
         if (e case GroupChatEntry(:final group) when !group.topicsEnabled)
           group.id,
     ];
