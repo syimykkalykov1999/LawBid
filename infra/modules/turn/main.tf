@@ -128,6 +128,11 @@ variable "on_demand" {
   default     = false
   description = "Owner 2026-11-02: the relay stands STOPPED and the API starts it only when Cloudflare is down (apps/api calls/turn-on-demand.ts). No Elastic IP (it costs about $3.6/month while unattached): the public address is new at every start and coturn reads it from the instance metadata before each start. Only one relay: not with secondary_subnet_id, and without hosted_zone_id (DNS cannot follow a changing address). A stopped box costs only its 8 GB disk (about $0.6/month)."
 }
+variable "tcp_443" {
+  type        = bool
+  default     = true
+  description = "26.11: also take TURN over TCP on port 443 (networks that let only 443 out: offices, hotels). The box forwards TCP 443 to coturn's 3478 with one iptables REDIRECT rule (coturn runs as nobody and cannot bind a port below 1024; coturn tells plain TURN and TLS apart on the same port by itself, README.turnserver), and the security group opens TCP 443. The API offers turn:<host>:443?transport=tcp while the admin setting calls.own_turn.port_443 is on. false = 3478 only, as before."
+}
 variable "tags" {
   type    = map(string)
   default = {}
@@ -183,6 +188,16 @@ resource "aws_security_group" "this" {
     to_port     = 5349
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+  dynamic "ingress" {
+    for_each = var.tcp_443 ? [1] : []
+    content {
+      description = "TURN over TCP on 443 (forwarded to 3478 on the box)"
+      from_port   = 443
+      to_port     = 443
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
   }
   ingress {
     description = "Relay ports"
@@ -290,6 +305,7 @@ resource "aws_instance" "this" {
     max_lifetime = var.turn_max_allocate_lifetime
     max_bps      = var.turn_max_bps
     quota        = local.quota
+    tcp_443      = var.tcp_443
   })
   # A new secret, address or quota rewrites the config: replace the box.
   # NOTE: both relays change in the same apply - roll out the second one

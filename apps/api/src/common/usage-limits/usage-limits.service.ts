@@ -117,6 +117,21 @@ const PLAN_LIMITS: Partial<Record<LimitedAction, EntitlementKey>> = {
   video_upload: 'videos_per_day',
 };
 
+/** docs/05 §13: 429 RATE_LIMITED; the app shows the localized text. */
+export function rateLimited(
+  action: string,
+  retryAfterSeconds: number,
+): HttpException {
+  return new HttpException(
+    {
+      code: ErrorCode.RATE_LIMITED,
+      message: 'Too many requests. Try again later.',
+      details: { action, retryAfterSeconds },
+    },
+    HttpStatus.TOO_MANY_REQUESTS,
+  );
+}
+
 @Injectable()
 export class UsageLimitsService {
   constructor(
@@ -142,15 +157,28 @@ export class UsageLimitsService {
       limit,
       rule.windowSec,
     );
-    if (!result.allowed) {
-      throw new HttpException(
-        {
-          code: ErrorCode.RATE_LIMITED,
-          message: 'Too many requests. Try again later.',
-          details: { action, retryAfterSeconds: result.retryAfterSeconds },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
+    if (!result.allowed) throw rateLimited(action, result.retryAfterSeconds);
+  }
+
+  /**
+   * Owner 13.11 (no hard-coded limits): one fixed window per (action, user)
+   * whose size is the admin setting [setting], read live; 0 (or a
+   * negative / unreadable number) = no limit. Same 429 RATE_LIMITED as
+   * [consume]. 26.11: call starts per minute / per day.
+   */
+  async consumeSetting(
+    action: string,
+    setting: AppSettingKey,
+    windowSec: number,
+    userId: string,
+  ): Promise<void> {
+    const limit = Math.floor(await this.settings.number(setting));
+    if (!Number.isFinite(limit) || limit <= 0) return;
+    const result = await this.limiter.consumeFixedWindow(
+      ['usage', action, userId],
+      limit,
+      windowSec,
+    );
+    if (!result.allowed) throw rateLimited(action, result.retryAfterSeconds);
   }
 }

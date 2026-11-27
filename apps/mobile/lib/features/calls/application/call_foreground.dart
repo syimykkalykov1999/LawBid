@@ -45,8 +45,13 @@ class CallForeground {
   /// timer, 0 = still connecting.
   ///
   /// [status] and [hangup] are the app's own (in-app language) texts.
+  ///
+  /// [id] and [outgoing] (owner 26.11) put the call in Telecom when the
+  /// `calls_android_telecom` switch is on (native SystemCalls.kt).
   Future<void> start({
     required String name,
+    String id = '',
+    bool outgoing = false,
     int since = 0,
     String status = '',
     String hangup = '',
@@ -55,6 +60,8 @@ class CallForeground {
     try {
       await _channel.invokeMethod<bool>('start', {
         'name': name,
+        'id': id,
+        'outgoing': outgoing,
         'since': since,
         'status': status,
         'hangup': hangup,
@@ -64,12 +71,32 @@ class CallForeground {
     }
   }
 
-  Future<void> stop() async {
+  /// [cause]: the call's end as Telecom hears it (the `CallStatus` name).
+  Future<void> stop({String? cause}) async {
     if (!_supported) return;
     try {
-      await _channel.invokeMethod<void>('stop');
+      await _channel
+          .invokeMethod<void>('stop', {if (cause != null) 'cause': cause});
     } on Object {
       // Not running.
+    }
+  }
+
+  /// Owner 26.11: the `calls_android_telecom` switch, kept natively (the
+  /// ring push reads it before Dart is up).
+  Future<void> setSystemCalls({required bool on}) =>
+      _invoke('setSystemCalls', {'on': on});
+
+  /// The sound's place the app chose (`CallAudioKind` name) — Telecom owns
+  /// a system call's route.
+  Future<void> route(String kind) => _invoke('route', {'kind': kind});
+
+  Future<void> _invoke(String method, [Map<String, Object?>? args]) async {
+    if (!_supported) return;
+    try {
+      await _channel.invokeMethod<void>(method, args);
+    } on Object {
+      // No host (the background isolate, plain unit tests).
     }
   }
 }

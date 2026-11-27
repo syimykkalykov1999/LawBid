@@ -300,6 +300,39 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 10000,
   };
+  // 26.11 (call spam): call starts per person and unanswered rings in a row.
+  out['calls.start_rate_limit_per_minute'] = {
+    type: 'integer',
+    defaultValue: 15,
+    description:
+      '1:1 calls one person may start per minute (admins are never capped). 0 = no limit.',
+    min: 0,
+    max: 100000,
+  };
+  out['calls.start_rate_limit_per_day'] = {
+    type: 'integer',
+    defaultValue: 300,
+    description:
+      '1:1 calls one person may start per day (admins are never capped). 0 = no limit.',
+    min: 0,
+    max: 1000000,
+  };
+  out['calls.unanswered_in_row_limit'] = {
+    type: 'integer',
+    defaultValue: 5,
+    description:
+      'Unanswered rings in a row (missed, declined or canceled) from one person to the same person before the next ring waits calls.unanswered_cooldown_minutes. A call back or an answered call starts the count over. 0 = off.',
+    min: 0,
+    max: 1000,
+  };
+  out['calls.unanswered_cooldown_minutes'] = {
+    type: 'integer',
+    defaultValue: 60,
+    description:
+      'How long the next ring to the same person waits after calls.unanswered_in_row_limit unanswered rings in a row. 0 = no wait.',
+    min: 0,
+    max: 10080,
+  };
   for (const provider of COST_PROVIDERS) {
     for (const window of ['per_minute_max', 'daily_max', 'monthly_max']) {
       out[`budget.${provider}.${window}`] = {
@@ -342,6 +375,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Own coturn relay box: auto = started only while Cloudflare is down and stopped after 30 quiet minutes, on = always running, off = never.',
     pattern: /^(auto|on|off)$/,
+  };
+  out['calls.own_turn.port_443'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Also offer our own TURN as TURN over TCP on port 443 (for networks that let only 443 out: offices, hotels). Off = port 3478 only.',
   };
   out['scale.endpoints.ceiling'] = {
     type: 'integer',

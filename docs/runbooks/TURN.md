@@ -162,7 +162,18 @@ On a phone over mobile data call a phone on another network. Server side
   so it cannot be used as a proxy into our network.
 - TLS on 5349 (for networks that block UDP and 3478) is a second step: a
   Let's Encrypt certificate for `turn.lawbid.dev` on the instance; the port
-  is already open. Not required for the first release.
+  is already open. Not required for the first release. Without a
+  certificate coturn starts no TLS listener, so the API offers no `turns:`
+  address for our box (an admin who adds a certificate lists `turns:` in
+  the TURN urls; they pass unchanged).
+- TCP 443 (26.11, variable `tcp_443`, default on): networks that let only
+  443 out (offices, hotels) reach coturn as plain TURN over TCP on 443. The
+  box forwards TCP 443 to 3478 with one iptables REDIRECT rule
+  (`turn-443.service`, before coturn; coturn runs as nobody and cannot bind
+  443 itself), the security group opens TCP 443, and the API adds
+  `turn:<host>:443?transport=tcp` after the 3478 addresses while the admin
+  setting `calls.own_turn.port_443` is on (Cloudflare's own list has the
+  same 443 entry). Check on the box: `sudo iptables -t nat -S PREROUTING`.
 - Changing the secret or address replaces the instance (Elastic IP stays).
 - Video calls stay off (`video_calls` flag) until TURN is checked.
 

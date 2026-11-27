@@ -105,6 +105,31 @@ chown root:65534 /etc/turnserver.conf
 
 %{ endif ~}
 
+%{ if tcp_443 ~}
+# 26.11: TURN over TCP on 443 for networks that let only 443 out (offices,
+# hotels). coturn runs as nobody and cannot bind a port below 1024, so the
+# kernel forwards TCP 443 to coturn's 3478 (one REDIRECT rule, restored
+# before every coturn start); coturn tells plain TURN and TLS apart on the
+# same port by itself (README.turnserver, listening-port note). The relay
+# ports and 3478 are unchanged. The API offers turn:<host>:443?transport=tcp
+# (admin setting calls.own_turn.port_443).
+cat > /etc/systemd/system/turn-443.service <<'UNIT'
+[Unit]
+Description=Forward TCP 443 to coturn 3478
+Before=coturn.service
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c '/usr/sbin/iptables -t nat -C PREROUTING -p tcp --dport 443 -j REDIRECT --to-ports 3478 2>/dev/null || /usr/sbin/iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-ports 3478'
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now turn-443.service
+
+%{ endif ~}
 # coturn as a systemd service around the pinned image. Host network: the
 # relay ports 49152-65535 and 3478/5349 are the box's own (the security group
 # is unchanged), and turn-report below still counts the relay sockets with ss.

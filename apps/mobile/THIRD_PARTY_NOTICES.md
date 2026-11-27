@@ -342,6 +342,22 @@ Media3 Transformer library (androidx.media3:media3-transformer, -effect,
 The Android Open Source Project. Licensed under the Apache License, Version
 2.0, as for livekit_client above.
 
+## AndroidX Core-Telecom 1.1.0 — Apache-2.0
+
+Owner 26.11 (Android calls as system calls, switch `calls_android_telecom`):
+`android/app/src/main/kotlin/com/lawbid/lawbid/SystemCalls.kt` adds the call
+to Android Telecom with Jetpack Core-Telecom `CallsManager`
+(androidx.core:core-telecom 1.1.0,
+https://developer.android.com/jetpack/androidx/releases/core-telecom):
+`registerAppWithTelecom`, `addCall` with `onAnswer` / `onDisconnect` /
+`onSetActive` / `onSetInactive`, `CallControlScope.answer` / `setActive` /
+`disconnect` / `requestEndpointChange` and the `isMuted` flow, hosted in the
+phoneCall foreground service with a CallStyle notification, as the official
+guide «Telecom → Core-Telecom» shows
+(developer.android.com/develop/connectivity/telecom/voip-app/telecom, read
+2026-11-26). Copyright The Android Open Source Project. Licensed under the
+Apache License, Version 2.0, as for livekit_client above.
+
 ## Google Tink 1.24.0 — Apache-2.0
 
 M12 (26.11): `android/app/src/main/kotlin/com/lawbid/lawbid/PushPreviewKeys.kt`
