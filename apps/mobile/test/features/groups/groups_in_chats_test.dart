@@ -55,9 +55,9 @@ class _Chats implements ChatRepository {
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
 }
 
-/// Owner 2026-11-16 (chat-groups plan, step 4, WhatsApp): while «Группы в
-/// чатах» is on, my groups are rows of Chats next to the 1:1 chats, and a
-/// «Группы» pill shows only them. Off: no group row, no pill.
+/// Owner 2026-11-16 (WhatsApp «Группы» filter): while «Группы в чатах» is
+/// on, a «Группы» pill shows my groups. Owner 2026-11-26: the groups are
+/// ONLY there — «Все» holds the 1:1 chats. Off: no group row, no pill.
 void main() {
   setUpAll(initializeDateFormatting);
 
@@ -65,19 +65,20 @@ void main() {
     WidgetTester tester, {
     required bool on,
     String query = '',
+    ChatListFolder folder = ChatListFolder.all,
   }) async {
     final repo = _Chats();
     tester.view.physicalSize = const Size(1000, 2000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    var folder = ChatListFolder.all;
+    var shown = folder;
     await tester.pumpWidget(
       uxApp(
         Scaffold(
           body: StatefulBuilder(
             builder: (context, setState) => ConversationsView(
-              folder: folder,
-              onFolder: (f) => setState(() => folder = f),
+              folder: shown,
+              onFolder: (f) => setState(() => shown = f),
               query: query,
               onQuery: (_) {},
             ),
@@ -106,9 +107,10 @@ void main() {
     return repo;
   }
 
-  testWidgets('on: «Все» has the groups next to the chats', (tester) async {
+  testWidgets('on: «Все» has only the 1:1 chats, no group (owner 26.11)',
+      (tester) async {
     await pump(tester, on: true);
-    expect(find.byType(GroupChatTile), findsNWidgets(2));
+    expect(find.byType(GroupChatTile), findsNothing);
     expect(find.text('Person a'), findsOneWidget);
     expect(find.text('Person b'), findsOneWidget);
     // The «Группы» pill, with the number of groups that have unread.
@@ -138,10 +140,32 @@ void main() {
     );
   });
 
-  testWidgets('on: the search in «Все» finds groups by their title',
+  testWidgets('on: the search in «Все» finds no group (owner 26.11)',
       (tester) async {
     await pump(tester, on: true, query: 'montgomery');
+    expect(find.byType(GroupChatTile), findsNothing);
+  });
+
+  testWidgets('on: the search under «Группы» finds groups by their title',
+      (tester) async {
+    await pump(
+      tester,
+      on: true,
+      query: 'montgomery',
+      folder: ChatListFolder.groups,
+    );
     expect(find.byType(GroupChatTile), findsNWidgets(2));
+  });
+
+  testWidgets('on: «Группы» → «Все» brings no group back', (tester) async {
+    await pump(tester, on: true);
+    await tester.tap(find.byKey(const ValueKey('chat-folder-groups')));
+    await tester.pumpAndSettle();
+    expect(find.byType(GroupChatTile), findsNWidgets(2));
+    await tester.tap(find.byKey(const ValueKey('chat-folder-all')));
+    await tester.pumpAndSettle();
+    expect(find.byType(GroupChatTile), findsNothing);
+    expect(find.text('Person a'), findsOneWidget);
   });
 
   testWidgets('off: no group row and no «Группы» pill', (tester) async {
