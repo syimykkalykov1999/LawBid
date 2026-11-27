@@ -138,13 +138,13 @@ class PostCardBody extends ConsumerWidget {
                           child: Container(
                             width: 44,
                             height: 44,
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.black.withValues(alpha: 0.45),
+                              color: AppMediaOverlay.scrim,
                             ),
                             child: const AppIcon(
                               AppIcons.playArrowRounded,
-                              color: Colors.white,
+                              color: AppMediaOverlay.ink,
                             ),
                           ),
                         ),
@@ -347,13 +347,13 @@ class FixedPostCard extends ConsumerWidget {
               child: Container(
                 width: 44,
                 height: 44,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.black.withValues(alpha: 0.45),
+                  color: AppMediaOverlay.scrim,
                 ),
                 child: const AppIcon(
                   AppIcons.playArrowRounded,
-                  color: Colors.white,
+                  color: AppMediaOverlay.ink,
                 ),
               ),
             ),
