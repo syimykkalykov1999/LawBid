@@ -3,7 +3,7 @@
 # took 2m13 on EVERY release (a one-off Fargate task) even when nothing it reads
 # changed. It only ADDS what the database lacks (--missing-only), so when every
 # input is byte-identical to the release that ran it last time, there is nothing
-# new to add. Same idea as Turborepo / Nx / Bazel task caching: the inputs'
+# new to add or update. Same idea as Turborepo / Nx / Bazel task caching: the inputs'
 # content hash decides, not the commit.
 #
 #   i18n-needed.sh <from-ref> <to-ref>
@@ -12,11 +12,11 @@
 # Prints `needed=true|false` (also to $GITHUB_OUTPUT) and why.
 # needed=true (run as before) when: I18N_SEED_ALWAYS=true, <from-ref> is empty or
 # not a commit here, or the git object id (SHA content hash) of ANY input differs:
-#   the seed itself, the importer and its i18n module, the languages list, the
+#   the seed itself (and its known earlier texts), the importer and its i18n module, the languages list, the
 #   Prisma schema and the migrations (a migration may touch the translations).
 set -eu
 FROM="${1:-}"; TO="${2:?to-ref}"
-INPUTS="${I18N_INPUTS:-apps/api/prisma/seed/translations apps/api/prisma/seed/languages.seed.json apps/api/src/cli/import-translations.ts apps/api/src/modules/i18n apps/api/prisma/schema.prisma apps/api/prisma/migrations}"
+INPUTS="${I18N_INPUTS:-apps/api/prisma/seed/translations apps/api/prisma/seed/translations-superseded.json apps/api/prisma/seed/languages.seed.json apps/api/src/cli/import-translations.ts apps/api/src/modules/i18n apps/api/prisma/schema.prisma apps/api/prisma/migrations}"
 say() {
   echo "needed=$1"
   echo "translations: $2"
