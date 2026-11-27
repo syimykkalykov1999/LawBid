@@ -23,6 +23,13 @@ import android.os.Looper
  * declined also leaves MODE_NORMAL: the mode is put back, nothing is held.
  *
  * Runs only while [CallForegroundService] runs (one call at a time).
+ *
+ * Owner 26.11: with the call in Telecom ([SystemCalls], Core-Telecom)
+ * Telecom holds it too (`onSetInactive`). Both speak through one gate
+ * ([SystemCalls.setHold]): Dart hears «hold» once and «unhold» once. When
+ * the cellular call is over, Telecom does not give a self-managed call back
+ * by itself: [SystemCalls.resume] sets it active again, and Telecom (not
+ * this watcher) puts the audio mode back.
  */
 class CallHoldWatcher(private val context: Context) {
     private val audio = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
@@ -70,6 +77,9 @@ class CallHoldWatcher(private val context: Context) {
             }
         }
         listener = null
+        // The call is over: the gate forgets this watcher's hold silently
+        // (as before, no «unhold» after the end).
+        SystemCalls.hold.set(SystemCallRules.HOLD_AUDIO, false)
         held = false
         cellular = false
     }
@@ -81,14 +91,16 @@ class CallHoldWatcher(private val context: Context) {
                 cellular = true
                 if (!held) {
                     held = true
-                    send("hold")
+                    SystemCalls.setHold(SystemCallRules.HOLD_AUDIO, true)
                 }
             }
             AudioManager.MODE_RINGTONE -> cellular = true
             else -> {
                 if (!cellular) return
                 cellular = false
-                if (mode != AudioManager.MODE_IN_COMMUNICATION) {
+                if (SystemCalls.inCall()) {
+                    SystemCalls.resume()
+                } else if (mode != AudioManager.MODE_IN_COMMUNICATION) {
                     try {
                         audio?.mode = AudioManager.MODE_IN_COMMUNICATION
                     } catch (e: Exception) {
@@ -97,18 +109,8 @@ class CallHoldWatcher(private val context: Context) {
                 }
                 if (held) {
                     held = false
-                    send("unhold")
+                    SystemCalls.setHold(SystemCallRules.HOLD_AUDIO, false)
                 }
-            }
-        }
-    }
-
-    private fun send(action: String) {
-        main.post {
-            try {
-                CallBridge.channel?.invokeMethod("action", action)
-            } catch (e: Exception) {
-                // No Dart side right now.
             }
         }
     }
