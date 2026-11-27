@@ -286,7 +286,12 @@ export class GroupMlsClient extends MlsDeviceClient {
   async gsend(
     groupId: string,
     text: string,
-    extra: { topicId?: string; mentionIds?: string[]; replyToId?: string } = {},
+    extra: {
+      topicId?: string;
+      mentionIds?: string[];
+      replyToId?: string;
+      control?: boolean;
+    } = {},
   ): Promise<Res> {
     const { ciphertext, epoch } = await this.encrypt(groupId, text);
     return this.http.post(`/api/v1/groups/${groupId}/messages`, {

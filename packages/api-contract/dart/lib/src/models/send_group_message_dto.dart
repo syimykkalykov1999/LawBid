@@ -25,6 +25,7 @@ class SendGroupMessageDto {
     this.mlsEpoch,
     this.mlsDeviceId,
     this.frankingTag,
+    this.control,
   });
 
   factory SendGroupMessageDto.fromJson(Map<String, Object?> json) =>
@@ -69,6 +70,9 @@ class SendGroupMessageDto {
 
   /// type=mls (message franking): base64 of HMAC-SHA256(k, P), k inside the plaintext P.
   final String? frankingTag;
+
+  /// type=mls: true for a control message (reaction, vote, edit, poll close inside MLS). It is delivered like any message but never counted as unread, never pushed and never the group’s last message.
+  final bool? control;
 
   Map<String, Object?> toJson() => _$SendGroupMessageDtoToJson(this);
 }

@@ -291,6 +291,14 @@ export const commit = locked(async (gidB64, kpsJson, removeJson, withInfo) => {
   });
 });
 
+function hasBytes(hay, needle) {
+  outer: for (let i = 0; i + needle.length <= hay.length; i++) {
+    for (let j = 0; j < needle.length; j++) if (hay[i + j] !== needle[j]) continue outer;
+    return true;
+  }
+  return false;
+}
+
 async function groupInfoOf(state) {
   const t = await m();
   const gi = await t.createGroupInfoWithExternalPubAndRatchetTree(state, [], cs);
@@ -313,7 +321,12 @@ export const joinExternal = locked(async (giB64, resync) => {
   if (!gi) throw new Error('mls: not a GroupInfo');
   const gid = gi.groupContext.groupId;
   const kp = await freshKeyPackage();
-  const out = await t.joinGroupExternal(gi, kp.publicPackage, kp.privatePackage, !!resync, cs);
+  // ts-mls 1.x loops forever on a resync whose tree has no leaf with this
+  // device's signature key (LukaJCB/ts-mls#831, item 4; fixed on main):
+  // resync only when the tree in the GroupInfo carries our key.
+  const tree = gi.extensions.find((e) => e.extensionType === 'ratchet_tree');
+  const ours = !!tree && hasBytes(tree.extensionData, me.sign.publicKey);
+  const out = await t.joinGroupExternal(gi, kp.publicPackage, kp.privatePackage, !!resync && ours, cs);
   const commitB64 = b64(
     t.encodeMlsMessage({ publicMessage: out.publicMessage, wireformat: 'mls_public_message', version: 'mls10' }),
   );

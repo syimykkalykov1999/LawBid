@@ -1171,6 +1171,7 @@ erDiagram
     Int mls_epoch "nullable"
     String sender_device_id "nullable"
     Bytes franking_tag "nullable"
+    Boolean mls_control
     Int shard_id
   }
   chat_group_message_reactions {

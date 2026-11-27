@@ -72,6 +72,7 @@ void main() {
       'ciphertext': body['ciphertext'],
       'mlsEpoch': body['mlsEpoch'],
       'frankingTag': body['frankingTag'],
+      if (body['control'] == true) 'control': true,
     };
     ds.rows.add(row);
     return row;
@@ -250,7 +251,9 @@ void main() {
       ))!,
       'ub',
     );
-    expect(react.containsKey('control'), isFalse, reason: 'kind is inside');
+    // G2b: marked for the server (no unread, no push); what it does stays
+    // inside MLS.
+    expect(react['control'], isTrue);
     expect(await read(alice, react), isNull, reason: 'not a row');
     final shown = (await alice.refresh('g1', [forMe(m, 'ua')])).single;
     expect(((shown['reactions'] as List).single as Map)['emoji'], '👍');

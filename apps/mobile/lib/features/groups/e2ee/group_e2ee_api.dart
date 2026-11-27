@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// G2 (docs/architecture/GROUP_E2EE_DESIGN_2026-11-26.md §4.1): the group
@@ -260,12 +261,58 @@ class GroupInfoRow {
 
 /// The generated client of G1's endpoints.
 class ClientGroupE2eeApi implements GroupE2eeApi {
-  ClientGroupE2eeApi(this._c, {this.download});
+  ClientGroupE2eeApi(this._c, {this.download, this.upload});
 
   final api.E2eeClient _c;
 
   /// The bytes behind a short link (a GroupInfo too big to be inline).
   final Stream<List<int>> Function(String url)? download;
+
+  /// G2b: puts a GroupInfo above `groups.e2ee_group_info_inline_kb` into
+  /// storage (the same direct upload as encrypted files, `chat_e2ee`); the
+  /// file id goes in the commit instead (§4.3).
+  final Future<String> Function(UploadBody body, api.FilePurpose purpose)?
+      upload;
+
+  /// Groups whose GroupInfo went as a file last time (it only grows with
+  /// the group): the next one is uploaded first, no refused round trip.
+  final Set<String> _bigInfo = {};
+
+  static bool _useFile(DioException e) {
+    final data = e.response?.data;
+    final error = data is Map ? data['error'] : null;
+    final details = error is Map ? error['details'] : null;
+    return e.response?.statusCode == 400 &&
+        details is Map &&
+        details['why'] == 'use_file';
+  }
+
+  /// Sends [info] inline, or as an uploaded file when the server says it is
+  /// above the inline limit (or it was last time).
+  Future<T> _withInfo<T>(
+    String groupId,
+    String? info,
+    Future<T> Function(String? inline, String? fileId) send,
+  ) async {
+    final put = upload;
+    Future<T> asFile() async {
+      final id = await put!(
+        UploadBody.bytes(base64Decode(info!)),
+        api.FilePurpose.chatE2ee,
+      );
+      _bigInfo.add(groupId);
+      return send(null, id);
+    }
+
+    if (info == null || put == null) return send(info, null);
+    if (_bigInfo.contains(groupId)) return asFile();
+    try {
+      return await send(info, null);
+    } on DioException catch (e) {
+      if (!_useFile(e)) rethrow;
+      return asFile();
+    }
+  }
 
   static GroupE2eeState _state(api.GroupE2eeDto d) => GroupE2eeState(
         state: switch (d.state) {
@@ -298,17 +345,22 @@ class ClientGroupE2eeApi implements GroupE2eeApi {
     required String deviceId,
     required String mlsGroupId,
     String? groupInfo,
-  }) async =>
-      _state(
-        (await _c.createGroupMls(
-          id: groupId,
-          body: api.CreateGroupMlsDto(
-            deviceId: deviceId,
-            groupId: mlsGroupId,
-            groupInfo: groupInfo,
-          ),
-        ))
-            .data,
+  }) =>
+      _withInfo(
+        groupId,
+        groupInfo,
+        (inline, fileId) async => _state(
+          (await _c.createGroupMls(
+            id: groupId,
+            body: api.CreateGroupMlsDto(
+              deviceId: deviceId,
+              groupId: mlsGroupId,
+              groupInfo: inline,
+              groupInfoFileId: fileId,
+            ),
+          ))
+              .data,
+        ),
       );
 
   @override
@@ -343,22 +395,26 @@ class ClientGroupE2eeApi implements GroupE2eeApi {
       ];
 
   @override
-  Future<int> postCommit(String groupId, GroupCommitBody body) async =>
-      (await _c.postGroupMlsCommit(
-        id: groupId,
-        body: api.GroupMlsCommitDto(
-          deviceId: body.deviceId,
-          epoch: body.epoch,
-          commit: body.commit,
-          addedDevices: body.addedDevices,
-          removedDevices: body.removedDevices,
-          welcome: body.welcome,
-          groupInfo: body.groupInfo,
-        ),
-      ))
-          .data
-          .epoch
-          .toInt();
+  Future<int> postCommit(String groupId, GroupCommitBody body) => _withInfo(
+        groupId,
+        body.groupInfo,
+        (inline, fileId) async => (await _c.postGroupMlsCommit(
+          id: groupId,
+          body: api.GroupMlsCommitDto(
+            deviceId: body.deviceId,
+            epoch: body.epoch,
+            commit: body.commit,
+            addedDevices: body.addedDevices,
+            removedDevices: body.removedDevices,
+            welcome: body.welcome,
+            groupInfo: inline,
+            groupInfoFileId: fileId,
+          ),
+        ))
+            .data
+            .epoch
+            .toInt(),
+      );
 
   @override
   Future<List<GroupCommitRow>> commits(String groupId, int after) async => [
@@ -395,20 +451,25 @@ class ClientGroupE2eeApi implements GroupE2eeApi {
   Future<int> externalCommit(
     String groupId,
     GroupExternalCommitBody body,
-  ) async =>
-      (await _c.postGroupExternalCommit(
-        id: groupId,
-        body: api.GroupExternalCommitDto(
-          deviceId: body.deviceId,
-          epoch: body.epoch,
-          commit: body.commit,
-          groupInfo: body.groupInfo,
-          resync: body.resync,
-        ),
-      ))
-          .data
-          .epoch
-          .toInt();
+  ) =>
+      _withInfo(
+        groupId,
+        body.groupInfo,
+        (inline, fileId) async => (await _c.postGroupExternalCommit(
+          id: groupId,
+          body: api.GroupExternalCommitDto(
+            deviceId: body.deviceId,
+            epoch: body.epoch,
+            commit: body.commit,
+            groupInfo: inline,
+            groupInfoFileId: fileId,
+            resync: body.resync,
+          ),
+        ))
+            .data
+            .epoch
+            .toInt(),
+      );
 
   @override
   Future<List<GroupWelcome>> welcomes(String deviceId) async => [

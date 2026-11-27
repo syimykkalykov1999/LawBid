@@ -771,6 +771,9 @@ class GroupE2eeService {
     return {
       'clientMessageId': clientMessageId,
       ...sealed.toJson(),
+      // G2b: the server keeps it out of unread counts, pushes and the
+      // group's last message (what it does stays inside MLS).
+      'control': true,
       if (topicId != null) 'topicId': topicId,
     };
   }
@@ -866,6 +869,9 @@ class GroupE2eeService {
     var applied = false;
     for (final r in order) {
       final p = got[r['id']];
+      // A row the server marks as control is never shown, even while it
+      // cannot be opened yet.
+      if (r['control'] == true) _controlIds.add(r['id'] as String);
       if (_isControl(p)) {
         _controlIds.add(r['id'] as String);
         await _apply(groupId, r, p);
@@ -877,7 +883,7 @@ class GroupE2eeService {
       for (final r in rows)
         if (!isSealed(r))
           r
-        else if (!_isControl(got[r['id']]))
+        else if (!_isControl(got[r['id']]) && r['control'] != true)
           await _shown(groupId, r, got[r['id']]),
     ];
   }

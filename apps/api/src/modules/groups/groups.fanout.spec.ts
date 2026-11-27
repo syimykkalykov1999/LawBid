@@ -127,6 +127,16 @@ describe('GroupsService fan-out', () => {
     expect(queueGroupMessagePushes).not.toHaveBeenCalled();
   });
 
+  it('G2b: an MLS control message (reaction, vote, edit) reaches the screens, never unread, unhide or push', async () => {
+    const { svc, toUsers, messagesArrived, queueGroupMessagePushes, prisma } =
+      setup(row({ type: 'mls', mls_control: true }));
+    await svc.fanOut('g1', row({ type: 'mls', mls_control: true }));
+    expect(toUsers).toHaveBeenCalled();
+    expect(prisma.chatGroupMember.updateMany).not.toHaveBeenCalled();
+    expect(messagesArrived).not.toHaveBeenCalled();
+    expect(queueGroupMessagePushes).not.toHaveBeenCalled();
+  });
+
   it('a message gone from the database: nothing', async () => {
     const { svc, toUsers, prisma } = setup();
     prisma.chatGroupMessage.findFirst.mockResolvedValueOnce(

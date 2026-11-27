@@ -26,6 +26,7 @@ SendGroupMessageDto _$SendGroupMessageDtoFromJson(Map<String, dynamic> json) =>
       mlsEpoch: (json['mlsEpoch'] as num?)?.toInt(),
       mlsDeviceId: json['mlsDeviceId'] as String?,
       frankingTag: json['frankingTag'] as String?,
+      control: json['control'] as bool?,
     );
 
 Map<String, dynamic> _$SendGroupMessageDtoToJson(
@@ -45,4 +46,5 @@ Map<String, dynamic> _$SendGroupMessageDtoToJson(
   'mlsEpoch': ?instance.mlsEpoch,
   'mlsDeviceId': ?instance.mlsDeviceId,
   'frankingTag': ?instance.frankingTag,
+  'control': ?instance.control,
 };
