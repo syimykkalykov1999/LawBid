@@ -1,6 +1,7 @@
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/chat/domain/disappearing.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
+import 'package:lawbid/features/groups/e2ee/group_e2ee_service.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 String _name(Translator t, api.GroupPersonDto? p) =>
@@ -22,6 +23,12 @@ String groupSystemText(Translator t, api.GroupMessageDto m) {
   switch (m.systemKind) {
     case 'created':
       return t.t('group.system.created', {'name': _name(t, actor)});
+    // G2: the group became end-to-end encrypted (server line).
+    case GroupE2eeService.onKind:
+      return t.t('group.system.e2eeOn');
+    // G2: a member's keys changed (this device's line).
+    case GroupE2eeService.codeChangedKind:
+      return t.t('group.system.e2eeCodeChanged', {'name': _name(t, actor)});
     case 'added':
       return t.t('group.system.added', {
         'name': _name(t, actor),
@@ -113,6 +120,13 @@ String groupMessagePreview(
         : (m.attachment!.isImage
             ? t.t('group.preview.photo')
             : t.t('group.preview.file', {'name': m.attachment!.name}));
+  } else if (m.body.isEmpty &&
+      (m.type == api.GroupMessageDtoType.$unknown ||
+          GroupE2eeService.isWaiting(m.id))) {
+    // G2: an end-to-end encrypted message — its text if this device opened
+    // it, else WhatsApp's «Ожидание сообщения».
+    final opened = GroupE2eeService.current?.cachedBody(m.id);
+    body = opened ?? '🔒 ${t.t('chat.e2ee.waiting')}';
   } else {
     body = m.body.trim();
   }

@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} ګروپ جوړ کړ",
   "group.system.demoted": "{name} د {people} د ایډمین حقوق لرې کړل",
   "group.system.description": "{name} توضیح بدله کړه",
+  "group.system.e2eeCodeChanged": "د {name} امنیتي کوډ بدل شو",
+  "group.system.e2eeOn": "د دې ډلې پیغامونه اوس له پیله تر پایه کوډ شوي دي. له ډلې بهر هېڅوک، حتی LawBid، نشي کولی هغه ولولي.",
   "group.system.joined": "{name} ګروپ سره ورګډ شو",
   "group.system.left": "{name} ګروپ پرېښود",
   "group.system.photo": "{name} د ګروپ انځور بدل کړ",

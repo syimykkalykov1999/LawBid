@@ -257,8 +257,9 @@ class FakeGroupRepository implements GroupRepository {
   Future<api.GroupMessageDto> react(
     String id,
     String messageId,
-    String? emoji,
-  ) async {
+    String? emoji, {
+    api.GroupMessageDto? current,
+  }) async {
     reacted.add('$messageId:${emoji ?? ''}');
     final m = thread.firstWhere((x) => x.id == messageId);
     return api.GroupMessageDto.fromJson({

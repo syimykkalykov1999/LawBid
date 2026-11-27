@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} izveidoja grupu",
   "group.system.demoted": "{name} atņēma administratora tiesības: {people}",
   "group.system.description": "{name} nomainīja aprakstu",
+  "group.system.e2eeCodeChanged": "{name} drošības kods ir mainījies",
+  "group.system.e2eeOn": "Šīs grupas ziņas tagad ir pilnībā šifrētas. Neviens ārpus grupas, pat LawBid, tās nevar izlasīt.",
   "group.system.joined": "{name} pievienojās grupai",
   "group.system.left": "{name} pameta grupu",
   "group.system.photo": "{name} nomainīja grupas attēlu",

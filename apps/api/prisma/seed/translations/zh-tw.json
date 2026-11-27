@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} 建立了群組",
   "group.system.demoted": "{name} 取消了 {people} 的管理員權限",
   "group.system.description": "{name} 變更了說明",
+  "group.system.e2eeCodeChanged": "{name} 的安全碼已變更",
+  "group.system.e2eeOn": "此群組中的訊息現已端對端加密。群組以外的任何人，包括 LawBid，都無法讀取。",
   "group.system.joined": "{name} 加入了群組",
   "group.system.left": "{name} 退出了群組",
   "group.system.photo": "{name} 變更了群組相片",

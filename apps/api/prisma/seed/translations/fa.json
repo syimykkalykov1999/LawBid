@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} گروه را ایجاد کرد",
   "group.system.demoted": "{name} دسترسی مدیریت {people} را برداشت",
   "group.system.description": "{name} توضیحات را تغییر داد",
+  "group.system.e2eeCodeChanged": "کد امنیتی {name} تغییر کرد",
+  "group.system.e2eeOn": "اکنون پیام‌های این گروه رمزگذاری سرتاسری دارند. هیچ‌کس بیرون از گروه، حتی LawBid، نمی‌تواند آن‌ها را بخواند.",
   "group.system.joined": "{name} به گروه پیوست",
   "group.system.left": "{name} گروه را ترک کرد",
   "group.system.photo": "{name} عکس گروه را تغییر داد",

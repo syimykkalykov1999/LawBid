@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} топту түздү",
   "group.system.demoted": "{name} {people} адамынын админ укугун алды",
   "group.system.description": "{name} сүрөттөмөнү өзгөрттү",
+  "group.system.e2eeCodeChanged": "{name} коопсуздук коду өзгөрдү",
+  "group.system.e2eeOn": "Эми бул топтогу билдирүүлөр учтан-учка шифрленет. Топтон тышкары эч ким, атүгүл LawBid да, аларды окуй албайт.",
   "group.system.joined": "{name} топко кошулду",
   "group.system.left": "{name} топтон чыкты",
   "group.system.photo": "{name} топтун сүрөтүн өзгөрттү",

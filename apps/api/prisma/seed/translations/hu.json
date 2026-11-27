@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} létrehozta a csoportot",
   "group.system.demoted": "{name} elvette {people} admin jogát",
   "group.system.description": "{name} megváltoztatta a leírást",
+  "group.system.e2eeCodeChanged": "{name} biztonsági kódja megváltozott",
+  "group.system.e2eeOn": "A csoport üzenetei mostantól végpontok közötti titkosítással védettek. A csoporton kívül senki, még a LawBid sem olvashatja őket.",
   "group.system.joined": "{name} csatlakozott a csoporthoz",
   "group.system.left": "{name} kilépett a csoportból",
   "group.system.photo": "{name} megváltoztatta a csoportképet",

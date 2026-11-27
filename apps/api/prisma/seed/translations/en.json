@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} created the group",
   "group.system.demoted": "{name} removed admin rights from {people}",
   "group.system.description": "{name} changed the description",
+  "group.system.e2eeCodeChanged": "{name}'s security code changed",
+  "group.system.e2eeOn": "Messages in this group are now end-to-end encrypted. No one outside the group, not even LawBid, can read them.",
   "group.system.joined": "{name} joined the group",
   "group.system.left": "{name} left the group",
   "group.system.photo": "{name} changed the group photo",

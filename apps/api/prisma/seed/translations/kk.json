@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} топты құрды",
   "group.system.demoted": "{name} {people} адамының әкімші құқығын алды",
   "group.system.description": "{name} сипаттаманы өзгертті",
+  "group.system.e2eeCodeChanged": "{name} қауіпсіздік коды өзгерді",
+  "group.system.e2eeOn": "Енді бұл топтағы хабарлар өтпелі шифрлаумен қорғалған. Топтан тыс ешкім, тіпті LawBid те, оларды оқи алмайды.",
   "group.system.joined": "{name} топқа қосылды",
   "group.system.left": "{name} топтан шықты",
   "group.system.photo": "{name} топ суретін өзгертті",

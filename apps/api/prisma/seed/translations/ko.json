@@ -2661,6 +2661,8 @@
   "group.system.created": "{name}님이 그룹을 만들었습니다",
   "group.system.demoted": "{name}님이 {people}님의 관리자 권한을 해제했습니다",
   "group.system.description": "{name}님이 설명을 변경했습니다",
+  "group.system.e2eeCodeChanged": "{name}님의 보안 코드가 변경되었습니다",
+  "group.system.e2eeOn": "이제 이 그룹의 메시지는 종단 간 암호화됩니다. 그룹 밖의 누구도, LawBid조차도 읽을 수 없습니다.",
   "group.system.joined": "{name}님이 그룹에 참여했습니다",
   "group.system.left": "{name}님이 그룹을 나갔습니다",
   "group.system.photo": "{name}님이 그룹 사진을 변경했습니다",

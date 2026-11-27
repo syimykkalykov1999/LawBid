@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} గ్రూప్ సృష్టించారు",
   "group.system.demoted": "{name} {people} అడ్మిన్ హక్కులను తొలగించారు",
   "group.system.description": "{name} వివరణ మార్చారు",
+  "group.system.e2eeCodeChanged": "{name} భద్రతా కోడ్ మారింది",
+  "group.system.e2eeOn": "ఈ గ్రూప్‌లోని సందేశాలు ఇప్పుడు ఎండ్-టు-ఎండ్ ఎన్‌క్రిప్ట్ చేయబడ్డాయి. గ్రూప్ బయట ఎవరూ, LawBid కూడా, వాటిని చదవలేరు.",
   "group.system.joined": "{name} గ్రూప్‌లో చేరారు",
   "group.system.left": "{name} గ్రూప్ నుండి వెళ్లిపోయారు",
   "group.system.photo": "{name} గ్రూప్ ఫోటో మార్చారు",

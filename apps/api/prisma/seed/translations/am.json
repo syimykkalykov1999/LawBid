@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} ቡድኑን ፈጠረ",
   "group.system.demoted": "{name} የ{people}ን የአስተዳዳሪ መብት አነሳ",
   "group.system.description": "{name} መግለጫውን ቀየረ",
+  "group.system.e2eeCodeChanged": "የ{name} የደህንነት ኮድ ተቀይሯል",
+  "group.system.e2eeOn": "በዚህ ቡድን ውስጥ ያሉ መልዕክቶች አሁን ከጫፍ እስከ ጫፍ የተመሰጠሩ ናቸው። ከቡድኑ ውጭ ማንም፣ LawBid እንኳን፣ ሊያነባቸው አይችልም።",
   "group.system.joined": "{name} ቡድኑን ተቀላቀለ",
   "group.system.left": "{name} ቡድኑን ለቀቀ",
   "group.system.photo": "{name} የቡድኑን ፎቶ ቀየረ",

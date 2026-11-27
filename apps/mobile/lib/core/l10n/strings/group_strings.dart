@@ -265,6 +265,9 @@ const groupRu = <String, String>{
   'group.system.added': '{name} добавил(а) {people}',
   'group.system.created': '{name} создал(а) группу',
   'group.system.demoted': '{name} снял(а) права админа у {people}',
+  'group.system.e2eeCodeChanged': 'Код безопасности {name} изменился',
+  'group.system.e2eeOn':
+      'Теперь сообщения в этой группе защищены сквозным шифрованием. Никто вне группы, даже LawBid, не может их прочитать.',
   'group.system.description': '{name} изменил(а) описание',
   'group.system.joined': '{name} вступил(а) в группу',
   'group.system.left': '{name} вышел(а) из группы',
@@ -592,6 +595,9 @@ const groupEn = <String, String>{
   'group.system.added': '{name} added {people}',
   'group.system.created': '{name} created the group',
   'group.system.demoted': '{name} removed admin rights from {people}',
+  'group.system.e2eeCodeChanged': "{name}'s security code changed",
+  'group.system.e2eeOn':
+      'Messages in this group are now end-to-end encrypted. No one outside the group, not even LawBid, can read them.',
   'group.system.description': '{name} changed the description',
   'group.system.joined': '{name} joined the group',
   'group.system.left': '{name} left the group',

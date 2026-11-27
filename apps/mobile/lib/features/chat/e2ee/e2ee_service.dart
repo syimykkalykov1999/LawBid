@@ -63,12 +63,14 @@ class MemoryE2eePlaintextStore implements E2eePlaintextStore {
 
 /// Rows of [E2eePlaintextStore] that are not decrypted messages: this
 /// device's own bookkeeping (pending commit `p:`, outgoing file key `f:`,
-/// members' key fingerprints `k:`, the backup key `b:`). Never backed up.
+/// members' key fingerprints `k:`, the backup key `b:`, a group's last key
+/// update `u:`). Never backed up.
 bool isE2eeBookkeepingRow(String id) =>
     id.startsWith('p:') ||
     id.startsWith('f:') ||
     id.startsWith('k:') ||
-    id.startsWith('b:');
+    id.startsWith('b:') ||
+    id.startsWith('u:');
 
 /// The chat is end-to-end encrypted but this device cannot write yet (its
 /// Welcome has not come, or the server refused): the message waits.

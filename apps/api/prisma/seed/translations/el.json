@@ -2661,6 +2661,8 @@
   "group.system.created": "Ο/Η {name} δημιούργησε την ομάδα",
   "group.system.demoted": "Ο/Η {name} αφαίρεσε τα δικαιώματα διαχειριστή από: {people}",
   "group.system.description": "Ο/Η {name} άλλαξε την περιγραφή",
+  "group.system.e2eeCodeChanged": "Ο κωδικός ασφαλείας του/της {name} άλλαξε",
+  "group.system.e2eeOn": "Τα μηνύματα σε αυτή την ομάδα είναι πλέον κρυπτογραφημένα από άκρο σε άκρο. Κανείς εκτός ομάδας, ούτε καν η LawBid, δεν μπορεί να τα διαβάσει.",
   "group.system.joined": "Ο/Η {name} μπήκε στην ομάδα",
   "group.system.left": "Ο/Η {name} αποχώρησε από την ομάδα",
   "group.system.photo": "Ο/Η {name} άλλαξε τη φωτογραφία της ομάδας",

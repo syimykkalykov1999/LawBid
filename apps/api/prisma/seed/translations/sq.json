@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} krijoi grupin",
   "group.system.demoted": "{name} hoqi të drejtat e administratorit nga {people}",
   "group.system.description": "{name} ndryshoi përshkrimin",
+  "group.system.e2eeCodeChanged": "Kodi i sigurisë i {name} ndryshoi",
+  "group.system.e2eeOn": "Mesazhet në këtë grup tani janë të enkriptuara nga skaji në skaj. Askush jashtë grupit, as LawBid, nuk mund t'i lexojë.",
   "group.system.joined": "{name} u bashkua me grupin",
   "group.system.left": "{name} u largua nga grupi",
   "group.system.photo": "{name} ndryshoi foton e grupit",

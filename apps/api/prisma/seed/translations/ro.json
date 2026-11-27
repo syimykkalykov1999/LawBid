@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} a creat grupul",
   "group.system.demoted": "{name} a retras drepturile de administrator ale lui {people}",
   "group.system.description": "{name} a schimbat descrierea",
+  "group.system.e2eeCodeChanged": "Codul de securitate al lui {name} s-a schimbat",
+  "group.system.e2eeOn": "Mesajele din acest grup sunt acum criptate integral. Nimeni din afara grupului, nici măcar LawBid, nu le poate citi.",
   "group.system.joined": "{name} s-a alăturat grupului",
   "group.system.left": "{name} a părăsit grupul",
   "group.system.photo": "{name} a schimbat poza grupului",

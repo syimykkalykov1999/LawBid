@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} đã tạo nhóm",
   "group.system.demoted": "{name} đã gỡ quyền quản trị viên của {people}",
   "group.system.description": "{name} đã đổi mô tả",
+  "group.system.e2eeCodeChanged": "Mã bảo mật của {name} đã thay đổi",
+  "group.system.e2eeOn": "Tin nhắn trong nhóm này giờ đã được mã hóa đầu cuối. Không ai ngoài nhóm, kể cả LawBid, có thể đọc được.",
   "group.system.joined": "{name} đã tham gia nhóm",
   "group.system.left": "{name} đã rời nhóm",
   "group.system.photo": "{name} đã đổi ảnh nhóm",

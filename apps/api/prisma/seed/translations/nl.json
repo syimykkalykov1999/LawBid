@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} heeft de groep gemaakt",
   "group.system.demoted": "{name} heeft de beheerdersrechten van {people} ingetrokken",
   "group.system.description": "{name} heeft de beschrijving gewijzigd",
+  "group.system.e2eeCodeChanged": "De beveiligingscode van {name} is gewijzigd",
+  "group.system.e2eeOn": "Berichten in deze groep zijn nu end-to-end versleuteld. Niemand buiten de groep, zelfs LawBid niet, kan ze lezen.",
   "group.system.joined": "{name} is lid geworden van de groep",
   "group.system.left": "{name} heeft de groep verlaten",
   "group.system.photo": "{name} heeft de groepsfoto gewijzigd",

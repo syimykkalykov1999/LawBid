@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} группийг үүсгэлээ",
   "group.system.demoted": "{name} {people}-ийн админ эрхийг хаслаа",
   "group.system.description": "{name} тайлбарыг өөрчиллөө",
+  "group.system.e2eeCodeChanged": "{name}-ийн аюулгүй байдлын код өөрчлөгдлөө",
+  "group.system.e2eeOn": "Энэ бүлгийн мессежүүд одоо төгсгөлөөс төгсгөл хүртэл шифрлэгдсэн. Бүлгээс гадуурх хэн ч, LawBid ч гэсэн, тэдгээрийг уншиж чадахгүй.",
   "group.system.joined": "{name} группт нэгдлээ",
   "group.system.left": "{name} группээс гарлаа",
   "group.system.photo": "{name} группийн зургийг солилоо",

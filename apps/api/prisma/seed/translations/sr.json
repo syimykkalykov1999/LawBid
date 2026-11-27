@@ -2661,6 +2661,8 @@
   "group.system.created": "{name} je napravio/la grupu",
   "group.system.demoted": "{name} je oduzeo/la administratorska prava korisniku {people}",
   "group.system.description": "{name} je promenio/la opis",
+  "group.system.e2eeCodeChanged": "Безбедносни код корисника {name} се променио",
+  "group.system.e2eeOn": "Поруке у овој групи су сада шифроване с краја на крај. Нико ван групе, чак ни LawBid, не може да их прочита.",
   "group.system.joined": "{name} se pridružio/la grupi",
   "group.system.left": "{name} je napustio/la grupu",
   "group.system.photo": "{name} je promenio/la sliku grupe",
