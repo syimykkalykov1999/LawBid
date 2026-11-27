@@ -446,6 +446,7 @@ class _PhotoField extends StatelessWidget {
           'profile.photo.uploading',
           {'percent': context.digits((state.progress * 100).round())},
         ),
+      GroupAvatarStage.checking => t.t('profile.photo.checking'),
       GroupAvatarStage.failed => errorText(t, state.error ?? Object()),
       _ => null,
     };

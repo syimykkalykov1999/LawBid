@@ -8,6 +8,8 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
+import 'package:lawbid/features/profile/application/avatar_upload_controller.dart'
+    show AvatarUploadController;
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart';
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
@@ -100,10 +102,17 @@ Future<String> uploadGroupPhoto(WidgetRef ref, Uint8List bytes) async {
     sizeBytes: bytes.length,
     sha256: sha256Hex(bytes),
   );
-  await repo.upload(target, bytes, mime);
-  var outcome = await repo.confirm(target.fileId);
-  for (var i = 0; outcome == ScanOutcome.pending && i < 30; i++) {
-    await Future<void>.delayed(const Duration(seconds: 1));
+  // The profile photo's steps (AvatarUploadController): a photo the storage
+  // already has is not sent again; the scan is polled twice a second.
+  var outcome = ScanOutcome.clean;
+  if (!target.alreadyStored) {
+    await repo.upload(target, bytes, mime);
+    outcome = await repo.confirm(target.fileId);
+  }
+  for (var i = 0;
+      outcome == ScanOutcome.pending && i < AvatarUploadController.maxPolls;
+      i++) {
+    await Future<void>.delayed(AvatarUploadController.pollInterval);
     outcome = await repo.scanStatus(target.fileId);
   }
   if (outcome != ScanOutcome.clean) {
