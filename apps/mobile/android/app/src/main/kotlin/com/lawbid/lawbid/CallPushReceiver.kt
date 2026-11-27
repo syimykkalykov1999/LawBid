@@ -51,6 +51,9 @@ class CallPushReceiver : BroadcastReceiver() {
                             data["pollToken"],
                             CallRinging.ringMsOf(data),
                         )
+                        // Owner 26.11: a headset / car / watch answer or
+                        // decline of this ring reaches the app (SystemCalls).
+                        SystemCalls.watchRing(app, callId, CallRinging.ringMsOf(data))
                     }
                     CallRinging.PushAction.NONE -> Unit
                 }

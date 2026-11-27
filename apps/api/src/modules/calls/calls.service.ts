@@ -25,7 +25,18 @@ import type {
   Message,
 } from '../../generated/prisma/client';
 import { ErrorCode } from '../../common/errors/error-code.enum';
-import { UsageLimitsService } from '../../common/usage-limits/usage-limits.service';
+import {
+  UsageLimitsService,
+  rateLimited,
+} from '../../common/usage-limits/usage-limits.service';
+import {
+  CALL_START_PER_DAY,
+  CALL_START_PER_MINUTE,
+  UNANSWERED_COOLDOWN_MIN,
+  UNANSWERED_IN_ROW,
+  unansweredInRow,
+  unansweredWaitSeconds,
+} from './call-start-limits';
 import { SecretsService } from '../../common/secrets/secrets.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -136,16 +147,42 @@ export const SFU_REPORT_TTL_MS = 60_000;
 
 /** Owner 2026-10-21: a network that blocks UDP (offices, some mobile
  * carriers) still gets a call — every plain `turn:` address is also offered
- * over TCP (coturn listens on 3478 for both). UDP stays first. */
-export function withTcpFallback(urls: string[]): string[] {
+ * over TCP (coturn listens on 3478 for both). UDP stays first.
+ * 26.11 ([port443], admin `calls.own_turn.port_443`): and over TCP on port
+ * 443 last, for networks that let only 443 out (hotels, offices) — the box
+ * forwards 443 to coturn's 3478 (infra/modules/turn). Cloudflare's own list
+ * offers `turn:…:443?transport=tcp` the same way. No `turns:` is added: our
+ * box has no TLS certificate (and the on-demand box no name), and a TLS
+ * address the phone cannot verify only wastes a candidate; an admin who adds
+ * a certificate lists `turns:` in the TURN urls, which pass unchanged. */
+export function withTcpFallback(
+  urls: string[],
+  opts: { port443?: boolean } = {},
+): string[] {
   const out = [...urls];
-  for (const u of urls) {
-    if (/^turn:/i.test(u) && !/[?&]transport=/i.test(u)) {
-      const tcp = `${u}?transport=tcp`;
-      if (!out.includes(tcp)) out.push(tcp);
+  const add = (u: string) => {
+    if (!out.includes(u)) out.push(u);
+  };
+  const plain = urls.filter(
+    (u) => /^turn:/i.test(u) && !/[?&]transport=/i.test(u),
+  );
+  for (const u of plain) add(`${u}?transport=tcp`);
+  if (opts.port443) {
+    // Every own TURN host once, also when the admin wrote the transports
+    // out (`turn:h:3478?transport=udp,turn:h:3478?transport=tcp`).
+    for (const u of urls) {
+      const host = turnHost(u);
+      if (host) add(`turn:${host}:443?transport=tcp`);
     }
   }
   return out;
+}
+
+/** `turn:<host>[:<port>][?…]` → host (an IPv6 address keeps its brackets);
+ * null for `turns:` and anything else. */
+function turnHost(url: string): string | null {
+  const m = /^turn:(\[[^\]]+\]|[^:?\s/]+)(?::\d+)?(?:\?.*)?$/i.exec(url);
+  return m ? m[1] : null;
 }
 
 /** Mesh calls: every member sends audio to every other — a safe size.
@@ -806,6 +843,7 @@ export class CallsService {
     }
     await this.assertSubscription(conv);
     await this.limits.consume('message', user.sub);
+    await this.assertCallStartLimits(user, conv.id);
     await this.sweepIfDue();
 
     // Audit 17.11 (problem 6): the busy check and the new call run under
@@ -896,6 +934,62 @@ export class CallsService {
       await this.push.enqueueCall({ recipientId, callId: call.id });
     }
     return this.toDto(call, user.sub);
+  }
+
+  /** Admin `calls.own_turn.port_443` (default on); on when unreadable. */
+  private async ownTurn443(): Promise<boolean> {
+    try {
+      return (await this.settings?.boolean('calls.own_turn.port_443')) ?? true;
+    } catch {
+      return true;
+    }
+  }
+
+  /**
+   * 26.11 (call spam, call-start-limits.ts): starts per minute / per day and
+   * the pause after unanswered rings in a row to this chat's other person.
+   * Admin settings, 0 = off; an admin is never capped.
+   */
+  private async assertCallStartLimits(
+    user: RequestUser,
+    conversationId: string,
+  ): Promise<void> {
+    if (user.role === 'admin') return;
+    await this.limits.consumeSetting(
+      'call_start',
+      CALL_START_PER_MINUTE,
+      60,
+      user.sub,
+    );
+    await this.limits.consumeSetting(
+      'call_start_daily',
+      CALL_START_PER_DAY,
+      24 * 60 * 60,
+      user.sub,
+    );
+    if (!this.settings) return;
+    const limit = Math.floor(await this.settings.number(UNANSWERED_IN_ROW));
+    const cooldown = await this.settings.number(UNANSWERED_COOLDOWN_MIN);
+    if (!(limit > 0) || !(cooldown > 0)) return;
+    // The chat's newest calls (index conversation_id, created_at); busy /
+    // failed rows are skipped by the count, so read a few more than [limit].
+    const rows = await this.prisma.call.findMany({
+      where: { conversation_id: conversationId, is_group: false },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: Math.min(limit * 2 + 2, 200),
+      select: {
+        caller_id: true,
+        status: true,
+        answered_at: true,
+        created_at: true,
+      },
+    });
+    const wait = unansweredWaitSeconds(
+      unansweredInRow(rows, user.sub),
+      limit,
+      cooldown,
+    );
+    if (wait > 0) throw rateLimited('call_unanswered', wait);
   }
 
   /**
@@ -1405,7 +1499,7 @@ export class CallsService {
       if (turn.length > 0 && secret) {
         const username = `${Math.floor(Date.now() / 1000) + TURN_TTL_SEC}:${user.sub}`;
         const own: IceServerDto = {
-          urls: withTcpFallback(turn),
+          urls: withTcpFallback(turn, { port443: await this.ownTurn443() }),
           username,
           credential: createHmac('sha1', secret)
             .update(username)

@@ -17,7 +17,10 @@ final groupE2eeServiceProvider = Provider<GroupE2eeService?>((ref) {
     api: ClientGroupE2eeApi(
       api.E2eeClient(ref.watch(dioProvider)),
       download: chat.download,
+<<<<<<< HEAD
       upload: chat.upload,
+=======
+>>>>>>> origin/main
     ),
     chat: chat,
     ownerId: chat.ownerId,

@@ -495,22 +495,39 @@ class _FakeForeground implements CallForeground {
   @override
   Future<String?> pendingAction() async => null;
 
+  /// Owner 26.11: what Telecom is told (native SystemCalls.kt).
+  final startIds = <String>[];
+  final stopCauses = <String?>[];
+  final systemCalls = <bool>[];
+  final routes = <String>[];
+
   @override
   Future<void> start({
     required String name,
+    String id = '',
+    bool outgoing = false,
     int since = 0,
     String status = '',
     String hangup = '',
-  }) async =>
-      started.add('$name|${since > 0}');
+  }) async {
+    started.add('$name|${since > 0}');
+    startIds.add('$id|$outgoing');
+  }
 
   void Function()? onStop;
 
   @override
-  Future<void> stop() async {
+  Future<void> stop({String? cause}) async {
     stops++;
+    stopCauses.add(cause);
     onStop?.call();
   }
+
+  @override
+  Future<void> setSystemCalls({required bool on}) async => systemCalls.add(on);
+
+  @override
+  Future<void> route(String kind) async => routes.add(kind);
 }
 
 class _SystemUi implements SystemCallUi {
@@ -557,9 +574,15 @@ class _SystemUi implements SystemCallUi {
 }
 
 class _Harness {
-  _Harness({String me = 'me', bool videoCalls = true}) {
+  _Harness({
+    String me = 'me',
+    bool videoCalls = true,
+    bool systemCalls = false,
+  }) {
     container = ProviderContainer(
       overrides: [
+        // Owner 26.11: the admin's `calls_android_telecom`.
+        androidSystemCallsEnabledProvider.overrideWithValue(systemCalls),
         // Owner 18.11: the camera follows the admin's `video_calls`.
         videoCallsEnabledProvider.overrideWithValue(videoCalls),
         callsRepositoryProvider.overrideWithValue(repo),
@@ -1846,6 +1869,20 @@ void main() {
       await _settle();
       return h;
     }
+
+    test('Android system calls: Telecom hears where the sound goes', () async {
+      final h = _Harness();
+      addTearDown(h.dispose);
+      h.audio.list = [
+        FakeCallAudioDevices.phoneOut,
+        FakeCallAudioDevices.speakerOut,
+        FakeCallAudioDevices.btOut,
+      ];
+      await h.c.call('conv', peer: _peer);
+      await _settle();
+      expect(h.foreground.routes, contains('bluetooth'));
+      await h.c.hangUp();
+    });
 
     test('a headset connected before the call takes its sound', () async {
       final h = _Harness();
@@ -3878,6 +3915,42 @@ void main() {
       await _settle();
       expect(h.s.held, isFalse);
       await h.c.hangUp();
+    });
+
+    test('Android system calls: the system mutes and unmutes the call',
+        () async {
+      final h = await talking();
+      expect(h.s.muted, isFalse);
+      h.foreground.emit('mute');
+      await _settle();
+      expect(h.s.muted, isTrue);
+      // Said twice: still muted, no flip back.
+      h.foreground.emit('mute');
+      await _settle();
+      expect(h.s.muted, isTrue);
+      h.foreground.emit('unmute');
+      await _settle();
+      expect(h.s.muted, isFalse);
+      await h.c.hangUp();
+    });
+
+    test('Android system calls: Telecom gets the call id, direction and end',
+        () async {
+      final h = await talking();
+      expect(h.foreground.startIds, isNotEmpty);
+      expect(h.foreground.startIds.last, startsWith('c1|'));
+      await h.c.hangUp();
+      await _settle();
+      expect(h.foreground.stopCauses.whereType<String>(), isNotEmpty);
+    });
+
+    test('Android system calls: the switch reaches the native side', () async {
+      final off = _Harness();
+      addTearDown(off.dispose);
+      expect(off.foreground.systemCalls, [false]);
+      final on = _Harness(systemCalls: true);
+      addTearDown(on.dispose);
+      expect(on.foreground.systemCalls, [true]);
     });
 
     test('iOS interruption: began holds, ended resumes; app back clears it',

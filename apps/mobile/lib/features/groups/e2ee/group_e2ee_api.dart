@@ -2,7 +2,10 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+<<<<<<< HEAD
 import 'package:lawbid/core/uploads/upload_body.dart';
+=======
+>>>>>>> origin/main
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// G2 (docs/architecture/GROUP_E2EE_DESIGN_2026-11-26.md §4.1): the group
@@ -261,13 +264,18 @@ class GroupInfoRow {
 
 /// The generated client of G1's endpoints.
 class ClientGroupE2eeApi implements GroupE2eeApi {
+<<<<<<< HEAD
   ClientGroupE2eeApi(this._c, {this.download, this.upload});
+=======
+  ClientGroupE2eeApi(this._c, {this.download});
+>>>>>>> origin/main
 
   final api.E2eeClient _c;
 
   /// The bytes behind a short link (a GroupInfo too big to be inline).
   final Stream<List<int>> Function(String url)? download;
 
+<<<<<<< HEAD
   /// G2b: puts a GroupInfo above `groups.e2ee_group_info_inline_kb` into
   /// storage (the same direct upload as encrypted files, `chat_e2ee`); the
   /// file id goes in the commit instead (§4.3).
@@ -314,6 +322,8 @@ class ClientGroupE2eeApi implements GroupE2eeApi {
     }
   }
 
+=======
+>>>>>>> origin/main
   static GroupE2eeState _state(api.GroupE2eeDto d) => GroupE2eeState(
         state: switch (d.state) {
           api.GroupE2eeState.valueOn => GroupE2eeMode.on,
@@ -345,6 +355,7 @@ class ClientGroupE2eeApi implements GroupE2eeApi {
     required String deviceId,
     required String mlsGroupId,
     String? groupInfo,
+<<<<<<< HEAD
   }) =>
       _withInfo(
         groupId,
@@ -361,6 +372,19 @@ class ClientGroupE2eeApi implements GroupE2eeApi {
           ))
               .data,
         ),
+=======
+  }) async =>
+      _state(
+        (await _c.createGroupMls(
+          id: groupId,
+          body: api.CreateGroupMlsDto(
+            deviceId: deviceId,
+            groupId: mlsGroupId,
+            groupInfo: groupInfo,
+          ),
+        ))
+            .data,
+>>>>>>> origin/main
       );
 
   @override
@@ -395,6 +419,7 @@ class ClientGroupE2eeApi implements GroupE2eeApi {
       ];
 
   @override
+<<<<<<< HEAD
   Future<int> postCommit(String groupId, GroupCommitBody body) => _withInfo(
         groupId,
         body.groupInfo,
@@ -415,6 +440,24 @@ class ClientGroupE2eeApi implements GroupE2eeApi {
             .epoch
             .toInt(),
       );
+=======
+  Future<int> postCommit(String groupId, GroupCommitBody body) async =>
+      (await _c.postGroupMlsCommit(
+        id: groupId,
+        body: api.GroupMlsCommitDto(
+          deviceId: body.deviceId,
+          epoch: body.epoch,
+          commit: body.commit,
+          addedDevices: body.addedDevices,
+          removedDevices: body.removedDevices,
+          welcome: body.welcome,
+          groupInfo: body.groupInfo,
+        ),
+      ))
+          .data
+          .epoch
+          .toInt();
+>>>>>>> origin/main
 
   @override
   Future<List<GroupCommitRow>> commits(String groupId, int after) async => [
@@ -451,6 +494,7 @@ class ClientGroupE2eeApi implements GroupE2eeApi {
   Future<int> externalCommit(
     String groupId,
     GroupExternalCommitBody body,
+<<<<<<< HEAD
   ) =>
       _withInfo(
         groupId,
@@ -470,6 +514,22 @@ class ClientGroupE2eeApi implements GroupE2eeApi {
             .epoch
             .toInt(),
       );
+=======
+  ) async =>
+      (await _c.postGroupExternalCommit(
+        id: groupId,
+        body: api.GroupExternalCommitDto(
+          deviceId: body.deviceId,
+          epoch: body.epoch,
+          commit: body.commit,
+          groupInfo: body.groupInfo,
+          resync: body.resync,
+        ),
+      ))
+          .data
+          .epoch
+          .toInt();
+>>>>>>> origin/main
 
   @override
   Future<List<GroupWelcome>> welcomes(String deviceId) async => [

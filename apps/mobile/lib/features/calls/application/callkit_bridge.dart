@@ -282,6 +282,33 @@ Future<void> showLawbidIncoming({
     );
   } on Object catch (e) {
     debugPrint('callkit unavailable: $e');
+    return;
+  }
+  await watchSystemRing(callId, ring);
+}
+
+/// Owner 26.11 (`calls_android_telecom`): a headset's button, a car kit or
+/// a watch answering / declining this ring reaches the app — the native
+/// side watches the ring's Telecom call (SystemCalls.kt). The push path
+/// does the same natively (CallPushReceiver); in the push isolate this
+/// channel is not there and nothing happens.
+@visibleForTesting
+Future<void> watchSystemRing(
+  String callId,
+  Duration ring, {
+  TargetPlatform? platform,
+  MethodChannel channel = const MethodChannel('lawbid/call_service'),
+}) async {
+  if (kIsWeb || (platform ?? defaultTargetPlatform) != TargetPlatform.android) {
+    return;
+  }
+  try {
+    await channel.invokeMethod<void>('watchRing', {
+      'id': callId,
+      'ringMs': ring.inMilliseconds,
+    });
+  } on Object {
+    // No host (push isolate, tests): the native push path watches.
   }
 }
 

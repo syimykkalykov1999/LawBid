@@ -35,6 +35,7 @@ class CallForegroundService : Service() {
      * indicator go with it; the server drops a silent member on its own
      * (45 s without a heartbeat, calls.service.ts sweepSilentMembers). */
     override fun onTaskRemoved(rootIntent: Intent?) {
+        SystemCalls.end(null)
         stopForeground(STOP_FOREGROUND_REMOVE)
         clearNotification()
         stopSelf()
@@ -42,6 +43,9 @@ class CallForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        // Owner 26.11: the system's call goes with the service (a no-op
+        // when Dart already ended it with its cause).
+        SystemCalls.end(null)
         holdWatcher?.stop()
         holdWatcher = null
         try {
@@ -56,6 +60,7 @@ class CallForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            SystemCalls.end(null)
             holdWatcher?.stop()
             holdWatcher = null
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -119,6 +124,20 @@ class CallForegroundService : Service() {
                     stopSelf()
                 }
             }
+        }
+        // Owner 26.11 (`calls_android_telecom`): the call is a system call
+        // (Core-Telecom), hosted here as the Android guide shows — after
+        // startForeground, with the CallStyle notification up.
+        try {
+            SystemCalls.begin(
+                this,
+                id = intent?.getStringExtra(EXTRA_ID) ?: "",
+                name = name,
+                outgoing = intent?.getBooleanExtra(EXTRA_OUTGOING, false) ?: false,
+                connected = since > 0,
+            )
+        } catch (e: Throwable) {
+            // Telecom refused: the call runs as before.
         }
         return START_NOT_STICKY
     }
@@ -204,6 +223,8 @@ class CallForegroundService : Service() {
         const val EXTRA_SINCE = "since"
         const val EXTRA_STATUS = "status"
         const val EXTRA_HANGUP = "hangup"
+        const val EXTRA_ID = "id"
+        const val EXTRA_OUTGOING = "outgoing"
         const val ACTION_STOP = "com.lawbid.lawbid.CALL_STOP"
         const val ACTION_OPEN = "com.lawbid.lawbid.CALL_OPEN"
         const val ACTION_HANGUP = "com.lawbid.lawbid.CALL_HANGUP"
