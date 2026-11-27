@@ -118,7 +118,10 @@ class _CommentTileState extends ConsumerState<CommentTile> {
     final c = _c;
     final container = ProviderScope.containerOf(context, listen: false);
     final hidden = container.read(deletedCommentsProvider.notifier)..add(c.id);
-    final messenger = ScaffoldMessenger.maybeOf(context);
+    // Owner 26.11: the screen this comment is on outlives the tile (gone at
+    // once) — a refusal is shown there. The messenger's own context has no
+    // messenger above it, so the reason was never seen.
+    final host = Navigator.of(context).context;
     showUndoSnackBar(
       context,
       message: t.t('comment.deleted'),
@@ -140,9 +143,7 @@ class _CommentTileState extends ConsumerState<CommentTile> {
         } on Object catch (e) {
           // Not deleted: the comment comes back and the reason is shown.
           hidden.remove(c.id);
-          if (messenger != null && messenger.mounted) {
-            showAppSnackBar(messenger.context, errorText(t, e));
-          }
+          if (host.mounted) showAppSnackBar(host, errorText(t, e));
         }
       }()),
     );

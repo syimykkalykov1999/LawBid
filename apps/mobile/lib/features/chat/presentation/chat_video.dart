@@ -340,8 +340,20 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
   Timer? _hide;
   double _drag = 0;
 
-  /// While the thumb is dragged: its spot (the player catches up).
+  /// While the thumb is dragged (and until the one seek lands): its spot.
   double? _scrubMs;
+
+  /// The seek bar's thumb overlay radius: the track starts this far in.
+  static const _seekPad = 14.0;
+
+  /// Where the finger is on the seek bar, as a time.
+  double? _fingerMs;
+
+  /// The finger is on the seek bar.
+  bool _scrubbing = false;
+
+  /// It played when the scrub began: it plays on after the seek.
+  bool _scrubWasPlaying = false;
 
   /// Owner 2026-10-19 (Instagram): pinch zooms the video (1–5×) and moves
   /// it; zoomed in, a swipe down does not close it.
@@ -512,6 +524,37 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
     });
   }
 
+  /// Owner 26.11: scrubbing as chewie's `VideoProgressBar` (MIT) and
+  /// video_player's `VideoScrubber` (BSD) do it: the video pauses while the
+  /// thumb is dragged, the thumb and the clock follow the finger, and the
+  /// player seeks once, where it is let go, then plays on if it played —
+  /// not a seek for every pixel, which floods the decoder (HLS reloads a
+  /// segment each time) and lets the frame lag far behind the finger.
+  void _scrubStart(double ms) {
+    _hide?.cancel();
+    _scrubbing = true;
+    if (!_scrubWasPlaying) _scrubWasPlaying = _c.value.isPlaying;
+    if (_c.value.isPlaying) _stopSound();
+    setState(() => _scrubMs = ms);
+  }
+
+  Future<void> _scrubEnd(double ms) async {
+    _scrubbing = false;
+    setState(() => _scrubMs = ms);
+    await _c.seekTo(Duration(milliseconds: ms.round()));
+    // A new drag began while it sought: that one owns the thumb now.
+    if (!mounted || _scrubbing) return;
+    setState(() => _scrubMs = null);
+    final resume = _scrubWasPlaying && _c.value.position < _c.value.duration;
+    _scrubWasPlaying = false;
+    if (resume) {
+      // A short tap: the fade of [_scrubStart] must not pause it later.
+      _ramp?.cancel();
+      await _startSound();
+    }
+    _scheduleHide();
+  }
+
   void _tapScreen() {
     setState(() => _controls = !_controls);
     if (_controls) _scheduleHide();
@@ -573,130 +616,153 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: Colors.black,
-        body: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _tapScreen,
-          // Owner 2026-10-19 (Instagram): hold = pause, let go = plays on.
-          onLongPressStart: (_) {
-            if (_c.value.isPlaying) {
-              _heldPause = true;
-              _stopSound();
-            }
-          },
-          onLongPressEnd: (_) => _releaseHold(),
-          onLongPressCancel: _releaseHold,
-          // Swipe down to close, like a photo (not while zoomed in).
-          onVerticalDragUpdate: _zoomed
-              ? null
-              : (d) => setState(() => _drag = math.max(0, _drag + d.delta.dy)),
-          onVerticalDragEnd: _zoomed
-              ? null
-              : (_) {
-                  if (_drag > 120) {
-                    Navigator.of(context).maybePop();
-                  } else {
-                    setState(() => _drag = 0);
+        // Owner 26.11 (S26 Ultra: «тянешь, и он обрывается»): the seek bar
+        // lies above the screen's hold-to-pause and swipe-down detector, not
+        // inside it — inside, a finger resting on the thumb for half a
+        // second (a long press) or moving a little downward first (the
+        // swipe) took the drag from the slider. YouTube / Instagram: the
+        // scrubber is its own layer.
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _tapScreen,
+                // Owner 2026-10-19 (Instagram): hold = pause, let go =
+                // plays on.
+                onLongPressStart: (_) {
+                  if (_c.value.isPlaying) {
+                    _heldPause = true;
+                    _stopSound();
                   }
                 },
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Positioned.fill(
-                child: Transform.translate(
-                  offset: Offset(0, _drag),
-                  child: Center(
-                    child: v.isInitialized
-                        ? InteractiveViewer(
-                            transformationController: _zoom,
-                            maxScale: 5,
-                            panEnabled: _zoomed,
-                            child: Center(
-                              child: AspectRatio(
-                                aspectRatio: v.aspectRatio,
-                                child: VideoPlayer(_c),
+                onLongPressEnd: (_) => _releaseHold(),
+                onLongPressCancel: _releaseHold,
+                // Swipe down to close, like a photo (not while zoomed in).
+                onVerticalDragUpdate: _zoomed
+                    ? null
+                    : (d) =>
+                        setState(() => _drag = math.max(0, _drag + d.delta.dy)),
+                onVerticalDragEnd: _zoomed
+                    ? null
+                    : (_) {
+                        if (_drag > 120) {
+                          Navigator.of(context).maybePop();
+                        } else {
+                          setState(() => _drag = 0);
+                        }
+                      },
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Positioned.fill(
+                      child: Transform.translate(
+                        offset: Offset(0, _drag),
+                        child: Center(
+                          child: v.isInitialized
+                              ? InteractiveViewer(
+                                  transformationController: _zoom,
+                                  maxScale: 5,
+                                  panEnabled: _zoomed,
+                                  child: Center(
+                                    child: AspectRatio(
+                                      aspectRatio: v.aspectRatio,
+                                      child: VideoPlayer(_c),
+                                    ),
+                                  ),
+                                )
+                              : _failed
+                                  ? const AppIcon(
+                                      AppIcons.errorOutlineRounded,
+                                      color: Colors.white54,
+                                      size: 40,
+                                    )
+                                  : const CircularProgressIndicator(
+                                      color: Colors.white,
+                                    ),
+                        ),
+                      ),
+                    ),
+                    // Paused or ended: one big play button in the middle.
+                    if (paused && _drag == 0)
+                      Positioned.fill(
+                        child: Center(
+                          // Owner 2026-10-19: the app's player button look.
+                          child: PlayerRoundButton(
+                            icon: AppIcons.playArrowRounded,
+                            size: 72,
+                            onTap: _toggle,
+                          ),
+                        ),
+                      ),
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: AnimatedOpacity(
+                        opacity: _controls && _drag == 0 ? 1 : 0,
+                        duration: fade,
+                        child: IgnorePointer(
+                          ignoring: !_controls,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Colors.black54, Colors.transparent],
                               ),
                             ),
-                          )
-                        : _failed
-                            ? const AppIcon(
-                                AppIcons.errorOutlineRounded,
-                                color: Colors.white54,
-                                size: 40,
-                              )
-                            : const CircularProgressIndicator(
-                                color: Colors.white,
+                            child: SafeArea(
+                              bottom: false,
+                              child: Row(
+                                children: [
+                                  IconButton(
+                                    tooltip: t.t('common.close'),
+                                    onPressed: () =>
+                                        Navigator.of(context).maybePop(),
+                                    icon: const AppIcon(
+                                      AppIcons.closeRounded,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  // Row 110 (WhatsApp / Telegram): «Поделиться»
+                                  // (a file; a stream playlist is not one).
+                                  if (canShareMedia &&
+                                      !Uri.parse(widget.url)
+                                          .path
+                                          .endsWith('.m3u8'))
+                                    MediaShareButton(
+                                      url: widget.url,
+                                      mime: 'video/mp4',
+                                      file: widget.file,
+                                    ),
+                                ],
                               ),
-                  ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              // Paused or ended: one big play button in the middle.
-              if (paused && _drag == 0)
-                Positioned.fill(
-                  child: Center(
-                    // Owner 2026-10-19: the app's player button look.
-                    child: PlayerRoundButton(
-                      icon: AppIcons.playArrowRounded,
-                      size: 72,
-                      onTap: _toggle,
-                    ),
-                  ),
-                ),
+            ),
+            if (v.isInitialized)
               Positioned(
-                top: 0,
                 left: 0,
                 right: 0,
+                bottom: 0,
                 child: AnimatedOpacity(
                   opacity: _controls && _drag == 0 ? 1 : 0,
                   duration: fade,
                   child: IgnorePointer(
                     ignoring: !_controls,
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Colors.black54, Colors.transparent],
-                        ),
-                      ),
-                      child: SafeArea(
-                        bottom: false,
-                        child: Row(
-                          children: [
-                            IconButton(
-                              tooltip: t.t('common.close'),
-                              onPressed: () => Navigator.of(context).maybePop(),
-                              icon: const AppIcon(
-                                AppIcons.closeRounded,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const Spacer(),
-                            // Row 110 (WhatsApp / Telegram): «Поделиться»
-                            // (a file; a stream playlist is not one).
-                            if (canShareMedia &&
-                                !Uri.parse(widget.url).path.endsWith('.m3u8'))
-                              MediaShareButton(
-                                url: widget.url,
-                                mime: 'video/mp4',
-                                file: widget.file,
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              if (v.isInitialized)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: AnimatedOpacity(
-                    opacity: _controls && _drag == 0 ? 1 : 0,
-                    duration: fade,
-                    child: IgnorePointer(
-                      ignoring: !_controls,
+                    // A tap beside the buttons still hides the controls.
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: _tapScreen,
                       child: Container(
                         decoration: const BoxDecoration(
                           gradient: LinearGradient(
@@ -738,45 +804,58 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
                                   style: clock,
                                 ),
                                 Expanded(
-                                  child: SliderTheme(
-                                    data: SliderTheme.of(context).copyWith(
-                                      trackHeight: 3,
-                                      thumbShape: const RoundSliderThumbShape(
-                                        enabledThumbRadius: 7,
-                                      ),
-                                      overlayShape:
-                                          const RoundSliderOverlayShape(
-                                        overlayRadius: 14,
-                                      ),
-                                    ),
-                                    child: Slider(
-                                      value: shownMs.clamp(0, maxMs),
-                                      max: maxMs,
-                                      activeColor: Colors.white,
-                                      inactiveColor: Colors.white30,
-                                      thumbColor: Colors.white,
-                                      onChangeStart: (x) {
-                                        _hide?.cancel();
-                                        setState(() => _scrubMs = x);
-                                      },
-                                      onChanged: (x) {
-                                        setState(() => _scrubMs = x);
-                                        unawaited(
-                                          _c.seekTo(
-                                            Duration(milliseconds: x.round()),
+                                  // Owner 26.11: the thumb stays under the
+                                  // finger (chewie's bar maps the finger's
+                                  // spot to a time; the slider alone moves
+                                  // by deltas and drops the first ~18 px).
+                                  child: LayoutBuilder(
+                                    builder: (context, box) {
+                                      final rtl = Directionality.of(context) ==
+                                          TextDirection.rtl;
+                                      void finger(PointerEvent e) {
+                                        final f =
+                                            ((e.localPosition.dx - _seekPad) /
+                                                    math.max(
+                                                      1,
+                                                      box.maxWidth -
+                                                          2 * _seekPad,
+                                                    ))
+                                                .clamp(0.0, 1.0);
+                                        _fingerMs = (rtl ? 1 - f : f) * maxMs;
+                                      }
+
+                                      return Listener(
+                                        onPointerDown: finger,
+                                        onPointerMove: finger,
+                                        child: SliderTheme(
+                                          data:
+                                              SliderTheme.of(context).copyWith(
+                                            trackHeight: 3,
+                                            thumbShape:
+                                                const RoundSliderThumbShape(
+                                              enabledThumbRadius: 7,
+                                            ),
+                                            overlayShape:
+                                                const RoundSliderOverlayShape(
+                                              overlayRadius: _seekPad,
+                                            ),
                                           ),
-                                        );
-                                      },
-                                      onChangeEnd: (x) async {
-                                        await _c.seekTo(
-                                          Duration(milliseconds: x.round()),
-                                        );
-                                        if (mounted) {
-                                          setState(() => _scrubMs = null);
-                                        }
-                                        _scheduleHide();
-                                      },
-                                    ),
+                                          child: Slider(
+                                            value: shownMs.clamp(0, maxMs),
+                                            max: maxMs,
+                                            activeColor: Colors.white,
+                                            inactiveColor: Colors.white30,
+                                            thumbColor: Colors.white,
+                                            onChangeStart: _scrubStart,
+                                            onChanged: (x) => setState(
+                                              () => _scrubMs = _fingerMs ?? x,
+                                            ),
+                                            onChangeEnd: (x) =>
+                                                _scrubEnd(_fingerMs ?? x),
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
                                 Text(voiceClock(total), style: clock),
@@ -801,8 +880,8 @@ class _ChatVideoScreenState extends State<ChatVideoScreen>
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );

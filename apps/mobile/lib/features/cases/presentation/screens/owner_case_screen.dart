@@ -924,7 +924,7 @@ class _OwnerOpenCaseState extends ConsumerState<_OwnerOpenCase> {
   }
 }
 
-class _BidsList extends ConsumerWidget {
+class _BidsList extends ConsumerStatefulWidget {
   const _BidsList({
     required this.value,
     required this.t,
@@ -938,7 +938,30 @@ class _BidsList extends ConsumerWidget {
   final CaseBidsKey bidsKey;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_BidsList> createState() => _BidsListState();
+}
+
+class _BidsListState extends ConsumerState<_BidsList> {
+  /// Owner 26.11: the bid whose «Принять» is on its way (server-confirmed):
+  /// its button spins, no card takes another accept meanwhile.
+  String? _accepting;
+
+  Translator get t => widget.t;
+  L10nFormats get formats => widget.formats;
+  CaseBidsKey get bidsKey => widget.bidsKey;
+
+  Future<void> _accept(CaseBid bid) async {
+    if (_accepting != null) return;
+    setState(() => _accepting = bid.id);
+    try {
+      await acceptBidFromCard(context, ref, bid);
+    } finally {
+      if (mounted) setState(() => _accepting = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(caseBidsProvider(bidsKey));
     final notifier = ref.read(caseBidsProvider(bidsKey).notifier);
     return switch (async) {
@@ -972,8 +995,9 @@ class _BidsList extends ConsumerWidget {
                       value.items[i].confirmationRequiredAt != null,
                   onAccept: value.items[i].isActive &&
                           value.items[i].isTurnOf(PartyRole.client)
-                      ? () => acceptBidFromCard(context, ref, value.items[i])
+                      ? () => unawaited(_accept(value.items[i]))
                       : null,
+                  accepting: _accepting == value.items[i].id,
                   onAttorneyTap: value.items[i].attorney?.username.isNotEmpty ??
                           false
                       ? () => context.push(

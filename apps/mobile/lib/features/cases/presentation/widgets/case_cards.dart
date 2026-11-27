@@ -894,11 +894,16 @@ class BidCard extends StatelessWidget {
     this.onAttorneyTap,
     this.onAccept,
     this.waiting = false,
+    this.accepting = false,
     super.key,
   });
 
   /// Owner 2026-11-05: the client changed the case, the attorney answers first.
   final bool waiting;
+
+  /// Owner 26.11: «Принять» is on its way (server-confirmed): the button
+  /// spins and takes no second tap.
+  final bool accepting;
 
   final CaseBid bid;
   final Translator t;
@@ -1012,6 +1017,7 @@ class BidCard extends StatelessWidget {
                   child: AppButton(
                     key: ValueKey('bid-card-accept-${bid.id}'),
                     label: t.t('cases.accept.button'),
+                    isLoading: accepting,
                     onPressed: onAccept,
                   ),
                 ),
