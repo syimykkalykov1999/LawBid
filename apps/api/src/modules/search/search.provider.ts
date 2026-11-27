@@ -77,6 +77,18 @@ export type PersonRole = 'attorney' | 'client';
  * a tier (owner 2026-10-13). */
 export type PersonTier = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
+/**
+ * Owner 26.11: one post / case hit and the text-relevance score its list
+ * is ordered by (the weighted ts_rank: a title word outranks a text word;
+ * 0 for matches found without full text — typo, place, newest/popular
+ * sort). Personal ranking only reorders hits of an equal score, so a
+ * better text match is never passed (like PersonTier).
+ */
+export interface RankedHit {
+  id: string;
+  rank: number;
+}
+
 export interface SearchProvider {
   /** Ranked attorney ids (§7.3), at most [max]. */
   searchAttorneys(
@@ -98,21 +110,23 @@ export interface SearchProvider {
     q: string,
     params: CaseSearchParams,
   ): Promise<{ id: string; created_at: Date }[]>;
-  /** Published post ids by relevance, then date, at most [max]. */
+  /** Published post ids by relevance, then date, at most [max], each with
+   * the text-relevance score it was ordered by. */
   searchPosts(
     q: string,
     max: number,
     filters?: PostSearchFilters,
-  ): Promise<string[]>;
-  /** Hashtags (lowercase, without '#') starting with [prefix]. */
-  /** Cases for a text query ranked by relevance (ids), with a typo fallback. */
+  ): Promise<RankedHit[]>;
+  /** Cases for a text query ranked by relevance, with a typo fallback;
+   * each with the text-relevance score it was ordered by. */
   searchCasesRanked(
     q: string,
     params: Omit<CaseSearchParams, 'cursor' | 'limit'>,
     max: number,
-  ): Promise<string[]>;
+  ): Promise<RankedHit[]>;
   /** Type-ahead: topics, attorney handles and practice names by prefix. */
   suggest(prefix: string, perKind: number): Promise<SuggestItem[]>;
+  /** Hashtags (lowercase, without '#') starting with [prefix]. */
   searchTags(prefix: string, limit: number): Promise<string[]>;
   /** «Вопрос юристу»: published question ids matching [text], best match
    * first (then newest), at most 500. */
