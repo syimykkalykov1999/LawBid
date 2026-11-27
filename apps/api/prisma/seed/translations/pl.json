@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Wycisz",
   "chat.select.muted": "Powiadomienia wyciszone",
   "chat.select.none": "Wyczyść",
+  "chat.select.partlyFailed": "Nie udało się dla {failed} z {total}. {reason}",
   "chat.select.pin": "Przypnij",
   "chat.select.start": "Wybierz czaty",
   "chat.select.unmuted": "Powiadomienia włączone",

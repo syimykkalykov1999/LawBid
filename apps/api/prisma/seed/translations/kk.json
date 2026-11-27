@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Дыбысын өшіру",
   "chat.select.muted": "Хабарландырулар өшірілді",
   "chat.select.none": "Тазалау",
+  "chat.select.partlyFailed": "{total} ішінен {failed} үшін орындалмады. {reason}",
   "chat.select.pin": "Бекіту",
   "chat.select.start": "Чаттарды таңдау",
   "chat.select.unmuted": "Хабарландырулар қосулы",

@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Tắt tiếng",
   "chat.select.muted": "Đã tắt thông báo",
   "chat.select.none": "Bỏ chọn",
+  "chat.select.partlyFailed": "Không thực hiện được {failed}/{total}. {reason}",
   "chat.select.pin": "Ghim",
   "chat.select.start": "Chọn cuộc trò chuyện",
   "chat.select.unmuted": "Đã bật thông báo",

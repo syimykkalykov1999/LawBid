@@ -1416,6 +1416,7 @@
   "chat.select.mute": "დადუმება",
   "chat.select.muted": "შეტყობინებები გამორთულია",
   "chat.select.none": "გასუფთავება",
+  "chat.select.partlyFailed": "ვერ შესრულდა {total}-დან {failed}-ისთვის. {reason}",
   "chat.select.pin": "მიმაგრება",
   "chat.select.start": "ჩატების არჩევა",
   "chat.select.unmuted": "შეტყობინებები ჩართულია",

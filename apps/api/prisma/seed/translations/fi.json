@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Mykistä",
   "chat.select.muted": "Ilmoitukset mykistetty",
   "chat.select.none": "Tyhjennä",
+  "chat.select.partlyFailed": "Ei onnistunut {failed}/{total}. {reason}",
   "chat.select.pin": "Kiinnitä",
   "chat.select.start": "Valitse keskusteluja",
   "chat.select.unmuted": "Ilmoitukset päällä",

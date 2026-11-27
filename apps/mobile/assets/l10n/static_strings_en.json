@@ -2782,6 +2782,7 @@
 "chat.select.deleteTitle": "Delete {count} chats?",
 "chat.select.deleteMessage": "They disappear from your list only. The other side keeps the conversation, and a new message brings the chat back.",
 "chat.select.deleted": "Removed from your list",
+"chat.select.partlyFailed": "Not done for {failed} of {total}. {reason}",
 "cbadge.title": "Verify account",
 "cbadge.hint": "A gold check next to your name",
 "cbadge.benefits.title": "What the gold check gives you",

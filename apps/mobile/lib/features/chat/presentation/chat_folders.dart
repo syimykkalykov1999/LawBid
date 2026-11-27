@@ -271,7 +271,9 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
     Future<Conversation> Function() call, {
     String? done,
     bool? undoArchived,
+    bool atOnce = false,
   }) async {
+    if (atOnce) return _runAtOnce(call, done: done, undoArchived: undoArchived);
     final t = ref.read(translatorProvider);
     setState(() => _busy = true);
     try {
@@ -287,9 +289,10 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
     try {
       refreshChatFolders(ref);
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.maybeOf(context);
       // Row 109: the «Undo» message is shown from the navigator, which
-      // outlives this sheet and the chat row.
+      // outlives this sheet and the chat row. Owner 26.11: the plain «done»
+      // message too (the messenger's own context has no messenger above it,
+      // so it was never seen).
       final host = Navigator.of(context).context;
       context.popIfCurrent();
       // Row 109 (Telegram / Gmail): a delete or an archive offers «Undo».
@@ -300,11 +303,53 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
           chatIds: [widget.conversation.id],
           archived: undoArchived,
         );
-      } else if (done != null && messenger != null && messenger.mounted) {
-        showAppSnackBar(messenger.context, t.t(done));
+      } else if (done != null && host.mounted) {
+        showAppSnackBar(host, t.t(done));
       }
     } on Object {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Owner 26.11 (Telegram, WhatsApp): pin, mute, unread, archive and delete
+  /// close the menu at once — the list behind it already changed
+  /// ([ChatListsHub]); the request runs on. A refusal puts the list back
+  /// (the hub) and the error shows on the screen under the menu; the
+  /// answer brings the usual message or «Undo».
+  Future<void> _runAtOnce(
+    Future<Conversation> Function() call, {
+    String? done,
+    bool? undoArchived,
+  }) async {
+    final t = ref.read(translatorProvider);
+    final container = ProviderScope.containerOf(context, listen: false);
+    // The screen under this menu outlives it and the chat row.
+    final host = Navigator.of(context).context;
+    // Starts the request; the hub has changed the lists before this returns.
+    final pending = call();
+    setState(() => _busy = true);
+    context.popIfCurrent();
+    try {
+      await pending;
+    } on Object catch (e) {
+      if (host.mounted) showAppSnackBar(host, errorText(t, e));
+      return;
+    }
+    try {
+      refreshChatFoldersIn(container);
+    } on Object {
+      // The app is closing: the next open reads the lists.
+    }
+    if (!host.mounted || done == null) return;
+    if (undoArchived != null) {
+      showChatMoveUndo(
+        host,
+        message: t.t(undoArchived ? 'chat.archived' : done),
+        chatIds: [widget.conversation.id],
+        archived: undoArchived,
+      );
+    } else {
+      showAppSnackBar(host, t.t(done));
     }
   }
 
@@ -315,6 +360,9 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final c = widget.conversation;
     final repo = ref.read(chatRepositoryProvider);
+    // Owner 26.11 (Telegram, WhatsApp): the list behind this menu changes at
+    // once; a refusal puts it back (ChatListsHub).
+    final lists = ref.read(chatListsHubProvider);
     final compact = widget.compact;
     return Padding(
       padding: compact
@@ -342,10 +390,15 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
               onTap: _busy
                   ? null
                   : () => _run(
-                        () => repo.organize(c.id, pinned: !c.pinned),
+                        () => lists.run(
+                          c.id,
+                          change: (x) => x.withMine(pinned: !c.pinned),
+                          call: () => repo.organize(c.id, pinned: !c.pinned),
+                        ),
                         done: c.pinned
                             ? 'chat.organize.unpinned'
                             : 'chat.organize.pinned',
+                        atOnce: true,
                       ),
             ),
             if (widget.noReplyMessageId != null)
@@ -379,14 +432,21 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                         if (pick == null || !mounted) return;
                         span = muteDuration(pick);
                       }
+                      final until =
+                          span == null ? null : DateTime.now().add(span);
                       await _run(
-                        () => repo.mute(
+                        () => lists.run(
                           c.id,
-                          span == null ? null : DateTime.now().add(span),
+                          change: (x) => x.withMine(
+                            mutedUntil: until,
+                            unmute: until == null,
+                          ),
+                          call: () => repo.mute(c.id, until),
                         ),
                         done: span == null
                             ? 'chat.select.unmuted'
                             : 'chat.select.muted',
+                        atOnce: true,
                       );
                     },
             ),
@@ -411,7 +471,14 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                 label: t.t('chat.markUnread'),
                 onTap: _busy
                     ? null
-                    : () => _run(() => repo.organize(c.id, unread: true)),
+                    : () => _run(
+                          () => lists.run(
+                            c.id,
+                            change: (x) => x.withActivity(markedUnread: true),
+                            call: () => repo.organize(c.id, unread: true),
+                          ),
+                          atOnce: true,
+                        ),
               ),
             AppListRow(
               key: const ValueKey('organize-archive'),
@@ -424,11 +491,17 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
               onTap: _busy
                   ? null
                   : () => _run(
-                        () => repo.organize(c.id, archived: !widget.inArchive),
+                        () => lists.run(
+                          c.id,
+                          leaves: true,
+                          call: () =>
+                              repo.organize(c.id, archived: !widget.inArchive),
+                        ),
                         done: widget.inArchive
                             ? 'chat.unarchive'
                             : 'tasks.bulk.archive',
                         undoArchived: widget.inArchive ? null : true,
+                        atOnce: true,
                       ),
             ),
             AppListRow(
@@ -448,9 +521,14 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
                       );
                       if (!ok || !mounted) return;
                       await _run(
-                        () => repo.organize(c.id, hidden: true),
+                        () => lists.run(
+                          c.id,
+                          leaves: true,
+                          call: () => repo.organize(c.id, hidden: true),
+                        ),
                         done: 'chat.select.deleted',
                         undoArchived: false,
+                        atOnce: true,
                       );
                     },
             ),

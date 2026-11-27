@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Mute",
   "chat.select.muted": "Notifications muted",
   "chat.select.none": "Clear",
+  "chat.select.partlyFailed": "Not done for {failed} of {total}. {reason}",
   "chat.select.pin": "Pin",
   "chat.select.start": "Select chats",
   "chat.select.unmuted": "Notifications on",

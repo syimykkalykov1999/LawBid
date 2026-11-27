@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Mechie ụda",
   "chat.select.muted": "Emechiri ọkwa",
   "chat.select.none": "Hichapụ",
+  "chat.select.partlyFailed": "Emeghị ya maka {failed} n’ime {total}. {reason}",
   "chat.select.pin": "Kpọgide",
   "chat.select.start": "Họrọ mkparịta ụka",
   "chat.select.unmuted": "Ọkwa meghere",

@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Tysta",
   "chat.select.muted": "Aviseringar tystade",
   "chat.select.none": "Rensa",
+  "chat.select.partlyFailed": "Gick inte för {failed} av {total}. {reason}",
   "chat.select.pin": "Fäst",
   "chat.select.start": "Välj chattar",
   "chat.select.unmuted": "Aviseringar på",

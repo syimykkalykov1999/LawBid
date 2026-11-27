@@ -1416,6 +1416,7 @@
   "chat.select.mute": "بی‌صدا",
   "chat.select.muted": "اعلان‌ها بی‌صدا شد",
   "chat.select.none": "پاک کردن",
+  "chat.select.partlyFailed": "برای {failed} از {total} انجام نشد. {reason}",
   "chat.select.pin": "سنجاق",
   "chat.select.start": "انتخاب گفتگوها",
   "chat.select.unmuted": "اعلان‌ها روشن شد",

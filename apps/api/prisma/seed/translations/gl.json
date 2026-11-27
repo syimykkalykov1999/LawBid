@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Silenciar",
   "chat.select.muted": "Notificacións silenciadas",
   "chat.select.none": "Borrar",
+  "chat.select.partlyFailed": "Non se fixo en {failed} de {total}. {reason}",
   "chat.select.pin": "Fixar",
   "chat.select.start": "Seleccionar chats",
   "chat.select.unmuted": "Notificacións activadas",

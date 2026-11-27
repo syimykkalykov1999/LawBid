@@ -1416,6 +1416,7 @@
   "chat.select.mute": "মিউট",
   "chat.select.muted": "বিজ্ঞপ্তি বন্ধ করা হয়েছে",
   "chat.select.none": "মুছুন",
+  "chat.select.partlyFailed": "{total}টির মধ্যে {failed}টিতে হয়নি। {reason}",
   "chat.select.pin": "পিন",
   "chat.select.start": "চ্যাট নির্বাচন করুন",
   "chat.select.unmuted": "বিজ্ঞপ্তি চালু",

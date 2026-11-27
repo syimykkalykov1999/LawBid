@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Үнсүз",
   "chat.select.muted": "Билдирмелер өчүрүлдү",
   "chat.select.none": "Тазалоо",
+  "chat.select.partlyFailed": "{total} ичинен {failed} үчүн аткарылган жок. {reason}",
   "chat.select.pin": "Кадоо",
   "chat.select.start": "Чаттарды тандоо",
   "chat.select.unmuted": "Билдирмелер күйгүзүлдү",

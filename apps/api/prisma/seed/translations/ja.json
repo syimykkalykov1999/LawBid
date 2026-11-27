@@ -1416,6 +1416,7 @@
   "chat.select.mute": "ミュート",
   "chat.select.muted": "通知をミュートしました",
   "chat.select.none": "解除",
+  "chat.select.partlyFailed": "{total}件中{failed}件はできませんでした。{reason}",
   "chat.select.pin": "固定",
   "chat.select.start": "チャットを選択",
   "chat.select.unmuted": "通知をオンにしました",

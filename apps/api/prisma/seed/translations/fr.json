@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Couper le son",
   "chat.select.muted": "Notifications désactivées",
   "chat.select.none": "Effacer",
+  "chat.select.partlyFailed": "Échec pour {failed} sur {total}. {reason}",
   "chat.select.pin": "Épingler",
   "chat.select.start": "Sélectionner des discussions",
   "chat.select.unmuted": "Notifications activées",

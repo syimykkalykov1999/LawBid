@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Silencia",
   "chat.select.muted": "Notificacions silenciades",
   "chat.select.none": "Esborra",
+  "chat.select.partlyFailed": "No s’ha fet per a {failed} de {total}. {reason}",
   "chat.select.pin": "Fixa",
   "chat.select.start": "Selecciona xats",
   "chat.select.unmuted": "Notificacions activades",

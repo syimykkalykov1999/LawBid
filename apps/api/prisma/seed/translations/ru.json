@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Звук",
   "chat.select.muted": "Уведомления отключены",
   "chat.select.none": "Снять",
+  "chat.select.partlyFailed": "Не получилось: {failed} из {total}. {reason}",
   "chat.select.pin": "Закрепить",
   "chat.select.start": "Выбрать чаты",
   "chat.select.unmuted": "Уведомления включены",

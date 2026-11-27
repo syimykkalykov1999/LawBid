@@ -1416,6 +1416,7 @@
   "chat.select.mute": "I-mute",
   "chat.select.muted": "Naka-mute ang mga notification",
   "chat.select.none": "I-clear",
+  "chat.select.partlyFailed": "Hindi nagawa para sa {failed} sa {total}. {reason}",
   "chat.select.pin": "I-pin",
   "chat.select.start": "Pumili ng mga chat",
   "chat.select.unmuted": "Naka-on ang mga notification",

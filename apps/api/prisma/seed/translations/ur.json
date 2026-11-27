@@ -1416,6 +1416,7 @@
   "chat.select.mute": "خاموش کریں",
   "chat.select.muted": "اطلاعات خاموش ہیں",
   "chat.select.none": "صاف کریں",
+  "chat.select.partlyFailed": "{total} میں سے {failed} کے لیے نہیں ہوا۔ {reason}",
   "chat.select.pin": "پن کریں",
   "chat.select.start": "چیٹس منتخب کریں",
   "chat.select.unmuted": "اطلاعات آن ہیں",

@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Senyapkan",
   "chat.select.muted": "Pemberitahuan disenyapkan",
   "chat.select.none": "Kosongkan",
+  "chat.select.partlyFailed": "Tidak berjaya untuk {failed} daripada {total}. {reason}",
   "chat.select.pin": "Semat",
   "chat.select.start": "Pilih sembang",
   "chat.select.unmuted": "Pemberitahuan dihidupkan",

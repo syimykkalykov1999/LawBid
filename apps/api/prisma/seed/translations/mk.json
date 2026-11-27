@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Исклучи известувања",
   "chat.select.muted": "Известувањата се исклучени",
   "chat.select.none": "Исчисти",
+  "chat.select.partlyFailed": "Не успеа за {failed} од {total}. {reason}",
   "chat.select.pin": "Закачи",
   "chat.select.start": "Избери разговори",
   "chat.select.unmuted": "Известувањата се вклучени",

@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Səssiz et",
   "chat.select.muted": "Bildirişlər səssizdir",
   "chat.select.none": "Təmizlə",
+  "chat.select.partlyFailed": "{total} söhbətdən {failed} üçün alınmadı. {reason}",
   "chat.select.pin": "Sabitlə",
   "chat.select.start": "Çatları seç",
   "chat.select.unmuted": "Bildirişlər aktivdir",

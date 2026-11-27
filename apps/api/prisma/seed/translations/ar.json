@@ -1416,6 +1416,7 @@
   "chat.select.mute": "كتم",
   "chat.select.muted": "تم كتم الإشعارات",
   "chat.select.none": "مسح",
+  "chat.select.partlyFailed": "لم يتم لـ {failed} من {total}. {reason}",
   "chat.select.pin": "تثبيت",
   "chat.select.start": "تحديد المحادثات",
   "chat.select.unmuted": "الإشعارات مفعّلة",

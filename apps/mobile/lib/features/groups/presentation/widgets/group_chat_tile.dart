@@ -469,8 +469,9 @@ Future<void> showGroupOrganizeSheet(
       ..toggle(g.id);
     return;
   }
-  final messenger = ScaffoldMessenger.maybeOf(context);
   // Row 109: the «Undo» message outlives this row (it leaves the list).
+  // Owner 26.11: the error too (the messenger's own context has no messenger
+  // above it, so a refusal was never seen).
   final host = Navigator.of(context).context;
   try {
     switch (pick) {
@@ -508,8 +509,6 @@ Future<void> showGroupOrganizeSheet(
         }
     }
   } on Object catch (e) {
-    if (messenger != null && messenger.mounted) {
-      showAppSnackBar(messenger.context, errorText(t, e));
-    }
+    if (host.mounted) showAppSnackBar(host, errorText(t, e));
   }
 }

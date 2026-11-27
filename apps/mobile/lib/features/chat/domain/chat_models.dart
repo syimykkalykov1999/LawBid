@@ -120,6 +120,50 @@ class Conversation {
         e2eeSince: e2eeSince,
       );
 
+  /// Owner 26.11 (Telegram, WhatsApp): the same chat after my own pin or
+  /// mute, shown before the server's answer (the answer then replaces it).
+  /// A new pin is the newest one (it leads the pinned chats, as the server
+  /// orders them).
+  Conversation withMine({
+    bool? pinned,
+    DateTime? mutedUntil,
+    bool unmute = false,
+  }) =>
+      Conversation(
+        id: id,
+        caseId: caseId,
+        caseTitle: caseTitle,
+        status: status,
+        contactsUnlocked: contactsUnlocked,
+        blocked: blocked,
+        counterpart: counterpart,
+        lastMessage: lastMessage,
+        lastMessageAt: lastMessageAt,
+        unreadCount: unreadCount,
+        mutedUntil: unmute ? null : (mutedUntil ?? this.mutedUntil),
+        callsMuted: callsMuted,
+        counterpartLastReadId: counterpartLastReadId,
+        counterpartLastReadAt: counterpartLastReadAt,
+        counterpartLastDeliveredId: counterpartLastDeliveredId,
+        updatedAt: updatedAt,
+        isDirect: isDirect,
+        request: request,
+        requestedByMe: requestedByMe,
+        folder: folder,
+        folderAuto: folderAuto,
+        waitingSince: waitingSince,
+        note: note,
+        pinnedAt: switch (pinned) {
+          null => pinnedAt,
+          true => pinnedAt ?? DateTime.now(),
+          false => null,
+        },
+        markedUnread: markedUnread,
+        matchedMessage: matchedMessage,
+        disappearAfterS: disappearAfterS,
+        e2eeSince: e2eeSince,
+      );
+
   /// Owner 2026-10-22 (load audit finding 2): the same chat after a socket
   /// event moved its last message / unread count (the list updates its row
   /// instead of reloading); only the given ones change.
@@ -501,6 +545,7 @@ enum DeliveryState { sending, failed, sent }
 
 /// Owner 2026-10-20: the quoted message of a reply.
 @immutable
+
 /// Third pass S3 (26.11; WhatsApp Security Whitepaper «Link previews»):
 /// the card of a link in an end-to-end encrypted chat. The SENDER's phone
 /// reads the site and sends this inside the encryption; the receivers draw

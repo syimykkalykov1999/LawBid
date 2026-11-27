@@ -1416,6 +1416,7 @@
   "chat.select.mute": "靜音",
   "chat.select.muted": "通知已靜音",
   "chat.select.none": "清除",
+  "chat.select.partlyFailed": "{total} 個中有 {failed} 個未完成。{reason}",
   "chat.select.pin": "置頂",
   "chat.select.start": "選擇聊天",
   "chat.select.unmuted": "通知已開啟",

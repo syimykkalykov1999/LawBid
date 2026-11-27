@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Хомӯш кардан",
   "chat.select.muted": "Огоҳиномаҳо хомӯш шуданд",
   "chat.select.none": "Тоза кардан",
+  "chat.select.partlyFailed": "Барои {failed} аз {total} иҷро нашуд. {reason}",
   "chat.select.pin": "Мӯҳр кардан",
   "chat.select.start": "Интихоби чатҳо",
   "chat.select.unmuted": "Огоҳиномаҳо фаъоланд",

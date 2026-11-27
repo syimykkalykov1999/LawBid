@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Demp",
   "chat.select.muted": "Varsler dempet",
   "chat.select.none": "Fjern",
+  "chat.select.partlyFailed": "Ikke gjort for {failed} av {total}. {reason}",
   "chat.select.pin": "Fest",
   "chat.select.start": "Velg chatter",
   "chat.select.unmuted": "Varsler på",

@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Nutildyti",
   "chat.select.muted": "Pranešimai nutildyti",
   "chat.select.none": "Išvalyti",
+  "chat.select.partlyFailed": "Nepavyko {failed} iš {total}. {reason}",
   "chat.select.pin": "Prisegti",
   "chat.select.start": "Pasirinkti pokalbius",
   "chat.select.unmuted": "Pranešimai įjungti",

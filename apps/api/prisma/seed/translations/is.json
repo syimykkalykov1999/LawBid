@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Þagga",
   "chat.select.muted": "Slökkt á tilkynningum",
   "chat.select.none": "Hreinsa",
+  "chat.select.partlyFailed": "Tókst ekki fyrir {failed} af {total}. {reason}",
   "chat.select.pin": "Festa",
   "chat.select.start": "Velja spjall",
   "chat.select.unmuted": "Kveikt á tilkynningum",

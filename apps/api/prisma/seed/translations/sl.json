@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Utišaj",
   "chat.select.muted": "Obvestila utišana",
   "chat.select.none": "Počisti",
+  "chat.select.partlyFailed": "Ni uspelo za {failed} od {total}. {reason}",
   "chat.select.pin": "Pripni",
   "chat.select.start": "Izberi klepete",
   "chat.select.unmuted": "Obvestila vklopljena",

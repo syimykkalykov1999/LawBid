@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Sesini öçürmek",
   "chat.select.muted": "Bildirişler öçürildi",
   "chat.select.none": "Arassalamak",
+  "chat.select.partlyFailed": "{total}-dan {failed} üçin bolmady. {reason}",
   "chat.select.pin": "Berkitmek",
   "chat.select.start": "Çatlary saýlamak",
   "chat.select.unmuted": "Bildirişler açyk",

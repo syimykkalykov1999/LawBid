@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Σίγαση",
   "chat.select.muted": "Οι ειδοποιήσεις σιγάστηκαν",
   "chat.select.none": "Εκκαθάριση",
+  "chat.select.partlyFailed": "Δεν έγινε για {failed} από {total}. {reason}",
   "chat.select.pin": "Καρφίτσωμα",
   "chat.select.start": "Επιλογή συνομιλιών",
   "chat.select.unmuted": "Οι ειδοποιήσεις ενεργοποιήθηκαν",

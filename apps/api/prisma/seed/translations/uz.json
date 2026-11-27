@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Ovozsiz",
   "chat.select.muted": "Bildirishnomalar o‘chirildi",
   "chat.select.none": "Tozalash",
+  "chat.select.partlyFailed": "{total} tadan {failed} tasi uchun bajarilmadi. {reason}",
   "chat.select.pin": "Mahkamlash",
   "chat.select.start": "Chatlarni tanlash",
   "chat.select.unmuted": "Bildirishnomalar yoqildi",

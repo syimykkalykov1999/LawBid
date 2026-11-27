@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Без гуку",
   "chat.select.muted": "Апавяшчэнні адключаны",
   "chat.select.none": "Скінуць",
+  "chat.select.partlyFailed": "Не атрымалася: {failed} з {total}. {reason}",
   "chat.select.pin": "Замацаваць",
   "chat.select.start": "Выбраць чаты",
   "chat.select.unmuted": "Апавяшчэнні ўключаны",

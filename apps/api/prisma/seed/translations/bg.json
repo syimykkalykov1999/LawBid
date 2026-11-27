@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Заглушаване",
   "chat.select.muted": "Известията са заглушени",
   "chat.select.none": "Изчистване",
+  "chat.select.partlyFailed": "Не стана за {failed} от {total}. {reason}",
   "chat.select.pin": "Закачане",
   "chat.select.start": "Избор на чатове",
   "chat.select.unmuted": "Известията са включени",

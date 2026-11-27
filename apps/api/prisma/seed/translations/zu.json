@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Thulisa",
   "chat.select.muted": "Izaziso zithuliswe",
   "chat.select.none": "Sula",
+  "chat.select.partlyFailed": "Akwenzekanga ku-{failed} kwa-{total}. {reason}",
   "chat.select.pin": "Phina",
   "chat.select.start": "Khetha izingxoxo",
   "chat.select.unmuted": "Izaziso zivuliwe",

@@ -1416,6 +1416,7 @@
   "chat.select.mute": "Dempen",
   "chat.select.muted": "Meldingen gedempt",
   "chat.select.none": "Wissen",
+  "chat.select.partlyFailed": "Niet gelukt voor {failed} van {total}. {reason}",
   "chat.select.pin": "Vastzetten",
   "chat.select.start": "Chats selecteren",
   "chat.select.unmuted": "Meldingen aan",
