@@ -143,6 +143,11 @@ class ChannelListNotifier extends SyncedListNotifier<Channel> {
   }
 
   void drop(String id) => removeRow(id);
+
+  /// Owner 26.11: my pin / mute shown before the answer — only a row this
+  /// list already holds changes (it never enters or leaves for it).
+  void patchMine(Channel c) =>
+      applyRow(c.id, (held) => held == null ? null : c);
 }
 
 /// Every live [ChannelListNotifier], so one write of mine reaches all the
@@ -157,6 +162,14 @@ class ChannelListHub {
   void apply(Channel c) {
     for (final n in [..._lists]) {
       n.applyMine(c);
+    }
+  }
+
+  /// My pin / mute before the server's answer: the rows the lists hold
+  /// change, no row enters or leaves.
+  void patch(Channel c) {
+    for (final n in [..._lists]) {
+      n.patchMine(c);
     }
   }
 

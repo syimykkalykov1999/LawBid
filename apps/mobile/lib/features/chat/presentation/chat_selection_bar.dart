@@ -72,14 +72,21 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
 
   static void _keep() {}
 
-  /// A channel's row with my change now; what puts it back.
+  /// A channel's row with my change now; what puts it back. A pin or a
+  /// mute only changes the rows held ([ChannelListHub.patch]); an archive
+  /// [moves] the row between the lists ([ChannelListHub.apply]).
   static void Function() _showChannel(
     ChannelListHub lists,
     Channel before,
-    Channel next,
-  ) {
-    lists.apply(next);
-    return () => lists.apply(before);
+    Channel next, {
+    bool moves = false,
+  }) {
+    if (moves) {
+      lists.apply(next);
+      return () => lists.apply(before);
+    }
+    lists.patch(next);
+    return () => lists.patch(before);
   }
 
   /// Owner 26.11 (Telegram, WhatsApp): every picked chat, group and channel
@@ -264,6 +271,7 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
           ref.read(channelListHubProvider),
           c,
           c.copyWith(isArchived: !widget.inArchive),
+          moves: true,
         ),
         done: widget.inArchive ? 'chat.unarchive' : 'chat.archived',
         undoArchived: widget.inArchive ? null : true,
