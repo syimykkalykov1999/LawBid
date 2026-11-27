@@ -22,6 +22,9 @@ import { GroupSharedService } from './group-shared.service';
 import { GroupsController } from './groups.controller';
 import { GroupsService } from './groups.service';
 import { GroupFanoutQueue } from './group-fanout.queue';
+import { GroupE2eeController } from './e2ee/group-e2ee.controller';
+import { GroupE2eeService } from './e2ee/group-e2ee.service';
+import { GroupMlsGate } from './e2ee/group-mls-gate';
 
 /** Owner 2026-10-20: group chats and polls; realtime in RealtimeModule. */
 @Module({
@@ -40,7 +43,13 @@ import { GroupFanoutQueue } from './group-fanout.queue';
     // Groups WhatsApp parity: premium reactions cost stars, as in 1:1 chats.
     StarsCoreModule,
   ],
-  controllers: [GroupsController, GroupSharedController, AdminGroupsController],
+  controllers: [
+    GroupsController,
+    GroupSharedController,
+    AdminGroupsController,
+    // Group E2EE G1 (docs/architecture/GROUP_E2EE_DESIGN_2026-11-26.md).
+    GroupE2eeController,
+  ],
   providers: [
     GroupAddPolicy,
     GroupsService,
@@ -52,6 +61,9 @@ import { GroupFanoutQueue } from './group-fanout.queue';
     AdminGroupsService,
     // Owner 2026-10-22: the ordered fan-out queue (producer side).
     GroupFanoutQueue,
+    // Group E2EE G1: the MLS Delivery Service of group chats.
+    GroupMlsGate,
+    GroupE2eeService,
     // M3 (owner 25.11): the end of a file's check reaches its group message.
     { provide: GROUP_FILE_SCAN_LISTENER, useExisting: GroupsService },
   ],

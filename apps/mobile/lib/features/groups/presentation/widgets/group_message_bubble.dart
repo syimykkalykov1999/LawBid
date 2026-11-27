@@ -6,11 +6,16 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/platform/web_context_menu.dart';
+import 'package:lawbid/features/chat/application/link_preview_providers.dart'
+    show firstUrlIn;
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
-    show ChatRemovedFileRow;
+    show AttachmentMessageBody, ChatRemovedFileRow;
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
+import 'package:lawbid/features/chat/presentation/chat_post_card.dart'
+    show PostLinkCard, lawbidLinkHost, lawbidPostIdIn;
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
+import 'package:lawbid/features/chat/presentation/link_preview_card.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart'
     show ReactionChipRow;
 import 'package:lawbid/features/chat/presentation/reply_swipe.dart';
@@ -205,13 +210,31 @@ class GroupMessageBubble extends ConsumerWidget {
               : groupPersonName(t, sender),
         );
       }
-      return GroupRichText(
+      final text = GroupRichText(
         text: m.body,
         style: type.body.copyWith(color: fg, height: 1.35),
         linkColor: accent,
         mentionColor: accent,
         mentions: m.mentions,
         onMention: (p) => openGroupPerson(context, ref, p),
+      );
+      // Owner 26.11 (the 1:1 chat, Instagram): a link gets its card under
+      // the text — a LawBid post the 1:1 chat's post card, any other link
+      // the 1:1 chat's site card (groups are not end-to-end encrypted, so
+      // the server may read the site, as for a 1:1 chat that is not).
+      final url = firstUrlIn(m.body);
+      if (url == null) return text;
+      final postId = lawbidPostIdIn(m.body, host: lawbidLinkHost(ref));
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          text,
+          if (postId != null)
+            PostLinkCard(postId: postId, mine: mine)
+          else
+            LinkPreviewCard(url: url, mine: mine, conversationId: groupId),
+        ],
       );
     }
 
@@ -613,6 +636,10 @@ class GroupPendingBubble extends ConsumerWidget {
     final chat = ChatColors.of(context);
     final p = pending;
     final file = p.fileName;
+    // Owner 26.11 (WhatsApp / the 1:1 chat): a queued photo or video shows
+    // at once as itself — its picture from the phone, the ring while its
+    // bytes go up (a tap on the ring stops it) — not as a file name.
+    final media = p.attachment;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1.5),
       child: Column(
@@ -660,7 +687,24 @@ class GroupPendingBubble extends ConsumerWidget {
                         .user
                         ?.avatarUrl,
                   ),
-                if (file != null)
+                if (media != null)
+                  AttachmentMessageBody(
+                    message: ChatMessage(
+                      id: 'local:${p.clientMessageId}',
+                      conversationId: groupId,
+                      kind: MessageKind.attachment,
+                      body: p.body,
+                      clientMessageId: p.clientMessageId,
+                      createdAt: DateTime.now(),
+                      delivery: p.failed
+                          ? DeliveryState.failed
+                          : DeliveryState.sending,
+                      attachment: media,
+                    ),
+                    mine: true,
+                    onCancel: onDiscard,
+                  )
+                else if (file != null)
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -683,7 +727,7 @@ class GroupPendingBubble extends ConsumerWidget {
                       ),
                     ],
                   ),
-                if (p.body.isNotEmpty)
+                if (p.body.isNotEmpty && media == null)
                   Text(
                     p.body,
                     style: type.body.copyWith(color: chat.onMine, height: 1.35),

@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
@@ -11,11 +11,10 @@ import 'package:lawbid/core/files/picker_web_options.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
-import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart'
     show kChatAttachmentMaxBytes, kChatFileExtensions;
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
-    show PickedChatFile, isPickedVideo;
+    show PickedChatFile, isPickedVideo, keepChatPickMax;
 import 'package:lawbid/features/chat/presentation/chat_camera.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -90,6 +89,12 @@ Future<List<PickedChatFile>> pickGroupFiles(
   /// gallery also picks videos (when a video format is on); gets the
   /// picked video, returns it ready to upload (compressed on the phone).
   Future<XFile> Function(XFile video)? prepareVideo,
+
+  /// Owner 26.11 (WhatsApp / Telegram: the bubble shows while the rest is
+  /// still being prepared): set → each file goes here the moment it is
+  /// ready (in the picked order) instead of all at the end; the list
+  /// returned is then empty.
+  Future<void> Function(PickedChatFile file)? onEach,
 }) async {
   final onDisk = fromDisk && !kIsWeb;
   final videoOn = prepareVideo != null && (limits?.allowsVideo ?? true);
@@ -122,71 +127,109 @@ Future<List<PickedChatFile>> pickGroupFiles(
     );
   }
 
+  /// Hands the files ready so far to [onEach] (see above).
+  Future<void> flush() async {
+    if (onEach == null) return;
+    while (out.isNotEmpty) {
+      await onEach(out.removeAt(0));
+    }
+  }
+
   switch (choice) {
     case GroupAttachChoice.poll:
       return const [];
     case GroupAttachChoice.photos:
       // Groups WhatsApp parity: videos picked in the same gallery are
       // compressed and sent too, as in the 1:1 chat (pickChatFiles).
-      final picked = videoOn
+      // Owner 26.11 (Samsung, 51 photos, nothing sent for long): the
+      // originals come back (the 1:1 chat's `keepOriginals`): the picker no
+      // longer shrinks every photo one by one on its single thread
+      // (image_picker_android ImageResizer, the `scaled_…` files) before
+      // the app gets the first one. Each is shrunk here, once, and goes to
+      // its bubble at once; at most `media.chat_pick_max` per pick.
+      final all = videoOn
           ? await ImagePicker().pickMultipleMedia(
-              maxWidth: ClientTuning.chatPhotoMaxPx,
-              maxHeight: ClientTuning.chatPhotoMaxPx,
-              imageQuality: ClientTuning.chatPhotoQuality,
+              limit: ClientTuning.chatPickMax,
               requestFullMetadata: false,
             )
           : await ImagePicker().pickMultiImage(
-              maxWidth: ClientTuning.chatPhotoMaxPx,
-              maxHeight: ClientTuning.chatPhotoMaxPx,
-              imageQuality: ClientTuning.chatPhotoQuality,
+              limit: ClientTuning.chatPickMax,
               requestFullMetadata: false,
             );
+      if (!context.mounted) return const [];
+      final picked = keepChatPickMax(context, t, all);
       for (final f in picked) {
-        final video = videoOn && isPickedVideo(f);
-        // A phone video over the limit may still fit once compressed (the
-        // 1:1 rule); in the browser it is refused before it is read.
-        if (await f.length() > maxBytes && !(video && !kIsWeb)) {
-          skipped++;
-          continue;
-        }
-        if (video) {
-          final ready = await prepareVideo(f);
-          final name =
-              ready.name.contains('.') ? ready.name : '${ready.name}.mp4';
-          final mime = mimeFor(name);
-          final size = await ready.length();
-          if (mime == null || size > maxBytes) {
+        // One unreadable photo or failed video never stops the others
+        // (it is counted in the «not added» line below).
+        try {
+          final video = videoOn && isPickedVideo(f);
+          final size = await f.length();
+          // A phone video over the limit may still fit once compressed
+          // (the 1:1 rule); in the browser it is refused before it is read.
+          // An original photo over the limit is still read (up to the
+          // admin's cap) and shrunk, like one from «Files».
+          if (video
+              ? size > maxBytes && kIsWeb
+              : !pickedFileReadable(size, maxBytes, image: true)) {
             skipped++;
             continue;
           }
-          if (onDisk) {
-            out.add(
-              (
-                bytes: Uint8List(0),
-                name: name,
-                mime: mime,
-                path: ready.path,
-                diskBytes: size,
-              ),
-            );
+          if (video) {
+            final ready = await prepareVideo(f);
+            final name =
+                ready.name.contains('.') ? ready.name : '${ready.name}.mp4';
+            final mime = mimeFor(name);
+            final readySize = await ready.length();
+            if (mime == null || readySize > maxBytes) {
+              skipped++;
+              continue;
+            }
+            if (onDisk) {
+              out.add(
+                (
+                  bytes: Uint8List(0),
+                  name: name,
+                  mime: mime,
+                  path: ready.path,
+                  diskBytes: readySize,
+                ),
+              );
+            } else {
+              add(await ready.readAsBytes(), name);
+            }
           } else {
-            add(await ready.readAsBytes(), name);
+            // The 1:1 chat's gallery photo (addOriginal): shrunk to the
+            // chat's size and written as the gallery picker wrote it
+            // (colour at half size), without its location.
+            final pic = await cleanPickedPicture(
+              await f.readAsBytes(),
+              f.name,
+              photos: chatPhotoLimits(),
+              chroma420: true,
+            );
+            add(pic.bytes, pic.name);
           }
-          continue;
+        } on Object catch (e) {
+          debugPrint('group pick: $e');
+          skipped++;
         }
-        add(await readPickedPhoto(f), f.name);
+        await flush();
       }
     case GroupAttachChoice.camera:
       // ROUND1 25.11 row 17 (the 1:1 chat's camera): a refused camera
       // explains itself and offers the phone's settings.
-      final f = await takeChatPhoto(
-        context,
-        t,
-        maxWidth: ClientTuning.chatPhotoMaxPx,
-        maxHeight: ClientTuning.chatPhotoMaxPx,
-        imageQuality: ClientTuning.chatPhotoQuality,
-      );
-      if (f != null) add(await readPickedPhoto(f), f.name);
+      // Owner 26.11: the original, shrunk here once (the 1:1 chat's
+      // camera with `keepOriginals`).
+      final f = await takeChatPhoto(context, t);
+      if (f != null) {
+        final pic = await cleanPickedPicture(
+          await f.readAsBytes(),
+          f.name,
+          photos: chatPhotoLimits(),
+          chroma420: true,
+        );
+        add(pic.bytes, pic.name);
+      }
     case GroupAttachChoice.files:
       // Row 149 (file_picker 13): a list; files are read only when asked.
       // Web: a big file from iCloud or a HEIC to convert arrives after the
@@ -265,6 +308,7 @@ Future<List<PickedChatFile>> pickGroupFiles(
         }
       }
   }
+  await flush();
   if (skipped > 0 && context.mounted) {
     final maxMb = (maxBytes / (1024 * 1024)).round();
     showAppSnackBar(

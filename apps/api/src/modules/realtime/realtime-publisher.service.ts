@@ -139,6 +139,10 @@ export type RealtimeEvent =
   // accepted) / a Welcome waits for one of my devices.
   | 'e2ee:commit'
   | 'e2ee:welcome'
+  // Group E2EE G1: a group chat's MLS group changed (commit, a member to
+  // add or remove) / a group Welcome waits for one of my devices.
+  | 'e2ee:group'
+  | 'e2ee:group_welcome'
   // Owner 2026-10-22 (load audit finding 2): I read a chat (any device) —
   // the chat lists drop its unread pill locally.
   | 'conversation:read'

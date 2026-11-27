@@ -1011,6 +1011,10 @@ erDiagram
     String created_by_device
     DateTime created_at
     DateTime updated_at
+    String scope
+    Bytes group_info "nullable"
+    String group_info_file_id "nullable"
+    Int group_info_epoch "nullable"
   }
   mls_commits {
     String conversation_id PK
@@ -1018,6 +1022,8 @@ erDiagram
     String sender_device_id
     Bytes data
     DateTime created_at
+    String scope
+    Boolean external
   }
   mls_group_devices {
     String conversation_id PK
@@ -1026,6 +1032,8 @@ erDiagram
     Int joined_epoch
     DateTime created_at
     DateTime rejoin_at "nullable"
+    String scope
+    DateTime last_commit_at "nullable"
   }
   e2ee_backups {
     String user_id PK,FK
@@ -1052,6 +1060,7 @@ erDiagram
     Int epoch
     Bytes data
     DateTime created_at
+    String scope
   }
   message_hidden {
     String message_id PK,FK
@@ -1116,6 +1125,8 @@ erDiagram
     DateTime deleted_at "nullable"
     DateTime created_at
     DateTime updated_at
+    DateTime e2ee_since "nullable"
+    Boolean history_sharing
     Int shard_id
   }
   chat_group_members {
@@ -1156,6 +1167,10 @@ erDiagram
     Boolean forwarded
     String forwarded_from_name "nullable"
     DateTime created_at
+    Bytes ciphertext "nullable"
+    Int mls_epoch "nullable"
+    String sender_device_id "nullable"
+    Bytes franking_tag "nullable"
     Int shard_id
   }
   chat_group_message_reactions {

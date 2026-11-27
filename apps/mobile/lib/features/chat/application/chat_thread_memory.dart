@@ -5,6 +5,11 @@ import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
+import 'package:lawbid/features/groups/application/group_providers.dart'
+    show
+        groupMessageStoreProvider,
+        groupThreadMemoryProvider,
+        groupThreadStoreKey;
 import 'package:lawbid/features/social/application/social_providers.dart';
 
 // Group threads keep their copy on the phone the same way (groups goes
@@ -92,13 +97,23 @@ class ChatPrewarmer {
   /// flight is picked up by that run).
   List<String> _wanted = const [];
 
+  /// Owner 26.11 (groups like 1:1): the newest groups of the list (those
+  /// without topics open straight on their thread) are warmed the same way.
+  List<String> _wantedGroups = const [];
+
   void _onList(List<ChatListEntry> entries) {
+    final newest = entries.take(kChatPrewarmCount).toList();
     _wanted = <String>[
-      for (final e in entries.take(kChatPrewarmCount))
+      for (final e in newest)
         if (e case DirectChatEntry(:final conversation))
           conversation.id
         else if (e case PersonChatEntry(:final row))
           row.id,
+    ];
+    _wantedGroups = <String>[
+      for (final e in newest)
+        if (e case GroupChatEntry(:final group) when !group.topicsEnabled)
+          group.id,
     ];
     _running ??= _warm().whenComplete(() => _running = null);
   }
@@ -106,18 +121,37 @@ class ChatPrewarmer {
   Future<void> _warm() async {
     final store = _ref.read(messageStoreProvider);
     final memory = _ref.read(chatThreadMemoryProvider);
-    if (store == null) return;
-    while (!_cancelled) {
+    while (store != null && !_cancelled) {
       final id = _wanted
           .where((id) => !memory.contains(id) && !_done.contains(id))
           .firstOrNull;
-      if (id == null) return;
+      if (id == null) break;
       _done.add(id);
       final page = await store.page(id, limit: memory.pageSize);
       if (_cancelled) return;
       if (page.isNotEmpty && !memory.contains(id)) {
         memory.put(id, page.map(ChatMappers.message).toList());
       }
+    }
+    await _warmGroups();
+  }
+
+  /// The groups' newest page from the phone's copy into their memory
+  /// (GroupThread draws it in its first frame, as a 1:1 chat does).
+  Future<void> _warmGroups() async {
+    final store = _ref.read(groupMessageStoreProvider);
+    final memory = _ref.read(groupThreadMemoryProvider);
+    if (store == null) return;
+    while (!_cancelled) {
+      final key = _wantedGroups
+          .map((id) => groupThreadStoreKey((groupId: id, topicId: null)))
+          .where((k) => !memory.contains(k) && !_done.contains(k))
+          .firstOrNull;
+      if (key == null) return;
+      _done.add(key);
+      final page = await store.page(key, limit: memory.pageSize);
+      if (_cancelled) return;
+      if (page.isNotEmpty && !memory.contains(key)) memory.put(key, page);
     }
   }
 }

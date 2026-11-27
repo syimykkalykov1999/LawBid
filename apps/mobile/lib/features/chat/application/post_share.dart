@@ -8,7 +8,9 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 /// Owner 2026-10-21 (Instagram «Поделиться»): where the share sheet sends
 /// a post. A chat gets a post card (never masked, the server checks the
 /// post) and the note as a text after it; a group gets the link as a text
-/// (its own message kinds have no post card yet).
+/// (its own message kinds have no post card). Owner 26.11: a group draws
+/// that link as the same post card (PostLinkCard), so a post pasted by hand
+/// looks the same as a shared one.
 abstract interface class PostShareSender {
   Future<void> toChat(String conversationId, String postId, {String? note});
 

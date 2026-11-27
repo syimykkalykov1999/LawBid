@@ -6,6 +6,7 @@ import {
   ArrayMinSize,
   ArrayUnique,
   IsArray,
+  IsBase64,
   IsBoolean,
   IsIn,
   IsInt,
@@ -29,6 +30,7 @@ import {
   VoiceNoteDto,
 } from '../chat/chat.dto';
 import { UpdatedSinceQuery, type SyncPage } from '../../common/sync/sync.util';
+import { MLS_MESSAGE_MAX_B64 } from '../chat/chat-e2ee.public';
 
 /** Owner 2026-10-20: group chats (Telegram + WhatsApp) — limits. */
 export const GROUP_TITLE_MAX = 80;
@@ -468,9 +470,9 @@ export class SendGroupMessageDto {
   @MaxLength(64)
   clientMessageId!: string;
 
-  @ApiProperty({ enum: ['text', 'attachment', 'voice'] })
-  @IsIn(['text', 'attachment', 'voice'])
-  type!: 'text' | 'attachment' | 'voice';
+  @ApiProperty({ enum: ['text', 'attachment', 'voice', 'mls'] })
+  @IsIn(['text', 'attachment', 'voice', 'mls'])
+  type!: 'text' | 'attachment' | 'voice' | 'mls';
 
   @ApiPropertyOptional({
     maxLength: GROUP_MESSAGE_MAX_CHARS,
@@ -544,6 +546,47 @@ export class SendGroupMessageDto {
   @Min(0, { each: true })
   @Max(100, { each: true })
   waveform?: number[];
+
+  // Group E2EE G1 (GROUP_E2EE_DESIGN_2026-11-26.md §4.5): type=mls — the
+  // same fields as SendMessageDto. topicId, replyToId and mentionIds stay
+  // in the clear (delivery, «you were mentioned» pushes, unread per topic).
+  @ApiPropertyOptional({
+    maxLength: MLS_MESSAGE_MAX_B64,
+    description:
+      'type=mls: base64 of the MLS PrivateMessage (an application message of the group’s MLS group). The server stores only this.',
+  })
+  @IsOptional()
+  @IsBase64()
+  @MaxLength(MLS_MESSAGE_MAX_B64)
+  ciphertext?: string;
+
+  @ApiPropertyOptional({
+    type: 'integer',
+    minimum: 0,
+    description: 'type=mls: the epoch the message was encrypted in.',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  mlsEpoch?: number;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'type=mls: the sending MLS device (POST /e2ee/devices).',
+  })
+  @IsOptional()
+  @IsUUID('all')
+  mlsDeviceId?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 64,
+    description:
+      'type=mls (message franking): base64 of HMAC-SHA256(k, P), k inside the plaintext P.',
+  })
+  @IsOptional()
+  @IsBase64()
+  @MaxLength(64)
+  frankingTag?: string;
 }
 
 export class EditGroupMessageDto {
@@ -801,8 +844,10 @@ export class GroupMessageDto {
   })
   topicId!: string | null;
 
-  @ApiProperty({ enum: ['text', 'system', 'poll', 'attachment', 'voice'] })
-  type!: 'text' | 'system' | 'poll' | 'attachment' | 'voice';
+  @ApiProperty({
+    enum: ['text', 'system', 'poll', 'attachment', 'voice', 'mls'],
+  })
+  type!: 'text' | 'system' | 'poll' | 'attachment' | 'voice' | 'mls';
 
   @ApiPropertyOptional({ type: GroupPersonDto, nullable: true })
   sender!: GroupPersonDto | null;
@@ -892,6 +937,47 @@ export class GroupMessageDto {
     description: 'Emoji reactions, in the order they were first chosen.',
   })
   reactions!: ReactionDto[];
+
+  // Group E2EE G1: an end-to-end encrypted message (type=mls). Optional in
+  // the contract: builds that predate it read missing fields.
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'type=mls: base64 MLS PrivateMessage; the app decrypts it. Null for other types.',
+  })
+  ciphertext?: string | null;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'type=mls: the epoch of the message.',
+  })
+  mlsEpoch?: number | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    format: 'uuid',
+    description: 'type=mls: the sending MLS device.',
+  })
+  senderDeviceId?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'type=mls (message franking): base64 HMAC-SHA256(k, P) the sender stored.',
+  })
+  frankingTag?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      "type=mls with an encrypted file: a short link to the file's ciphertext (its key is inside the message).",
+  })
+  blobUrl?: string | null;
 }
 
 export class GroupDto {
@@ -1093,6 +1179,27 @@ export class GroupDetailDto extends GroupDto {
       'Only after inviting: people who could not be invited (blocked, inactive, their privacy settings, or declined less than a day ago).',
   })
   notAdded?: string[];
+
+  @ApiPropertyOptional({
+    enum: ['off', 'pending', 'on'],
+    enumName: 'GroupE2eeState',
+    description:
+      'Group E2EE G1: on = end-to-end encrypted (send type=mls); pending = a member’s device may encrypt it now (GET /e2ee/groups/{id} has the exact state); off = as before.',
+  })
+  e2ee?: 'off' | 'pending' | 'on';
+
+  @ApiPropertyOptional({
+    type: Date,
+    nullable: true,
+    description: 'Group E2EE G1: since when its messages are encrypted.',
+  })
+  e2eeSince?: Date | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Group E2EE G1 (§4.6): members may send recent history to people they add.',
+  })
+  historySharing?: boolean;
 }
 
 export class GroupInvitePreviewDto {

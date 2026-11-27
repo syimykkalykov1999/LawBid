@@ -175,11 +175,15 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
     // socket gap (`updatedSince`) or for a chat this list does not hold.
     final sub = ref.watch(realtimeEventsProvider).listen(_onEvent);
     final local = ref.watch(localChatEventsProvider).stream.listen(_onEvent);
+    // Owner 26.11: my own pin / mute / archive / delete reaches this list
+    // at once (ChatListsHub).
+    final hub = ref.read(chatListsHubProvider).._lists.add(this);
     ref.onDispose(() {
       sub.cancel();
       local.cancel();
       _debounce?.cancel();
       _pullTimer?.cancel();
+      hub._lists.remove(this);
     });
     return super.build();
   }
@@ -240,6 +244,9 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
         }
     }
   }
+
+  /// The rows on screen now (null: none yet, or this list is gone).
+  List<Conversation>? _heldRows() => ref.mounted ? state.value?.items : null;
 
   /// Applies [change] to the rows held; false when it did not find the
   /// chat. Nothing loaded yet: the first page in flight will have it.
@@ -324,6 +331,77 @@ class ConversationsNotifier extends PagedNotifier<Conversation> {
   @override
   Object idOf(Conversation item) => item.id;
 }
+
+/// Owner 26.11 (Telegram, WhatsApp): every chat list on screen (the inbox,
+/// its folders, the Archive, a search), so my own pin / mute / archive /
+/// delete of a chat shows in all of them at once, before the server
+/// answers; a refusal puts that chat's row back in every list. The request
+/// and what follows it (the answer, the lists' re-read) stay the caller's.
+class ChatListsHub {
+  final _lists = <ConversationsNotifier>{};
+
+  /// Applies my change of chat [id] to every list now. [change] gives the
+  /// new row (a pin, a mute); [leaves] takes the row out (archive,
+  /// unarchive, delete). Returns what puts this one row back in every list
+  /// (other chats changed meanwhile keep their change — a multi-chat action
+  /// rolls back only the chats the server refused).
+  void Function() show(
+    String id, {
+    Conversation Function(Conversation c)? change,
+    bool leaves = false,
+  }) {
+    final before = <ConversationsNotifier, Conversation>{};
+    for (final l in [..._lists]) {
+      final row = l._heldRows()?.where((c) => c.id == id).firstOrNull;
+      if (row == null) continue;
+      before[l] = row;
+      l._edit((items) {
+        if (leaves) {
+          return [
+            for (final c in items)
+              if (c.id != id) c,
+          ];
+        }
+        if (change == null) return items;
+        return sortedConversations([
+          for (final c in items)
+            if (c.id == id) change(c) else c,
+        ]);
+      });
+    }
+    return () {
+      for (final MapEntry(key: l, value: row) in before.entries) {
+        if (!_lists.contains(l) || l._heldRows() == null) continue;
+        l._edit(
+          (items) => sortedConversations([
+            for (final c in items)
+              if (c.id != id) c,
+            row,
+          ]),
+        );
+      }
+    };
+  }
+
+  /// [show], then [call] (the one request). Throws what [call] threw, after
+  /// the row is back.
+  Future<T> run<T>(
+    String id, {
+    required Future<T> Function() call,
+    Conversation Function(Conversation c)? change,
+    bool leaves = false,
+  }) async {
+    final undo = show(id, change: change, leaves: leaves);
+    try {
+      return await call();
+    } on Object {
+      undo();
+      rethrow;
+    }
+  }
+}
+
+final chatListsHubProvider = Provider<ChatListsHub>((ref) => ChatListsHub());
 
 final conversationsProvider = AsyncNotifierProvider.autoDispose<
     ConversationsNotifier, PaginatedList<Conversation>>(
@@ -467,6 +545,13 @@ final chatFolderCountsProvider = FutureProvider.autoDispose<
   },
   retry: _noRetry,
 );
+
+/// [refreshChatFolders] from a place whose widget is gone (a menu that
+/// closed before the answer).
+void refreshChatFoldersIn(ProviderContainer c) => c
+  ..invalidate(folderConversationsProvider)
+  ..invalidate(conversationsProvider)
+  ..invalidate(chatFolderCountsProvider);
 
 /// After organizing a chat every folder list and the badges reload.
 void refreshChatFolders(WidgetRef ref) {
@@ -1929,27 +2014,39 @@ class ChatThread extends Notifier<ChatThreadState> {
   }
 
   // ignore: avoid_positional_boolean_parameters
-  Future<void> setMuted(bool muted) async {
-    final updated = await _repo.mute(
-      id,
-      muted ? DateTime.now().add(kMuteForever) : null,
-    );
+  Future<void> setMuted(bool muted) =>
+      setMutedUntil(muted ? DateTime.now().add(kMuteForever) : null);
+
+  /// Owner 2026-10-21 (WhatsApp): mute for an hour, 8 hours, a week, always.
+  /// Owner 26.11 (Telegram, WhatsApp): the mark shows here and in the lists
+  /// at once; a refusal puts both back (ChatListsHub).
+  Future<void> setMutedUntil(DateTime? until) async {
+    final before = state.conversation;
+    if (before != null) {
+      showMine(before.withMine(mutedUntil: until, unmute: until == null));
+    }
+    final Conversation updated;
+    try {
+      updated = await ref.read(chatListsHubProvider).run(
+            id,
+            change: (x) => x.withMine(mutedUntil: until, unmute: until == null),
+            call: () => _repo.mute(id, until),
+          );
+    } on Object {
+      if (before != null) showMine(before);
+      rethrow;
+    }
     if (!ref.mounted) return;
     state = state.copyWith(conversation: updated);
-    // Audit 2026-10-04: the lists show the mute mark at once.
     ref
       ..invalidate(conversationsProvider)
       ..invalidate(folderConversationsProvider);
   }
 
-  /// Owner 2026-10-21 (WhatsApp): mute for an hour, 8 hours, a week, always.
-  Future<void> setMutedUntil(DateTime? until) async {
-    final updated = await _repo.mute(id, until);
-    if (!ref.mounted) return;
-    state = state.copyWith(conversation: updated);
-    ref
-      ..invalidate(conversationsProvider)
-      ..invalidate(folderConversationsProvider);
+  /// Owner 26.11: my own change of this chat (a pin, a mute) shown before
+  /// the server's answer, or put back after a refusal.
+  void showMine(Conversation c) {
+    if (ref.mounted) state = state.copyWith(conversation: c);
   }
 
   // ignore: avoid_positional_boolean_parameters

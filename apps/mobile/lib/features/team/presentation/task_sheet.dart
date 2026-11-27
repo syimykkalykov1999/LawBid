@@ -543,18 +543,24 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
       ),
     );
     if (ok != true || !mounted) return;
-    setState(() => _busy = true);
+    // Owner 26.11 (Apple Reminders, Todoist): the task leaves every list
+    // and the sheet closes at once; a refusal brings the rows back with the
+    // error. The request runs on after this sheet is gone.
+    final repo = ref.read(teamRepositoryProvider);
+    final hub = ref.read(tasksHubProvider);
+    // The screen under this sheet shows a refusal after the sheet is gone.
+    final screen = Navigator.of(context).context;
+    final id = _task.id;
+    final before = hub.snapshot();
+    hub.drop(id);
+    context.popIfCurrent();
+    showAppSnackBar(context, t.t('tasks.deleted'));
     try {
-      await ref.read(teamRepositoryProvider).deleteTask(_task.id);
-      ref.read(tasksHubProvider).drop(_task.id);
-      if (!mounted) return;
-      context.popIfCurrent();
-      showAppSnackBar(context, t.t('tasks.deleted'));
+      await repo.deleteTask(id);
     } on Object catch (e) {
-      if (mounted) {
-        setState(() => _busy = false);
-        showAppSnackBar(context, errorText(t, e));
-      }
+      // Not deleted: the task comes back and the reason is shown.
+      hub.restore(before);
+      if (screen.mounted) showAppSnackBar(screen, errorText(t, e));
     }
   }
 

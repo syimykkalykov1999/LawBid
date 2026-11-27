@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
+import 'package:lawbid/core/transfers/adaptive_limiter.dart' show mapAtOnce;
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
 import 'package:lawbid/features/chat/application/chat_providers.dart';
@@ -52,10 +53,22 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     return widget.groups.where((g) => ids.contains(g.id)).toList();
   }
 
+  /// Requests of one multi-chat action in flight at once.
+  static const _atOnce = 4;
+
+  static void _keep() {}
+
+  /// Owner 26.11 (Telegram, WhatsApp): every picked chat and group changes
+  /// in its list at once ([showChat] / [showGroup] give the change and what
+  /// puts it back); the requests go
+  /// [_atOnce] at a time; only the rows the server refused come back, and
+  /// the message says how many.
   Future<void> _each(
     Future<void> Function(Conversation c) call, {
     required String done,
+    void Function() Function(Conversation c)? showChat,
     Future<void> Function(api.GroupDto g)? groupCall,
+    void Function() Function(api.GroupDto g)? showGroup,
     bool? undoArchived,
   }) async {
     final t = ref.read(translatorProvider);
@@ -65,17 +78,25 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
       return;
     }
     setState(() => _busy = true);
-    Object? failure;
-    try {
-      for (final c in picked) {
-        await call(c);
+    final jobs = <({void Function() undo, Future<void> Function() send})>[
+      for (final c in picked)
+        (undo: showChat?.call(c) ?? _keep, send: () => call(c)),
+      for (final g in groups)
+        (undo: showGroup?.call(g) ?? _keep, send: () => groupCall!(g)),
+    ];
+    final errors = await mapAtOnce<
+        ({void Function() undo, Future<void> Function() send}),
+        Object?>(jobs, _atOnce, (j) async {
+      try {
+        await j.send();
+        return null;
+      } on Object catch (e) {
+        j.undo();
+        return e;
       }
-      for (final g in groups) {
-        await groupCall!(g);
-      }
-    } on Object catch (e) {
-      failure = e;
-    }
+    });
+    final failed = errors.whereType<Object>().toList();
+    final failure = failed.firstOrNull;
     // The writes are over: re-reading the lists is not part of them, so a
     // failure (or a bar already gone with the selection) is never shown as
     // «something went wrong» for a chat that did move.
@@ -97,10 +118,18 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
           groupIds: [for (final g in groups) g.id],
           archived: undoArchived,
         );
+      } else if (failure == null) {
+        showAppSnackBar(context, t.t(done));
+      } else if (jobs.length == 1) {
+        showAppSnackBar(context, errorText(t, failure));
       } else {
         showAppSnackBar(
           context,
-          failure == null ? t.t(done) : errorText(t, failure),
+          t.t('chat.select.partlyFailed', {
+            'failed': '${failed.length}',
+            'total': '${jobs.length}',
+            'reason': errorText(t, failure),
+          }),
         );
       }
     }
@@ -111,9 +140,12 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     // All pinned → unpin them; otherwise pin them all.
     final pin =
         picked.any((c) => !c.pinned) || _pickedGroups.any((g) => !g.pinned);
+    final lists = ref.read(chatListsHubProvider);
     return _each(
       (c) => ref.read(chatRepositoryProvider).organize(c.id, pinned: pin),
-      groupCall: (g) => updateMyGroup(ref, g.id, pinned: pin),
+      showChat: (c) => lists.show(c.id, change: (x) => x.withMine(pinned: pin)),
+      groupCall: (g) => updateMyGroup(ref, g.id, pinned: pin, shown: true),
+      showGroup: (g) => showMyGroupChange(ref, g.id, pinned: pin),
       done: pin ? 'chat.organize.pinned' : 'chat.organize.unpinned',
     );
   }
@@ -133,14 +165,24 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
       if (pick == null || !mounted) return;
       span = muteDuration(pick);
     }
+    final until = span == null ? null : DateTime.now().add(span);
+    final lists = ref.read(chatListsHubProvider);
     await _each(
-      (c) => ref.read(chatRepositoryProvider).mute(
-            c.id,
-            span == null ? null : DateTime.now().add(span),
-          ),
+      (c) => ref.read(chatRepositoryProvider).mute(c.id, until),
+      showChat: (c) => lists.show(
+        c.id,
+        change: (x) => x.withMine(mutedUntil: until, unmute: until == null),
+      ),
       groupCall: (g) => unmute
-          ? updateMyGroup(ref, g.id, muted: false)
-          : updateMyGroup(ref, g.id, mutedFor: span),
+          ? updateMyGroup(ref, g.id, muted: false, shown: true)
+          : updateMyGroup(ref, g.id, mutedFor: span, shown: true),
+      showGroup: (g) => showMyGroupChange(
+        ref,
+        g.id,
+        mutedUntil: unmute
+            ? myGroupMutedUntil(muted: false)
+            : myGroupMutedUntil(mutedFor: span),
+      ),
       done: unmute ? 'chat.select.unmuted' : 'chat.select.muted',
     );
   }
@@ -150,7 +192,16 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
         (c) => ref
             .read(chatRepositoryProvider)
             .organize(c.id, archived: !widget.inArchive),
-        groupCall: (g) => updateMyGroup(ref, g.id, archived: !widget.inArchive),
+        showChat: (c) =>
+            ref.read(chatListsHubProvider).show(c.id, leaves: true),
+        groupCall: (g) => updateMyGroup(
+          ref,
+          g.id,
+          archived: !widget.inArchive,
+          shown: true,
+        ),
+        showGroup: (g) =>
+            showMyGroupChange(ref, g.id, archived: !widget.inArchive),
         done: widget.inArchive ? 'chat.unarchive' : 'chat.archived',
         undoArchived: widget.inArchive ? null : true,
       );
@@ -192,9 +243,12 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
       destructive: true,
     );
     if (!ok || !mounted) return;
+    final lists = ref.read(chatListsHubProvider);
     await _each(
       (c) => ref.read(chatRepositoryProvider).organize(c.id, hidden: true),
-      groupCall: (g) => updateMyGroup(ref, g.id, hidden: true),
+      showChat: (c) => lists.show(c.id, leaves: true),
+      groupCall: (g) => updateMyGroup(ref, g.id, hidden: true, shown: true),
+      showGroup: (g) => showMyGroupChange(ref, g.id, hidden: true),
       done: 'chat.select.deleted',
       undoArchived: false,
     );

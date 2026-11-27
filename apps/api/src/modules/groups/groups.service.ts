@@ -132,6 +132,7 @@ import {
   unsupportedInTarget,
 } from '../../common/forward/forward-content';
 import type { DbTx } from '../../prisma/secret-columns';
+import { GroupMlsGate } from './e2ee/group-mls-gate';
 
 const GROUPS_PAGE = 30;
 const MESSAGES_PAGE = 30;
@@ -217,6 +218,9 @@ export class GroupsService implements FileScanListener {
     // Audit 17.11 (problem 1): «delete for everyone» frees the file, as in
     // the 1:1 chat (ChatActionsService.revoke).
     @Optional() private readonly releases?: FileReleaseService,
+    // Group E2EE G1 (GROUP_E2EE_DESIGN_2026-11-26.md): `mls` messages and
+    // the refusal of plain words in an encrypted group.
+    @Optional() private readonly mls?: GroupMlsGate,
   ) {}
 
   /** Owner 2026-11-16 (row 183): the admin switch «Группы в чатах» (on by
@@ -469,6 +473,27 @@ export class GroupsService implements FileScanListener {
         const p = people.get(x.invitee_id);
         return p ? [p] : [];
       }),
+      ...(await this.e2eeOf(group)),
+    };
+  }
+
+  /** Group E2EE G1: the group's encryption at a glance (the exact state,
+   * with the devices, is GET /e2ee/groups/:id). */
+  private async e2eeOf(
+    group: ChatGroup,
+  ): Promise<Pick<GroupDetailDto, 'e2ee' | 'e2eeSince' | 'historySharing'>> {
+    let e2ee: 'off' | 'pending' | 'on' = 'off';
+    if (group.e2ee_since) e2ee = 'on';
+    else if (this.mls && (await this.mls.mode()) !== 'off') {
+      const pub =
+        group.group_type === 'public' &&
+        !(await this.settings?.boolean('groups.e2ee_public'));
+      if (!pub) e2ee = 'pending';
+    }
+    return {
+      e2ee,
+      e2eeSince: group.e2ee_since,
+      historySharing: group.history_sharing,
     };
   }
 
@@ -1872,7 +1897,10 @@ export class GroupsService implements FileScanListener {
     const attachment = dto.type === 'attachment';
     // Groups WhatsApp parity (voice): a note carries no text, like 1:1.
     const voice = dto.type === 'voice';
-    const body = voice ? '' : (dto.body ?? '').trim();
+    // Group E2EE G1 (design §4.5): an MLS PrivateMessage — no words reach
+    // the server; topic, reply, mentions stay in the clear for delivery.
+    const mls = dto.type === 'mls';
+    const body = voice || mls ? '' : (dto.body ?? '').trim();
     // A voice note is media (WhatsApp / Telegram «Send media»).
     if (
       (attachment || voice) &&
@@ -1880,7 +1908,15 @@ export class GroupsService implements FileScanListener {
     ) {
       throw forbidden('Media is not allowed in this group.');
     }
-    if (voice) {
+    if (mls) {
+      if (!dto.ciphertext || dto.mlsEpoch === undefined || !dto.mlsDeviceId) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'An MLS message needs ciphertext, mlsEpoch and mlsDeviceId.',
+          details: { fields: ['ciphertext', 'mlsEpoch', 'mlsDeviceId'] },
+        });
+      }
+    } else if (voice) {
       if (!dto.fileId || dto.durationMs === undefined) {
         throw new BadRequestException({
           code: ErrorCode.VALIDATION_ERROR,
@@ -1899,6 +1935,27 @@ export class GroupsService implements FileScanListener {
     }
     const dup = await this.findOwn(id, user.sub, dto.clientMessageId);
     if (dup) return this.one(dup, user.sub);
+    const ciphertext = mls ? Buffer.from(dto.ciphertext!, 'base64') : null;
+    const frankingTag =
+      mls && dto.frankingTag ? Buffer.from(dto.frankingTag, 'base64') : null;
+    if (mls) {
+      if (!this.mls) throw notFound();
+      await this.mls.assertMlsSend(user, id, {
+        deviceId: dto.mlsDeviceId!,
+        epoch: dto.mlsEpoch!,
+        ciphertext: new Uint8Array(ciphertext!),
+      });
+      // Message franking (Messenger), as in the chats.
+      if (!frankingTag || frankingTag.length !== 32) {
+        throw new BadRequestException({
+          code: ErrorCode.VALIDATION_ERROR,
+          message: 'An MLS message needs its 32-byte franking tag.',
+          details: { field: 'frankingTag' },
+        });
+      }
+    } else {
+      this.mls?.assertPlainAllowed(m.group, dto.type);
+    }
     // Feature reality audit 2026-11-08: admin «Сообщений в минуту»
     // (rate_limit.message_per_minute) held only direct chats
     // (chat.service.ts); group messages now count against the same budget.
@@ -1906,6 +1963,27 @@ export class GroupsService implements FileScanListener {
     await this.limits?.consume('message', user.sub);
     const topic = await this.writableTopic(m, dto.topicId);
     let scanPending = false;
+    if (mls && dto.fileId) {
+      // Design §4.7: an encrypted file is ciphertext the phone uploaded
+      // (chat_e2ee, never scanned: skipped_e2ee), its key inside the
+      // message. One file, one message.
+      await this.files.assertAttachable(user.sub, dto.fileId, ['chat_e2ee']);
+      const used =
+        (await this.prisma.chatGroupMessage.findFirst({
+          where: { file_id: dto.fileId, deleted_at: {} },
+          select: { id: true },
+        })) ??
+        (await this.prisma.message.findFirst({
+          where: { file_id: dto.fileId },
+          select: { id: true },
+        }));
+      if (used) {
+        throw new ConflictException({
+          code: ErrorCode.FILE_NOT_ATTACHABLE,
+          message: 'This file was already sent.',
+        });
+      }
+    }
     if (attachment || voice) {
       // M3 (owner 25.11, as in 1:1): the message goes while the scan still
       // runs; the members get the file once it is clean.
@@ -1968,7 +2046,13 @@ export class GroupsService implements FileScanListener {
           data: {
             group_id: id,
             sender_id: user.sub,
-            type: voice ? 'voice' : attachment ? 'attachment' : 'text',
+            type: mls
+              ? 'mls'
+              : voice
+                ? 'voice'
+                : attachment
+                  ? 'attachment'
+                  : 'text',
             body,
             client_message_id: dto.clientMessageId,
             topic_id: topic && !topic.is_general ? topic.id : null,
@@ -1976,10 +2060,18 @@ export class GroupsService implements FileScanListener {
             mention_ids: mentions,
             // Owner 2026-10-21: disappearing messages.
             expires_at: expiresAtFor(m.group.disappear_after_s),
-            file_id: attachment || voice ? dto.fileId : null,
+            file_id: attachment || voice || mls ? (dto.fileId ?? null) : null,
             file_name: attachment ? dto.fileName : null,
             ...(voice
               ? { duration_ms: dto.durationMs, waveform: dto.waveform ?? [] }
+              : {}),
+            ...(mls
+              ? {
+                  ciphertext,
+                  mls_epoch: dto.mlsEpoch,
+                  sender_device_id: dto.mlsDeviceId,
+                  franking_tag: frankingTag,
+                }
               : {}),
             // Owner 2026-10-21 (Telegram): «Forwarded from <name>».
             ...(opts.forwardedFromName !== undefined
@@ -2237,7 +2329,10 @@ export class GroupsService implements FileScanListener {
     body: string,
   ): Promise<GroupMessageDto> {
     await this.assertEnabled();
-    await this.requireMember(user.sub, id);
+    const em = await this.requireMember(user.sub, id);
+    // Group E2EE G1: no new plain words in an encrypted group (an edit of
+    // an encrypted message is an MLS message itself).
+    this.mls?.assertPlainAllowed(em.group, 'text');
     const row = await this.prisma.chatGroupMessage.findFirst({
       where: { id: messageId, group_id: id },
     });
@@ -2282,6 +2377,9 @@ export class GroupsService implements FileScanListener {
         changed_at: new Date(),
         body: '',
         mention_ids: [],
+        // Group E2EE G1 (design §4.5): the server deletes the ciphertext.
+        ciphertext: null,
+        franking_tag: null,
       },
     });
     // As in the 1:1 chat (ChatActionsService.revoke): a message deleted for
@@ -2990,11 +3088,37 @@ export class GroupsService implements FileScanListener {
    * GET; the personal fields keep their local values. */
   async groupChanged(groupId: string, kind: string): Promise<void> {
     const card = CARD_KINDS.has(kind) ? await this.card(groupId) : null;
-    this.realtime.toUsers(await this.activeMemberIds(groupId), 'group:update', {
+    const members = await this.activeMemberIds(groupId);
+    this.realtime.toUsers(members, 'group:update', {
       groupId,
       kind,
       ...(card ? { card } : {}),
     });
+    // Group E2EE G1 (design §4.2): in an encrypted group a membership
+    // change has a commit to follow — the new person's devices to add (or
+    // to join by themselves), the gone person's devices to remove.
+    if (kind === 'members') await this.mls?.announce(groupId, members);
+  }
+
+  /** Group E2EE G1 (design §4.5): a plain message, poll or edit is refused
+   * once the group is end-to-end encrypted (409 E2EE_REQUIRED). */
+  assertPlainAllowed(group: ChatGroup, type: string): void {
+    this.mls?.assertPlainAllowed(group, type);
+  }
+
+  /** Group E2EE G1 (design §5): the group's MLS group was just created —
+   * «messages are end-to-end encrypted from now on», a system line like the
+   * chats' banner. The older messages stay as they are. */
+  async e2eeStarted(groupId: string, actorId: string): Promise<void> {
+    const row = await withTxRetry(this.prisma, async (tx) => {
+      const sys = await this.system(tx, groupId, 'e2ee_on', actorId, []);
+      await tx.chatGroup.update({
+        where: { id: groupId },
+        data: { last_message_id: sys.id, last_message_at: sys.created_at },
+      });
+      return sys;
+    });
+    await this.broadcast(groupId, row);
   }
 
   /** The shared part of a group card (GroupCardDto), one read. */

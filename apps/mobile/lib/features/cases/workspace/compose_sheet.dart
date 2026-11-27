@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
@@ -15,6 +17,9 @@ import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/media/thumb_image.dart';
+import 'package:lawbid/core/media/video_compression.dart'
+    show chatVideoLimitsOf, videoCompressorProvider;
+import 'package:lawbid/core/media/video_frames.dart' show videoFrame;
 import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 import 'package:lawbid/features/cases/application/cases_providers.dart'
     show casesRepositoryProvider;
@@ -23,6 +28,8 @@ import 'package:lawbid/features/cases/domain/case_models.dart'
 import 'package:lawbid/features/cases/presentation/widgets/case_header.dart'
     show ActionSheetItem, showActionSheet;
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
+import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
+    show isPickedVideo, pickChatFiles;
 import 'package:lawbid/features/team/application/team_providers.dart'
     show
         isAssistantProvider,
@@ -252,9 +259,60 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
     setState(() => _lines[i].check = !_lines[i].check);
   }
 
+  /// Case audit 26.11 (R-255, as the 1:1 chat): the files of a case's
+  /// update or task stay on disk on a phone (sent from there, never read
+  /// whole); a Planner task still sends bytes (its own upload).
+  bool get _fromDisk =>
+      widget.mode != ComposeMode.planner &&
+      ref
+          .read(featureFlagsControllerProvider)
+          .isEnabled('chat_files_from_disk');
+
+  /// Case audit 26.11: a video is taken where the case allows one (the
+  /// admin's case formats), compressed on the phone like a chat video.
+  bool get _videoOn =>
+      widget.mode != ComposeMode.planner &&
+      ref.read(uploadLimitsProvider)[UploadPlace.kase].allowsVideo;
+
   Future<void> _attach({required bool sample}) async {
     final upload = ref.read(uploadLimitsProvider)[UploadPlace.kase];
     final room = 20 - _files.length - _kept.length;
+    if (room <= 0) return;
+    if (_fromDisk) {
+      // The 1:1 chat's «Files» (pickChatFiles): checked by name and size,
+      // a document kept on disk; the case's document formats only, as
+      // before (photos and videos come from the gallery row).
+      final docs = PlaceUploadLimits(
+        maxPhotos: upload.maxPhotos,
+        maxFiles: upload.maxFiles,
+        fileMb: upload.fileMb,
+        totalMb: upload.totalMb,
+        formats: {
+          for (final f in upload.formats)
+            if (!kPhotoFormats.contains(f) && !kVideoFormats.contains(f)) f,
+        },
+      );
+      final picked = await pickChatFiles(
+        context,
+        ref.read(translatorProvider),
+        directChoice: 'files',
+        limits: docs,
+        fromDisk: true,
+      );
+      final add = [
+        for (final f in picked.take(room))
+          PickedCaseFile(
+            bytes: f.bytes,
+            name: f.name,
+            sample: sample,
+            path: f.path,
+            diskBytes: f.diskBytes,
+            mime: f.mime,
+          ),
+      ];
+      if (mounted) setState(() => _files.addAll(add));
+      return;
+    }
     // Audit D8: read one by one from disk on a phone (no withData).
     final result = await pickFilesRead(
       allowedExtensions: upload.documentExtensions,
@@ -275,22 +333,92 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
     if (room <= 0) return;
     // Owner 2026-11-08: the admin's «Фото» size and quality, as elsewhere.
     final photo = photoLimitsOf(ref.read(featureFlagsControllerProvider));
-    final picked = await ImagePicker().pickMultiImage(
-      maxWidth: photo.maxPx,
-      maxHeight: photo.maxPx,
-      imageQuality: photo.quality,
-      limit: room > 1 ? room : null,
-      requestFullMetadata: false,
-    );
-    final add = <PickedCaseFile>[
-      for (final f in picked.take(room))
+    final video = _videoOn;
+    // Case audit 26.11 (as the 1:1 chat, owner 2026-10-17): one gallery for
+    // photos and videos where the case takes videos.
+    final picked = video
+        ? await ImagePicker().pickMultipleMedia(
+            maxWidth: photo.maxPx,
+            maxHeight: photo.maxPx,
+            imageQuality: photo.quality,
+            limit: room > 1 ? room : null,
+            requestFullMetadata: false,
+          )
+        : await ImagePicker().pickMultiImage(
+            maxWidth: photo.maxPx,
+            maxHeight: photo.maxPx,
+            imageQuality: photo.quality,
+            limit: room > 1 ? room : null,
+            requestFullMetadata: false,
+          );
+    final add = <PickedCaseFile>[];
+    var skipped = 0;
+    for (final f in picked.take(room)) {
+      if (video && isPickedVideo(f)) {
+        if (!mounted) return;
+        final v = await _prepareVideo(f);
+        if (v == null) {
+          skipped++;
+        } else {
+          add.add(v..sample = sample);
+        }
+        continue;
+      }
+      add.add(
         PickedCaseFile(
           bytes: await readPickedPhoto(f),
           name: f.name,
           sample: sample,
         ),
-    ];
-    if (mounted) setState(() => _files.addAll(add));
+      );
+    }
+    if (!mounted) return;
+    setState(() => _files.addAll(add));
+    if (skipped > 0) {
+      final upload = ref.read(uploadLimitsProvider)[UploadPlace.kase];
+      showAppSnackBar(
+        context,
+        ref.read(translatorProvider).t('chat.attach.skipped', {
+          'count': '$skipped',
+          'max': '${upload.fileMb}',
+        }),
+      );
+    }
+  }
+
+  /// The 1:1 chat's video step (conversation_screen `_prepareVideo`): the
+  /// phone's hardware encoder makes it at most the admin's chat/case height
+  /// (`media.chat_video_max_height`), the original goes when that fails or
+  /// does not help; on a phone it stays on disk, a small first frame is
+  /// kept for the sheet and the «sending» entry. Null: over the case's
+  /// size limit.
+  Future<PickedCaseFile?> _prepareVideo(XFile source) async {
+    final t = ref.read(translatorProvider);
+    final upload = ref.read(uploadLimitsProvider)[UploadPlace.kase];
+    final compressor = ref.read(videoCompressorProvider);
+    final limits = chatVideoLimitsOf(ref.read(featureFlagsControllerProvider));
+    final onDisk = _fromDisk && !kIsWeb;
+    showAppSnackBar(context, t.t('chat.attach.videoPreparing'));
+    final out = await compressor.compress(source, limits: limits);
+    final ready = out ?? source;
+    final size = await ready.length();
+    if (size > upload.fileBytes) return null;
+    final dot = source.name.lastIndexOf('.');
+    final ext = out != null || dot < 0
+        ? 'mp4'
+        : source.name.substring(dot + 1).toLowerCase();
+    final mime = out != null
+        ? 'video/mp4'
+        : upload.mimeForName('video.$ext') ?? 'video/mp4';
+    final thumb = await videoFrame(ready, 0);
+    return PickedCaseFile(
+      bytes: onDisk ? Uint8List(0) : await ready.readAsBytes(),
+      name: 'video.$ext',
+      path: onDisk ? ready.path : null,
+      diskBytes: onDisk ? size : null,
+      mime: mime,
+      thumb: thumb,
+    );
   }
 
   void _attachMenu() {
@@ -298,7 +426,9 @@ class _ComposeSheetState extends ConsumerState<_ComposeSheet> {
     showActionSheet(context, [
       ActionSheetItem(
         icon: AppIcons.imageOutlined,
-        label: t.t('cases.compose.photo'),
+        label: t.t(
+          _videoOn ? 'chat.attach.gallery' : 'cases.compose.photo',
+        ),
         onTap: () => _attachPhoto(sample: false),
       ),
       ActionSheetItem(
@@ -1050,18 +1180,23 @@ class _PickedTile extends ConsumerWidget {
             borderRadius: BorderRadius.circular(8),
             child: SizedBox.square(
               dimension: 44,
-              child: file.isImage
+              child: file.isImage && file.bytes.isNotEmpty
                   ? Image(
                       image: thumbImage(context, file.bytes, maxSide: 44),
                       fit: BoxFit.cover,
                     )
-                  : ColoredBox(
-                      color: colors.surface,
-                      child: AppIcon(
-                        AppIcons.descriptionOutlined,
-                        color: colors.text,
-                      ),
-                    ),
+                  : file.thumb != null
+                      ? Image(
+                          image: thumbImage(context, file.thumb!, maxSide: 44),
+                          fit: BoxFit.cover,
+                        )
+                      : ColoredBox(
+                          color: colors.surface,
+                          child: AppIcon(
+                            AppIcons.descriptionOutlined,
+                            color: colors.text,
+                          ),
+                        ),
             ),
           ),
           const SizedBox(width: AppSpacing.sm),
