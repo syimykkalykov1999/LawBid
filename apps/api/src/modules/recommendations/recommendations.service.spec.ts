@@ -210,6 +210,44 @@ describe('RecommendationsService.peopleAffinity', () => {
   });
 });
 
+describe('RecommendationsService.postsAffinity (owner 26.11)', () => {
+  const post = (id: string, author: string, category: string) => ({
+    id,
+    author_id: author,
+    created_at: new Date(NOW - 5 * 3600 * 1000),
+    like_count: 5,
+    comment_count: 1,
+    save_count: 0,
+    share_count: 0,
+    view_count: 10,
+    language: 'en',
+    video_asset_id: null,
+    practice_area: { id: `leaf-${category}`, parent_id: category },
+    _count: { media: 1 },
+  });
+
+  it('the «Для вас» formula over exactly the ids: followed author and interest lead', async () => {
+    const prisma = makePrisma({
+      interests: [{ category: 'tax', weight: 1 }],
+      following: ['F'],
+      posts: [post('liked', 'F', 'tax'), post('plain', 'X', 'other')],
+    });
+    const redis = makeRedis();
+    const m = await svc(prisma, redis).postsAffinity('viewer', [
+      'plain',
+      'liked',
+      'gone',
+    ]);
+    expect(m.get('liked')!).toBeGreaterThan(m.get('plain')!);
+    // A post deleted since the search ran simply has no score.
+    expect(m.has('gone')).toBe(false);
+    expect(redis.set).not.toHaveBeenCalled();
+    prisma.post.findMany.mockClear();
+    expect((await svc(prisma).postsAffinity('viewer', [])).size).toBe(0);
+    expect(prisma.post.findMany).not.toHaveBeenCalled();
+  });
+});
+
 describe('RecommendationsService.postsFor', () => {
   const post = (
     id: string,
@@ -575,6 +613,32 @@ describe('RecommendationsService.casesFor', () => {
   it('no candidates → no work', async () => {
     const prisma = casePrisma([]);
     expect(await svc(prisma).casesFor('att', [], {})).toEqual([]);
+    expect(prisma.case.findMany).not.toHaveBeenCalled();
+  });
+
+  it('owner 26.11: casesAffinity is the same formula over exactly the ids, nothing cached', async () => {
+    const own = {
+      practice_area_id: 'leaf-own',
+      practice_area: { id: 'leaf-own', parent_id: 'cat-own' },
+      primary_state_code: 'NJ',
+    };
+    const prisma = casePrisma(
+      [row('other'), row('mine', own), row('already-bid', own)],
+      ['already-bid'],
+    );
+    const redis = makeRedis();
+    const m = await svc(prisma, redis).casesAffinity('att', [
+      'other',
+      'mine',
+      'already-bid',
+    ]);
+    expect([...m.keys()].sort()).toEqual(['already-bid', 'mine', 'other']);
+    // Same order as the attorney's cases feed (casesFor above).
+    expect(m.get('mine')!).toBeGreaterThan(m.get('other')!);
+    expect(m.get('other')!).toBeGreaterThan(m.get('already-bid')!);
+    expect(redis.set).not.toHaveBeenCalled();
+    prisma.case.findMany.mockClear();
+    expect((await svc(prisma).casesAffinity('att', [])).size).toBe(0);
     expect(prisma.case.findMany).not.toHaveBeenCalled();
   });
 

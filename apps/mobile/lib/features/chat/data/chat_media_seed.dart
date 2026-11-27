@@ -42,7 +42,13 @@ Future<void> adoptSentChatMedia(ChatAttachment? a, String? path) async {
       url,
       await file.readAsBytes(),
       key: stableImageCacheKey(url) ?? url,
-      maxAge: Duration(days: AppImageCaches.keepChatMediaDays),
+      // «Хранить медиа: всегда» is 0 days: that copy was out of date the
+      // moment it was written and got downloaded again (owner 27.11).
+      maxAge: Duration(
+        days: AppImageCaches.keepChatMediaDays <= 0
+            ? 3650
+            : AppImageCaches.keepChatMediaDays,
+      ),
       fileExtension: ext,
     );
   } on Object catch (e) {

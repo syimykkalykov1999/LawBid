@@ -22,6 +22,11 @@ SendGroupMessageDto _$SendGroupMessageDtoFromJson(Map<String, dynamic> json) =>
       waveform: (json['waveform'] as List<dynamic>?)
           ?.map((e) => (e as num).toInt())
           .toList(),
+      ciphertext: json['ciphertext'] as String?,
+      mlsEpoch: (json['mlsEpoch'] as num?)?.toInt(),
+      mlsDeviceId: json['mlsDeviceId'] as String?,
+      frankingTag: json['frankingTag'] as String?,
+      control: json['control'] as bool?,
     );
 
 Map<String, dynamic> _$SendGroupMessageDtoToJson(
@@ -37,4 +42,9 @@ Map<String, dynamic> _$SendGroupMessageDtoToJson(
   'fileName': ?instance.fileName,
   'durationMs': ?instance.durationMs,
   'waveform': ?instance.waveform,
+  'ciphertext': ?instance.ciphertext,
+  'mlsEpoch': ?instance.mlsEpoch,
+  'mlsDeviceId': ?instance.mlsDeviceId,
+  'frankingTag': ?instance.frankingTag,
+  'control': ?instance.control,
 };

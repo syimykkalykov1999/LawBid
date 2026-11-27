@@ -1,5 +1,4 @@
 import { HttpException } from '@nestjs/common';
-import { ChannelsService } from '../channels/channels.service';
 import { ClientReviewsService } from '../client-reviews/client-reviews.service';
 import { LegalQaService } from '../legal-qa/legal-qa.service';
 import { screenContent } from './content-screen';
@@ -7,7 +6,7 @@ import { screenContent } from './content-screen';
 /**
  * Feature reality audit 2026-11-08: the admin's moderation rules (blocked /
  * hold words, links, repeats, AI text check) now hold Q&A questions and
- * answers, client reviews and channel posts exactly as they hold posts and
+ * answers and client reviews exactly as they hold posts and
  * comments: «block» is refused (422 CONTENT_BLOCKED), «hold» is saved hidden
  * and filed for the moderators, «allow» goes out as before.
  */
@@ -115,88 +114,6 @@ describe('Q&A question', () => {
     expect(h.created[0].status).toBeUndefined();
     expect(h.later).toHaveBeenCalled();
     expect(h.hook.record).toHaveBeenCalled();
-  });
-});
-
-describe('channel post', () => {
-  function channel(v: Verdict) {
-    const hook = hookOf(v);
-    const autoHold = { queue: jest.fn(() => Promise.resolve(true)) };
-    const fanout = { start: jest.fn(() => Promise.resolve()) };
-    const realtime = { toRoom: jest.fn() };
-    const created: Record<string, unknown>[] = [];
-    const channelUpdate = jest.fn(() => Promise.resolve());
-    const tx = {
-      channelPost: {
-        create: jest.fn((a: { data: Record<string, unknown> }) => {
-          created.push(a.data);
-          return Promise.resolve({
-            id: 'p1',
-            author_id: 'a1',
-            created_at: new Date(),
-            ...a.data,
-          });
-        }),
-      },
-      channel: { update: channelUpdate },
-    };
-    const svc = Object.create(ChannelsService.prototype) as ChannelsService;
-    Object.assign(svc, {
-      moderationHook: hook,
-      autoHold,
-      fanout,
-      realtime,
-      logger: { warn: jest.fn() },
-      settings: { number: jest.fn(() => Promise.resolve(10)) },
-      limits: { consume: jest.fn(() => Promise.resolve()) },
-      files: { assertAttachable: jest.fn() },
-      videos: { takeReady: jest.fn() },
-      prisma: {
-        $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
-      },
-      assertEnabled: jest.fn(() => Promise.resolve()),
-      asAdmin: jest.fn(() =>
-        Promise.resolve({
-          channel: { id: 'ch1', status: 'active', title: 'T', username: 't' },
-        }),
-      ),
-      assertCanPublish: jest.fn(() => Promise.resolve()),
-      presentPosts: jest.fn(() => Promise.resolve([{ id: 'p1' }])),
-    });
-    const post = () =>
-      (
-        svc as unknown as {
-          createPost(u: unknown, id: string, dto: unknown): Promise<unknown>;
-        }
-      ).createPost({ sub: 'a1' }, 'ch1', { body: 'A post for the channel' });
-    return { post, created, autoHold, fanout, realtime, channelUpdate };
-  }
-
-  it('block: refused, nothing written', async () => {
-    const h = channel('block');
-    expect(await codeOf(h.post())).toBe('CONTENT_BLOCKED');
-    expect(h.created).toHaveLength(0);
-  });
-
-  it('hold: saved hidden, no fan-out, no live push, not counted, filed for moderators', async () => {
-    const h = channel('hold');
-    await h.post();
-    expect(h.created[0]).toMatchObject({ status: 'hidden' });
-    expect(h.fanout.start).not.toHaveBeenCalled();
-    expect(h.realtime.toRoom).not.toHaveBeenCalled();
-    expect(h.channelUpdate).not.toHaveBeenCalled();
-    expect(h.autoHold.queue).toHaveBeenCalledWith(
-      expect.objectContaining({ targetType: 'channel_post', targetId: 'p1' }),
-    );
-  });
-
-  it('allow: published, fanned out and counted as before', async () => {
-    const h = channel('allow');
-    await h.post();
-    expect(h.created[0].status).toBeUndefined();
-    expect(h.fanout.start).toHaveBeenCalled();
-    expect(h.realtime.toRoom).toHaveBeenCalled();
-    expect(h.channelUpdate).toHaveBeenCalled();
   });
 });
 

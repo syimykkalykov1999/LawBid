@@ -3384,6 +3384,16 @@ model MlsGroup {
   created_by_device String   @db.Uuid
   created_at        DateTime @default(now()) @db.Timestamptz
   updated_at        DateTime @updatedAt @db.Timestamptz
+  /// Group E2EE G1 (GROUP_E2EE_DESIGN_2026-11-26.md §4.1): conversation |
+  /// group. `conversation_id` holds the chat's or the group chat's id (both
+  /// UUIDs, never the same).
+  scope              String   @default("conversation") @db.VarChar(12)
+  /// §4.3: the latest GroupInfo with the ratchet tree (gzip) a device joins
+  /// from by external commit; a bigger one lives in a file (chat_e2ee).
+  group_info         Bytes?
+  group_info_file_id String?  @db.Uuid
+  /// The epoch that GroupInfo describes.
+  group_info_epoch   Int?
 
   @@map("mls_groups")
 }
@@ -3402,6 +3412,10 @@ model MlsCommit {
   added_devices    String[] @default([]) @db.Uuid
   removed_devices  String[] @default([]) @db.Uuid
   created_at       DateTime @default(now()) @db.Timestamptz
+  /// Group E2EE G1: conversation | group (see MlsGroup.scope).
+  scope            String   @default("conversation") @db.VarChar(12)
+  /// RFC 9420 §12.4.3.2: a device joined (or resynced) by external commit.
+  external         Boolean  @default(false)
 
   @@id([conversation_id, epoch])
   @@map("mls_commits")
@@ -3419,6 +3433,11 @@ model MlsGroupDevice {
   /// The device could not join from its Welcome (RFC 9420 §12.4.3.1): the
   /// members remove its leaf and add it again from a new KeyPackage.
   rejoin_at       DateTime? @db.Timestamptz
+  /// Group E2EE G1: conversation | group (see MlsGroup.scope).
+  scope           String    @default("conversation") @db.VarChar(12)
+  /// The device's last accepted commit in this group (the periodic
+  /// self-update, groups.e2ee_update_days, counts from it).
+  last_commit_at  DateTime? @db.Timestamptz
 
   @@id([conversation_id, device_id])
   @@index([device_id])
@@ -3474,6 +3493,8 @@ model MlsWelcome {
   epoch           Int
   data            Bytes
   created_at      DateTime @default(now()) @db.Timestamptz
+  /// Group E2EE G1: conversation | group (see MlsGroup.scope).
+  scope           String   @default("conversation") @db.VarChar(12)
 
   @@index([device_id, created_at])
   @@index([conversation_id])
@@ -3584,6 +3605,8 @@ enum GroupMessageType {
   attachment
   /// Groups WhatsApp parity: a voice note (chat_voice file, like 1:1).
   voice
+  /// Group E2EE G1: an MLS PrivateMessage; the server keeps only ciphertext.
+  mls
 
   @@map("group_message_type")
 }
@@ -3640,6 +3663,12 @@ model ChatGroup {
   deleted_at            DateTime? @db.Timestamptz
   created_at            DateTime  @default(now()) @db.Timestamptz
   updated_at            DateTime  @updatedAt @db.Timestamptz
+  /// Group E2EE G1: when the group's MLS group was created; from then on its
+  /// messages are `mls` only (older ones stay as they are).
+  e2ee_since            DateTime? @db.Timestamptz
+  /// §4.6 (WhatsApp 19.02.2026): members may send recent history to people
+  /// they add; changed by who_can_edit_info.
+  history_sharing       Boolean   @default(true)
 
   members  ChatGroupMember[]
   invites  ChatGroupInvite[]
@@ -3737,6 +3766,15 @@ model ChatGroupMessage {
   forwarded           Boolean                    @default(false)
   forwarded_from_name String?                    @db.VarChar(120)
   created_at          DateTime                   @default(now()) @db.Timestamptz
+  /// Group E2EE G1 (type=mls): the MLS PrivateMessage, its epoch, the
+  /// sending MLS device and the franking tag (as messages.*).
+  ciphertext          Bytes?
+  mls_epoch           Int?
+  sender_device_id    String?                    @db.Uuid
+  franking_tag        Bytes?
+  /// Group E2EE G2b: an MLS control message (reaction, vote, edit, poll
+  /// close): no unread count, no push, never the group's last message.
+  mls_control         Boolean                    @default(false)
   poll                ChatGroupPoll?
   reactions           ChatGroupMessageReaction[]
 

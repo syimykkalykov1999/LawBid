@@ -192,11 +192,10 @@ export const PUBLIC_CONFIG_PREFIXES = [
   'deal_record.',
   'bids.rich_terms_enabled',
   'bids.confirmation_required',
-  // Feature reality audit 2026-11-08: the app reads these two limits
-  // (stories_providers.dart, channel_compose.dart) but they never reached
-  // it, so an admin change was enforced by the server only.
+  // Feature reality audit 2026-11-08: the app reads this limit
+  // (stories_providers.dart) but it never reached it, so an admin change
+  // was enforced by the server only.
   'stories.max_video_sec',
-  'channels.max_post_media',
   // D1-53 (13.11): the biometric consent the attorney ticks names how long
   // the face-comparison result is kept; the app fills `{days}` from this.
   'verification.face_match.retention_days',
@@ -656,6 +655,10 @@ export class BootstrapService {
         // chat.e2ee_mode is Выкл. Always present, as off / on / auto.
         'chat.e2ee_mode': parseSwitchMode(
           appConfig['chat.e2ee_mode'] ?? APP_SETTINGS['chat.e2ee_mode'],
+        ),
+        // Group E2EE G1: the group chats' own switch, always present.
+        'groups.e2ee_mode': parseSwitchMode(
+          appConfig['groups.e2ee_mode'] ?? APP_SETTINGS['groups.e2ee_mode'],
         ),
         // Dedup D-12: `guest.browsing_enabled` is the one master switch (it is
         // also the server's gate for token-less reads). The apps are told

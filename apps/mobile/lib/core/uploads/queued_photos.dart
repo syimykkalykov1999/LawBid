@@ -107,8 +107,9 @@ abstract final class QueuedPhotos {
     UploadJob job,
     Future<void> Function(Map<String, Object?> progress) saveProgress,
     UploadFiles files,
-    Future<String> Function(Uint8List bytes, int index) upload, {
+    Future<String> Function(Uint8List bytes, int index)? upload, {
     int? parallel,
+    Future<String> Function(String keptName, int index)? kept,
   }) async {
     final photos = entriesOf(job);
     final ids = idsOf(job);
@@ -133,14 +134,18 @@ abstract final class QueuedPhotos {
       }
       if (id == null) {
         final name = photos[i]['file'] as String?;
-        final bytes = name == null ? null : await files.read(name);
-        if (bytes == null) {
-          throw const ApiException(
-            code: UploadQueue.localFileMissing,
-            message: 'photo',
-          );
+        if (name != null && kept != null) {
+          id = await kept(name, i);
+        } else {
+          final bytes = name == null ? null : await files.read(name);
+          if (bytes == null) {
+            throw const ApiException(
+              code: UploadQueue.localFileMissing,
+              message: 'photo',
+            );
+          }
+          id = await upload!(bytes, i);
         }
-        id = await upload(bytes, i);
       }
       ids[i] = id;
       // Saves run one after another, each with the ids known at its turn.
@@ -166,6 +171,27 @@ abstract final class QueuedPhotos {
     if (failure != null) Error.throwWithStackTrace(failure!, failureStack!);
     return [for (final id in ids) id!];
   }
+
+  /// Case audit 26.11 (R-255, as the 1:1 chat's attachment job): [send],
+  /// but [upload] gets the kept file's name instead of its bytes, so a big
+  /// video or document is streamed from disk on the phone (the browser
+  /// reads it from its store), never read whole here. Same order, same
+  /// parallel workers, same saved ids.
+  static Future<List<String>> sendKept(
+    UploadJob job,
+    UploadJobScope scope,
+    UploadFiles files,
+    Future<String> Function(String keptName, int index) upload, {
+    int? parallel,
+  }) =>
+      sendWith(
+        job,
+        scope.saveProgress,
+        files,
+        null,
+        parallel: parallel,
+        kept: upload,
+      );
 
   /// The job left the queue: its kept photos go too.
   static Future<void> removeFiles(UploadFiles files, UploadJob job) async {

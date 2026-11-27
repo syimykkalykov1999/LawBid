@@ -9,8 +9,6 @@ import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/desktop_profile.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
-import 'package:lawbid/features/stars/presentation/gift_widgets.dart'
-    show GiftHeaderButton;
 import 'package:lawbid/shared/presentation/guest_gate.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -151,10 +149,6 @@ class AttorneyProfileScreen extends ConsumerWidget {
           ),
           // Owner 2026-09-30: "⋯" (Block / Report) opposite the @username.
           actions: [
-            // Owner 2026-10-21: their gifts behind an icon up here.
-            if (ref.watch(publicAttorneyProfileProvider(username)).value
-                case final p? when !(p.isBlocked || p.hasBlockedMe))
-              GiftHeaderButton(userId: p.id, isMe: p.isSelf),
             if (ref.watch(publicAttorneyProfileProvider(username)).value
                 case final p? when !p.isSelf)
               AppIconButton(

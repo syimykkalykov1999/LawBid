@@ -12,8 +12,8 @@ class CallFace {
 }
 
 /// Owner 2026-10-21 (inbox 20e/20f, Telegram «Видеочат»): the call running
-/// in a group or a channel, as its row in the Groups | Channels lists shows
-/// it («Call in progress · N» with the first faces).
+/// in a group, as its row in the lists shows it («Call in progress · N»
+/// with the first faces).
 @immutable
 class OngoingCallSummary {
   const OngoingCallSummary({

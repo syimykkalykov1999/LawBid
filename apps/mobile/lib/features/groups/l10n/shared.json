@@ -16,6 +16,8 @@
   "group.system.description": {"en": "{name} changed the description", "ru": "{name} изменил(а) описание"},
   "group.system.promoted": {"en": "{name} made {people} an admin", "ru": "{name} назначил(а) админом {people}"},
   "group.system.demoted": {"en": "{name} removed admin rights from {people}", "ru": "{name} снял(а) права админа у {people}"},
+  "group.system.e2eeOn": {"en": "Messages in this group are now end-to-end encrypted. No one outside the group, not even LawBid, can read them.", "ru": "Теперь сообщения в этой группе защищены сквозным шифрованием. Никто вне группы, даже LawBid, не может их прочитать."},
+  "group.system.e2eeCodeChanged": {"en": "{name}'s security code changed", "ru": "Код безопасности {name} изменился"},
   "group.system.pinned": {"en": "{name} pinned a message", "ru": "{name} закрепил(а) сообщение"},
   "group.system.topicCreated": {"en": "{name} created the topic «{title}»", "ru": "{name} создал(а) тему «{title}»"}
 }

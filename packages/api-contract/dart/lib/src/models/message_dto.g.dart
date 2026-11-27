@@ -25,9 +25,6 @@ MessageDto _$MessageDtoFromJson(Map<String, dynamic> json) => MessageDto(
   mlsEpoch: json['mlsEpoch'] as num?,
   blobUrl: json['blobUrl'] as String?,
   frankingTag: json['frankingTag'] as String?,
-  gift: json['gift'] == null
-      ? null
-      : GiftSendDto.fromJson(json['gift'] as Map<String, dynamic>),
   contact: json['contact'] == null
       ? null
       : ContactCardDto.fromJson(json['contact'] as Map<String, dynamic>),
@@ -71,7 +68,6 @@ Map<String, dynamic> _$MessageDtoToJson(MessageDto instance) =>
       'mlsEpoch': ?instance.mlsEpoch,
       'blobUrl': ?instance.blobUrl,
       'frankingTag': ?instance.frankingTag,
-      'gift': ?instance.gift?.toJson(),
       'contact': ?instance.contact?.toJson(),
       'post': ?instance.post?.toJson(),
       'sticker': ?instance.sticker?.toJson(),

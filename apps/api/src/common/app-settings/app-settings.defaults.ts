@@ -284,18 +284,14 @@ export const OWNER_MEDIA_SETTINGS = {
   'stickers.recent_max': 30,
   'rate_limit.sticker_pack_create_per_day': 5,
   'rate_limit.sticker_add_per_hour': 60,
-  // Owner 2026-10-20: stories (24 h) and channels.
+  // Owner 2026-10-20: stories (24 h).
   'stories.max_active_per_user': 30,
   'stories.max_video_sec': 15,
   'stories.ttl_hours': 24,
   'rate_limit.story_create_per_day': 50,
   // Owner 2026-10-22 (audit #4 §6): generous caps instead of none (the
-  // 2026-10-21 removal opened spam and fan-out costs). Telegram allows 10
-  // public channels; WhatsApp groups hold 1 024 people.
-  'channels.max_owned': 50,
-  'channels.max_admins': 10,
-  'channels.max_post_media': 10,
-  'rate_limit.channel_create_per_day': 20,
+  // 2026-10-21 removal opened spam and fan-out costs). WhatsApp groups hold
+  // 1 024 people.
   'rate_limit.group_create_per_day': 50,
   'groups.max_members': 1024,
   // Audit 17.11 (problem 9): how many groups get their messages delivered
@@ -303,8 +299,6 @@ export const OWNER_MEDIA_SETTINGS = {
   // its order inside its queue). Was a fixed 8 for the whole cluster.
   'groups.fanout_partitions': 64,
   'rate_limit.post_create_per_hour': 30,
-  'rate_limit.channel_post_per_hour': 30,
-  'rate_limit.channel_comment_per_hour': 60,
   'files.sticker_max_size_mb': 1,
   // Owner 2026-10-05: a reel may be cut from a longer video (trim); the
   // played part stays ≤ video.max_duration_sec.
@@ -474,6 +468,12 @@ export const OWNER_MEDIA_SETTINGS = {
   // over `video.max_size_mb`) is shrunk on the phone. Off = as before.
   'media.bunny_one_encode': true,
   'media.chat_video_max_height': 720,
+  // Owner 26.11 (group chat, Samsung: 51 photos picked, nothing sent;
+  // WhatsApp takes up to 100 per send; owner 26.11: 30 by default): the
+  // most photos / videos one pick from
+  // the gallery takes in a chat, group, case chat or support chat. The
+  // phone's picker stops at it; at least 2, no ceiling (owner 14.11).
+  'media.chat_pick_max': 30,
   'media.voice_bitrate_kbps': 32,
   'media.voice_sample_rate_hz': 16000,
   // Owner row 146: a voice note recorded on the website in Firefox / Linux
@@ -1404,6 +1404,33 @@ export const OWNER_E2EE_SETTINGS = {
   'chat.e2ee_backup_max_mb': 500,
 } as const;
 
+/** Group E2EE G1 (owner 26.11; docs/architecture/GROUP_E2EE_DESIGN_2026-11-26.md
+ * §5, §7.5): group chats end to end encrypted on the same MLS Delivery
+ * Service. The limits shared with chats (devices, members, KeyPackages,
+ * Welcomes, file size, push text) stay the chat.e2ee_* ones. */
+export const OWNER_GROUP_E2EE_SETTINGS = {
+  /** off | on | auto. off (until the apps can, G2–G5) = no new encrypted
+   * groups; groups already encrypted stay encrypted. on = every group that
+   * may be encrypted; auto = once every member has a device with MLS keys. */
+  'groups.e2ee_mode': 'off',
+  /** Public groups (join by @username) too. Off: anyone may join one, so
+   * encryption protects nothing there (Telegram: public groups are not
+   * end-to-end encrypted). */
+  'groups.e2ee_public': false,
+  /** ms one device holds the right to commit (add / remove / update) in a
+   * group, so 5 000 devices do not race for one epoch (Wire). */
+  'groups.e2ee_lease_ms': 15000,
+  /** Every device updates its own MLS keys in a group it wrote in after
+   * this many days (post-compromise security; 0 = never). */
+  'groups.e2ee_update_days': 7,
+  /** Most recent messages a member may send to a person they add
+   * (WhatsApp 19.02.2026: 25–100). */
+  'groups.e2ee_history_max': 100,
+  /** KiB of a GroupInfo kept in the database; a bigger one is uploaded by
+   * the phone as a file and only its id is kept. */
+  'groups.e2ee_group_info_inline_kb': 256,
+} as const;
+
 /** Owner 2026-10-20 (WhatsApp): how long a sent message can still be edited
  * and deleted for everyone. 0 = never. */
 export const OWNER_CHAT_ACTION_SETTINGS = {
@@ -1463,6 +1490,16 @@ export const OWNER_CHAT_ACTION_SETTINGS = {
    * per address: many phones share a carrier / office address). A phone
    * asks about 8 times a minute. 0 = no limit. */
   'calls.ring_status_rate_limit_per_minute': 60,
+  /** 26.11 (call spam, like WhatsApp's «4 unanswered calls in a row»
+   * rule): 1:1 calls one person may start per minute / per day (0 = no
+   * limit), and after this many unanswered rings in a row to the same
+   * person (missed, declined or canceled, no call back, nothing answered)
+   * the next ring to them waits the cooldown (0 = off). Admins are never
+   * capped. */
+  'calls.start_rate_limit_per_minute': 15,
+  'calls.start_rate_limit_per_day': 300,
+  'calls.unanswered_in_row_limit': 5,
+  'calls.unanswered_cooldown_minutes': 60,
   /** Owner 2026-10-22: guest browsing (reading with no account). Kill
    * switch and the per-IP budgets of token-less reads. */
   'guest.browsing_enabled': true,
@@ -1960,7 +1997,6 @@ export const OWNER_OPS_SETTINGS = {
   'ops.queue_concurrency_admin_broadcast': 1,
   'ops.queue_concurrency_case_fanout': 4,
   'ops.queue_concurrency_case_history_export': 2,
-  'ops.queue_concurrency_channel_fanout': 4,
   'ops.queue_concurrency_data_export': 2,
   'ops.queue_concurrency_deal_record': 2,
   'ops.queue_concurrency_files': 2,
@@ -2117,6 +2153,11 @@ export const OWNER_OPS_SETTINGS = {
    * running; off = never (stopped at once when no call runs). Only counts
    * when the box exists (TURN_ONDEMAND_INSTANCE_ID). */
   'calls.own_turn.mode': 'auto',
+  /** 26.11: our own TURN is also offered as TURN over TCP on port 443
+   * (`turn:<host>:443?transport=tcp`) for networks that let only 443 out
+   * (offices, hotels), like Cloudflare's list. The box forwards 443 to
+   * coturn's 3478 (infra/modules/turn). Off = 3478 only, as before. */
+  'calls.own_turn.port_443': true,
   /** This month's AWS bill when AWS Budgets cannot be read (≈ $150 for
    * the launch size). */
   'economy.aws_fallback_usd': 150,
@@ -2822,6 +2863,7 @@ export const APP_SETTINGS = {
   ...OWNER_SEO_SETTINGS,
   ...OWNER_CHAT_ACTION_SETTINGS,
   ...OWNER_E2EE_SETTINGS,
+  ...OWNER_GROUP_E2EE_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
   ...OWNER_STRIPE_OPS_SETTINGS,
   ...OWNER_OPS_SETTINGS,

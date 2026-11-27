@@ -178,7 +178,6 @@ const _overview = StarsOverview(
   enabled: true,
   balance: 0,
   packs: [],
-  giftConvertPercent: 70,
   premiumReactions: ['🔥', '🏆', '💯', '👏', '🤝', '⚖️', '🎉', '💎'],
 );
 

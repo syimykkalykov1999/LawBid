@@ -32,8 +32,6 @@ const PUBLISH: ReadonlySet<LimitedAction> = new Set([
   'post_create',
   'post_create_hourly',
   'story_create',
-  'channel_create',
-  'channel_post',
   'group_create',
   'video_upload',
   'sticker_pack_create',
@@ -41,10 +39,7 @@ const PUBLISH: ReadonlySet<LimitedAction> = new Set([
   'answer_create',
 ]);
 /** Replies: only blocked when suspended, slowed down by a cooldown. */
-const REPLY: ReadonlySet<LimitedAction> = new Set([
-  'comment',
-  'channel_comment',
-]);
+const REPLY: ReadonlySet<LimitedAction> = new Set(['comment']);
 
 const CACHE_SEC = 60;
 const cacheKey = (userId: string) => `strike:limit:${userId}`;

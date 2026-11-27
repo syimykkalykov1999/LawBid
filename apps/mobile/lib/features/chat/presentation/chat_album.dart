@@ -156,19 +156,32 @@ class ChatPhoto extends StatelessWidget {
         gaplessPlayback: true,
       );
     }
-    final main = a.url ?? a.previewUrl;
-    if (main == null) return skeleton;
-    final preview = a.previewUrl != null && a.previewUrl != main
-        ? Image(
-            image: appNetworkImage(
-              a.previewUrl!,
-              320,
-              cache: AppImageCaches.chatMedia,
-            ),
+    // Owner 27.11: my own just-sent photo stays its picked picture until
+    // the server's copy is decoded (Telegram), never a grey flash.
+    final sentBytes = SentMediaShapes.bytesOf(a.fileId);
+    final standIn = sentBytes == null
+        ? skeleton
+        : Image.memory(
+            sentBytes,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => skeleton,
-          )
-        : skeleton;
+            cacheWidth: px,
+            gaplessPlayback: true,
+          );
+    final main = a.url ?? a.previewUrl;
+    if (main == null) return standIn;
+    final preview = sentBytes != null
+        ? standIn
+        : a.previewUrl != null && a.previewUrl != main
+            ? Image(
+                image: appNetworkImage(
+                  a.previewUrl!,
+                  320,
+                  cache: AppImageCaches.chatMedia,
+                ),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => skeleton,
+              )
+            : skeleton;
     return Image(
       image: appNetworkImage(main, px, cache: AppImageCaches.chatMedia),
       fit: BoxFit.cover,

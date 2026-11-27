@@ -77,10 +77,17 @@ abstract class MlsEngine {
   /// it, or took another commit for this epoch). The pending commit
   /// survives a restart: a send whose answer was lost is decided on the
   /// next catch-up (RFC 9420 §12.4).
+  ///
+  /// With [groupInfo] the commit also carries the GroupInfo of the epoch it
+  /// makes (ratchet tree + external_pub inside, RFC 9420 §12.4.3): the
+  /// Delivery Service of a group keeps the newest one, so a device joins by
+  /// external commit without anyone online (Wire). Published only once the
+  /// server took the commit.
   Future<MlsCommitOut> commit(
     Uint8List groupId, {
     List<Uint8List> keyPackages = const [],
     List<String> removeDeviceIds = const [],
+    bool groupInfo = false,
   });
 
   Future<void> mergeCommit(Uint8List groupId);
@@ -89,6 +96,39 @@ abstract class MlsEngine {
 
   /// Joins a group from a Welcome; returns its group id.
   Future<Uint8List> join(Uint8List welcome);
+
+  /// The GroupInfo of the group's current epoch (MLSMessage, with the
+  /// ratchet tree and external_pub extensions): what a device that is not
+  /// in the group joins from by external commit.
+  Future<Uint8List> exportGroupInfo(Uint8List groupId);
+
+  /// Joins the group [groupInfo] describes by an external commit
+  /// (RFC 9420 §12.4.3.2) — a person who came in by link, request or
+  /// invite, a new device of a member, a device that lost track of the
+  /// group. With [resync] this device's old leaf (the same signature key)
+  /// is removed in the same commit and the stored group replaced.
+  ///
+  /// Like [commit] the join waits for the Delivery Service: [mergeCommit]
+  /// once it took the commit (a no-op where the library stored it merged);
+  /// when it refused, [deleteGroup] (the device is not in that epoch).
+  ///
+  /// Phones (OpenMLS) and browsers (ts-mls 1.6.4 with upstream
+  /// LukaJCB/ts-mls#449 backported, tool/web_mls/build.sh) both write and
+  /// read the GroupInfo's external_pub as RFC 9420 §12.4.3.2 says
+  /// (`HPKEPublicKey<V>`), so each joins the other's groups.
+  Future<MlsExternalJoinOut> joinExternal(
+    Uint8List groupInfo, {
+    bool resync = false,
+  });
+
+  /// RFC 9420 §8.5 MLS-Exporter of the current epoch (G4 push keys, call
+  /// keys as SFrame RFC 9605 / Discord DAVE).
+  Future<Uint8List> exportSecret(
+    Uint8List groupId,
+    String label,
+    Uint8List context,
+    int length,
+  );
 
   /// Applies a commit of another member.
   Future<void> applyCommit(Uint8List groupId, Uint8List commit);
@@ -111,6 +151,7 @@ class MlsCommitOut {
     required this.commit,
     required this.epoch,
     this.welcome,
+    this.groupInfo,
   });
 
   final Uint8List commit;
@@ -118,6 +159,29 @@ class MlsCommitOut {
   /// The epoch the commit was made in (the group moves to epoch + 1).
   final int epoch;
   final Uint8List? welcome;
+
+  /// The GroupInfo of epoch + 1 (asked for with `groupInfo: true`).
+  final Uint8List? groupInfo;
+}
+
+/// An external join waiting for the Delivery Service
+/// ([MlsEngine.joinExternal]).
+class MlsExternalJoinOut {
+  const MlsExternalJoinOut({
+    required this.groupId,
+    required this.commit,
+    required this.epoch,
+    this.groupInfo,
+  });
+
+  final Uint8List groupId;
+  final Uint8List commit;
+
+  /// The epoch of the GroupInfo the join was made from (the commit's).
+  final int epoch;
+
+  /// The GroupInfo of the epoch the join makes.
+  final Uint8List? groupInfo;
 }
 
 class MlsMemberKey {

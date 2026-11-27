@@ -6,7 +6,15 @@
 #   scripts/deploy/prod-admin-ecs.sh <image tag> i18n     add what the
 #        database lacks from the prisma/seed/translations/*.json baked into the image
 #        (every release, deploy.yml); texts already there — the owner's
-#        uploads in Admin → Localization — are never overwritten
+#        uploads in Admin → Localization — are never overwritten.
+#        KNOWN_ERRORS 271: I18N_OLD_TAG=<running release tag> (deploy.yml passes
+#        LAST_GOOD_TAG) also moves texts the SEED changed, "update only
+#        untouched" (Crowdin / Lokalise / Phrase): a first container of the
+#        running release's image copies its prisma/seed/translations to a task
+#        volume and the importer gets `--update-from` it; a cell that still
+#        holds that earlier seed text takes the new one, an edited one stays.
+#        No such image in ECR (or no tag): as before, plus the known earlier
+#        texts of prisma/seed/translations-superseded.json.
 #   scripts/deploy/prod-admin-ecs.sh <image tag> i18n-full  re-import the
 #        whole table, overwriting what differs (by hand only)
 #   scripts/deploy/prod-admin-ecs.sh <image tag> config   preflight before
@@ -97,9 +105,21 @@ case "$MODE" in
   i18n)
     echo "1/3 (no secret needed)"
     TMP_SECRET_ARN_FOR_TD=""
+    OLD_TAG="${I18N_OLD_TAG:-}"
+    printf '%s' "$OLD_TAG" | grep -Eq '^[A-Za-z0-9._-]*$' \
+      || { echo "i18n: unexpected characters in I18N_OLD_TAG" >&2; exit 2; }
+    if [ -n "$OLD_TAG" ] && [ "$OLD_TAG" != "$TAG" ]; then
+      if aws ecr describe-images --repository-name lawbid-api --image-ids imageTag="$OLD_TAG" >/dev/null 2>&1; then
+        OLD_SEED_IMAGE="${ACCOUNT}.dkr.ecr.${REGION}.amazonaws.com/lawbid-api:${OLD_TAG}"
+        UPDATE_FROM=" --update-from /old-seed/translations"
+        echo "  earlier seed: image ${OLD_TAG} (texts still equal to it take the new seed text)"
+      else
+        echo "  earlier seed: image ${OLD_TAG} not found in ECR (or not readable), only missing and known earlier texts"
+      fi
+    fi
     # KNOWN_ERRORS #48: the pipe used to hide the importer's exit code (OOM "Killed"
     # still went green); heap 1400 MiB fits the 2 GiB task and fails with a message.
-    CMD='{ NODE_OPTIONS=--max-old-space-size=1400 node dist/src/cli/import-translations.js prisma/seed/translations --missing-only 2>&1; echo $? > /tmp/i18n.rc; } | cut -c1-300; exit $(cat /tmp/i18n.rc)'
+    CMD="{ NODE_OPTIONS=--max-old-space-size=1400 node dist/src/cli/import-translations.js prisma/seed/translations --missing-only${UPDATE_FROM:-} 2>&1; echo \$? > /tmp/i18n.rc; } | cut -c1-300; exit \$(cat /tmp/i18n.rc)"
     ;;
   i18n-full)
     echo "1/3 (no secret needed)"
@@ -151,7 +171,7 @@ echo "2/3 task definition (copy of ${CLUSTER}-api, image ${TAG})"
 aws ecs describe-task-definition --task-definition "${CLUSTER}-api" --query taskDefinition > "$WORK/api.json"
 MIGRATOR_ARN="$(aws ecs describe-task-definition --task-definition "${CLUSTER}-migrate" \
   --query 'taskDefinition.containerDefinitions[0].secrets[?name==`DATABASE_URL`].valueFrom | [0]' --output text)"
-IMAGE="$IMAGE" FAMILY="$FAMILY" MIGRATOR_ARN="$MIGRATOR_ARN" TMP="$TMP_SECRET_ARN_FOR_TD" MODE="$MODE" node -e '
+IMAGE="$IMAGE" FAMILY="$FAMILY" MIGRATOR_ARN="$MIGRATOR_ARN" TMP="$TMP_SECRET_ARN_FOR_TD" MODE="$MODE" OLD_SEED_IMAGE="${OLD_SEED_IMAGE:-}" node -e '
   const fs=require("fs"); const td=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
   for (const k of ["taskDefinitionArn","revision","status","requiresAttributes","compatibilities","registeredAt","registeredBy","deregisteredAt"]) delete td[k];
   td.family=process.env.FAMILY;
@@ -168,9 +188,23 @@ IMAGE="$IMAGE" FAMILY="$FAMILY" MIGRATOR_ARN="$MIGRATOR_ARN" TMP="$TMP_SECRET_AR
   }
   const t=process.env.TMP;
   if (t) c.secrets.push({name:"SEED_ADMIN_EMAIL",valueFrom:t+":email::"},{name:"ADMIN_SET_LOGIN",valueFrom:t+":login::"},{name:"ADMIN_SET_PASSWORD",valueFrom:t+":password::"});
+  // KNOWN_ERRORS 271: the running release seed texts, copied by a short first
+  // container of ITS image into a task volume that the importer reads.
+  const old=process.env.OLD_SEED_IMAGE;
+  if (old) {
+    td.volumes=(td.volumes||[]).filter(v=>v.name!=="old-seed").concat([{name:"old-seed"}]);
+    td.containerDefinitions.unshift({
+      name:"old-seed", image:old, essential:false, user:"0",
+      command:["sh","-c","cp -R /repo/apps/api/prisma/seed/translations /old-seed/ && chmod -R a+rX /old-seed && echo old seed copied || echo old seed NOT copied, the importer only adds missing texts"],
+      mountPoints:[{sourceVolume:"old-seed",containerPath:"/old-seed"}],
+      logConfiguration:c.logConfiguration,
+    });
+    c.mountPoints=(c.mountPoints||[]).concat([{sourceVolume:"old-seed",containerPath:"/old-seed",readOnly:true}]);
+    c.dependsOn=[{containerName:"old-seed",condition:"COMPLETE"}];
+  }
   fs.writeFileSync(process.argv[2],JSON.stringify(td));' "$WORK/api.json" "$WORK/td.json"
 if [ "${DRY_RUN:-}" = "1" ]; then
-  node -e 'const t=require(process.argv[1]);const c=t.containerDefinitions[0];console.log("DRY_RUN ok:",t.family,c.image,"secrets:",c.secrets.map(s=>s.name).join(","),"pooler:",c.environment.some(e=>e.name==="DB_POOLER_HOST")?"yes":"no")' "$WORK/td.json"
+  node -e 'const t=require(process.argv[1]);const c=t.containerDefinitions.find(x=>x.name==="api");const o=t.containerDefinitions.find(x=>x.name==="old-seed");console.log("DRY_RUN ok:",t.family,c.image,"secrets:",c.secrets.map(s=>s.name).join(","),"pooler:",c.environment.some(e=>e.name==="DB_POOLER_HOST")?"yes":"no","old seed:",o?o.image:"no")' "$WORK/td.json"
   exit 0
 fi
 TD_ARN="$(aws ecs register-task-definition --cli-input-json "file://$WORK/td.json" --query taskDefinition.taskDefinitionArn --output text)"
@@ -185,7 +219,7 @@ ARN="$(aws ecs run-task --cluster "$CLUSTER" --launch-type FARGATE --task-defini
 echo "  task: ${ARN##*/}"
 # Own wait (the CLI waiter gives up after 10 min). If the AWS login runs
 # out, the task still finishes in AWS: check it later with the line below.
-CHECK="aws ecs describe-tasks --cluster $CLUSTER --tasks $ARN --query 'tasks[0].[lastStatus,containers[0].exitCode]' --output text"
+CHECK="aws ecs describe-tasks --cluster $CLUSTER --tasks $ARN --query 'tasks[0].[lastStatus,containers[?name==\`api\`].exitCode|[0]]' --output text"
 # Deploy speed 25.11: polled every ONEOFF_POLL_SECONDS (default 5; was 15 s,
 # ~7 s lost per task on average, three tasks per release); the limit stays 60 min.
 POLL_S="${ONEOFF_POLL_SECONDS:-5}"; T_END=$(( $(date +%s) + 3600 ))
@@ -198,10 +232,11 @@ while [ "$(date +%s)" -lt "$T_END" ]; do
   printf '.'; sleep "$POLL_S"
 done
 echo
-EXIT="$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$ARN" --query 'tasks[0].containers[0].exitCode' --output text)"
+# By name: with the old-seed container (i18n) containers[0] may not be api.
+EXIT="$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$ARN" --query 'tasks[0].containers[?name==`api`].exitCode | [0]' --output text)"
 REASON="$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$ARN" --query 'tasks[0].stoppedReason' --output text)"
-GROUP="$(node -e 'const t=require(process.argv[1]);process.stdout.write(t.containerDefinitions[0].logConfiguration.options["awslogs-group"])' "$WORK/td.json")"
-SP="$(node -e 'const t=require(process.argv[1]);process.stdout.write(t.containerDefinitions[0].logConfiguration.options["awslogs-stream-prefix"])' "$WORK/td.json")"
+GROUP="$(node -e 'const t=require(process.argv[1]);process.stdout.write(t.containerDefinitions.find(x=>x.name==="api").logConfiguration.options["awslogs-group"])' "$WORK/td.json")"
+SP="$(node -e 'const t=require(process.argv[1]);process.stdout.write(t.containerDefinitions.find(x=>x.name==="api").logConfiguration.options["awslogs-stream-prefix"])' "$WORK/td.json")"
 echo "---- task log ----"
 aws logs get-log-events --log-group-name "$GROUP" --log-stream-name "${SP}/api/${ARN##*/}" \
   --query 'events[].message' --output text 2>/dev/null | tr '\t' '\n' | tail -"${LOG_TAIL:-25}" || true

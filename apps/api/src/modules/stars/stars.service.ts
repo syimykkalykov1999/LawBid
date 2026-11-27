@@ -43,16 +43,11 @@ import type {
 } from '../billing/payment-provider';
 import { BlocksService } from '../blocks/blocks.service';
 import { FilesService } from '../files/files.service';
-import { PrivacySettingsService } from '../privacy-settings/privacy-settings.service';
-import { NotificationsService } from '../notifications/notifications.service';
 import type {
-  AdminGiftDto,
   ConvertGiftResultDto,
-  CreateGiftDto,
   GiftDto,
   GiftSendDto,
   SaveStarsSettingsDto,
-  SendProfileGiftDto,
   StarLedgerItemDto,
   StarsDebtDto,
   StarsKindTotalDto,
@@ -60,7 +55,6 @@ import type {
   StarsOverviewDto,
   StarsPurchaseDto,
   StarsReportDto,
-  UpdateGiftDto,
 } from './stars.dto';
 import {
   assertUniquePackIds,
@@ -127,9 +121,6 @@ export class StarsService {
     private readonly config: ConfigService,
     private readonly files: FilesService,
     private readonly blocks: BlocksService,
-    private readonly notifications: NotificationsService,
-    // Owner 2026-10-20: a profile gift obeys «who can write to me».
-    @Optional() private readonly privacy?: PrivacySettingsService,
     @Optional()
     @Inject(PAYMENT_PROVIDER)
     private readonly provider?: PaymentProvider,
@@ -706,17 +697,6 @@ export class StarsService {
 
   // ── gifts ─────────────────────────────────────────────────────────────
 
-  /** GET /stars/gifts — the catalog the giver picks from. */
-  async catalog(): Promise<GiftDto[]> {
-    if (!(await this.enabled())) return [];
-    const rows = await this.prisma.gift.findMany({
-      where: { status: 'active', deleted_at: null },
-      orderBy: [{ position: 'asc' }, { price_stars: 'asc' }],
-    });
-    const urls = await this.files.stickerUrls(rows.map((g) => g.file_id));
-    return rows.map((g) => this.giftDto(g, urls));
-  }
-
   private giftDto(g: Gift, urls: Map<string, string>): GiftDto {
     return {
       id: g.id,
@@ -727,180 +707,10 @@ export class StarsService {
     };
   }
 
-  /** Before sending: the switch, the daily brake. */
-  async assertMayGift(senderId: string): Promise<void> {
-    await this.assertEnabled();
-    const max = (await this.cfg()).giftsPerDayMax;
-    const since = new Date(Date.now() - 24 * 3600 * 1000);
-    const n = await this.prisma.giftSend.count({
-      where: { sender_id: senderId, created_at: { gte: since } },
-    });
-    if (n >= max) {
-      throw new HttpException(
-        {
-          code: ErrorCode.RATE_LIMITED,
-          message: 'Too many gifts today.',
-          details: { max },
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-  }
-
-  /**
-   * Inside the caller's transaction: charges the giver and records the
-   * gift. The caller adds the chat message (or nothing, for a profile gift).
-   */
-  async giveGift(
-    tx: Tx,
-    a: {
-      giftId: string;
-      senderId: string;
-      recipientId: string;
-      conversationId?: string;
-      note?: string | null;
-      anonymous?: boolean;
-    },
-  ): Promise<{ send: GiftSend; gift: Gift }> {
-    // Two databases (step 7): the gift, the charge and the counter are all
-    // global — one primary transaction, so a refused charge leaves no gift.
-    if (readsAreSplit(this.prisma)) {
-      return shardContext.runOnPrimary(() =>
-        this.prisma.$transaction((g) => this.giveGiftIn(g, a)),
-      );
-    }
-    return this.giveGiftIn(tx, a);
-  }
-
-  private async giveGiftIn(
-    tx: Tx,
-    a: {
-      giftId: string;
-      senderId: string;
-      recipientId: string;
-      conversationId?: string;
-      note?: string | null;
-      anonymous?: boolean;
-    },
-  ): Promise<{ send: GiftSend; gift: Gift }> {
-    const gift = await tx.gift.findFirst({
-      where: { id: a.giftId, status: 'active', deleted_at: null },
-    });
-    if (!gift) throw notFound('Gift');
-    const send = await tx.giftSend.create({
-      data: {
-        gift_id: gift.id,
-        sender_id: a.senderId,
-        recipient_id: a.recipientId,
-        conversation_id: a.conversationId ?? null,
-        price_stars: gift.price_stars,
-        note: a.note?.trim() || null,
-        anonymous: a.anonymous ?? false,
-      },
-    });
-    await this.debit(
-      tx,
-      a.senderId,
-      gift.price_stars,
-      'gift_sent',
-      `gift:${send.id}`,
-      { refId: send.id, note: gift.title.slice(0, 120) },
-    );
-    await tx.gift.update({
-      where: { id: gift.id },
-      data: { sent_count: { increment: 1 } },
-    });
-    return { send, gift };
-  }
-
-  /**
-   * Verifier 17.11 (two databases): a gift charged for a chat message that
-   * was never stored is undone — the stars go back to the giver (ledger
-   * `refund`, idem key `gift-undo:<send>`, so twice is once), the gift-send
-   * row goes and the gift's counter drops. One primary transaction. Returns
-   * false when there is nothing to undo (already undone, or the send rolled
-   * back with the message in the one-database setup).
-   */
-  async undoGift(sendId: string): Promise<boolean> {
-    const run = () =>
-      this.prisma.$transaction((g) => this.undoGiftIn(g, sendId));
-    return readsAreSplit(this.prisma) ? shardContext.runOnPrimary(run) : run();
-  }
-
-  private async undoGiftIn(tx: Tx, sendId: string): Promise<boolean> {
-    const send = await tx.giftSend.findUnique({ where: { id: sendId } });
-    if (!send) return false;
-    const back = await this.creditIn(
-      tx,
-      send.sender_id,
-      send.price_stars,
-      'refund',
-      `gift-undo:${send.id}`,
-      { refId: send.id, note: 'gift message not sent' },
-    );
-    if (!back) return false;
-    await tx.giftSend.delete({ where: { id: send.id } });
-    await tx.gift.update({
-      where: { id: send.gift_id },
-      data: { sent_count: { decrement: 1 } },
-    });
-    return true;
-  }
-
-  /** POST /stars/gifts/:giftId/send — a gift to a profile (no chat). */
-  async sendToProfile(
-    senderId: string,
-    giftId: string,
-    dto: SendProfileGiftDto,
-  ): Promise<GiftSendDto> {
-    await this.assertMayGift(senderId);
-    if (dto.recipientId === senderId) {
-      throw new BadRequestException({
-        code: ErrorCode.VALIDATION_ERROR,
-        message: 'You cannot give a gift to yourself.',
-        details: { field: 'recipientId' },
-      });
-    }
-    const recipient = await this.prisma.user.findUnique({
-      where: { id: dto.recipientId },
-      select: { id: true, status: true },
-    });
-    if (!recipient || recipient.status !== 'active') throw notFound('User');
-    await this.blocks.assertNotBlocked(senderId, dto.recipientId);
-    await this.privacy?.assertAllowed(senderId, dto.recipientId, 'message');
-    const { send, gift } = await withTxRetry(this.prisma, (tx) =>
-      this.giveGift(tx, {
-        giftId,
-        senderId,
-        recipientId: dto.recipientId,
-        note: dto.note,
-        anonymous: dto.anonymous,
-      }),
-    );
-    await this.notifications.emit({
-      type: 'gift_received',
-      recipientId: dto.recipientId,
-      payload: { giftSendId: send.id },
-    });
-    const urls = await this.files.stickerUrls([gift.file_id]);
-    return this.sendDto(send, gift, urls, { sender: null });
-  }
-
-  /** Chat bubbles: gift-send id → DTO (no names: a locked case chat must
-   * not tell who the other side is). */
-  async forMessages(ids: string[]): Promise<Map<string, GiftSendDto>> {
-    const out = new Map<string, GiftSendDto>();
-    if (ids.length === 0) return out;
-    const rows = await this.prisma.giftSend.findMany({
-      where: { id: { in: [...new Set(ids)] } },
-      include: { gift: true },
-    });
-    const urls = await this.files.stickerUrls(rows.map((r) => r.gift.file_id));
-    for (const r of rows) {
-      out.set(r.id, this.sendDto(r, r.gift, urls, { sender: null }));
-    }
-    return out;
-  }
+  // Owner 26.11: gifts are gone — nobody can buy or send one any more (the
+  // catalog, the profile and chat send paths and the admin catalog were
+  // removed). What stays settles gifts already received: the showcase of
+  // one's own gifts, show / hide, and turning a gift into stars.
 
   private sendDto(
     s: GiftSend,
@@ -1083,91 +893,6 @@ export class StarsService {
   }
 
   // ── admin ─────────────────────────────────────────────────────────────
-
-  async adminGifts(): Promise<AdminGiftDto[]> {
-    const rows = await this.prisma.gift.findMany({
-      where: { deleted_at: null },
-      orderBy: [{ position: 'asc' }, { created_at: 'asc' }],
-    });
-    const urls = await this.files.stickerUrls(rows.map((g) => g.file_id));
-    return rows.map((g) => this.adminGiftDto(g, urls));
-  }
-
-  private adminGiftDto(g: Gift, urls: Map<string, string>): AdminGiftDto {
-    return {
-      id: g.id,
-      title: g.title,
-      code: g.code,
-      priceStars: g.price_stars,
-      fileId: g.file_id,
-      url: urls.get(g.file_id) ?? null,
-      position: g.position,
-      status: g.status,
-      sentCount: g.sent_count,
-      createdAt: g.created_at.toISOString(),
-    };
-  }
-
-  async createGift(
-    admin: AdminActor,
-    dto: CreateGiftDto,
-  ): Promise<AdminGiftDto> {
-    await this.files.assertAttachable(admin.id, dto.fileId, ['sticker']);
-    const used = await this.prisma.sticker.findUnique({
-      where: { file_id: dto.fileId },
-      select: { id: true },
-    });
-    const usedGift = await this.prisma.gift.findUnique({
-      where: { file_id: dto.fileId },
-      select: { id: true },
-    });
-    if (used || usedGift) {
-      throw new ConflictException({
-        code: ErrorCode.FILE_NOT_ATTACHABLE,
-        message: 'This image is already used.',
-      });
-    }
-    const position = await this.prisma.gift.count({
-      where: { deleted_at: null },
-    });
-    const g = await this.prisma.gift.create({
-      data: {
-        title: dto.title,
-        price_stars: dto.priceStars,
-        file_id: dto.fileId,
-        position,
-      },
-    });
-    return this.adminGiftDto(g, await this.files.stickerUrls([g.file_id]));
-  }
-
-  async updateGift(id: string, dto: UpdateGiftDto): Promise<AdminGiftDto> {
-    const cur = await this.prisma.gift.findFirst({
-      where: { id, deleted_at: null },
-    });
-    if (!cur) throw notFound('Gift');
-    const g = await this.prisma.gift.update({
-      where: { id },
-      data: {
-        ...(dto.title !== undefined ? { title: dto.title } : {}),
-        ...(dto.priceStars !== undefined
-          ? { price_stars: dto.priceStars }
-          : {}),
-        ...(dto.position !== undefined ? { position: dto.position } : {}),
-        ...(dto.status !== undefined ? { status: dto.status } : {}),
-      },
-    });
-    return this.adminGiftDto(g, await this.files.stickerUrls([g.file_id]));
-  }
-
-  /** Gifts already given stay on profiles and in chats; the catalog drops it. */
-  async deleteGift(id: string): Promise<void> {
-    const { count } = await this.prisma.gift.updateMany({
-      where: { id, deleted_at: null },
-      data: { deleted_at: new Date(), status: 'hidden' },
-    });
-    if (count === 0) throw notFound('Gift');
-  }
 
   /** The owner adds or takes back stars by hand (a refund on Stripe, a
    * present). Written to the ledger with the admin's reason. */

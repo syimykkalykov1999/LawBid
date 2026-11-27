@@ -80,7 +80,6 @@ import 'clients/moderation_client.dart';
 import 'clients/reports_client.dart';
 import 'clients/stickers_client.dart';
 import 'clients/stories_client.dart';
-import 'clients/channels_client.dart';
 import 'clients/link_preview_client.dart';
 import 'clients/addresses_client.dart';
 import 'clients/feed_client.dart';
@@ -240,7 +239,6 @@ class LawbidApi {
   ReportsClient? _reports;
   StickersClient? _stickers;
   StoriesClient? _stories;
-  ChannelsClient? _channels;
   LinkPreviewClient? _linkPreview;
   AddressesClient? _addresses;
   FeedClient? _feed;
@@ -532,9 +530,6 @@ class LawbidApi {
 
   StoriesClient get stories =>
       _stories ??= StoriesClient(_dio, baseUrl: _baseUrl);
-
-  ChannelsClient get channels =>
-      _channels ??= ChannelsClient(_dio, baseUrl: _baseUrl);
 
   LinkPreviewClient get linkPreview =>
       _linkPreview ??= LinkPreviewClient(_dio, baseUrl: _baseUrl);

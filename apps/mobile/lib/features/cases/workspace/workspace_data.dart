@@ -203,26 +203,50 @@ final caseActivityProvider =
 );
 
 /// A file the user picked: its bytes and the note they wrote for it.
+///
+/// Case audit 26.11 (R-255, as the 1:1 chat's `PickedChatFile`): a video or
+/// a document picked on a phone can stay on disk — [path] and [diskBytes]
+/// are set and [bytes] is empty, so a long video or a big PDF never sits in
+/// the phone's memory. [mime] is the type told at pick time; [thumb] a
+/// small first frame of a video for the sheet and the «sending» entry.
 class PickedCaseFile {
   PickedCaseFile({
     required this.bytes,
     required this.name,
     this.description = '',
     this.sample = false,
+    this.path,
+    this.diskBytes,
+    this.mime,
+    this.thumb,
   });
 
   final Uint8List bytes;
   final String name;
   String description;
   bool sample;
+  final String? path;
+  final int? diskBytes;
+  final String? mime;
+  final Uint8List? thumb;
+
+  /// The size to send (on disk, else in memory).
+  int get size => diskBytes ?? bytes.length;
 
   bool get isImage {
+    if (mime != null) return mime!.startsWith('image/');
     final n = name.toLowerCase();
     return n.endsWith('.jpg') ||
         n.endsWith('.jpeg') ||
         n.endsWith('.png') ||
         n.endsWith('.webp') ||
         n.endsWith('.heic');
+  }
+
+  bool get isVideo {
+    if (mime != null) return mime!.startsWith('video/');
+    final n = name.toLowerCase();
+    return n.endsWith('.mp4') || n.endsWith('.mov');
   }
 }
 
@@ -250,6 +274,8 @@ class CaseWorkspaceActions {
     for (final f in files) {
       final id = await repo.uploadPostPhoto(
         f.bytes,
+        // Case audit 26.11: a file kept on disk is sent from disk.
+        path: f.path,
         casePhoto: true,
         fileName: f.name,
         maxBytes: 50 * 1024 * 1024,

@@ -27,7 +27,7 @@ import { pgAdapter } from '../src/prisma/pg-adapter';
  * grow, the admin, the website and the app must not fall over or slow
  * down»). The admin twin is perf-admin.e2e-spec.ts; this one covers what the
  * app and the web call on every screen: feed, reels, stories, profiles,
- * posts and comments, chats and messages, groups and channels,
+ * posts and comments, chats and messages, groups,
  * notifications, search, cases and bids, contacts sync, calls, uploads.
  *
  * Runs only with PERF_USER=1 against a database filled by the repo
@@ -117,7 +117,7 @@ const WAIVERS: { sql: RegExp; problem: RegExp; why: string }[] = [
   },
 ];
 
-type Actor = 'client' | 'attorney' | 'member' | 'subscriber' | 'bidder';
+type Actor = 'client' | 'attorney' | 'member' | 'bidder';
 interface Endpoint {
   label: string;
   method?: 'get' | 'post';
@@ -141,8 +141,6 @@ interface Fx {
   bidCase: string;
   member: string;
   group: string;
-  subscriber: string;
-  channel: string;
   tag: string;
   /** A feed cursor deep in the "every other post" tail (row 126). */
   feedTailCursor: string;
@@ -209,9 +207,6 @@ async function fixtures(db: PrismaClient): Promise<Fx> {
   const group = await one(`
     SELECT m.group_id::text, m.user_id::text FROM chat_group_members m
     WHERE m.left_at IS NULL ORDER BY m.group_id LIMIT 1`);
-  const channel = await one(`
-    SELECT s.channel_id::text, s.user_id::text FROM channel_subscriptions s
-    ORDER BY s.channel_id LIMIT 1`);
   // Row 126: the tail keyset was a Filter, not an index range — a page deep
   // in the tail read every newer post (EXPLAIN: 290 001 rows removed at
   // depth 290 000). A cursor halfway down the posts keeps that measured.
@@ -242,8 +237,6 @@ async function fixtures(db: PrismaClient): Promise<Fx> {
     bidCase: bid.case_id,
     member: group.user_id,
     group: group.group_id,
-    subscriber: channel.user_id,
-    channel: channel.channel_id,
     tag: 'perftag1',
   };
 }
@@ -312,7 +305,7 @@ function endpoints(f: Fx): Endpoint[] {
       path: `/conversations/${f.conversation}/pins`,
       as: 'attorney',
     },
-    // groups and channels
+    // groups
     { label: 'groups list', path: '/groups', as: 'member' },
     { label: 'group', path: `/groups/${f.group}`, as: 'member' },
     {
@@ -321,12 +314,6 @@ function endpoints(f: Fx): Endpoint[] {
       as: 'member',
     },
     { label: 'groups discover', path: '/groups/discover', as: 'member' },
-    { label: 'channels list', path: '/channels', as: 'subscriber' },
-    {
-      label: 'channel posts',
-      path: `/channels/${f.channel}/posts`,
-      as: 'subscriber',
-    },
     // notifications
     { label: 'notifications', path: '/notifications', as: 'client' },
     // search
@@ -481,10 +468,9 @@ interface Result {
     // KNOWN_ERRORS 236: this suite skips e2e-global-setup and its database
     // has no flag rows. A missing row now reads as its FLAG_CATALOG value,
     // not as each caller's fallback; the suite was written against those
-    // fallbacks (channels and e-mail flows on, multipart uploads off), so
+    // fallbacks (e-mail flows on, multipart uploads off), so
     // it writes that state down.
     for (const [key, enabled] of [
-      ['channels', true],
       ['email_login', true],
       ['files_multipart', false],
     ] as const) {
@@ -500,7 +486,7 @@ interface Result {
     const roles: Record<string, 'client' | 'attorney'> = {};
     for (const r of await raw.$queryRawUnsafe<{ id: string; role: string }[]>(
       `SELECT id::text, role::text FROM users WHERE id = ANY($1::uuid[])`,
-      [f.client, f.attorney, f.member, f.subscriber, f.bidder],
+      [f.client, f.attorney, f.member, f.bidder],
     )) {
       roles[r.id] = r.role === 'attorney' ? 'attorney' : 'client';
     }
@@ -518,7 +504,6 @@ interface Result {
       client: auth(f.client),
       attorney: auth(f.attorney),
       member: auth(f.member),
-      subscriber: auth(f.subscriber),
       bidder: auth(f.bidder),
     };
 

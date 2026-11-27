@@ -139,6 +139,10 @@ export type RealtimeEvent =
   // accepted) / a Welcome waits for one of my devices.
   | 'e2ee:commit'
   | 'e2ee:welcome'
+  // Group E2EE G1: a group chat's MLS group changed (commit, a member to
+  // add or remove) / a group Welcome waits for one of my devices.
+  | 'e2ee:group'
+  | 'e2ee:group_welcome'
   // Owner 2026-10-22 (load audit finding 2): I read a chat (any device) —
   // the chat lists drop its unread pill locally.
   | 'conversation:read'
@@ -155,11 +159,8 @@ export type RealtimeEvent =
   // of mine changed — the lists fix the row instead of reloading.
   | 'case:update'
   | 'consultation:update'
-  // Owner 2026-10-22 (package F): a channel I read posted (to the open
-  // channel's room) and a subscribed channel's counters moved (to me);
-  // a comment under a post I have open (room post:{id}).
-  | 'channel:post'
-  | 'channel:update'
+  // Owner 2026-10-22 (package F): a comment under a post I have open (room
+  // post:{id}).
   | 'comment:new'
   // Pack B (25.11): a comment under that post was deleted.
   | 'comment:deleted'

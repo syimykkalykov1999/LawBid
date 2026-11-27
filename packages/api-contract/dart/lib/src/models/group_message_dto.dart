@@ -41,6 +41,12 @@ class GroupMessageDto {
     this.forwarded,
     this.forwardedFrom,
     this.reactions,
+    this.ciphertext,
+    this.mlsEpoch,
+    this.senderDeviceId,
+    this.frankingTag,
+    this.blobUrl,
+    this.control,
   });
 
   factory GroupMessageDto.fromJson(Map<String, Object?> json) =>
@@ -92,6 +98,24 @@ class GroupMessageDto {
 
   /// Emoji reactions, in the order they were first chosen.
   final List<ReactionDto>? reactions;
+
+  /// type=mls: base64 MLS PrivateMessage; the app decrypts it. Null for other types.
+  final String? ciphertext;
+
+  /// type=mls: the epoch of the message.
+  final num? mlsEpoch;
+
+  /// type=mls: the sending MLS device.
+  final String? senderDeviceId;
+
+  /// type=mls (message franking): base64 HMAC-SHA256(k, P) the sender stored.
+  final String? frankingTag;
+
+  /// type=mls with an encrypted file: a short link to the file's ciphertext (its key is inside the message).
+  final String? blobUrl;
+
+  /// type=mls: a control message (reaction, vote, edit, poll close inside MLS): the app applies it to the message it names and shows no row.
+  final bool? control;
 
   Map<String, Object?> toJson() => _$GroupMessageDtoToJson(this);
 }

@@ -927,6 +927,25 @@ export class RecommendationsService implements HomeFeedRanker {
     return [...withModelOrder(top, model), ...ordered.slice(n)];
   }
 
+  /**
+   * Owner 26.11 (search «умный как ленты»): the posts-feed score of exactly
+   * [ids] for [viewerId] — the formula, admin weights and A/B variant of
+   * Search «Для вас» (followed authors, practice interests, state,
+   * language, seen, freshness) — as the text-search tie-break. Missing ids
+   * score 0; nothing is cached or logged here.
+   */
+  async postsAffinity(
+    viewerId: string,
+    ids: string[],
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (ids.length === 0) return out;
+    const variant = await this.assignmentFor(viewerId, 'post');
+    const { scored } = await this.homeFeedRows(viewerId, ids, variant);
+    for (const s of scored) out.set(s.item.id, s.score);
+    return out;
+  }
+
   /** What the posts formula and the posts model know about the viewer and
    * the authors of [candidates] (Search «Для вас», reels, the home feed). */
   private async postContext(
@@ -1184,76 +1203,10 @@ export class RecommendationsService implements HomeFeedRanker {
       `reco:cases:${attorneyId}:${hashOf(filterKey)}${variantSuffix(variant)}`,
       LISTING_TTL_SEC,
       async () => {
-        const [rows, viewer] = await Promise.all([
-          this.prisma.case.findMany({
-            where: { id: { in: candidates } },
-            select: {
-              id: true,
-              client_id: true,
-              created_at: true,
-              practice_area_id: true,
-              practice_area: { select: { id: true, parent_id: true } },
-              primary_state_code: true,
-              states: { select: { state_code: true } },
-              budget_cents: true,
-              bids_count: true,
-              view_count: true,
-              comment_count: true,
-              urgency: true,
-              deadline_at: true,
-              client_active_at: true,
-            },
-          }),
-          this.caseViewer(attorneyId, candidates),
-        ]);
-        const clients = await this.prisma.clientProfile.findMany({
-          where: {
-            user_id: { in: [...new Set(rows.map((r) => r.client_id))] },
-          },
-          select: { user_id: true, rating_avg: true, rating_count: true },
-        });
-        const byClient = new Map(clients.map((c) => [c.user_id, c]));
-        const now = Date.now();
-        const w = await this.weights('case', CASE_WEIGHTS, variant);
-        // R-401: cases of the topics this attorney answers questions in.
-        const [mineQa, qaW] = await Promise.all([
-          this.qaSnapshot?.attorneyScores([attorneyId]) ??
-            new Map<string, QaAttorneyEntry>(),
-          this.settings?.number('reco.case.qaTopic') ?? QA_CASE_BOOST,
-        ]);
-        const myQa = mineQa.get(attorneyId);
-        const scored: Scored<CaseCandidate & { category: string }>[] = rows.map(
-          (r) => {
-            const client = byClient.get(r.client_id);
-            const c: CaseCandidate & { category: string } = {
-              id: r.id,
-              createdAt: r.created_at,
-              practiceId: r.practice_area_id,
-              categoryId: r.practice_area.parent_id ?? r.practice_area.id,
-              category: r.practice_area.parent_id ?? r.practice_area.id,
-              states: [
-                ...new Set([
-                  r.primary_state_code,
-                  ...r.states.map((s) => s.state_code),
-                ]),
-              ],
-              budgetCents: r.budget_cents,
-              bidsCount: r.bids_count,
-              viewCount: r.view_count,
-              commentCount: r.comment_count,
-              urgency: r.urgency,
-              deadlineAt: r.deadline_at,
-              clientActiveAt: r.client_active_at,
-              clientRatingAvg: Number(client?.rating_avg ?? 0),
-              clientRatingCount: client?.rating_count ?? 0,
-            };
-            return {
-              item: c,
-              score:
-                caseScore(c, viewer, now, w) +
-                qaCaseBoost(myQa, c.categoryId, qaW),
-            };
-          },
+        const { scored, viewer, now } = await this.scoreCases(
+          attorneyId,
+          candidates,
+          variant,
         );
         // Owner 25.11: what the impression log keeps per case is exactly the
         // cases model's input (cases-features.ts: the formula's 0..1
@@ -1291,6 +1244,108 @@ export class RecommendationsService implements HomeFeedRanker {
     );
   }
 
+  /**
+   * Owner 26.11 (search «умный как ленты»): the cases-feed score of exactly
+   * [ids] for [attorneyId] — the same formula, admin weights and A/B
+   * variant as [casesFor] (practice and licensed-state match, freshness,
+   * urgency, client signals, Q&A topics) — as the text-search tie-break.
+   * Nothing is cached or logged here: the caller keeps the ordered list.
+   */
+  async casesAffinity(
+    attorneyId: string,
+    ids: string[],
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (ids.length === 0) return out;
+    const variant = await this.assignmentFor(attorneyId, 'case');
+    const { scored } = await this.scoreCases(attorneyId, ids, variant);
+    for (const s of scored) out.set(s.item.id, s.score);
+    return out;
+  }
+
+  /** The cases formula over [candidates] (one read of each, by id). */
+  private async scoreCases(
+    attorneyId: string,
+    candidates: string[],
+    variant: Assignment | null,
+  ): Promise<{
+    scored: Scored<CaseCandidate & { category: string }>[];
+    viewer: CaseViewer;
+    now: number;
+  }> {
+    const [rows, viewer] = await Promise.all([
+      this.prisma.case.findMany({
+        where: { id: { in: candidates } },
+        select: {
+          id: true,
+          client_id: true,
+          created_at: true,
+          practice_area_id: true,
+          practice_area: { select: { id: true, parent_id: true } },
+          primary_state_code: true,
+          states: { select: { state_code: true } },
+          budget_cents: true,
+          bids_count: true,
+          view_count: true,
+          comment_count: true,
+          urgency: true,
+          deadline_at: true,
+          client_active_at: true,
+        },
+      }),
+      this.caseViewer(attorneyId, candidates),
+    ]);
+    const clients = await this.prisma.clientProfile.findMany({
+      where: {
+        user_id: { in: [...new Set(rows.map((r) => r.client_id))] },
+      },
+      select: { user_id: true, rating_avg: true, rating_count: true },
+    });
+    const byClient = new Map(clients.map((c) => [c.user_id, c]));
+    const now = Date.now();
+    const w = await this.weights('case', CASE_WEIGHTS, variant);
+    // R-401: cases of the topics this attorney answers questions in.
+    const [mineQa, qaW] = await Promise.all([
+      this.qaSnapshot?.attorneyScores([attorneyId]) ??
+        new Map<string, QaAttorneyEntry>(),
+      this.settings?.number('reco.case.qaTopic') ?? QA_CASE_BOOST,
+    ]);
+    const myQa = mineQa.get(attorneyId);
+    const scored: Scored<CaseCandidate & { category: string }>[] = rows.map(
+      (r) => {
+        const client = byClient.get(r.client_id);
+        const c: CaseCandidate & { category: string } = {
+          id: r.id,
+          createdAt: r.created_at,
+          practiceId: r.practice_area_id,
+          categoryId: r.practice_area.parent_id ?? r.practice_area.id,
+          category: r.practice_area.parent_id ?? r.practice_area.id,
+          states: [
+            ...new Set([
+              r.primary_state_code,
+              ...r.states.map((s) => s.state_code),
+            ]),
+          ],
+          budgetCents: r.budget_cents,
+          bidsCount: r.bids_count,
+          viewCount: r.view_count,
+          commentCount: r.comment_count,
+          urgency: r.urgency,
+          deadlineAt: r.deadline_at,
+          clientActiveAt: r.client_active_at,
+          clientRatingAvg: Number(client?.rating_avg ?? 0),
+          clientRatingCount: client?.rating_count ?? 0,
+        };
+        return {
+          item: c,
+          score:
+            caseScore(c, viewer, now, w) + qaCaseBoost(myQa, c.categoryId, qaW),
+        };
+      },
+    );
+    return { scored, viewer, now };
+  }
+
   private async caseViewer(
     attorneyId: string,
     caseIds: string[],
@@ -1316,41 +1371,37 @@ export class RecommendationsService implements HomeFeedRanker {
     };
   }
 
-  // --- groups and channels -------------------------------------------------
+  // --- groups (owner 26.11: channels are gone) ------------------------------
 
   /**
-   * Public groups or active channels to suggest to [viewerId], best first,
-   * with how many of the viewer's circle (people they follow, members of
-   * their own groups and channels) are in each. A snapshot per viewer, so
+   * Public groups to suggest to [viewerId], best first, with how many of
+   * the viewer's circle (people they follow, members of their own groups)
+   * are in each. A snapshot per viewer, so
    * the cost is paid once per [COMMUNITY_TTL_SEC], not per request. Never
    * holds the viewer's own communities, ones they were removed from, or
    * ones owned across a block; the callers filter what changed since.
    */
   async communities(
     viewerId: string,
-    kind: 'group' | 'channel',
+    kind: 'group',
   ): Promise<{ id: string; mutual: number }[]> {
     const key = `reco:communities:${kind}:${viewerId}`;
     const hit = await this.redis.get(key);
     if (hit) return JSON.parse(hit) as { id: string; mutual: number }[];
-    const out = await this.buildCommunities(viewerId, kind);
+    const out = await this.buildCommunities(viewerId);
     await this.redis.set(key, JSON.stringify(out), 'EX', COMMUNITY_TTL_SEC);
     return out;
   }
 
   private async buildCommunities(
     viewerId: string,
-    kind: 'group' | 'channel',
   ): Promise<{ id: string; mutual: number }[]> {
     const [base, interests, circle] = await Promise.all([
       this.viewerBase(viewerId),
       this.interests(viewerId),
       this.circle(viewerId),
     ]);
-    const load = (newest: boolean) =>
-      kind === 'group'
-        ? this.groupRows(viewerId, circle, newest)
-        : this.channelRows(viewerId, circle, newest);
+    const load = (newest: boolean) => this.groupRows(viewerId, circle, newest);
     const [popularRows, newestRows] = await Promise.all([
       load(false),
       load(true),
@@ -1408,7 +1459,7 @@ export class RecommendationsService implements HomeFeedRanker {
     ).map(({ id, mutual }) => ({ id, mutual }));
   }
 
-  /** People the viewer knows: followed, and fellow members of own groups / channels. */
+  /** People the viewer knows: followed, and fellow members of own groups. */
   private async circle(viewerId: string): Promise<string[]> {
     const rows = await this.prisma.$queryRaw<{ uid: string }[]>`
       SELECT DISTINCT uid::TEXT AS uid FROM (
@@ -1419,12 +1470,6 @@ export class RecommendationsService implements HomeFeedRanker {
           WHERE m.left_at IS NULL AND m.user_id <> ${viewerId}::UUID
             AND m.group_id IN (SELECT group_id FROM chat_group_members
               WHERE user_id = ${viewerId}::UUID AND left_at IS NULL LIMIT 20)
-          LIMIT 500)
-        UNION ALL
-        (SELECT s.user_id FROM channel_subscriptions s
-          WHERE s.user_id <> ${viewerId}::UUID
-            AND s.channel_id IN (SELECT channel_id FROM channel_subscriptions
-              WHERE user_id = ${viewerId}::UUID LIMIT 20)
           LIMIT 500)
       ) t`;
     return rows.map((r) => r.uid);
@@ -1457,29 +1502,6 @@ export class RecommendationsService implements HomeFeedRanker {
           WHERE (b.blocker_id = ${viewerId}::UUID AND b.blocked_id = own.user_id)
              OR (b.blocker_id = own.user_id AND b.blocked_id = ${viewerId}::UUID))
       ORDER BY ${newest ? Prisma.sql`g.created_at DESC` : Prisma.sql`g.member_count DESC, g.created_at DESC`}
-      LIMIT ${newest ? COMMUNITY_NEWEST : COMMUNITY_SCAN}`;
-  }
-
-  private channelRows(viewerId: string, circle: string[], newest: boolean) {
-    return this.prisma.$queryRaw<CommunityRow[]>`
-      SELECT c.id::TEXT AS id, c.subscriber_count AS members,
-             c.last_post_at AS last_at, c.owner_id::TEXT AS owner_id,
-             (SELECT count(*)::INT FROM channel_subscriptions j
-               WHERE j.channel_id = c.id
-                 AND j.created_at > now() - INTERVAL '7 days') AS joins7d,
-             (SELECT count(*)::INT FROM channel_subscriptions j
-               WHERE j.channel_id = c.id
-                 AND j.user_id = ANY(${circle}::UUID[])) AS mutual
-      FROM channels c
-      WHERE c.status = 'active' AND c.deleted_at IS NULL AND c.post_count > 0
-        AND NOT EXISTS (SELECT 1 FROM channel_subscriptions s
-          WHERE s.channel_id = c.id AND s.user_id = ${viewerId}::UUID)
-        AND NOT EXISTS (SELECT 1 FROM channel_admins a
-          WHERE a.channel_id = c.id AND a.user_id = ${viewerId}::UUID)
-        AND NOT EXISTS (SELECT 1 FROM user_blocks b
-          WHERE (b.blocker_id = ${viewerId}::UUID AND b.blocked_id = c.owner_id)
-             OR (b.blocker_id = c.owner_id AND b.blocked_id = ${viewerId}::UUID))
-      ORDER BY ${newest ? Prisma.sql`c.created_at DESC` : Prisma.sql`c.subscriber_count DESC, c.created_at DESC`}
       LIMIT ${newest ? COMMUNITY_NEWEST : COMMUNITY_SCAN}`;
   }
 

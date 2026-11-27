@@ -140,3 +140,37 @@ run "coturn_config_has_the_quotas_and_ranges" {
     error_message = "The config carries range lines, not CIDR lines."
   }
 }
+
+# 26.11: TURN over TCP on 443 (networks that let only 443 out). coturn runs
+# as nobody (no port below 1024), so the box forwards TCP 443 to 3478 and the
+# security group opens TCP 443; tcp_443 = false keeps 3478 only.
+run "tcp_443_is_forwarded_and_open" {
+  command = plan
+  assert {
+    condition     = strcontains(aws_instance.this.user_data, "-p tcp --dport 443 -j REDIRECT --to-ports 3478")
+    error_message = "The box forwards TCP 443 to coturn's 3478."
+  }
+  assert {
+    condition     = contains([for i in aws_security_group.this.ingress : "${i.protocol}/${i.from_port}-${i.to_port}"], "tcp/443-443")
+    error_message = "The security group opens TCP 443."
+  }
+  assert {
+    condition     = contains([for i in aws_security_group.this.ingress : "${i.protocol}/${i.from_port}-${i.to_port}"], "udp/3478-3478") && contains([for i in aws_security_group.this.ingress : "${i.protocol}/${i.from_port}-${i.to_port}"], "tcp/3478-3478")
+    error_message = "3478 UDP and TCP stay open."
+  }
+}
+
+run "tcp_443_off_keeps_3478_only" {
+  command = plan
+  variables {
+    tcp_443 = false
+  }
+  assert {
+    condition     = !strcontains(aws_instance.this.user_data, "--dport 443")
+    error_message = "No 443 forwarding when tcp_443 is false."
+  }
+  assert {
+    condition     = !contains([for i in aws_security_group.this.ingress : i.from_port], 443)
+    error_message = "No TCP 443 in the security group when tcp_443 is false."
+  }
+}

@@ -6,7 +6,6 @@ import 'package:lawbid/core/audio/web_audio_support_stub.dart'
     if (dart.library.js_interop) 'package:lawbid/core/audio/web_audio_support_web.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/features/stars/domain/stars_models.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 
 enum ConversationStatus { preAcceptance, active, closed }
@@ -114,6 +113,50 @@ class Conversation {
         waitingSince: waitingSince,
         note: note,
         pinnedAt: pinnedAt,
+        markedUnread: markedUnread,
+        matchedMessage: matchedMessage,
+        disappearAfterS: disappearAfterS,
+        e2eeSince: e2eeSince,
+      );
+
+  /// Owner 26.11 (Telegram, WhatsApp): the same chat after my own pin or
+  /// mute, shown before the server's answer (the answer then replaces it).
+  /// A new pin is the newest one (it leads the pinned chats, as the server
+  /// orders them).
+  Conversation withMine({
+    bool? pinned,
+    DateTime? mutedUntil,
+    bool unmute = false,
+  }) =>
+      Conversation(
+        id: id,
+        caseId: caseId,
+        caseTitle: caseTitle,
+        status: status,
+        contactsUnlocked: contactsUnlocked,
+        blocked: blocked,
+        counterpart: counterpart,
+        lastMessage: lastMessage,
+        lastMessageAt: lastMessageAt,
+        unreadCount: unreadCount,
+        mutedUntil: unmute ? null : (mutedUntil ?? this.mutedUntil),
+        callsMuted: callsMuted,
+        counterpartLastReadId: counterpartLastReadId,
+        counterpartLastReadAt: counterpartLastReadAt,
+        counterpartLastDeliveredId: counterpartLastDeliveredId,
+        updatedAt: updatedAt,
+        isDirect: isDirect,
+        request: request,
+        requestedByMe: requestedByMe,
+        folder: folder,
+        folderAuto: folderAuto,
+        waitingSince: waitingSince,
+        note: note,
+        pinnedAt: switch (pinned) {
+          null => pinnedAt,
+          true => pinnedAt ?? DateTime.now(),
+          false => null,
+        },
         markedUnread: markedUnread,
         matchedMessage: matchedMessage,
         disappearAfterS: disappearAfterS,
@@ -290,7 +333,6 @@ enum MessageKind {
   call,
   attachment,
   sticker,
-  gift,
   contact,
   place,
   // Owner 2026-10-21 (Instagram «Поделиться»): a post sent as a card.
@@ -493,6 +535,77 @@ class ChatAttachment {
         blurhash: blurhash,
         removed: removed,
       );
+
+  /// This file with the shape this phone picked ([SentMediaShapes]) when
+  /// the server does not know its width / height yet.
+  ChatAttachment withSentShape() {
+    if (width != null && height != null) return this;
+    final s = SentMediaShapes.of(fileId);
+    if (s == null) return this;
+    return ChatAttachment(
+      fileId: fileId,
+      name: name,
+      isImage: isImage,
+      mime: mime,
+      sizeBytes: sizeBytes,
+      url: url,
+      previewUrl: previewUrl,
+      width: s.width,
+      height: s.height,
+      localBytes: localBytes,
+      progress: progress,
+      blurhash: blurhash,
+      removed: removed,
+    );
+  }
+}
+
+/// Owner 27.11 («выбираешь фото, оно на миг огромное и потом меняется»;
+/// WhatsApp / Telegram send a photo's width and height with the message):
+/// the shape of the photos and videos this phone sent, by file id, read on
+/// the phone before the upload. The server's answer to a send comes while
+/// its antivirus check still runs and has no width / height yet (they are
+/// written when the check ends), so the bubble fell back to 4:3 between
+/// the local copy and the checked one. The answer takes this shape until
+/// the server knows its own.
+abstract final class SentMediaShapes {
+  static final Map<String, ({int width, int height})> _byFile = {};
+
+  /// Keeps the picked shape of [fileId] (ignored when unknown).
+  static void note(String fileId, int? width, int? height) {
+    if (fileId.isEmpty || width == null || height == null) return;
+    if (width <= 0 || height <= 0) return;
+    if (_byFile.length > 500) _byFile.remove(_byFile.keys.first);
+    _byFile[fileId] = (width: width, height: height);
+  }
+
+  /// The shape kept for [fileId], if any.
+  static ({int width, int height})? of(String fileId) => _byFile[fileId];
+
+  /// The picked pictures of the last sent photos, by file id: drawn under
+  /// the server's copy until it has loaded (no grey flash in between).
+  static final Map<String, Uint8List> _bytes = {};
+
+  /// The most sent pictures kept in memory.
+  static const keptPictures = 12;
+
+  static void keepBytes(String fileId, Uint8List bytes) {
+    if (fileId.isEmpty || bytes.isEmpty) return;
+    _bytes.remove(fileId);
+    while (_bytes.length >= keptPictures) {
+      _bytes.remove(_bytes.keys.first);
+    }
+    _bytes[fileId] = bytes;
+  }
+
+  /// The picked picture of sent photo [fileId], while it is kept.
+  static Uint8List? bytesOf(String fileId) => _bytes[fileId];
+
+  @visibleForTesting
+  static void reset() {
+    _byFile.clear();
+    _bytes.clear();
+  }
 }
 
 /// Where an own message is in its life (§8.2 "отправляется / отправлено /
@@ -501,6 +614,7 @@ enum DeliveryState { sending, failed, sent }
 
 /// Owner 2026-10-20: the quoted message of a reply.
 @immutable
+
 /// Third pass S3 (26.11; WhatsApp Security Whitepaper «Link previews»):
 /// the card of a link in an end-to-end encrypted chat. The SENDER's phone
 /// reads the site and sends this inside the encryption; the receivers draw
@@ -635,7 +749,6 @@ class ChatMessage {
     this.attachment,
     this.sentByAssistant,
     this.sticker,
-    this.gift,
     this.contact,
     this.post,
     this.editedAt,
@@ -667,9 +780,6 @@ class ChatMessage {
   /// could not open. [body] is then '' and a text bubble says «Couldn't
   /// decrypt this message» — the ciphertext is never shown.
   final bool unreadable;
-
-  /// Owner 2026-10-20: set for [MessageKind.gift]; the note is [body].
-  final GiftSend? gift;
 
   /// Owner 2026-10-20: set for [MessageKind.contact] (null when that
   /// attorney is gone).
@@ -768,7 +878,6 @@ class ChatMessage {
         attachment: attachment ?? this.attachment,
         sentByAssistant: sentByAssistant,
         sticker: sticker,
-        gift: gift,
         contact: contact,
         post: post,
         unreadable: unreadable,

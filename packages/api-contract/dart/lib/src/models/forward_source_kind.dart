@@ -4,19 +4,15 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
-/// message: a direct / case chat message; group_message; channel_post; group_link / channel_link: a protected group / channel shared as its link (id = the group / channel).
+/// message: a direct / case chat message; group_message; group_link: a protected group shared as its link (id = the group).
 @JsonEnum()
 enum ForwardSourceKind {
   @JsonValue('message')
   message('message'),
   @JsonValue('group_message')
   groupMessage('group_message'),
-  @JsonValue('channel_post')
-  channelPost('channel_post'),
   @JsonValue('group_link')
   groupLink('group_link'),
-  @JsonValue('channel_link')
-  channelLink('channel_link'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

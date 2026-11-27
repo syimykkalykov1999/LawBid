@@ -234,20 +234,16 @@ describe('BootstrapService.build translation: one control (owner 2026-11-08)', (
 });
 
 describe('BootstrapService.build app-side limits (feature reality 2026-11-08)', () => {
-  it('a stored story length and channel photo limit reach the app', async () => {
+  it('a stored story length reaches the app', async () => {
     const r = await build({
       config: {
         'stories.max_video_sec': 30,
-        'channels.max_post_media': 4,
         // Server-only limits stay private.
         'stories.max_active_per_user': 5,
-        'channels.max_owned': 2,
       },
     }).service.build();
     expect(r.app_config['stories.max_video_sec']).toBe(30);
-    expect(r.app_config['channels.max_post_media']).toBe(4);
     expect(r.app_config['stories.max_active_per_user']).toBeUndefined();
-    expect(r.app_config['channels.max_owned']).toBeUndefined();
   });
 });
 
@@ -440,6 +436,8 @@ describe('BootstrapService.build', () => {
       'sms.resend_cooldown_seconds': 60,
       // Item 25: the end-to-end encryption switch, always sent.
       'chat.e2ee_mode': 'auto',
+      // Group E2EE G1: the group chats' switch, always sent (off).
+      'groups.e2ee_mode': 'off',
       // S20-9: the reel warm-up the app obeys (Wi-Fi / mobile data).
       'client.video_prefetch_ahead': 3,
       'client.video_prefetch_cellular': 3,

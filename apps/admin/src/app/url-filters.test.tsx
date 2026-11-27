@@ -148,25 +148,7 @@ describe('verification queue', () => {
   });
 });
 
-describe('deletes ask first (plans, stars gifts)', () => {
-  it('«Удалить подарок» opens a confirmation; nothing is deleted until «Удалить»', async () => {
-    calls.GET.mockImplementation(async (path: string) => {
-      if (path === '/admin/stars/gifts')
-        return { data: { data: [{ id: 'g1', title: 'Роза', priceStars: 10, position: 1, status: 'active', sentCount: 0, imageUrl: null }] } };
-      return { data: { data: [] } };
-    });
-    calls.DELETE.mockResolvedValue({ data: {} });
-    window.history.replaceState(null, '', '/stars?tab=gifts');
-    const { default: Stars } = await import('./(app)/stars/page');
-    mount(<Stars />);
-    fireEvent.click(await screen.findByRole('button', { name: 'Удалить подарок' }, { timeout: 8000 }));
-    expect(await screen.findByText('Удалить подарок «Роза»?')).toBeTruthy();
-    expect(calls.DELETE).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
-    await waitFor(() => expect(calls.DELETE).toHaveBeenCalledWith('/admin/stars/gifts/{id}', { params: { path: { id: 'g1' } } }));
-    expect(screen.getByRole('button', { name: 'Скрыть подарок' })).toBeTruthy();
-  }, 20_000);
-
+describe('deletes ask first (plans)', () => {
   it('«Удалить функцию» of a plan opens a confirmation; «Отмена» deletes nothing', async () => {
     calls.GET.mockImplementation(async (path: string) => {
       if (path === '/admin/billing/plans')

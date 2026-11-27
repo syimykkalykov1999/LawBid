@@ -8,7 +8,6 @@ import { AuthController } from '../auth.controller';
 import { ContactsSyncController } from '../../contacts-sync/contacts-sync.controller';
 import { GroupsController } from '../../groups/groups.controller';
 import { GroupSharedController } from '../../groups/group-shared.controller';
-import { ChannelsController } from '../../channels/channels.controller';
 import { LegalQaController } from '../../legal-qa/legal-qa.controller';
 import { ReferralsController } from '../../referrals/referrals.controller';
 import { PartnersController } from '../../partners/partners.controller';
@@ -63,23 +62,6 @@ describe('assistant gates (security audit #3)', () => {
     expect(meta(REQUIRES_DUTY, GroupSharedController)).toBe('chats');
   });
 
-  it('channels need "chats"; broadcasting needs "publish"', () => {
-    expect(meta(REQUIRES_DUTY, ChannelsController)).toBe('chats');
-    expect(attorneyOnlyHandlers(ChannelsController, 'publish').sort()).toEqual([
-      'channelAddAdmin',
-      'channelAddComment',
-      'channelCreate',
-      'channelCreatePost',
-      'channelCreateVideoUpload',
-      'channelEditPost',
-      'channelRemove',
-      'channelRemoveAdmin',
-      'channelRemoveComment',
-      'channelRemovePost',
-      'channelUpdate',
-    ]);
-  });
-
   // R-401 (owner 2026-11-04): its own duty «qa_answers», no longer «publish».
   it('a public Q&A answer needs "qa_answers"', () => {
     expect(
@@ -100,7 +82,6 @@ describe('assistant gates (security audit #3)', () => {
       'buyStars',
       'convertGift',
       'getStarsPurchase',
-      'sendGiftToProfile',
       'setGiftShown',
       'starsHistory',
       'starsOverview',

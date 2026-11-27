@@ -661,50 +661,6 @@ describe('Client economy (e2e, owner 2026-10-22)', () => {
       .expect(409);
   });
 
-  it('F: a channel post reaches the open channel room; the subscribed list answers deltas', async () => {
-    const owner = await attorney();
-    const reader = await client();
-    const made = await api()
-      .post('/api/v1/channels')
-      .set(owner.auth)
-      .send({
-        title: 'Eco news',
-        username: `n${randomUUID().replace(/-/g, '').slice(0, 12)}`,
-        description: 'Daily',
-      })
-      .expect(201);
-    const chId = made.body.data.id as string;
-    await api()
-      .put(`/api/v1/channels/${chId}/subscription`)
-      .set(reader.auth)
-      .expect(200);
-    const since = new Date(Date.now() - 60_000).toISOString();
-    const publisher = app.get(RealtimePublisher);
-    const spy = jest.spyOn(publisher, 'toRoom');
-    await api()
-      .post(`/api/v1/channels/${chId}/posts`)
-      .set(owner.auth)
-      .set('Idempotency-Key', randomUUID())
-      .send({ body: 'Hello' })
-      .expect(201);
-    const roomCall = spy.mock.calls.find(
-      ([room, event]) => room === `channel:${chId}` && event === 'channel:post',
-    );
-    expect(roomCall).toBeDefined();
-    expect((roomCall![2] as { post: { body: string } }).post.body).toBe(
-      'Hello',
-    );
-    spy.mockRestore();
-    const delta = await api()
-      .get('/api/v1/channels')
-      .set(reader.auth)
-      .query({ scope: 'subscribed', updatedSince: since })
-      .expect(200);
-    expect(ids(delta.body.data)).toContain(chId);
-    expect(delta.body.meta.deletedIds).toEqual([]);
-    expect(typeof delta.body.meta.syncedAt).toBe('string');
-  });
-
   it('F: a new comment is published to the post room with the comment body', async () => {
     const author = await attorney();
     const reader = await client();

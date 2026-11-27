@@ -101,10 +101,10 @@ class ChatMediaHandler extends UploadJobHandler {
     final mime = job.mime ?? 'application/octet-stream';
     // A voice note is small (m4a or a browser's webm); a photo's bytes make
     // its blurhash preview. Anything else is never read whole.
-    final small = voice ||
-            (mime.startsWith('image/') && size <= _previewMaxBytes)
-        ? await scope.bytes()
-        : null;
+    final small =
+        voice || (mime.startsWith('image/') && size <= _previewMaxBytes)
+            ? await scope.bytes()
+            : null;
     final webm = voice && small != null && isWebmVoice(small);
     final caption = p['caption'] as String?;
     final r = await e2ee.encryptFile(
@@ -191,7 +191,15 @@ class ChatMediaHandler extends UploadJobHandler {
           _sentIds[job.id] = sent.id;
         case ChatMediaKind.attachment:
           final caption = p['caption'] as String?;
-          sent = await _repo.sendAttachment(
+          // Owner 27.11: the server's answer (and its realtime echo, which
+          // may come first) has no width / height while it still checks
+          // the file; the picked shape stands in for it.
+          SentMediaShapes.note(
+            job.fileId!,
+            (p['width'] as num?)?.toInt(),
+            (p['height'] as num?)?.toInt(),
+          );
+          final got = await _repo.sendAttachment(
             job.target,
             job.id,
             fileId: job.fileId!,
@@ -199,8 +207,11 @@ class ChatMediaHandler extends UploadJobHandler {
             caption: caption == null || caption.isEmpty ? null : caption,
             replyToId: p['replyToId'] as String?,
           );
-          final media = sent.attachment;
+          final media = got.attachment;
           if (media != null) _sentMedia[job.id] = media;
+          sent = media == null
+              ? got
+              : got.copyWith(attachment: media.withSentShape());
           unawaited(_ref.read(appSoundsProvider).messageOut());
         default:
           sent = await _repo.sendSticker(
@@ -353,6 +364,30 @@ final chatMediaOutboxProvider = Provider<UploadQueue>((ref) {
   return queue;
 });
 
+/// The file of a queued attachment job as the bubble draws it while it is
+/// sent: the picker's bytes as its picture, its size and its progress. Used
+/// by the 1:1 chat and by groups (owner 26.11: the same bubble).
+ChatAttachment chatAttachmentOfJob(
+  UploadJob job, {
+  Uint8List? previewBytes,
+  double progress = 0,
+}) {
+  final p = job.payload;
+  return ChatAttachment(
+    fileId: '',
+    name: p['name'] as String? ?? 'file',
+    isImage: (job.mime ?? '').startsWith('image/'),
+    mime: job.mime,
+    sizeBytes: (p['size'] as num?)?.toInt(),
+    localBytes: previewBytes,
+    width: (p['width'] as num?)?.toInt(),
+    height: (p['height'] as num?)?.toInt(),
+    // Owner 24.11: bytes in storage (also after a restart) = 1, so the
+    // bubble stops its ring while only the server's scan runs.
+    progress: job.fileId != null || storedFileOf(job) != null ? 1 : progress,
+  );
+}
+
 /// The local bubble of a queued chat job.
 ChatMessage chatMessageOfJob(
   UploadJob job, {
@@ -403,19 +438,10 @@ ChatMessage chatMessageOfJob(
           )
         : null,
     attachment: job.kind == ChatMediaKind.attachment
-        ? ChatAttachment(
-            fileId: '',
-            name: p['name'] as String? ?? 'file',
-            isImage: (job.mime ?? '').startsWith('image/'),
-            mime: job.mime,
-            sizeBytes: (p['size'] as num?)?.toInt(),
-            localBytes: previewBytes,
-            width: (p['width'] as num?)?.toInt(),
-            height: (p['height'] as num?)?.toInt(),
-            // Owner 24.11: bytes in storage (also after a restart) = 1, so
-            // the bubble stops its ring while only the server's scan runs.
-            progress:
-                job.fileId != null || storedFileOf(job) != null ? 1 : progress,
+        ? chatAttachmentOfJob(
+            job,
+            previewBytes: previewBytes,
+            progress: progress,
           )
         : null,
   );

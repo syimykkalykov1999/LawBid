@@ -4,7 +4,6 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
-  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -133,20 +132,6 @@ export class GiftSendDto {
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 
-export class SendProfileGiftDto {
-  @ApiProperty({ format: 'uuid' }) @IsUUID('all') recipientId!: string;
-  @ApiPropertyOptional({ maxLength: 200 })
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MaxLength(200)
-  note?: string;
-  @ApiPropertyOptional({ description: 'Hide who gave it from the receiver.' })
-  @IsOptional()
-  @IsBoolean()
-  anonymous?: boolean;
-}
-
 export class GiftShowcaseQueryDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -225,70 +210,6 @@ export class SaveStarsSettingsDto {
   @IsString({ each: true })
   @MaxLength(16, { each: true })
   premiumReactions?: string[];
-}
-
-export class AdminGiftDto {
-  @ApiProperty({ format: 'uuid' }) id!: string;
-  @ApiProperty() title!: string;
-  @ApiProperty({ type: String, nullable: true }) code!: string | null;
-  @ApiProperty({ type: 'integer' }) priceStars!: number;
-  @ApiProperty({ format: 'uuid' }) fileId!: string;
-  @ApiProperty({ type: String, nullable: true }) url!: string | null;
-  @ApiProperty({ type: 'integer' }) position!: number;
-  @ApiProperty({ enum: ['active', 'hidden'] }) status!: string;
-  @ApiProperty({ type: 'integer' }) sentCount!: number;
-  @ApiProperty({ format: 'date-time' }) createdAt!: string;
-}
-
-export class CreateGiftDto {
-  @ApiProperty({ minLength: 1, maxLength: 64 })
-  @Transform(trim)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(64)
-  title!: string;
-
-  @ApiProperty({ type: 'integer', minimum: 1, maximum: 1_000_000 })
-  @IsInt()
-  @Min(1)
-  @Max(1_000_000)
-  priceStars!: number;
-
-  @ApiProperty({
-    format: 'uuid',
-    description: 'A clean `sticker` file uploaded by this admin.',
-  })
-  @IsUUID('all')
-  fileId!: string;
-}
-
-export class UpdateGiftDto {
-  @ApiPropertyOptional({ minLength: 1, maxLength: 64 })
-  @IsOptional()
-  @Transform(trim)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(64)
-  title?: string;
-
-  @ApiPropertyOptional({ type: 'integer', minimum: 1, maximum: 1_000_000 })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(1_000_000)
-  priceStars?: number;
-
-  @ApiPropertyOptional({ type: 'integer', minimum: 0, maximum: 10000 })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  @Max(10000)
-  position?: number;
-
-  @ApiPropertyOptional({ enum: ['active', 'hidden'] })
-  @IsOptional()
-  @IsIn(['active', 'hidden'])
-  status?: string;
 }
 
 export class GrantStarsDto {
@@ -380,8 +301,4 @@ export class AdminStarsLedgerQueryDto extends StarsLedgerQueryDto {
   @IsOptional()
   @IsUUID('all')
   userId?: string;
-}
-
-export class AdminGiftIdParamDto {
-  @ApiProperty({ format: 'uuid' }) @IsUUID('all') id!: string;
 }

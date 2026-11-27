@@ -5,6 +5,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import 'group_detail_dto_my_rights.dart';
+import 'group_e2ee_state.dart';
 import 'group_member_dto.dart';
 import 'group_message_dto.dart';
 import 'group_person_dto.dart';
@@ -18,14 +19,19 @@ part 'group_detail_dto.g.dart';
 @JsonSerializable()
 class GroupDetailDto {
   const GroupDetailDto({
-    required this.inviteEnabled,
+    required this.whoCanCall,
     required this.title,
+    required this.invited,
+    required this.members,
+    required this.updatedAt,
     required this.memberCount,
     required this.type,
-    required this.whoCanCall,
+    required this.pinned,
     required this.joinApproval,
     required this.topicsEnabled,
+    required this.callsMuted,
     required this.pendingRequests,
+    required this.unreadMentions,
     required this.whoCanPost,
     required this.whoCanAdd,
     required this.whoCanEditInfo,
@@ -35,35 +41,33 @@ class GroupDetailDto {
     required this.whoCanPin,
     required this.myRights,
     required this.showServiceMessages,
+    required this.unreadCount,
+    required this.inviteEnabled,
     required this.slowModeS,
     required this.canPost,
     required this.canAdd,
     required this.canEditInfo,
     required this.canCall,
     required this.isAdmin,
-    required this.unreadMentions,
-    required this.pinned,
-    required this.invited,
-    required this.members,
     required this.createdAt,
-    required this.updatedAt,
-    required this.callsMuted,
-    required this.unreadCount,
     this.inviteLink,
-    this.pinnedMessage,
+    this.historySharing,
     this.lastMessage,
     this.lastMessageAt,
-    this.notAdded,
-    this.username,
-    this.mutedUntil,
     this.disappearAfterS,
-    this.ongoingCall,
     this.myRole,
+    this.mutedUntil,
     this.generalTopicId,
+    this.ongoingCall,
+    this.username,
+    this.pinnedMessage,
     this.avatarFullUrl,
     this.avatarUrl,
     this.membersNextCursor,
     this.description,
+    this.notAdded,
+    this.e2ee,
+    this.e2eeSince,
     this.protectContent,
   });
 
@@ -159,6 +163,15 @@ class GroupDetailDto {
 
   /// Only after inviting: people who could not be invited (blocked, inactive, their privacy settings, or declined less than a day ago).
   final List<String>? notAdded;
+
+  /// Group E2EE G1: on = end-to-end encrypted (send type=mls); pending = a member’s device may encrypt it now (GET /e2ee/groups/{id} has the exact state); off = as before.
+  final GroupE2eeState? e2ee;
+
+  /// Group E2EE G1: since when its messages are encrypted.
+  final DateTime? e2eeSince;
+
+  /// Group E2EE G1 (§4.6): members may send recent history to people they add.
+  final bool? historySharing;
 
   Map<String, Object?> toJson() => _$GroupDetailDtoToJson(this);
 }

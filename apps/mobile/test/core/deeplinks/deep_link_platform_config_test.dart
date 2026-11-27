@@ -24,7 +24,6 @@ void main() {
       '/attorneys/',
       '/post/',
       '/g/',
-      '/c/',
     ]) {
       expect(manifest, contains('<data android:pathPrefix="$p" />'));
     }
@@ -96,7 +95,6 @@ void main() {
         '/u/*',
         '/q/*',
         '/g/*',
-        '/c/*',
         '/auth/email-code',
         // Owner 2026-10-28: «continue on the phone» (ID selfie).
         '/verification/wizard',
@@ -140,7 +138,6 @@ void main() {
       '/u/*': 'u/jane_doe',
       '/q/*': 'q/Xk3_aB-9Qz1LmN4pR7sT0w',
       '/g/*': 'g/Xk3_aB-9Qz1LmN4pR7sT0w',
-      '/c/*': 'c/tax_news',
       '/selfie/*': 'selfie/Xk3_aB-9Qz1LmN4pR7sT0w',
     };
     final aasa =

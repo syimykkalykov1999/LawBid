@@ -165,6 +165,18 @@ export const wipe = locked(async () => {
   me.sign = null;
 });
 
+async function freshKeyPackage() {
+  const t = await m();
+  return t.generateKeyPackageWithKey(
+    { credentialType: 'basic', identity: identity() },
+    t.defaultCapabilities(),
+    t.defaultLifetime,
+    [],
+    me.sign,
+    cs,
+  );
+}
+
 async function makeKeyPackage(lastResort = false) {
   const t = await m();
   const kp = await t.generateKeyPackageWithKey(
@@ -237,7 +249,7 @@ function leafOf(state, deviceId) {
  * returns JSON {commit, welcome, epoch}. Applied only by merge(). The state
  * after it waits in IndexedDB (a reload or another tab still finds it);
  * one pending commit per group: while one waits, another is refused. */
-export const commit = locked(async (gidB64, kpsJson, removeJson) => {
+export const commit = locked(async (gidB64, kpsJson, removeJson, withInfo) => {
   const t = await m();
   const gid = unb64(gidB64);
   if (await get(pendingKey(gid))) throw new Error('mls: a commit of this group is pending');
@@ -256,6 +268,9 @@ export const commit = locked(async (gidB64, kpsJson, removeJson) => {
     { extraProposals: proposals, wireAsPublicMessage: true, ratchetTreeExtension: true },
   );
   const commitB64 = b64(t.encodeMlsMessage(out.commit));
+  // Groups: the GroupInfo of the epoch this commit makes (ratchet tree and
+  // external_pub inside), for the devices that join by external commit.
+  const info = withInfo ? await groupInfoOf(out.newState) : null;
   await put(
     pendingKey(gid),
     enc.encode(
@@ -272,8 +287,75 @@ export const commit = locked(async (gidB64, kpsJson, removeJson) => {
     welcome: out.welcome
       ? b64(t.encodeMlsMessage({ welcome: out.welcome, wireformat: 'mls_welcome', version: 'mls10' }))
       : null,
+    groupInfo: info,
   });
 });
+
+function hasBytes(hay, needle) {
+  outer: for (let i = 0; i + needle.length <= hay.length; i++) {
+    for (let j = 0; j < needle.length; j++) if (hay[i + j] !== needle[j]) continue outer;
+    return true;
+  }
+  return false;
+}
+
+async function groupInfoOf(state) {
+  const t = await m();
+  const gi = await t.createGroupInfoWithExternalPubAndRatchetTree(state, [], cs);
+  return b64(t.encodeMlsMessage({ groupInfo: gi, wireformat: 'mls_group_info', version: 'mls10' }));
+}
+
+/** The GroupInfo of the group's current epoch (base64 MLSMessage). */
+export async function exportGroupInfo(gidB64) {
+  return groupInfoOf(await loadState(unb64(gidB64)));
+}
+
+/** Joins the group a GroupInfo (base64) describes by an external commit
+ * (RFC 9420 §12.4.3.2); with [resync] this device's old leaf (its
+ * signature key) goes in the same commit. Like commit(): the new state
+ * waits in IndexedDB until merge() (the server took it); a refusal is
+ * deleteGroup(). Returns JSON {groupId, commit, epoch, groupInfo}. */
+export const joinExternal = locked(async (giB64, resync) => {
+  const t = await m();
+  const gi = t.decodeMlsMessage(unb64(giB64), 0)[0].groupInfo;
+  if (!gi) throw new Error('mls: not a GroupInfo');
+  const gid = gi.groupContext.groupId;
+  const kp = await freshKeyPackage();
+  // ts-mls 1.x loops forever on a resync whose tree has no leaf with this
+  // device's signature key (LukaJCB/ts-mls#831, item 4; fixed on main):
+  // resync only when the tree in the GroupInfo carries our key.
+  const tree = gi.extensions.find((e) => e.extensionType === 'ratchet_tree');
+  const ours = !!tree && hasBytes(tree.extensionData, me.sign.publicKey);
+  const out = await t.joinGroupExternal(gi, kp.publicPackage, kp.privatePackage, !!resync && ours, cs);
+  const commitB64 = b64(
+    t.encodeMlsMessage({ publicMessage: out.publicMessage, wireformat: 'mls_public_message', version: 'mls10' }),
+  );
+  const state = { ...out.newState, clientConfig: cfg };
+  await put(
+    pendingKey(gid),
+    enc.encode(
+      JSON.stringify({
+        base: Number(gi.groupContext.epoch),
+        external: true,
+        commit: commitB64,
+        state: b64(t.encodeGroupState(state)),
+      }),
+    ),
+  );
+  return JSON.stringify({
+    groupId: b64(gid),
+    commit: commitB64,
+    epoch: Number(gi.groupContext.epoch),
+    groupInfo: await groupInfoOf(state),
+  });
+});
+
+/** RFC 9420 §8.5 MLS-Exporter of the current epoch (base64). */
+export async function exportSecret(gidB64, label, contextB64, length) {
+  const t = await m();
+  const s = await loadState(unb64(gidB64));
+  return b64(await t.mlsExporter(s.keySchedule.exporterSecret, label, unb64(contextB64), length, cs));
+}
 
 export const merge = locked(async (gidB64) => {
   const t = await m();
@@ -282,8 +364,9 @@ export const merge = locked(async (gidB64) => {
   if (!p) return;
   const rec = JSON.parse(dec.decode(p));
   const now = await loadState(gid);
-  // The group moved on in the meantime (another tab): nothing to merge.
-  if (now && Number(now.groupContext.epoch) === rec.base) {
+  // The group moved on in the meantime (another tab): nothing to merge. An
+  // external join replaces whatever copy of the group was here (resync).
+  if (rec.external ? !now || Number(now.groupContext.epoch) <= rec.base : now && Number(now.groupContext.epoch) === rec.base) {
     const [gs] = t.decodeGroupState(unb64(rec.state), 0);
     await saveState({ ...gs, clientConfig: cfg });
   }

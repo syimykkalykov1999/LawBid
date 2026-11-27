@@ -6,13 +6,14 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// One thing a complete attorney profile has.
-enum ProfilePart { photo, bio, practices, languages, firm }
+/// One thing a complete attorney profile has. «О себе» (bio) is not one:
+/// it is optional (owner 26.11), so it never counts toward the percent and
+/// is never the «Дальше:» suggestion.
+enum ProfilePart { photo, practices, languages, firm }
 
 /// The parts [p] is still missing, in the order they are asked for.
 List<ProfilePart> missingParts(PublicAttorneyProfile p) => [
       if ((p.avatarUrl ?? '').isEmpty) ProfilePart.photo,
-      if ((p.bio ?? '').trim().isEmpty) ProfilePart.bio,
       if (p.practices.isEmpty) ProfilePart.practices,
       if (p.languages.isEmpty) ProfilePart.languages,
       if (p.firms.isEmpty && (p.firmName ?? '').trim().isEmpty)

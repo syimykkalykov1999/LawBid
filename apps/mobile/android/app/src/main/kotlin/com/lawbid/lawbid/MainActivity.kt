@@ -65,11 +65,21 @@ class MainActivity : FlutterFragmentActivity() {
         window.decorView.setBackgroundColor(color)
     }
 
+    /** Owner bug 27.11: no stale keyboard height after coming back
+     *  (ImeInsetsRefresher.kt, flutter/flutter#191156). */
+    private val imeInsets = ImeInsetsRefresher(this)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         paintWindowBackground()
         super.onCreate(savedInstanceState)
         // super re-applies NormalTheme; paint again so its background loses.
         paintWindowBackground()
+        imeInsets.install()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) imeInsets.onWindowFocused()
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -281,6 +291,14 @@ class MainActivity : FlutterFragmentActivity() {
                                 CallForegroundService.EXTRA_HANGUP,
                                 call.argument<String>("hangup") ?: "",
                             )
+                            .putExtra(
+                                CallForegroundService.EXTRA_ID,
+                                call.argument<String>("id") ?: "",
+                            )
+                            .putExtra(
+                                CallForegroundService.EXTRA_OUTGOING,
+                                call.argument<Boolean>("outgoing") ?: false,
+                            )
                         try {
                             if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent)
                             else startService(intent)
@@ -290,6 +308,10 @@ class MainActivity : FlutterFragmentActivity() {
                         }
                     }
                     "stop" -> {
+                        // Owner 26.11: Telecom hears the end with its cause
+                        // (Dart CallStatus name) before the service goes.
+                        SystemCalls.end(call.argument<String>("cause"))
+                        SystemCalls.forgetAllRings()
                         stopService(Intent(this, CallForegroundService::class.java))
                         // The service may be gone already (or never got to
                         // run): its notification must be too.
@@ -307,6 +329,7 @@ class MainActivity : FlutterFragmentActivity() {
                         result.success(null)
                     }
                     "clear" -> {
+                        SystemCalls.forgetAllRings()
                         clearCallNotifications()
                         CallRinging.endAll(this, emptyList())
                         result.success(null)
@@ -323,6 +346,24 @@ class MainActivity : FlutterFragmentActivity() {
                     // still holds of ours (CallRinging.endOrphans).
                     "endOrphans" -> {
                         result.success(CallRinging.endOrphans(this))
+                    }
+                    // Owner 26.11 (`calls_android_telecom`): Android calls
+                    // are system calls (SystemCalls, Core-Telecom).
+                    "setSystemCalls" -> {
+                        SystemCalls.setEnabled(this, call.argument<Boolean>("on") == true)
+                        result.success(null)
+                    }
+                    "watchRing" -> {
+                        SystemCalls.watchRing(
+                            this,
+                            call.argument<String>("id") ?: "",
+                            (call.argument<Number>("ringMs") ?: 60_000L).toLong(),
+                        )
+                        result.success(null)
+                    }
+                    "route" -> {
+                        SystemCalls.route(call.argument<String>("kind") ?: "")
+                        result.success(null)
                     }
                     "pendingAction" -> {
                         result.success(pendingCallAction)

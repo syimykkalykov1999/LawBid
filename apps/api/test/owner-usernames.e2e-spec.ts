@@ -9,10 +9,7 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 
 /** Owner 2026-10-20 (Telegram): one @username namespace — rules, reserved,
  * taken, look-alikes, hold after a rename, suggestions, change cooldown.
- * Was: channels end to end — create / edit, @username, only
- * admins post, subscribe / mute, views counted once, one reaction, comments
- * (on / off, delete by an admin), notifications to subscribers, moderation
- * by report, and the admin team. */
+ * Owner 26.11: channels are gone; public groups carry the @usernames here. */
 jest.setTimeout(120_000);
 
 describe('Usernames (e2e)', () => {
@@ -81,7 +78,7 @@ describe('Usernames (e2e)', () => {
   }
 
   const rnd = () => randomUUID().replace(/-/g, '').slice(0, 10);
-  const check = (who: Who, u: string, kind = 'channel') =>
+  const check = (who: Who, u: string, kind = 'group') =>
     api()
       .get('/api/v1/usernames/check')
       .query({ u, kind })
@@ -105,15 +102,15 @@ describe('Usernames (e2e)', () => {
     expect((await check(a, 'Adm1n')).reason).toBe('reserved');
   });
 
-  it('a taken handle is taken for people, channels and groups; look-alikes too', async () => {
+  it('a taken handle is taken for people and groups; look-alikes too', async () => {
     const a = await attorney('Ann');
     const base = `zq${rnd()}`;
     const res = await api()
-      .post('/api/v1/channels')
+      .post('/api/v1/groups')
       .set(a.auth)
-      .send({ title: 'News', username: base });
+      .send({ title: 'News', type: 'public', username: base, memberIds: [] });
     expect(res.status).toBe(201);
-    const same = await check(a, base.toUpperCase(), 'group');
+    const same = await check(a, base.toUpperCase(), 'user');
     expect(same.available).toBe(false);
     expect(same.reason).toBe('taken');
     expect(same.suggestions.length).toBeGreaterThanOrEqual(1);
@@ -122,14 +119,20 @@ describe('Usernames (e2e)', () => {
       base.replace('z', 'Z').replace(/o/g, '0') + '_',
     );
     expect(twin.available).toBe(false);
-    // Every suggestion is itself free.
+    // Every suggestion is itself free (for the same kind it was made for:
+    // a person's suggestions may use '.', which group handles do not allow).
     for (const s of same.suggestions) {
-      expect((await check(a, s)).available).toBe(true);
+      expect((await check(a, s, 'user')).available).toBe(true);
     }
     const dup = await api()
-      .post('/api/v1/channels')
+      .post('/api/v1/groups')
       .set((await attorney('Bob')).auth)
-      .send({ title: 'Other', username: base.toUpperCase() });
+      .send({
+        title: 'Other',
+        type: 'public',
+        username: base.toUpperCase(),
+        memberIds: [],
+      });
     expect(dup.status).toBe(409);
   });
 
@@ -137,23 +140,23 @@ describe('Usernames (e2e)', () => {
     const a = await attorney('Ann');
     const b = await attorney('Bob');
     const first = `hq${rnd()}`;
-    const ch = await api()
-      .post('/api/v1/channels')
+    const g = await api()
+      .post('/api/v1/groups')
       .set(a.auth)
-      .send({ title: 'News', username: first });
-    expect(ch.status).toBe(201);
-    const id = ch.body.data.id as string;
-    await prisma.$executeRaw`UPDATE channels SET username_changed_at = now() - interval '400 days' WHERE id = ${id}::uuid`;
+      .send({ title: 'News', type: 'public', username: first, memberIds: [] });
+    expect(g.status).toBe(201);
+    const id = g.body.data.id as string;
+    await prisma.$executeRaw`UPDATE chat_groups SET username_changed_at = now() - interval '400 days' WHERE id = ${id}::uuid`;
     const next = `hq${rnd()}`;
     const ren = await api()
-      .patch(`/api/v1/channels/${id}`)
+      .patch(`/api/v1/groups/${id}`)
       .set(a.auth)
       .send({ username: next });
     expect(ren.status).toBe(200);
     expect((await check(b, first)).reason).toBe('held');
     expect((await check(a, first)).available).toBe(true);
     const again = await api()
-      .patch(`/api/v1/channels/${id}`)
+      .patch(`/api/v1/groups/${id}`)
       .set(a.auth)
       .send({ username: `hq${rnd()}` });
     expect(again.status).toBe(409);

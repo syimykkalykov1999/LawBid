@@ -1,6 +1,5 @@
 import { HttpException } from '@nestjs/common';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
-import type { ChannelsService } from '../channels/channels.service';
 import type { ChatService } from '../chat/chat.service';
 import type { GroupsService } from '../groups/groups.service';
 import { ForwardService, forwardKey } from './forward.service';
@@ -43,11 +42,7 @@ describe('ForwardService', () => {
         },
       ),
     } as unknown as ChatService;
-    const service = new ForwardService(
-      chat,
-      {} as GroupsService,
-      {} as ChannelsService,
-    );
+    const service = new ForwardService(chat, {} as GroupsService);
     const out = await service.forward(user, {
       requestId: 'r',
       sources: [src('m1'), src('m2'), src('m1')],
@@ -66,11 +61,7 @@ describe('ForwardService', () => {
   });
 
   it('at most 200 pairs', async () => {
-    const service = new ForwardService(
-      {} as ChatService,
-      {} as GroupsService,
-      {} as ChannelsService,
-    );
+    const service = new ForwardService({} as ChatService, {} as GroupsService);
     await expect(
       service.forward(user, {
         requestId: 'r',

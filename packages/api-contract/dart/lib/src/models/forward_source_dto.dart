@@ -15,7 +15,7 @@ class ForwardSourceDto {
   factory ForwardSourceDto.fromJson(Map<String, Object?> json) =>
       _$ForwardSourceDtoFromJson(json);
 
-  /// message: a direct / case chat message; group_message; channel_post; group_link / channel_link: a protected group / channel shared as its link (id = the group / channel).
+  /// message: a direct / case chat message; group_message; group_link: a protected group shared as its link (id = the group).
   final ForwardSourceKind kind;
   final String id;
 

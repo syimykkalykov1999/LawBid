@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { PageHeader } from '@/components/page-header';
-import { ChannelsPanel } from '@/components/media/channels-panel';
 import { VideosPanel } from '@/components/media/videos-panel';
 import { Tabs } from '@/components/ui/tabs';
 import dynamic from 'next/dynamic';
@@ -10,7 +9,7 @@ import dynamic from 'next/dynamic';
 // S18-8: loaded only when its tab is opened.
 const StickersPanel = dynamic(() => import('@/components/media/stickers-panel').then((m) => m.StickersPanel));
 
-type Tab = 'videos' | 'stickers' | 'channels';
+type Tab = 'videos' | 'stickers';
 
 /** Reels (video assets) and sticker packs. */
 export default function MediaPage() {
@@ -19,8 +18,8 @@ export default function MediaPage() {
     <>
       <PageHeader
         eyebrow="Модерация"
-        title="Рилсы, стикеры и каналы"
-        subtitle="Видео из рилсов, наборы стикеров и каналы адвокатов. Отсюда можно снять видео, скрыть набор или закрыть канал."
+        title="Рилсы и стикеры"
+        subtitle="Видео из рилсов и наборы стикеров. Отсюда можно снять видео или скрыть набор."
       />
       <div className="mb-5">
         <Tabs
@@ -29,11 +28,10 @@ export default function MediaPage() {
           items={[
             { value: 'videos', label: 'Видео' },
             { value: 'stickers', label: 'Стикеры' },
-            { value: 'channels', label: 'Каналы' },
           ]}
         />
       </div>
-      {tab === 'videos' ? <VideosPanel /> : tab === 'stickers' ? <StickersPanel /> : <ChannelsPanel />}
+      {tab === 'videos' ? <VideosPanel /> : <StickersPanel />}
     </>
   );
 }

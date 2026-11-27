@@ -23,8 +23,6 @@ import 'package:lawbid/features/calls/presentation/call_log_entry.dart'
 import 'package:lawbid/features/calls/presentation/live_calls_fab.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
-import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/application/awaiting_reply.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
@@ -895,8 +893,6 @@ String messagePreview(Translator t, ChatMessage m, {String? me}) {
   if (m.kind == MessageKind.sticker) {
     return '${m.sticker?.emoji ?? ''} ${t.t('stickers.label')}'.trim();
   }
-  // Owner 2026-10-20: "🎁 Gift".
-  if (m.kind == MessageKind.gift) return '🎁 ${t.t('stars.chat.label')}';
   // Owner 2026-10-20: "👤 Contact" / "📍 address".
   if (m.kind == MessageKind.contact) {
     return '👤 ${m.contact?.displayName ?? t.t('card.contact')}';
@@ -1121,25 +1117,6 @@ class ConversationsView extends ConsumerWidget {
             onQuery: onQuery!,
             showFolders: showFolders,
             openSignal: openSignal ?? ref.watch(chatSearchOpenProvider),
-            // Owner 2026-10-20: the channels' door at the start of the row.
-            // Owner 2026-10-22: hidden while channels are «coming soon».
-            leading: !ref.watch(channelsComingSoonProvider) &&
-                    ref.watch(channelsEnabledProvider)
-                ? _ChannelsDoor(
-                    unread: ref.watch(unreadGroupsProvider),
-                    child: AppIconButton(
-                      key: const ValueKey('inbox-channels'),
-                      compact: true,
-                      icon: AppIcon(
-                        AppIcons.campaignOutlined,
-                        size: 22,
-                        color: colors.text,
-                      ),
-                      semanticLabel: t.t('channel.title'),
-                      onPressed: () => context.push(ChannelsRoutes.list),
-                    ),
-                  )
-                : null,
           )
         : onFolder != null
             ? Padding(
@@ -1835,13 +1812,20 @@ class ConversationRow extends ConsumerWidget {
     }
 
     final repo = ref.read(chatRepositoryProvider);
+    // Owner 26.11 (Telegram, WhatsApp): the row moves / gets its mark / leaves
+    // at once; a refusal puts it back (ChatListsHub).
+    final lists = ref.read(chatListsHubProvider);
     return ChatSwipe(
       id: c.id,
       pinned: c.pinned,
       muted: c.muted,
       onPin: () => unawaited(
         act(
-          () => repo.organize(c.id, pinned: !c.pinned),
+          () => lists.run(
+            c.id,
+            change: (x) => x.withMine(pinned: !c.pinned),
+            call: () => repo.organize(c.id, pinned: !c.pinned),
+          ),
           c.pinned ? 'chat.organize.unpinned' : 'chat.organize.pinned',
         ),
       ),
@@ -1854,10 +1838,12 @@ class ConversationRow extends ConsumerWidget {
           if (pick == null || !context.mounted) return;
           span = muteDuration(pick);
         }
+        final until = span == null ? null : DateTime.now().add(span);
         await act(
-          () => repo.mute(
+          () => lists.run(
             c.id,
-            span == null ? null : DateTime.now().add(span),
+            change: (x) => x.withMine(mutedUntil: until, unmute: until == null),
+            call: () => repo.mute(c.id, until),
           ),
           span == null ? 'chat.select.unmuted' : 'chat.select.muted',
         );
@@ -1868,7 +1854,11 @@ class ConversationRow extends ConsumerWidget {
           t: t,
           onConfirmed: () async {
             try {
-              await repo.organize(c.id, hidden: true);
+              await lists.run(
+                c.id,
+                leaves: true,
+                call: () => repo.organize(c.id, hidden: true),
+              );
               refreshChatFolders(ref);
               // Row 109 (Telegram): «Chat deleted · Undo».
               if (context.mounted) {
@@ -2137,49 +2127,6 @@ class _NewChatButton extends StatelessWidget {
           semanticLabel: label,
           liftOverInset: true,
           onPressed: () => context.push(AppRoutes.contacts),
-        ),
-      ],
-    );
-  }
-}
-
-/// The «Channels» door of Chats with a small count of groups that have
-/// something unread (owner 2026-10-21: groups live inside Channels).
-class _ChannelsDoor extends ConsumerWidget {
-  const _ChannelsDoor({required this.unread, required this.child});
-
-  final int unread;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (unread <= 0) return child;
-    final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        child,
-        PositionedDirectional(
-          top: 0,
-          end: 0,
-          child: IgnorePointer(
-            child: Container(
-              key: const ValueKey('inbox-channels-unread'),
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(
-                color: colors.gold,
-                borderRadius: BorderRadius.circular(AppRadii.pill),
-              ),
-              child: Text(
-                context.digits(unread),
-                style: type.caption.copyWith(
-                  color: AppColorsLight.navy,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
         ),
       ],
     );

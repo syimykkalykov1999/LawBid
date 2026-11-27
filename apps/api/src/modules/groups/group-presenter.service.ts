@@ -316,7 +316,11 @@ export class GroupPresenter {
       m.type === 'voice' && m.file_id && !m.deleted_at ? [m.file_id] : [],
     );
     const reactable = rows.filter((m) => !m.deleted_at && m.type !== 'system');
-    const [urls, voiceLinks, polls, reactionRows] = await Promise.all([
+    // Group E2EE G1: the ciphertext of encrypted files (key in the message).
+    const blobIds = rows.flatMap((m) =>
+      m.type === 'mls' && m.file_id && !m.deleted_at ? [m.file_id] : [],
+    );
+    const [urls, voiceLinks, polls, reactionRows, blobs] = await Promise.all([
       this.files.attachmentUrls(fileIds),
       // voiceLinks: the note's link plus its AAC/M4A copy for the iPhone
       // (owner row 146), the same as 1:1 notes.
@@ -337,6 +341,9 @@ export class GroupPresenter {
             orderBy: { created_at: 'asc' },
           })
         : Promise.resolve([]),
+      blobIds.length
+        ? this.files.e2eeBlobUrls(blobIds)
+        : Promise.resolve(new Map<string, { url: string }>()),
     ]);
     const unscanned = await this.unscanned(fileIds, voiceIds, urls, voiceLinks);
     const replyOf = new Map(replies.map((r) => [r.id, r]));
@@ -441,6 +448,23 @@ export class GroupPresenter {
         forwarded: m.forwarded && !deleted,
         forwardedFrom: m.forwarded && !deleted ? m.forwarded_from_name : null,
         reactions: deleted ? [] : (reactionsOf.get(m.id) ?? []),
+        // Group E2EE G1 (type=mls): only ciphertext; the phones decrypt.
+        ciphertext:
+          m.type === 'mls' && m.ciphertext && !deleted
+            ? Buffer.from(m.ciphertext).toString('base64')
+            : null,
+        mlsEpoch: m.type === 'mls' ? m.mls_epoch : null,
+        senderDeviceId: m.type === 'mls' ? m.sender_device_id : null,
+        frankingTag:
+          m.type === 'mls' && m.franking_tag && !deleted
+            ? Buffer.from(m.franking_tag).toString('base64')
+            : null,
+        blobUrl:
+          m.type === 'mls' && m.file_id && !deleted
+            ? (blobs.get(m.file_id)?.url ?? null)
+            : null,
+        // Group E2EE G2b: a control message (reaction, vote, edit, close).
+        ...(m.type === 'mls' && m.mls_control ? { control: true } : {}),
       };
     });
   }
@@ -658,6 +682,7 @@ export class GroupPresenter {
                 WHERE m.group_id = t.group_id
                   AND (m.topic_id = t.id OR (t.is_general AND m.topic_id IS NULL))
                   AND m.deleted_at IS NULL AND m.type <> 'system'
+                  AND NOT m.mls_control
                   AND (m.sender_id IS NULL OR m.sender_id <> ${viewerId}::UUID)
                   AND m.created_at >= gm.joined_at
                   AND (lr.id IS NULL OR (m.created_at, m.id) > (lr.created_at, lr.id))

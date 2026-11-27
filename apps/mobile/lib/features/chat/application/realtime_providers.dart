@@ -13,6 +13,8 @@ import 'package:lawbid/core/uploads/file_ready.dart';
 import 'package:lawbid/features/chat/data/realtime_client.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_providers.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_service.dart';
+import 'package:lawbid/features/groups/e2ee/group_e2ee_providers.dart';
+import 'package:lawbid/features/groups/e2ee/group_e2ee_service.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 
 // Owner 2026-10-22: other features read the event type from here, not from
@@ -62,8 +64,12 @@ final realtimeClientProvider = Provider<RealtimeClient?>((ref) {
         ref.read(proactiveRefresherProvider)?.ensureFresh(),
     // Item 25: `mls` messages are opened on the device before any screen
     // sees them; the encryption group follows the server's commits.
-    transform: (name, data) =>
-        openE2eeEvent(ref.read(e2eeServiceProvider), name, data),
+    transform: (name, data) => openE2eeEvent(
+      ref.read(e2eeServiceProvider),
+      name,
+      data,
+      groups: ref.read(groupE2eeServiceProvider),
+    ),
   );
   // Owner 2026-10-23 (part C9): background / foreground / network back.
   final reachability = ref.read(reachabilitySignalProvider);
@@ -116,9 +122,17 @@ final realtimeEventsProvider = Provider<Stream<RealtimeEvent>>(
 Future<Object?> openE2eeEvent(
   E2eeService? e2ee,
   String name,
-  Object? data,
-) async {
+  Object? data, {
+  GroupE2eeService? groups,
+}) async {
   if (e2ee == null || data is! Map) return data;
+  // G2: the group scope of the same Delivery Service (G1 sends
+  // `e2ee:group` / `e2ee:group_welcome` with the group's id).
+  if (name == 'e2ee:group' || name == 'e2ee:group_welcome') {
+    final group = data['groupId'];
+    if (group is String) groups?.onServerEvent(group);
+    return data;
+  }
   if (name == 'e2ee:commit' || name == 'e2ee:welcome') {
     final id = data['conversationId'];
     if (id is String) e2ee.onServerEvent(id);

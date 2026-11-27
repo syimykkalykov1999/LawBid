@@ -107,6 +107,80 @@ void main() {
     expect(missingParts(full), isEmpty);
   });
 
+  test('bio is optional: an empty «О себе» is never missing', () {
+    const noBio = PublicAttorneyProfile(
+      id: 'a',
+      username: 'a',
+      verifiedBadge: false,
+      rating: RatingInfo(average: null, count: 0),
+      isSelf: true,
+      avatarUrl: 'https://x/y.jpg',
+      languages: ['en'],
+      firms: ['Firm'],
+      practices: [
+        SelectedPractice(
+          id: '1',
+          i18nKey: 'k',
+          nameEn: 'n',
+          categoryId: 'c',
+          categoryI18nKey: 'ck',
+        ),
+      ],
+    );
+    // Everything else filled, bio empty: 100 % (card hidden).
+    expect(missingParts(noBio), isEmpty);
+    // Only the photo missing: the next step is the photo, never the bio.
+    const noBioNoPhoto = PublicAttorneyProfile(
+      id: 'a',
+      username: 'a',
+      verifiedBadge: false,
+      rating: RatingInfo(average: null, count: 0),
+      isSelf: true,
+      bio: '   ',
+      languages: ['en'],
+      firms: ['Firm'],
+    );
+    expect(missingParts(noBioNoPhoto), [
+      ProfilePart.photo,
+      ProfilePart.practices,
+    ]);
+    expect(ProfilePart.values.map((p) => p.name), isNot(contains('bio')));
+  });
+
+  testWidgets('empty bio, rest filled: the completeness card is gone',
+      (t) async {
+    const noBio = PublicAttorneyProfile(
+      id: 'a',
+      username: 'a',
+      verifiedBadge: false,
+      rating: RatingInfo(average: null, count: 0),
+      isSelf: true,
+      avatarUrl: 'https://x/y.jpg',
+      languages: ['en'],
+      firmName: 'Firm',
+      practices: [
+        SelectedPractice(
+          id: '1',
+          i18nKey: 'k',
+          nameEn: 'n',
+          categoryId: 'c',
+          categoryI18nKey: 'ck',
+        ),
+      ],
+    );
+    await t.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.light(),
+          home: const Scaffold(
+            body: ProfileCompletenessCard(profile: noBio),
+          ),
+        ),
+      ),
+    );
+    expect(find.byKey(const ValueKey('profile-completeness')), findsNothing);
+  });
+
   testWidgets('the leave sheet answers save / discard / stay', (t) async {
     late BuildContext ctx;
     await t.pumpWidget(

@@ -26,7 +26,6 @@ import {
 import { ACCOUNT_DELETION_QUEUE } from '../../modules/privacy/privacy.constants';
 import { MEDIA_MODERATION_QUEUE } from '../../modules/media-moderation/media-moderation.constants';
 import { POST_FANOUT_QUEUE } from '../../modules/notifications/post-fanout.service';
-import { CHANNEL_FANOUT_QUEUE } from '../../modules/channels/channel-fanout.runner';
 import { BROADCAST_QUEUE } from '../../modules/admin-content/broadcast-fanout.runner';
 import { AppSettingsService } from '../../common/app-settings/app-settings.service';
 import { queueLoadSignal } from '../../common/queues/queue-load';
@@ -52,7 +51,6 @@ export const OBSERVED_QUEUES: readonly string[] = [
   // S10-7: queues whose failures used to reach only the logs.
   ACCOUNT_DELETION_QUEUE,
   MEDIA_MODERATION_QUEUE,
-  CHANNEL_FANOUT_QUEUE,
   POST_FANOUT_QUEUE,
   BROADCAST_QUEUE,
   PUSH_QUEUE,
@@ -82,7 +80,6 @@ export const SLOW_LANE_QUEUES: readonly string[] = [
   // alarm they had there (a 10-minute recompute may hold legal.exports).
   CRON_HEAVY_FREQUENT_QUEUE,
   ACCOUNT_DELETION_QUEUE,
-  CHANNEL_FANOUT_QUEUE,
   POST_FANOUT_QUEUE,
   BROADCAST_QUEUE,
 ];

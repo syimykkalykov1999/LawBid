@@ -1,16 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui' show Size;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/cache/chat_media_providers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/media/image_size.dart';
 import 'package:lawbid/core/media/stable_network_image.dart'
     show stableImageCacheKey;
+import 'package:lawbid/core/media/video_size.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -20,14 +24,19 @@ import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/core/uploads/upload_queue_database.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
+import 'package:lawbid/features/chat/application/chat_media_outbox.dart'
+    show chatAttachmentOfJob;
 import 'package:lawbid/features/chat/application/chat_thread_memory.dart'
     show CachedMessageStore, ThreadMemory;
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
-import 'package:lawbid/features/chat/domain/chat_models.dart' show VoiceNote;
+import 'package:lawbid/features/chat/domain/chat_models.dart'
+    show ChatAttachment, SentMediaShapes, VoiceNote;
 import 'package:lawbid/features/groups/application/group_media_outbox.dart';
 import 'package:lawbid/features/groups/data/group_list_cache.dart';
 import 'package:lawbid/features/groups/data/group_repository.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
+import 'package:lawbid/features/groups/e2ee/group_e2ee_providers.dart';
+import 'package:lawbid/features/groups/e2ee/group_e2ee_service.dart';
 import 'package:lawbid/features/notifications/application/call_mute.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
@@ -37,8 +46,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 Duration? _noRetry(int retryCount, Object error) => null;
 
 /// Owner 2026-11-16 (row 183): the admin switch «Группы в чатах» (flag
-/// `groups`, on by default, independent of `channelsEnabledProvider`; the
-/// same pattern). Off = no
+/// `groups`, on by default). Off = no
 /// group anywhere: the lists below are empty without a request, the saved
 /// copy is not shown, the group routes show nothing (GroupsGate).
 final groupsEnabledProvider = Provider<bool>(
@@ -47,7 +55,7 @@ final groupsEnabledProvider = Provider<bool>(
 
 /// Owner 2026-11-16 18:25 CT (row 183): «Звонки в группах» (flag
 /// `groups_calls`, on by default): off = no call button in group chats.
-/// 1:1 calls and channel calls read their own switches.
+/// 1:1 calls read their own switches.
 final groupChatCallsEnabledProvider = Provider<bool>(
   (ref) =>
       ref.watch(groupsEnabledProvider) &&
@@ -57,6 +65,8 @@ final groupChatCallsEnabledProvider = Provider<bool>(
 final groupRepositoryProvider = Provider<GroupRepository>(
   (ref) => GroupRepository(
     ref.watch(dioProvider),
+    // G2: rows of encrypted groups are opened / sealed on this device.
+    e2ee: () => ref.read(groupE2eeServiceProvider),
     // Owner 2026-11-03: group pictures are indexed as group media («Данные
     // и память»: the groups' auto-delete age). Never blocks the chat.
     noteMedia: (id, urls) => unawaited(
@@ -134,6 +144,26 @@ class GroupsNotifier extends SyncedListNotifier<api.GroupDto> {
       case 'group:message':
         final raw = data is Map ? data['message'] : null;
         if (raw is! Map) return;
+        final row = Map<String, dynamic>.from(raw);
+        final e2ee = ref.read(groupE2eeServiceProvider);
+        if (e2ee != null && GroupE2eeService.isSealed(row)) {
+          // G2: the line of the list is the text this device opens.
+          unawaited(
+            e2ee.open(row['groupId'] as String, row).then(
+              (shown) {
+                if (shown == null || !ref.mounted) return;
+                final m = api.GroupMessageDto.fromJson(shown);
+                final held = applyRow(
+                  m.groupId,
+                  (g) => g == null ? null : applyGroupMessage(g, m),
+                );
+                if (!held && !archived) catchUp();
+              },
+              onError: (Object _) {},
+            ),
+          );
+          return;
+        }
         final m = api.GroupMessageDto.fromJson(Map<String, Object?>.from(raw));
         final held = applyRow(
           m.groupId,
@@ -546,7 +576,9 @@ final groupMessageStoreProvider =
     limitBytes: () =>
         ref.read(cacheLimitsProvider).limitBytes(CacheStore.messages),
     decode: _groupMessageOf,
-    encode: (m) => m.toJson(),
+    // G2: an encrypted row is kept without its text (that stays in the
+    // encrypted-messages store, sealed on the web).
+    encode: (m) => GroupE2eeService.storable(m.toJson()),
     idOf: (m) => m.id,
     createdAtOf: (m) => m.createdAt,
     imageUrlsOf: (m) => [
@@ -730,6 +762,7 @@ class PendingGroupMessage {
     this.fileId,
     this.slowWaitS,
     this.voice,
+    this.attachment,
   });
 
   final String clientMessageId;
@@ -750,6 +783,11 @@ class PendingGroupMessage {
   /// the phone while it is being sent, as in 1:1).
   final VoiceNote? voice;
 
+  /// Owner 26.11 (the 1:1 chat's local bubble): a queued photo / video /
+  /// document as it is drawn while it goes up — its own picture from the
+  /// phone, its size, the upload's progress.
+  final ChatAttachment? attachment;
+
   /// This message refused by the server («Not sent», Retry).
   PendingGroupMessage asFailed({int? slowWaitS}) => PendingGroupMessage(
         clientMessageId: clientMessageId,
@@ -760,6 +798,7 @@ class PendingGroupMessage {
         mentionIds: mentionIds,
         fileName: fileName,
         fileId: fileId,
+        attachment: attachment,
       );
 }
 
@@ -849,8 +888,22 @@ class GroupThread extends Notifier<GroupThreadState> {
     final sent = ref.read(groupMediaSentProvider).stream.listen((m) {
       if (_inThisThread(m)) _upsert(m);
     });
+    // G2: a waiting message opened, a reaction / vote / edit applied, a
+    // member's security code changed.
+    final e2ee = ref.read(groupE2eeServiceProvider);
+    final changed = e2ee?.changed.listen((g) {
+      if (g == key.groupId) unawaited(_refreshSealed());
+    });
+    final codes = e2ee?.codeChanged.listen((c) {
+      if (c.groupId == key.groupId) _codeChangedLine(c.userId);
+    });
+    if (e2ee != null) unawaited(_syncE2ee(e2ee));
+    final progress = media.progress.listen(_onUploadProgress);
     ref.onDispose(() {
+      unawaited(changed?.cancel());
+      unawaited(codes?.cancel());
       sub.cancel();
+      unawaited(progress.cancel());
       unawaited(jobs?.cancel());
       unawaited(sent.cancel());
       _expiryTimer?.cancel();
@@ -905,6 +958,59 @@ class GroupThread extends Notifier<GroupThreadState> {
             nextCursor: localCursor,
             loading: false,
           );
+  }
+
+  /// G2: the group's encryption is brought up to date when it opens (a
+  /// new device joins by external commit, a stale copy catches up).
+  Future<void> _syncE2ee(GroupE2eeService e2ee) async {
+    try {
+      await e2ee.sync(key.groupId);
+    } on Object catch (_) {
+      // Tried again on the next event / send.
+    }
+  }
+
+  /// The encrypted rows shown again from what this device knows now.
+  Future<void> _refreshSealed() async {
+    final e2ee = ref.read(groupE2eeServiceProvider);
+    if (e2ee == null || !ref.mounted) return;
+    final rows = [for (final m in state.messages) m.toJson()];
+    final fresh = await e2ee.refresh(key.groupId, rows);
+    if (!ref.mounted) return;
+    final byId = {
+      for (final j in fresh) j['id'] as String: api.GroupMessageDto.fromJson(j),
+    };
+    state = state.copyWith(
+      messages: [
+        for (final m in state.messages)
+          // A control message that waited and is now applied is no row.
+          if (!GroupE2eeService.isControlId(m.id)) byId[m.id] ?? m,
+      ],
+    );
+  }
+
+  /// «Код безопасности {имя} изменился» (WhatsApp): a line of this device
+  /// only, never sent.
+  void _codeChangedLine(String userId) {
+    final now = DateTime.now().toUtc();
+    final line = api.GroupMessageDto.fromJson({
+      'id': 'e2ee-code-${key.groupId}-$userId-${now.microsecondsSinceEpoch}',
+      'groupId': key.groupId,
+      'topicId': key.topicId,
+      'type': 'system',
+      'body': '',
+      'mine': false,
+      'clientMessageId': 'e2ee-code-${now.microsecondsSinceEpoch}',
+      'systemKind': GroupE2eeService.codeChangedKind,
+      'systemPeople': [
+        {'userId': userId, 'kind': 'client', 'verifiedBadge': false},
+      ],
+      'mentions': const <Object>[],
+      'mentionsMe': false,
+      'deleted': false,
+      'createdAt': now.toIso8601String(),
+    });
+    state = state.copyWith(messages: [line, ...state.messages]);
   }
 
   /// The request of a pending text or (already uploaded) file.
@@ -973,8 +1079,17 @@ class GroupThread extends Notifier<GroupThreadState> {
   Future<void> load() async {
     final store = _store;
     if (store != null) {
-      final local = await store.page(_storeKey);
+      var local = await store.page(_storeKey);
       if (!ref.mounted) return;
+      // G2: the texts of encrypted rows come back from this device's store.
+      final e2ee = ref.read(groupE2eeServiceProvider);
+      if (e2ee != null && local.isNotEmpty) {
+        final rows = await e2ee.restore(key.groupId, [
+          for (final m in local) m.toJson(),
+        ]);
+        local = [for (final j in rows) api.GroupMessageDto.fromJson(j)];
+        if (!ref.mounted) return;
+      }
       final now = DateTime.now();
       final shown = [
         for (final m in local)
@@ -1192,6 +1307,27 @@ class GroupThread extends Notifier<GroupThreadState> {
     } else if (e.name == 'group:message' && data is Map) {
       final raw = data['message'];
       if (raw is! Map) return;
+      final row = Map<String, dynamic>.from(raw);
+      final e2ee = ref.read(groupE2eeServiceProvider);
+      if (e2ee != null &&
+          GroupE2eeService.isSealed(row) &&
+          row['groupId'] == key.groupId) {
+        // G2: opened on this device first (a control message changes its
+        // target: the `changed` stream redraws it).
+        unawaited(
+          e2ee.open(key.groupId, row).then(
+            (shown) {
+              if (shown == null || !ref.mounted) return;
+              final m = api.GroupMessageDto.fromJson(shown);
+              if (!_inThisThread(m)) return;
+              _upsert(m);
+              if (!m.mine) unawaited(markRead());
+            },
+            onError: (Object _) {},
+          ),
+        );
+        return;
+      }
       final m = api.GroupMessageDto.fromJson(Map<String, Object?>.from(raw));
       if (!_inThisThread(m)) return;
       _upsert(m);
@@ -1376,6 +1512,17 @@ class GroupThread extends Notifier<GroupThreadState> {
     }
   }
 
+  /// Owner 26.11: this thread stays alive while [run] works (picked files
+  /// still being prepared and queued after the group screen was left).
+  Future<T> keepAliveWhile<T>(Future<T> Function() run) async {
+    final release = ref.keepAlive().close;
+    try {
+      return await run();
+    } finally {
+      release();
+    }
+  }
+
   /// R-255 (flag `group_files_from_disk`): a picked file goes through the
   /// persistent queue. With [path] it stays on disk (then [bytes] is empty):
   /// it is copied to the queue folder and sent from there.
@@ -1392,6 +1539,19 @@ class GroupThread extends Notifier<GroupThreadState> {
     final queue = ref.read(groupMediaOutboxProvider);
     final files = ref.read(uploadFilesProvider);
     final cmid = _newClientId();
+    // Owner 26.11 (the 1:1 chat's sendAttachment): the bubble's shape and
+    // its picture from the phone, before a byte goes up.
+    final isImage = mime.startsWith('image/');
+    final isVideo = mime.startsWith('video/');
+    final Size? px;
+    if (path != null) {
+      px = isVideo ? await videoSizeOfFile(XFile(path)) : null;
+    } else {
+      px = isImage
+          ? await imageSizeOf(bytes)
+          : (isVideo ? videoSizeOf(bytes) : null);
+      if (isImage) _previewBytes[cmid] = bytes;
+    }
     final file = path != null
         ? await files.keep('$cmid.bin', fromPath: path)
         : await files.keep('$cmid.bin', bytes: bytes);
@@ -1402,6 +1562,9 @@ class GroupThread extends Notifier<GroupThreadState> {
       payload: {
         'name': name,
         'caption': caption?.trim() ?? '',
+        'size': path != null ? await XFile(path).length() : bytes.length,
+        if (px != null) 'width': px.width.round(),
+        if (px != null) 'height': px.height.round(),
         if (key.topicId != null) 'topicId': key.topicId,
         if (replyToId != null) 'replyToId': replyToId,
       },
@@ -1448,6 +1611,12 @@ class GroupThread extends Notifier<GroupThreadState> {
   /// The recordings of queued voice notes, by clientMessageId.
   final _voicePaths = <String, String?>{};
 
+  /// Owner 26.11 (1:1): the pictures of queued photos (the picker's bytes;
+  /// after a restart the queued file is read once) and upload progress.
+  final _previewBytes = <String, Uint8List>{};
+  final _progress = <String, double>{};
+  List<UploadJob> _mediaJobs = const [];
+
   /// The queue's jobs of this group → pending bubbles of this thread.
   Future<void> _onMediaJobs(List<UploadJobRow> rows) async {
     if (!ref.mounted) return;
@@ -1465,10 +1634,43 @@ class GroupThread extends Notifier<GroupThreadState> {
           !_voicePaths.containsKey(j.id)) {
         _voicePaths[j.id] = await files.pathOf(n);
       }
+      if (j.kind == GroupMediaKind.attachment &&
+          n != null &&
+          (j.mime ?? '').startsWith('image/') &&
+          !_previewBytes.containsKey(j.id)) {
+        final b = await files.read(n);
+        if (b != null) _previewBytes[j.id] = b;
+      }
     }
     if (!ref.mounted) return;
     final live = {for (final j in jobs) j.id};
     _voicePaths.removeWhere((k, _) => !live.contains(k));
+    // Owner 27.11 (Telegram keeps showing the sent file): a sent photo's
+    // picture stays the phone's own until the server's copy has loaded.
+    for (final j in _mediaJobs) {
+      final b = _previewBytes[j.id];
+      final f = j.fileId;
+      if (!live.contains(j.id) && b != null && f != null) {
+        SentMediaShapes.keepBytes(f, b);
+      }
+    }
+    _previewBytes.removeWhere((k, _) => !live.contains(k));
+    _progress.removeWhere((k, _) => !live.contains(k));
+    _mediaJobs = jobs;
+    _showMedia();
+  }
+
+  /// A file's upload moved on: its bubble's ring follows.
+  void _onUploadProgress(UploadProgress p) {
+    if (!_mediaJobs.any((j) => j.id == p.id)) return;
+    _progress[p.id] = p.value;
+    _showMedia();
+  }
+
+  /// The queue's jobs → pending bubbles of this thread.
+  void _showMedia() {
+    if (!ref.mounted) return;
+    final jobs = _mediaJobs;
     final old = _mediaIds;
     _mediaIds = {for (final j in jobs) j.id};
     final delivered = {for (final m in state.messages) m.clientMessageId};
@@ -1500,6 +1702,11 @@ class GroupThread extends Notifier<GroupThreadState> {
               fileName: j.payload['name'] as String? ?? 'file',
               replyToId: j.payload['replyToId'] as String?,
               failed: j.failed,
+              attachment: chatAttachmentOfJob(
+                j,
+                previewBytes: _previewBytes[j.id],
+                progress: _progress[j.id] ?? 0,
+              ),
             ),
       ],
     );
@@ -1613,14 +1820,24 @@ class GroupThread extends Notifier<GroupThreadState> {
   }
 
   Future<void> edit(String messageId, String body) async {
-    final m = await _repo.edit(key.groupId, messageId, body);
+    final m = await _repo.edit(
+      key.groupId,
+      messageId,
+      body,
+      current: state.messages.where((x) => x.id == messageId).firstOrNull,
+    );
     if (ref.mounted) _upsert(m);
   }
 
   /// Groups WhatsApp parity (the 1:1 `ChatThread.react`): my emoji on a
   /// message, null takes it away; the answer replaces the message.
   Future<void> react(String messageId, String? emoji) async {
-    final m = await _repo.react(key.groupId, messageId, emoji);
+    final m = await _repo.react(
+      key.groupId,
+      messageId,
+      emoji,
+      current: state.messages.where((x) => x.id == messageId).firstOrNull,
+    );
     if (ref.mounted) _upsert(m);
   }
 

@@ -7,7 +7,6 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/features/case_payments/case_payments_routes.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
-import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/consultations/consultations_routes.dart';
@@ -117,9 +116,6 @@ String? notificationRoute({
     // Owner 2026-10-05: a client offered a case / an attorney declined.
     case 'case_invite_received':
       return AppRoutes.invites;
-    // Owner 2026-10-20: a gift on my profile.
-    case 'gift_received':
-      return AppRoutes.myGifts;
     case 'case_invite_declined':
       return caseId == null ? null : AppRoutes.myCase(caseId);
     case 'review_requested':
@@ -169,13 +165,6 @@ String? notificationRoute({
         return AppRoutes.caseComments(caseId);
       }
       return postId == null ? null : SocialRoutes.post(postId);
-    // Owner 2026-10-20: a new post in a channel I follow opens the channel
-    // (the shared post first).
-    case 'channel_post':
-      final channelId = s('channelId');
-      return channelId == null
-          ? ChannelsRoutes.list
-          : ChannelsRoutes.channel(channelId, postId: postId);
     case 'verification_update':
       // Owner 2026-10-05: trust level changes / holds open the attorney's
       // own trust screen.
@@ -486,14 +475,6 @@ String notificationText(Translator t, AppNotification n) {
         ? '$base: ${reason.trim()}'
         : base;
   }
-  // Owner 2026-10-20: «New post in "channel"» — no actor, the channel's title
-  // comes with the notification.
-  if (n.type == 'channel_post') {
-    return t.t(
-      'channel.notif.post',
-      {'title': '${n.payload['channelTitle'] ?? ''}'},
-    );
-  }
   // Owner 2026-10-20: «Ask a lawyer» notices have no actor name; the
   // answer / best-answer ones say what happened.
   if (n.type == 'legal_answer_update') {
@@ -532,8 +513,6 @@ IconData notificationIcon(AppNotification n) => switch (n.type) {
       // Owner 2026-10-07: Threads-style reposts.
       'post_repost' => AppIcons.autoModeRounded,
       'new_follower' || 'contact_joined' => AppIcons.personAddAlt1Rounded,
-      // Owner 2026-10-20: channels.
-      'channel_post' => AppIcons.campaignOutlined,
       // OQ-041.
       'missed_call' => AppIcons.phoneMissedRounded,
       // OQ-042.
@@ -717,8 +696,8 @@ class _NotificationRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Owner 2026-11-04 (R-386): channel rows with the `channels` flag off
-    // never reach the row — [visibleNotificationsProvider] leaves them out.
+    // Owner 26.11: old channel rows never reach the row —
+    // [visibleNotificationsProvider] leaves them out.
     final t = ref.watch(translatorProvider);
     final f = ref.watch(l10nFormatsProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;

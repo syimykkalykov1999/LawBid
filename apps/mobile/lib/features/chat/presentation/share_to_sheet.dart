@@ -10,11 +10,6 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/text/search_fold.dart';
-import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
-import 'package:lawbid/features/channels/domain/channel_models.dart';
-import 'package:lawbid/features/channels/presentation/channel_widgets.dart'
-    show ChannelAvatar;
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/post_share.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -70,11 +65,7 @@ Future<bool> showPostShareSheet(
   );
 }
 
-enum _Tab { chats, communities }
-
-enum _Community { groups, channels }
-
-/// One picked place: a chat, a group or a channel.
+/// One picked place: a chat, a person or a group.
 typedef _Pick = ({String kind, String id});
 
 class ShareToSheet extends ConsumerStatefulWidget {
@@ -97,16 +88,11 @@ class ShareToSheet extends ConsumerStatefulWidget {
 }
 
 class _ShareToSheetState extends ConsumerState<ShareToSheet> {
-  _Tab _tab = _Tab.chats;
-  _Community _community = _Community.groups;
   String _q = '';
   final _picked = <_Pick>[];
   final _groups = <String, api.GroupDto>{};
   final _note = TextEditingController();
   bool _sending = false;
-
-  /// One overscroll of the inner pages switches the outer tab once.
-  bool _backFired = false;
 
   @override
   void dispose() {
@@ -151,8 +137,6 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
             final g = _groups[p.id];
             if (g == null) continue;
             await sender.toGroup(g, widget.link, note: note);
-          default:
-            await sender.toChannel(p.id, widget.link, note: note);
         }
         ok++;
       } on Object catch (e) {
@@ -189,10 +173,8 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final mq = MediaQuery.of(context);
     final height = (mq.size.height - mq.padding.top) * 0.86;
-    // Owner 2026-11-04 (R-386): with the `channels` flag off there is no
-    // «Сообщества» tab; the sheet is «Чаты» only.
-    final communities = ref.watch(channelsEnabledProvider);
-    final tab = communities ? _tab : _Tab.chats;
+    // Owner 27.11: one list, no tab bar — the search field is followed by
+    // the people row and the chats and groups.
     return Padding(
       padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
       child: SizedBox(
@@ -208,32 +190,7 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
                 fieldKey: const ValueKey('share-to-search'),
                 onChanged: (v) => setState(() => _q = v),
               ),
-              PillTabs<_Tab>(
-                value: tab,
-                tabs: [
-                  (_Tab.chats, t.t('share.to.chats')),
-                  if (communities)
-                    (_Tab.communities, t.t('share.to.communities')),
-                ],
-                padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.screenSide,
-                  0,
-                  AppSpacing.screenSide,
-                  AppSpacing.sm,
-                ),
-                onChanged: (v) => setState(() => _tab = v),
-              ),
-              Expanded(
-                child: SwipePages<_Tab>(
-                  value: tab,
-                  values: communities ? _Tab.values : const [_Tab.chats],
-                  onChanged: (v) => setState(() => _tab = v),
-                  pageBuilder: (context, tab) => switch (tab) {
-                    _Tab.chats => _chatsGrid(t, withGroups: !communities),
-                    _Tab.communities => _communities(t),
-                  },
-                ),
-              ),
+              Expanded(child: _chatsGrid(t)),
               Divider(height: 1, thickness: 1, color: colors.border),
               // (AnimatedSize with a zero duration asserts: reduce
               // motion just swaps.)
@@ -264,7 +221,7 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
       c.request != MessageRequest.pending &&
       c.request != MessageRequest.declined;
 
-  Widget _chatsGrid(Translator t, {bool withGroups = false}) {
+  Widget _chatsGrid(Translator t) {
     final list = _q.isEmpty
         ? ref.watch(conversationsProvider)
         : ref.watch(
@@ -277,9 +234,9 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
     // Owner 2026-10-21 (inbox 25b, Instagram): anyone in the app by name or
     // @username, under the matching chats.
     final searching = peopleSuggestQuery(_q).length >= peopleSuggestMinChars;
-    // Owner 2026-11-04 (R-386): with the Communities tab hidden, the groups I
-    // can write in follow the chats on this one tab.
-    final groupItems = withGroups ? _writableGroups() : const <api.GroupDto>[];
+    // Owner 2026-11-04 (R-386): the groups I can write in follow the chats
+    // on this one tab.
+    final groupItems = _writableGroups();
     if (list.isLoading && items.isEmpty && groupItems.isEmpty && !searching) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -362,69 +319,6 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
     );
   }
 
-  // ── Communities ────────────────────────────────────────────────────
-
-  // Row 183: with «Группы» off «Сообщества» is the channels only.
-  _Community get _shownCommunity =>
-      ref.watch(groupsEnabledProvider) ? _community : _Community.channels;
-
-  Widget _communities(Translator t) {
-    final groupsOn = ref.watch(groupsEnabledProvider);
-    final community = _shownCommunity;
-    return Column(
-      children: [
-        if (groupsOn)
-          PillTabs<_Community>(
-            value: community,
-            tabs: [
-              (_Community.groups, t.t('share.to.groups')),
-              (_Community.channels, t.t('share.to.channels')),
-            ],
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenSide,
-              0,
-              AppSpacing.screenSide,
-              AppSpacing.xs,
-            ),
-            onChanged: (v) => setState(() => _community = v),
-          ),
-        Expanded(
-          // Owner 2026-10-21: on «Группы», a swipe back goes on to
-          // «Чаты» (the outer tab), like Instagram's nested tabs.
-          child: NotificationListener<ScrollNotification>(
-            onNotification: _innerScroll,
-            child: SwipePages<_Community>(
-              value: community,
-              values:
-                  groupsOn ? _Community.values : const [_Community.channels],
-              onChanged: (v) => setState(() => _community = v),
-              pageBuilder: (context, c) => switch (c) {
-                _Community.groups => _groupsList(t),
-                _Community.channels => _channelsList(t),
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  bool _innerScroll(ScrollNotification n) {
-    if (n.depth != 0 || n.metrics.axis != Axis.horizontal) return false;
-    if (n is ScrollStartNotification) _backFired = false;
-    final before = n is OverscrollNotification
-        ? n.overscroll < 0
-        : n.metrics.pixels < n.metrics.minScrollExtent - 24;
-    if (!_backFired &&
-        _shownCommunity == _Community.groups &&
-        before &&
-        (n is OverscrollNotification || n is ScrollUpdateNotification)) {
-      _backFired = true;
-      setState(() => _tab = _Tab.chats);
-    }
-    return false;
-  }
-
   List<api.GroupDto> _writableGroups() {
     final list = ref.watch(groupsProvider);
     final q = _q.toLowerCase();
@@ -436,66 +330,6 @@ class _ShareToSheetState extends ConsumerState<ShareToSheet> {
       _groups[g.id] = g;
     }
     return items;
-  }
-
-  Widget _groupsList(Translator t) {
-    final list = ref.watch(groupsProvider);
-    final q = _q.toLowerCase();
-    final items = _writableGroups();
-    if (list.isLoading && items.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (items.isEmpty) {
-      return _Empty(t.t(q.isEmpty ? 'share.to.noGroups' : 'share.to.empty'));
-    }
-    return ListView.builder(
-      key: const ValueKey('share-to-groups'),
-      itemCount: items.length,
-      itemBuilder: (context, i) {
-        final g = items[i];
-        return _PickRow(
-          key: ValueKey('share-to-group-${g.id}'),
-          title: g.title,
-          subtitle: g.username == null ? null : '@${g.username}',
-          picked: _isPicked('group', g.id),
-          avatar: GroupAvatar(name: g.title, url: g.avatarUrl, size: 44),
-          onTap: () => _toggle('group', g.id),
-        );
-      },
-    );
-  }
-
-  Widget _channelsList(Translator t) {
-    final list = ref.watch(
-      channelListProvider((scope: ChannelScope.managed, query: _q)),
-    );
-    final items = [
-      for (final c in list.value ?? const <Channel>[])
-        if (!c.isClosed) c,
-    ];
-    if (list.isLoading && items.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (items.isEmpty) {
-      return _Empty(
-        t.t(_q.isEmpty ? 'share.to.noChannels' : 'share.to.empty'),
-      );
-    }
-    return ListView.builder(
-      key: const ValueKey('share-to-channels'),
-      itemCount: items.length,
-      itemBuilder: (context, i) {
-        final c = items[i];
-        return _PickRow(
-          key: ValueKey('share-to-channel-${c.id}'),
-          title: c.title,
-          subtitle: '@${c.username}',
-          picked: _isPicked('channel', c.id),
-          avatar: ChannelAvatar(title: c.title, url: c.avatarUrl, size: 44),
-          onTap: () => _toggle('channel', c.id),
-        );
-      },
-    );
   }
 
   // ── Bottom ─────────────────────────────────────────────────────────
@@ -690,7 +524,7 @@ class _Tick extends StatelessWidget {
   }
 }
 
-/// A group or a channel: avatar, title, @username and the pick circle.
+/// A group: avatar, title, @username and the pick circle.
 class _PickRow extends StatelessWidget {
   const _PickRow({
     required this.title,

@@ -16,7 +16,6 @@ SendMessageDto _$SendMessageDtoFromJson(Map<String, dynamic> json) =>
       pushPreviews: (json['pushPreviews'] as List<dynamic>?)
           ?.map((e) => SealedPushPreviewDto.fromJson(e as Map<String, dynamic>))
           .toList(),
-      giftId: json['giftId'] as String?,
       contactUserId: json['contactUserId'] as String?,
       postId: json['postId'] as String?,
       stickerId: json['stickerId'] as String?,
@@ -44,7 +43,6 @@ Map<String, dynamic> _$SendMessageDtoToJson(SendMessageDto instance) =>
       'mlsDeviceId': ?instance.mlsDeviceId,
       'frankingTag': ?instance.frankingTag,
       'pushPreviews': ?instance.pushPreviews?.map((e) => e.toJson()).toList(),
-      'giftId': ?instance.giftId,
       'contactUserId': ?instance.contactUserId,
       'postId': ?instance.postId,
       'stickerId': ?instance.stickerId,

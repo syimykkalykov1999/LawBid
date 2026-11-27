@@ -54,6 +54,7 @@ resource "aws_instance" "second" {
     max_lifetime = var.turn_max_allocate_lifetime
     max_bps      = var.turn_max_bps
     quota        = local.quota
+    tcp_443      = var.tcp_443
   })
   user_data_replace_on_change = true
 }

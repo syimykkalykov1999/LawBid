@@ -182,6 +182,14 @@ dependencies {
     implementation("androidx.media3:media3-transformer:1.9.2")
     implementation("androidx.media3:media3-effect:1.9.2")
     implementation("androidx.media3:media3-common:1.9.2")
+    // Owner 26.11: LawBid calls are Android system calls (SystemCalls.kt) —
+    // Jetpack Core-Telecom CallsManager, Apache-2.0, newest stable
+    // (developer.android.com/develop/connectivity/telecom/voip-app/telecom).
+    // Its coroutines API is used directly, so coroutines are declared too.
+    implementation("androidx.core:core-telecom:1.1.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    // Plain JVM tests of the call rules (app/src/test, SystemCallRulesTest).
+    testImplementation("junit:junit:4.13.2")
 }
 
 flutter {

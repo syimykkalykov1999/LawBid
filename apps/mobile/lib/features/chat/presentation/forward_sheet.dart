@@ -9,8 +9,6 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/navigation/pop_if_current.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/text/search_fold.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
-import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
@@ -20,7 +18,7 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-21 (Telegram / WhatsApp «Переслать»): «Forward to…» for
-/// any message — picks chats, groups and channels (several at once), then
+/// any message — picks chats and groups (several at once), then
 /// sends [sources] (oldest first) in one request; a snackbar says how it
 /// went. Every forward goes through the server, so «Forwarded from …», the
 /// target's rules and the disappearing / protected checks always apply.
@@ -84,8 +82,8 @@ class _Row {
   final bool enabled;
 }
 
-/// The chats as a searchable multi-select list in three sections — Chats,
-/// Groups, Channels (the ones I run) — with Send. Rows where I cannot write
+/// The chats as a searchable multi-select list in two sections — Chats and
+/// Groups — with Send. Rows where I cannot write
 /// (a closed chat, an admins-only group) are greyed out. Pops the picked
 /// targets.
 class ForwardTargetSheet extends ConsumerStatefulWidget {
@@ -164,16 +162,6 @@ class _ForwardTargetSheetState extends ConsumerState<ForwardTargetSheet> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final chatsAsync = ref.watch(conversationsProvider);
     final groupsAsync = ref.watch(groupsProvider);
-    final channels = ref.watch(channelsEnabledProvider)
-        ? ref
-                .watch(
-                  channelListProvider(
-                    (scope: ChannelScope.managed, query: ''),
-                  ),
-                )
-                .value ??
-            const <Channel>[]
-        : const <Channel>[];
 
     final allChats = chatsAsync.value?.items ?? const <Conversation>[];
     bool canSend(Conversation c) =>
@@ -217,24 +205,10 @@ class _ForwardTargetSheetState extends ConsumerState<ForwardTargetSheet> {
             enabled: g.canPost,
           ),
     ];
-    final mine = [
-      for (final c in channels)
-        if (c.isAdmin && !c.isClosed && _matches(c.title))
-          _Row(
-            target: ForwardTarget(ForwardTargetKind.channel, c.id),
-            title: c.title,
-            avatarUrl: c.avatarUrl,
-            enabled: true,
-          ),
-    ];
     final searching =
         peopleSuggestQuery(_query.text).length >= peopleSuggestMinChars;
     final loading = chatsAsync.isLoading && chats.isEmpty && groups.isEmpty;
-    final empty = !loading &&
-        !searching &&
-        chats.isEmpty &&
-        groups.isEmpty &&
-        mine.isEmpty;
+    final empty = !loading && !searching && chats.isEmpty && groups.isEmpty;
 
     Widget header(String label) => Padding(
           padding: const EdgeInsetsDirectional.fromSTEB(
@@ -323,7 +297,6 @@ class _ForwardTargetSheetState extends ConsumerState<ForwardTargetSheet> {
                           children: [
                             ...section(t.t('chat.forward.chats'), chats),
                             ...section(t.t('chat.forward.groups'), groups),
-                            ...section(t.t('chat.forward.channels'), mine),
                             PeopleSuggestList(
                               key: const ValueKey('forward-people'),
                               query: _query.text,

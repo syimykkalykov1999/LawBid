@@ -18,13 +18,18 @@ void main() {
       final peer = await Process.start('node', [
         'test/features/chat/e2ee/interop/ts_mls_peer.mjs',
       ]);
+      // A failed expect must not leave node running (flutter test would
+      // never exit).
+      addTearDown(peer.kill);
       final lines = peer.stdout
           .transform(utf8.decoder)
           .transform(const LineSplitter())
           .asBroadcastStream();
       Future<Map<String, dynamic>> ask(Map<String, Object> cmd) async {
         peer.stdin.writeln(jsonEncode(cmd));
-        final answer = jsonDecode(await lines.first) as Map<String, dynamic>;
+        final answer = jsonDecode(
+          await lines.first.timeout(const Duration(seconds: 30)),
+        ) as Map<String, dynamic>;
         expect(answer['error'], isNull);
         return answer;
       }
@@ -79,6 +84,82 @@ void main() {
           await phone.decrypt(g2, base64Decode(hi['message'] as String));
       expect(utf8.decode(lastGot!), 'Последний ключ');
       peer.kill();
+    },
+    skip: node ? false : 'node is not installed',
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test(
+    'G2 groups: external joins across OpenMLS and ts-mls, both ways '
+    '(ts-mls 1.6.4 with LukaJCB/ts-mls#449 backported)',
+    () async {
+      final peer = await Process.start('node', [
+        'test/features/chat/e2ee/interop/ts_mls_peer.mjs',
+      ]);
+      // A failed expect must not leave node running (KNOWN_ERRORS 269).
+      addTearDown(peer.kill);
+      final lines = peer.stdout
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .asBroadcastStream();
+      Future<Map<String, dynamic>> ask(Map<String, Object> cmd) async {
+        peer.stdin.writeln(jsonEncode(cmd));
+        final answer = jsonDecode(
+          await lines.first.timeout(const Duration(seconds: 30)),
+        ) as Map<String, dynamic>;
+        expect(answer['error'], isNull);
+        return answer;
+      }
+
+      Future<OpenMlsEngine> phone(String user, String id) async {
+        final e = await OpenMlsEngine.open(
+          userId: user,
+          vault: MemoryMlsKeyVault(),
+          dbPath: ':memory:',
+        );
+        await e.setDeviceId(id);
+        return e;
+      }
+
+      final alice = await phone('ua', 'phone');
+      final g = Uint8List.fromList(utf8.encode('lawbid:g:interop'));
+      await alice.createGroup(g);
+      final upd = await alice.commit(g, groupInfo: true);
+      await alice.mergeCommit(g);
+
+      // The browser joins from the phone's GroupInfo.
+      final joined = await ask({
+        'op': 'externalJoin',
+        'groupInfo': base64Encode(upd.groupInfo!),
+        'identity': 'ub:web',
+      });
+      expect(joined['epoch'], 2);
+      await alice.applyCommit(g, base64Decode(joined['commit'] as String));
+      final hi = await ask({'op': 'encrypt', 'text': 'вошёл по ссылке'});
+      expect(
+        utf8.decode(
+          (await alice.decrypt(g, base64Decode(hi['message'] as String)))!,
+        ),
+        'вошёл по ссылке',
+      );
+
+      // A new phone joins from the browser's GroupInfo.
+      final carl = await phone('uc', 'phone2');
+      final info = await ask({'op': 'groupInfo'});
+      final j = await carl.joinExternal(
+        base64Decode(info['groupInfo'] as String),
+      );
+      await carl.mergeCommit(g);
+      await alice.applyCommit(g, j.commit);
+      final seen = await ask({
+        'op': 'process',
+        'message': base64Encode(j.commit),
+      });
+      expect(seen['epoch'], 3);
+      final fromWeb = await ask({'op': 'encrypt', 'text': 'всем'});
+      final msg = base64Decode(fromWeb['message'] as String);
+      expect(utf8.decode((await carl.decrypt(g, msg))!), 'всем');
+      expect(utf8.decode((await alice.decrypt(g, msg))!), 'всем');
     },
     skip: node ? false : 'node is not installed',
     timeout: const Timeout(Duration(minutes: 2)),

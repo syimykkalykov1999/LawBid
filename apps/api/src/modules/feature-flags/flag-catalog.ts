@@ -63,11 +63,12 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     app: true,
   },
   {
-    // Owner 2026-10-20: stars (balance bought on the web), gifts, paid stickers.
+    // Owner 2026-10-20: stars (balance bought on the web), paid stickers.
+    // Owner 26.11: gifts are gone.
     key: 'stars',
     enabled: false,
     description:
-      'Stars: balance bought on the web, gifts in chats, paid sticker packs',
+      'Stars: balance bought on the web, paid reactions and sticker packs',
     app: true,
   },
   {
@@ -105,21 +106,24 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
       'Group calls (3+ people): add participants, group call from a group chat',
   },
   {
+    // Owner 26.11: Android calls as real system calls (Telecom, like
+    // WhatsApp / Telegram): a Bluetooth headset, a car kit or a watch
+    // answers, hangs up and mutes; a cellular call holds the call through
+    // Telecom (Jetpack Core-Telecom, app SystemCalls.kt). Off until checked
+    // on a phone with a headset and a car kit: the calls run as before.
+    key: 'calls_android_telecom',
+    enabled: false,
+    app: true,
+    description:
+      'Android: calls are system calls (Telecom) — headset / car / watch answer, hang up, mute; cellular hold via Telecom',
+  },
+  {
     // Owner 2026-10-20: stories (24 h) like Instagram / WhatsApp.
     // Owner 2026-10-22 (R-049): hidden until the next update; the code stays.
     key: 'stories',
     enabled: false,
     app: true,
     description: 'Stories: photo / video / text for 24 hours',
-  },
-  {
-    // Owner 2026-10-20: Telegram-style channels of attorneys and companies.
-    // Owner 2026-11-07 (switch decisions): communities / channels are OFF and
-    // invisible to users by default; the code stays, the admin toggle stays.
-    key: 'channels',
-    enabled: false,
-    app: true,
-    description: 'Channels: posts from admins to subscribers',
   },
   {
     // Owner 2026-11-16 (row 183): chat groups (WhatsApp-style group chats)
@@ -228,14 +232,6 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
     enabled: true,
     app: true,
     description: 'Resumable (multipart) uploads of large files',
-  },
-  {
-    // Owner 2026-11-05: channel post views go through the counter aggregator
-    // (one multi-row UPDATE every few seconds), not one UPDATE per reader.
-    key: 'channel_views_buffered',
-    enabled: true,
-    app: false,
-    description: 'Channel post views are written to the database in batches',
   },
   {
     // Owner 2026-11-05: videos are warmed ahead into the disk cache the player

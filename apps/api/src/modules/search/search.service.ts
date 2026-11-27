@@ -42,7 +42,7 @@ import {
   VISIBLE_POST_WHERE,
 } from '../posts/post-presenter.service';
 import { BlocksService } from '../blocks/blocks.service';
-import type { SuggestItem } from './search.provider';
+import type { RankedHit, SuggestItem } from './search.provider';
 import { ClientProfilesService } from '../profiles/services/client-profiles.service';
 import { RecommendationsService } from '../recommendations/recommendations.service';
 import { reorderWithinTiers } from '../recommendations/ranking.math';
@@ -70,6 +70,23 @@ import { coverUrlOf, type TopicCoversSnapshot } from './topic-covers.job';
 import { GUEST_USER_ID } from '../../common/viewer/guest';
 
 const PAGE = 20;
+/** Personal order moves a result at most this many − 1 places, only among
+ * results of an equal text score, never across a page (People's
+ * reorderWithinTiers chunk). */
+const RERANK_CHUNK = 5;
+
+/**
+ * Owner 26.11: a post / case hit as kept in the shared ranked list,
+ * "id:score" — the score is the provider's text relevance (weighted
+ * ts_rank) in 1e-4 steps, so equal matches compare equal despite float
+ * noise while a title match and a text match never do.
+ */
+function hitToken(h: RankedHit): string {
+  const score = Number.isFinite(h.rank) ? Math.round(h.rank * 1e4) : 0;
+  return `${h.id}:${score}`;
+}
+const tokenId = (t: string): string => t.split(':')[0];
+const tokenScore = (t: string): number => Number(t.split(':')[1] ?? 0);
 /** Ranked results kept per query: 10 pages. */
 const RANKED_MAX = 200;
 /** Ranked id lists are shared by everyone asking the same thing. Batch C
@@ -319,6 +336,54 @@ export class SearchService {
     }
   }
 
+  /**
+   * Owner 26.11 (search «умный как ленты», like Instagram / LinkedIn
+   * search): the shared relevance-ranked "id:score" [tokens] as ids,
+   * re-ordered for the viewer by the feed formula's [affinity] the People
+   * way — only among neighbours of an EQUAL text score (the tier), in runs
+   * of [RERANK_CHUNK] (reorderWithinTiers), and never across a page: every
+   * page holds exactly the ids of the shared page, so a cursor stays valid
+   * even if the personal copy (kept per viewer as long as the shared list)
+   * is rebuilt mid-paging. A better text match is never passed. Guests
+   * have no signals, and [personal] false (an explicit sort) keeps the
+   * shared order.
+   */
+  private async personalIds(
+    user: RequestUser,
+    kind: string,
+    tokens: string[],
+    params: Record<string, unknown>,
+    personal: boolean,
+    affinity: (
+      ids: string[],
+      reco: RecommendationsService,
+    ) => Promise<Map<string, number>>,
+  ): Promise<string[]> {
+    const ids = tokens.map(tokenId);
+    const reco = this.recommendations;
+    if (!personal || !reco || user.guest || ids.length < 2) return ids;
+    return this.ranked(kind, { ...params, viewer: user.sub }, async () => {
+      try {
+        const score = await affinity(ids, reco);
+        const out: string[] = [];
+        for (let i = 0; i < tokens.length; i += PAGE) {
+          out.push(
+            ...reorderWithinTiers(
+              tokens.slice(i, i + PAGE),
+              tokenScore,
+              (t) => score.get(tokenId(t)) ?? 0,
+              RERANK_CHUNK,
+            ).map(tokenId),
+          );
+        }
+        return out;
+      } catch {
+        // Ranking is a bonus: text order is always a valid answer.
+        return ids;
+      }
+    });
+  }
+
   async attorneys(
     user: RequestUser,
     dto: SearchAttorneysQueryDto,
@@ -382,18 +447,32 @@ export class SearchService {
     // Owner 2026-10-15: by relevance (a word in the title outranks one in
     // the text), the ranked ids of this attorney's query kept for a few
     // minutes and paged by position; filters are part of the key.
-    const ids = await this.ranked(
-      'cs',
-      {
-        q,
-        ...params,
-        since: dto.period ?? 'all',
-        urgencyThresholds: undefined,
-        thresholds: params.urgencyThresholds,
-      },
-      () => this.provider.searchCasesRanked(q, params, RANKED_MAX),
+    const key = {
+      q,
+      ...params,
+      since: dto.period ?? 'all',
+      urgencyThresholds: undefined,
+      thresholds: params.urgencyThresholds,
+    };
+    // Owner 26.11: "cs2" — the list now holds "id:score" tokens (a new key,
+    // so a pod still on plain ids never reads them).
+    const tokens = await this.ranked('cs2', key, async () =>
+      (await this.provider.searchCasesRanked(q, params, RANKED_MAX)).map(
+        hitToken,
+      ),
     );
-    const { slice, next } = this.pageOf(ids, dto.cursor);
+    // Owner 26.11 («умный как ленты»): among cases of an equal text score,
+    // the attorney's own cases-feed ranking (practices, licensed states,
+    // freshness, urgency) orders close neighbours.
+    const mine = await this.personalIds(
+      user,
+      'cs-me',
+      tokens,
+      key,
+      true,
+      (shared, reco) => reco.casesAffinity(user.sub, shared),
+    );
+    const { slice, next } = this.pageOf(mine, dto.cursor);
     // §7.6: the provider's rows still pass the single access check.
     const visible = await this.access.visibleCaseIds(
       user.sub,
@@ -476,12 +555,23 @@ export class SearchService {
       sort: dto?.sort,
       contentClass: await this.viewerOnly(user.sub),
     };
-    const ids = await this.ranked(
-      'p',
-      { q, ...filters, since: dto?.period ?? 'all' },
-      () => this.provider.searchPosts(q, RANKED_MAX, filters),
+    const key = { q, ...filters, since: dto?.period ?? 'all' };
+    // Owner 26.11: "p2" — "id:score" tokens (see the cases list).
+    const tokens = await this.ranked('p2', key, async () =>
+      (await this.provider.searchPosts(q, RANKED_MAX, filters)).map(hitToken),
     );
-    const { slice, next } = this.pageOf(ids, cursor);
+    // Owner 26.11 («умный как ленты»): among posts of an equal text score,
+    // close neighbours in the viewer's «Для вас» order. "Newest" /
+    // "popular" are the viewer's own explicit order and stay as asked.
+    const mine = await this.personalIds(
+      user,
+      'p-me',
+      tokens,
+      key,
+      !filters.sort || filters.sort === 'relevance',
+      (shared, reco) => reco.postsAffinity(user.sub, shared),
+    );
+    const { slice, next } = this.pageOf(mine, cursor);
     if (!cursor && !user.guest)
       this.queryLog?.logQuery(user.sub, 'posts', q, slice.length);
     return {

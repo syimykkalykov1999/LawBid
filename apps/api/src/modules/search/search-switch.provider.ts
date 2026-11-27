@@ -279,16 +279,12 @@ export class SwitchingSearchProvider implements SearchProvider {
     return this.route(
       'cases',
       (p) => p.searchCasesRanked(q, params, max),
-      (r) => r,
+      idsOf,
     );
   }
 
   searchPosts(q: string, max: number, f?: PostSearchFilters) {
-    return this.route(
-      'posts',
-      (p) => p.searchPosts(q, max, f),
-      (r) => r,
-    );
+    return this.route('posts', (p) => p.searchPosts(q, max, f), idsOf);
   }
 
   searchQuestions(text: string) {

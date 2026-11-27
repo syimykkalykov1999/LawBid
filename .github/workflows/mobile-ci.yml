@@ -338,10 +338,12 @@ jobs:
       # Owner 2026-10-15 (web, step 1): the same app builds for the browser
       # (WebAssembly). Build check only: nothing is published, and the
       # bundle stays closed unless WEB_ENABLED is set at deploy time.
+      # Same split as web-deploy.yml (KNOWN_ERRORS 270: deferred wasm modules).
       - name: Build web (build-check only — no deploy)
         working-directory: apps/mobile
         run: >-
           flutter build web --wasm -t lib/main_dev.dart
+          --enable-wasm-deferred-loading
           --dart-define-from-file=config/dev.example.json
           --dart-define=WEB_ENABLED=true
 

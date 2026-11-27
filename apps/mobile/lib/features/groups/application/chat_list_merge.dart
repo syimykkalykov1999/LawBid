@@ -434,7 +434,7 @@ final mergedChatSearchProvider = Provider.autoDispose
 );
 
 /// How many of my loaded groups have something unread (the badge on the
-/// «Channels» door of Chats).
+/// «Группы» folder of Chats).
 final unreadGroupsProvider = Provider.autoDispose<int>(
   (ref) => [
     for (final g
@@ -490,11 +490,70 @@ void retryChatListMore(WidgetRef ref, {ChatSearchKey? search}) {
   }
 }
 
+/// The moment my mute of a group lasts to: [mutedFor] from now, forever
+/// for `muted: true`, a moment in the past for `muted: false` (unmute; see
+/// [updateMyGroup]), null when the mute is not changed.
+DateTime? myGroupMutedUntil({bool? muted, Duration? mutedFor}) {
+  final now = DateTime.now();
+  return mutedFor != null
+      ? now.add(mutedFor)
+      : muted == null
+          ? null
+          : muted
+              ? now.add(kMuteForever)
+              : now.subtract(const Duration(seconds: 1));
+}
+
+/// Owner 26.11 (Telegram, WhatsApp): my own pin / mute / hide / archive of
+/// group [id] shown in the chats list now, before the server answers (the
+/// row moves, gets its mark, or leaves). Returns what puts this one row
+/// back (other groups changed meanwhile keep their change).
+void Function() showMyGroupChange(
+  WidgetRef ref,
+  String id, {
+  bool? pinned,
+  DateTime? mutedUntil,
+  bool? hidden,
+  bool? archived,
+}) {
+  final list = ref.read(groupsProvider.notifier);
+  final held = ref
+      .read(groupsProvider)
+      .value
+      ?.items
+      .where((g) => g.id == id)
+      .firstOrNull;
+  if (held == null) return () {};
+  if ((hidden ?? false) || archived != null) {
+    list.removeWhere((g) => g.id == id);
+  } else {
+    list.applyMine(
+      api.GroupDto.fromJson({
+        ...held.toJson(),
+        if (pinned != null) 'pinned': pinned,
+        if (mutedUntil != null) 'mutedUntil': mutedUntil.toIso8601String(),
+      }),
+    );
+  }
+  return () {
+    try {
+      list.applyMine(held);
+    } on Object {
+      // The list is gone; the next open reads it again.
+    }
+  };
+}
+
 /// My own pin / mute / hide of one group, then the list re-reads.
 ///
 /// The generated client cannot send `mutedUntil: null` (null fields are
 /// dropped), so «unmute» sends a moment in the past, which the server
 /// stores and every reader treats as «not muted» ([isGroupMuted]).
+///
+/// Owner 26.11 (Telegram, WhatsApp): the chats list shows the change at
+/// once ([showMyGroupChange]); a refusal puts the row back and the error
+/// goes to the caller's snackbar. [shown]: the caller already showed it
+/// (a multi-chat action shows every row first).
 Future<void> updateMyGroup(
   WidgetRef ref,
   String id, {
@@ -503,23 +562,34 @@ Future<void> updateMyGroup(
   Duration? mutedFor,
   bool? hidden,
   bool? archived,
+  bool shown = false,
 }) async {
-  final now = DateTime.now();
-  final updated = await ref.read(groupRepositoryProvider).updateMine(
-        id,
-        api.UpdateGroupMeDto(
+  final mutedUntil = myGroupMutedUntil(muted: muted, mutedFor: mutedFor);
+  final undo = shown
+      ? () {}
+      : showMyGroupChange(
+          ref,
+          id,
           pinned: pinned,
+          mutedUntil: mutedUntil,
           hidden: hidden,
           archived: archived,
-          mutedUntil: mutedFor != null
-              ? now.add(mutedFor)
-              : muted == null
-                  ? null
-                  : muted
-                      ? now.add(kMuteForever)
-                      : now.subtract(const Duration(seconds: 1)),
-        ),
-      );
+        );
+  final api.GroupDto updated;
+  try {
+    updated = await ref.read(groupRepositoryProvider).updateMine(
+          id,
+          api.UpdateGroupMeDto(
+            pinned: pinned,
+            hidden: hidden,
+            archived: archived,
+            mutedUntil: mutedUntil,
+          ),
+        );
+  } on Object {
+    undo();
+    rethrow;
+  }
   // The write is done: updating the lists is best-effort, never an error.
   try {
     if (!ref.context.mounted) return;

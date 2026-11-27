@@ -15,7 +15,6 @@ const LOCK_ID = 7_770_021;
 const SYSTEM_EMAIL = 'catalog@system.lawbid.invalid';
 
 interface Catalog {
-  gifts: { file: string; code: string; title: string; priceStars: number }[];
   packs: {
     title: string;
     shortName: string;
@@ -25,15 +24,14 @@ interface Catalog {
 }
 
 export interface StarterResult {
-  gifts: number;
   packs: number;
   skipped?: string;
 }
 
 /**
  * Owner 2026-10-20 («целиком»): the first start after a deploy fills the
- * catalog — 17 gifts with prices and 3 official sticker packs (one free,
- * two paid) drawn by us (prisma/seed/economy, rebuilt by generate_art.py).
+ * catalog — 3 official sticker packs (one free, two paid; owner 26.11: no
+ * gifts any more) drawn by us (prisma/seed/economy, rebuilt by generate_art.py).
  * Idempotent and one-time: a marker in app_config, a Postgres advisory lock
  * against two tasks starting together. The admin edits everything after.
  * Skipped without storage keys (the images live in the media bucket), in
@@ -77,7 +75,6 @@ export class StarterCatalogService implements OnApplicationBootstrap {
 
   async run(): Promise<StarterResult> {
     const none = (skipped: string): StarterResult => ({
-      gifts: 0,
       packs: 0,
       skipped,
     });
@@ -136,7 +133,6 @@ export class StarterCatalogService implements OnApplicationBootstrap {
       });
     };
     try {
-      const wantGifts = (await this.prisma.gift.count()) === 0;
       const have = new Set(
         (
           await this.prisma.stickerPack.findMany({
@@ -148,7 +144,6 @@ export class StarterCatalogService implements OnApplicationBootstrap {
         ).map((p) => p.short_name),
       );
       const wantPacks = catalog.packs.filter((p) => !have.has(p.shortName));
-      if (wantGifts) for (const g of catalog.gifts) await upload(g.file);
       for (const p of wantPacks)
         for (const s of p.stickers) await upload(s.file);
 
@@ -184,21 +179,6 @@ export class StarterCatalogService implements OnApplicationBootstrap {
             used.add(file);
             return u.id;
           };
-          let gifts = 0;
-          if (wantGifts && (await tx.gift.count()) === 0) {
-            for (const [i, g] of catalog.gifts.entries()) {
-              await tx.gift.create({
-                data: {
-                  title: g.title,
-                  code: g.code,
-                  price_stars: g.priceStars,
-                  position: i,
-                  file_id: await image(g.file),
-                },
-              });
-              gifts++;
-            }
-          }
           let packs = 0;
           for (const p of wantPacks) {
             if (
@@ -232,10 +212,10 @@ export class StarterCatalogService implements OnApplicationBootstrap {
           await tx.appConfig.create({
             data: {
               key: STARTER_CATALOG_KEY,
-              value: { gifts, packs, at: new Date().toISOString() },
+              value: { packs, at: new Date().toISOString() },
             },
           });
-          return { gifts, packs };
+          return { packs };
         },
         { timeout: 60_000, maxWait: 10_000 },
       );

@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -34,18 +33,13 @@ import {
   type RequestUser,
 } from '../auth/decorators/current-user.decorator';
 import {
-  AdminGiftDto,
-  AdminGiftIdParamDto,
   AdminStarsLedgerQueryDto,
   ConvertGiftResultDto,
-  CreateGiftDto,
-  GiftDto,
   GiftSendDto,
   GiftShowcaseQueryDto,
   StarsDebtDto,
   GrantStarsDto,
   SaveStarsSettingsDto,
-  SendProfileGiftDto,
   SetGiftShownDto,
   StarLedgerItemDto,
   StarsAdminSettingsDto,
@@ -56,7 +50,6 @@ import {
   StarsPurchaseDto,
   StarsReportDto,
   StarsReportQueryDto,
-  UpdateGiftDto,
 } from './stars.dto';
 import { StarsService, type Page } from './stars.service';
 import { AdminAuthService } from '../admin-auth/admin-auth.service';
@@ -77,13 +70,8 @@ class UuidParamDto {
   id!: string;
 }
 
-class GiftIdParamDto {
-  @ApiProperty({ format: 'uuid' })
-  @Matches(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
-  giftId!: string;
-}
-
-/** Owner 2026-10-20: stars — balance, web top-up, gifts. */
+/** Owner 2026-10-20: stars — balance, web top-up. Owner 26.11: gifts are
+ * gone; only received gifts can still be listed, hidden or turned into stars. */
 @ApiTags('stars')
 @ApiBearerAuth()
 @ApiErrors(AUTHENTICATED_ERRORS)
@@ -152,35 +140,6 @@ export class StarsController {
   }
 
   @AssistantAllowed()
-  @Get('gifts')
-  @ApiOperation({ summary: 'The gift catalog' })
-  @ApiEnvelopeResponse(GiftDto, { isArray: true })
-  listGifts(): Promise<GiftDto[]> {
-    return this.stars.catalog();
-  }
-
-  @AttorneyOnly()
-  @Post('gifts/:giftId/send')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Give a gift to a profile (paid in stars)' })
-  @ApiEnvelopeResponse(GiftSendDto)
-  @ApiErrors({
-    400: [E.VALIDATION_ERROR],
-    402: [E.INSUFFICIENT_STARS],
-    403: [E.USER_BLOCKED],
-    404: [E.NOT_FOUND],
-    409: [E.FEATURE_DISABLED],
-    429: [E.RATE_LIMITED],
-  })
-  sendGiftToProfile(
-    @CurrentUser() user: RequestUser,
-    @Param() p: GiftIdParamDto,
-    @Body() dto: SendProfileGiftDto,
-  ): Promise<GiftSendDto> {
-    return this.stars.sendToProfile(user.sub, p.giftId, dto);
-  }
-
-  @AssistantAllowed()
   @Get('users/:id/gifts')
   @ApiOperation({ summary: "A profile's gifts (the owner sees all of theirs)" })
   @ApiEnvelopeResponse(GiftSendDto, { isArray: true })
@@ -224,7 +183,7 @@ export class StarsController {
   }
 }
 
-/** The owner: pack sizes and prices, the gift catalog, the report. */
+/** The owner: pack sizes and prices, the report. */
 @ApiTags('admin-stars')
 @AdminEndpoint('super_admin')
 @Controller('admin/stars')
@@ -252,46 +211,6 @@ export class AdminStarsController {
     // Round 4 (25.11, С2): star pack prices and the gift fee are money.
     await this.auth.assertStepUp(admin.sessionId);
     return this.stars.saveSettings(dto);
-  }
-
-  @Get('gifts')
-  @ApiOperation({ summary: 'The gift catalog with counts' })
-  @ApiEnvelopeResponse(AdminGiftDto, { isArray: true })
-  adminGifts(): Promise<AdminGiftDto[]> {
-    return this.stars.adminGifts();
-  }
-
-  @Post('gifts')
-  @ApiOperation({ summary: 'Add a gift (an uploaded clean image)' })
-  @ApiEnvelopeResponse(AdminGiftDto, { status: HttpStatus.CREATED })
-  @ApiErrors({
-    400: [E.VALIDATION_ERROR],
-    409: [E.FILE_NOT_ATTACHABLE],
-  })
-  createAdminGift(
-    @CurrentAdmin() admin: AdminActor,
-    @Body() dto: CreateGiftDto,
-  ): Promise<AdminGiftDto> {
-    return this.stars.createGift(admin, dto);
-  }
-
-  @Patch('gifts/:id')
-  @ApiOperation({ summary: 'Change a gift: title, price, order, visibility' })
-  @ApiEnvelopeResponse(AdminGiftDto)
-  @ApiErrors({ 400: [E.VALIDATION_ERROR], 404: [E.NOT_FOUND] })
-  updateAdminGift(
-    @Param() p: AdminGiftIdParamDto,
-    @Body() dto: UpdateGiftDto,
-  ): Promise<AdminGiftDto> {
-    return this.stars.updateGift(p.id, dto);
-  }
-
-  @Delete('gifts/:id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Remove a gift from the catalog' })
-  @ApiErrors({ 404: [E.NOT_FOUND] })
-  async deleteAdminGift(@Param() p: AdminGiftIdParamDto): Promise<void> {
-    await this.stars.deleteGift(p.id);
   }
 
   @Get('report')

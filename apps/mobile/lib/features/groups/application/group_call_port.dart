@@ -27,7 +27,7 @@ class RunningCallMember {
   final bool host;
 }
 
-/// A call running in a group chat or a channel (what the «Join» bar needs).
+/// A call running in a group chat (what the «Join» bar needs).
 class GroupRunningCall {
   const GroupRunningCall({
     required this.video,
@@ -52,15 +52,13 @@ class GroupRunningCall {
   final Future<String?> Function(String title, String? avatarUrl) join;
 }
 
-/// What a group chat or a channel needs from the calls feature (the feature
+/// What a group chat needs from the calls feature (the feature
 /// boundaries forbid importing it): start a call, find the one running.
 /// Provided in `run_app.dart`; null in tests.
 class GroupCallPort {
   const GroupCallPort({
     required this.start,
     required this.running,
-    this.startChannel,
-    this.runningChannel,
   });
 
   /// Phone / video button: rings `userIds`; returns the API error code, or
@@ -75,18 +73,6 @@ class GroupCallPort {
 
   /// The call running in `groupId`, else null.
   final Future<GroupRunningCall?> Function(String groupId) running;
-
-  /// Owner 2026-10-21 (inbox 20e): the channel's owner / an admin starts its
-  /// call; nobody is rung. Returns the API error code, or null.
-  final Future<String?> Function(
-    String channelId, {
-    required String title,
-    String? avatarUrl,
-    bool video,
-  })? startChannel;
-
-  /// The call running in `channelId`, else null.
-  final Future<GroupRunningCall?> Function(String channelId)? runningChannel;
 }
 
 final groupCallPortProvider = Provider<GroupCallPort?>((ref) => null);
@@ -126,33 +112,6 @@ final groupRunningCallProvider =
   (ref, groupId) async {
     _followCallEvents(ref, (d) => d['groupId'] == groupId);
     final call = await (ref.watch(groupCallPortProvider)?.running(groupId) ??
-        Future<GroupRunningCall?>.value());
-    if (call != null) _safetyRefresh(ref);
-    return call;
-  },
-);
-
-/// The open channel's socket room: a channel may have thousands of
-/// subscribers, so only the phones that have it open hear its call
-/// (`channel:watch`, re-sent after a reconnect by the client).
-final _channelWatchProvider = Provider.autoDispose.family<void, String>(
-  (ref, channelId) {
-    final rt = ref.watch(realtimeClientProvider);
-    rt?.watchChannel(channelId);
-    ref.onDispose(() => rt?.unwatchChannel(channelId));
-  },
-);
-
-/// The call running in a channel (null = none), followed while it is open.
-final channelRunningCallProvider =
-    FutureProvider.autoDispose.family<GroupRunningCall?, String>(
-  (ref, channelId) async {
-    ref.watch(_channelWatchProvider(channelId));
-    _followCallEvents(ref, (d) => d['channelId'] == channelId);
-    final call = await (ref
-            .watch(groupCallPortProvider)
-            ?.runningChannel
-            ?.call(channelId) ??
         Future<GroupRunningCall?>.value());
     if (call != null) _safetyRefresh(ref);
     return call;

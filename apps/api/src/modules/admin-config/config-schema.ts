@@ -300,6 +300,39 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     min: 0,
     max: 10000,
   };
+  // 26.11 (call spam): call starts per person and unanswered rings in a row.
+  out['calls.start_rate_limit_per_minute'] = {
+    type: 'integer',
+    defaultValue: 15,
+    description:
+      '1:1 calls one person may start per minute (admins are never capped). 0 = no limit.',
+    min: 0,
+    max: 100000,
+  };
+  out['calls.start_rate_limit_per_day'] = {
+    type: 'integer',
+    defaultValue: 300,
+    description:
+      '1:1 calls one person may start per day (admins are never capped). 0 = no limit.',
+    min: 0,
+    max: 1000000,
+  };
+  out['calls.unanswered_in_row_limit'] = {
+    type: 'integer',
+    defaultValue: 5,
+    description:
+      'Unanswered rings in a row (missed, declined or canceled) from one person to the same person before the next ring waits calls.unanswered_cooldown_minutes. A call back or an answered call starts the count over. 0 = off.',
+    min: 0,
+    max: 1000,
+  };
+  out['calls.unanswered_cooldown_minutes'] = {
+    type: 'integer',
+    defaultValue: 60,
+    description:
+      'How long the next ring to the same person waits after calls.unanswered_in_row_limit unanswered rings in a row. 0 = no wait.',
+    min: 0,
+    max: 10080,
+  };
   for (const provider of COST_PROVIDERS) {
     for (const window of ['per_minute_max', 'daily_max', 'monthly_max']) {
       out[`budget.${provider}.${window}`] = {
@@ -342,6 +375,12 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Own coturn relay box: auto = started only while Cloudflare is down and stopped after 30 quiet minutes, on = always running, off = never.',
     pattern: /^(auto|on|off)$/,
+  };
+  out['calls.own_turn.port_443'] = {
+    type: 'boolean',
+    defaultValue: true,
+    description:
+      'Also offer our own TURN as TURN over TCP on port 443 (for networks that let only 443 out: offices, hotels). Off = port 3478 only.',
   };
   out['scale.endpoints.ceiling'] = {
     type: 'integer',
@@ -532,7 +571,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     // admin config stays free of feature modules).
     max: 11,
   };
-  // Owner 2026-10-22 (audit #4 §6): group / channel / post caps.
+  // Owner 2026-10-22 (audit #4 §6): group / post caps.
   out['groups.max_members'] = {
     ...out['groups.max_members'],
     description: 'Most members in one group (2–5000).',
@@ -544,12 +583,6 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Groups whose new messages are delivered at the same moment across all servers (default 64, was a fixed 8). Each is one queue: a group keeps its order inside it; every worker runs one consumer per queue. A larger number takes effect within a minute.',
     min: 1,
-  };
-  out['channels.max_owned'] = {
-    ...out['channels.max_owned'],
-    description: 'Most channels one person may own (0 = no cap).',
-    min: 0,
-    max: 10_000,
   };
   // Owner 2026-10-05: case urgency thresholds (days left) and reminders.
   for (const level of ['very_urgent', 'urgent', 'soon', 'within_month']) {
@@ -1040,6 +1073,38 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     ],
   ] as const) {
     out[key] = { ...out[key], description: text, min: 0, max };
+  }
+  // Group E2EE G1 (owner 26.11, GROUP_E2EE_DESIGN_2026-11-26.md §5).
+  out['groups.e2ee_mode'] = {
+    ...out['groups.e2ee_mode'],
+    description:
+      'End-to-end encryption of group chats (MLS): off (default until the apps are ready) | on | auto. auto = a group is encrypted once every member has an app with MLS keys; on = every group that may be encrypted; off = no new encrypted groups (groups already encrypted stay encrypted).',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['groups.e2ee_public'] = {
+    ...out['groups.e2ee_public'],
+    description:
+      'Encrypt public groups (join by @username) too. Off by default: anyone may join one.',
+  };
+  for (const [key, text] of [
+    [
+      'groups.e2ee_lease_ms',
+      'Milliseconds one device holds the right to commit in an encrypted group (others wait for its commit).',
+    ],
+    [
+      'groups.e2ee_update_days',
+      'Days after which a device updates its own MLS keys in an encrypted group it wrote in (0 = never).',
+    ],
+    [
+      'groups.e2ee_history_max',
+      'Most recent messages a member may send to a person they add to an encrypted group.',
+    ],
+    [
+      'groups.e2ee_group_info_inline_kb',
+      'KiB of an encrypted group’s GroupInfo kept in the database; a bigger one is uploaded as a file.',
+    ],
+  ] as const) {
+    out[key] = { ...out[key], description: text, min: 0 };
   }
   out['chat.e2ee_after_unlock'] = {
     ...out['chat.e2ee_after_unlock'],
@@ -1682,10 +1747,6 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   queueConcurrency(
     'ops.queue_concurrency_case_history_export',
     'Jobs the queue of case history PDF exports runs at once in one server task. Default 2. Applied to the running workers within 30 s.',
-  );
-  queueConcurrency(
-    'ops.queue_concurrency_channel_fanout',
-    'Jobs the queue of channel post deliveries runs at once in one server task. Default 4. Applied to the running workers within 30 s.',
   );
   queueConcurrency(
     'ops.queue_concurrency_data_export',
@@ -2731,6 +2792,18 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   ] as const) {
     out[key] = { ...out[key], description, min, max };
   }
+  // Owner 26.11: one gallery pick in a chat, group or case chat. Owner
+  // 14.11 «no limits for me»: only the technical floor (the phone's picker
+  // needs 2), no ceiling — the phone's own picker caps it physically.
+  {
+    const key = 'media.chat_pick_max';
+    out[key] = {
+      ...out[key],
+      description:
+        'The most photos / videos one gallery pick takes in a chat, group or case chat (30 by default). At least 2, no ceiling.',
+      min: 2,
+    };
+  }
   out['media.voice_transcode_enabled'] = {
     ...out['media.voice_transcode_enabled'],
     description:
@@ -2882,6 +2955,8 @@ export const NO_CEILING: readonly string[] = [
   'infra.tracing_min_requests',
   'infra.cdc_prepare_on_api_tasks',
   'infra.edge_on_api_tasks',
+  // Owner 26.11: one gallery pick in a chat; floor 2 (the phone's picker).
+  'media.chat_pick_max',
 ];
 
 /** Owner 2026-10-27: scores take decimals, modes take fixed words,

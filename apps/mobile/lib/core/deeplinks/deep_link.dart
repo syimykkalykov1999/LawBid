@@ -118,40 +118,31 @@ final class GroupInviteDeepLink extends DeepLink {
   String toString() => 'GroupInviteDeepLink(<redacted>)';
 }
 
-enum ContentKind { caseItem, lawyer, post, group, channel }
+enum ContentKind { caseItem, lawyer, post, group }
 
 /// `/case/:id`, `/lawyer/:username`, `/post/:id`, `/g/<code or @username>`
-/// (a group invite), `/c/:username` — content that lives in files 03–05
-/// (opened by the router). A channel link may name one post
-/// (`/c/:username?post=<id>`).
+/// (a group invite) — content that lives in files 03–05 (opened by the
+/// router).
 final class ContentDeepLink extends DeepLink {
-  const ContentDeepLink(this.kind, this.id, {this.postId});
+  const ContentDeepLink(this.kind, this.id);
 
   final ContentKind kind;
   final String id;
-
-  /// Channel links only: the shared post, shown first.
-  final String? postId;
 
   /// In-app go_router location for this link.
   String get location => switch (kind) {
         ContentKind.caseItem => '/case/${Uri.encodeComponent(id)}',
         ContentKind.lawyer => '/lawyer/${Uri.encodeComponent(id)}',
         ContentKind.post => '/post/${Uri.encodeComponent(id)}',
-        ContentKind.channel => '/c/${Uri.encodeComponent(id)}'
-            '${postId == null ? '' : '?post=${Uri.encodeComponent(postId!)}'}',
         ContentKind.group => '/g/${Uri.encodeComponent(id)}',
       };
 
   @override
   bool operator ==(Object other) =>
-      other is ContentDeepLink &&
-      other.kind == kind &&
-      other.id == id &&
-      other.postId == postId;
+      other is ContentDeepLink && other.kind == kind && other.id == id;
 
   @override
-  int get hashCode => Object.hash(kind, id, postId);
+  int get hashCode => Object.hash(kind, id);
 
   @override
   String toString() => 'ContentDeepLink($kind, $id)';
@@ -197,10 +188,6 @@ final _qrNoncePattern = RegExp(r'^[A-Za-z0-9_-]{16,128}$');
 /// docs/01_FOUNDATION_AUTH.md §12: "3-30 символов, латиница, цифры, `_` и `.`".
 final _usernamePattern = RegExp(r'^[A-Za-z0-9_.]{3,30}$');
 
-/// A channel's @username (server: 4–32 letters, digits, `_`, lowercase; the
-/// link may carry capitals).
-final _channelUsernamePattern = RegExp(r'^@?[A-Za-z][A-Za-z0-9_]{3,31}$');
-
 /// A group invite: the 16-char base64url code of the link, or the public
 /// group's @username (5-32 chars, GROUP_USERNAME_RE on the server).
 final _groupCodePattern = RegExp(r'^@?[A-Za-z0-9_-]{4,64}$');
@@ -245,7 +232,6 @@ String? _paymentReturn(String kind, String step, Uri uri) {
   return null;
 }
 
-/// `?post=<id>` of a channel link, when it is a well-formed id.
 /// Stripe Checkout Session ids (`cs_test_…`, `cs_live_…`) and our own card
 /// page's (`own:…`); the server caps the id at 200 characters.
 final _checkoutSessionPattern = RegExp(r'^[A-Za-z0-9_:-]{1,200}$');
@@ -263,15 +249,6 @@ String _withSession(String location, String step, Uri uri) {
   return _checkoutSessionPattern.hasMatch(id)
       ? '$location?session_id=${Uri.encodeQueryComponent(id)}'
       : location;
-}
-
-String? _sharedPostId(Uri uri) {
-  try {
-    final post = uri.queryParameters['post'];
-    return post != null && _idPattern.hasMatch(post) ? post : null;
-  } catch (_) {
-    return null; // malformed query encoding
-  }
 }
 
 /// Parses [uri] into a [DeepLink], or null when it isn't one of ours.
@@ -413,11 +390,6 @@ DeepLink? _parseKnown(
       ContentDeepLink(ContentKind.caseItem, id),
     'post' when _idPattern.hasMatch(id) =>
       ContentDeepLink(ContentKind.post, id),
-    'c' when _channelUsernamePattern.hasMatch(id) => ContentDeepLink(
-        ContentKind.channel,
-        (id.startsWith('@') ? id.substring(1) : id).toLowerCase(),
-        postId: _sharedPostId(uri),
-      ),
     'g' when _groupCodePattern.hasMatch(id) =>
       ContentDeepLink(ContentKind.group, id),
     // Owner 2026-10-22 (audit #4 §9): the shared SEO page

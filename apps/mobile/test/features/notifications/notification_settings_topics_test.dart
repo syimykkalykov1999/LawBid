@@ -10,7 +10,6 @@ import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
@@ -169,11 +168,9 @@ List<Override> _overrides(
   _Repo repo, {
   UserRole role = UserRole.attorney,
   Translator? translator,
-  bool channelsOn = true,
   bool groupsOn = true,
 }) =>
     [
-      channelsEnabledProvider.overrideWithValue(channelsOn),
       groupsEnabledProvider.overrideWithValue(groupsOn),
       ...uxOverrides(translator: translator ?? const StaticTranslatorEn()),
       notificationsRepositoryProvider.overrideWithValue(repo),
@@ -360,11 +357,11 @@ void main() {
     expect(tasks.onChanged, isNull);
   });
 
-  testWidgets('channels flag off: no Channels switch (R-386)', (t) async {
+  // Owner 26.11: channels are gone; an old server's «Channels» switch never
+  // shows.
+  testWidgets('no Channels switch', (t) async {
     _tall(t);
-    final c = ProviderContainer(
-      overrides: _overrides(_Repo(), channelsOn: false),
-    );
+    final c = ProviderContainer(overrides: _overrides(_Repo()));
     addTearDown(c.dispose);
     await t.pumpWidget(_app(c));
     await t.pumpAndSettle();
@@ -382,17 +379,6 @@ void main() {
     await t.pumpWidget(_app(c));
     await t.pumpAndSettle();
     expect(find.byKey(const ValueKey('notif-topic-groups')), findsNothing);
-    expect(find.byKey(const ValueKey('notif-topic-channels')), findsOneWidget);
-  });
-
-  testWidgets('channels flag on: the Channels switch is there (R-386)',
-      (t) async {
-    _tall(t);
-    final c = ProviderContainer(overrides: _overrides(_Repo()));
-    addTearDown(c.dispose);
-    await t.pumpWidget(_app(c));
-    await t.pumpAndSettle();
-    expect(find.byKey(const ValueKey('notif-topic-channels')), findsOneWidget);
   });
 
   testWidgets('a client sees no attorney blocks', (t) async {

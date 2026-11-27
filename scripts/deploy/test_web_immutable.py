@@ -26,7 +26,7 @@ HEAD = "var V = '__LB_V__';\nvar E = '__LB_E__';\nvar D = '__LB_D__';\n"
 def build(root, rev=REV, head=HEAD):
     os.makedirs(os.path.join(root, "canvaskit", "chromium"))
     os.makedirs(os.path.join(root, "assets", "shaders"))
-    for f in ("main.dart.wasm", "main.dart.mjs", "main.dart.js", "main.dart.js_1.part.js", "index.html",
+    for f in ("main.dart.wasm", "main.dart.mjs", "main.dart.js", "main.dart.js_1.part.js", "main.dart_module1.wasm", "index.html",
               "drift_worker.js", "sqlite3.wasm"):
         open(os.path.join(root, f), "w").write(f)
     for f in ("canvaskit.js", "canvaskit.wasm", "skwasm.js", "skwasm.wasm", "chromium/canvaskit.wasm"):
@@ -63,6 +63,10 @@ class EngineFolder(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(self.root, "v", REV, "canvaskit", "chromium", "canvaskit.wasm")))
         self.assertTrue(os.path.isfile(os.path.join(self.root, "v", SHA, "main.dart.wasm")))
         self.assertTrue(os.path.isfile(os.path.join(self.root, "v", SHA, "main.dart.js_1.part.js")))
+        # KNOWN_ERRORS 270: the deferred WebAssembly modules sit next to main.dart.wasm
+        # (the loader fetches them from entrypointBaseUrl), never at the root.
+        self.assertTrue(os.path.isfile(os.path.join(self.root, "v", SHA, "main.dart_module1.wasm")))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "main.dart_module1.wasm")))
         self.assertTrue(os.path.isfile(os.path.join(self.root, "v", SHA, "assets", "NOTICES")))
         self.assertFalse(os.path.exists(os.path.join(self.root, "v", SHA, "canvaskit")))
         self.assertFalse(os.path.exists(os.path.join(self.root, "canvaskit")))

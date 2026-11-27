@@ -41,12 +41,38 @@ class _FakeCache implements BaseCacheManager {
     });
   }
 
+  /// Copies already on the phone, by key: (bytes, valid till).
+  final kept = <String, (List<int>, DateTime)>{};
+  final removed = <String>[];
+
   @override
-  Future<void> removeFile(String key) async {}
+  Future<void> removeFile(String key) async {
+    removed.add(key);
+    kept.remove(key);
+  }
+
+  Future<FileInfo?> _cached(String key) async {
+    final k = kept[key];
+    if (k == null) return null;
+    final f = await _fs.createFile('kept${key.hashCode}');
+    await f.writeAsBytes(k.$1);
+    return FileInfo(f, FileSource.Cache, k.$2, key);
+  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #getFileFromCache) {
+      return _cached(invocation.positionalArguments.first as String);
+    }
     if (invocation.memberName == #getSingleFile) {
+      final url = invocation.positionalArguments.first as String;
+      final key = invocation.namedArguments[#key] as String? ?? url;
+      final k = kept[key];
+      // The package's own rule (cache_manager.dart getSingleFile): a copy
+      // past its HTTP validTill is downloaded again.
+      if (k != null && k.$2.isAfter(DateTime.now())) {
+        return _cached(key).then((i) => i!.file);
+      }
       return _get(
         invocation.positionalArguments.first as String,
         invocation.namedArguments[#key] as String?,
@@ -178,5 +204,72 @@ void main() {
     );
     expect(fullPictureOf('https://cdn.x/avatar/f'), isNull);
     expect(fullPictureOf(_fresh), isNull);
+  });
+
+  testWidgets(
+    'owner 27.11: a kept chat photo past its HTTP max-age (1 h) loads from '
+    'the phone, even when its saved link has expired',
+    (tester) async {
+      await tester.runAsync(() async {
+        // Chat media answers `Cache-Control: private, max-age=3600`; the saved
+        // link lives 15 min. Hours later: the copy is "stale", the link 403.
+        final cache = _FakeCache({}, status: 403);
+        const key = '/chat_attachment/u1/f9';
+        cache.kept[key] = (
+          _png,
+          DateTime.now().subtract(const Duration(hours: 5)),
+        );
+        final photo = StableNetworkImage(
+          'https://media.lawbid.test$key?Expires=1&Signature=s&Key-Pair-Id=k',
+          cacheManager: cache,
+        );
+        expect(await _loads(photo), isTrue);
+        expect(cache.fetched, isEmpty, reason: 'no download, no 403');
+        expect(cache.removed, isEmpty, reason: 'the good copy stays');
+      });
+    },
+  );
+
+  testWidgets('a failed download never removes a copy (only a broken file)', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      final cache = _FakeCache({}, status: 403);
+      final photo = StableNetworkImage(
+        'https://media.lawbid.test/chat_attachment/u1/f10'
+        '?Expires=1&Signature=s&Key-Pair-Id=k',
+        cacheManager: cache,
+      );
+      expect(await _loads(photo), isFalse);
+      expect(cache.removed, isEmpty);
+    });
+  });
+
+  test('signed link expiry: CloudFront Expires and S3 X-Amz-*', () {
+    final now = DateTime.utc(2026, 11, 27, 22, 30);
+    expect(
+      signedLinkExpired(
+        'https://m.test/a?Expires=${now.millisecondsSinceEpoch ~/ 1000 - 60}'
+        '&Signature=s&Key-Pair-Id=k',
+        now: now,
+      ),
+      isTrue,
+    );
+    expect(
+      signedLinkExpired(
+        'https://m.test/a?Expires=${now.millisecondsSinceEpoch ~/ 1000 + 900}'
+        '&Signature=s&Key-Pair-Id=k',
+        now: now,
+      ),
+      isFalse,
+    );
+    expect(
+      signedLinkExpiry(
+        'https://s3.test/a?X-Amz-Date=20261127T221500Z&X-Amz-Expires=900'
+        '&X-Amz-Signature=s',
+      ),
+      DateTime.utc(2026, 11, 27, 22, 30),
+    );
+    expect(signedLinkExpired('https://cdn.test/a.jpg', now: now), isFalse);
   });
 }

@@ -43,7 +43,7 @@ function make(opts: {
   cf?: Record<string, string>;
   turn?: Record<string, string>;
   slo?: { count: jest.Mock };
-  settings?: Record<string, string | number>;
+  settings?: Record<string, string | number | boolean>;
   /** Read on every request (key rotation tests). */
   keys?: () => Record<string, string> | undefined;
   /** The breaker probe's STUN + Allocate step (alive by default). */
@@ -73,6 +73,8 @@ function make(opts: {
   args.push({
     string: (k: string) => Promise.resolve(String(st[k] ?? 'auto')),
     number: (k: string) => Promise.resolve(Number(st[k] ?? defaults[k] ?? 0)),
+    boolean: (k: string) =>
+      Promise.resolve(typeof st[k] === 'boolean' ? st[k] : true),
   });
   const Ctor = CallsService as unknown as new (...a: unknown[]) => CallsService;
   const svc = new Ctor(...args);
@@ -194,6 +196,26 @@ describe('calls.transport: a healthy Cloudflare takes all the work (owner 2026-1
     }).iceServers(user);
     expect(r.iceTransportPolicy).toBe('all');
     expect(urls(r)).toContain('own.example');
+  });
+
+  it('ours: UDP 3478, TCP 3478 and TCP 443, no turns: (26.11)', async () => {
+    const r = await make({ turn: ownTurn }).iceServers(user);
+    expect(r.iceServers.find((s) => s.username)?.urls).toEqual([
+      'turn:own.example:3478',
+      'turn:own.example:3478?transport=tcp',
+      'turn:own.example:443?transport=tcp',
+    ]);
+  });
+
+  it('ours with calls.own_turn.port_443 off: 3478 only, as before', async () => {
+    const r = await make({
+      turn: ownTurn,
+      settings: { 'calls.own_turn.port_443': false },
+    }).iceServers(user);
+    expect(r.iceServers.find((s) => s.username)?.urls).toEqual([
+      'turn:own.example:3478',
+      'turn:own.example:3478?transport=tcp',
+    ]);
   });
 
   it.each(['auto'])('%s + Cloudflare login fails: ours at once', async (m) => {

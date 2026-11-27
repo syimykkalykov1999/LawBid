@@ -4,10 +4,6 @@
 
 const shareToRu = <String, String>{
   'share.to.search': 'Поиск',
-  'share.to.chats': 'Чаты',
-  'share.to.communities': 'Сообщества',
-  'share.to.groups': 'Группы',
-  'share.to.channels': 'Каналы',
   'share.to.note': 'Добавьте сообщение…',
   'share.to.send': 'Отправить',
   'share.to.sent': 'Отправлено',
@@ -17,8 +13,6 @@ const shareToRu = <String, String>{
   'share.to.story': 'Добавить в историю',
   'share.to.copyLink': 'Копировать ссылку',
   'share.to.noChats': 'Пока нет чатов',
-  'share.to.noGroups': 'Нет групп, где можно писать',
-  'share.to.noChannels': 'У вас нет своих каналов',
   'share.to.empty': 'Ничего не найдено',
   'chat.post.label': 'Публикация',
   'chat.post.unavailable': 'Публикация недоступна',
@@ -27,10 +21,6 @@ const shareToRu = <String, String>{
 
 const shareToEn = <String, String>{
   'share.to.search': 'Search',
-  'share.to.chats': 'Chats',
-  'share.to.communities': 'Communities',
-  'share.to.groups': 'Groups',
-  'share.to.channels': 'Channels',
   'share.to.note': 'Write a message…',
   'share.to.send': 'Send',
   'share.to.sent': 'Sent',
@@ -40,8 +30,6 @@ const shareToEn = <String, String>{
   'share.to.story': 'Add to story',
   'share.to.copyLink': 'Copy link',
   'share.to.noChats': 'No chats yet',
-  'share.to.noGroups': 'No groups you can post in',
-  'share.to.noChannels': "You don't have channels",
   'share.to.empty': 'Nothing found',
   'chat.post.label': 'Post',
   'chat.post.unavailable': 'Post unavailable',

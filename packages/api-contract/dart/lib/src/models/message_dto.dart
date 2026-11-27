@@ -7,7 +7,6 @@ import 'package:json_annotation/json_annotation.dart';
 import 'call_log_dto.dart';
 import 'chat_attachment_dto.dart';
 import 'contact_card_dto.dart';
-import 'gift_send_dto.dart';
 import 'message_dto_type.dart';
 import 'reaction_dto.dart';
 import 'reply_preview_dto.dart';
@@ -36,7 +35,6 @@ class MessageDto {
     this.mlsEpoch,
     this.blobUrl,
     this.frankingTag,
-    this.gift,
     this.contact,
     this.post,
     this.sticker,
@@ -73,9 +71,6 @@ class MessageDto {
 
   /// Item 25 (type=mls, message franking): base64 HMAC-SHA256(k, P) the sender stored; the receiver checks it against the plaintext it decrypted.
   final String? frankingTag;
-
-  /// Owner 2026-10-20: the gift of a gift message.
-  final GiftSendDto? gift;
 
   /// Owner 2026-10-20: the attorney card of a `contact` message.
   final ContactCardDto? contact;

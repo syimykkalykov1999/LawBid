@@ -35,7 +35,6 @@ export const QUEUE_CONCURRENCY: Readonly<
     key: 'ops.queue_concurrency_case_history_export',
     default: 2,
   },
-  'channel-fanout': { key: 'ops.queue_concurrency_channel_fanout', default: 4 },
   'data-export': { key: 'ops.queue_concurrency_data_export', default: 2 },
   'deal-record': { key: 'ops.queue_concurrency_deal_record', default: 2 },
   files: { key: 'ops.queue_concurrency_files', default: 2 },

@@ -36,7 +36,6 @@ export const APP_PATHS = [
   ['/u/*', 'Profile QR code: a user by @username'],
   ['/q/*', 'Website sign-in QR code'],
   ['/g/*', 'Group invitation'],
-  ['/c/*', 'Channel (lawbid.dev/c/<username>)'],
   ['/auth/email-code', 'Email magic sign-in link'],
   ['/verification/wizard', 'Continue verification on the phone (ID selfie), owner 2026-10-28'],
   ['/selfie/*', 'One-time «continue on your phone» code for the ID selfie (R-146)'],

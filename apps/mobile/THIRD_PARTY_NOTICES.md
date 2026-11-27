@@ -342,6 +342,22 @@ Media3 Transformer library (androidx.media3:media3-transformer, -effect,
 The Android Open Source Project. Licensed under the Apache License, Version
 2.0, as for livekit_client above.
 
+## AndroidX Core-Telecom 1.1.0 — Apache-2.0
+
+Owner 26.11 (Android calls as system calls, switch `calls_android_telecom`):
+`android/app/src/main/kotlin/com/lawbid/lawbid/SystemCalls.kt` adds the call
+to Android Telecom with Jetpack Core-Telecom `CallsManager`
+(androidx.core:core-telecom 1.1.0,
+https://developer.android.com/jetpack/androidx/releases/core-telecom):
+`registerAppWithTelecom`, `addCall` with `onAnswer` / `onDisconnect` /
+`onSetActive` / `onSetInactive`, `CallControlScope.answer` / `setActive` /
+`disconnect` / `requestEndpointChange` and the `isMuted` flow, hosted in the
+phoneCall foreground service with a CallStyle notification, as the official
+guide «Telecom → Core-Telecom» shows
+(developer.android.com/develop/connectivity/telecom/voip-app/telecom, read
+2026-11-26). Copyright The Android Open Source Project. Licensed under the
+Apache License, Version 2.0, as for livekit_client above.
+
 ## Google Tink 1.24.0 — Apache-2.0
 
 M12 (26.11): `android/app/src/main/kotlin/com/lawbid/lawbid/PushPreviewKeys.kt`
@@ -974,10 +990,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Item 25 (end-to-end encrypted chats on MLS, RFC 9420): the web app's MLS
 client. `web/vendor/ts-mls-1.6.4/ts-mls.min.js` is the npm package
 `ts-mls@1.6.4` (https://github.com/LukaJCB/ts-mls) and its dependencies
-bundled **unmodified** into one ES module by esbuild 0.28.2
-(`tool/web_mls/build.sh`, entry `tool/web_mls/entry.mjs`); sha256
-e2fdcabfb4e05195fa7f9735602240e221ef5c9802c924c13f19f3403a2982f4. Our own
-glue is `web/js/mls.js`. The phones use OpenMLS through the `openmls` pub
+bundled into one ES module by esbuild 0.28.2 (`tool/web_mls/build.sh`, entry
+`tool/web_mls/entry.mjs`); sha256
+bb39c8347b98510e1ee4a427ed04b871afe99f3ffa0a5b8f64ffe6d160b6dc93.
+**Modified:** this is ts-mls 1.6.4 with upstream PR #449 («Update
+external_pub codec to use nested length prefix»,
+https://github.com/LukaJCB/ts-mls/pull/449, merged to ts-mls main on
+28.04.2026) backported to `dist/src/createCommit.js`: the GroupInfo's
+external_pub is written and read as `HPKEPublicKey<V>` (RFC 9420 §12.4.3.2).
+The change is `tool/web_mls/ts-mls-1.6.4-external-pub.patch`, also shipped
+next to the bundle as `web/vendor/ts-mls-1.6.4/PATCHES.patch`; everything
+else, and every dependency, is unmodified (without the patch the same build
+gives sha256 e2fdcabfb4e05195fa7f9735602240e221ef5c9802c924c13f19f3403a2982f4).
+Our own glue is `web/js/mls.js`. The phones use OpenMLS through the `openmls` pub
 package (MIT; Flutter adds its LICENSE to the app's licence list itself).
 
 Encrypted chat files and the encrypted backup (item 25, PR 4) use AES-256-GCM

@@ -9,8 +9,7 @@ import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
-import 'package:lawbid/features/channels/domain/channel_models.dart';
+import 'package:lawbid/features/cases/presentation/widgets/pill_tabs.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/post_share.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
@@ -27,7 +26,6 @@ import 'package:material_ui/material_ui.dart';
 import '../../helpers/long_locale.dart';
 import '../../helpers/pending_strings.dart';
 import '../../helpers/ux_harness.dart';
-import '../channels/channels_fakes.dart' show fakeChannel;
 import '../groups/fake_group_repository.dart';
 import '../social/social_fakes.dart';
 
@@ -104,7 +102,6 @@ class _Chats implements ChatRepository {
 class _Sender implements PostShareSender {
   final chats = <(String, String, String?)>[];
   final groups = <(String, String, String?)>[];
-  final channels = <(String, String, String?)>[];
 
   @override
   Future<void> toChat(
@@ -117,10 +114,6 @@ class _Sender implements PostShareSender {
   @override
   Future<void> toGroup(api.GroupDto group, String link, {String? note}) async =>
       groups.add((group.id, link, note));
-
-  @override
-  Future<void> toChannel(String channelId, String link, {String? note}) async =>
-      channels.add((channelId, link, note));
 }
 
 class _Social extends FakeSocialRepository {
@@ -174,21 +167,18 @@ void main() {
         _Sender sender,
         _Social social,
         _Chats chats,
-        List<ChannelListKey> keys
       })> open(
     WidgetTester tester, {
     Translator translator = const StaticTranslatorEn(),
     ThemeData? theme,
     TextDirection dir = TextDirection.ltr,
     double scale = 1,
-    bool communities = true,
     bool groups = true,
   }) async {
     useNarrowPhone(tester);
     final sender = _Sender();
     final social = _Social();
     final chats = _Chats();
-    final keys = <ChannelListKey>[];
     final overrides = <Override>[
       ...uxOverrides(translator: translator, social: social),
       chatRepositoryProvider.overrideWithValue(chats),
@@ -206,17 +196,6 @@ void main() {
       ),
       // Row 183: the switch «Группы в чатах» (on by default).
       groupsEnabledProvider.overrideWithValue(groups),
-      channelListProvider.overrideWith((ref, key) async {
-        keys.add(key);
-        if (key.scope != ChannelScope.managed) return const [];
-        return [
-          fakeChannel(
-            title: 'Immigration law weekly digest for families',
-            role: ChannelRole.admin,
-          ),
-        ];
-      }),
-      channelsEnabledProvider.overrideWithValue(communities),
       postShareSenderProvider.overrideWithValue(sender),
       storiesEnabledProvider.overrideWithValue(true),
     ];
@@ -251,7 +230,7 @@ void main() {
     );
     await tester.tap(find.text('share'));
     await tester.pumpAndSettle();
-    return (sender: sender, social: social, chats: chats, keys: keys);
+    return (sender: sender, social: social, chats: chats);
   }
 
   Finder chat(String id) => find.byKey(ValueKey('share-to-chat-$id'));
@@ -266,9 +245,8 @@ void main() {
   });
 
   testWidgets(
-      'pick two chats, a group and a channel, add a note, send: one card '
-      'per chat, the link to the group / channel, the share counted once',
-      (tester) async {
+      'pick two chats and a group, add a note, send: one card per chat, '
+      'the link to the group, the share counted once', (tester) async {
     final r = await open(tester);
     // Chats I can write in only.
     expect(chat('a'), findsOneWidget);
@@ -288,23 +266,13 @@ void main() {
     expect(find.byKey(const ValueKey('share-to-send')), findsOneWidget);
     expect(find.byKey(const ValueKey('share-system')), findsNothing);
 
-    await tester.tap(find.text('Communities'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('share-to-group-g1')), findsOneWidget);
+    // The groups I can write in follow the chats on the one tab.
+    final g1 = find.byKey(const ValueKey('share-to-group-g1'));
+    expect(g1, findsOneWidget);
     // A group where I cannot write is not offered.
     expect(find.byKey(const ValueKey('share-to-group-g2')), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('share-to-group-g1')));
-    await tester.pump();
-
-    // Swipe to Channels: only the ones I run.
-    await tester.drag(
-      find.byKey(const ValueKey('share-to-groups')),
-      const Offset(-300, 0),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('share-to-channel-ch-1')), findsOneWidget);
-    expect(r.keys.every((k) => k.scope == ChannelScope.managed), isTrue);
-    await tester.tap(find.byKey(const ValueKey('share-to-channel-ch-1')));
+    await tester.ensureVisible(g1);
+    await tester.tap(g1);
     await tester.pump();
 
     await tester.enterText(
@@ -323,94 +291,27 @@ void main() {
     ]);
     expect(r.sender.groups.single.$1, 'g1');
     expect(r.sender.groups.single.$2, contains('/post/p1'));
-    expect(r.sender.channels.single.$1, 'ch-1');
     expect(r.social.shares, ['p1']);
     // The sheet is closed.
     expect(find.byKey(const ValueKey('share-to-send')), findsNothing);
   });
 
   // Owner 2026-11-16 (row 183): «Группы» off = no group anywhere here.
-  testWidgets('groups flag off: Communities is the channels only (row 183)',
+  testWidgets('groups flag off: no group rows on Chats (row 183)',
       (tester) async {
     await open(tester, groups: false);
-    await tester.tap(find.text('Communities'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('share-to-groups')), findsNothing);
-    expect(find.byKey(const ValueKey('share-to-group-g1')), findsNothing);
-    expect(find.byKey(const ValueKey('share-to-channel-ch-1')), findsOneWidget);
-  });
-
-  testWidgets('groups and channels off: no group rows on Chats (row 183)',
-      (tester) async {
-    await open(tester, communities: false, groups: false);
     expect(chat('a'), findsOneWidget);
     expect(find.byKey(const ValueKey('share-to-group-g1')), findsNothing);
   });
 
-  testWidgets('channels flag off: only the Chats tab, no Communities (R-386)',
-      (tester) async {
-    await open(tester, communities: false);
-    expect(find.text('Chats'), findsOneWidget);
+  // Owner 27.11: no tab bar at all — one list of chats and groups.
+  testWidgets('no tab bar: no Chats or Communities segment', (tester) async {
+    await open(tester);
+    expect(find.byWidgetPredicate((w) => w is PillTabs), findsNothing);
+    expect(find.text('Chats'), findsNothing);
     expect(find.text('Communities'), findsNothing);
     expect(chat('a'), findsOneWidget);
     expect(find.byKey(const ValueKey('share-to-groups')), findsNothing);
-  });
-
-  testWidgets('flag off: writable groups are on Chats and sharing works',
-      (tester) async {
-    final r = await open(tester, communities: false);
-    final g1 = find.byKey(const ValueKey('share-to-group-g1'));
-    expect(g1, findsOneWidget);
-    expect(find.byKey(const ValueKey('share-to-group-g2')), findsNothing);
-    await tester.ensureVisible(g1);
-    await tester.tap(g1);
-    await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('share-to-send')));
-    await tester.pumpAndSettle();
-    expect(r.sender.groups.single.$1, 'g1');
-    expect(r.social.shares, ['p1']);
-  });
-
-  testWidgets('flag on: groups are not on Chats, only under Communities',
-      (tester) async {
-    await open(tester);
-    expect(find.byKey(const ValueKey('share-to-group-g1')), findsNothing);
-    await tester.tap(find.text('Communities'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('share-to-group-g1')), findsOneWidget);
-  });
-
-  testWidgets('channels flag on: both tabs (R-386)', (tester) async {
-    await open(tester);
-    expect(find.text('Chats'), findsOneWidget);
-    expect(find.text('Communities'), findsOneWidget);
-  });
-
-  testWidgets('swipe Groups -> Channels and back, and on to Chats',
-      (tester) async {
-    await open(tester);
-    await tester.tap(find.text('Communities'));
-    await tester.pumpAndSettle();
-    await tester.drag(
-      find.byKey(const ValueKey('share-to-groups')),
-      const Offset(-300, 0),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('share-to-channel-ch-1')), findsOneWidget);
-    await tester.drag(
-      find.byKey(const ValueKey('share-to-channels')),
-      const Offset(300, 0),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('share-to-group-g1')), findsOneWidget);
-    // On Groups a swipe back goes on to Chats.
-    await tester.drag(
-      find.byKey(const ValueKey('share-to-groups')),
-      const Offset(300, 0),
-    );
-    await tester.pumpAndSettle();
-    expect(chat('a'), findsOneWidget);
-    expect(find.byKey(const ValueKey('share-to-group-g1')), findsNothing);
   });
 
   testWidgets('search asks the server for chats and filters the groups',
@@ -428,10 +329,7 @@ void main() {
     expect(r.chats.queries, contains('boris'));
     expect(chat('b'), findsOneWidget);
     expect(chat('a'), findsNothing);
-    await tester.tap(find.text('Communities'));
-    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('share-to-group-g1')), findsNothing);
-    expect(find.text('Nothing found'), findsWidgets);
   });
 
   testWidgets('closing the sheet counts nothing', (tester) async {
@@ -489,13 +387,6 @@ void main() {
           // The send panel.
           await tester.tap(chat('a'));
           await tester.pump();
-          expect(tester.takeException(), isNull);
-          // Communities: groups and channels.
-          await tester.tap(find.text(t.t('share.to.communities')));
-          await tester.pumpAndSettle();
-          expect(tester.takeException(), isNull);
-          await tester.tap(find.text(t.t('share.to.channels')));
-          await tester.pumpAndSettle();
           expect(tester.takeException(), isNull);
         });
       }

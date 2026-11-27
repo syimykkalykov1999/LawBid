@@ -37,6 +37,8 @@ const NOT_SECRET_COLUMNS: Readonly<Record<string, string>> = {
   'CaseJournal.row_hash': 'tamper-evident chain link, verifiable by design',
   'CaseSignature.image_key': 'object storage key (private bucket, signed URLs)',
   'ChannelPost.forward_key': 'dedupe key of a forwarded post',
+  'ChatGroupMessage.ciphertext':
+    'end-to-end encrypted group payload, delivered to the members by design (MLS, group E2EE G1)',
   'ContactBookHash.phone_hash':
     'contact matching key, read only by the contact sync of its own owner',
   'ContactSyncSetting.book_hash': 'change detector of an uploaded address book',

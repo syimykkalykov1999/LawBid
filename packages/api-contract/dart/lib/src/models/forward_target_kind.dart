@@ -10,8 +10,6 @@ enum ForwardTargetKind {
   conversation('conversation'),
   @JsonValue('group')
   group('group'),
-  @JsonValue('channel')
-  channel('channel'),
 
   /// Default value for all unparsed values, allows backward compatibility when adding new values on the backend.
   $unknown(null);

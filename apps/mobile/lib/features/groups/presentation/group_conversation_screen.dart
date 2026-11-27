@@ -26,6 +26,7 @@ import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
+import 'package:lawbid/features/chat/e2ee/e2ee_notice.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show PickedChatFile, droppedChatFiles;
 import 'package:lawbid/features/chat/presentation/chat_list_controller.dart';
@@ -39,6 +40,7 @@ import 'package:lawbid/features/groups/application/group_photo_outbox.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/application/group_typing.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
+import 'package:lawbid/features/groups/e2ee/group_e2ee_service.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/poll/create_poll_sheet.dart';
@@ -429,30 +431,92 @@ class _GroupConversationScreenState
     final fromDisk = ref
         .read(featureFlagsControllerProvider)
         .isEnabled('group_files_from_disk');
-    final files = await pickGroupFiles(
-      context,
-      t,
-      choice,
-      limits: ref.read(uploadLimitsProvider)[UploadPlace.chat],
-      fromDisk: fromDisk,
-      prepareVideo: _prepareVideo,
-    );
-    await _sendFiles(files, fromDisk: fromDisk);
+    final limits = ref.read(uploadLimitsProvider)[UploadPlace.chat];
+    final prepareVideo = _videoPreparer();
+    if (!fromDisk) {
+      final files = await pickGroupFiles(
+        context,
+        t,
+        choice,
+        limits: limits,
+        prepareVideo: prepareVideo,
+      );
+      await _sendFiles(files, fromDisk: false);
+      return;
+    }
+    // Owner 26.11 (WhatsApp / Telegram): each picked file goes to the
+    // upload queue — and its bubble on screen, with its own picture and
+    // ring — the moment it is ready, while the next ones are still being
+    // prepared, instead of all of them at the end. Read before the first
+    // await: the group may be left meanwhile and the files must still go.
+    final thread = _thread;
+    final caption = _editing != null ? '' : _text.text.trim();
+    if (caption.isNotEmpty) _text.clear();
+    final reply = _replyTo;
+    if (reply != null) setState(() => _replyTo = null);
+    // The previous file waits for the next one: only the last one carries
+    // the caption (the album's caption, as before).
+    PickedChatFile? held;
+    var queued = 0;
+    Future<void> queue(PickedChatFile f, {String? text}) async {
+      await thread.queueAttachment(
+        bytes: f.bytes,
+        path: f.path,
+        name: f.name,
+        mime: f.mime,
+        caption: text,
+        replyToId: queued == 0 ? reply?.id : null,
+      );
+      queued++;
+      if (mounted) _toBottom();
+    }
+
+    try {
+      await thread.keepAliveWhile(() async {
+        await pickGroupFiles(
+          context,
+          t,
+          choice,
+          limits: limits,
+          fromDisk: true,
+          prepareVideo: prepareVideo,
+          onEach: (f) async {
+            final before = held;
+            held = f;
+            if (before != null) await queue(before);
+          },
+        );
+        final last = held;
+        if (last != null) {
+          await queue(last, text: caption.isEmpty ? null : caption);
+        } else if (caption.isNotEmpty) {
+          // Nothing could be sent: the typed text is not lost.
+          await thread.sendText(caption, replyToId: reply?.id);
+        }
+      });
+    } on Object catch (e) {
+      // Never a silent loss (owner 26.11): what failed is said.
+      if (mounted) _error(e);
+    }
   }
 
   /// Groups WhatsApp parity, copied from the 1:1 chat (ConversationScreen):
   /// a video is re-encoded on the phone to at most the admin's
   /// `media.chat_video_max_height` before upload — the one encode it gets;
-  /// the original goes when compressing fails or doesn't help.
-  Future<XFile> _prepareVideo(XFile video) async {
+  /// the original goes when compressing fails or doesn't help. Everything
+  /// it needs is read now: the files keep being prepared after the screen
+  /// is left.
+  Future<XFile> Function(XFile video) _videoPreparer() {
     final t = ref.read(translatorProvider);
-    showAppSnackBar(context, t.t('chat.attach.videoPreparing'));
     final limits = chatVideoLimitsOf(ref.read(featureFlagsControllerProvider));
-    final out =
-        await ref.read(videoCompressorProvider).compress(video, limits: limits);
-    return out == null
-        ? video
-        : XFile(out.path, name: 'video.mp4', mimeType: 'video/mp4');
+    final compressor = ref.read(videoCompressorProvider);
+    return (video) async {
+      if (mounted) showAppSnackBar(context, t.t('chat.attach.videoPreparing'));
+      final out = await compressor.compress(video, limits: limits);
+      return out == null
+          ? video
+          : XFile(out.path, name: 'video.mp4', mimeType: 'video/mp4');
+    };
   }
 
   /// Files dragged onto the group in the browser go out like picked ones.
@@ -1459,9 +1523,22 @@ class _MessageList extends ConsumerWidget {
             itemBuilder: (context, i) {
               if (i < pending.length) {
                 final p = pending[pending.length - 1 - i];
+                // Owner 27.11: the oldest one starts my run unless my own
+                // message of today is right above it (the gap the delivered
+                // bubble will have, so nothing moves when it is confirmed).
+                final above = messages.firstOrNull;
+                final startsRun = i == pending.length - 1 &&
+                    (above == null ||
+                        above.isSystem ||
+                        !above.mine ||
+                        !DateUtils.isSameDay(
+                          above.createdAt.toLocal(),
+                          DateTime.now(),
+                        ));
                 return GroupPendingBubble(
                   pending: p,
                   groupId: detail.id,
+                  startsRun: startsRun,
                   onRetry: () => onRetry(p.clientMessageId),
                   onDiscard: () => onDiscard(p.clientMessageId),
                 );
@@ -1514,7 +1591,11 @@ class _MessageList extends ConsumerWidget {
               final endsRun = !sameRun(newer);
 
               final Widget item;
-              if (m.isSystem) {
+              if (m.isSystem && m.systemKind == GroupE2eeService.onKind) {
+                // G2 (WhatsApp): where the group became end-to-end
+                // encrypted, the chats' yellow notice.
+                item = E2eeNotice(onTap: () {});
+              } else if (m.isSystem) {
                 item = GroupSystemLine(text: groupSystemText(t, m));
               } else {
                 item = GroupMessageBubble(

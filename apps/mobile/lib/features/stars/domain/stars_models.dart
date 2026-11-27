@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 /// Owner 2026-10-20 — Telegram-style stars: the balance bought on the web,
-/// spent on gifts and paid sticker packs.
+/// spent on paid sticker packs, reactions and promotions.
 @immutable
 class StarPack {
   const StarPack({
@@ -23,7 +23,6 @@ class StarsOverview {
     required this.enabled,
     required this.balance,
     required this.packs,
-    required this.giftConvertPercent,
     this.reactionStars = 3,
     this.premiumReactions = const [],
     this.freeReactions = const [],
@@ -33,13 +32,11 @@ class StarsOverview {
     enabled: false,
     balance: 0,
     packs: [],
-    giftConvertPercent: 70,
   );
 
   final bool enabled;
   final int balance;
   final List<StarPack> packs;
-  final int giftConvertPercent;
 
   /// Reactions: the price of a premium one and the two lists.
   final int reactionStars;
@@ -49,8 +46,6 @@ class StarsOverview {
 
 enum StarLedgerKind {
   topup,
-  giftSent,
-  giftConverted,
   stickerPack,
   boost,
   boostRefund,
@@ -77,56 +72,6 @@ class StarLedgerItem {
   final StarLedgerKind kind;
   final String? note;
   final DateTime createdAt;
-}
-
-/// A gift of the catalog (the picture is an uploaded sticker-like image).
-@immutable
-class Gift {
-  const Gift({
-    required this.id,
-    required this.title,
-    required this.priceStars,
-    this.url,
-    this.code,
-  });
-
-  final String id;
-  final String title;
-  final int priceStars;
-  final String? url;
-
-  /// Stable catalog code (`rose`…); the name is translated by `gift.<code>`.
-  final String? code;
-}
-
-/// A gift that was given (in a chat message or to a profile).
-@immutable
-class GiftSend {
-  const GiftSend({
-    required this.id,
-    required this.gift,
-    required this.anonymous,
-    required this.shown,
-    required this.createdAt,
-    this.senderId,
-    this.senderName,
-    this.note,
-    this.convertedStars,
-  });
-
-  final String id;
-  final Gift gift;
-  final String? senderId;
-  final String? senderName;
-  final bool anonymous;
-  final String? note;
-  final bool shown;
-
-  /// Set once the recipient turned the gift into stars.
-  final int? convertedStars;
-  final DateTime createdAt;
-
-  bool get converted => convertedStars != null;
 }
 
 @immutable

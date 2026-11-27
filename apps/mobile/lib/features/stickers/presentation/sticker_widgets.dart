@@ -20,12 +20,10 @@ import 'package:lawbid/features/profile/data/avatar_upload_repository.dart'
     show sniffImageMime;
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart';
-import 'package:lawbid/features/stars/domain/stars_models.dart';
-import 'package:lawbid/features/stars/presentation/gift_names.dart';
-import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
 import 'package:lawbid/features/stickers/application/stickers_providers.dart';
 import 'package:lawbid/features/stickers/domain/sticker_models.dart';
 import 'package:lawbid/features/stickers/presentation/emoji_data.dart';
+import 'package:lawbid/features/stickers/presentation/sticker_names.dart';
 import 'package:lawbid/shared/presentation/flip_search_bar.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -98,7 +96,6 @@ class StickerPanel extends ConsumerStatefulWidget {
   const StickerPanel({
     required this.onSticker,
     required this.onEmoji,
-    this.onGift,
     this.panelHeight,
     super.key,
   });
@@ -109,9 +106,6 @@ class StickerPanel extends ConsumerStatefulWidget {
   /// The keyboard's height when known, so the swap does not jump.
   final double? panelHeight;
 
-  /// Owner 2026-10-20: set when stars are on — shows the «Подарки» tab.
-  final ValueChanged<Gift>? onGift;
-
   static const height = 300.0;
 
   @override
@@ -120,7 +114,6 @@ class StickerPanel extends ConsumerStatefulWidget {
 
 class _StickerPanelState extends ConsumerState<StickerPanel> {
   bool _stickers = true;
-  bool _gifts = false;
 
   /// Owner 2026-10-18: the search over the stickers (by the pack's name and
   /// the sticker's emoji); null = the pack strip shows.
@@ -165,11 +158,7 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
           child: Column(
             children: [
               Expanded(
-                child: _gifts && widget.onGift != null
-                    ? GiftPicker(onGift: widget.onGift!)
-                    : _stickers
-                        ? _stickerView(t, colors, type)
-                        : _emojiView(),
+                child: _stickers ? _stickerView(t, colors, type) : _emojiView(),
               ),
               Container(
                 height: 44,
@@ -182,11 +171,8 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
                     Flexible(
                       child: _tab(
                         t.t('stickers.tab.emoji'),
-                        !_stickers && !_gifts,
-                        () => setState(() {
-                          _stickers = false;
-                          _gifts = false;
-                        }),
+                        !_stickers,
+                        () => setState(() => _stickers = false),
                         colors,
                         type,
                       ),
@@ -195,27 +181,12 @@ class _StickerPanelState extends ConsumerState<StickerPanel> {
                     Flexible(
                       child: _tab(
                         t.t('stickers.tab.stickers'),
-                        _stickers && !_gifts,
-                        () => setState(() {
-                          _stickers = true;
-                          _gifts = false;
-                        }),
+                        _stickers,
+                        () => setState(() => _stickers = true),
                         colors,
                         type,
                       ),
                     ),
-                    if (widget.onGift != null) ...[
-                      const SizedBox(width: AppSpacing.md),
-                      Flexible(
-                        child: _tab(
-                          t.t('stars.tab.gifts'),
-                          _gifts,
-                          () => setState(() => _gifts = true),
-                          colors,
-                          type,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),

@@ -6,11 +6,16 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/platform/web_context_menu.dart';
+import 'package:lawbid/features/chat/application/link_preview_providers.dart'
+    show firstUrlIn;
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
-    show ChatRemovedFileRow;
+    show AttachmentMessageBody, ChatRemovedFileRow;
 import 'package:lawbid/features/chat/presentation/chat_album.dart';
+import 'package:lawbid/features/chat/presentation/chat_post_card.dart'
+    show PostLinkCard, lawbidLinkHost, lawbidPostIdIn;
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
+import 'package:lawbid/features/chat/presentation/link_preview_card.dart';
 import 'package:lawbid/features/chat/presentation/message_actions.dart'
     show ReactionChipRow;
 import 'package:lawbid/features/chat/presentation/reply_swipe.dart';
@@ -18,6 +23,7 @@ import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
 import 'package:lawbid/features/groups/domain/slow_mode.dart';
+import 'package:lawbid/features/groups/e2ee/group_e2ee_service.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/group_message_text.dart';
 import 'package:lawbid/features/groups/presentation/poll/poll_bubble.dart';
@@ -205,13 +211,51 @@ class GroupMessageBubble extends ConsumerWidget {
               : groupPersonName(t, sender),
         );
       }
-      return GroupRichText(
+      if (m.body.isEmpty && GroupE2eeService.isWaiting(m.id)) {
+        // G2 (WhatsApp «Ожидание сообщения»): this device could not open
+        // it (yet); the chats' line and lock.
+        return Text.rich(
+          TextSpan(
+            children: [
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Icon(AppIcons.lockOutlineRounded, size: 14, color: fg),
+              ),
+              TextSpan(text: ' ${t.t('chat.e2ee.waiting')}'),
+            ],
+          ),
+          style: type.body.copyWith(
+            color: fg,
+            fontStyle: FontStyle.italic,
+            height: 1.35,
+          ),
+        );
+      }
+      final text = GroupRichText(
         text: m.body,
         style: type.body.copyWith(color: fg, height: 1.35),
         linkColor: accent,
         mentionColor: accent,
         mentions: m.mentions,
         onMention: (p) => openGroupPerson(context, ref, p),
+      );
+      // Owner 26.11 (the 1:1 chat, Instagram): a link gets its card under
+      // the text — a LawBid post the 1:1 chat's post card, any other link
+      // the 1:1 chat's site card (groups are not end-to-end encrypted, so
+      // the server may read the site, as for a 1:1 chat that is not).
+      final url = firstUrlIn(m.body);
+      if (url == null) return text;
+      final postId = lawbidPostIdIn(m.body, host: lawbidLinkHost(ref));
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          text,
+          if (postId != null)
+            PostLinkCard(postId: postId, mine: mine)
+          else
+            LinkPreviewCard(url: url, mine: mine, conversationId: groupId),
+        ],
       );
     }
 
@@ -595,10 +639,16 @@ class GroupPendingBubble extends ConsumerWidget {
     required this.onRetry,
     required this.onDiscard,
     this.groupId = '',
+    this.startsRun = false,
     super.key,
   });
 
   final PendingGroupMessage pending;
+
+  /// Owner 27.11 (no jump when the server's copy takes its place): the
+  /// first of my run after someone else's message — the delivered bubble
+  /// then keeps the same 6 dp above it ([GroupMessageBubble.showName]).
+  final bool startsRun;
 
   /// The group (the mini-player's way back while a note plays).
   final String groupId;
@@ -608,13 +658,41 @@ class GroupPendingBubble extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ref.watch(translatorProvider);
+    // The width the delivered bubble's time takes, from the platform's own
+    // time format (no app date data needed: a failed bubble with «Retry»
+    // must always draw — CI #1394, KNOWN_ERRORS 275).
+    final timeSlot = MaterialLocalizations.of(context).formatTimeOfDay(
+      TimeOfDay.now(),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final chat = ChatColors.of(context);
     final p = pending;
     final file = p.fileName;
+    // Owner 26.11 (WhatsApp / the 1:1 chat): a queued photo or video shows
+    // at once as itself — its picture from the phone, the ring while its
+    // bytes go up (a tap on the ring stops it) — not as a file name.
+    final media = p.attachment;
+    // Owner 27.11 («фото на миг огромные и потом меняются»): a photo or
+    // video without a caption sits in the same thin frame, with its state
+    // on the picture, as the delivered one (GroupMessageBubble `media`), so
+    // the bubble keeps its size when the server's copy takes its place.
+    final framed = media != null &&
+        (media.isImage || media.isVideo) &&
+        !media.removed &&
+        p.body.trim().isEmpty &&
+        p.replyToId == null;
+    final stateIcon = AppIcon(
+      p.failed ? AppIcons.errorOutlineRounded : AppIcons.scheduleRounded,
+      size: 15,
+      color: p.failed
+          ? colors.danger
+          : (framed ? ChatColors.onMediaScrim : chat.mineMeta),
+      semanticLabel: p.failed ? t.t('chat.notSent') : t.t('chat.state.sending'),
+    );
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1.5),
+      padding: EdgeInsets.only(top: startsRun ? 6 : 1.5, bottom: 1.5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
@@ -622,88 +700,155 @@ class GroupPendingBubble extends ConsumerWidget {
             constraints: BoxConstraints(
               maxWidth: MediaQuery.sizeOf(context).width * 0.78,
             ),
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.md,
-              AppSpacing.sm,
-              AppSpacing.md,
-              AppSpacing.xs,
-            ),
+            padding: framed
+                ? const EdgeInsets.all(3)
+                : const EdgeInsets.fromLTRB(
+                    AppSpacing.md,
+                    AppSpacing.sm,
+                    AppSpacing.md,
+                    AppSpacing.xs,
+                  ),
             decoration: BoxDecoration(
               color: chat.mine,
               borderRadius: _radius(mine: true),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Groups WhatsApp parity: my note plays from the recording
-                // while it is being sent (the 1:1 local bubble).
-                if (p.voice != null)
-                  VoiceMessageBody(
-                    message: ChatMessage(
-                      id: 'local:${p.clientMessageId}',
-                      conversationId: groupId,
-                      kind: MessageKind.voice,
-                      body: '',
-                      clientMessageId: p.clientMessageId,
-                      createdAt: DateTime.now(),
-                      voice: p.voice,
-                    ),
-                    mine: true,
-                    threadId: groupVoiceThreadId(groupId),
-                    thread: VoiceThread(
-                      messages: () => const [],
-                      played: (_) async {},
-                    ),
-                    avatarUrl: ref
-                        .watch(currentUserControllerProvider)
-                        .user
-                        ?.avatarUrl,
-                  ),
-                if (file != null)
-                  Row(
+            child: framed
+                ? Stack(
+                    children: [
+                      AttachmentMessageBody(
+                        message: ChatMessage(
+                          id: 'local:${p.clientMessageId}',
+                          conversationId: groupId,
+                          kind: MessageKind.attachment,
+                          body: '',
+                          clientMessageId: p.clientMessageId,
+                          createdAt: DateTime.now(),
+                          delivery: p.failed
+                              ? DeliveryState.failed
+                              : DeliveryState.sending,
+                          attachment: media,
+                        ),
+                        mine: true,
+                        onCancel: onDiscard,
+                      ),
+                      PositionedDirectional(
+                        end: 6,
+                        bottom: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: ChatColors.mediaScrim,
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
+                          ),
+                          child: stateIcon,
+                        ),
+                      ),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      AppIcon(
-                        AppIcons.insertDriveFileRounded,
-                        size: 20,
-                        color: chat.onMine,
-                      ),
-                      const SizedBox(width: AppSpacing.xs),
-                      Flexible(
-                        child: Text(
-                          file,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.bodySmall.copyWith(
-                            color: chat.onMine,
-                            fontWeight: FontWeight.w600,
+                      // Groups WhatsApp parity: my note plays from the
+                      // recording while it is being sent (the 1:1 local
+                      // bubble).
+                      if (p.voice != null)
+                        VoiceMessageBody(
+                          message: ChatMessage(
+                            id: 'local:${p.clientMessageId}',
+                            conversationId: groupId,
+                            kind: MessageKind.voice,
+                            body: '',
+                            clientMessageId: p.clientMessageId,
+                            createdAt: DateTime.now(),
+                            voice: p.voice,
                           ),
+                          mine: true,
+                          threadId: groupVoiceThreadId(groupId),
+                          thread: VoiceThread(
+                            messages: () => const [],
+                            played: (_) async {},
+                          ),
+                          avatarUrl: ref
+                              .watch(currentUserControllerProvider)
+                              .user
+                              ?.avatarUrl,
+                        ),
+                      if (media != null)
+                        AttachmentMessageBody(
+                          message: ChatMessage(
+                            id: 'local:${p.clientMessageId}',
+                            conversationId: groupId,
+                            kind: MessageKind.attachment,
+                            body: p.body,
+                            clientMessageId: p.clientMessageId,
+                            createdAt: DateTime.now(),
+                            delivery: p.failed
+                                ? DeliveryState.failed
+                                : DeliveryState.sending,
+                            attachment: media,
+                          ),
+                          mine: true,
+                          onCancel: onDiscard,
+                        )
+                      else if (file != null)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AppIcon(
+                              AppIcons.insertDriveFileRounded,
+                              size: 20,
+                              color: chat.onMine,
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Flexible(
+                              child: Text(
+                                file,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: type.bodySmall.copyWith(
+                                  color: chat.onMine,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      if (p.body.isNotEmpty && media == null)
+                        Text(
+                          p.body,
+                          style: type.body.copyWith(
+                            color: chat.onMine,
+                            height: 1.35,
+                          ),
+                        ),
+                      const SizedBox(height: 2),
+                      // Owner 27.11: the clock takes the slot of the time the
+                      // delivered bubble shows there (same height and width),
+                      // so the bubble does not move when it is confirmed.
+                      Align(
+                        alignment: AlignmentDirectional.centerEnd,
+                        child: Stack(
+                          alignment: AlignmentDirectional.centerEnd,
+                          children: [
+                            ExcludeSemantics(
+                              child: Opacity(
+                                opacity: 0,
+                                child: Text(
+                                  timeSlot,
+                                  style: type.caption,
+                                ),
+                              ),
+                            ),
+                            stateIcon,
+                          ],
                         ),
                       ),
                     ],
                   ),
-                if (p.body.isNotEmpty)
-                  Text(
-                    p.body,
-                    style: type.body.copyWith(color: chat.onMine, height: 1.35),
-                  ),
-                const SizedBox(height: 2),
-                Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: AppIcon(
-                    p.failed
-                        ? AppIcons.errorOutlineRounded
-                        : AppIcons.scheduleRounded,
-                    size: 15,
-                    color: p.failed ? colors.danger : chat.mineMeta,
-                    semanticLabel: p.failed
-                        ? t.t('chat.notSent')
-                        : t.t('chat.state.sending'),
-                  ),
-                ),
-              ],
-            ),
           ),
           if (p.failed)
             Row(

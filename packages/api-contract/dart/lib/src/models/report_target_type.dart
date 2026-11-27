@@ -20,10 +20,6 @@ enum ReportTargetType {
   stickerPack('sticker_pack'),
   @JsonValue('story')
   story('story'),
-  @JsonValue('channel')
-  channel('channel'),
-  @JsonValue('channel_post')
-  channelPost('channel_post'),
   @JsonValue('legal_question')
   legalQuestion('legal_question'),
   @JsonValue('legal_answer')
