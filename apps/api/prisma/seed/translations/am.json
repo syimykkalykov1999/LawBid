@@ -1415,6 +1415,7 @@
   "chat.select.mute": "ድምጽ አጥፋ",
   "chat.select.muted": "ማሳወቂያዎች ጠፍተዋል",
   "chat.select.none": "አጽዳ",
+  "chat.select.partlyFailed": "ለ{failed} ከ{total} አልተሳካም። {reason}",
   "chat.select.pin": "ሰካ",
   "chat.select.start": "ውይይቶችን ምረጥ",
   "chat.select.unmuted": "ማሳወቂያዎች በርተዋል",

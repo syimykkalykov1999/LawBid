@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Bêdeng bike",
   "chat.select.muted": "Agahdarî hatin bêdengkirin",
   "chat.select.none": "Paqij bike",
+  "chat.select.partlyFailed": "Ji bo {failed} ji {total} nehat kirin. {reason}",
   "chat.select.pin": "Pîne bike",
   "chat.select.start": "Sohbetan hilbijêre",
   "chat.select.unmuted": "Agahdarî vekirî ne",

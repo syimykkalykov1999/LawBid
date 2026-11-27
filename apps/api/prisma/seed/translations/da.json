@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Slå lyd fra",
   "chat.select.muted": "Notifikationer slået fra",
   "chat.select.none": "Ryd",
+  "chat.select.partlyFailed": "Ikke gjort for {failed} af {total}. {reason}",
   "chat.select.pin": "Fastgør",
   "chat.select.start": "Vælg chats",
   "chat.select.unmuted": "Notifikationer slået til",

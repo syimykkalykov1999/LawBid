@@ -1415,6 +1415,7 @@
   "chat.select.mute": "알림 끄기",
   "chat.select.muted": "알림이 꺼졌습니다",
   "chat.select.none": "해제",
+  "chat.select.partlyFailed": "{total}개 중 {failed}개는 처리되지 않았어요. {reason}",
   "chat.select.pin": "고정",
   "chat.select.start": "채팅 선택",
   "chat.select.unmuted": "알림이 켜졌습니다",

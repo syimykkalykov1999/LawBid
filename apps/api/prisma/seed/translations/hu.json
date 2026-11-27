@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Némítás",
   "chat.select.muted": "Értesítések némítva",
   "chat.select.none": "Törlés",
+  "chat.select.partlyFailed": "{total}-ből {failed} esetében nem sikerült. {reason}",
   "chat.select.pin": "Kitűzés",
   "chat.select.start": "Csevegések kijelölése",
   "chat.select.unmuted": "Értesítések bekapcsolva",

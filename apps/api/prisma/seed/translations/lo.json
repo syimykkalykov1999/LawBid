@@ -1415,6 +1415,7 @@
   "chat.select.mute": "ປິດສຽງ",
   "chat.select.muted": "ປິດການແຈ້ງເຕືອນແລ້ວ",
   "chat.select.none": "ລ້າງ",
+  "chat.select.partlyFailed": "ບໍ່ສຳເລັດສຳລັບ {failed} ຈາກ {total}. {reason}",
   "chat.select.pin": "ປັກໝຸດ",
   "chat.select.start": "ເລືອກແຊັດ",
   "chat.select.unmuted": "ເປີດການແຈ້ງເຕືອນແລ້ວ",

@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Ztlumit",
   "chat.select.muted": "Oznámení ztlumena",
   "chat.select.none": "Zrušit výběr",
+  "chat.select.partlyFailed": "Nepovedlo se u {failed} z {total}. {reason}",
   "chat.select.pin": "Připnout",
   "chat.select.start": "Vybrat chaty",
   "chat.select.unmuted": "Oznámení zapnuta",

@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Mututu",
   "chat.select.muted": "Jakinarazpenak mututu dira",
   "chat.select.none": "Garbitu",
+  "chat.select.partlyFailed": "Ez da egin {total}(e)tik {failed}(e)tan. {reason}",
   "chat.select.pin": "Finkatu",
   "chat.select.start": "Hautatu txatak",
   "chat.select.unmuted": "Jakinarazpenak aktibatuta",

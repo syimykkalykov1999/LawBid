@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Tawelu",
   "chat.select.muted": "Hysbysiadau wedi'u tawelu",
   "chat.select.none": "Clirio",
+  "chat.select.partlyFailed": "Heb ei wneud ar gyfer {failed} o {total}. {reason}",
   "chat.select.pin": "Pinio",
   "chat.select.start": "Dewis sgyrsiau",
   "chat.select.unmuted": "Hysbysiadau ymlaen",

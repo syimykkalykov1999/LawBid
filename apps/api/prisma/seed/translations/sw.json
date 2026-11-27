@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Nyamazisha",
   "chat.select.muted": "Arifa zimenyamazishwa",
   "chat.select.none": "Futa",
+  "chat.select.partlyFailed": "Haikufanyika kwa {failed} kati ya {total}. {reason}",
   "chat.select.pin": "Bandika",
   "chat.select.start": "Chagua mazungumzo",
   "chat.select.unmuted": "Arifa zimewashwa",

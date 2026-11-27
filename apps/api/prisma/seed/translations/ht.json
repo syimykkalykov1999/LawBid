@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Fè silans",
   "chat.select.muted": "Notifikasyon an silans",
   "chat.select.none": "Efase",
+  "chat.select.partlyFailed": "Pa fèt pou {failed} sou {total}. {reason}",
   "chat.select.pin": "Epengle",
   "chat.select.start": "Chwazi chat",
   "chat.select.unmuted": "Notifikasyon aktive",

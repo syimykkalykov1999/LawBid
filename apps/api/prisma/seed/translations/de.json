@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Stummschalten",
   "chat.select.muted": "Mitteilungen stummgeschaltet",
   "chat.select.none": "Aufheben",
+  "chat.select.partlyFailed": "Bei {failed} von {total} nicht geklappt. {reason}",
   "chat.select.pin": "Anheften",
   "chat.select.start": "Chats auswählen",
   "chat.select.unmuted": "Mitteilungen eingeschaltet",

@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Waqqaf il-ħoss",
   "chat.select.muted": "Notifiki mwaqqfin",
   "chat.select.none": "Neħħi",
+  "chat.select.partlyFailed": "Ma sarx għal {failed} minn {total}. {reason}",
   "chat.select.pin": "Waħħal",
   "chat.select.start": "Agħżel chats",
   "chat.select.unmuted": "Notifiki mixgħulin",

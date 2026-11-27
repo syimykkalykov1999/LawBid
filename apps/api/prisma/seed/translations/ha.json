@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Yi shiru",
   "chat.select.muted": "An yi shiru da sanarwa",
   "chat.select.none": "Share",
+  "chat.select.partlyFailed": "Ba a yi ba ga {failed} cikin {total}. {reason}",
   "chat.select.pin": "Maƙala",
   "chat.select.start": "Zaɓi tattaunawa",
   "chat.select.unmuted": "Sanarwa a kunne",

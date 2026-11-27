@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Bisukan",
   "chat.select.muted": "Notifikasi dibisukan",
   "chat.select.none": "Hapus pilihan",
+  "chat.select.partlyFailed": "Tidak berhasil untuk {failed} dari {total}. {reason}",
   "chat.select.pin": "Sematkan",
   "chat.select.start": "Pilih obrolan",
   "chat.select.unmuted": "Notifikasi aktif",

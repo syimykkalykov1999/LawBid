@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Pa ohùn mọ́",
   "chat.select.muted": "A ti pa àwọn ìkìlọ̀ mọ́",
   "chat.select.none": "Pa rẹ́",
+  "chat.select.partlyFailed": "Kò ṣe fún {failed} nínú {total}. {reason}",
   "chat.select.pin": "Fi sí òkè",
   "chat.select.start": "Yan àwọn ìjíròrò",
   "chat.select.unmuted": "Àwọn ìkìlọ̀ ti tàn",

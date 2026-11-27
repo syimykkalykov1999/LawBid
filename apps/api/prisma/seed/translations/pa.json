@@ -1415,6 +1415,7 @@
   "chat.select.mute": "ਮਿਊਟ ਕਰੋ",
   "chat.select.muted": "ਸੂਚਨਾਵਾਂ ਮਿਊਟ ਹਨ",
   "chat.select.none": "ਸਾਫ਼ ਕਰੋ",
+  "chat.select.partlyFailed": "{total} ਵਿੱਚੋਂ {failed} ਲਈ ਨਹੀਂ ਹੋਇਆ। {reason}",
   "chat.select.pin": "ਪਿੰਨ ਕਰੋ",
   "chat.select.start": "ਚੈਟਾਂ ਚੁਣੋ",
   "chat.select.unmuted": "ਸੂਚਨਾਵਾਂ ਚਾਲੂ ਹਨ",

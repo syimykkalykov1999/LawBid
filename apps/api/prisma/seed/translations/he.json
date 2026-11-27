@@ -1415,6 +1415,7 @@
   "chat.select.mute": "השתקה",
   "chat.select.muted": "ההתראות הושתקו",
   "chat.select.none": "ניקוי",
+  "chat.select.partlyFailed": "לא בוצע עבור {failed} מתוך {total}. {reason}",
   "chat.select.pin": "הצמדה",
   "chat.select.start": "בחירת צ'אטים",
   "chat.select.unmuted": "ההתראות פועלות",

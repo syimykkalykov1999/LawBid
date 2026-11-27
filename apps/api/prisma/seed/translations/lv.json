@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Izslēgt skaņu",
   "chat.select.muted": "Paziņojumi izslēgti",
   "chat.select.none": "Notīrīt",
+  "chat.select.partlyFailed": "Neizdevās {failed} no {total}. {reason}",
   "chat.select.pin": "Piespraust",
   "chat.select.start": "Atlasīt tērzēšanas",
   "chat.select.unmuted": "Paziņojumi ieslēgti",

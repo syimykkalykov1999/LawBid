@@ -1415,6 +1415,7 @@
   "chat.select.mute": "म्यूट करें",
   "chat.select.muted": "सूचनाएँ म्यूट की गईं",
   "chat.select.none": "साफ़ करें",
+  "chat.select.partlyFailed": "{total} में से {failed} के लिए नहीं हुआ। {reason}",
   "chat.select.pin": "पिन करें",
   "chat.select.start": "चैट चुनें",
   "chat.select.unmuted": "सूचनाएँ चालू",

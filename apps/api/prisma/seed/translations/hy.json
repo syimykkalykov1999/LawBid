@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Անջատել ձայնը",
   "chat.select.muted": "Ծանուցումները անջատված են",
   "chat.select.none": "Մաքրել",
+  "chat.select.partlyFailed": "Չստացվեց {total}-ից {failed}-ի համար։ {reason}",
   "chat.select.pin": "Ամրացնել",
   "chat.select.start": "Ընտրել չատեր",
   "chat.select.unmuted": "Ծանուցումները միացված են",

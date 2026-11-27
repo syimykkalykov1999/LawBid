@@ -289,9 +289,10 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
     try {
       refreshChatFolders(ref);
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.maybeOf(context);
       // Row 109: the «Undo» message is shown from the navigator, which
-      // outlives this sheet and the chat row.
+      // outlives this sheet and the chat row. Owner 26.11: the plain «done»
+      // message too (the messenger's own context has no messenger above it,
+      // so it was never seen).
       final host = Navigator.of(context).context;
       context.popIfCurrent();
       // Row 109 (Telegram / Gmail): a delete or an archive offers «Undo».
@@ -302,8 +303,8 @@ class _OrganizeSheetState extends ConsumerState<_OrganizeSheet> {
           chatIds: [widget.conversation.id],
           archived: undoArchived,
         );
-      } else if (done != null && messenger != null && messenger.mounted) {
-        showAppSnackBar(messenger.context, t.t(done));
+      } else if (done != null && host.mounted) {
+        showAppSnackBar(host, t.t(done));
       }
     } on Object {
       if (mounted) setState(() => _busy = false);

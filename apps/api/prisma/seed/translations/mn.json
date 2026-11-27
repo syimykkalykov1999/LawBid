@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Дууг хаах",
   "chat.select.muted": "Мэдэгдэл хаагдлаа",
   "chat.select.none": "Арилгах",
+  "chat.select.partlyFailed": "{total}-аас {failed}-д амжилтгүй. {reason}",
   "chat.select.pin": "Бэхлэх",
   "chat.select.start": "Чат сонгох",
   "chat.select.unmuted": "Мэдэгдэл асаалттай",

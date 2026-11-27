@@ -12,6 +12,7 @@ import 'package:lawbid/features/chat/presentation/inbox_screen.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/ux_harness.dart';
@@ -100,6 +101,17 @@ class _Chats implements ChatRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
+}
+
+/// A group write the server refuses.
+class _RefusingGroups extends FakeGroupRepository {
+  _RefusingGroups(super.items);
+
+  @override
+  Future<api.GroupDto> updateMine(String id, api.UpdateGroupMeDto body) async {
+    updates.add('refused $id');
+    throw _refused;
+  }
 }
 
 void main() {
@@ -217,6 +229,57 @@ void main() {
     expect(find.text('Person a'), findsNothing);
     expect(find.text('Person c'), findsNothing);
     expect(find.textContaining('Not done for 1 of 3'), findsOneWidget);
+    await done(tester);
+  });
+
+  // Owner 26.11: these messages went to the messenger's own context (no
+  // messenger above it) and were never seen.
+  testWidgets('the full menu «Save» shows «Saved»', (tester) async {
+    final repo = _Chats([_conv('a')]);
+    repo.gate.complete();
+    await pumpInbox(tester, repo);
+    await openMenu(tester, 'a');
+    await tester.tap(find.byKey(const ValueKey('organize-more')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('organize-save')));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Saved'), findsOneWidget);
+    await done(tester);
+  });
+
+  testWidgets('a refused group archive shows the error', (tester) async {
+    tester.view
+      ..physicalSize = const Size(390, 800)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final groups = _RefusingGroups([listGroup('g1')]);
+    await tester.pumpWidget(
+      uxApp(
+        const Scaffold(body: GroupTilesList()),
+        size: const Size(390, 800),
+        theme: AppTheme.light(),
+        disableAnimations: true,
+        overrides: uxOverrides(
+          extra: [
+            chatRepositoryProvider.overrideWithValue(_Chats(const [])),
+            groupRepositoryProvider.overrideWithValue(groups),
+            groupsEnabledProvider.overrideWithValue(true),
+            currentUserIdProvider.overrideWithValue('me'),
+            realtimeClientProvider.overrideWithValue(null),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.longPress(find.byKey(const ValueKey('group-tile-g1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('group-menu-archive')));
+    await tester.pumpAndSettle();
+    expect(groups.updates, contains('refused g1'));
+    expect(tester.takeException(), isNull);
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.byKey(const ValueKey('group-tile-g1')), findsOneWidget);
     await done(tester);
   });
 }

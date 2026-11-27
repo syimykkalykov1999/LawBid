@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Sessize al",
   "chat.select.muted": "Bildirimler sessize alındı",
   "chat.select.none": "Temizle",
+  "chat.select.partlyFailed": "{total} içinden {failed} için yapılamadı. {reason}",
   "chat.select.pin": "Sabitle",
   "chat.select.start": "Sohbet seç",
   "chat.select.unmuted": "Bildirimler açık",

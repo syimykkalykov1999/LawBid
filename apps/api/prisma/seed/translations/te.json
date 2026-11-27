@@ -1415,6 +1415,7 @@
   "chat.select.mute": "మ్యూట్",
   "chat.select.muted": "నోటిఫికేషన్‌లు మ్యూట్ చేయబడ్డాయి",
   "chat.select.none": "క్లియర్",
+  "chat.select.partlyFailed": "{total} లో {failed} కి జరగలేదు. {reason}",
   "chat.select.pin": "పిన్",
   "chat.select.start": "చాట్‌లను ఎంచుకోండి",
   "chat.select.unmuted": "నోటిఫికేషన్‌లు ఆన్‌లో ఉన్నాయి",

@@ -1415,6 +1415,7 @@
   "chat.select.mute": "အသံပိတ်ရန်",
   "chat.select.muted": "အကြောင်းကြားချက်များ အသံပိတ်ထားသည်",
   "chat.select.none": "ရှင်းရန်",
+  "chat.select.partlyFailed": "{total} ခုအနက် {failed} ခု မအောင်မြင်ပါ။ {reason}",
   "chat.select.pin": "ပင်ထိုးရန်",
   "chat.select.start": "ချတ်များ ရွေးရန်",
   "chat.select.unmuted": "အကြောင်းကြားချက်များ ဖွင့်ထားသည်",

@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Vaigista",
   "chat.select.muted": "Teavitused vaigistatud",
   "chat.select.none": "Tühjenda",
+  "chat.select.partlyFailed": "Ei õnnestunud {failed} juhul {total}-st. {reason}",
   "chat.select.pin": "Kinnita",
   "chat.select.start": "Vali vestlused",
   "chat.select.unmuted": "Teavitused sees",

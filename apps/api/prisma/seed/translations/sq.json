@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Hesht",
   "chat.select.muted": "Njoftimet u heshtën",
   "chat.select.none": "Pastro",
+  "chat.select.partlyFailed": "Nuk u bë për {failed} nga {total}. {reason}",
   "chat.select.pin": "Fikso",
   "chat.select.start": "Zgjidh biseda",
   "chat.select.unmuted": "Njoftimet janë aktive",

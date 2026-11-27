@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Balbhaigh",
   "chat.select.muted": "Fógraí balbhaithe",
   "chat.select.none": "Glan",
+  "chat.select.partlyFailed": "Níor éirigh le {failed} as {total}. {reason}",
   "chat.select.pin": "Greamaigh",
   "chat.select.start": "Roghnaigh comhráite",
   "chat.select.unmuted": "Fógraí ar siúl",

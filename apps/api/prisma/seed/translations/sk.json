@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Stlmiť",
   "chat.select.muted": "Upozornenia sú stlmené",
   "chat.select.none": "Zrušiť výber",
+  "chat.select.partlyFailed": "Nepodarilo sa pri {failed} z {total}. {reason}",
   "chat.select.pin": "Pripnúť",
   "chat.select.start": "Vybrať chaty",
   "chat.select.unmuted": "Upozornenia sú zapnuté",

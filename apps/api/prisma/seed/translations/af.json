@@ -1415,6 +1415,7 @@
   "chat.select.mute": "Demp",
   "chat.select.muted": "Kennisgewings gedemp",
   "chat.select.none": "Maak skoon",
+  "chat.select.partlyFailed": "Nie gedoen vir {failed} van {total} nie. {reason}",
   "chat.select.pin": "Speld vas",
   "chat.select.start": "Kies kletse",
   "chat.select.unmuted": "Kennisgewings aan",

@@ -1415,6 +1415,7 @@
   "chat.select.mute": "නිහඬ කරන්න",
   "chat.select.muted": "දැනුම්දීම් නිහඬ කරන ලදී",
   "chat.select.none": "හිස් කරන්න",
+  "chat.select.partlyFailed": "{total} න් {failed} සඳහා සිදු නොවීය. {reason}",
   "chat.select.pin": "අමුණන්න",
   "chat.select.start": "සංවාද තෝරන්න",
   "chat.select.unmuted": "දැනුම්දීම් සක්‍රිය ය",

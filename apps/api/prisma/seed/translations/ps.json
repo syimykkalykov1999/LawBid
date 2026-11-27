@@ -1415,6 +1415,7 @@
   "chat.select.mute": "غلی کول",
   "chat.select.muted": "خبرتیاوې غلې شوې",
   "chat.select.none": "پاکول",
+  "chat.select.partlyFailed": "د {total} څخه د {failed} لپاره ونه شو. {reason}",
   "chat.select.pin": "ټینګول",
   "chat.select.start": "چتونه ټاکل",
   "chat.select.unmuted": "خبرتیاوې فعالې شوې",
