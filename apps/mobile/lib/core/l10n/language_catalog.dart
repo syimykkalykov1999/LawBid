@@ -213,7 +213,8 @@ const Map<String, String> kLanguageEnglishNames = {
 /// Web bundle budget (15.11, KNOWN_ERRORS): the CLDR table (84 × 85 names)
 /// is the Flutter asset [kLanguageDisplayNamesAsset], not Dart code — as
 /// code it cost ~30 KB brotli in each of main.dart.wasm and main.dart.js
-/// (dart2wasm has no deferred parts, so `deferred as` could not move it).
+/// (then dart2wasm built one module, so `deferred as` could not move it from
+/// main.dart.wasm; since 27.11 the web build splits wasm too, KNOWN_ERRORS 270).
 /// It is read once, after the first frame (run_app.dart, StartupIdleQueue)
 /// or on the first picker. Until it is here (the first moments after the
 /// start) the answer is the English name — the same fallback as before —
