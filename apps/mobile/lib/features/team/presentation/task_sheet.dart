@@ -338,13 +338,31 @@ class _TaskSheetState extends ConsumerState<_TaskSheet> {
     }
   }
 
-  Future<void> _toggle(TaskStep step) => _stepOp(
-        () => _ctrl.checkStep(
-          _task,
-          step,
-          step.checked ? TaskStatus.open : TaskStatus.done,
-        ),
-      );
+  Future<void> _toggle(TaskStep step) {
+    final before = _task;
+    // The list puts the tick in at once (before the server answers); the
+    // sheet now shows the same copy at once too, instead of lagging one
+    // round trip behind and then changing in one jump (owner 27.11).
+    final sent = _ctrl.checkStep(
+      _task,
+      step,
+      step.checked ? TaskStatus.open : TaskStatus.done,
+    );
+    final now = ref
+        .read(tasksProvider(widget.listKey))
+        .value
+        ?.where((x) => x.id == before.id)
+        .firstOrNull;
+    if (now != null) setState(() => _task = now);
+    return _stepOp(() async {
+      try {
+        return await sent;
+      } on Object {
+        if (mounted) setState(() => _task = before);
+        rethrow;
+      }
+    });
+  }
 
   Future<void> _addStep() async {
     final d = await showStepEditor(context, taskKind: _task.kind);

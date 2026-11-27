@@ -226,7 +226,11 @@ class _AppCounterRollState extends State<AppCounterRoll>
 
   @override
   Widget build(BuildContext context) {
-    final style = widget.style;
+    // Owner 27.11 («скачки», counters): tabular digits, so 1 → 2 or a roll
+    // does not change the width and the icons beside the number stay put
+    // (iOS `.monospacedDigit()`, Telegram's counters).
+    final style = (widget.style ?? DefaultTextStyle.of(context).style)
+        .copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
     final from = _from;
     if (from == null) return Text(widget.text, maxLines: 1, style: style);
     final now = widget.text.characters.toList();
@@ -242,26 +246,37 @@ class _AppCounterRollState extends State<AppCounterRoll>
       return ClipRect(
         child: AnimatedBuilder(
           animation: curved,
-          builder: (context, _) => Stack(
-            alignment: Alignment.center,
-            children: [
-              if (o != null)
+          builder: (context, _) {
+            final digit = Stack(
+              alignment: Alignment.center,
+              children: [
+                if (o != null)
+                  FractionalTranslation(
+                    translation: Offset(0, -dir * curved.value),
+                    child: Opacity(
+                      opacity: 1 - curved.value,
+                      child: Text(o, style: style),
+                    ),
+                  ),
                 FractionalTranslation(
-                  translation: Offset(0, -dir * curved.value),
+                  translation: Offset(0, dir * (1 - curved.value)),
                   child: Opacity(
-                    opacity: 1 - curved.value,
-                    child: Text(o, style: style),
+                    opacity: curved.value,
+                    child: Text(n ?? '', style: style),
                   ),
                 ),
-              FractionalTranslation(
-                translation: Offset(0, dir * (1 - curved.value)),
-                child: Opacity(
-                  opacity: curved.value,
-                  child: Text(n ?? '', style: style),
-                ),
-              ),
-            ],
-          ),
+              ],
+            );
+            if (n != null && o != null) return digit;
+            // A digit that comes (9 → 10) or goes (10 → 9) opens or closes
+            // its own room with the roll, so the width never snaps when the
+            // roll ends.
+            return Align(
+              alignment: AlignmentDirectional.centerEnd,
+              widthFactor: n == null ? 1 - curved.value : curved.value,
+              child: digit,
+            );
+          },
         ),
       );
     }

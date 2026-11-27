@@ -249,15 +249,31 @@ final mergedTasksProvider = Provider.autoDispose
     .family<AsyncValue<List<TaskItem>>, TasksKey>((ref, key) {
   final own = ref.watch(tasksProvider(key));
   if (key.mine) return own;
-  final board = ref.watch(taskBoardProvider(key.done)).value;
-  if (board == null || board.isEmpty) return own;
+  final boardAsync = ref.watch(taskBoardProvider(key.done));
+  // Owner 27.11 («скачки»): the first open waits for the case cards too
+  // (the board never fails — it answers [] instead), so they are not
+  // pushed in between the planner's rows a moment later.
+  if (!boardAsync.hasValue && !own.hasError) {
+    return const AsyncLoading<List<TaskItem>>();
+  }
+  final board = boardAsync.value ?? const <TaskItem>[];
   return own.whenData((list) {
     final all = [...list, ...board];
+    // One order for every change (a row that moved to another day after a
+    // swipe or a step sits at its place at once, not after the next
+    // catch-up): the next due date, then the creation, then the id — so
+    // equal dates never swap places between two builds.
     int cmp(TaskItem a, TaskItem b) {
       final x = key.done ? b.doneAt : a.nextDueAt;
       final y = key.done ? a.doneAt : b.nextDueAt;
-      if (x == null || y == null) return x == y ? 0 : (x == null ? 1 : -1);
-      return x.compareTo(y);
+      final c = x == null || y == null
+          ? (x == y ? 0 : (x == null ? 1 : -1))
+          : x.compareTo(y);
+      if (c != 0) return c;
+      final d = key.done
+          ? b.createdAt.compareTo(a.createdAt)
+          : a.createdAt.compareTo(b.createdAt);
+      return d != 0 ? d : a.id.compareTo(b.id);
     }
 
     return all..sort(cmp);
