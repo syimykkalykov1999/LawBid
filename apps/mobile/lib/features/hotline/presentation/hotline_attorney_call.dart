@@ -418,9 +418,7 @@ class HotlineWaitingSlot extends ConsumerWidget {
     // fade (the switcher alone gave the room at once and took it away in
     // one frame after the fade).
     return AnimatedSize(
-      duration: context.reduceMotion
-          ? const Duration(milliseconds: 1)
-          : CallMotion.quick,
+      duration: context.sizeChangeDuration,
       alignment: Alignment.topCenter,
       child: AnimatedSwitcher(
         duration: context.reduceMotion ? Duration.zero : CallMotion.quick,

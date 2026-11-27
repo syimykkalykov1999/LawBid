@@ -40,7 +40,7 @@ class BoldHeightText extends StatelessWidget {
       style: base.copyWith(fontWeight: bold ? boldWeight : regularWeight),
     );
     if (bold) return shown;
-    return _MinHeightOf(
+    return MinTextHeight(
       text: text,
       style: base.copyWith(fontWeight: boldWeight),
       maxLines: maxLines,
@@ -160,15 +160,17 @@ class WidestOfText extends StatelessWidget {
   }
 }
 
-/// Lays [child] out at least as tall as [text] in [style] at the width it
-/// gets (a render object, not a LayoutBuilder, so intrinsic sizing above
-/// it keeps working).
-class _MinHeightOf extends SingleChildRenderObjectWidget {
-  const _MinHeightOf({
+/// Owner 27.11: lays [child] out at least as tall as [text] in [style] at the
+/// width it gets — the room a label keeps while something else (a spinner)
+/// stands in its place. A render object, not a LayoutBuilder, so intrinsic
+/// sizing above it keeps working.
+class MinTextHeight extends SingleChildRenderObjectWidget {
+  const MinTextHeight({
     required this.text,
     required this.style,
-    required this.maxLines,
     required super.child,
+    this.maxLines,
+    super.key,
   });
 
   final String text;
@@ -176,7 +178,7 @@ class _MinHeightOf extends SingleChildRenderObjectWidget {
   final int? maxLines;
 
   @override
-  _RenderMinHeightOf createRenderObject(BuildContext context) =>
+  RenderProxyBox createRenderObject(BuildContext context) =>
       _RenderMinHeightOf(
         painter: _painter(context),
       );
@@ -184,9 +186,9 @@ class _MinHeightOf extends SingleChildRenderObjectWidget {
   @override
   void updateRenderObject(
     BuildContext context,
-    _RenderMinHeightOf renderObject,
+    RenderProxyBox renderObject,
   ) {
-    renderObject.painter = _painter(context);
+    (renderObject as _RenderMinHeightOf).painter = _painter(context);
   }
 
   TextPainter _painter(BuildContext context) => TextPainter(

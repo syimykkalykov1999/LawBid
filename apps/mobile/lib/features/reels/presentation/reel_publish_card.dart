@@ -223,9 +223,7 @@ class _ReelPublishCardState extends ConsumerState<ReelPublishCard> {
     // switcher alone kept the card's height for the whole fade, then the
     // feed snapped up in one frame).
     return AnimatedSize(
-      duration: context.reduceMotion
-          ? const Duration(milliseconds: 1)
-          : const Duration(milliseconds: 250),
+      duration: context.sizeChangeDuration,
       alignment: Alignment.topCenter,
       child: AnimatedSwitcher(
         duration: context.reduceMotion

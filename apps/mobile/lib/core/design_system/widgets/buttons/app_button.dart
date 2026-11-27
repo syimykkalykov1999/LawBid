@@ -11,6 +11,7 @@ import 'package:lawbid/core/design_system/widgets/buttons/gavel_strike_button.da
 import 'package:lawbid/core/design_system/widgets/feedback/app_snackbar.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
+import 'package:lawbid/core/design_system/widgets/text/stable_weight_text.dart';
 import 'package:material_ui/material_ui.dart';
 
 enum AppButtonVariant {
@@ -156,15 +157,19 @@ class _AppButtonState extends State<AppButton> {
         ),
       ],
     );
-    // Owner 27.11 («скачки»): the label stays laid out (invisible) under
-    // the spinner, so a button whose label is taller than the spinner (two
-    // lines, large system font) keeps its height on tap and nothing below
-    // it moves.
+    // Owner 27.11 («скачки»): the spinner keeps the label's height (two
+    // lines, large system font), so the button does not shrink on tap and
+    // nothing below it moves.
     final content = widget.isLoading
         ? Stack(
             alignment: Alignment.center,
             children: [
-              Opacity(opacity: 0, child: label),
+              MinTextHeight(
+                text: widget.label,
+                style: typography.button,
+                maxLines: widget.fitLabel ? 1 : null,
+                child: const SizedBox.square(dimension: 20),
+              ),
               SizedBox(
                 width: 20,
                 height: 20,

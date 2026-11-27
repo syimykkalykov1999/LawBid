@@ -72,12 +72,15 @@ class AppChip extends StatelessWidget {
               color: selected ? colors.gold : colors.border,
             ),
           ),
-          foregroundDecoration: selected
-              ? BoxDecoration(
-                  borderRadius: BorderRadius.circular(height / 2),
-                  border: Border.all(color: colors.gold, width: 1.5),
-                )
-              : null,
+          // Always set (see-through when not picked), so picking does not
+          // change the tree under the chip.
+          foregroundDecoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(height / 2),
+            border: Border.all(
+              color: selected ? colors.gold : colors.gold.withValues(alpha: 0),
+              width: 1.5,
+            ),
+          ),
           child: Row(
             mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
             children: [

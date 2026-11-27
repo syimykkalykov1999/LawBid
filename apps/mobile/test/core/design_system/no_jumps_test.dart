@@ -47,6 +47,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.getSize(find.byKey(const ValueKey('field'))), size);
     expect(below(tester), at);
+    // Focusing never rebuilds the TextField (its text and focus stay).
+    await tester.enterText(find.byType(TextField), 'Ivan, 12 Elm St');
+    await tester.pump();
+    expect(controller.text, 'Ivan, 12 Elm St');
+    expect(tester.getSize(find.byKey(const ValueKey('field'))), size);
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pumpAndSettle();
     expect(below(tester), at);
