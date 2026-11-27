@@ -1535,10 +1535,16 @@ class _MessageList extends ConsumerWidget {
                           above.createdAt.toLocal(),
                           DateTime.now(),
                         ));
+                final quoted = p.replyToId == null
+                    ? null
+                    : state.messages
+                        .where((m) => m.id == p.replyToId)
+                        .firstOrNull;
                 return GroupPendingBubble(
                   pending: p,
                   groupId: detail.id,
                   startsRun: startsRun,
+                  replyTo: quoted == null ? null : groupReplyPreviewOf(quoted),
                   onRetry: () => onRetry(p.clientMessageId),
                   onDiscard: () => onDiscard(p.clientMessageId),
                 );

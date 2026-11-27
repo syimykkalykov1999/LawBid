@@ -16,8 +16,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 /// Owner 2026-10-22 (checklist, link previews): the card under a message
 /// that carries a web address — picture, site, title, a line of text
-/// (WhatsApp / Telegram). Nothing is drawn until the server answered with
-/// something to show; nothing at all while the Privacy switch is off.
+/// (WhatsApp / Telegram). Owner 27.11: always the same size (a waiting or
+/// empty card until the server answered); nothing at all while the Privacy
+/// switch is off.
 class LinkPreviewCard extends ConsumerStatefulWidget {
   const LinkPreviewCard({
     required this.url,
@@ -85,16 +86,81 @@ class _LinkPreviewCardState extends ConsumerState<LinkPreviewCard> {
             siteName: sealed.siteName,
           )
         : ref.watch(linkPreviewProvider(url)).value;
-    if (preview == null) return const SizedBox.shrink();
+    // Owner 27.11 («скачки везде»; WhatsApp / Telegram): the card has its
+    // final size from the first frame — while the preview loads, and when
+    // the site gives nothing, the same card (the address, a link sign), so
+    // the bubble never grows under the text a moment later.
+    final loading = sealed == null &&
+        preview == null &&
+        ref.watch(linkPreviewProvider(url)).isLoading;
+    final shown = preview ?? LinkPreview(url: url);
     final thumbnail = sealed?.thumbnail;
-    _noteOnce(preview.imageUrl);
+    _noteOnce(shown.imageUrl);
     final t = ref.watch(translatorProvider);
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
     final chat = ChatColors.of(context);
     final fg = mine ? chat.onMine : chat.onTheirs;
     final meta = mine ? chat.mineMeta : chat.theirsMeta;
-    final host = Uri.tryParse(preview.url)?.host ?? '';
-    final site = preview.siteName ?? host;
+    final host = Uri.tryParse(shown.url)?.host ?? '';
+    final site = shown.siteName ?? host;
+    final siteStyle = type.caption.copyWith(color: meta);
+    final titleStyle = type.bodySmall.copyWith(
+      color: fg,
+      fontWeight: FontWeight.w600,
+    );
+    final Widget picture;
+    if (thumbnail != null) {
+      picture = Image.memory(
+        thumbnail,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+      );
+    } else if (shown.imageUrl != null) {
+      picture = CachedNetworkImage(
+        imageUrl: shown.imageUrl!,
+        cacheManager: AppImageCaches.chatMedia,
+        fit: BoxFit.cover,
+        memCacheWidth: decodeWidthFor(
+          math.min(240, MediaQuery.sizeOf(context).width),
+        ),
+        placeholder: (ctx, _) => ColoredBox(color: colors.skeletonBase),
+        fadeInDuration: Duration.zero,
+        errorWidget: (_, __, ___) => const SizedBox.shrink(),
+      );
+    } else if (loading) {
+      picture = ColoredBox(color: colors.skeletonBase);
+    } else {
+      picture = Center(
+        child: AppIcon(AppIcons.linkRounded, size: 32, color: meta),
+      );
+    }
+    // The lines the card keeps room for, whatever the site sends.
+    Widget lines({required bool real}) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              real ? site : ' ',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: siteStyle,
+            ),
+            Text(
+              real ? (shown.title ?? '') : ' \n ',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: titleStyle,
+            ),
+            Text(
+              real ? (shown.description ?? '') : ' \n ',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: siteStyle,
+            ),
+          ],
+        );
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.xs),
       child: Semantics(
@@ -102,11 +168,11 @@ class _LinkPreviewCardState extends ConsumerState<LinkPreviewCard> {
         label: [
           t.t('chat.linkPreview.label'),
           site,
-          preview.title ?? '',
+          shown.title ?? '',
         ].where((s) => s.isNotEmpty).join(', '),
         excludeSemantics: true,
         child: AppPressable(
-          onTap: () => _open(preview.url),
+          onTap: () => _open(shown.url),
           child: Container(
             key: ValueKey('link-preview-$url'),
             width: 240,
@@ -119,64 +185,17 @@ class _LinkPreviewCardState extends ConsumerState<LinkPreviewCard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (thumbnail != null)
-                  AspectRatio(
-                    aspectRatio: 1.91,
-                    child: Image.memory(
-                      thumbnail,
-                      fit: BoxFit.cover,
-                      gaplessPlayback: true,
-                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-                    ),
-                  )
-                else if (preview.imageUrl != null)
-                  AspectRatio(
-                    aspectRatio: 1.91,
-                    child: CachedNetworkImage(
-                      imageUrl: preview.imageUrl!,
-                      cacheManager: AppImageCaches.chatMedia,
-                      fit: BoxFit.cover,
-                      memCacheWidth: decodeWidthFor(
-                        math.min(240, MediaQuery.sizeOf(context).width),
-                      ),
-                      placeholder: (ctx, _) => ColoredBox(
-                        color: Theme.of(ctx)
-                            .extension<AppColorTokens>()!
-                            .skeletonBase,
-                      ),
-                      fadeInDuration: Duration.zero,
-                      errorWidget: (_, __, ___) => const SizedBox.shrink(),
-                    ),
-                  ),
+                AspectRatio(aspectRatio: 1.91, child: picture),
                 Padding(
                   padding: const EdgeInsets.all(AppSpacing.sm),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Stack(
                     children: [
-                      if (site.isNotEmpty)
-                        Text(
-                          site,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.caption.copyWith(color: meta),
-                        ),
-                      if (preview.title != null)
-                        Text(
-                          preview.title!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.bodySmall.copyWith(
-                            color: fg,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      if (preview.description != null)
-                        Text(
-                          preview.description!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: type.caption.copyWith(color: meta),
-                        ),
+                      ExcludeSemantics(
+                        child: Opacity(opacity: 0, child: lines(real: false)),
+                      ),
+                      Positioned.fill(
+                        child: ClipRect(child: lines(real: true)),
+                      ),
                     ],
                   ),
                 ),

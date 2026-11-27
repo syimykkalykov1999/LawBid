@@ -640,8 +640,13 @@ class GroupPendingBubble extends ConsumerWidget {
     required this.onDiscard,
     this.groupId = '',
     this.startsRun = false,
+    this.replyTo,
     super.key,
   });
+
+  /// Owner 27.11: the quote of the message this one answers, drawn as the
+  /// delivered bubble draws it (null: not a reply, or not loaded).
+  final api.GroupReplyPreviewDto? replyTo;
 
   final PendingGroupMessage pending;
 
@@ -752,6 +757,19 @@ class GroupPendingBubble extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (replyTo != null)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 4),
+                          child: _ReplyBlock(
+                            reply: replyTo!,
+                            fg: chat.onMine,
+                            accent:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? colors.goldLight
+                                    : colors.goldDark,
+                            onTap: null,
+                          ),
+                        ),
                       // Groups WhatsApp parity: my note plays from the
                       // recording while it is being sent (the 1:1 local
                       // bubble).
@@ -825,6 +843,19 @@ class GroupPendingBubble extends ConsumerWidget {
                             height: 1.35,
                           ),
                         ),
+                      // Owner 27.11: the link's card is there while it is
+                      // sent too (the delivered bubble's own card, same size).
+                      if (media == null && p.voice == null)
+                        if (firstUrlIn(p.body) case final url?)
+                          if (lawbidPostIdIn(p.body, host: lawbidLinkHost(ref))
+                              case final postId?)
+                            PostLinkCard(postId: postId, mine: true)
+                          else
+                            LinkPreviewCard(
+                              url: url,
+                              mine: true,
+                              conversationId: groupId,
+                            ),
                       const SizedBox(height: 2),
                       // Owner 27.11: the clock takes the slot of the time the
                       // delivered bubble shows there (same height and width),
@@ -883,4 +914,21 @@ class GroupPendingBubble extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Owner 27.11: the quote a pending reply shows — built from the answered
+/// message on the phone exactly as the server builds it
+/// (group-presenter.service.ts: the poll question, else the text, else the
+/// file name, at most 100 characters).
+api.GroupReplyPreviewDto groupReplyPreviewOf(api.GroupMessageDto m) {
+  final text = m.isPoll
+      ? (m.poll?.question ?? '')
+      : (m.body.isNotEmpty ? m.body : (m.attachment?.name ?? ''));
+  return api.GroupReplyPreviewDto(
+    id: m.id,
+    type: api.GroupReplyPreviewDtoType.fromJson(m.type.json ?? 'text'),
+    senderName: m.sender?.displayName,
+    deleted: m.deleted,
+    snippet: m.deleted ? '' : text.characters.take(100).toString(),
+  );
 }

@@ -2,6 +2,7 @@ import type { AddressInfo, Server } from 'node:net';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import sharp from 'sharp';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
@@ -51,7 +52,13 @@ class GateScanner implements VirusScanner {
 }
 
 type Sent = { to: string[]; event: string; payload: Record<string, unknown> };
-type Media = { url: string | null; state?: string; mime?: string | null };
+type Media = {
+  url: string | null;
+  state?: string;
+  mime?: string | null;
+  width?: number | null;
+  height?: number | null;
+};
 
 describe('Chat file goes before its scan ends (e2e, M3)', () => {
   let app: INestApplication;
@@ -364,6 +371,62 @@ describe('Chat file goes before its scan ends (e2e, M3)', () => {
         (after.body.data as { id: string }[]).find((m) => m.id === messageId),
       ),
     ).toMatchObject({ state: 'ready', url: expect.any(String) });
+  });
+
+  it('owner 27.11: a photo still checked has its shape for everyone (no jump)', async () => {
+    const c = await caseChat();
+    gate.hold();
+    // A portrait photo unique to the test (no dedup with another upload).
+    const png = await sharp({
+      create: {
+        width: 30,
+        height: 40,
+        channels: 3,
+        background: { r: randomBytes(1)[0], g: 10, b: 20 },
+      },
+    })
+      .png()
+      .toBuffer();
+    const fileId = await uploadOnly(c.attorney.auth, png, 'image/png');
+    // Read from the photo's header at confirm, before the check.
+    const row = await prisma.file.findUniqueOrThrow({ where: { id: fileId } });
+    expect(row.scan_status).toBe('pending');
+    expect({ w: row.width, h: row.height }).toEqual({ w: 30, h: 40 });
+
+    const sent = await api()
+      .post(`/api/v1/conversations/${c.id}/messages`)
+      .set(c.attorney.auth)
+      .send({
+        clientMessageId: randomUUID(),
+        type: 'attachment',
+        fileId,
+        fileName: 'IMG_1.png',
+      })
+      .expect(201);
+    const messageId = sent.body.data.id as string;
+    expect(attachmentOf(sent.body.data)).toMatchObject({
+      state: 'processing',
+      width: 30,
+      height: 40,
+    });
+    // The recipient: no link yet, but the shape is there.
+    const page = await api()
+      .get(`/api/v1/conversations/${c.id}/messages`)
+      .set(c.client.auth)
+      .expect(200);
+    expect(
+      attachmentOf(
+        (page.body.data as { id: string }[]).find((m) => m.id === messageId),
+      ),
+    ).toMatchObject({ state: 'processing', url: null, width: 30, height: 40 });
+    const live = eventsFor(c.client.id, messageId, 'message:new');
+    expect(attachmentOf(live[0].payload.message)).toMatchObject({
+      url: null,
+      width: 30,
+      height: 40,
+    });
+    gate.release();
+    expect(await scanEnded(fileId)).toBe('clean');
   });
 
   it('pending → infected: the file is removed from the message for everyone', async () => {

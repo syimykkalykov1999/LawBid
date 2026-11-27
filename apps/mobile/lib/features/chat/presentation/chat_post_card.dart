@@ -138,13 +138,13 @@ class PostCardBody extends ConsumerWidget {
                           child: Container(
                             width: 44,
                             height: 44,
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               shape: BoxShape.circle,
-                              color: Colors.black.withValues(alpha: 0.45),
+                              color: AppMediaOverlay.scrim,
                             ),
                             child: const AppIcon(
                               AppIcons.playArrowRounded,
-                              color: Colors.white,
+                              color: AppMediaOverlay.ink,
                             ),
                           ),
                         ),
@@ -254,10 +254,212 @@ class PostLinkCard extends ConsumerWidget {
         SharedPostCard(id: postId, available: false),
       _ => null,
     };
-    if (card == null) return const SizedBox.shrink();
+    // Owner 27.11 («скачки везде»): one size from the first frame — the
+    // card waits, opens or says «unavailable» in the same box, so the
+    // bubble never grows when the post arrives.
     return Padding(
       padding: const EdgeInsets.only(top: AppSpacing.xs),
-      child: PostCardBody(card: card, mine: mine),
+      child: FixedPostCard(card: card, mine: mine),
+    );
+  }
+}
+
+/// Owner 27.11: a post card of one fixed size (a message link's card that
+/// loads after the message): the author row, a 4:5 picture (or the text on
+/// the card's tint when the post has no picture), three lines of text.
+/// [card] null: the post is still on its way.
+class FixedPostCard extends ConsumerWidget {
+  const FixedPostCard({required this.card, required this.mine, super.key});
+
+  final SharedPostCard? card;
+  final bool mine;
+
+  /// Lines of text under the picture the card keeps room for.
+  static const textLines = 3;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ref.watch(translatorProvider);
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final chat = ChatColors.of(context);
+    final fg = mine ? chat.onMine : chat.onTheirs;
+    final meta = mine ? chat.mineMeta : chat.theirsMeta;
+    final c = card;
+    final nameStyle = type.bodySmall.copyWith(
+      color: fg,
+      fontWeight: FontWeight.w700,
+    );
+    final textStyle = type.bodySmall.copyWith(color: fg, height: 1.3);
+    final name = c == null ? '' : (c.authorName ?? c.authorUsername ?? '');
+    final title = c?.title?.trim() ?? '';
+    final excerpt = c?.excerpt?.trim() ?? '';
+    final thumb = c != null && c.available ? c.thumbnailUrl : null;
+    final text = TextSpan(
+      children: [
+        if (title.isNotEmpty)
+          TextSpan(
+            text: excerpt.isEmpty ? title : '$title  ',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        if (excerpt.isNotEmpty) TextSpan(text: excerpt),
+      ],
+    );
+    final Widget picture;
+    if (c == null) {
+      picture = ColoredBox(color: colors.skeletonBase);
+    } else if (!c.available) {
+      picture = Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppIcon(
+                AppIcons.imageNotSupportedOutlined,
+                size: 28,
+                color: meta,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                t.t('chat.post.unavailable'),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: type.bodySmall.copyWith(color: meta),
+              ),
+            ],
+          ),
+        ),
+      );
+    } else if (thumb != null) {
+      picture = Stack(
+        fit: StackFit.expand,
+        children: [
+          Image(
+            image: appNetworkImage(thumb, decodeWidthFor(kChatPostCardWidth)),
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) =>
+                ColoredBox(color: fg.withValues(alpha: 0.08)),
+          ),
+          if (c.isVideo)
+            Center(
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppMediaOverlay.scrim,
+                ),
+                child: const AppIcon(
+                  AppIcons.playArrowRounded,
+                  color: AppMediaOverlay.ink,
+                ),
+              ),
+            ),
+        ],
+      );
+    } else {
+      // A post of text only: its text on the card's tint (Instagram).
+      picture = ColoredBox(
+        color: fg.withValues(alpha: 0.06),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Text.rich(
+            text,
+            overflow: TextOverflow.fade,
+            style: type.body.copyWith(color: fg, height: 1.3),
+          ),
+        ),
+      );
+    }
+    final body = Container(
+      key: ValueKey('chat-post-fixed-${c?.id ?? 'loading'}'),
+      width: kChatPostCardWidth,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: fg.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            child: Row(
+              children: [
+                AppAvatar(
+                  size: 26,
+                  initials: avatarInitials(name.isEmpty ? '?' : name),
+                  imageProvider: c?.authorAvatarUrl == null
+                      ? null
+                      : appNetworkImage(
+                          c!.authorAvatarUrl!,
+                          decodeWidthFor(26),
+                        ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Expanded(
+                  child: Text.rich(
+                    c == null
+                        ? const TextSpan(text: ' ')
+                        : nameWithCheck(
+                            name,
+                            verified: c.authorVerified,
+                            checkLabel: t.t('post.verified'),
+                            style: nameStyle,
+                          ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: nameStyle,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          AspectRatio(aspectRatio: 4 / 5, child: ClipRect(child: picture)),
+          Padding(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            child: Stack(
+              children: [
+                // The room of three lines, whatever the post says.
+                ExcludeSemantics(
+                  child: Opacity(
+                    opacity: 0,
+                    child: Text(
+                      List.filled(textLines, ' ').join('\n'),
+                      maxLines: textLines,
+                      style: textStyle,
+                    ),
+                  ),
+                ),
+                if (thumb != null && (title.isNotEmpty || excerpt.isNotEmpty))
+                  Positioned.fill(
+                    child: Text.rich(
+                      text,
+                      maxLines: textLines,
+                      overflow: TextOverflow.ellipsis,
+                      style: textStyle,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+    if (c == null || !c.available) return body;
+    return Semantics(
+      button: true,
+      label: [t.t('chat.post.label'), name, if (title.isNotEmpty) title]
+          .join(', '),
+      excludeSemantics: true,
+      child: AppPressable(
+        key: ValueKey('chat-post-${c.id}'),
+        onTap: () => context.push(SocialRoutes.post(c.id)),
+        child: body,
+      ),
     );
   }
 }
