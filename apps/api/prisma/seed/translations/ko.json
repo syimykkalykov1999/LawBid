@@ -6293,7 +6293,6 @@
   "tasks.scope.all": "전체",
   "tasks.scope.assistant": "어시스턴트 처리",
   "tasks.scope.forClient": "의뢰인용",
-  "tasks.scope.joint": "공유",
   "tasks.scope.mine": "내 것",
   "tasks.search": "작업 검색",
   "tasks.snooze.dayLater": "하루 뒤",

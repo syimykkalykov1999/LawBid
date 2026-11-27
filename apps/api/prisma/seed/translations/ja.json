@@ -6293,7 +6293,6 @@
   "tasks.scope.all": "すべて",
   "tasks.scope.assistant": "アシスタント対応",
   "tasks.scope.forClient": "依頼者向け",
-  "tasks.scope.joint": "共有",
   "tasks.scope.mine": "あなた",
   "tasks.search": "タスクを検索",
   "tasks.snooze.dayLater": "1日後",

@@ -6,9 +6,12 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
+import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/assistant_join_screen.dart';
+import 'package:lawbid/features/team/presentation/task_board_widgets.dart'
+    show MiniChip;
 import 'package:lawbid/features/team/presentation/task_sheet.dart'
     show normalizeTaskPhone;
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
@@ -16,6 +19,7 @@ import 'package:lawbid/features/team/presentation/tasks_tab.dart';
 import 'package:lawbid/features/team/presentation/team_inbox_tab.dart';
 import 'package:lawbid/features/team/presentation/team_screen.dart';
 import 'package:lawbid/features/team/team_routes.dart';
+import 'package:lawbid/shared/domain/user_role.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../../helpers/ux_harness.dart';
@@ -34,6 +38,7 @@ void main() {
     ThemeData? theme,
     double textScale = 1,
     bool assistant = false,
+    UserRole? role,
   }) async {
     await tester.pumpWidget(
       uxApp(
@@ -47,6 +52,7 @@ void main() {
             seatLimitRepositoryProvider
                 .overrideWithValue(FakeSeatLimitRepository()),
             if (assistant) isAssistantProvider.overrideWithValue(true),
+            if (role != null) currentUserRoleProvider.overrideWithValue(role),
           ],
         ),
       ),
@@ -305,28 +311,73 @@ void main() {
       });
     }
 
-    // Owner 2026-11-04 (R-390): All, Important, Overdue, the viewer's side,
-    // then the archive last.
-    testWidgets('the chips go: all, important, overdue, …, archive last',
+    // Owner 2026-11-26: four chips at most, like Todoist / Microsoft To Do
+    // (All / Assigned / Completed): «Важные», «Просрочено» and «Общие» are
+    // gone (their tasks stay in «Все»); «Завершённые» is last (R-390).
+    List<String> chipKeys(WidgetTester tester) => tester
+        .widgetList<Widget>(
+          find.byWidgetPredicate(
+            (w) =>
+                w.key is ValueKey<String> &&
+                (w.key! as ValueKey<String>).value.startsWith('tasks-view-'),
+          ),
+        )
+        .map((w) => (w.key! as ValueKey<String>).value)
+        .toList();
+
+    testWidgets('attorney chips: all, for the client, assistant, done',
         (tester) async {
       repo.active = [makeTask('a')];
-      await pump(tester, const TasksTab());
-      final keys = tester
-          .widgetList<Widget>(
-            find.byWidgetPredicate(
-              (w) =>
-                  w.key is ValueKey<String> &&
-                  (w.key! as ValueKey<String>).value.startsWith('tasks-view-'),
-            ),
-          )
-          .map((w) => (w.key! as ValueKey<String>).value)
-          .toList();
-      expect(keys.sublist(0, 3), [
+      await pump(tester, const TasksTab(), role: UserRole.attorney);
+      expect(chipKeys(tester), [
         'tasks-view-all',
-        'tasks-view-important',
-        'tasks-view-overdue',
+        'tasks-view-forClient',
+        'tasks-view-assistant',
+        'tasks-view-done',
       ]);
-      expect(keys.last, 'tasks-view-done');
+    });
+
+    testWidgets('client chips: all, yours, done', (tester) async {
+      repo.active = [makeTask('a')];
+      await pump(tester, const TasksTab(), role: UserRole.client);
+      expect(chipKeys(tester), [
+        'tasks-view-all',
+        'tasks-view-mine',
+        'tasks-view-done',
+      ]);
+    });
+
+    testWidgets('assistant chips: all, results, done', (tester) async {
+      repo.active = [makeTask('a')];
+      await pump(tester, const TasksTab(), assistant: true);
+      expect(chipKeys(tester), [
+        'tasks-view-all',
+        'tasks-view-results',
+        'tasks-view-done',
+      ]);
+    });
+
+    testWidgets('an overdue task is still in «All» without its own chip',
+        (tester) async {
+      repo.active = [
+        makeTask(
+          'late',
+          dueAt: DateTime.now().subtract(const Duration(days: 2)),
+        ),
+      ];
+      await pump(tester, const TasksTab(), role: UserRole.attorney);
+      expect(find.byKey(const ValueKey('tasks-view-overdue')), findsNothing);
+      expect(
+        tester
+            .widget<MiniChip>(find.byKey(const ValueKey('tasks-view-all')))
+            .selected,
+        isTrue,
+      );
+      expect(find.text('Task late'), findsOneWidget);
+    });
+
+    test('the done chip reads «Завершённые» in Russian', () {
+      expect(const StaticTranslatorRu().t('tasks.view.done'), 'Завершённые');
     });
 
     testWidgets('a double tap marks the task done', (tester) async {

@@ -128,7 +128,7 @@ List<TaskItem> applyTaskFilter(
   final out = [
     for (final t in tasks)
       if (inPeriod(t) &&
-          taskInScope(t, f.scope, now) &&
+          taskInScope(t, f.scope) &&
           (f.caseId == null || t.caseId == f.caseId) &&
           switch (f.assignee) {
             null => true,
@@ -646,18 +646,17 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     // The board's own view (all, or «today» when opened on it) for the
     // scope chips.
     final board = _view == TasksView.today ? TasksView.today : TasksView.all;
+    // Owner 2026-11-26: four chips, like Todoist / Microsoft To Do (All,
+    // Assigned, Completed). Overdue, important and joint tasks stay in
+    // «Все» (overdue is its first, red section; the card pill says
+    // «Общая»).
     return [
       (scope: TaskScope.all, view: board),
-      (scope: TaskScope.important, view: board),
-      (scope: TaskScope.overdue, view: board),
       if (!assistant && _attorneySide) ...[
         (scope: TaskScope.forClient, view: board),
-        (scope: TaskScope.joint, view: board),
         (scope: TaskScope.assistant, view: board),
-      ] else if (!assistant) ...[
+      ] else if (!assistant)
         (scope: TaskScope.mine, view: board),
-        (scope: TaskScope.joint, view: board),
-      ],
       if (assistant) (scope: null, view: TasksView.results),
       (scope: null, view: TasksView.archive),
     ];
@@ -704,8 +703,8 @@ class _TasksTabState extends ConsumerState<TasksTab> {
         // with "…"; nothing slides or wraps.
         : Row(
             children: [
-              // Owner 2026-10-15: one row — all, overdue, the slices of the
-              // viewer's side, then the archive; «+» stays at the end.
+              // Owner 2026-10-15: one row — all, the slices of the viewer's
+              // side, then the finished tasks; «+» stays at the end.
               Expanded(
                 child: _TopChips(
                   t: t,
@@ -1258,8 +1257,8 @@ class _BoardHeader extends ConsumerWidget {
   }
 }
 
-/// Owner 2026-10-15: the top row — all, overdue and the slices of the
-/// viewer's side, then the archive (finished tasks); scrolls when a
+/// Owner 2026-10-15 / 2026-11-26: the top row — all, the slices of the
+/// viewer's side, then the finished tasks («Завершённые»); scrolls when a
 /// language is long, compact chips, never stretched.
 class _TopChips extends StatelessWidget {
   const _TopChips({
@@ -1297,16 +1296,11 @@ class _TopChips extends StatelessWidget {
     final items = <(String, String, bool, VoidCallback)>[
       if (showViews) ...[
         scope('all', t.t('tasks.scope.all'), TaskScope.all),
-        scope('important', t.t('notif.view.important'), TaskScope.important),
-        scope('overdue', t.t('tasks.overdue'), TaskScope.overdue),
         if (!assistant && attorneySide) ...[
           scope('forClient', t.t('tasks.scope.forClient'), TaskScope.forClient),
-          scope('joint', t.t('tasks.scope.joint'), TaskScope.joint),
           scope('assistant', t.t('tasks.scope.assistant'), TaskScope.assistant),
-        ] else if (!assistant) ...[
+        ] else if (!assistant)
           scope('mine', t.t('tasks.scope.mine'), TaskScope.mine),
-          scope('joint', t.t('tasks.scope.joint'), TaskScope.joint),
-        ],
       ],
       if (deadlines)
         (

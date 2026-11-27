@@ -6293,7 +6293,6 @@
   "tasks.scope.all": "All",
   "tasks.scope.assistant": "With the assistant",
   "tasks.scope.forClient": "For client",
-  "tasks.scope.joint": "Joint",
   "tasks.scope.mine": "Yours",
   "tasks.search": "Search tasks",
   "tasks.snooze.dayLater": "A day later",
