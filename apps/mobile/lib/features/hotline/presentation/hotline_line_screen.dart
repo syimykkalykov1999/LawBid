@@ -21,6 +21,7 @@ import 'package:lawbid/features/hotline/presentation/hotline_form_screen.dart'
     show pickHotlineLanguages;
 import 'package:lawbid/features/hotline/presentation/hotline_text.dart'
     show hotlineLanguages;
+import 'package:lawbid/features/onboarding/domain/us_states.dart' show kRegions;
 import 'package:lawbid/features/onboarding/presentation/widgets/option_picker_sheet.dart'
     show OptionPickerSheet, PickerOption;
 import 'package:lawbid/features/practice/practice_options.dart';
@@ -161,18 +162,26 @@ class _HotlineLineScreenState extends ConsumerState<HotlineLineScreen>
     );
   }
 
+  /// The same sheet as the feed's «Выберите темы» / «Выберите штат» (owner
+  /// 26.11): search, the state's code on the right, «Готово · N» — listing
+  /// only what the line may take ([all]: his categories, his verified
+  /// states; the others are not shown).
   Future<List<String>?> _pick({
     required String title,
     required List<String> all,
     required List<String> current,
-    required String Function(String) label,
+    required List<PickerOption> options,
+    String? searchHint,
+    Future<Map<String, String?>> Function(String query)? remoteSearch,
   }) async {
     final picked = await OptionPickerSheet.show(
       context,
       title: title,
-      options: [for (final v in all) PickerOption(value: v, label: label(v))],
+      options: options,
       initial: current.toSet(),
       multi: true,
+      searchHint: searchHint,
+      remoteSearch: remoteSearch,
     );
     if (picked == null) return null;
     return [
@@ -237,11 +246,24 @@ class _HotlineLineScreenState extends ConsumerState<HotlineLineScreen>
         state: st,
         config: cfg,
         onPractices: () async {
+          // Calls are matched by category (the client picks one), so the
+          // line lists his categories; a subtopic or a word in any
+          // language found by the search picks its category, like the
+          // client's form.
+          final search = practiceRemoteSearch(ref);
           final v = await _pick(
             title: t.t('hotline.att.practices'),
             all: a.practices,
             current: choice.practiceAreas,
-            label: (c) => practiceLabel(ref, c),
+            options: [
+              for (final c in a.practices)
+                PickerOption(value: c, label: practiceLabel(ref, c)),
+            ],
+            searchHint: t.t('practice.search.hint'),
+            remoteSearch: (q) async => {
+              for (final e in (await search(q)).entries)
+                practiceCategoryOf(e.key): e.value,
+            },
           );
           if (v != null && mounted) {
             setState(() => _choice = choice.copyWith(practiceAreas: v));
@@ -252,7 +274,21 @@ class _HotlineLineScreenState extends ConsumerState<HotlineLineScreen>
             title: t.t('hotline.att.states'),
             all: a.states,
             current: choice.states,
-            label: stateName,
+            // as «Выберите штат»: the name, its code on the right, found
+            // by the Russian name too
+            options: [
+              for (final c in a.states)
+                if (kRegions.where((r) => r.code == c).firstOrNull
+                    case final s?)
+                  PickerOption(
+                    value: s.code,
+                    label: s.name,
+                    sublabel: s.code,
+                    keywords: s.aliases,
+                  )
+                else
+                  PickerOption(value: c, label: stateName(c), sublabel: c),
+            ],
           );
           if (v != null && mounted) {
             setState(() => _choice = choice.copyWith(states: v));

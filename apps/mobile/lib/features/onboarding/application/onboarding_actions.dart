@@ -16,6 +16,7 @@ import 'package:lawbid/features/onboarding/domain/current_user.dart';
 import 'package:lawbid/features/onboarding/domain/onboarding_step_id.dart';
 import 'package:lawbid/features/onboarding/domain/profile_input.dart';
 import 'package:lawbid/features/onboarding/onboarding_routes.dart';
+import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
 
 /// Busy/error state of one onboarding screen's primary action.
@@ -86,7 +87,13 @@ class OnboardingActions extends Notifier<StepActionState> {
         ref.read(currentUserControllerProvider.notifier).apply(user);
         // Move forward explicitly; the guard alone keeps a user on an
         // already-saved step because going back is allowed.
-        _go(destination?.call(user) ?? AppRouterGuard.forwardRoute(user));
+        _go(
+          destination?.call(user) ??
+              AppRouterGuard.forwardRoute(
+                user,
+                photoPending: ref.read(avatarUploadControllerProvider).busy,
+              ),
+        );
       }
       if (ref.mounted) state = const StepActionState();
       return true;
@@ -217,6 +224,11 @@ class OnboardingActions extends Notifier<StepActionState> {
   /// docs/analytics_events.md: `onboarding_completed` and, for the same
   /// moment, `signup_completed` (every onboarding here is a new account).
   Future<CurrentUser> _completeOnboarding() async {
+    // Owner 26.11: the profile photo may still be checked in the background
+    // (the user went on at once); the server needs it clean and attached,
+    // so finishing waits for it. A refused photo leaves `missing: photo` and
+    // [_run] brings the user back to the photo field with its Retry.
+    await ref.read(avatarUploadControllerProvider.notifier).settled;
     final user = await _repo.completeOnboarding();
     AppEvents.track(AppEventNames.onboardingCompleted);
     AppEvents.track(AppEventNames.signupCompleted);

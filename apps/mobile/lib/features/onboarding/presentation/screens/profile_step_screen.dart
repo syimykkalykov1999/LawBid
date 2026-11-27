@@ -252,11 +252,16 @@ class _ProfileStepScreenState extends ConsumerState<ProfileStepScreen> {
 
   /// docs/03 §4.1 / OQ-012: an attorney cannot finish without a clean
   /// photo — the server reports it as `missing: photo` until the upload
-  /// is confirmed and scanned.
-  bool _photoMissing(CurrentUser user) =>
-      user.isAttorney &&
-      user.missing.contains(MissingRequirement.photo) &&
-      ref.read(avatarUploadControllerProvider).stage != AvatarUploadStage.done;
+  /// is confirmed and scanned. Owner 26.11 (WhatsApp): a picked photo
+  /// still going up / being checked lets him go on at once; finishing
+  /// onboarding waits for it (OnboardingActions), the server still checks.
+  bool _photoMissing(CurrentUser user) {
+    if (!user.isAttorney || !user.missing.contains(MissingRequirement.photo)) {
+      return false;
+    }
+    final upload = ref.read(avatarUploadControllerProvider);
+    return upload.stage != AvatarUploadStage.done && !upload.busy;
+  }
 
   /// Owner 2026-10-11: Continue is grey until the required data is in.
   bool _ready(CurrentUser user) {

@@ -75,6 +75,7 @@ import 'package:lawbid/features/partners/presentation/partner_screen.dart'
 import 'package:lawbid/features/plans/presentation/bid_packs_screen.dart'
     deferred as d_bid_packs_screen;
 import 'package:lawbid/features/privacy/privacy_routes.dart';
+import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_stats_screen.dart'
     deferred as d_attorney_stats_screen;
@@ -190,6 +191,7 @@ GoRouter appRouter(Ref ref) {
           assistant: _assistantGate(ref),
           guestBrowsing: ref.read(guestBrowsingEnabledProvider),
           returnTo: returnTo,
+          photoPending: ref.read(avatarUploadControllerProvider).busy,
         ),
       );
       // The guest's remembered screen is used once (after sign-in), then

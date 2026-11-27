@@ -132,4 +132,46 @@ void main() {
     await tester.pump();
     expect(line.started?.languages, ['ru', 'de']);
   });
+
+  testWidgets(
+      'qualifications and states open the feed pickers: only what the line '
+      'may take, search, the state code on the right', (tester) async {
+    await _pump(tester);
+
+    await tester.tap(find.byKey(const ValueKey('hotline-line-states')));
+    await tester.pumpAndSettle();
+    var sheet = find.byType(OptionPickerSheet);
+    var picker = tester.widget<OptionPickerSheet>(sheet);
+    // only his verified states (no other state is listed)
+    expect(picker.options.map((o) => o.value), ['CA']);
+    expect(picker.options.single.label, 'California');
+    expect(picker.options.single.sublabel, 'CA');
+    expect(picker.options.single.keywords, contains('Калифорния'));
+    expect(picker.multi, isTrue);
+    expect(picker.initial, {'CA'});
+    // found by the Russian name, like «Выберите штат»
+    await tester.enterText(
+      find.descendant(of: sheet, matching: find.byType(TextField)).first,
+      'Калифорния',
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: sheet, matching: find.text('California')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.descendant(of: sheet, matching: find.byType(AppButton)).last,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('hotline-line-practices')));
+    await tester.pumpAndSettle();
+    sheet = find.byType(OptionPickerSheet);
+    picker = tester.widget<OptionPickerSheet>(sheet);
+    // only his categories, the practice search of «Выберите темы»
+    expect(picker.options.map((o) => o.value), ['family']);
+    expect(picker.searchHint, isNotNull);
+    expect(picker.remoteSearch, isNotNull);
+    expect(picker.multi, isTrue);
+  });
 }

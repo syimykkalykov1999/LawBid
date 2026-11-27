@@ -5,10 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
+import 'package:lawbid/features/profile/application/avatar_upload_controller.dart'
+    show AvatarUploadController;
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart';
 
-enum GroupAvatarStage { idle, uploading, done, failed }
+/// [checking]: in storage, the server's antivirus scan still running — the
+/// same stage as the profile photo («Проверяем фото…», not «100%»).
+enum GroupAvatarStage { idle, uploading, checking, done, failed }
 
 @immutable
 class GroupAvatarState {
@@ -32,13 +36,15 @@ class GroupAvatarState {
   final String? fileId;
   final Object? error;
 
-  bool get busy => stage == GroupAvatarStage.uploading;
+  bool get busy =>
+      stage == GroupAvatarStage.uploading || stage == GroupAvatarStage.checking;
 }
 
 ApiException _local(String code) => ApiException(code: code, message: code);
 
 /// Uploads the photo of a new group with the profile-photo pipeline
-/// (purpose `avatar`: presign, storage POST, confirm, wait for the scan)
+/// (purpose `avatar`: presign, storage POST, confirm, wait for the scan;
+/// the picker already sized and compressed it like the profile photo)
 /// but without attaching it to my account; the result is `fileId`.
 class GroupAvatarUpload extends Notifier<GroupAvatarState> {
   UploadCancellation? _cancellation;
@@ -87,24 +93,27 @@ class GroupAvatarUpload extends Notifier<GroupAvatarState> {
         sizeBytes: bytes.length,
         sha256: sha256Hex(bytes),
       );
-      await repo.upload(
-        target,
-        bytes,
-        mime,
-        onProgress: (p) {
-          if (ref.mounted) {
-            state = GroupAvatarState(
-              stage: GroupAvatarStage.uploading,
-              progress: p,
-              preview: bytes,
-            );
-          }
-        },
-        cancellation: cancellation,
-      );
-      var outcome = await repo.confirm(target.fileId);
-      for (var i = 0; outcome == ScanOutcome.pending && i < 30; i++) {
-        await Future<void>.delayed(const Duration(seconds: 1));
+      // The profile photo's steps (AvatarUploadController): a photo the
+      // storage already has is not sent again, and the scan is polled
+      // twice a second (it used to be once a second, the photo showed
+      // «100%» up to a second longer).
+      var outcome = ScanOutcome.clean;
+      if (!target.alreadyStored) {
+        await repo.upload(
+          target,
+          bytes,
+          mime,
+          onProgress: (p) => _set(GroupAvatarStage.uploading, p, bytes),
+          cancellation: cancellation,
+        );
+        if (cancellation.isCancelled || !ref.mounted) return;
+        _set(GroupAvatarStage.checking, 1, bytes);
+        outcome = await repo.confirm(target.fileId);
+      }
+      for (var i = 0;
+          outcome == ScanOutcome.pending && i < AvatarUploadController.maxPolls;
+          i++) {
+        await Future<void>.delayed(AvatarUploadController.pollInterval);
         if (cancellation.isCancelled || !ref.mounted) return;
         outcome = await repo.scanStatus(target.fileId);
       }
@@ -129,6 +138,11 @@ class GroupAvatarUpload extends Notifier<GroupAvatarState> {
         );
       }
     }
+  }
+
+  void _set(GroupAvatarStage stage, double progress, Uint8List bytes) {
+    if (!ref.mounted) return;
+    state = GroupAvatarState(stage: stage, progress: progress, preview: bytes);
   }
 }
 

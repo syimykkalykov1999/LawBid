@@ -38,6 +38,16 @@ class _Repo extends FakeGroupRepository {
 /// Owner 2026-11-08 (the profile photo bug, R2): a group photo that reached
 /// storage is set on the group even when the info screen was closed while
 /// the server still checked it.
+/// Real time for the queue's database and files, frames in between.
+Future<void> _until(WidgetTester tester, bool Function() done) async {
+  for (var i = 0; i < 50 && !done(); i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
+    await tester.pump();
+  }
+}
+
 void main() {
   setUpAll(initializeDateFormatting);
 
@@ -52,6 +62,8 @@ void main() {
     final hold = Completer<ScanOutcome>();
     final uploads = FakeAvatarRepo(me: attorneyMe())..holdConfirm = hold;
     final jpeg = Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4]);
+    final open = ValueNotifier(true);
+    addTearDown(open.dispose);
     await tester.pumpWidget(
       ProviderScope(
         overrides: uxOverrides(
@@ -69,7 +81,12 @@ void main() {
         ),
         child: MaterialApp(
           theme: AppTheme.light(),
-          home: const GroupInfoScreen(groupId: 'g1'),
+          // the screen goes, the app (and its upload queue) stays
+          home: ValueListenableBuilder<bool>(
+            valueListenable: open,
+            builder: (_, shown, __) =>
+                shown ? const GroupInfoScreen(groupId: 'g1') : const SizedBox(),
+          ),
         ),
       ),
     );
@@ -81,13 +98,14 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Выбрать из галереи'));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    // the photo goes on the app's queue (a real database: real time)
+    await _until(tester, () => uploads.steps.contains('confirm'));
     expect(uploads.steps, contains('confirm'));
 
-    await tester.pumpWidget(const SizedBox()); // the screen is gone
-    hold.complete(ScanOutcome.clean);
+    open.value = false; // the screen is gone
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+    hold.complete(ScanOutcome.clean);
+    await _until(tester, () => repo.sent.isNotEmpty);
 
     expect(repo.sent.single.avatarFileId, 'f1');
     await tester.pump(const Duration(minutes: 6));

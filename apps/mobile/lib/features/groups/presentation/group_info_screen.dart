@@ -17,6 +17,7 @@ import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/disappearing.dart';
 import 'package:lawbid/features/chat/presentation/disappearing_sheet.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
+import 'package:lawbid/features/groups/application/group_photo_outbox.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
 import 'package:lawbid/features/groups/domain/slow_mode.dart';
@@ -287,25 +288,12 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       return;
     }
     if (bytes == null || !mounted) return;
-    setState(() => _photoBusy = true);
-    // Owner 2026-11-08 (same as the profile photo): a photo that reached
-    // storage is set on the group even when this screen was left meanwhile;
-    // the repository is taken now, the screen's ref is gone by then.
-    final groups = ref.read(groupRepositoryProvider);
-    try {
-      final fileId = await uploadGroupPhoto(ref, bytes);
-      final change = api.UpdateGroupDto(avatarFileId: fileId);
-      if (!mounted) {
-        await groups.update(_id, change);
-        return;
-      }
-      final error = await _update(change);
-      if (error != null) _toast(error);
-    } on Object catch (e) {
-      _toast(errorText(t, e));
-    } finally {
-      if (mounted) setState(() => _photoBusy = false);
-    }
+    // Owner 26.11 (instant like WhatsApp): the picked photo shows at once
+    // (header, chat list, chat top bar); the upload and the server's check
+    // run on the app's queue and the photo is set on the group when clean —
+    // also when this screen was left. A refused photo goes back to the old
+    // one with the queue's «Повторить» snackbar.
+    unawaited(ref.read(groupPhotoOutboxProvider).submit(_id, bytes));
   }
 
   // --- text -----------------------------------------------------------------

@@ -8,7 +8,8 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
-import 'package:lawbid/features/profile/application/profile_providers.dart';
+import 'package:lawbid/features/profile/application/avatar_upload_controller.dart'
+    show AvatarUploadController;
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart';
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
 import 'package:material_ui/material_ui.dart';
@@ -78,10 +79,13 @@ Future<Uint8List?> pickGroupPhoto(WidgetRef ref, GroupPhotoChoice choice) =>
 
 /// The profile photo pipeline (presign → storage → confirm → scan) for a
 /// group photo: returns the clean file's id, which the caller sets with
-/// `UpdateGroupDto(avatarFileId:)`. Throws [ApiException].
-Future<String> uploadGroupPhoto(WidgetRef ref, Uint8List bytes) async {
-  final repo = ref.read(avatarUploadRepositoryProvider);
-  final limits = ref.read(uploadLimitsProvider)[UploadPlace.avatar];
+/// `UpdateGroupDto(avatarFileId:)`. Throws [ApiException]. Run by the
+/// group-photo job of the app's upload queue (group_photo_outbox.dart).
+Future<String> uploadGroupPhotoWith(
+  AvatarUploadRepository repo,
+  PlaceUploadLimits limits,
+  Uint8List bytes,
+) async {
   final mime = sniffImageMime(bytes);
   if (mime == null || !limits.photoMimes.contains(mime)) {
     throw const ApiException(
@@ -100,10 +104,17 @@ Future<String> uploadGroupPhoto(WidgetRef ref, Uint8List bytes) async {
     sizeBytes: bytes.length,
     sha256: sha256Hex(bytes),
   );
-  await repo.upload(target, bytes, mime);
-  var outcome = await repo.confirm(target.fileId);
-  for (var i = 0; outcome == ScanOutcome.pending && i < 30; i++) {
-    await Future<void>.delayed(const Duration(seconds: 1));
+  // The profile photo's steps (AvatarUploadController): a photo the storage
+  // already has is not sent again; the scan is polled twice a second.
+  var outcome = ScanOutcome.clean;
+  if (!target.alreadyStored) {
+    await repo.upload(target, bytes, mime);
+    outcome = await repo.confirm(target.fileId);
+  }
+  for (var i = 0;
+      outcome == ScanOutcome.pending && i < AvatarUploadController.maxPolls;
+      i++) {
+    await Future<void>.delayed(AvatarUploadController.pollInterval);
     outcome = await repo.scanStatus(target.fileId);
   }
   if (outcome != ScanOutcome.clean) {
