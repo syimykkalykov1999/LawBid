@@ -119,9 +119,10 @@ describe('Usernames (e2e)', () => {
       base.replace('z', 'Z').replace(/o/g, '0') + '_',
     );
     expect(twin.available).toBe(false);
-    // Every suggestion is itself free.
+    // Every suggestion is itself free (for the same kind it was made for:
+    // a person's suggestions may use '.', which group handles do not allow).
     for (const s of same.suggestions) {
-      expect((await check(a, s)).available).toBe(true);
+      expect((await check(a, s, 'user')).available).toBe(true);
     }
     const dup = await api()
       .post('/api/v1/groups')
