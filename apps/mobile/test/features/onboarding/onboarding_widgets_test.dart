@@ -1,4 +1,6 @@
 // ignore_for_file: lines_longer_than_80_chars
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/features/auth/presentation/screens/role_screen.dart';
@@ -11,6 +13,7 @@ import 'package:lawbid/features/onboarding/presentation/screens/consents_step_sc
 import 'package:lawbid/features/onboarding/presentation/screens/contacts_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/profile_step_screen.dart';
 import 'package:lawbid/features/onboarding/presentation/screens/splash_screen.dart';
+import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/shared/domain/user_role.dart';
@@ -639,6 +642,53 @@ void main() {
       expect(repo.calls, isEmpty);
       await _tearDownDrift(tester);
     });
+    testWidgets('owner 26.11: a photo still checked lets him go on at once',
+        (tester) async {
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final base = meFixture(
+        role: UserRole.attorney,
+        consents: true,
+        phone: '+15551234567',
+        phoneVerified: true,
+        firstName: 'Ann',
+        lastName: 'Lee',
+        step: OnboardingStepId.profile,
+      );
+      final me = CurrentUser(
+        id: base.id,
+        role: base.role,
+        status: base.status,
+        firstName: 'Ann',
+        lastName: 'Lee',
+        email: 'ann@example.com',
+        emailVerified: base.emailVerified,
+        phone: base.phone,
+        phoneVerified: base.phoneVerified,
+        uiLanguage: base.uiLanguage,
+        theme: base.theme,
+        requiredConsentsGranted: true,
+        onboarding: base.onboarding,
+        missing: const {MissingRequirement.photo},
+        attorneyProfile: const AttorneyProfile(
+          username: 'ann.lee',
+          languages: ['en'],
+          licensedStates: ['NY'],
+        ),
+      );
+      final repo = FakeOnboardingRepository(me);
+      final wrap = await onboardingWrapper(
+        AppTheme.light(),
+        user: me,
+        repo: repo,
+        extra: [avatarUploadControllerProvider.overrideWith(_Checking.new)],
+      );
+      await tester.pumpWidget(wrap(const ProfileStepScreen()));
+      await _settle(tester);
+      expect(_buttonEnabled(tester, 'Continue'), isTrue);
+      await _tearDownDrift(tester);
+    });
   });
 
   group('200% text scale (file 07 §9): no overflow on any onboarding screen',
@@ -674,4 +724,14 @@ void main() {
       });
     }
   });
+}
+
+/// A picked photo still being checked by the server.
+class _Checking extends AvatarUploadController {
+  @override
+  AvatarUploadState build() => AvatarUploadState(
+        stage: AvatarUploadStage.checking,
+        progress: 1,
+        preview: Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4]),
+      );
 }

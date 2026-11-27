@@ -157,5 +157,31 @@ final groupPhotoOutboxProvider = Provider<GroupPhotoOutbox>((ref) {
   final queue = ref.watch(uploadQueueProvider)
     ..register(GroupPhotoHandler(ref));
   unawaited(showRefusedAtStart(ref, queue, kGroupPhotoJobKind));
+  unawaited(restoreGroupPhotoPreviews(ref, queue));
   return GroupPhotoOutbox(ref, queue);
 });
+
+/// Owner 26.11: after a restart a group photo still in the queue shows its
+/// kept file again (read at start by the shell) until it is set.
+Future<void> restoreGroupPhotoPreviews(Ref ref, UploadQueue queue) async {
+  final owner = queue.ownerId;
+  if (owner == null) return;
+  try {
+    final rows = await queue.db.ofKind(owner, kGroupPhotoJobKind);
+    for (final r in rows) {
+      final job = UploadJob.fromRow(r);
+      final groupId = job.payload['groupId'] as String?;
+      final name = job.fileName;
+      // A refused one already went back to the old photo.
+      if (groupId == null || name == null || job.failed) continue;
+      final bytes = await ref.read(uploadFilesProvider).read(name);
+      if (bytes == null || !ref.mounted) continue;
+      final shown = ref.read(groupPhotoPreviewsProvider)[groupId];
+      if (shown == null) {
+        ref.read(groupPhotoPreviewsProvider.notifier).show(groupId, bytes);
+      }
+    }
+  } on Object {
+    // The queue's database is not open (signed out): nothing to show.
+  }
+}

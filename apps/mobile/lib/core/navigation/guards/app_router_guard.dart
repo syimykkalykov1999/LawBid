@@ -35,9 +35,15 @@ class GuardSnapshot {
     this.assistant = AssistantGate.notAssistant,
     this.guestBrowsing = false,
     this.returnTo,
+    this.photoPending = false,
   });
 
   final StartupStatus startup;
+
+  /// Owner 26.11 (WhatsApp): the attorney's picked photo is still going up /
+  /// being checked — he may go on past the profile step meanwhile (the
+  /// server checks it at completion).
+  final bool photoPending;
 
   /// Owner 2026-10-22 (decision A1): the `guest_browsing` flag — without a
   /// session the feed, search and public profiles stay open and the splash
@@ -159,7 +165,7 @@ abstract final class AppRouterGuard {
       return location == AuthRoutes.setPassword ? null : AuthRoutes.setPassword;
     }
 
-    final required = requiredStep(user);
+    final required = requiredStep(user, photoPending: s.photoPending);
     if (required == null) {
       // Owner 2026-10-05 (legal documents): a new or materially changed
       // document of the user's role is not accepted yet — the acceptance
@@ -224,14 +230,17 @@ abstract final class AppRouterGuard {
   /// revisit rule below lets a user go BACK to a saved step, so a step's
   /// primary button must move forward explicitly (owner bug report
   /// 2026-09-27: consents/role "Continue" stayed on the same screen).
-  static String forwardRoute(CurrentUser user) {
-    final step = requiredStep(user);
+  static String forwardRoute(CurrentUser user, {bool photoPending = false}) {
+    final step = requiredStep(user, photoPending: photoPending);
     return step == null ? AppRoutes.feed : OnboardingRoutes.forStep(step);
   }
 
   /// Rows 2-6: the onboarding step the user must be on, or null when
   /// onboarding is complete and nothing is missing.
-  static OnboardingStepId? requiredStep(CurrentUser user) {
+  static OnboardingStepId? requiredStep(
+    CurrentUser user, {
+    bool photoPending = false,
+  }) {
     final missing = user.missing;
     final completed = user.onboarding.isCompleted;
     final saved = user.onboarding.currentStep;
@@ -272,7 +281,7 @@ abstract final class AppRouterGuard {
     // without them (the server would refuse to complete anyway).
     if ((missing.contains(MissingRequirement.name) ||
             missing.contains(MissingRequirement.profile) ||
-            missing.contains(MissingRequirement.photo)) &&
+            (missing.contains(MissingRequirement.photo) && !photoPending)) &&
         order.indexOf(effective) > order.indexOf(OnboardingStepId.profile)) {
       effective = OnboardingStepId.profile;
     }

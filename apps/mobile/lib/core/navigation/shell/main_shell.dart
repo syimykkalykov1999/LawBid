@@ -34,6 +34,7 @@ import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/application/review_outbox.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
@@ -142,8 +143,10 @@ class _MainShellState extends ConsumerState<MainShell> {
           ..read(pendingPostsProvider)
           ..read(reviewOutboxProvider)
           ..read(caseFilesOutboxProvider)
-          // owner 26.11: a group photo still checked goes on at start
-          ..read(groupPhotoOutboxProvider);
+          // owner 26.11: a group / profile photo still checked goes on at
+          // start (its kept file shows meanwhile)
+          ..read(groupPhotoOutboxProvider)
+          ..read(avatarUploadControllerProvider);
       });
       // Owner 2026-10-24 (R-140: every role): users without a passkey are
       // offered Face ID / fingerprint once (snoozable).

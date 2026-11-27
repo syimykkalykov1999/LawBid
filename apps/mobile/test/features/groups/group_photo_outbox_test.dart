@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lawbid/core/uploads/upload_files_memory.dart';
+import 'package:lawbid/core/uploads/upload_queue_database.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/groups/application/group_photo_outbox.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
@@ -83,5 +86,38 @@ void main() {
 
     expect(repo.sent, isEmpty);
     expect(c.read(groupPhotoPreviewsProvider)['g1'], isNull);
+  });
+
+  test('after a restart a photo still in the queue shows its kept file',
+      () async {
+    final db = UploadQueueDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    final files = MemoryUploadFiles();
+    ProviderContainer run() {
+      final c = ProviderContainer(
+        overrides: [
+          groupRepositoryProvider.overrideWithValue(_Repo()),
+          realtimeClientProvider.overrideWithValue(null),
+          avatarUploadRepositoryProvider.overrideWithValue(
+            FakeAvatarRepo(me: attorneyMe())
+              ..holdConfirm = Completer<ScanOutcome>(),
+          ),
+          ...uploadQueueOverrides(db: db, files: files),
+        ],
+      );
+      addTearDown(c.dispose);
+      return c;
+    }
+
+    final first = run();
+    await first.read(groupPhotoOutboxProvider).submit('g1', jpeg);
+    await _settle();
+    first.dispose(); // the app is closed while the server checks it
+
+    final second = run();
+    expect(second.read(groupPhotoPreviewsProvider)['g1'], isNull);
+    second.read(groupPhotoOutboxProvider); // the shell at start
+    await _settle();
+    expect(second.read(groupPhotoPreviewsProvider)['g1']?.bytes, jpeg);
   });
 }
