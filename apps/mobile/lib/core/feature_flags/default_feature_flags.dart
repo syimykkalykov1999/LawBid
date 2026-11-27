@@ -46,6 +46,7 @@ const Map<String, bool> defaultFeatureFlags = {
   'firm_profiles': false,
   'video_calls': false,
   'calls_group': false,
+  'calls_android_telecom': false,
   'stories': false,
   'channels': false,
   'groups': true,

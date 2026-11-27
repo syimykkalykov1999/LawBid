@@ -699,6 +699,25 @@ class CallController extends Notifier<CallSession> {
     );
     // The ongoing-call notification follows the call; its buttons come back.
     listenSelf(_syncForeground);
+    // Owner 26.11 (`calls_android_telecom`): Android calls are system calls
+    // (Core-Telecom, native SystemCalls.kt) — the switch reaches the native
+    // side, which also reads it on a ring before Dart is up; the sound's
+    // place (speaker / earpiece / headset) is told to Telecom, the one
+    // owner of the route a system call has.
+    ref.listen<bool>(
+      androidSystemCallsEnabledProvider,
+      (_, on) =>
+          unawaited(ref.read(callForegroundProvider).setSystemCalls(on: on)),
+      fireImmediately: true,
+    );
+    ref.listen<CallAudioKind?>(
+      callAudioRouterProvider.select((s) => s.current?.kind),
+      (_, kind) {
+        if (kind != null && state.busy) {
+          unawaited(ref.read(callForegroundProvider).route(kind.name));
+        }
+      },
+    );
     listenSelf(_syncProximity);
     listenSelf(_syncSocket);
     listenSelf(_syncScreenAwake);
@@ -859,7 +878,10 @@ class CallController extends Notifier<CallSession> {
     if (!live) {
       if (_fgKey != null) {
         _fgKey = null;
-        unawaited(fg.stop());
+        // Owner 26.11: Telecom hears how the call ended (its CallStatus).
+        unawaited(
+          fg.stop(cause: next.call?.status.name ?? prev?.call?.status.name),
+        );
       }
       return;
     }
@@ -874,6 +896,8 @@ class CallController extends Notifier<CallSession> {
     unawaited(
       fg.start(
         name: name,
+        id: next.call?.id ?? '',
+        outgoing: next.call?.outgoing ?? next.phase == CallPhase.outgoing,
         since: since,
         status: t.t(since > 0 ? 'call.ongoing' : 'call.status.connecting'),
         hangup: t.t('call.end'),
@@ -886,6 +910,12 @@ class CallController extends Notifier<CallSession> {
     // phone's audio («hold») and gave it back («unhold»).
     if (action == 'hold' || action == 'unhold') {
       setHold(CallHoldSource.phoneCall, on: action == 'hold');
+      return;
+    }
+    // Owner 26.11: the system muted / unmuted the call (a car kit, a watch,
+    // a headset — Telecom's mute, SystemCalls.kt).
+    if (action == 'mute' || action == 'unmute') {
+      if (state.busy && state.muted != (action == 'mute')) toggleMute();
       return;
     }
     if (action == 'hangup') {
@@ -3506,7 +3536,11 @@ class CallController extends Notifier<CallSession> {
     // the others (CallKit end, the ongoing-call service) from running.
     await _releaseStep('system call dismiss', () => ui.dismiss(endedId));
     await _releaseStep('system call endAll', ui.endAll);
-    await _releaseStep('foreground stop', fg.stop);
+    await _releaseStep(
+      'foreground stop',
+      // Owner 26.11: Telecom hears the call's outcome (LOCAL when unknown).
+      () => fg.stop(cause: state.call?.status.name),
+    );
   }
 
   /// The media closing that the last [_reset] started.
@@ -3598,6 +3632,19 @@ final videoCallsEnabledProvider = Provider<bool>(
 /// Owner 2026-11-04 (R-376): group calls (three people or more) are off for
 /// now — «Add participant», group and channel call buttons hide; one-to-one
 /// calls stay. Off when the switch is missing.
+/// Owner 26.11: Android calls are real system calls (Telecom, like WhatsApp
+/// and Telegram) — a headset's button, a car kit or a watch answer, hang up
+/// and mute; a cellular call holds the call through Telecom. Off when the
+/// switch is missing (the calls run as before).
+final androidSystemCallsEnabledProvider = Provider<bool>(
+  (ref) => ref
+      .watch(featureFlagsControllerProvider)
+      .isEnabled(kAndroidSystemCallsFlag),
+);
+
+/// The switch's key (API flag catalog, admin «Флаги»).
+const kAndroidSystemCallsFlag = 'calls_android_telecom';
+
 final groupCallsEnabledProvider = Provider<bool>(
   (ref) => ref.watch(featureFlagsControllerProvider).isEnabled('calls_group'),
 );

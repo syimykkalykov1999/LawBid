@@ -103,6 +103,8 @@ object CallRinging {
         val rec = record(app, callId)
         // Answered on this phone: the app's call controller owns it now.
         if (rec?.isAccepted == true) return
+        // Owner 26.11: the app ends this ring, not the system (SystemCalls).
+        SystemCalls.forgetRing(callId)
         markEnded(app, callId)
         pollers.remove(callId)
         cancelTimeout(app, callId)
@@ -197,6 +199,7 @@ object CallRinging {
     fun endAll(context: Context, ids: Collection<String>) {
         val app = context.applicationContext
         for (id in ids) {
+            SystemCalls.forgetRing(id)
             pollers.remove(id)
             cancelTimeout(app, id)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

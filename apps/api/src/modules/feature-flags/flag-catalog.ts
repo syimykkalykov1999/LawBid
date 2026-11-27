@@ -105,6 +105,18 @@ export const FLAG_CATALOG: readonly FlagDef[] = [
       'Group calls (3+ people): add participants, group call from a group chat',
   },
   {
+    // Owner 26.11: Android calls as real system calls (Telecom, like
+    // WhatsApp / Telegram): a Bluetooth headset, a car kit or a watch
+    // answers, hangs up and mutes; a cellular call holds the call through
+    // Telecom (Jetpack Core-Telecom, app SystemCalls.kt). Off until checked
+    // on a phone with a headset and a car kit: the calls run as before.
+    key: 'calls_android_telecom',
+    enabled: false,
+    app: true,
+    description:
+      'Android: calls are system calls (Telecom) — headset / car / watch answer, hang up, mute; cellular hold via Telecom',
+  },
+  {
     // Owner 2026-10-20: stories (24 h) like Instagram / WhatsApp.
     // Owner 2026-10-22 (R-049): hidden until the next update; the code stays.
     key: 'stories',

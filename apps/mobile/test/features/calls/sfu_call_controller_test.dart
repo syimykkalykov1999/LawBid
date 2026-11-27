@@ -303,12 +303,18 @@ class _Foreground implements CallForeground {
   @override
   Future<void> start({
     required String name,
+    String id = '',
+    bool outgoing = false,
     int since = 0,
     String status = '',
     String hangup = '',
   }) async {}
   @override
-  Future<void> stop() async {}
+  Future<void> stop({String? cause}) async {}
+  @override
+  Future<void> setSystemCalls({required bool on}) async {}
+  @override
+  Future<void> route(String kind) async {}
 }
 
 class _SystemUi implements SystemCallUi {
