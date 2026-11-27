@@ -10,7 +10,6 @@ import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
 import 'package:lawbid/features/profile/application/avatar_upload_controller.dart'
     show AvatarUploadController;
-import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart';
 import 'package:lawbid/features/profile/presentation/widgets/avatar_picker_field.dart';
 import 'package:material_ui/material_ui.dart';
@@ -80,10 +79,13 @@ Future<Uint8List?> pickGroupPhoto(WidgetRef ref, GroupPhotoChoice choice) =>
 
 /// The profile photo pipeline (presign → storage → confirm → scan) for a
 /// group photo: returns the clean file's id, which the caller sets with
-/// `UpdateGroupDto(avatarFileId:)`. Throws [ApiException].
-Future<String> uploadGroupPhoto(WidgetRef ref, Uint8List bytes) async {
-  final repo = ref.read(avatarUploadRepositoryProvider);
-  final limits = ref.read(uploadLimitsProvider)[UploadPlace.avatar];
+/// `UpdateGroupDto(avatarFileId:)`. Throws [ApiException]. Run by the
+/// group-photo job of the app's upload queue (group_photo_outbox.dart).
+Future<String> uploadGroupPhotoWith(
+  AvatarUploadRepository repo,
+  PlaceUploadLimits limits,
+  Uint8List bytes,
+) async {
   final mime = sniffImageMime(bytes);
   if (mime == null || !limits.photoMimes.contains(mime)) {
     throw const ApiException(

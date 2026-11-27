@@ -13,6 +13,7 @@ import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/groups/application/group_avatar_upload.dart';
 import 'package:lawbid/features/groups/application/group_create_rules.dart';
+import 'package:lawbid/features/groups/application/group_photo_outbox.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_avatar.dart';
@@ -124,7 +125,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   Future<void> _create(Translator t) async {
     final avatar = ref.read(groupAvatarUploadProvider);
     final title = _title.text.trim();
-    if (_creating || title.isEmpty || avatar.busy || !_usernameOk) return;
+    if (_creating || title.isEmpty || !_usernameOk) return;
     final description = _description.text.trim();
     final isPublic = _type == api.GroupType.public;
     setState(() => _creating = true);
@@ -140,6 +141,17 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               joinApproval: _type == api.GroupType.closed ? _approval : null,
             ),
           );
+      // Owner 26.11 (WhatsApp): a photo still on its way goes on the app's
+      // queue and is set on the new group once its check is through; the
+      // picture shows at once in the chat list and the chat.
+      final pending = avatar.preview;
+      if (avatar.fileId == null &&
+          pending != null &&
+          avatar.stage != GroupAvatarStage.failed) {
+        unawaited(
+          ref.read(groupPhotoOutboxProvider).submit(group.id, pending),
+        );
+      }
       // Package B: the new row comes with one `updatedSince`.
       ref.read(groupsProvider.notifier).catchUp();
       if (!mounted) return;
@@ -247,8 +259,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final avatar = ref.watch(groupAvatarUploadProvider);
+    // Owner 26.11 (WhatsApp): «Создать» never waits for the photo.
     final canCreate = _title.text.trim().isNotEmpty &&
-        !avatar.busy &&
         !_creating &&
         _usernameOk &&
         !_needsPeople;
@@ -442,11 +454,6 @@ class _PhotoField extends StatelessWidget {
     final typography = Theme.of(context).extension<AppTypographyTokens>()!;
     final failed = state.stage == GroupAvatarStage.failed;
     final status = switch (state.stage) {
-      GroupAvatarStage.uploading => t.t(
-          'profile.photo.uploading',
-          {'percent': context.digits((state.progress * 100).round())},
-        ),
-      GroupAvatarStage.checking => t.t('profile.photo.checking'),
       GroupAvatarStage.failed => errorText(t, state.error ?? Object()),
       _ => null,
     };
@@ -485,11 +492,19 @@ class _PhotoField extends StatelessWidget {
                             : GroupAvatar(name: title, size: size),
                       ),
                     ),
+                  // Owner 26.11 (WhatsApp): the photo is there at once; only
+                  // a small ring in the corner while it still goes up.
                   if (state.busy)
-                    Center(
-                      child: CircularProgressIndicator(
-                        value: state.progress > 0 ? state.progress : null,
-                        color: colors.gold,
+                    PositionedDirectional(
+                      end: 2,
+                      bottom: 2,
+                      child: SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(
+                          value: state.progress > 0 ? state.progress : null,
+                          strokeWidth: 2,
+                          color: colors.gold,
+                        ),
                       ),
                     ),
                 ],

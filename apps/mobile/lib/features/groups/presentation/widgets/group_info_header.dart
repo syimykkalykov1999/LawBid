@@ -4,6 +4,7 @@ import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/text/bidi.dart';
+import 'package:lawbid/features/groups/application/group_photo_outbox.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
 import 'package:material_ui/material_ui.dart';
 
@@ -41,6 +42,8 @@ class GroupInfoHeader extends ConsumerWidget {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final photo = detail.avatarUrl;
+    // Owner 26.11 (WhatsApp): a photo just picked shows at once.
+    final picked = groupPhotoPreview(ref, detail.id, photo);
     final description = detail.description?.trim() ?? '';
     final canEdit = onEditTitle != null;
     final kind = switch (detail.type) {
@@ -75,9 +78,11 @@ class GroupInfoHeader extends ConsumerWidget {
                     child: AppAvatar(
                       size: _photo,
                       initials: avatarInitials(detail.title),
-                      imageProvider: photo == null
-                          ? null
-                          : appNetworkImage(photo, decodeWidthFor(_photo)),
+                      imageProvider: picked != null
+                          ? MemoryImage(picked)
+                          : photo == null
+                              ? null
+                              : appNetworkImage(photo, decodeWidthFor(_photo)),
                     ),
                   ),
                 ),

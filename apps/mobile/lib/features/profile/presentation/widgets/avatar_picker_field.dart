@@ -141,21 +141,13 @@ class AvatarPickerField extends ConsumerWidget {
     final hasPhoto = url != null || upload.preview != null;
 
     final (String status, Color statusColor) = switch (upload.stage) {
-      AvatarUploadStage.preparing => (
-          t.t('profile.photo.preparing'),
-          colors.textSecondary
-        ),
-      AvatarUploadStage.uploading => (
-          t.t(
-            'profile.photo.uploading',
-            {'percent': '${(upload.progress * 100).round()}'},
-          ),
-          colors.textSecondary,
-        ),
-      AvatarUploadStage.checking => (
-          t.t('profile.photo.checking'),
-          colors.textSecondary
-        ),
+      // Owner 26.11 (WhatsApp / Instagram): the picked photo is the avatar
+      // at once; only the ring on it shows the upload — no «Загрузка…» or
+      // «Проверяем фото…» line.
+      AvatarUploadStage.preparing ||
+      AvatarUploadStage.uploading ||
+      AvatarUploadStage.checking =>
+        ('', colors.textSecondary),
       AvatarUploadStage.done => (t.t('profile.photo.done'), colors.success),
       AvatarUploadStage.failed => (
           errorText(t, upload.error ?? Object()),
