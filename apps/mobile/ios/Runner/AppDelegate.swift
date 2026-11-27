@@ -1,6 +1,7 @@
 import AVFoundation
 import CallKit
 import CoreSpotlight
+import CryptoKit
 import Flutter
 import Network
 import PushKit
@@ -551,6 +552,8 @@ import flutter_callkit_incoming
         UserDefaults(suiteName: "group.\(app)")?.removeObject(forKey: "chatContactNames")
         // Signed out: the notification buttons stop working on this phone.
         AppDelegate.setPushActions(url: nil, token: nil)
+        // M12: and the push-preview key goes (a new one on the next sign-in).
+        PushPreviewKeychain.delete()
         result(nil)
       case "clearDelivered":
         // R-379: nothing unread — every pushed alert left on the lock
@@ -570,6 +573,9 @@ import flutter_callkit_incoming
         result(nil)
       case "pendingOpen":
         result(nil)
+      case "pushPreviewKey":
+        // M12: base64 public key (nil before iOS 17).
+        result(PushPreviewKeychain.publicKeyBase64())
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -1299,5 +1305,66 @@ final class DataSaverBridge: NSObject, FlutterStreamHandler {
   func onCancel(withArguments arguments: Any?) -> FlutterError? {
     sink = nil
     return nil
+  }
+}
+
+// MARK: - Push preview key
+
+/// M12 (owner 26.11 «в уведомлениях будет текст, как в WhatsApp»): this
+/// iPhone's push-preview key pair (X25519). The private half stays in the
+/// Keychain under the App Group (`group.<app bundle id>`, which iOS also
+/// treats as a keychain access group), readable after the first unlock and
+/// never synced off the device — the NotificationService extension reads
+/// it there to open the preview a sender sealed to this phone (HPKE,
+/// CryptoKit, iOS 17+). The public half goes to the server with the push
+/// token (Dart `pushPreviewKey`). The extension's copy of these names:
+/// NotificationService.swift `PushPreviewKey`.
+enum PushPreviewKeychain {
+  static let service = "lawbid.push-preview"
+  static let account = "x25519"
+
+  static var accessGroup: String {
+    "group.\(Bundle.main.bundleIdentifier ?? "com.lawbid.lawbid")"
+  }
+
+  private static var query: [String: Any] {
+    [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: account,
+      kSecAttrAccessGroup as String: accessGroup,
+    ]
+  }
+
+  /// Base64 of the public key, the pair made on first use; nil before iOS
+  /// 17 (the extension could not open a preview) or on any Keychain error.
+  static func publicKeyBase64() -> String? {
+    guard #available(iOS 17.0, *) else { return nil }
+    if let raw = read(),
+      let key = try? Curve25519.KeyAgreement.PrivateKey(rawRepresentation: raw)
+    {
+      return key.publicKey.rawRepresentation.base64EncodedString()
+    }
+    let key = Curve25519.KeyAgreement.PrivateKey()
+    var add = query
+    add[kSecValueData as String] = key.rawRepresentation
+    add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    SecItemDelete(query as CFDictionary)
+    guard SecItemAdd(add as CFDictionary, nil) == errSecSuccess else { return nil }
+    return key.publicKey.rawRepresentation.base64EncodedString()
+  }
+
+  private static func read() -> Foundation.Data? {
+    var q = query
+    q[kSecReturnData as String] = true
+    q[kSecMatchLimit as String] = kSecMatchLimitOne
+    var out: CFTypeRef?
+    guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess else { return nil }
+    return out as? Foundation.Data
+  }
+
+  /// Sign-out: the next account on this phone gets a new key.
+  static func delete() {
+    SecItemDelete(query as CFDictionary)
   }
 }

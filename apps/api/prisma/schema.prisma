@@ -4010,6 +4010,10 @@ model PushToken {
   /// Owner 2026-10-20: reminders (`<taskId>@<remindAt ms>`) this iPhone has
   /// armed as local alarms; the reminder push skips them (no double banner).
   armed_reminders  String[] @default([])
+  /// M12 (owner 26.11): this device's push-preview public key (X25519, 32
+  /// bytes). Senders HPKE-seal the text of an end-to-end encrypted message
+  /// to it; the phone opens it in its push. NULL = older app / no key.
+  preview_key      Bytes?
   last_seen_at     DateTime @default(now()) @db.Timestamptz
   created_at       DateTime @default(now()) @db.Timestamptz
 

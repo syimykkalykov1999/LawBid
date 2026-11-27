@@ -342,6 +342,20 @@ Media3 Transformer library (androidx.media3:media3-transformer, -effect,
 The Android Open Source Project. Licensed under the Apache License, Version
 2.0, as for livekit_client above.
 
+## Google Tink 1.24.0 — Apache-2.0
+
+M12 (26.11): `android/app/src/main/kotlin/com/lawbid/lawbid/PushPreviewKeys.kt`
+opens the push preview of an end-to-end encrypted message with Tink's HPKE
+(com.google.crypto.tink:tink-android 1.24.0,
+https://github.com/tink-crypto/tink-java): `HpkeParameters`
+(DHKEM_X25519_HKDF_SHA256 / HKDF_SHA256 / CHACHA20_POLY1305, NO_PREFIX),
+`AndroidKeysetManager` with an Android Keystore master key, `HybridDecrypt`,
+as its documentation shows. Copyright Google LLC. Licensed under the Apache
+License, Version 2.0, as for livekit_client above. The sender's sealing in
+`lib/features/chat/e2ee/push_preview.dart` follows RFC 9180 (IETF, the
+standard Tink and Apple CryptoKit implement) and is checked against its test
+vector A.2.1.
+
 ## NextLevelSessionExporter 1.0.1 — MIT
 
 `ios/Runner/NextLevelSessionExporter.swift` is

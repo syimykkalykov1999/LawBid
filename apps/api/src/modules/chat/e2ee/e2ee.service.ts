@@ -40,6 +40,10 @@ import {
   type UploadKeyPackagesDto,
 } from './e2ee.dto';
 import {
+  readPreviewKeys,
+  type PushPreviewKey,
+} from '../../notifications/push-preview';
+import {
   checkKeyPackage,
   deviceIdentity,
   isWelcome,
@@ -399,6 +403,10 @@ export class E2eeService {
     ]);
     const members = new Set(inGroup.map((g) => g.device_id));
     const active = new Set(devices.map((d) => d.id));
+    const previewKeys = await this.previewKeys(
+      el.state,
+      users.filter((u) => u !== user.sub),
+    );
     return {
       state: el.state,
       reason: el.reason,
@@ -421,7 +429,27 @@ export class E2eeService {
             g.rejoin_at !== null,
         )
         .map((g) => g.device_id),
+      previewKeys,
     };
+  }
+
+  /** M12: the other members' push-preview keys, when the chat is (about
+   * to be) end-to-end encrypted and message text in pushes is on (admin
+   * `push.chat_preview`: off = no text is ever sealed). */
+  private async previewKeys(
+    state: E2eeState,
+    others: string[],
+  ): Promise<PushPreviewKey[]> {
+    if (state === 'off' || others.length === 0) return [];
+    try {
+      if ((await this.settings.boolean('push.chat_preview')) === false) {
+        return [];
+      }
+      return await readPreviewKeys(this.prisma, others);
+    } catch {
+      // A preview is a nicety: the state answers without it.
+      return [];
+    }
   }
 
   /** The first device of a member creates the chat's MLS group (epoch 0,

@@ -4,6 +4,7 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+import 'sealed_push_preview_dto.dart';
 import 'send_message_type.dart';
 
 part 'send_message_dto.g.dart';
@@ -16,6 +17,7 @@ class SendMessageDto {
     this.mlsEpoch,
     this.mlsDeviceId,
     this.frankingTag,
+    this.pushPreviews,
     this.giftId,
     this.contactUserId,
     this.postId,
@@ -52,6 +54,10 @@ class SendMessageDto {
   /// where P is the message's plaintext and k the 32-byte key inside it. A.
   /// report reveals P; the server checks it against this tag.
   final String? frankingTag;
+
+  /// M12 (type=mls): the message's push preview sealed to each recipient.
+  /// phone (only kept for its push, never stored with the message).
+  final List<SealedPushPreviewDto>? pushPreviews;
 
   /// Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is.
   /// the optional note (≤200).

@@ -13,6 +13,9 @@ SendMessageDto _$SendMessageDtoFromJson(Map<String, dynamic> json) =>
       mlsEpoch: (json['mlsEpoch'] as num?)?.toInt(),
       mlsDeviceId: json['mlsDeviceId'] as String?,
       frankingTag: json['frankingTag'] as String?,
+      pushPreviews: (json['pushPreviews'] as List<dynamic>?)
+          ?.map((e) => SealedPushPreviewDto.fromJson(e as Map<String, dynamic>))
+          .toList(),
       giftId: json['giftId'] as String?,
       contactUserId: json['contactUserId'] as String?,
       postId: json['postId'] as String?,
@@ -40,6 +43,7 @@ Map<String, dynamic> _$SendMessageDtoToJson(SendMessageDto instance) =>
       'mlsEpoch': ?instance.mlsEpoch,
       'mlsDeviceId': ?instance.mlsDeviceId,
       'frankingTag': ?instance.frankingTag,
+      'pushPreviews': ?instance.pushPreviews?.map((e) => e.toJson()).toList(),
       'giftId': ?instance.giftId,
       'contactUserId': ?instance.contactUserId,
       'postId': ?instance.postId,

@@ -2,10 +2,16 @@ import { StickerDto } from '../stickers/stickers.dto';
 import { GiftSendDto } from '../stars/stars.dto';
 import { SharedPostCardDto } from '../posts/shared-post-cards.service';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { MLS_MESSAGE_MAX_B64 } from './e2ee/e2ee.dto';
 import {
+  MAX_PUSH_PREVIEWS,
+  MAX_SEALED_PREVIEW_B64,
+} from '../notifications/push-preview';
+import {
   ArrayMaxSize,
+  IsArray,
+  ValidateNested,
   IsBase64,
   IsBoolean,
   IsIn,
@@ -20,6 +26,27 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+
+/** M12 (owner 26.11): the push preview of an end-to-end encrypted message,
+ * HPKE-sealed by the sender to one recipient phone's push-preview key. The
+ * server never opens it; it rides in that phone's push (`data.sealed`). */
+export class SealedPushPreviewDto {
+  @ApiProperty({
+    description:
+      'The id of the key it is sealed to (ConversationE2eeDto.previewKeys).',
+  })
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{16}$/)
+  keyId!: string;
+
+  @ApiProperty({
+    description:
+      'Base64 HPKE output (enc || ciphertext || tag), RFC 9180 base mode, DHKEM(X25519, HKDF-SHA256) / HKDF-SHA256 / ChaCha20Poly1305; info = "lawbid push preview v1" || 0x00 || conversation id.',
+  })
+  @IsBase64()
+  @MaxLength(MAX_SEALED_PREVIEW_B64)
+  sealed!: string;
+}
 
 /** docs/05 §8.2: text only, up to 2000 characters. */
 export const MESSAGE_MAX_CHARS = 2000;
@@ -320,6 +347,16 @@ export class SendMessageDto {
   @IsBase64()
   @MaxLength(64)
   frankingTag?: string;
+
+  /** M12 (type=mls): the message's push preview sealed to each recipient
+   * phone (only kept for its push, never stored with the message). */
+  @ApiPropertyOptional({ type: [SealedPushPreviewDto] })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(MAX_PUSH_PREVIEWS)
+  @ValidateNested({ each: true })
+  @Type(() => SealedPushPreviewDto)
+  pushPreviews?: SealedPushPreviewDto[];
 
   /** Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is
    * the optional note (≤200). */

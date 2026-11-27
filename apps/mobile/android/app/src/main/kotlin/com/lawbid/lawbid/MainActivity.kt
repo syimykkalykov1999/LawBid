@@ -356,7 +356,19 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     "clearAll" -> {
                         ChatNotifications.clearAll(applicationContext)
+                        // M12: signed out — the push-preview key goes too.
+                        PushPreviewKeys.delete(applicationContext)
                         result.success(null)
+                    }
+                    // M12 (owner 26.11): base64 of this phone's push-preview
+                    // public key (Tink HPKE keyset, made on first use), off
+                    // the main thread (the Keystore can be slow).
+                    "pushPreviewKey" -> {
+                        val app = applicationContext
+                        Thread {
+                            val key = PushPreviewKeys.publicKeyBase64(app)
+                            runOnUiThread { result.success(key) }
+                        }.start()
                     }
                     // R-379: nothing unread — the leftover alerts go.
                     "clearDelivered" -> {

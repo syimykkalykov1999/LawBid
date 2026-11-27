@@ -45,6 +45,7 @@ import {
   UpdateTopicSettingsDto,
 } from './notifications-api.dto';
 import { NotificationsApiService } from './notifications-api.service';
+import { parsePreviewKey } from './push-preview';
 import { PushTokensService } from './push/push-tokens.service';
 import { VoipTokensService } from './push/voip-tokens.service';
 import {
@@ -232,6 +233,8 @@ export class NotificationsApiController {
       dto.chatStyle === true && dto.platform === 'android',
       dto.actorStyle === true && dto.platform === 'android',
       dto.kind === 'fid' ? 'fid' : 'token',
+      // M12: only phones open sealed previews (a browser push stays plain).
+      dto.platform === 'web' ? null : parsePreviewKey(dto.previewKey),
     );
   }
 

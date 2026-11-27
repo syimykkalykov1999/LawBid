@@ -187,6 +187,8 @@ export class PushQueueService
     event?: 'reaction' | 'edit';
     actorId?: string;
     emoji?: string;
+    /** M12: key id → sealed push preview of an encrypted message. */
+    sealed?: Record<string, string>;
   }): Promise<void> {
     if (demoContext.isDemo()) return;
     if (!this.queue) return;

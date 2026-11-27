@@ -171,6 +171,10 @@ dependencies {
     // EncryptedSharedPreferences, once, to move them to version 11
     // (LegacySecureStorage.kt). Apache-2.0, the library version 9 used.
     implementation("androidx.security:security-crypto:1.1.0")
+    // M12 (owner 26.11): the push preview of an end-to-end encrypted message
+    // is opened with Google Tink's HPKE (PushPreviewKeys.kt), Apache-2.0.
+    // Newest stable; it also replaces the older Tink security-crypto brings.
+    implementation("com.google.crypto.tink:tink-android:1.24.0")
     // Owner row 42 (13.11): the phone's video re-encode (VideoEncoder.kt) on
     // AndroidX Media3 Transformer, Apache-2.0. The same Media3 version as the
     // ExoPlayer that video_player_android 2.12.2 brings (all Media3 modules

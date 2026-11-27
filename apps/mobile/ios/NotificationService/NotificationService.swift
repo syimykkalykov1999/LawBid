@@ -1,3 +1,4 @@
+import CryptoKit
 import Intents
 import UIKit
 import UserNotifications
@@ -60,7 +61,14 @@ class NotificationService: UNNotificationServiceExtension {
     let serverName = info["senderName"] as? String ?? ""
     let saved = ChatContactNames.name(for: senderId)
     let name = saved ?? (serverName.isEmpty ? content.title : serverName)
-    let text = info["text"] as? String ?? content.body
+    var text = info["text"] as? String ?? content.body
+    // M12 (owner 26.11, WhatsApp): an end-to-end encrypted message — the
+    // preview its sender sealed to this phone. Anything that fails keeps
+    // the server's «Новое сообщение».
+    if let opened = PushPreview.line(info, privateKey: PushPreviewKey.read()) {
+      text = opened
+      content.body = opened
+    }
     if group {
       // The system shows the sender with the group; the bare text below.
       content.body = text
@@ -262,5 +270,113 @@ enum AvatarCache {
       let range = s.range(of: "_w[0-9]+(\\.avif)?$", options: .regularExpression)
     else { return nil }
     return URL(string: String(s[..<range.lowerBound]))
+  }
+}
+
+// MARK: - PushPreview (begin)
+
+/// M12 (owner 26.11 «в уведомлениях будет текст, как в WhatsApp»): the
+/// text of an end-to-end encrypted message, sealed by its sender to this
+/// iPhone's push-preview key (HPKE, RFC 9180: DHKEM(X25519, HKDF-SHA256),
+/// HKDF-SHA256, ChaCha20Poly1305 = CryptoKit's
+/// `Curve25519_SHA256_ChachaPoly`, iOS 17+). The push carries it as
+/// `sealed` (base64 `enc || ciphertext || tag`); `info` binds it to the
+/// chat. The server never sees the text. Any failure (older iOS, no key,
+/// Keychain locked before the first unlock, a wrong or damaged blob) → nil,
+/// and the banner stays the server's «Новое сообщение». The sender side:
+/// apps/mobile/lib/features/chat/e2ee/push_preview.dart.
+enum PushPreview {
+  static let infoLabel = "lawbid push preview v1"
+
+  /// The banner line of the push [info], or nil.
+  static func line(_ info: [AnyHashable: Any], privateKey: Data?) -> String? {
+    guard let b64 = info["sealed"] as? String,
+      let conversation = info["conversationId"] as? String, !conversation.isEmpty,
+      let key = privateKey,
+      let plain = open(sealed: b64, conversationId: conversation, privateKey: key)
+    else { return nil }
+    return format(plain, labels: labels(info["labels"] as? String))
+  }
+
+  /// HPKE base-mode open; nil on any failure.
+  static func open(sealed b64: String, conversationId: String, privateKey: Data) -> Data? {
+    guard #available(iOS 17.0, macOS 14.0, *) else { return nil }
+    guard let blob = Data(base64Encoded: b64), blob.count > 32 + 16,
+      let key = try? Curve25519.KeyAgreement.PrivateKey(rawRepresentation: privateKey)
+    else { return nil }
+    var hpkeInfo = Data(infoLabel.utf8)
+    hpkeInfo.append(0)
+    hpkeInfo.append(Data(conversationId.utf8))
+    do {
+      var recipient = try HPKE.Recipient(
+        privateKey: key,
+        ciphersuite: .Curve25519_SHA256_ChachaPoly,
+        info: hpkeInfo,
+        encapsulatedKey: Data(blob.prefix(32))
+      )
+      return try recipient.open(Data(blob.dropFirst(32)), authenticating: Data())
+    } catch {
+      return nil
+    }
+  }
+
+  /// The words around a file kind, in the person's language (the server
+  /// sends them as JSON in `labels`); English when missing.
+  static func labels(_ json: String?) -> [String: String] {
+    var out = ["photo": "Photo", "video": "Video", "file": "File", "voice": "Voice message"]
+    if let data = json?.data(using: .utf8),
+      let map = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    {
+      for (k, v) in map {
+        if let s = v as? String, !s.isEmpty { out[k] = s }
+      }
+    }
+    return out
+  }
+
+  /// `{"v":1,"k":kind,"t":text,"ms":…}` → «text», «📷 Фото», «🎤 Голосовое
+  /// сообщение 0:12» … (the same lines as the server's chatPushPreview).
+  static func format(_ plain: Data, labels l: [String: String]) -> String? {
+    guard let map = (try? JSONSerialization.jsonObject(with: plain)) as? [String: Any],
+      map["v"] as? Int == 1
+    else { return nil }
+    let kind = map["k"] as? String ?? "text"
+    let text = (map["t"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    let line: String
+    switch kind {
+    case "photo": line = "📷 " + (text.isEmpty ? l["photo"]! : text)
+    case "video": line = "🎥 " + (text.isEmpty ? l["video"]! : text)
+    case "file": line = "📎 " + l["file"]! + (text.isEmpty ? "" : ": " + text)
+    case "voice":
+      let ms = map["ms"] as? Int ?? 0
+      line = "🎤 " + l["voice"]! + (ms > 0 ? " " + clock(ms) : "")
+    default: line = text
+    }
+    return line.isEmpty ? nil : line
+  }
+
+  static func clock(_ ms: Int) -> String {
+    String(format: "%d:%02d", ms / 60000, (ms / 1000) % 60)
+  }
+}
+
+// MARK: - PushPreview (end)
+
+/// M12: this iPhone's push-preview private key, which the app made and
+/// keeps in the Keychain under the App Group (AppDelegate.swift
+/// `PushPreviewKeychain` — the same service, account and group).
+enum PushPreviewKey {
+  static func read() -> Data? {
+    let query: [String: Any] = [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: "lawbid.push-preview",
+      kSecAttrAccount as String: "x25519",
+      kSecAttrAccessGroup as String: AppGroup.id,
+      kSecReturnData as String: true,
+      kSecMatchLimit as String: kSecMatchLimitOne,
+    ]
+    var out: CFTypeRef?
+    guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess else { return nil }
+    return out as? Data
   }
 }

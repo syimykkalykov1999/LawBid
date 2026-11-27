@@ -1312,7 +1312,16 @@ export class PushDispatcher
     const text = await this.templates.render('new_message', user.ui_language);
     // OQ-040: a voice note has no text — say what it is.
     const t = await this.pushTexts(user.ui_language);
-    const caption = (await this.chatPreviewOn())
+    const previewOn = await this.chatPreviewOn();
+    // M12 (owner 26.11, WhatsApp): an end-to-end encrypted message — the
+    // server has no text; each phone opens the preview the sender sealed to
+    // it (data.sealed) and words it with these labels in its person's
+    // language. Never for an edit / reaction, never with previews off.
+    const sealed =
+      message.type === 'mls' && !data.event && previewOn && data.sealed
+        ? data.sealed
+        : undefined;
+    const caption = previewOn
       ? [
           ...(this.cipher?.open(message.body_display, data.messageId) ??
             message.body_display),
@@ -1385,6 +1394,7 @@ export class PushDispatcher
           ...chat,
           // Owner 2026-10-26: «Ответить» / «Прочитано» on the notification.
           ...this.actionToken(data.recipientId, data.conversationId, false),
+          ...(sealed ? { labels: sealedPreviewLabels(t) } : {}),
         },
         badge: icon.badge,
         ...(icon.on ? {} : { iconBadge: false }),
@@ -1394,6 +1404,7 @@ export class PushDispatcher
         threadId: data.conversationId,
         chat: true,
         iosCategory: CHAT_CATEGORY,
+        ...(sealed ? { sealedPreviews: sealed } : {}),
       },
       dedupeKey,
     );
@@ -1500,4 +1511,21 @@ function quietUntilOf(
   qh: Parameters<typeof quietHoursEnd>[1] | null,
 ): Date | null {
   return qh ? quietHoursEnd(new Date(), qh) : null;
+}
+
+/** M12: the words a phone puts around an opened push preview («📷 Фото»,
+ * «🎤 Голосовое сообщение 0:12» …), in the recipient's language — the
+ * same labels the server's own chat pushes use (chatPushPreview). */
+export function sealedPreviewLabels(t: {
+  photo: string;
+  video: string;
+  file: string;
+  voice: string;
+}): string {
+  return JSON.stringify({
+    photo: t.photo,
+    video: t.video,
+    file: t.file,
+    voice: t.voice,
+  });
 }

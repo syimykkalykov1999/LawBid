@@ -79,6 +79,10 @@ export interface MessageJobData {
   event?: 'reaction' | 'edit';
   actorId?: string;
   emoji?: string;
+  /** M12 (owner 26.11): an end-to-end encrypted message's push preview,
+   * HPKE-sealed by the sender to each recipient phone's push-preview key
+   * (key id → base64). Opaque here; each device gets only its own. */
+  sealed?: Record<string, string>;
 }
 
 /** OQ-041: ring the callee's devices (push-only, never stored). */
@@ -203,6 +207,10 @@ export interface PushMessage {
   /** Owner 2026-10-26: the iPhone's notification category (its buttons:
    * «Ответить» / «Прочитано» for chats). */
   iosCategory?: string;
+  /** M12: key id → sealed push preview; a device whose push-preview key
+   * has that id gets it as `data.sealed` (the phone opens it, else the
+   * alert stays as sent). */
+  sealedPreviews?: Record<string, string>;
 }
 
 export type PushSoundKind = 'message' | 'notification';

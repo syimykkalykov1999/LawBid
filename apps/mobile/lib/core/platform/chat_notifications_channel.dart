@@ -89,6 +89,23 @@ class ChatNotificationsChannel {
   }) =>
       _call('setPushActions', {'url': apiBase, 'token': deviceToken});
 
+  /// M12 (owner 26.11): base64 of this phone's push-preview public key
+  /// (X25519, 32 bytes), made on first use by the platform — the private
+  /// half stays in the iPhone's Keychain (shared with the notification
+  /// extension) / Android Keystore-wrapped storage. Null where pushes
+  /// cannot open a sealed preview (web, iOS before 17, an older build, any
+  /// error): the server then never gets a key and the push stays «Новое
+  /// сообщение».
+  Future<String?> pushPreviewKey() async {
+    if (!_supported) return null;
+    try {
+      final key = await _channel.invokeMethod<String>('pushPreviewKey');
+      return key != null && key.length == 44 ? key : null;
+    } on Object {
+      return null;
+    }
+  }
+
   Future<void> _call(String method, [Object? args]) async {
     if (!_supported) return;
     try {

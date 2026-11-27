@@ -11,6 +11,7 @@ import { RealtimePublisher } from '../src/modules/realtime/realtime-publisher.se
 import { REDIS_CLIENT } from '../src/redis/redis.constants';
 import { dropAppConfigCache } from '../src/modules/feature-flags/services/app-config.service';
 import { MlsDeviceClient, type Http } from './support/mls-client';
+import { PushQueueService } from '../src/modules/notifications/push/push-queue.service';
 
 /**
  * Item 25 (owner 25.11; docs/architecture/E2EE_MLS_PLAN_2026-11-25.md):
@@ -560,5 +561,104 @@ describe('End-to-end encrypted chats on MLS (e2e, item 25)', () => {
     await one.register(0);
     const two = new MlsDeviceClient(http(chat.client.auth), chat.client.id);
     await expect(two.register(0)).rejects.toThrow(/409/);
+  });
+
+  // M12 (owner 26.11, WhatsApp): the text in the push of an encrypted
+  // message — the recipient phone registers a push-preview key with its
+  // token, the sender sees it in the chat's state, seals a preview to it and
+  // the server only hands the sealed bytes to that message's push job.
+  it('push preview: the key travels with the token, the sealed preview with the push', async () => {
+    const { chat, alice } = await encryptedPair();
+    const chain = randomUUID();
+    await prisma.session.create({
+      data: {
+        user_id: chat.client.id,
+        session_chain_id: chain,
+        refresh_hash: `m12-${chain}`,
+        platform: 'ios',
+        expires_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const bobPhone = `Bearer ${tokens.signAccessToken({
+      sub: chat.client.id,
+      role: 'client',
+      sid: chain,
+      verified: false,
+      subscriptionStatus: 'none',
+    })}`;
+    const key = Buffer.alloc(32, 7).toString('base64');
+    const token = `m12-fid-${randomUUID()}`;
+    const register = (body: object) =>
+      request(base)
+        .post('/api/v1/push-tokens')
+        .set('Authorization', bobPhone)
+        .send({ token, platform: 'ios', kind: 'fid', ...body });
+    // Not a 32-byte key: refused.
+    expect((await register({ previewKey: 'c2hvcnQ=' })).status).toBe(400);
+    expect((await register({ previewKey: key })).status).toBe(204);
+    const row = await prisma.pushToken.findUnique({
+      where: { fcm_token: token },
+    });
+    expect(Buffer.from(row!.preview_key!).toString('base64')).toBe(key);
+
+    const st = (await alice.state(chat.id)) as unknown as {
+      previewKeys: { userId: string; keyId: string; publicKey: string }[];
+    };
+    expect(st.previewKeys).toEqual([
+      { userId: chat.client.id, keyId: expect.any(String), publicKey: key },
+    ]);
+    // The sender never sees its own phones' keys; the recipient never sees
+    // a key of the sender's (alice has none here).
+    const bobState = (await http(bobPhone).get(
+      `/api/v1/e2ee/conversations/${chat.id}`,
+    )) as { body: { data: { previewKeys: unknown[] } } };
+    expect(bobState.body.data.previewKeys).toEqual([]);
+
+    const enqueue = jest.spyOn(app.get(PushQueueService), 'enqueueMessage');
+    const { ciphertext, epoch } = await alice.encrypt(chat.id, 'hello');
+    const keyId = st.previewKeys[0].keyId;
+    const sent = await http(chat.attorney.auth).post(
+      `/api/v1/conversations/${chat.id}/messages`,
+      {
+        clientMessageId: randomUUID(),
+        type: 'mls',
+        ciphertext,
+        mlsEpoch: epoch,
+        mlsDeviceId: alice.deviceId,
+        frankingTag: Buffer.alloc(32, 1).toString('base64'),
+        pushPreviews: [
+          { keyId, sealed: Buffer.alloc(80, 9).toString('base64') },
+        ],
+      },
+    );
+    expect(sent.status).toBe(201);
+    const id = (sent.body.data as { id: string }).id;
+    expect(enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientId: chat.client.id,
+        messageId: id,
+        sealed: { [keyId]: Buffer.alloc(80, 9).toString('base64') },
+      }),
+    );
+    // Never stored with the message.
+    const stored = await prisma.message.findFirst({ where: { id } });
+    expect(JSON.stringify(stored)).not.toContain(
+      Buffer.alloc(80, 9).toString('base64'),
+    );
+
+    // Message text in pushes off (admin): no key is handed out.
+    await setConfig('push.chat_preview', false);
+    try {
+      const off = (await alice.state(chat.id)) as unknown as {
+        previewKeys: unknown[];
+      };
+      expect(off.previewKeys).toEqual([]);
+    } finally {
+      await prisma.appConfig.deleteMany({
+        where: { key: 'push.chat_preview' },
+      });
+      await dropAppConfigCache(redis);
+    }
+    enqueue.mockRestore();
   });
 });

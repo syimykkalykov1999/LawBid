@@ -202987,6 +202987,26 @@
           "mls"
         ]
       },
+      "SealedPushPreviewDto": {
+        "type": "object",
+        "properties": {
+          "keyId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{16}$",
+            "description": "The id of the key it is sealed to (ConversationE2eeDto.previewKeys)."
+          },
+          "sealed": {
+            "type": "string",
+            "maxLength": 1400,
+            "format": "base64",
+            "description": "Base64 HPKE output (enc || ciphertext || tag), RFC 9180 base mode, DHKEM(X25519, HKDF-SHA256) / HKDF-SHA256 / ChaCha20Poly1305; info = \"lawbid push preview v1\" || 0x00 || conversation id."
+          }
+        },
+        "required": [
+          "keyId",
+          "sealed"
+        ]
+      },
       "SendMessageDto": {
         "type": "object",
         "properties": {
@@ -203025,6 +203045,14 @@
             "description": "Item 25 (type=mls, message franking): base64 of HMAC-SHA256(k, P)\nwhere P is the message's plaintext and k the 32-byte key inside it. A\nreport reveals P; the server checks it against this tag.",
             "maxLength": 64,
             "format": "base64"
+          },
+          "pushPreviews": {
+            "description": "M12 (type=mls): the message's push preview sealed to each recipient\nphone (only kept for its push, never stored with the message).",
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SealedPushPreviewDto"
+            }
           },
           "giftId": {
             "type": "string",
@@ -203636,6 +203664,28 @@
           "inGroup"
         ]
       },
+      "PushPreviewKeyDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "keyId": {
+            "type": "string",
+            "description": "The key’s id (base64url of the first 12 bytes of its SHA-256); a sealed preview is sent under it."
+          },
+          "publicKey": {
+            "type": "string",
+            "description": "Base64 X25519 public key (32 bytes)."
+          }
+        },
+        "required": [
+          "userId",
+          "keyId",
+          "publicKey"
+        ]
+      },
       "ConversationE2eeDto": {
         "type": "object",
         "properties": {
@@ -203682,6 +203732,13 @@
             "items": {
               "type": "string",
               "format": "uuid"
+            }
+          },
+          "previewKeys": {
+            "description": "M12: the other members’ phones a sender seals the push preview of each message to (empty when message previews in pushes are off).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PushPreviewKeyDto"
             }
           }
         },
@@ -208461,6 +208518,13 @@
           "actorStyle": {
             "type": "boolean",
             "description": "Owner 2026-10-26: this app draws notifications with a person (bid, comment, like, missed call …) itself, with the person's round photo, from a data-only push (Android)."
+          },
+          "previewKey": {
+            "type": "string",
+            "format": "base64",
+            "minLength": 44,
+            "maxLength": 44,
+            "description": "M12 (owner 26.11): base64 of this device’s push-preview public key (X25519, 32 bytes). Senders seal the text of an end-to-end encrypted message to it (HPKE, RFC 9180); the phone opens it in the push. Omitted = no key (an older app; the stored key is cleared)."
           }
         },
         "required": [

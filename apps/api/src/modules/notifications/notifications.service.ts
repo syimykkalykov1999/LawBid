@@ -440,6 +440,9 @@ export class NotificationsService {
           conversationId: p.conversationId,
           messageId: p.messageId,
           ...(typeof p.groupId === 'string' ? { groupId: p.groupId } : {}),
+          // M12: the sealed push previews of an end-to-end encrypted
+          // message (key id → blob), opaque to the server.
+          ...(isStringMap(p.sealed) ? { sealed: p.sealed } : {}),
           // Owner 2026-10-20: a reaction / edit of an earlier message.
           ...(p.event === 'reaction' || p.event === 'edit'
             ? {
@@ -554,4 +557,14 @@ export class NotificationsService {
     await this.push?.enqueue(row.id, input.type, 1, input.recipientId);
     return row;
   }
+}
+
+/** M12: a `key id → sealed preview` map as the chat hands it over. */
+function isStringMap(v: unknown): v is Record<string, string> {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    !Array.isArray(v) &&
+    Object.values(v).every((x) => typeof x === 'string')
+  );
 }
