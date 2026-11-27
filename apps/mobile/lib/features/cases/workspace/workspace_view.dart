@@ -16,8 +16,11 @@ import 'package:lawbid/features/cases/tools/billing_data.dart';
 import 'package:lawbid/features/cases/tools/billing_tab.dart';
 import 'package:lawbid/features/cases/tools/signing_tab.dart';
 import 'package:lawbid/features/cases/tools/template_form_sheet.dart';
+import 'package:lawbid/features/cases/workspace/case_files_outbox.dart'
+    show PendingCaseUpdate, casePendingUpdatesProvider;
 import 'package:lawbid/features/cases/workspace/compose_sheet.dart';
 import 'package:lawbid/features/cases/workspace/file_actions.dart';
+import 'package:lawbid/features/cases/workspace/pending_update_entry.dart';
 import 'package:lawbid/features/cases/workspace/tasks_tab.dart';
 import 'package:lawbid/features/cases/workspace/workspace_data.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
@@ -939,6 +942,12 @@ class CaseHistoryTab extends ConsumerWidget {
         )
       else
         WorkspaceReadOnlyNote(text: t.t(readOnlyReasonKey(ref))),
+      // Case audit 26.11: an update still sending shows at once (newest
+      // first, as the History).
+      for (final p in (ref.watch(casePendingUpdatesProvider(caseId)).value ??
+              const <PendingCaseUpdate>[])
+          .reversed)
+        PendingUpdateEntry(key: ValueKey('pending-${p.id}'), update: p),
     ];
     String? day;
     for (final item in items) {
