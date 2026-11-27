@@ -1041,6 +1041,38 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   ] as const) {
     out[key] = { ...out[key], description: text, min: 0, max };
   }
+  // Group E2EE G1 (owner 26.11, GROUP_E2EE_DESIGN_2026-11-26.md §5).
+  out['groups.e2ee_mode'] = {
+    ...out['groups.e2ee_mode'],
+    description:
+      'End-to-end encryption of group chats (MLS): off (default until the apps are ready) | on | auto. auto = a group is encrypted once every member has an app with MLS keys; on = every group that may be encrypted; off = no new encrypted groups (groups already encrypted stay encrypted).',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['groups.e2ee_public'] = {
+    ...out['groups.e2ee_public'],
+    description:
+      'Encrypt public groups (join by @username) too. Off by default: anyone may join one.',
+  };
+  for (const [key, text] of [
+    [
+      'groups.e2ee_lease_ms',
+      'Milliseconds one device holds the right to commit in an encrypted group (others wait for its commit).',
+    ],
+    [
+      'groups.e2ee_update_days',
+      'Days after which a device updates its own MLS keys in an encrypted group it wrote in (0 = never).',
+    ],
+    [
+      'groups.e2ee_history_max',
+      'Most recent messages a member may send to a person they add to an encrypted group.',
+    ],
+    [
+      'groups.e2ee_group_info_inline_kb',
+      'KiB of an encrypted group’s GroupInfo kept in the database; a bigger one is uploaded as a file.',
+    ],
+  ] as const) {
+    out[key] = { ...out[key], description: text, min: 0 };
+  }
   out['chat.e2ee_after_unlock'] = {
     ...out['chat.e2ee_after_unlock'],
     description:

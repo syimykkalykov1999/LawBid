@@ -42,6 +42,17 @@ export const ADMIN_BULK_PATHS = [
   'admin/document-templates/bulk',
   'admin/outreach/leads/assign',
 ].map((p) => `/${GLOBAL_PREFIX}/${p}`);
+/** Group E2EE G1 (GROUP_E2EE_DESIGN_2026-11-26.md §4.3): a group commit
+ * carries the new GroupInfo with the ratchet tree (≈ 200–300 bytes a
+ * leaf) next to the commit and the Welcome, so these routes parse up to
+ * GROUP_E2EE_BODY_LIMIT (MLS_GROUP_INFO_MAX_B64 + commit + Welcome); a
+ * bigger GroupInfo goes as an uploaded file. */
+export const GROUP_E2EE_PATHS = [
+  'e2ee/groups/:id/group',
+  'e2ee/groups/:id/commits',
+  'e2ee/groups/:id/external-commit',
+].map((p) => `/${GLOBAL_PREFIX}/${p}`);
+export const GROUP_E2EE_BODY_LIMIT = '3mb';
 export const UNPREFIXED_ROUTES = [
   '/health/live',
   '/health/ready',
@@ -136,6 +147,7 @@ export function useBodyParsers(
   );
   app.use(CONTACTS_SYNC_PATH, express.json({ limit: CONTACTS_BODY_LIMIT }));
   app.use(ADMIN_BULK_PATHS, express.json({ limit: ADMIN_BULK_BODY_LIMIT }));
+  app.use(GROUP_E2EE_PATHS, express.json({ limit: GROUP_E2EE_BODY_LIMIT }));
   app.use(express.json({ limit: bodyLimit }));
   app.use(express.urlencoded({ limit: bodyLimit, extended: false }));
 }

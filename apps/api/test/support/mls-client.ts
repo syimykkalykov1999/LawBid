@@ -65,9 +65,9 @@ type ConvState = {
 
 export class MlsDeviceClient {
   deviceId = '';
-  private sign!: { signKey: Uint8Array; publicKey: Uint8Array };
+  protected sign!: { signKey: Uint8Array; publicKey: Uint8Array };
   /** My published KeyPackages and their private halves. */
-  private packages: { pub: KeyPackage; priv: PrivateKeyPackage }[] = [];
+  protected packages: { pub: KeyPackage; priv: PrivateKeyPackage }[] = [];
   /** conversationId → my group state. */
   readonly groups = new Map<string, ClientState>();
 
@@ -369,7 +369,7 @@ export class MlsDeviceClient {
 }
 
 /** The leaf index of a device in my copy of the group's tree. */
-function leafOf(state: ClientState, deviceId: string): number {
+export function leafOf(state: ClientState, deviceId: string): number {
   for (let i = 0; i < state.ratchetTree.length; i += 2) {
     const n = state.ratchetTree[i];
     if (n?.nodeType !== 'leaf') continue;

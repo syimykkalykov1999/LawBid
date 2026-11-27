@@ -21,6 +21,10 @@ class SendGroupMessageDto {
     this.fileName,
     this.durationMs,
     this.waveform,
+    this.ciphertext,
+    this.mlsEpoch,
+    this.mlsDeviceId,
+    this.frankingTag,
   });
 
   factory SendGroupMessageDto.fromJson(Map<String, Object?> json) =>
@@ -53,6 +57,18 @@ class SendGroupMessageDto {
 
   /// type=voice: up to 100 bars, each 0–100.
   final List<int>? waveform;
+
+  /// type=mls: base64 of the MLS PrivateMessage (an application message of the group’s MLS group). The server stores only this.
+  final String? ciphertext;
+
+  /// type=mls: the epoch the message was encrypted in.
+  final int? mlsEpoch;
+
+  /// type=mls: the sending MLS device (POST /e2ee/devices).
+  final String? mlsDeviceId;
+
+  /// type=mls (message franking): base64 of HMAC-SHA256(k, P), k inside the plaintext P.
+  final String? frankingTag;
 
   Map<String, Object?> toJson() => _$SendGroupMessageDtoToJson(this);
 }
