@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/voice_player.dart';
 import 'package:lawbid/features/chat/application/voice_recorder.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
+import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// OQ-040: a voice message inside a bubble. Owner 2026-10-17: like
@@ -219,6 +221,14 @@ class VoiceMessageBody extends ConsumerWidget {
             : _MicAvatar(
                 key: const ValueKey('avatar'),
                 url: avatarUrl,
+                // Owner 26.11 (WhatsApp): my photo just picked, at once —
+                // the same picture as my profile header.
+                preview: mine
+                    ? ref.watch(
+                        avatarUploadControllerProvider
+                            .select((s) => s.shownPreview),
+                      )
+                    : null,
                 name: avatarName,
                 size: _avatarSize,
                 // Gold until the recipient plays it, then blue (WhatsApp).
@@ -305,10 +315,12 @@ class _MicAvatar extends StatelessWidget {
     required this.badge,
     required this.ring,
     required this.badgeOnLeft,
+    this.preview,
     super.key,
   });
 
   final String? url;
+  final Uint8List? preview;
   final String? name;
   final double size;
   final Color badge;
@@ -326,11 +338,13 @@ class _MicAvatar extends StatelessWidget {
         AppAvatar(
           size: size,
           initials: avatarInitials((name ?? '').trim().isEmpty ? '?' : name!),
-          imageProvider: url == null
-              ? null
-              // Kept by the file (cache keyed by path), retried on a fresh
-              // link.
-              : stableNetworkImage(url!, cache: AppImageCaches.chatMedia),
+          imageProvider: preview != null
+              ? MemoryImage(preview!)
+              : url == null
+                  ? null
+                  // Kept by the file (cache keyed by path), retried on a
+                  // fresh link.
+                  : stableNetworkImage(url!, cache: AppImageCaches.chatMedia),
         ),
         PositionedDirectional(
           bottom: -2,

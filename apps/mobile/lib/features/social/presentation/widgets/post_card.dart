@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -2073,10 +2074,14 @@ class GoldRingAvatar extends StatelessWidget {
     this.url,
     this.ring = false,
     this.fullUrl,
+    this.preview,
     super.key,
   });
 
   final String? url;
+
+  /// Owner 26.11 (WhatsApp): a photo just picked, shown before [url] has it.
+  final Uint8List? preview;
 
   /// Owner 2026-10-26: the full-size photo, tried when [url] (the 256 px
   /// preview) cannot be loaded.
@@ -2089,13 +2094,15 @@ class GoldRingAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final avatar = AppAvatar(
-      imageProvider: url == null
-          ? null
-          // Kept by the file, retried on a fresh link (StableNetworkImage).
-          : stableNetworkImage(
-              url!,
-              fallbackUrls: [if (fullUrl != null) fullUrl!],
-            ),
+      imageProvider: preview != null
+          ? MemoryImage(preview!)
+          : url == null
+              ? null
+              // Kept by the file, retried on a fresh link (StableNetworkImage).
+              : stableNetworkImage(
+                  url!,
+                  fallbackUrls: [if (fullUrl != null) fullUrl!],
+                ),
       initials: initials,
       size: ring ? size - 4 : size,
     );

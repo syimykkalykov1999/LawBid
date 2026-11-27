@@ -29,10 +29,12 @@ import 'package:lawbid/features/chat/presentation/voice_widgets.dart';
 import 'package:lawbid/features/contacts_sync/application/contacts_background_sync.dart';
 import 'package:lawbid/features/create/presentation/create_sheet.dart';
 import 'package:lawbid/features/demo/presentation/demo_banner.dart';
+import 'package:lawbid/features/groups/application/group_photo_outbox.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
 import 'package:lawbid/features/notifications/application/push_service.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
+import 'package:lawbid/features/profile/application/avatar_upload_controller.dart';
 import 'package:lawbid/features/profile/application/review_outbox.dart';
 import 'package:lawbid/features/reels/application/reels_providers.dart';
 import 'package:lawbid/features/referrals/application/install_referrer.dart';
@@ -140,7 +142,11 @@ class _MainShellState extends ConsumerState<MainShell> {
         ref
           ..read(pendingPostsProvider)
           ..read(reviewOutboxProvider)
-          ..read(caseFilesOutboxProvider);
+          ..read(caseFilesOutboxProvider)
+          // owner 26.11: a group / profile photo still checked goes on at
+          // start (its kept file shows meanwhile)
+          ..read(groupPhotoOutboxProvider)
+          ..read(avatarUploadControllerProvider);
       });
       // Owner 2026-10-24 (R-140: every role): users without a passkey are
       // offered Face ID / fingerprint once (snoozable).

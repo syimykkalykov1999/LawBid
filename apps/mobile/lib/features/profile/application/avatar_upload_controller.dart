@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/files/upload_limits.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/uploads/upload_body.dart';
+import 'package:lawbid/core/uploads/upload_queue.dart' show uploadFilesProvider;
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/data/avatar_upload_repository.dart';
@@ -80,14 +81,65 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
     // the avatar at once and goes up in the background for the whole app
     // session — leaving the screen or «Сохранить» never stops it. Another
     // account starts clean.
-    ref.watch(currentUserControllerProvider.select((s) => s.user?.id));
+    final userId =
+        ref.watch(currentUserControllerProvider.select((s) => s.user?.id));
     ref.onDispose(() => _cancellation?.cancel());
+    // Owner 26.11: a photo still on its way when the app was closed shows
+    // again at once (from the upload queue's folder) and goes on.
+    if (userId != null) {
+      unawaited(Future<void>.microtask(() => _resume(userId)));
+    }
     return const AvatarUploadState();
+  }
+
+  /// The picked photo kept in the upload queue's folder (the same storage
+  /// as queued chat media) until it is attached, so a restart goes on.
+  static String pendingName(String userId) => 'avatar-$userId.pending';
+
+  String? get _userId => ref.read(currentUserControllerProvider).user?.id;
+
+  Future<void> _resume(String userId) async {
+    final Uint8List? kept;
+    try {
+      kept = await ref.read(uploadFilesProvider).read(pendingName(userId));
+    } on Object {
+      return; // no queue folder (tests, a browser without storage)
+    }
+    if (kept == null || !ref.mounted || state.stage != AvatarUploadStage.idle) {
+      return;
+    }
+    if (_userId != userId) return;
+    await start(kept);
+  }
+
+  Future<void> _keep(Uint8List bytes) async {
+    final id = _userId;
+    if (id == null) return;
+    try {
+      await ref.read(uploadFilesProvider).keep(pendingName(id), bytes: bytes);
+    } on Object {
+      // Not kept: the photo still goes up in this run.
+    }
+  }
+
+  /// The running [_keep] (a [_forget] waits for it, never the other way).
+  Future<void> _kept = Future<void>.value();
+
+  Future<void> _forget() async {
+    final id = _userId;
+    if (id == null) return;
+    await _kept;
+    try {
+      await ref.read(uploadFilesProvider).remove(pendingName(id));
+    } on Object {
+      // nothing kept
+    }
   }
 
   Future<void> start(Uint8List bytes) async {
     if (state.busy) return;
     _bytes = bytes;
+    _kept = _keep(bytes);
     await _track(_run());
   }
 
@@ -168,9 +220,15 @@ class AvatarUploadController extends Notifier<AvatarUploadState> {
         progress: 1,
         preview: bytes,
       );
+      unawaited(_forget());
     } on UploadCancelledException {
       return;
     } catch (e) {
+      // A refused photo is not resumed after a restart; one that only met
+      // a bad connection is.
+      if (e is ApiException && e.code != ApiException.networkErrorCode) {
+        unawaited(_forget());
+      }
       if (ref.mounted && !cancellation.isCancelled) {
         state = AvatarUploadState(
           stage: AvatarUploadStage.failed,

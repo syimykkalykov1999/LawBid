@@ -13,6 +13,7 @@ import 'package:lawbid/features/chat/application/chat_text_drafts.dart';
 import 'package:lawbid/features/chat/presentation/chat_swipe.dart';
 import 'package:lawbid/features/chat/presentation/chat_undo.dart';
 import 'package:lawbid/features/groups/application/chat_list_merge.dart';
+import 'package:lawbid/features/groups/application/group_photo_outbox.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart'
     show groupDraftKey;
 import 'package:lawbid/features/groups/domain/ongoing_call.dart';
@@ -116,6 +117,7 @@ class GroupChatTile extends ConsumerWidget {
                 ],
                 GoldRingAvatar(
                   url: g.avatarUrl,
+                  preview: groupPhotoPreview(ref, g.id, g.avatarUrl),
                   initials: title.characters.first.toUpperCase(),
                   size: _avatar,
                 ),

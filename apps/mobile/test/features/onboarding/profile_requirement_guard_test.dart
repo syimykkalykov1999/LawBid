@@ -107,4 +107,19 @@ void main() {
       isNull,
     );
   });
+
+  test(
+      'owner 26.11: an attorney whose photo is still checked goes on past the '
+      'profile step; without a photo on its way he is sent back', () {
+    final user = _user(
+      role: UserRole.attorney,
+      step: OnboardingStepId.verification,
+      missing: {MissingRequirement.photo},
+    );
+    expect(AppRouterGuard.requiredStep(user), OnboardingStepId.profile);
+    expect(
+      AppRouterGuard.requiredStep(user, photoPending: true),
+      OnboardingStepId.verification,
+    );
+  });
 }

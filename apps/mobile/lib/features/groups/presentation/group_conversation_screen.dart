@@ -35,6 +35,7 @@ import 'package:lawbid/features/chat/presentation/in_chat_search.dart';
 import 'package:lawbid/features/chat/presentation/voice_widgets.dart'
     show VoiceThread;
 import 'package:lawbid/features/groups/application/group_call_port.dart';
+import 'package:lawbid/features/groups/application/group_photo_outbox.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/groups/application/group_typing.dart';
 import 'package:lawbid/features/groups/domain/group_message_ext.dart';
@@ -1176,6 +1177,7 @@ class _Header extends ConsumerWidget {
           children: [
             GoldRingAvatar(
               url: detail.avatarUrl,
+              preview: groupPhotoPreview(ref, detail.id, detail.avatarUrl),
               initials: avatarInitials(detail.title),
               size: 36,
             ),
