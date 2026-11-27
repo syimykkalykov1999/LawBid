@@ -267,6 +267,10 @@ void main() {
       expect(find.byType(UpdateEntry), findsOneWidget);
       expect(find.textContaining('Sign the form'), findsOneWidget);
       expect(tester.takeException(), isNull);
+      // Case audit 26.11: the History watches the case's queued updates (a
+      // Drift stream); its close timer runs once the tree is gone.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
     });
   });
 
