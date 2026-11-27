@@ -8,11 +8,20 @@ import 'package:retrofit/retrofit.dart';
 import '../models/claim_key_packages_dto.dart';
 import '../models/claimed_key_package_list_envelope.dart';
 import '../models/conversation_e2ee_envelope.dart';
+import '../models/create_group_mls_dto.dart';
 import '../models/create_mls_group_dto.dart';
 import '../models/e2ee_backup_envelope.dart';
 import '../models/e2ee_backup_put_dto.dart';
 import '../models/e2ee_report_dto.dart';
 import '../models/e2ee_report_result_envelope.dart';
+import '../models/group_claim_key_packages_dto.dart';
+import '../models/group_e2ee_envelope.dart';
+import '../models/group_external_commit_dto.dart';
+import '../models/group_info_result_envelope.dart';
+import '../models/group_mls_commit_dto.dart';
+import '../models/group_mls_lease_dto.dart';
+import '../models/group_mls_lease_result_envelope.dart';
+import '../models/group_mls_welcome_list_envelope.dart';
 import '../models/key_package_count_envelope.dart';
 import '../models/mls_commit_dto.dart';
 import '../models/mls_commit_row_list_envelope.dart';
@@ -152,4 +161,75 @@ abstract class E2eeClient {
   /// Delete my encrypted chat backup
   @DELETE('/e2ee/backup')
   Future<void> deleteE2eeBackup({@Extras() Map<String, dynamic>? extras});
+
+  /// Group Welcomes waiting for one of my devices
+  @GET('/e2ee/groups/welcomes')
+  Future<GroupMlsWelcomeListEnvelope> listGroupMlsWelcomes({
+    @Query('deviceId') required String deviceId,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Is this group end-to-end encrypted, and its MLS group
+  @GET('/e2ee/groups/{id}')
+  Future<GroupE2eeEnvelope> getGroupE2ee({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Create the group’s MLS group (epoch 0)
+  @POST('/e2ee/groups/{id}/group')
+  Future<GroupE2eeEnvelope> createGroupMls({
+    @Path('id') required String id,
+    @Body() required CreateGroupMlsDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The right to commit in this group for a short time (one device at a time)
+  @POST('/e2ee/groups/{id}/lease')
+  Future<GroupMlsLeaseResultEnvelope> takeGroupMlsLease({
+    @Path('id') required String id,
+    @Body() required GroupMlsLeaseDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// One KeyPackage per device to add (lease holder only)
+  @POST('/e2ee/groups/{id}/key-packages/claim')
+  Future<ClaimedKeyPackageListEnvelope> claimGroupMlsKeyPackages({
+    @Path('id') required String id,
+    @Body() required GroupClaimKeyPackagesDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// A commit for the group’s current epoch, with the next GroupInfo
+  @POST('/e2ee/groups/{id}/commits')
+  Future<MlsEpochEnvelope> postGroupMlsCommit({
+    @Path('id') required String id,
+    @Body() required GroupMlsCommitDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// Group commits from an epoch on (catch up).
+  ///
+  /// [after] - Commits made in this epoch and later (default 0).
+  @GET('/e2ee/groups/{id}/commits')
+  Future<MlsCommitRowListEnvelope> listGroupMlsCommits({
+    @Path('id') required String id,
+    @Query('after') num? after,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// The latest GroupInfo with the ratchet tree (external join)
+  @GET('/e2ee/groups/{id}/group-info')
+  Future<GroupInfoResultEnvelope> getGroupInfo({
+    @Path('id') required String id,
+    @Extras() Map<String, dynamic>? extras,
+  });
+
+  /// My device joins (or resyncs into) the group by external commit (members only)
+  @POST('/e2ee/groups/{id}/external-commit')
+  Future<MlsEpochEnvelope> postGroupExternalCommit({
+    @Path('id') required String id,
+    @Body() required GroupExternalCommitDto body,
+    @Extras() Map<String, dynamic>? extras,
+  });
 }

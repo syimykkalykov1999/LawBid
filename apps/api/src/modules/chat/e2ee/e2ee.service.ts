@@ -216,9 +216,12 @@ export class E2eeService {
     ]);
     const groups = await this.prisma.mlsGroupDevice.findMany({
       where: { device_id: d.id },
-      select: { conversation_id: true },
+      select: { conversation_id: true, scope: true },
     });
-    for (const g of groups) await this.announce(g.conversation_id);
+    for (const g of groups) {
+      if (g.scope === GROUP_SCOPE) await this.announceGroup(g.conversation_id);
+      else await this.announce(g.conversation_id);
+    }
   }
 
   async uploadKeyPackages(
@@ -291,16 +294,26 @@ export class E2eeService {
     deviceId: string,
   ): Promise<void> {
     const rows = await this.prisma.global().$queryRaw<
-      { conversation_id: string }[]
+      { conversation_id: string; scope: string }[]
     >`
-      SELECT DISTINCT g.conversation_id::TEXT AS conversation_id
+      SELECT DISTINCT g.conversation_id::TEXT AS conversation_id, g.scope
       FROM mls_group_devices g
       WHERE g.user_id = ${userId}::UUID
         AND NOT EXISTS (
           SELECT 1 FROM mls_group_devices x
           WHERE x.conversation_id = g.conversation_id
             AND x.device_id = ${deviceId}::UUID)`;
-    for (const r of rows) await this.announce(r.conversation_id);
+    for (const r of rows) {
+      // Group E2EE G1 (design §4.2): in a group the new device joins by
+      // itself (external commit); its own person is told, nobody else.
+      if (r.scope === GROUP_SCOPE) {
+        this.realtime.toUsers([userId], GROUP_E2EE_EVENT, {
+          groupId: r.conversation_id,
+        });
+      } else {
+        await this.announce(r.conversation_id);
+      }
+    }
   }
 
   async keyPackageCount(
@@ -785,6 +798,8 @@ export class E2eeService {
     const rows = await this.prisma.mlsWelcome.findMany({
       where: {
         device_id: d.id,
+        // Group E2EE G1: the groups' Welcomes have their own route.
+        scope: 'conversation',
         ...(since ? { created_at: { gte: since } } : {}),
       },
       orderBy: { created_at: 'asc' },
@@ -1088,6 +1103,25 @@ export class E2eeService {
     };
   }
 
+  /** A group chat's live members re-read its MLS state (a device of one of
+   * them was signed out: it must be removed before the next message). */
+  private async announceGroup(groupId: string): Promise<void> {
+    const rows = await this.prisma.chatGroupMember.findMany({
+      where: { group_id: groupId, left_at: null },
+      select: { user_id: true },
+    });
+    const group = await this.prisma.mlsGroup.findUnique({
+      where: { conversation_id: groupId },
+      select: { epoch: true },
+    });
+    if (rows.length === 0) return;
+    this.realtime.toUsers(
+      rows.map((r) => r.user_id),
+      GROUP_E2EE_EVENT,
+      { groupId, epoch: group?.epoch ?? 0 },
+    );
+  }
+
   /** The chat's members re-read the state (a device left / must go). */
   private async announce(conversationId: string): Promise<void> {
     const rows = await this.prisma.conversationParticipant.findMany({
@@ -1115,6 +1149,13 @@ export class E2eeService {
     );
   }
 }
+
+/** Group E2EE G1 (GROUP_E2EE_DESIGN_2026-11-26.md §4.1): the scope of a
+ * group chat's rows in the shared MLS tables, and the event its devices
+ * re-read the group's MLS state on (as groups/e2ee/group-mls-gate.ts; the
+ * chat module does not import the groups module). */
+const GROUP_SCOPE = 'group';
+const GROUP_E2EE_EVENT = 'e2ee:group';
 
 function e2eeOff(reason: E2eeOffReason | null): ConflictException {
   return new ConflictException({

@@ -440,6 +440,8 @@ describe('BootstrapService.build', () => {
       'sms.resend_cooldown_seconds': 60,
       // Item 25: the end-to-end encryption switch, always sent.
       'chat.e2ee_mode': 'auto',
+      // Group E2EE G1: the group chats' switch, always sent (off).
+      'groups.e2ee_mode': 'off',
       // S20-9: the reel warm-up the app obeys (Wi-Fi / mobile data).
       'client.video_prefetch_ahead': 3,
       'client.video_prefetch_cellular': 3,

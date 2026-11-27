@@ -2,12 +2,14 @@ import {
   createApplicationMessage,
   createCommit,
   createGroup,
+  createGroupInfoWithExternalPubAndRatchetTree,
   defaultCapabilities,
   defaultLifetime,
   encodeMlsMessage,
   generateKeyPackageWithKey,
   getCiphersuiteFromName,
   getCiphersuiteImpl,
+  joinGroupExternal,
   type CiphersuiteImpl,
 } from 'ts-mls';
 import {
@@ -15,6 +17,8 @@ import {
   MLS_CIPHERSUITE,
   readApplicationMessage,
   readCommit,
+  readExternalCommit,
+  readGroupInfo,
   isWelcome,
 } from './mls-codec';
 
@@ -136,5 +140,64 @@ describe('mls-codec (E2EE, item 25)', () => {
     // A commit is not an application message and vice versa.
     expect(readApplicationMessage(encodeMlsMessage(commit.commit))).toBeNull();
     expect(readCommit(bytes)).toBeNull();
+  });
+
+  // Group E2EE G1 (GROUP_E2EE_DESIGN_2026-11-26.md §4.3): the GroupInfo a
+  // device joins from and the external commit it joins with.
+  it('reads a GroupInfo and an external commit (joiner identity, key, removes)', async () => {
+    const aSign = await cs.signature.keygen();
+    const bSign = await cs.signature.keygen();
+    const a = await kp('ua:da', aSign);
+    const b = await kp('ub:db', bSign);
+    const groupId = new TextEncoder().encode('lawbid:g:test');
+    const state = await createGroup(
+      groupId,
+      a.publicPackage,
+      a.privatePackage,
+      [],
+      cs,
+    );
+    const info = await createGroupInfoWithExternalPubAndRatchetTree(
+      state,
+      [],
+      cs,
+    );
+    const infoBytes = encodeMlsMessage({
+      groupInfo: info,
+      wireformat: 'mls_group_info',
+      version: 'mls10',
+    });
+    const gi = readGroupInfo(infoBytes);
+    expect(gi).toMatchObject({ epoch: 0 });
+    expect(Buffer.from(gi!.groupId).toString()).toBe('lawbid:g:test');
+    expect(readGroupInfo(new Uint8Array([1, 2, 3]))).toBeNull();
+
+    const joined = await joinGroupExternal(
+      info,
+      b.publicPackage,
+      b.privatePackage,
+      false,
+      cs,
+    );
+    const commitBytes = encodeMlsMessage({
+      publicMessage: joined.publicMessage,
+      wireformat: 'mls_public_message',
+      version: 'mls10',
+    });
+    const ext = readExternalCommit(commitBytes);
+    expect(ext).toMatchObject({ epoch: 0, identity: 'ub:db', removes: 0 });
+    expect(Buffer.from(ext!.signatureKey)).toEqual(
+      Buffer.from(bSign.publicKey),
+    );
+    // The member route sees it as external, and a member's commit is not one.
+    expect(readCommit(commitBytes)).toMatchObject({ external: true });
+    const member = await createCommit(
+      { state, cipherSuite: cs },
+      { wireAsPublicMessage: true },
+    );
+    const memberBytes = encodeMlsMessage(member.commit);
+    expect(readCommit(memberBytes)).toMatchObject({ external: false });
+    expect(readExternalCommit(memberBytes)).toBeNull();
+    expect(readExternalCommit(infoBytes)).toBeNull();
   });
 });

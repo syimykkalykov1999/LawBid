@@ -884,6 +884,11 @@ class _FakeDs {
 class _FakeClient implements api.E2eeClient {
   _FakeClient(this.ds, this.user);
 
+  // Group MLS routes (G1) are not used by the 1:1 chat service under test.
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      super.noSuchMethod(invocation);
+
   final _FakeDs ds;
   final String user;
 
