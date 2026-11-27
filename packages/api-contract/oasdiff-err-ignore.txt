@@ -730,3 +730,10 @@ POST /conversations/{id}/messages/{messageId}/pin added the new `mls` enum value
 PUT /conversations/{id}/messages/{messageId}/reaction added the new `mls` enum value to the `data/type` response property for the response status `200`
 GET /conversations/{id}/pins added the new `mls` enum value to the `data/items/items/type` response property for the response status `200`
 GET /saved-chat added the new `mls` enum value to the `data/items/message/type` response property for the response status `200`
+GET /groups/invites/{inviteId}/preview added the new `mls` enum value to the `data/messages/items/type` response property for the response status `200`
+GET /groups/{id}/messages added the new `mls` enum value to the `data/items/type` response property for the response status `200`
+POST /groups/{id}/messages added the new `mls` enum value to the `data/type` response property for the response status `200`
+PATCH /groups/{id}/messages/{messageId} added the new `mls` enum value to the `data/type` response property for the response status `200`
+PUT /groups/{id}/messages/{messageId}/reaction added the new `mls` enum value to the `data/type` response property for the response status `200`
+POST /groups/{id}/polls added the new `mls` enum value to the `data/type` response property for the response status `200`
+GET /groups/{id}/shared added the new `mls` enum value to the `data/items/type` response property for the response status `200`
