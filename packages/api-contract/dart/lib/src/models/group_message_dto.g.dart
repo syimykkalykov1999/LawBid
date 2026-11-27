@@ -53,6 +53,11 @@ GroupMessageDto _$GroupMessageDtoFromJson(
   reactions: (json['reactions'] as List<dynamic>?)
       ?.map((e) => ReactionDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  ciphertext: json['ciphertext'] as String?,
+  mlsEpoch: json['mlsEpoch'] as num?,
+  senderDeviceId: json['senderDeviceId'] as String?,
+  frankingTag: json['frankingTag'] as String?,
+  blobUrl: json['blobUrl'] as String?,
 );
 
 Map<String, dynamic> _$GroupMessageDtoToJson(GroupMessageDto instance) =>
@@ -81,4 +86,9 @@ Map<String, dynamic> _$GroupMessageDtoToJson(GroupMessageDto instance) =>
       'forwarded': ?instance.forwarded,
       'forwardedFrom': ?instance.forwardedFrom,
       'reactions': ?instance.reactions?.map((e) => e.toJson()).toList(),
+      'ciphertext': ?instance.ciphertext,
+      'mlsEpoch': ?instance.mlsEpoch,
+      'senderDeviceId': ?instance.senderDeviceId,
+      'frankingTag': ?instance.frankingTag,
+      'blobUrl': ?instance.blobUrl,
     };

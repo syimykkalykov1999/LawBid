@@ -143,6 +143,7 @@ const file06Ru = <String, String>{
   'chat.attach.gallery': 'Фото и видео',
   'chat.avatar.open': 'Открыть фото',
   'chat.attach.videoPreparing': 'Готовим видео к отправке…',
+  'chat.attach.pickMax': 'За раз можно отправить не больше {max} фото и видео',
   'chat.attach.videoPlay': 'Смотреть видео',
   'chat.requests.title': 'Запросы на переписку',
   'chat.requests.subtitle': 'Сообщения от людей, с которыми вы не общались',
@@ -698,6 +699,7 @@ const file06En = <String, String>{
   'chat.attach.gallery': 'Photos and videos',
   'chat.avatar.open': 'Open photo',
   'chat.attach.videoPreparing': 'Preparing the video…',
+  'chat.attach.pickMax': 'You can send up to {max} photos and videos at once',
   'chat.attach.videoPlay': 'Watch the video',
   'chat.requests.block': 'Block',
   'chat.requests.sentNote':

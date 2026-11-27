@@ -1,12 +1,13 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// G2 (docs/architecture/GROUP_E2EE_DESIGN_2026-11-26.md §4.1): the group
-/// scope of the Delivery Service, as the app calls it. The server side (G1)
-/// is the same Delivery Service as the chats' with `scope = group`; these
-/// are the endpoints of the design's table. Until G1's contract is
-/// regenerated into `lawbid_api` the calls go through [DioGroupE2eeApi]
-/// (plain JSON, the same envelope `{data: …}` as every endpoint); switching
-/// to the generated client changes only that class.
+/// scope of the Delivery Service (G1, #1384) as the app calls it, through
+/// the generated `E2eeClient` ([ClientGroupE2eeApi]); an interface so the
+/// tests run the service against an in-memory Delivery Service.
 ///
 /// | Call | Endpoint |
 /// |---|---|
@@ -18,6 +19,7 @@ import 'package:dio/dio.dart';
 /// | [commits] | `GET /e2ee/groups/:id/commits?after=` |
 /// | [groupInfo] | `GET /e2ee/groups/:id/group-info` |
 /// | [externalCommit] | `POST /e2ee/groups/:id/external-commit` |
+/// | [welcomes] | `GET /e2ee/groups/welcomes?deviceId=` |
 abstract class GroupE2eeApi {
   Future<GroupE2eeState> state(String groupId);
 
@@ -26,6 +28,7 @@ abstract class GroupE2eeApi {
     String groupId, {
     required String deviceId,
     required String mlsGroupId,
+    String? groupInfo,
   });
 
   /// §4.4: the right to commit for `groups.e2ee_lease_ms`; false while
@@ -35,6 +38,7 @@ abstract class GroupE2eeApi {
   /// KeyPackages of [deviceIds] (only for the holder of the lease).
   Future<List<GroupClaimedKeyPackage>> claim(
     String groupId,
+    String deviceId,
     List<String> deviceIds,
   );
 
@@ -51,6 +55,24 @@ abstract class GroupE2eeApi {
   /// This device's external commit (join / resync); 403 when its person is
   /// not a member, 409 when another commit took the epoch. The new epoch.
   Future<int> externalCommit(String groupId, GroupExternalCommitBody body);
+
+  /// Group Welcomes waiting for [deviceId] (kept `chat.e2ee_welcome_keep_days`;
+  /// there is no acknowledgement: a device skips the ones it is past).
+  Future<List<GroupWelcome>> welcomes(String deviceId);
+}
+
+class GroupWelcome {
+  const GroupWelcome({
+    required this.groupId,
+    required this.epoch,
+    required this.welcome,
+  });
+
+  final String groupId;
+  final int epoch;
+
+  /// base64 MLSMessage Welcome.
+  final String welcome;
 }
 
 enum GroupE2eeMode { off, pending, on }
@@ -236,107 +258,166 @@ class GroupInfoRow {
   final String groupInfo;
 }
 
-class DioGroupE2eeApi implements GroupE2eeApi {
-  DioGroupE2eeApi(this._dio);
+/// The generated client of G1's endpoints.
+class ClientGroupE2eeApi implements GroupE2eeApi {
+  ClientGroupE2eeApi(this._c, {this.download});
 
-  final Dio _dio;
+  final api.E2eeClient _c;
 
-  static Object? _data(Response<Object?> r) {
-    final body = r.data;
-    return body is Map ? body['data'] : null;
-  }
+  /// The bytes behind a short link (a GroupInfo too big to be inline).
+  final Stream<List<int>> Function(String url)? download;
 
-  static Map<String, dynamic> _map(Response<Object?> r) =>
-      Map<String, dynamic>.from(_data(r)! as Map);
+  static GroupE2eeState _state(api.GroupE2eeDto d) => GroupE2eeState(
+        state: switch (d.state) {
+          api.GroupE2eeState.valueOn => GroupE2eeMode.on,
+          api.GroupE2eeState.pending => GroupE2eeMode.pending,
+          _ => GroupE2eeMode.off,
+        },
+        groupId: d.groupId,
+        epoch: d.epoch?.toInt(),
+        devices: [
+          for (final x in d.devices)
+            GroupE2eeDevice(
+              deviceId: x.deviceId,
+              userId: x.userId,
+              inGroup: x.inGroup,
+            ),
+        ],
+        removeDevices: d.removeDevices,
+        since: d.since,
+        updateDays: d.updateDays.toInt(),
+      );
 
   @override
-  Future<GroupE2eeState> state(String groupId) async => GroupE2eeState.fromJson(
-        _map(await _dio.get<Object?>('/e2ee/groups/$groupId')),
-      );
+  Future<GroupE2eeState> state(String groupId) async =>
+      _state((await _c.getGroupE2ee(id: groupId)).data);
 
   @override
   Future<GroupE2eeState> createGroup(
     String groupId, {
     required String deviceId,
     required String mlsGroupId,
+    String? groupInfo,
   }) async =>
-      GroupE2eeState.fromJson(
-        _map(
-          await _dio.post<Object?>(
-            '/e2ee/groups/$groupId/group',
-            data: {'deviceId': deviceId, 'groupId': mlsGroupId},
+      _state(
+        (await _c.createGroupMls(
+          id: groupId,
+          body: api.CreateGroupMlsDto(
+            deviceId: deviceId,
+            groupId: mlsGroupId,
+            groupInfo: groupInfo,
           ),
-        ),
+        ))
+            .data,
       );
 
   @override
-  Future<bool> lease(String groupId, String deviceId) async {
-    final r = await _dio.post<Object?>(
-      '/e2ee/groups/$groupId/lease',
-      data: {'deviceId': deviceId},
-    );
-    return _map(r)['granted'] == true;
-  }
+  Future<bool> lease(String groupId, String deviceId) async =>
+      (await _c.takeGroupMlsLease(
+        id: groupId,
+        body: api.GroupMlsLeaseDto(deviceId: deviceId),
+      ))
+          .data
+          .granted;
 
   @override
   Future<List<GroupClaimedKeyPackage>> claim(
     String groupId,
+    String deviceId,
     List<String> deviceIds,
-  ) async {
-    final r = await _dio.post<Object?>(
-      '/e2ee/groups/$groupId/key-packages/claim',
-      data: {'deviceIds': deviceIds},
-    );
-    return [
-      for (final c in (_data(r) as List?) ?? const [])
-        GroupClaimedKeyPackage.fromJson(Map<String, dynamic>.from(c as Map)),
-    ];
-  }
+  ) async =>
+      [
+        for (final c in (await _c.claimGroupMlsKeyPackages(
+          id: groupId,
+          body: api.GroupClaimKeyPackagesDto(
+            deviceId: deviceId,
+            deviceIds: deviceIds,
+          ),
+        ))
+            .data)
+          GroupClaimedKeyPackage(
+            deviceId: c.deviceId,
+            userId: c.userId,
+            keyPackage: c.keyPackage,
+          ),
+      ];
 
   @override
-  Future<int> postCommit(String groupId, GroupCommitBody body) async {
-    final r = await _dio.post<Object?>(
-      '/e2ee/groups/$groupId/commits',
-      data: body.toJson(),
-    );
-    return (_map(r)['epoch'] as num).toInt();
-  }
+  Future<int> postCommit(String groupId, GroupCommitBody body) async =>
+      (await _c.postGroupMlsCommit(
+        id: groupId,
+        body: api.GroupMlsCommitDto(
+          deviceId: body.deviceId,
+          epoch: body.epoch,
+          commit: body.commit,
+          addedDevices: body.addedDevices,
+          removedDevices: body.removedDevices,
+          welcome: body.welcome,
+          groupInfo: body.groupInfo,
+        ),
+      ))
+          .data
+          .epoch
+          .toInt();
 
   @override
-  Future<List<GroupCommitRow>> commits(String groupId, int after) async {
-    final r = await _dio.get<Object?>(
-      '/e2ee/groups/$groupId/commits',
-      queryParameters: {'after': after},
-    );
-    return [
-      for (final c in (_data(r) as List?) ?? const [])
-        GroupCommitRow.fromJson(Map<String, dynamic>.from(c as Map)),
-    ];
-  }
+  Future<List<GroupCommitRow>> commits(String groupId, int after) async => [
+        for (final r
+            in (await _c.listGroupMlsCommits(id: groupId, after: after)).data)
+          GroupCommitRow(epoch: r.epoch.toInt(), commit: r.commit),
+      ];
 
   @override
   Future<GroupInfoRow?> groupInfo(String groupId) async {
+    final api.GroupInfoResultDto r;
     try {
-      final r = await _dio.get<Object?>('/e2ee/groups/$groupId/group-info');
-      final d = _data(r);
-      return d is Map
-          ? GroupInfoRow.fromJson(Map<String, dynamic>.from(d))
-          : null;
+      r = (await _c.getGroupInfo(id: groupId)).data;
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) return null;
       rethrow;
     }
+    var info = r.groupInfo;
+    final url = r.url;
+    final get = download;
+    if (info == null && url != null && get != null) {
+      final bytes = BytesBuilder(copy: false);
+      await for (final c in get(url)) {
+        bytes.add(c);
+      }
+      info = base64Encode(bytes.takeBytes());
+    }
+    return info == null
+        ? null
+        : GroupInfoRow(epoch: r.epoch.toInt(), groupInfo: info);
   }
 
   @override
   Future<int> externalCommit(
     String groupId,
     GroupExternalCommitBody body,
-  ) async {
-    final r = await _dio.post<Object?>(
-      '/e2ee/groups/$groupId/external-commit',
-      data: body.toJson(),
-    );
-    return (_map(r)['epoch'] as num).toInt();
-  }
+  ) async =>
+      (await _c.postGroupExternalCommit(
+        id: groupId,
+        body: api.GroupExternalCommitDto(
+          deviceId: body.deviceId,
+          epoch: body.epoch,
+          commit: body.commit,
+          groupInfo: body.groupInfo,
+          resync: body.resync,
+        ),
+      ))
+          .data
+          .epoch
+          .toInt();
+
+  @override
+  Future<List<GroupWelcome>> welcomes(String deviceId) async => [
+        for (final w
+            in (await _c.listGroupMlsWelcomes(deviceId: deviceId)).data)
+          GroupWelcome(
+            groupId: w.groupId,
+            epoch: w.epoch.toInt(),
+            welcome: w.welcome,
+          ),
+      ];
 }

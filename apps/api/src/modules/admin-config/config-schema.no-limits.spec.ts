@@ -24,6 +24,8 @@ const FLOORS: Record<string, number> = {
   'queues.push_rate_per_sec': 1,
   'economy.max_spend_percent': 1,
   'economy.aws_cap_usd': 0,
+  // Owner 26.11: one gallery pick in a chat (default 30).
+  'media.chat_pick_max': 2,
 };
 
 describe('owner «no limits»: «Авто» numbers have only a technical floor', () => {

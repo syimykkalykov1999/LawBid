@@ -29,15 +29,16 @@ class GroupSealed {
   Map<String, Object?> toJson() => {
         'type': 'mls',
         'ciphertext': ciphertext,
-        'epoch': epoch,
+        'mlsEpoch': epoch,
         'mlsDeviceId': deviceId,
         'frankingTag': frankingTag,
       };
 }
 
 /// A control message of an encrypted group (design §4.5): not a row of
-/// the thread, it changes one. The server knows only which message it
-/// touches ([GroupE2eeService.controlOf]); what it says is inside MLS.
+/// the thread, it changes one. To the server it is an ordinary `mls`
+/// message; its kind and target are inside MLS
+/// ([GroupE2eeService.isControlId]).
 abstract final class GroupControl {
   static const edit = 'edit';
   static const react = 'react';
@@ -119,9 +120,7 @@ class GroupE2eeService {
     required this.ownerId,
     required this.plaintexts,
     DateTime Function()? now,
-  }) : _now = now ?? DateTime.now {
-    chat.isGroup = (id) => _states.containsKey(id) || _known.contains(id);
-  }
+  }) : _now = now ?? DateTime.now;
 
   final GroupE2eeApi api;
   final E2eeService chat;
@@ -221,6 +220,7 @@ class GroupE2eeService {
             groupId,
             deviceId: e.deviceId!,
             mlsGroupId: base64Encode(gid),
+            groupInfo: base64Encode(await e.exportGroupInfo(gid)),
           );
           _states[groupId] = s;
         } on DioException catch (x) {
@@ -237,7 +237,7 @@ class GroupE2eeService {
         s = await state(groupId, fresh: true);
       }
       if (!await e.hasGroup(gid)) {
-        await chat.takeWelcomes();
+        await _takeWelcomes(e, groupId);
       }
       if (!await e.hasGroup(gid)) {
         return await _joinExternal(e, groupId, gid, s);
@@ -330,7 +330,7 @@ class GroupE2eeService {
     List<String> deviceIds,
   ) async {
     if (deviceIds.isEmpty) return;
-    final claimed = await api.claim(groupId, deviceIds);
+    final claimed = await api.claim(groupId, e.deviceId!, deviceIds);
     final kps = <Uint8List>[];
     final ids = <String>[];
     for (final c in claimed) {
@@ -642,6 +642,30 @@ class GroupE2eeService {
     }
   }
 
+  /// The group Welcomes of this device (G1 keeps them
+  /// `chat.e2ee_welcome_keep_days`, nothing to acknowledge): joins the
+  /// groups it is not in yet at that epoch; an older copy of the group (the
+  /// device was removed and added again) is replaced.
+  Future<void> _takeWelcomes(MlsEngine e, String groupId) async {
+    final ws = await api.welcomes(e.deviceId!);
+    for (final w in ws..sort((a, b) => b.epoch.compareTo(a.epoch))) {
+      if (w.groupId != groupId) continue;
+      final gid = mlsGroupIdOf(w.groupId);
+      if (await e.hasGroup(gid)) {
+        if (await e.epoch(gid) >= w.epoch) return;
+        await e.deleteGroup(gid);
+      }
+      try {
+        await e.join(base64Decode(w.welcome));
+        return;
+      } on Object catch (x) {
+        // Not for one of this device's KeyPackages any more: it joins by
+        // external commit instead.
+        debugPrint('group e2ee welcome $groupId@${w.epoch}: $x');
+      }
+    }
+  }
+
   /// Whether a send can go at once from the cached state.
   Future<bool> _canWriteNow(
     MlsEngine e,
@@ -747,7 +771,6 @@ class GroupE2eeService {
     return {
       'clientMessageId': clientMessageId,
       ...sealed.toJson(),
-      ...controlOf(kind, targetId),
       if (topicId != null) 'topicId': topicId,
     };
   }
@@ -812,18 +835,17 @@ class GroupE2eeService {
 
   /// The open metadata of a control send (the server sets `edited_at`
   /// for an edit, skips pushes and unread counts for all of them).
-  static Map<String, Object?> controlOf(String kind, String targetId) => {
-        'control': kind,
-        'targetId': targetId,
-      };
-
   /// Whether [raw] (a message row as the server sends it) is end-to-end
   /// encrypted.
   static bool isSealed(Map<String, dynamic> raw) => raw['type'] == 'mls';
 
-  /// Whether [raw] is a control message (a reaction, vote, edit, close):
-  /// applied, never shown as a row.
-  static bool isControl(Map<String, dynamic> raw) => raw['control'] is String;
+  /// Whether the row [id] was a control message (a reaction, vote, edit,
+  /// close): applied, never shown as a row.
+  static bool isControlId(String id) => _controlIds.contains(id);
+  static final Set<String> _controlIds = {};
+
+  static bool _isControl(E2eePayload? p) =>
+      p != null && GroupControl.all.contains(p.kind);
 
   /// A page / catch-up / event of the group, opened: every `mls` row is
   /// decrypted once (older epoch first), control messages are applied and
@@ -843,8 +865,10 @@ class GroupE2eeService {
     };
     var applied = false;
     for (final r in order) {
-      if (isControl(r) && got[r['id']] != null) {
-        await _apply(groupId, r, got[r['id']]);
+      final p = got[r['id']];
+      if (_isControl(p)) {
+        _controlIds.add(r['id'] as String);
+        await _apply(groupId, r, p);
         applied = true;
       }
     }
@@ -853,7 +877,7 @@ class GroupE2eeService {
       for (final r in rows)
         if (!isSealed(r))
           r
-        else if (!isControl(r))
+        else if (!_isControl(got[r['id']]))
           await _shown(groupId, r, got[r['id']]),
     ];
   }
@@ -920,7 +944,7 @@ class GroupE2eeService {
       try {
         final e = await chat.engine();
         final gid = mlsGroupIdOf(groupId);
-        if (!await e.hasGroup(gid)) await chat.takeWelcomes();
+        if (!await e.hasGroup(gid)) await _takeWelcomes(e, groupId);
         if (!await e.hasGroup(gid)) return _wait(groupId, r);
         final epoch = _epochOf(r);
         if (await e.epoch(gid) < epoch) {
@@ -980,7 +1004,10 @@ class GroupE2eeService {
         final p = await _decryptNow(e, groupId, gid, r);
         if (p != null) {
           any = true;
-          if (isControl(r)) await _apply(groupId, r, p);
+          if (_isControl(p)) {
+            _controlIds.add(r['id'] as String);
+            await _apply(groupId, r, p);
+          }
         }
       } on Object catch (x) {
         if (mine - epoch >= E2eeService.pastEpochs) {
@@ -1000,7 +1027,7 @@ class GroupE2eeService {
     E2eePayload? p,
   ) async {
     if (p == null) return;
-    final target = r['targetId'] as String? ?? p.extra['to'] as String?;
+    final target = p.extra['to'] as String?;
     final sender = r['senderId'] as String? ??
         (r['sender'] is Map ? (r['sender'] as Map)['userId'] as String? : null);
     if (target == null || sender == null) return;
@@ -1247,7 +1274,6 @@ class GroupE2eeService {
   Future<void> close() async {
     await _changed.close();
     await _codeChanged.close();
-    if (chat.isGroup != null) chat.isGroup = null;
   }
 }
 

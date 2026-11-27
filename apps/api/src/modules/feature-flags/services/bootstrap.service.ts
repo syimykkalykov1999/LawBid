@@ -657,6 +657,10 @@ export class BootstrapService {
         'chat.e2ee_mode': parseSwitchMode(
           appConfig['chat.e2ee_mode'] ?? APP_SETTINGS['chat.e2ee_mode'],
         ),
+        // Group E2EE G1: the group chats' own switch, always present.
+        'groups.e2ee_mode': parseSwitchMode(
+          appConfig['groups.e2ee_mode'] ?? APP_SETTINGS['groups.e2ee_mode'],
+        ),
         // Dedup D-12: `guest.browsing_enabled` is the one master switch (it is
         // also the server's gate for token-less reads). The apps are told
         // "browse as guest" only while it is on, so an app never offers what

@@ -118541,6 +118541,1027 @@
         ]
       }
     },
+    "/e2ee/groups/welcomes": {
+      "get": {
+        "operationId": "listGroupMlsWelcomes",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupMlsWelcomeListEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Group Welcomes waiting for one of my devices",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/groups/{id}": {
+      "get": {
+        "operationId": "getGroupE2ee",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupE2eeEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: GROUP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Is this group end-to-end encrypted, and its MLS group",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/groups/{id}/group": {
+      "post": {
+        "operationId": "createGroupMls",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGroupMlsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupE2eeEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: GROUP_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: E2EE_OFF, E2EE_EPOCH_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create the group’s MLS group (epoch 0)",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/groups/{id}/lease": {
+      "post": {
+        "operationId": "takeGroupMlsLease",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupMlsLeaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupMlsLeaseResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: GROUP_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: E2EE_OFF",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The right to commit in this group for a short time (one device at a time)",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/groups/{id}/key-packages/claim": {
+      "post": {
+        "operationId": "claimGroupMlsKeyPackages",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupClaimKeyPackagesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClaimedKeyPackageListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, E2EE_MEMBERSHIP_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: GROUP_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: E2EE_OFF, E2EE_EPOCH_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One KeyPackage per device to add (lease holder only)",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/groups/{id}/commits": {
+      "post": {
+        "operationId": "postGroupMlsCommit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupMlsCommitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MlsEpochEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, E2EE_MEMBERSHIP_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: GROUP_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: E2EE_OFF, E2EE_EPOCH_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "A commit for the group’s current epoch, with the next GroupInfo",
+        "tags": [
+          "e2ee"
+        ]
+      },
+      "get": {
+        "operationId": "listGroupMlsCommits",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "required": false,
+            "in": "query",
+            "description": "Commits made in this epoch and later (default 0).",
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MlsCommitRowListEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: GROUP_NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Group commits from an epoch on (catch up)",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/groups/{id}/group-info": {
+      "get": {
+        "operationId": "getGroupInfo",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GroupInfoResultEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: GROUP_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The latest GroupInfo with the ratchet tree (external join)",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
+    "/e2ee/groups/{id}/external-commit": {
+      "post": {
+        "operationId": "postGroupExternalCommit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupExternalCommitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Success envelope (docs/01 §7).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MlsEpochEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request: VALIDATION_ERROR, E2EE_MEMBERSHIP_INVALID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized: UNAUTHORIZED, TOKEN_EXPIRED, AUTH_SESSION_REVOKED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: FEATURE_DISABLED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found: GROUP_NOT_FOUND, NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: E2EE_OFF, E2EE_EPOCH_CONFLICT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "426": {
+            "description": "Upgrade required: APP_UPDATE_REQUIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests: RATE_LIMITED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error: INTERNAL_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "My device joins (or resyncs into) the group by external commit (members only)",
+        "tags": [
+          "e2ee"
+        ]
+      }
+    },
     "/notifications": {
       "get": {
         "operationId": "listNotifications",
@@ -205903,7 +206924,8 @@
               "system",
               "poll",
               "attachment",
-              "voice"
+              "voice",
+              "mls"
             ],
             "type": "string"
           },
@@ -206023,6 +207045,32 @@
             "items": {
               "$ref": "#/components/schemas/ReactionDto"
             }
+          },
+          "ciphertext": {
+            "type": "string",
+            "nullable": true,
+            "description": "type=mls: base64 MLS PrivateMessage; the app decrypts it. Null for other types."
+          },
+          "mlsEpoch": {
+            "type": "number",
+            "nullable": true,
+            "description": "type=mls: the epoch of the message."
+          },
+          "senderDeviceId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "type=mls: the sending MLS device."
+          },
+          "frankingTag": {
+            "type": "string",
+            "nullable": true,
+            "description": "type=mls (message franking): base64 HMAC-SHA256(k, P) the sender stored."
+          },
+          "blobUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "type=mls with an encrypted file: a short link to the file's ciphertext (its key is inside the message)."
           }
         },
         "required": [
@@ -206386,6 +207434,15 @@
           "joinedAt"
         ]
       },
+      "GroupE2eeState": {
+        "type": "string",
+        "enum": [
+          "off",
+          "pending",
+          "on"
+        ],
+        "description": "Group E2EE G1: on = end-to-end encrypted (send type=mls); pending = a member’s device may encrypt it now (GET /e2ee/groups/{id} has the exact state); off = as before."
+      },
       "GroupDetailDto": {
         "type": "object",
         "properties": {
@@ -206643,6 +207700,24 @@
             "items": {
               "type": "string"
             }
+          },
+          "e2ee": {
+            "description": "Group E2EE G1: on = end-to-end encrypted (send type=mls); pending = a member’s device may encrypt it now (GET /e2ee/groups/{id} has the exact state); off = as before.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GroupE2eeState"
+              }
+            ]
+          },
+          "e2eeSince": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Group E2EE G1: since when its messages are encrypted."
+          },
+          "historySharing": {
+            "type": "boolean",
+            "description": "Group E2EE G1 (§4.6): members may send recent history to people they add."
           }
         },
         "required": [
@@ -207237,7 +208312,8 @@
             "enum": [
               "text",
               "attachment",
-              "voice"
+              "voice",
+              "mls"
             ],
             "type": "string"
           },
@@ -207291,6 +208367,28 @@
               "maximum": 100,
               "minimum": 0
             }
+          },
+          "ciphertext": {
+            "type": "string",
+            "maxLength": 131072,
+            "format": "base64",
+            "description": "type=mls: base64 of the MLS PrivateMessage (an application message of the group’s MLS group). The server stores only this."
+          },
+          "mlsEpoch": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "type=mls: the epoch the message was encrypted in."
+          },
+          "mlsDeviceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "type=mls: the sending MLS device (POST /e2ee/devices)."
+          },
+          "frankingTag": {
+            "type": "string",
+            "maxLength": 64,
+            "format": "base64",
+            "description": "type=mls (message franking): base64 of HMAC-SHA256(k, P), k inside the plaintext P."
           }
         },
         "required": [
@@ -207915,6 +209013,429 @@
         },
         "required": [
           "data"
+        ]
+      },
+      "GroupMlsWelcomeDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "epoch": {
+            "type": "number",
+            "description": "The epoch the device joins into."
+          },
+          "welcome": {
+            "type": "string",
+            "description": "Base64 MLSMessage (mls_welcome)."
+          }
+        },
+        "required": [
+          "id",
+          "groupId",
+          "epoch",
+          "welcome"
+        ]
+      },
+      "GroupMlsWelcomeListEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupMlsWelcomeDto"
+            }
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GroupE2eeOffReason": {
+        "type": "string",
+        "enum": [
+          "mode_off",
+          "demo",
+          "public_group",
+          "too_many_members",
+          "devices_missing"
+        ]
+      },
+      "GroupMlsDeviceDto": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "signatureKey": {
+            "type": "string",
+            "description": "Base64 Ed25519 public signature key."
+          },
+          "inGroup": {
+            "type": "boolean",
+            "description": "In the MLS group now."
+          },
+          "lastCommitAt": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true,
+            "description": "Its last accepted commit in this group (the self-update every groups.e2ee_update_days counts from it)."
+          }
+        },
+        "required": [
+          "deviceId",
+          "userId",
+          "signatureKey",
+          "inGroup"
+        ]
+      },
+      "GroupE2eeDto": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "description": "off = write as before; pending = the first device may create the MLS group now; on = end-to-end encrypted (send type=mls).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GroupE2eeState"
+              }
+            ]
+          },
+          "reason": {
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GroupE2eeOffReason"
+              }
+            ]
+          },
+          "groupId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Base64 MLS group_id."
+          },
+          "epoch": {
+            "type": "number",
+            "nullable": true
+          },
+          "since": {
+            "format": "date-time",
+            "type": "string",
+            "nullable": true
+          },
+          "devices": {
+            "description": "Active devices of the live members (in the MLS group or still to add / to join).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GroupMlsDeviceDto"
+            }
+          },
+          "removeDevices": {
+            "description": "Devices still in the MLS group that must be removed first (their person left / was removed, or the device was signed out). MLS messages are refused until a commit removes them.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "leaseHolderDeviceId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "The device holding the right to commit now, if any."
+          },
+          "groupInfoEpoch": {
+            "type": "number",
+            "nullable": true,
+            "description": "The epoch of the stored GroupInfo (external joins)."
+          },
+          "updateDays": {
+            "type": "number",
+            "description": "groups.e2ee_update_days (0 = never)."
+          },
+          "historyMax": {
+            "type": "number",
+            "description": "groups.e2ee_history_max."
+          },
+          "historySharing": {
+            "type": "boolean",
+            "description": "The group lets members send history to people they add."
+          }
+        },
+        "required": [
+          "state",
+          "devices",
+          "removeDevices",
+          "updateDays",
+          "historyMax",
+          "historySharing"
+        ]
+      },
+      "GroupE2eeEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GroupE2eeDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "CreateGroupMlsDto": {
+        "type": "object",
+        "properties": {
+          "groupInfo": {
+            "type": "string",
+            "maxLength": 2621440,
+            "format": "base64",
+            "description": "Base64 MLSMessage (mls_group_info) of the epoch after this commit, with the ratchet_tree extension. Inline up to groups.e2ee_group_info_inline_kb KiB; otherwise groupInfoFileId."
+          },
+          "groupInfoFileId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A bigger GroupInfo: my uploaded chat_e2ee file holding it (direct upload, the server keeps only the id)."
+          },
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The creating device."
+          },
+          "groupId": {
+            "type": "string",
+            "maxLength": 88,
+            "format": "base64",
+            "description": "Base64 of the MLS group_id: the UTF-8 bytes of \"lawbid:g:<groupId>\"."
+          }
+        },
+        "required": [
+          "deviceId",
+          "groupId"
+        ]
+      },
+      "GroupMlsLeaseResultDto": {
+        "type": "object",
+        "properties": {
+          "granted": {
+            "type": "boolean",
+            "description": "My device holds the right to commit now."
+          },
+          "holderDeviceId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid",
+            "description": "Who holds it (me when granted)."
+          },
+          "ttlMs": {
+            "type": "number",
+            "description": "Milliseconds the right lasts from now."
+          }
+        },
+        "required": [
+          "granted",
+          "ttlMs"
+        ]
+      },
+      "GroupMlsLeaseDto": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "My device asking."
+          }
+        },
+        "required": [
+          "deviceId"
+        ]
+      },
+      "GroupMlsLeaseResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GroupMlsLeaseResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GroupClaimKeyPackagesDto": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "My device that holds the right to commit (POST …/lease)."
+          },
+          "deviceIds": {
+            "maxItems": 1024,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "deviceId",
+          "deviceIds"
+        ]
+      },
+      "GroupMlsCommitDto": {
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The committing device."
+          },
+          "epoch": {
+            "type": "number",
+            "minimum": 0,
+            "description": "The epoch the commit was made in."
+          },
+          "commit": {
+            "type": "string",
+            "maxLength": 98304,
+            "format": "base64",
+            "description": "Base64 MLSMessage with the commit (PublicMessage preferred: the server checks its adds)."
+          },
+          "addedDevices": {
+            "maxItems": 1024,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "removedDevices": {
+            "maxItems": 1024,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "welcome": {
+            "type": "string",
+            "maxLength": 131072,
+            "format": "base64",
+            "description": "Base64 MLSMessage (mls_welcome) for the added devices; required when any is added."
+          },
+          "groupInfo": {
+            "type": "string",
+            "maxLength": 2621440,
+            "format": "base64",
+            "description": "Base64 MLSMessage (mls_group_info) of the epoch after this commit, with the ratchet_tree extension. Required unless groupInfoFileId."
+          },
+          "groupInfoFileId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A bigger GroupInfo as my uploaded chat_e2ee file."
+          }
+        },
+        "required": [
+          "deviceId",
+          "epoch",
+          "commit",
+          "addedDevices",
+          "removedDevices"
+        ]
+      },
+      "GroupInfoResultDto": {
+        "type": "object",
+        "properties": {
+          "epoch": {
+            "type": "number",
+            "description": "The epoch it describes."
+          },
+          "groupInfo": {
+            "type": "string",
+            "nullable": true,
+            "description": "Base64 MLSMessage (mls_group_info), when kept inline."
+          },
+          "url": {
+            "type": "string",
+            "nullable": true,
+            "description": "A short link to the file holding it, when bigger."
+          }
+        },
+        "required": [
+          "epoch"
+        ]
+      },
+      "GroupInfoResultEnvelope": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/GroupInfoResultDto"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMetaDto"
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "GroupExternalCommitDto": {
+        "type": "object",
+        "properties": {
+          "groupInfo": {
+            "type": "string",
+            "maxLength": 2621440,
+            "format": "base64",
+            "description": "Base64 MLSMessage (mls_group_info) of the epoch after this commit, with the ratchet_tree extension. Inline up to groups.e2ee_group_info_inline_kb KiB; otherwise groupInfoFileId."
+          },
+          "groupInfoFileId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "A bigger GroupInfo: my uploaded chat_e2ee file holding it (direct upload, the server keeps only the id)."
+          },
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "My joining device."
+          },
+          "epoch": {
+            "type": "number",
+            "minimum": 0,
+            "description": "The epoch of the GroupInfo it joined from."
+          },
+          "commit": {
+            "type": "string",
+            "maxLength": 98304,
+            "format": "base64",
+            "description": "Base64 MLSMessage: the external commit (PublicMessage from a new_member_commit sender, RFC 9420 §12.4.3.2)."
+          },
+          "resync": {
+            "type": "boolean",
+            "description": "Resync: my device is in the group but lost its state; the commit removes its own old leaf (one Remove)."
+          }
+        },
+        "required": [
+          "deviceId",
+          "epoch",
+          "commit"
         ]
       },
       "NotificationActorDto": {

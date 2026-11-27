@@ -212,15 +212,6 @@ class E2eeService {
 
   final _opened = StreamController<api.MessageDto>.broadcast();
 
-  /// G2: whether a Welcome is for a group chat (`chat_groups`), not a chat.
-  /// A group's device that cannot use its Welcome joins by external commit
-  /// itself (GroupE2eeService), so the Welcome is acknowledged instead of
-  /// asking the chat's members to add it again.
-  bool Function(String id)? isGroup;
-
-  /// G2: the Welcomes of this device (chats and groups share one engine).
-  Future<void> takeWelcomes() async => _takeWelcomes(await engine());
-
   /// A message that waited and is now opened (the screens put it in place).
   Stream<api.MessageDto> get opened => _opened.stream;
 
@@ -687,7 +678,7 @@ class E2eeService {
         final already = gid != null &&
             await e.hasGroup(gid) &&
             await e.epoch(gid) >= w.epoch.toInt();
-        if (!already && !(isGroup?.call(w.conversationId) ?? false)) {
+        if (!already) {
           // This device cannot join from it: not acknowledged; the members
           // remove and add it again, the server drops this Welcome.
           try {

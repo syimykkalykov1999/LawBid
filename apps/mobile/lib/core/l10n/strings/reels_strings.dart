@@ -230,6 +230,7 @@ const reelsRu = <String, String>{
   'chat.select.deleteMessage':
       'Чаты пропадут только из вашего списка. Переписка у собеседника останется, а новое сообщение вернёт чат.',
   'chat.select.deleted': 'Удалено из списка',
+  'chat.select.partlyFailed': 'Не получилось: {failed} из {total}. {reason}',
   'cbadge.title': 'Подтвердить аккаунт',
   'cbadge.hint': 'Золотая галочка рядом с именем',
   'cbadge.benefits.title': 'Что даёт золотая галочка',
@@ -529,6 +530,7 @@ const reelsEn = <String, String>{
   'chat.select.deleteMessage':
       'They disappear from your list only. The other side keeps the conversation, and a new message brings the chat back.',
   'chat.select.deleted': 'Removed from your list',
+  'chat.select.partlyFailed': 'Not done for {failed} of {total}. {reason}',
   'cbadge.title': 'Verify account',
   'cbadge.hint': 'A gold check next to your name',
   'cbadge.benefits.title': 'What the gold check gives you',

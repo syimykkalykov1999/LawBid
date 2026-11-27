@@ -122,6 +122,9 @@ class RealtimeClient {
     // Item 25: a chat's encryption group changed / a Welcome waits for me.
     'e2ee:commit',
     'e2ee:welcome',
+    // G2: a group's encryption group changed / a group Welcome waits.
+    'e2ee:group',
+    'e2ee:group_welcome',
     // Owner 2026-10-20: the message reached the other device (grey ticks).
     'message:delivered',
     // OQ-040: the other side played a voice note.

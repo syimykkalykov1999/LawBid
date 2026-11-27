@@ -1820,13 +1820,20 @@ class ConversationRow extends ConsumerWidget {
     }
 
     final repo = ref.read(chatRepositoryProvider);
+    // Owner 26.11 (Telegram, WhatsApp): the row moves / gets its mark / leaves
+    // at once; a refusal puts it back (ChatListsHub).
+    final lists = ref.read(chatListsHubProvider);
     return ChatSwipe(
       id: c.id,
       pinned: c.pinned,
       muted: c.muted,
       onPin: () => unawaited(
         act(
-          () => repo.organize(c.id, pinned: !c.pinned),
+          () => lists.run(
+            c.id,
+            change: (x) => x.withMine(pinned: !c.pinned),
+            call: () => repo.organize(c.id, pinned: !c.pinned),
+          ),
           c.pinned ? 'chat.organize.unpinned' : 'chat.organize.pinned',
         ),
       ),
@@ -1839,10 +1846,12 @@ class ConversationRow extends ConsumerWidget {
           if (pick == null || !context.mounted) return;
           span = muteDuration(pick);
         }
+        final until = span == null ? null : DateTime.now().add(span);
         await act(
-          () => repo.mute(
+          () => lists.run(
             c.id,
-            span == null ? null : DateTime.now().add(span),
+            change: (x) => x.withMine(mutedUntil: until, unmute: until == null),
+            call: () => repo.mute(c.id, until),
           ),
           span == null ? 'chat.select.unmuted' : 'chat.select.muted',
         );
@@ -1853,7 +1862,11 @@ class ConversationRow extends ConsumerWidget {
           t: t,
           onConfirmed: () async {
             try {
-              await repo.organize(c.id, hidden: true);
+              await lists.run(
+                c.id,
+                leaves: true,
+                call: () => repo.organize(c.id, hidden: true),
+              );
               refreshChatFolders(ref);
               // Row 109 (Telegram): «Chat deleted · Undo».
               if (context.mounted) {

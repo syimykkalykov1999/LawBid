@@ -49,7 +49,7 @@ void main() {
   /// What the server stores and hands out for a sealed send.
   Map<String, dynamic> deliver(Map<String, Object?> body, String from) {
     expect(body['type'], 'mls');
-    expect(body['epoch'], ds.epoch, reason: 'sent in the current epoch');
+    expect(body['mlsEpoch'], ds.epoch, reason: 'sent in the current epoch');
     expect(body.containsKey('body'), isFalse, reason: 'no plaintext');
     expect(ds.removeDevices, isEmpty, reason: 'assertMlsSend');
     final row = <String, dynamic>{
@@ -70,10 +70,8 @@ void main() {
         26,
       ).add(Duration(seconds: ds.messages)).toIso8601String(),
       'ciphertext': body['ciphertext'],
-      'mlsEpoch': body['epoch'],
+      'mlsEpoch': body['mlsEpoch'],
       'frankingTag': body['frankingTag'],
-      if (body['control'] != null) 'control': body['control'],
-      if (body['targetId'] != null) 'targetId': body['targetId'],
     };
     ds.rows.add(row);
     return row;
@@ -252,7 +250,7 @@ void main() {
       ))!,
       'ub',
     );
-    expect(react['control'], 'react');
+    expect(react.containsKey('control'), isFalse, reason: 'kind is inside');
     expect(await read(alice, react), isNull, reason: 'not a row');
     final shown = (await alice.refresh('g1', [forMe(m, 'ua')])).single;
     expect(((shown['reactions'] as List).single as Map)['emoji'], '👍');
@@ -325,10 +323,11 @@ void main() {
       );
       await read(alice, v);
     }
-    final tally = (await alice.pollOf(poll['id']! as String))!;
+    final pollId = poll['id']! as String;
+    final tally = (await alice.pollOf(pollId))!;
     expect(tally['totalVoters'], 2);
-    expect(((tally['options'] as List)[1] as Map)['votes'], 2);
-    expect(await alice.votesOf(poll['id'] as String), {
+    expect(((tally['options']! as List)[1] as Map)['votes'], 2);
+    expect(await alice.votesOf(pollId), {
       'ub': ['o1'],
       'uc': ['o1'],
     });
@@ -397,7 +396,7 @@ class _Ds {
   final Set<String> inGroup = {};
   final Set<String> removed = {};
   final Map<int, String> commits = {};
-  final Map<String, List<api.MlsWelcomeDto>> welcomes = {};
+  final Map<String, List<GroupWelcome>> welcomes = {};
   final List<Map<String, dynamic>> rows = [];
   final List<GroupE2eeService> services = [];
   int _ids = 0;
@@ -471,11 +470,14 @@ class _Api implements GroupE2eeApi {
     String groupId, {
     required String deviceId,
     required String mlsGroupId,
+    String? groupInfo,
   }) async {
     if (ds.groupId != null) throw _Ds.error(409, 'E2EE_EPOCH_CONFLICT');
     ds
       ..groupId = mlsGroupId
       ..epoch = 0
+      ..groupInfo = groupInfo
+      ..groupInfoEpoch = 0
       ..inGroup.add(deviceId);
     return ds.state();
   }
@@ -489,6 +491,7 @@ class _Api implements GroupE2eeApi {
   @override
   Future<List<GroupClaimedKeyPackage>> claim(
     String groupId,
+    String deviceId,
     List<String> deviceIds,
   ) async =>
       [
@@ -520,12 +523,7 @@ class _Api implements GroupE2eeApi {
       ..removeAll(body.removedDevices);
     for (final d in body.addedDevices) {
       (ds.welcomes[d] ??= []).add(
-        api.MlsWelcomeDto(
-          id: 'w${ds.nextId()}',
-          conversationId: groupId,
-          epoch: ds.epoch,
-          welcome: body.welcome!,
-        ),
+        GroupWelcome(groupId: groupId, epoch: ds.epoch, welcome: body.welcome!),
       );
     }
     ds.announce();
@@ -562,6 +560,10 @@ class _Api implements GroupE2eeApi {
     ds.announce();
     return ds.epoch;
   }
+
+  @override
+  Future<List<GroupWelcome>> welcomes(String deviceId) async =>
+      [...?ds.welcomes[deviceId]];
 }
 
 class _Client implements api.E2eeClient {
@@ -612,23 +614,6 @@ class _Client implements api.E2eeClient {
           target: 4,
         ),
       );
-
-  @override
-  Future<api.MlsWelcomeListEnvelope> listMlsWelcomes({
-    required String deviceId,
-    Map<String, dynamic>? extras,
-  }) async =>
-      api.MlsWelcomeListEnvelope(data: [...?ds.welcomes[deviceId]]);
-
-  @override
-  Future<void> ackMlsWelcome({
-    required String id,
-    Map<String, dynamic>? extras,
-  }) async {
-    for (final e in ds.welcomes.values) {
-      e.removeWhere((w) => w.id == id);
-    }
-  }
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>

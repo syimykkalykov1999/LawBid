@@ -54,6 +54,9 @@ describe('switch contract: defaults (a)', () => {
     ['storage.auto_retention', true],
     ['chat.link_preview_enabled', 'auto'],
     ['chat.e2ee_mode', 'auto'],
+    // Group E2EE G1: off until the apps can (G2–G5), public groups off.
+    ['groups.e2ee_mode', 'off'],
+    ['groups.e2ee_public', false],
     ['feed.fanout_mode', 'auto'],
     ['addresses.autocomplete_enabled', 'auto'],
     ['verification.face_match.enabled', 'off'],

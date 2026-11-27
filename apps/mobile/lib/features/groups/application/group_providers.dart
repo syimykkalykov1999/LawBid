@@ -1,16 +1,20 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui' show Size;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/audio/app_sounds.dart';
 import 'package:lawbid/core/cache/cache_limits.dart';
 import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/cache/chat_media_providers.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
+import 'package:lawbid/core/media/image_size.dart';
 import 'package:lawbid/core/media/stable_network_image.dart'
     show stableImageCacheKey;
+import 'package:lawbid/core/media/video_size.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
@@ -20,10 +24,13 @@ import 'package:lawbid/core/transfers/adaptive_limiter.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/core/uploads/upload_queue_database.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
+import 'package:lawbid/features/chat/application/chat_media_outbox.dart'
+    show chatAttachmentOfJob;
 import 'package:lawbid/features/chat/application/chat_thread_memory.dart'
     show CachedMessageStore, ThreadMemory;
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
-import 'package:lawbid/features/chat/domain/chat_models.dart' show VoiceNote;
+import 'package:lawbid/features/chat/domain/chat_models.dart'
+    show ChatAttachment, VoiceNote;
 import 'package:lawbid/features/groups/application/group_media_outbox.dart';
 import 'package:lawbid/features/groups/data/group_list_cache.dart';
 import 'package:lawbid/features/groups/data/group_repository.dart';
@@ -756,6 +763,7 @@ class PendingGroupMessage {
     this.fileId,
     this.slowWaitS,
     this.voice,
+    this.attachment,
   });
 
   final String clientMessageId;
@@ -776,6 +784,11 @@ class PendingGroupMessage {
   /// the phone while it is being sent, as in 1:1).
   final VoiceNote? voice;
 
+  /// Owner 26.11 (the 1:1 chat's local bubble): a queued photo / video /
+  /// document as it is drawn while it goes up — its own picture from the
+  /// phone, its size, the upload's progress.
+  final ChatAttachment? attachment;
+
   /// This message refused by the server («Not sent», Retry).
   PendingGroupMessage asFailed({int? slowWaitS}) => PendingGroupMessage(
         clientMessageId: clientMessageId,
@@ -786,6 +799,7 @@ class PendingGroupMessage {
         mentionIds: mentionIds,
         fileName: fileName,
         fileId: fileId,
+        attachment: attachment,
       );
 }
 
@@ -885,10 +899,12 @@ class GroupThread extends Notifier<GroupThreadState> {
       if (c.groupId == key.groupId) _codeChangedLine(c.userId);
     });
     if (e2ee != null) unawaited(_syncE2ee(e2ee));
+    final progress = media.progress.listen(_onUploadProgress);
     ref.onDispose(() {
       unawaited(changed?.cancel());
       unawaited(codes?.cancel());
       sub.cancel();
+      unawaited(progress.cancel());
       unawaited(jobs?.cancel());
       unawaited(sent.cancel());
       _expiryTimer?.cancel();
@@ -966,7 +982,11 @@ class GroupThread extends Notifier<GroupThreadState> {
       for (final j in fresh) j['id'] as String: api.GroupMessageDto.fromJson(j),
     };
     state = state.copyWith(
-      messages: [for (final m in state.messages) byId[m.id] ?? m],
+      messages: [
+        for (final m in state.messages)
+          // A control message that waited and is now applied is no row.
+          if (!GroupE2eeService.isControlId(m.id)) byId[m.id] ?? m,
+      ],
     );
   }
 
@@ -1493,6 +1513,17 @@ class GroupThread extends Notifier<GroupThreadState> {
     }
   }
 
+  /// Owner 26.11: this thread stays alive while [run] works (picked files
+  /// still being prepared and queued after the group screen was left).
+  Future<T> keepAliveWhile<T>(Future<T> Function() run) async {
+    final release = ref.keepAlive().close;
+    try {
+      return await run();
+    } finally {
+      release();
+    }
+  }
+
   /// R-255 (flag `group_files_from_disk`): a picked file goes through the
   /// persistent queue. With [path] it stays on disk (then [bytes] is empty):
   /// it is copied to the queue folder and sent from there.
@@ -1509,6 +1540,19 @@ class GroupThread extends Notifier<GroupThreadState> {
     final queue = ref.read(groupMediaOutboxProvider);
     final files = ref.read(uploadFilesProvider);
     final cmid = _newClientId();
+    // Owner 26.11 (the 1:1 chat's sendAttachment): the bubble's shape and
+    // its picture from the phone, before a byte goes up.
+    final isImage = mime.startsWith('image/');
+    final isVideo = mime.startsWith('video/');
+    final Size? px;
+    if (path != null) {
+      px = isVideo ? await videoSizeOfFile(XFile(path)) : null;
+    } else {
+      px = isImage
+          ? await imageSizeOf(bytes)
+          : (isVideo ? videoSizeOf(bytes) : null);
+      if (isImage) _previewBytes[cmid] = bytes;
+    }
     final file = path != null
         ? await files.keep('$cmid.bin', fromPath: path)
         : await files.keep('$cmid.bin', bytes: bytes);
@@ -1519,6 +1563,9 @@ class GroupThread extends Notifier<GroupThreadState> {
       payload: {
         'name': name,
         'caption': caption?.trim() ?? '',
+        'size': path != null ? await XFile(path).length() : bytes.length,
+        if (px != null) 'width': px.width.round(),
+        if (px != null) 'height': px.height.round(),
         if (key.topicId != null) 'topicId': key.topicId,
         if (replyToId != null) 'replyToId': replyToId,
       },
@@ -1565,6 +1612,12 @@ class GroupThread extends Notifier<GroupThreadState> {
   /// The recordings of queued voice notes, by clientMessageId.
   final _voicePaths = <String, String?>{};
 
+  /// Owner 26.11 (1:1): the pictures of queued photos (the picker's bytes;
+  /// after a restart the queued file is read once) and upload progress.
+  final _previewBytes = <String, Uint8List>{};
+  final _progress = <String, double>{};
+  List<UploadJob> _mediaJobs = const [];
+
   /// The queue's jobs of this group → pending bubbles of this thread.
   Future<void> _onMediaJobs(List<UploadJobRow> rows) async {
     if (!ref.mounted) return;
@@ -1582,10 +1635,34 @@ class GroupThread extends Notifier<GroupThreadState> {
           !_voicePaths.containsKey(j.id)) {
         _voicePaths[j.id] = await files.pathOf(n);
       }
+      if (j.kind == GroupMediaKind.attachment &&
+          n != null &&
+          (j.mime ?? '').startsWith('image/') &&
+          !_previewBytes.containsKey(j.id)) {
+        final b = await files.read(n);
+        if (b != null) _previewBytes[j.id] = b;
+      }
     }
     if (!ref.mounted) return;
     final live = {for (final j in jobs) j.id};
     _voicePaths.removeWhere((k, _) => !live.contains(k));
+    _previewBytes.removeWhere((k, _) => !live.contains(k));
+    _progress.removeWhere((k, _) => !live.contains(k));
+    _mediaJobs = jobs;
+    _showMedia();
+  }
+
+  /// A file's upload moved on: its bubble's ring follows.
+  void _onUploadProgress(UploadProgress p) {
+    if (!_mediaJobs.any((j) => j.id == p.id)) return;
+    _progress[p.id] = p.value;
+    _showMedia();
+  }
+
+  /// The queue's jobs → pending bubbles of this thread.
+  void _showMedia() {
+    if (!ref.mounted) return;
+    final jobs = _mediaJobs;
     final old = _mediaIds;
     _mediaIds = {for (final j in jobs) j.id};
     final delivered = {for (final m in state.messages) m.clientMessageId};
@@ -1617,6 +1694,11 @@ class GroupThread extends Notifier<GroupThreadState> {
               fileName: j.payload['name'] as String? ?? 'file',
               replyToId: j.payload['replyToId'] as String?,
               failed: j.failed,
+              attachment: chatAttachmentOfJob(
+                j,
+                previewBytes: _previewBytes[j.id],
+                progress: _progress[j.id] ?? 0,
+              ),
             ),
       ],
     );

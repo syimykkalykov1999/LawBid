@@ -1041,6 +1041,38 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   ] as const) {
     out[key] = { ...out[key], description: text, min: 0, max };
   }
+  // Group E2EE G1 (owner 26.11, GROUP_E2EE_DESIGN_2026-11-26.md §5).
+  out['groups.e2ee_mode'] = {
+    ...out['groups.e2ee_mode'],
+    description:
+      'End-to-end encryption of group chats (MLS): off (default until the apps are ready) | on | auto. auto = a group is encrypted once every member has an app with MLS keys; on = every group that may be encrypted; off = no new encrypted groups (groups already encrypted stay encrypted).',
+    pattern: /^(off|on|auto)$/,
+  };
+  out['groups.e2ee_public'] = {
+    ...out['groups.e2ee_public'],
+    description:
+      'Encrypt public groups (join by @username) too. Off by default: anyone may join one.',
+  };
+  for (const [key, text] of [
+    [
+      'groups.e2ee_lease_ms',
+      'Milliseconds one device holds the right to commit in an encrypted group (others wait for its commit).',
+    ],
+    [
+      'groups.e2ee_update_days',
+      'Days after which a device updates its own MLS keys in an encrypted group it wrote in (0 = never).',
+    ],
+    [
+      'groups.e2ee_history_max',
+      'Most recent messages a member may send to a person they add to an encrypted group.',
+    ],
+    [
+      'groups.e2ee_group_info_inline_kb',
+      'KiB of an encrypted group’s GroupInfo kept in the database; a bigger one is uploaded as a file.',
+    ],
+  ] as const) {
+    out[key] = { ...out[key], description: text, min: 0 };
+  }
   out['chat.e2ee_after_unlock'] = {
     ...out['chat.e2ee_after_unlock'],
     description:
@@ -2731,6 +2763,18 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   ] as const) {
     out[key] = { ...out[key], description, min, max };
   }
+  // Owner 26.11: one gallery pick in a chat, group or case chat. Owner
+  // 14.11 «no limits for me»: only the technical floor (the phone's picker
+  // needs 2), no ceiling — the phone's own picker caps it physically.
+  {
+    const key = 'media.chat_pick_max';
+    out[key] = {
+      ...out[key],
+      description:
+        'The most photos / videos one gallery pick takes in a chat, group or case chat (30 by default). At least 2, no ceiling.',
+      min: 2,
+    };
+  }
   out['media.voice_transcode_enabled'] = {
     ...out['media.voice_transcode_enabled'],
     description:
@@ -2882,6 +2926,8 @@ export const NO_CEILING: readonly string[] = [
   'infra.tracing_min_requests',
   'infra.cdc_prepare_on_api_tasks',
   'infra.edge_on_api_tasks',
+  // Owner 26.11: one gallery pick in a chat; floor 2 (the phone's picker).
+  'media.chat_pick_max',
 ];
 
 /** Owner 2026-10-27: scores take decimals, modes take fixed words,

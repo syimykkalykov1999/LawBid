@@ -692,11 +692,34 @@ class TaskItem {
   bool get archived => archivedAt != null || !status.active;
 
   /// The same task with another checklist (a checkmark set locally).
-  TaskItem withSteps(List<TaskStep> steps) => TaskItem(
+  TaskItem withSteps(List<TaskStep> steps) => _copy(steps: steps);
+
+  /// The same task with another status (a checkmark set locally, before
+  /// the server's answer), as the server writes it (`tasks.service.ts`
+  /// status change): a finished task is archived now unless it already
+  /// was, an active one leaves the archive.
+  TaskItem withStatus(TaskStatus status) {
+    final now = DateTime.now();
+    final finished = !status.active;
+    return _copy(
+      status: status,
+      done: (
+        finished ? (doneAt ?? now) : null,
+        finished ? (archivedAt ?? now) : null
+      ),
+    );
+  }
+
+  TaskItem _copy({
+    TaskStatus? status,
+    List<TaskStep>? steps,
+    (DateTime?, DateTime?)? done,
+  }) =>
+      TaskItem(
         id: id,
         kind: kind,
         title: title,
-        status: status,
+        status: status ?? this.status,
         createdAt: createdAt,
         notes: notes,
         dueAt: dueAt,
@@ -711,8 +734,8 @@ class TaskItem {
         rescheduledTo: rescheduledTo,
         createdByName: createdByName,
         canDelete: canDelete,
-        doneAt: doneAt,
-        steps: steps,
+        doneAt: done == null ? doneAt : done.$1,
+        steps: steps ?? this.steps,
         places: places,
         people: people,
         priority: priority,
@@ -723,7 +746,7 @@ class TaskItem {
         assigneeName: assigneeName,
         assignedToMe: assignedToMe,
         conversationId: conversationId,
-        archivedAt: archivedAt,
+        archivedAt: done == null ? archivedAt : done.$2,
         keepForever: keepForever,
         purgeAt: purgeAt,
         canComplete: canComplete,

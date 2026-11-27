@@ -1,5 +1,5 @@
 import type { AppSettingsService } from './app-settings.service';
-import type { AppSettingKey } from './app-settings.defaults';
+import { APP_SETTINGS, type AppSettingKey } from './app-settings.defaults';
 
 /**
  * The owner's 3-state convention (Выкл / Вкл / Авто = off / on / auto).
@@ -21,5 +21,8 @@ export async function readSwitchMode(
   settings: AppSettingsService,
   key: AppSettingKey,
 ): Promise<SwitchMode> {
-  return parseSwitchMode(await settings.raw(key));
+  const raw = await settings.raw(key);
+  // No stored row: the key's own declared default (e.g. groups.e2ee_mode
+  // ships 'off'), not a blanket 'auto'.
+  return parseSwitchMode(raw ?? APP_SETTINGS[key]);
 }

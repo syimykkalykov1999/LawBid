@@ -126,15 +126,14 @@ Future<Object?> openE2eeEvent(
   GroupE2eeService? groups,
 }) async {
   if (e2ee == null || data is! Map) return data;
+  // G2: the group scope of the same Delivery Service (G1 sends
+  // `e2ee:group` / `e2ee:group_welcome` with the group's id).
+  if (name == 'e2ee:group' || name == 'e2ee:group_welcome') {
+    final group = data['groupId'];
+    if (group is String) groups?.onServerEvent(group);
+    return data;
+  }
   if (name == 'e2ee:commit' || name == 'e2ee:welcome') {
-    // G2: the group scope of the same Delivery Service (`groupId`, or
-    // `scope: group` with the id).
-    final group = data['groupId'] ??
-        (data['scope'] == 'group' ? data['conversationId'] : null);
-    if (group is String) {
-      groups?.onServerEvent(group);
-      return data;
-    }
     final id = data['conversationId'];
     if (id is String) e2ee.onServerEvent(id);
     return data;

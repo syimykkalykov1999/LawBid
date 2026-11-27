@@ -61,6 +61,8 @@ export class GroupPollsService {
         message: 'Only admins can write in this group.',
       });
     }
+    // Group E2EE G1: in an encrypted group a poll is an MLS message.
+    this.groups.assertPlainAllowed(m.group, 'poll');
     const topic = await this.groups.writableTopic(m, dto.topicId);
     const options = dto.options.map((o) => o.trim()).filter(Boolean);
     const distinct = new Set(options.map((o) => o.toLowerCase()));

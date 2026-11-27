@@ -106,6 +106,9 @@ export function readCommit(bytes: Uint8Array): {
   groupId: Uint8Array;
   epoch: number;
   addedIdentities: string[] | null;
+  /** A PublicMessage from a `new_member_commit` sender (RFC 9420
+   * §12.4.3.2): only the external-commit route takes it. */
+  external: boolean;
 } | null {
   const m = decode(bytes);
   if (!m) return null;
@@ -116,6 +119,7 @@ export function readCommit(bytes: Uint8Array): {
       groupId: pm.groupId,
       epoch: Number(pm.epoch),
       addedIdentities: null,
+      external: false,
     };
   }
   if (m.wireformat !== 'mls_public_message') return null;
@@ -137,9 +141,62 @@ export function readCommit(bytes: Uint8Array): {
     groupId: content.groupId,
     epoch: Number(content.epoch),
     addedIdentities: added,
+    external: content.sender.senderType === 'new_member_commit',
   };
 }
 
 export function isWelcome(bytes: Uint8Array): boolean {
   return decode(bytes)?.wireformat === 'mls_welcome';
+}
+
+/** Group E2EE G1 (GROUP_E2EE_DESIGN_2026-11-26.md §4.3): the public part
+ * of a GroupInfo (RFC 9420 §12.4.3) — the group and the epoch it
+ * describes. Its signature is checked by the joining device. */
+export function readGroupInfo(
+  bytes: Uint8Array,
+): { groupId: Uint8Array; epoch: number } | null {
+  const m = decode(bytes);
+  if (!m || m.wireformat !== 'mls_group_info') return null;
+  const ctx = m.groupInfo.groupContext;
+  if (ctx.cipherSuite !== MLS_CIPHERSUITE) return null;
+  return { groupId: ctx.groupId, epoch: Number(ctx.epoch) };
+}
+
+/** RFC 9420 §12.4.3.2: an external commit — a PublicMessage from a
+ * `new_member_commit` sender with an ExternalInit proposal and an
+ * UpdatePath whose leaf is the joiner. Returns the joiner's credential
+ * identity and signature key (the server checks they name the caller's
+ * device) and how many Remove proposals it carries (a resync removes the
+ * device's own old leaf; nothing else may be removed this way). */
+export function readExternalCommit(bytes: Uint8Array): {
+  groupId: Uint8Array;
+  epoch: number;
+  identity: string;
+  signatureKey: Uint8Array;
+  removes: number;
+} | null {
+  const m = decode(bytes);
+  if (!m || m.wireformat !== 'mls_public_message') return null;
+  const content = m.publicMessage.content;
+  if (content.contentType !== 'commit') return null;
+  if (content.sender.senderType !== 'new_member_commit') return null;
+  let externalInit = 0;
+  let removes = 0;
+  for (const p of content.commit.proposals) {
+    if (p.proposalOrRefType !== 'proposal') return null;
+    const type = p.proposal.proposalType;
+    if (type === 'external_init') externalInit += 1;
+    else if (type === 'remove') removes += 1;
+    else if (type !== 'psk') return null;
+  }
+  if (externalInit !== 1) return null;
+  const leaf = content.commit.path?.leafNode;
+  if (!leaf || leaf.credential.credentialType !== 'basic') return null;
+  return {
+    groupId: content.groupId,
+    epoch: Number(content.epoch),
+    identity: new TextDecoder().decode(leaf.credential.identity),
+    signatureKey: leaf.signaturePublicKey,
+    removes,
+  };
 }

@@ -5,6 +5,7 @@ import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_providers.dart';
 import 'package:lawbid/features/groups/e2ee/group_e2ee_api.dart';
 import 'package:lawbid/features/groups/e2ee/group_e2ee_service.dart';
+import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// G2: the signed-in account's end-to-end encryption of group chats (null
 /// signed out). It shares the device's MLS client, its decrypted-messages
@@ -13,7 +14,10 @@ final groupE2eeServiceProvider = Provider<GroupE2eeService?>((ref) {
   final chat = ref.watch(e2eeServiceProvider);
   if (chat == null) return null;
   final service = GroupE2eeService(
-    api: DioGroupE2eeApi(ref.watch(dioProvider)),
+    api: ClientGroupE2eeApi(
+      api.E2eeClient(ref.watch(dioProvider)),
+      download: chat.download,
+    ),
     chat: chat,
     ownerId: chat.ownerId,
     plaintexts: chat.plaintexts,

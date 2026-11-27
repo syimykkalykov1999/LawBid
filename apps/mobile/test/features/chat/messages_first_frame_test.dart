@@ -197,4 +197,38 @@ void main() {
     expect(memory.take('c1')!.map((m) => m.body), ['stored s2', 'stored s1']);
     expect(chat.pages, 0, reason: 'the pre-warm never asks the server');
   });
+
+  test(
+      'pre-warm (owner 26.11, groups like 1:1): the newest groups of the '
+      'list get their first page from the phone too (no request)', () async {
+    final cache = CacheDatabase(NativeDatabase.memory());
+    final groups = FakeGroupRepository([listGroup('g1')]);
+    final c = ProviderContainer(
+      overrides: [
+        chatRepositoryProvider.overrideWithValue(
+          _SlowServerChat(makeConv()),
+        ),
+        groupRepositoryProvider.overrideWithValue(groups),
+        currentUserIdProvider.overrideWithValue('me'),
+        realtimeClientProvider.overrideWithValue(null),
+        cacheDatabaseProvider.overrideWithValue(cache),
+      ],
+    );
+    addTearDown(() async {
+      c.dispose();
+      await cache.close();
+    });
+    final key = groupThreadStoreKey((groupId: 'g1', topicId: null));
+    await c.read(groupMessageStoreProvider)!.put(key, [
+      message('m2', body: 'stored m2', minutes: 2),
+      message('m1', body: 'stored m1', minutes: 1),
+    ]);
+    final sub = c.listen(chatPrewarmProvider, (_, __) {});
+    addTearDown(sub.close);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    final memory = c.read(groupThreadMemoryProvider);
+    expect(memory.contains(key), isTrue);
+    expect(memory.take(key)!.map((m) => m.body), ['stored m2', 'stored m1']);
+    expect(groups.messagesCalls, 0, reason: 'never asks the server');
+  });
 }

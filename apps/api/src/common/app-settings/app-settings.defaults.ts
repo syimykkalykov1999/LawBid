@@ -474,6 +474,12 @@ export const OWNER_MEDIA_SETTINGS = {
   // over `video.max_size_mb`) is shrunk on the phone. Off = as before.
   'media.bunny_one_encode': true,
   'media.chat_video_max_height': 720,
+  // Owner 26.11 (group chat, Samsung: 51 photos picked, nothing sent;
+  // WhatsApp takes up to 100 per send; owner 26.11: 30 by default): the
+  // most photos / videos one pick from
+  // the gallery takes in a chat, group, case chat or support chat. The
+  // phone's picker stops at it; at least 2, no ceiling (owner 14.11).
+  'media.chat_pick_max': 30,
   'media.voice_bitrate_kbps': 32,
   'media.voice_sample_rate_hz': 16000,
   // Owner row 146: a voice note recorded on the website in Firefox / Linux
@@ -1402,6 +1408,33 @@ export const OWNER_E2EE_SETTINGS = {
   'chat.e2ee_file_max_mb': 100,
   /** MB of one person's encrypted chat backup. */
   'chat.e2ee_backup_max_mb': 500,
+} as const;
+
+/** Group E2EE G1 (owner 26.11; docs/architecture/GROUP_E2EE_DESIGN_2026-11-26.md
+ * §5, §7.5): group chats end to end encrypted on the same MLS Delivery
+ * Service. The limits shared with chats (devices, members, KeyPackages,
+ * Welcomes, file size, push text) stay the chat.e2ee_* ones. */
+export const OWNER_GROUP_E2EE_SETTINGS = {
+  /** off | on | auto. off (until the apps can, G2–G5) = no new encrypted
+   * groups; groups already encrypted stay encrypted. on = every group that
+   * may be encrypted; auto = once every member has a device with MLS keys. */
+  'groups.e2ee_mode': 'off',
+  /** Public groups (join by @username) too. Off: anyone may join one, so
+   * encryption protects nothing there (Telegram: public groups are not
+   * end-to-end encrypted). */
+  'groups.e2ee_public': false,
+  /** ms one device holds the right to commit (add / remove / update) in a
+   * group, so 5 000 devices do not race for one epoch (Wire). */
+  'groups.e2ee_lease_ms': 15000,
+  /** Every device updates its own MLS keys in a group it wrote in after
+   * this many days (post-compromise security; 0 = never). */
+  'groups.e2ee_update_days': 7,
+  /** Most recent messages a member may send to a person they add
+   * (WhatsApp 19.02.2026: 25–100). */
+  'groups.e2ee_history_max': 100,
+  /** KiB of a GroupInfo kept in the database; a bigger one is uploaded by
+   * the phone as a file and only its id is kept. */
+  'groups.e2ee_group_info_inline_kb': 256,
 } as const;
 
 /** Owner 2026-10-20 (WhatsApp): how long a sent message can still be edited
@@ -2822,6 +2855,7 @@ export const APP_SETTINGS = {
   ...OWNER_SEO_SETTINGS,
   ...OWNER_CHAT_ACTION_SETTINGS,
   ...OWNER_E2EE_SETTINGS,
+  ...OWNER_GROUP_E2EE_SETTINGS,
   ...OWNER_FRAUD_SETTINGS,
   ...OWNER_STRIPE_OPS_SETTINGS,
   ...OWNER_OPS_SETTINGS,
