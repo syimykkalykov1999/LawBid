@@ -17,6 +17,8 @@ import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/core/media/photo_metadata.dart';
 import 'package:lawbid/core/text/byte_size.dart';
+import 'package:lawbid/features/chat/application/chat_media_outbox.dart'
+    show markRecordedVideo;
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/image_edit.dart'
     show rememberPhotoOriginal;
@@ -28,6 +30,9 @@ import 'package:lawbid/features/chat/presentation/chat_video.dart';
 import 'package:lawbid/shared/presentation/file_drop_zone.dart';
 import 'package:material_ui/material_ui.dart';
 
+// Owner 27.11: groups pick and send recorded videos the same way.
+export 'package:lawbid/features/chat/application/chat_media_outbox.dart'
+    show isRecordedVideo, markRecordedVideo;
 export 'package:lawbid/features/chat/presentation/chat_files_screen.dart'
     show ChatFilesScreen, ChatFilesTab;
 
@@ -121,6 +126,13 @@ Future<List<PickedChatFile>> pickChatFiles(
   /// R-255: videos and documents stay on disk (ignored in the browser, which
   /// has no paths). A caller passes it only if it can send from a path.
   bool fromDisk = false,
+
+  /// Owner 27.11 (WhatsApp / Telegram): a picked gallery video is NOT
+  /// encoded here (no «preparing» wait before the preview): it is handed
+  /// over as recorded, on disk, and the upload queue shrinks it after the
+  /// send. Only on the phone with `fromDisk`; `prepareVideo` still decides
+  /// whether videos are offered.
+  bool deferVideo = false,
 
   /// Row 199 (WhatsApp / Telegram): the picked photos open in an editor
   /// (the media preview). The gallery and camera then hand over the
@@ -238,9 +250,17 @@ Future<List<PickedChatFile>> pickChatFiles(
   final pickQuality = keepOriginals ? null : ClientTuning.chatPhotoQuality;
 
   /// A video or document kept on disk, checked by name and size only.
-  Future<void> addPath(String path, String name, int size) async {
-    final mime = mimeFor(name);
-    if (mime == null || size > maxBytes) {
+  /// [sizeLater]: a video as recorded, its size is checked once encoded.
+  Future<void> addPath(
+    String path,
+    String name,
+    int size, {
+    bool sizeLater = false,
+  }) async {
+    // A recorded video becomes an MP4: allowed when MP4 is.
+    final mime = mimeFor(name) ??
+        (sizeLater && mimeFor('video.mp4') != null ? 'video/mp4' : null);
+    if (mime == null || size > maxBytes && !sizeLater) {
       skipped++;
       return;
     }
@@ -305,7 +325,11 @@ Future<List<PickedChatFile>> pickChatFiles(
           skipped++;
           continue;
         }
-        if (video) {
+        if (video && deferVideo && onDisk) {
+          final name = f.name.contains('.') ? f.name : '${f.name}.mp4';
+          markRecordedVideo(f.path);
+          await addPath(f.path, name, size, sizeLater: true);
+        } else if (video) {
           final ready = await prepareVideo(f);
           final name =
               ready.name.contains('.') ? ready.name : '${ready.name}.mp4';

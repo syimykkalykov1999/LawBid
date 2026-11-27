@@ -1,11 +1,15 @@
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
+import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
+    show isRecordedVideo, markRecordedVideo;
 import 'package:lawbid/features/groups/application/group_media_outbox.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -15,15 +19,37 @@ import 'fake_group_repository.dart';
 
 const _key = (groupId: 'g1', topicId: null);
 
+/// The phone's encoder: a smaller MP4 next to the source.
+class _Encoder implements VideoCompressor {
+  int calls = 0;
+
+  @override
+  Future<XFile?> compress(
+    XFile source, {
+    required VideoLimits limits,
+    void Function(double progress)? onProgress,
+  }) async {
+    calls++;
+    final out = File('${source.path}.enc.mp4')
+      ..writeAsBytesSync(List<int>.filled(10, 9));
+    return XFile(out.path, mimeType: 'video/mp4');
+  }
+
+  @override
+  Future<void> cancel() async {}
+}
+
 ProviderContainer _container(
   FakeGroupRepository repo,
-  FakeStorageUploader uploader,
-) {
+  FakeStorageUploader uploader, {
+  VideoCompressor? encoder,
+}) {
   final c = ProviderContainer(
     overrides: [
       groupRepositoryProvider.overrideWithValue(repo),
       realtimeClientProvider.overrideWithValue(null),
       ...uploadQueueOverrides(uploader: uploader),
+      if (encoder != null) videoCompressorProvider.overrideWithValue(encoder),
     ],
   );
   addTearDown(c.dispose);
@@ -70,6 +96,45 @@ void main() {
     final s = c.read(groupThreadProvider(_key));
     expect(s.pending, isEmpty, reason: 'the bubble became the message');
     expect(s.messages.single.clientMessageId, sent.clientMessageId);
+  });
+
+  test(
+      'owner 27.11: a recorded gallery video shows its bubble at once and is '
+      'encoded in the queue, then sent as MP4', () async {
+    const frames = MethodChannel('lawbid/video_frame');
+    final jpeg = Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xD9]);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(frames, (_) async => {'jpeg': jpeg});
+    addTearDown(
+      () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(frames, null),
+    );
+    final dir = Directory.systemTemp.createTempSync('picked');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final clip = File('${dir.path}/clip.mov')
+      ..writeAsBytesSync(List<int>.filled(500, 1));
+    markRecordedVideo(clip.path);
+    final repo = FakeGroupRepository();
+    final uploader = FakeStorageUploader();
+    final encoder = _Encoder();
+    final c = _container(repo, uploader, encoder: encoder);
+    final sub = c.listen(groupThreadProvider(_key), (_, __) {});
+    addTearDown(sub.close);
+    await _settle();
+
+    await c.read(groupThreadProvider(_key).notifier).queueAttachment(
+          bytes: Uint8List(0),
+          path: clip.path,
+          name: 'clip.mov',
+          mime: 'video/quicktime',
+          encodeVideo: isRecordedVideo(clip.path),
+        );
+    await c.read(groupMediaOutboxProvider).drain();
+    await _settle();
+
+    expect(encoder.calls, 1);
+    expect(uploader.uploads.single.size, 10, reason: 'the encoded file');
+    expect(repo.sentBodies.single.fileName, 'clip.mp4');
   });
 
   test('files keep the picked order, with the same id on every try', () async {

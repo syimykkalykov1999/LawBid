@@ -172,6 +172,13 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
         : 3 / 4;
     final pct = a.progress > 0 && a.progress < 1 ? a.progress : null;
     final url = a.url;
+    // Owner 27.11 (WhatsApp / Telegram): your own video shows its first
+    // frame from the moment it is sent — the picked video's frame while it
+    // is encoded and uploaded, then until the sent copy's frame is read
+    // (no black tile, no flash in between).
+    final standIn = frame == null
+        ? a.localBytes ?? SentMediaShapes.bytesOf(a.fileId)
+        : null;
     return VisibilityDetector(
       key: ValueKey('chat-video-${a.fileId}-${widget.fill}'),
       onVisibilityChanged: _visibility,
@@ -201,6 +208,13 @@ class _ChatVideoTileState extends State<ChatVideoTile> {
                   fit: StackFit.expand,
                   children: [
                     const ColoredBox(color: Colors.black),
+                    if (standIn != null)
+                      Image.memory(
+                        standIn,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
                     if (frame != null)
                       Image.memory(
                         frame.jpeg,

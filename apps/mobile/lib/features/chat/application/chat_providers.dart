@@ -11,6 +11,7 @@ import 'package:lawbid/core/cache/cache_providers.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/connectivity/connectivity_providers.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/media/image_size.dart';
 import 'package:lawbid/core/media/stable_network_image.dart'
     show StableNetworkImage;
@@ -1480,27 +1481,49 @@ class ChatThread extends Notifier<ChatThreadState> {
 
     /// Row 188: the message this file answers.
     String? replyToId,
+
+    /// Owner 27.11 (WhatsApp / Telegram): `path` is a picked video as it
+    /// was recorded (a temporary copy of the picker's): it is moved into the
+    /// queue, its bubble shows at once with its first frame, and the queue
+    /// shrinks it before upload ([encodeQueuedVideo]).
+    bool encodeVideo = false,
   }) async {
     // Read before the first await: the screen may be left meanwhile (this
     // provider is auto-disposed) and the photo must still be queued.
     final queue = ref.read(chatMediaOutboxProvider);
     final files = ref.read(uploadFilesProvider);
+    final encode = encodeVideo && path != null && mime.startsWith('video/')
+        ? encodeVideoPayload(ref.read(featureFlagsControllerProvider))
+        : null;
     if (queue.ownerId == null) return;
     final cmid = newClientMessageId();
     final isImage = mime.startsWith('image/');
     final isVideo = mime.startsWith('video/');
     final Size? px;
     if (path != null) {
-      px = isVideo ? await videoSizeOfFile(XFile(path)) : null;
+      if (isVideo) {
+        // The shape and the picture of the bubble, before a byte goes up.
+        final got = await Future.wait<Object?>([
+          videoSizeOfFile(XFile(path)),
+          queuedVideoFrame(path),
+        ]);
+        px = got[0] as Size?;
+        final frame = got[1] as Uint8List?;
+        if (frame != null) _previewBytes[cmid] = frame;
+      } else {
+        px = null;
+      }
     } else {
       px = isImage
           ? await imageSizeOf(bytes)
           : (isVideo ? videoSizeOf(bytes) : null);
-      _previewBytes[cmid] = bytes;
+      // A video's bytes are no picture: its bubble draws a dark tile.
+      if (!isVideo) _previewBytes[cmid] = bytes;
     }
+    final queued = queuedAttachmentFile(cmid, name, mime);
     final file = path != null
-        ? await files.keep('$cmid.bin', fromPath: path)
-        : await files.keep('$cmid.bin', bytes: bytes);
+        ? await files.keep(queued, fromPath: path, move: encode != null)
+        : await files.keep(queued, bytes: bytes);
     if (after != null) {
       try {
         await after;
@@ -1519,6 +1542,7 @@ class ChatThread extends Notifier<ChatThreadState> {
         if (px != null) 'width': px.width.round(),
         if (px != null) 'height': px.height.round(),
         if (replyToId != null) 'replyToId': replyToId,
+        if (encode != null) kEncodeVideoKey: encode,
       },
       fileName: file,
       mime: mime,
@@ -1546,6 +1570,13 @@ class ChatThread extends Notifier<ChatThreadState> {
           (j.mime ?? '').startsWith('image/') &&
           !_previewBytes.containsKey(j.id)) {
         final b = await files.read(n);
+        if (b != null) _previewBytes[j.id] = b;
+      }
+      // Owner 27.11: a queued video (also after a restart) shows its frame.
+      if (j.kind == ChatMediaKind.attachment &&
+          (j.mime ?? '').startsWith('video/') &&
+          !_previewBytes.containsKey(j.id)) {
+        final b = await queuedVideoFrame(await files.pathOf(n));
         if (b != null) _previewBytes[j.id] = b;
       }
     }

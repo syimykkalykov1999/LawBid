@@ -1,14 +1,20 @@
 import 'dart:async';
+import 'dart:io' show File, FileSystemException;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:lawbid/core/audio/app_sounds.dart';
+import 'package:lawbid/core/feature_flags/feature_flags_state.dart';
+import 'package:lawbid/core/media/video_compression.dart';
 import 'package:lawbid/core/network/api_error.dart';
 import 'package:lawbid/core/uploads/storage_uploader.dart';
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/data/chat_media_seed.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
+import 'package:lawbid/features/chat/data/chat_video_frames.dart';
 import 'package:lawbid/features/chat/data/voice_files.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_payload.dart';
@@ -64,14 +70,23 @@ class ChatMediaHandler extends UploadJobHandler {
   @override
   Future<void> prepare(UploadJob job, UploadJobScope scope) async {
     if (kind == ChatMediaKind.sticker || job.fileId != null) return;
+    // Owner 27.11 (WhatsApp / Telegram): a picked video was sent at once;
+    // the phone's hardware encoder shrinks it here, before its bytes go.
+    final ready = kind == ChatMediaKind.attachment
+        ? await encodeQueuedVideo(
+            job,
+            scope,
+            _ref.read(videoCompressorProvider),
+          )
+        : job;
     final repo = _repo;
     final e2ee = repo is ApiChatRepository ? repo.e2ee : null;
-    if (e2ee != null && await _encrypted(e2ee, job, scope)) return;
+    if (e2ee != null && await _encrypted(e2ee, ready, scope)) return;
     final String fileId;
     if (kind == ChatMediaKind.voice) {
       fileId = await uploadChatVoiceJob(job, scope);
     } else {
-      fileId = await uploadChatAttachmentJob(job, scope);
+      fileId = await uploadChatAttachmentJob(ready, scope);
     }
     await scope.saveFileId(fileId);
   }
@@ -98,7 +113,7 @@ class ChatMediaHandler extends UploadJobHandler {
         message: 'size',
       );
     }
-    final mime = job.mime ?? 'application/octet-stream';
+    final mime = queuedMimeOf(job);
     // A voice note is small (m4a or a browser's webm); a photo's bytes make
     // its blurhash preview. Anything else is never read whole.
     final small =
@@ -112,7 +127,7 @@ class ChatMediaHandler extends UploadJobHandler {
       body,
       name: voice
           ? (webm ? 'voice.webm' : 'voice.m4a')
-          : p['name'] as String? ?? 'file',
+          : queuedNameOf(job),
       mime: voice ? (webm ? 'audio/webm' : 'audio/mp4') : mime,
       width: (p['width'] as num?)?.toInt(),
       height: (p['height'] as num?)?.toInt(),
@@ -203,7 +218,7 @@ class ChatMediaHandler extends UploadJobHandler {
             job.target,
             job.id,
             fileId: job.fileId!,
-            fileName: p['name'] as String? ?? 'file',
+            fileName: queuedNameOf(job),
             caption: caption == null || caption.isEmpty ? null : caption,
             replyToId: p['replyToId'] as String?,
           );
@@ -340,7 +355,7 @@ Future<String> uploadChatAttachmentJob(
   return scope.uploader.upload(
     purpose: api.FilePurpose.chatAttachment,
     body: body,
-    mime: job.mime ?? 'application/octet-stream',
+    mime: queuedMimeOf(job),
     onProgress: scope.reportProgress,
     cancel: scope.cancelToken,
     taskId: job.id,
@@ -352,6 +367,158 @@ Future<String> uploadChatAttachmentJob(
     onStored: _keepStored(scope),
     waitScan: false,
   );
+}
+
+/// Owner 27.11 (WhatsApp / Telegram: a picked video goes at once): the
+/// payload key of a queued video that is still as recorded — the height
+/// and frame rate the phone's hardware encoder shrinks it to before upload
+/// ([encodeQueuedVideo]); the bubble shows meanwhile.
+const kEncodeVideoKey = 'encodeVideo';
+
+/// The saved progress keys of that step: done (encoded or kept as it was),
+/// and the encoded file's type and name (an MP4).
+const kVideoEncodedKey = 'videoEncoded';
+const kVideoMimeKey = 'videoMime';
+const kVideoNameKey = 'videoName';
+
+/// The [kEncodeVideoKey] payload for a chat or group video: the admin's
+/// `media.chat_video_max_height` and frame rate ([chatVideoLimitsOf]); null
+/// when chat videos go as recorded (0) or in the browser (it encodes before
+/// the send, its queue file is not on a disk).
+Map<String, Object?>? encodeVideoPayload(FeatureFlagsState flags) {
+  if (kIsWeb) return null;
+  final l = chatVideoLimitsOf(flags);
+  if (l.maxHeight <= 0) return null;
+  return {'maxHeight': l.maxHeight, 'frameRate': l.frameRate};
+}
+
+/// The queue file of attachment [cmid]: a video keeps its own extension
+/// (the phone's video readers go by it), anything else `.bin`.
+String queuedAttachmentFile(String cmid, String name, String mime) {
+  if (!mime.startsWith('video/')) return '$cmid.bin';
+  final dot = name.lastIndexOf('.');
+  final ext = dot < 0 ? '' : name.substring(dot + 1).toLowerCase();
+  const known = {'mp4', 'mov', 'm4v', '3gp', 'webm'};
+  return '$cmid.${known.contains(ext) ? ext : 'mp4'}';
+}
+
+/// Gallery videos handed over as recorded (the pickers' `deferVideo`), by
+/// path: the ones the upload queue encodes. A document picked in «Files»
+/// goes as it is (WhatsApp's «Document»).
+final _recordedVideos = <String>{};
+
+/// Notes [path] as a gallery video still as recorded.
+void markRecordedVideo(String path) {
+  if (path.isEmpty) return;
+  if (_recordedVideos.length > 200) {
+    _recordedVideos.remove(_recordedVideos.first);
+  }
+  _recordedVideos.add(path);
+}
+
+/// Whether [path] is such a video (sending it takes it off the list).
+bool isRecordedVideo(String? path) =>
+    path != null && _recordedVideos.remove(path);
+
+/// The first frame of a queued or picked video on this phone (the sending
+/// bubble's picture); null in the browser or when it cannot be made.
+Future<Uint8List?> queuedVideoFrame(String? path) async =>
+    path == null ? null : (await ChatVideoFrames.instance.ofFile(path))?.jpeg;
+
+/// The type the job's file goes up as (an encoded video is an MP4).
+String queuedMimeOf(UploadJob job) =>
+    job.progress[kVideoMimeKey] as String? ??
+    job.mime ??
+    'application/octet-stream';
+
+/// The file name the message carries (an encoded video's is `.mp4`).
+String queuedNameOf(UploadJob job) =>
+    job.progress[kVideoNameKey] as String? ??
+    job.payload['name'] as String? ??
+    'file';
+
+/// Owner 27.11 (WhatsApp / Telegram): a chat or group video picked as
+/// recorded is shrunk here, in the upload queue, by the phone's hardware
+/// encoder ([VideoCompressor], the same settings as before) — the bubble
+/// with its first frame and ring is already on screen. The encoded MP4
+/// replaces the queue's file (so a restart never encodes again and the sent
+/// file is the phone's cached copy); the original goes when encoding fails
+/// or doesn't help. A job whose upload has begun is never touched. Returns
+/// the job as the next step sees it.
+Future<UploadJob> encodeQueuedVideo(
+  UploadJob job,
+  UploadJobScope scope,
+  VideoCompressor compressor,
+) async {
+  final c = job.payload[kEncodeVideoKey];
+  final pr = job.progress;
+  if (c is! Map ||
+      pr[kVideoEncodedKey] == true ||
+      job.fileId != null ||
+      storedFileOf(job) != null ||
+      pr['target'] != null ||
+      pr['partsFileId'] != null) {
+    return job;
+  }
+  final path = await scope.filePath();
+  if (path == null) return job;
+  final limits = (
+    maxHeight: (c['maxHeight'] as num?)?.toInt() ?? 720,
+    frameRate: (c['frameRate'] as num?)?.toInt() ?? 30,
+  );
+  XFile? out;
+  try {
+    out = await compressor.compress(XFile(path), limits: limits);
+  } on Object catch (e) {
+    debugPrint('chat video encode: $e');
+    out = null;
+  }
+  final update = <String, Object?>{kVideoEncodedKey: true};
+  if (out != null) {
+    if (scope.cancelToken.isCancelled) {
+      await _deleteQuietly(out.path);
+      return job;
+    }
+    try {
+      try {
+        await File(out.path).rename(path);
+      } on FileSystemException {
+        // Another volume: copy over, then remove.
+        await File(out.path).copy(path);
+        await _deleteQuietly(out.path);
+      }
+      final name = queuedNameOf(job);
+      final dot = name.lastIndexOf('.');
+      update[kVideoMimeKey] = 'video/mp4';
+      update[kVideoNameKey] = '${dot < 0 ? name : name.substring(0, dot)}.mp4';
+    } on Object catch (e) {
+      // The original stays the queue's file and goes as it is.
+      debugPrint('chat video keep: $e');
+    }
+  }
+  await scope.saveProgress(update);
+  return UploadJob(
+    id: job.id,
+    ownerId: job.ownerId,
+    kind: job.kind,
+    target: job.target,
+    payload: job.payload,
+    createdAt: job.createdAt,
+    fileName: job.fileName,
+    mime: job.mime,
+    fileId: job.fileId,
+    progress: {...pr, ...update},
+    attempts: job.attempts,
+    failedCode: job.failedCode,
+  );
+}
+
+Future<void> _deleteQuietly(String path) async {
+  try {
+    await File(path).delete();
+  } on Object {
+    // Left for the OS to clean.
+  }
 }
 
 /// Registers the chat media handlers on the app's queue (read at sign-in

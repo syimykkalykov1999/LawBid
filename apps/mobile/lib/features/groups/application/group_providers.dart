@@ -25,7 +25,12 @@ import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/core/uploads/upload_queue_database.dart';
 import 'package:lawbid/features/cases/application/paged_notifier.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart'
-    show chatAttachmentOfJob;
+    show
+        chatAttachmentOfJob,
+        encodeVideoPayload,
+        kEncodeVideoKey,
+        queuedAttachmentFile,
+        queuedVideoFrame;
 import 'package:lawbid/features/chat/application/chat_thread_memory.dart'
     show CachedMessageStore, ThreadMemory;
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
@@ -1533,11 +1538,18 @@ class GroupThread extends Notifier<GroupThreadState> {
     String? path,
     String? caption,
     String? replyToId,
+
+    /// Owner 27.11 (the 1:1 chat's sendAttachment): `path` is a picked
+    /// video as recorded; the queue shrinks it before upload.
+    bool encodeVideo = false,
   }) async {
     // Read before the first await: the screen may be left meanwhile (this
     // provider is auto-disposed) and the file must still be queued.
     final queue = ref.read(groupMediaOutboxProvider);
     final files = ref.read(uploadFilesProvider);
+    final encode = encodeVideo && path != null && mime.startsWith('video/')
+        ? encodeVideoPayload(ref.read(featureFlagsControllerProvider))
+        : null;
     final cmid = _newClientId();
     // Owner 26.11 (the 1:1 chat's sendAttachment): the bubble's shape and
     // its picture from the phone, before a byte goes up.
@@ -1545,16 +1557,28 @@ class GroupThread extends Notifier<GroupThreadState> {
     final isVideo = mime.startsWith('video/');
     final Size? px;
     if (path != null) {
-      px = isVideo ? await videoSizeOfFile(XFile(path)) : null;
+      if (isVideo) {
+        final got = await Future.wait<Object?>([
+          videoSizeOfFile(XFile(path)),
+          queuedVideoFrame(path),
+        ]);
+        px = got[0] as Size?;
+        final frame = got[1] as Uint8List?;
+        if (frame != null) _previewBytes[cmid] = frame;
+      } else {
+        px = null;
+      }
     } else {
       px = isImage
           ? await imageSizeOf(bytes)
           : (isVideo ? videoSizeOf(bytes) : null);
       if (isImage) _previewBytes[cmid] = bytes;
     }
+    final size = path != null ? await XFile(path).length() : bytes.length;
+    final queued = queuedAttachmentFile(cmid, name, mime);
     final file = path != null
-        ? await files.keep('$cmid.bin', fromPath: path)
-        : await files.keep('$cmid.bin', bytes: bytes);
+        ? await files.keep(queued, fromPath: path, move: encode != null)
+        : await files.keep(queued, bytes: bytes);
     await queue.enqueue(
       id: cmid,
       kind: GroupMediaKind.attachment,
@@ -1562,11 +1586,12 @@ class GroupThread extends Notifier<GroupThreadState> {
       payload: {
         'name': name,
         'caption': caption?.trim() ?? '',
-        'size': path != null ? await XFile(path).length() : bytes.length,
+        'size': size,
         if (px != null) 'width': px.width.round(),
         if (px != null) 'height': px.height.round(),
         if (key.topicId != null) 'topicId': key.topicId,
         if (replyToId != null) 'replyToId': replyToId,
+        if (encode != null) kEncodeVideoKey: encode,
       },
       fileName: file,
       mime: mime,
@@ -1639,6 +1664,14 @@ class GroupThread extends Notifier<GroupThreadState> {
           (j.mime ?? '').startsWith('image/') &&
           !_previewBytes.containsKey(j.id)) {
         final b = await files.read(n);
+        if (b != null) _previewBytes[j.id] = b;
+      }
+      // Owner 27.11: a queued video (also after a restart) shows its frame.
+      if (j.kind == GroupMediaKind.attachment &&
+          n != null &&
+          (j.mime ?? '').startsWith('video/') &&
+          !_previewBytes.containsKey(j.id)) {
+        final b = await queuedVideoFrame(await files.pathOf(n));
         if (b != null) _previewBytes[j.id] = b;
       }
     }
