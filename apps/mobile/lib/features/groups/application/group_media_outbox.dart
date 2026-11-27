@@ -1,11 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lawbid/core/media/video_compression.dart'
+    show videoCompressorProvider;
 import 'package:lawbid/core/uploads/upload_queue.dart';
 import 'package:lawbid/features/chat/application/chat_media_outbox.dart'
     show
         adoptSentChatMedia,
         adoptVoiceFileAsCache,
+        encodeQueuedVideo,
+        queuedNameOf,
         uploadChatAttachmentJob,
         uploadChatVoiceJob;
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -42,7 +46,14 @@ class GroupMediaHandler extends UploadJobHandler {
   @override
   Future<void> prepare(UploadJob job, UploadJobScope scope) async {
     if (job.fileId != null) return;
-    await scope.saveFileId(await uploadChatAttachmentJob(job, scope));
+    // Owner 27.11 (the 1:1 chat): a video picked as recorded is shrunk by
+    // the phone's hardware encoder here; its bubble is already shown.
+    final ready = await encodeQueuedVideo(
+      job,
+      scope,
+      _ref.read(videoCompressorProvider),
+    );
+    await scope.saveFileId(await uploadChatAttachmentJob(ready, scope));
   }
 
   @override
@@ -66,7 +77,7 @@ class GroupMediaHandler extends UploadJobHandler {
             topicId: p['topicId'] as String?,
             replyToId: p['replyToId'] as String?,
             fileId: job.fileId,
-            fileName: p['name'] as String? ?? 'file',
+            fileName: queuedNameOf(job),
           ),
         );
     final a = sent.attachment;

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -28,7 +29,7 @@ import 'package:lawbid/features/chat/chat_routes.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_notice.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
-    show PickedChatFile, droppedChatFiles;
+    show PickedChatFile, droppedChatFiles, isRecordedVideo;
 import 'package:lawbid/features/chat/presentation/chat_list_controller.dart';
 import 'package:lawbid/features/chat/presentation/edit_draft_aside.dart';
 import 'package:lawbid/features/chat/presentation/forward_sheet.dart';
@@ -458,6 +459,9 @@ class _GroupConversationScreenState
     // the caption (the album's caption, as before).
     PickedChatFile? held;
     var queued = 0;
+    // Owner 27.11 (WhatsApp / Telegram): a video goes to its bubble as
+    // recorded, at once; the upload queue shrinks it after the send.
+    const deferVideo = !kIsWeb;
     Future<void> queue(PickedChatFile f, {String? text}) async {
       await thread.queueAttachment(
         bytes: f.bytes,
@@ -466,6 +470,7 @@ class _GroupConversationScreenState
         mime: f.mime,
         caption: text,
         replyToId: queued == 0 ? reply?.id : null,
+        encodeVideo: isRecordedVideo(f.path),
       );
       queued++;
       if (mounted) _toBottom();
@@ -480,6 +485,7 @@ class _GroupConversationScreenState
           limits: limits,
           fromDisk: true,
           prepareVideo: prepareVideo,
+          deferVideo: deferVideo,
           onEach: (f) async {
             final before = held;
             held = f;

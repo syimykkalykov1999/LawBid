@@ -14,7 +14,7 @@ import 'package:lawbid/core/media/photo_limits.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart'
     show kChatAttachmentMaxBytes, kChatFileExtensions;
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
-    show PickedChatFile, isPickedVideo, keepChatPickMax;
+    show PickedChatFile, isPickedVideo, keepChatPickMax, markRecordedVideo;
 import 'package:lawbid/features/chat/presentation/chat_camera.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -95,6 +95,11 @@ Future<List<PickedChatFile>> pickGroupFiles(
   /// ready (in the picked order) instead of all at the end; the list
   /// returned is then empty.
   Future<void> Function(PickedChatFile file)? onEach,
+
+  /// Owner 27.11 (the 1:1 chat's `pickChatFiles`): a gallery video is not
+  /// encoded here; it goes as recorded, on disk, and the upload queue
+  /// shrinks it after the send (only on the phone with `fromDisk`).
+  bool deferVideo = false,
 }) async {
   final onDisk = fromDisk && !kIsWeb;
   final videoOn = prepareVideo != null && (limits?.allowsVideo ?? true);
@@ -174,7 +179,27 @@ Future<List<PickedChatFile>> pickGroupFiles(
             skipped++;
             continue;
           }
-          if (video) {
+          if (video && deferVideo && onDisk) {
+            final name = f.name.contains('.') ? f.name : '${f.name}.mp4';
+            // A recorded video becomes an MP4: allowed when MP4 is; its
+            // size is checked once it is encoded.
+            final mime = mimeFor(name) ??
+                (mimeFor('video.mp4') != null ? 'video/mp4' : null);
+            if (mime == null) {
+              skipped++;
+              continue;
+            }
+            markRecordedVideo(f.path);
+            out.add(
+              (
+                bytes: Uint8List(0),
+                name: name,
+                mime: mime,
+                path: f.path,
+                diskBytes: size,
+              ),
+            );
+          } else if (video) {
             final ready = await prepareVideo(f);
             final name =
                 ready.name.contains('.') ? ready.name : '${ready.name}.mp4';

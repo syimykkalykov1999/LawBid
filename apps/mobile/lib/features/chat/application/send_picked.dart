@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:lawbid/features/chat/application/chat_media_outbox.dart'
+    show isRecordedVideo;
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 
 /// Owner 2026-10-22 (WhatsApp): what the media preview hands back goes to
@@ -35,6 +37,9 @@ Future<void> sendPickedFiles(
       caption: last && caption.isNotEmpty ? caption : null,
       after: previous,
       replyToId: i == 0 ? replyToId : null,
+      // Owner 27.11: a gallery video picked as recorded is shrunk by the
+      // upload queue after the send.
+      encodeVideo: isRecordedVideo(f.path),
     );
     // A failed file is shown on its own bubble; here it is only logged.
     unawaited(previous.catchError((Object e) => debugPrint('send file: $e')));

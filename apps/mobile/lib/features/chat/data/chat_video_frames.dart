@@ -85,6 +85,13 @@ class ChatVideoFrames {
   }
 
   Future<ChatVideoFrame?> _make(String fileId, String source) async {
+    final frame = await _frame(source);
+    if (frame != null) await put(fileId, frame.jpeg, length: frame.length);
+    return frame;
+  }
+
+  /// The phone's own first frame of [source] (a link or a path), not kept.
+  Future<ChatVideoFrame?> _frame(String source) async {
     try {
       final out = await _channel.invokeMapMethod<String, Object?>('frame', {
         'url': source,
@@ -95,12 +102,40 @@ class ChatVideoFrames {
       final jpeg = out?['jpeg'];
       if (jpeg is! Uint8List || jpeg.isEmpty) return null;
       final ms = (out?['durationMs'] as num?)?.toInt() ?? 0;
-      await put(fileId, jpeg, length: Duration(milliseconds: ms));
       return ChatVideoFrame(jpeg, Duration(milliseconds: ms));
     } on Object {
       // No channel (tests, an old build), no network or a broken video.
       return null;
     }
+  }
+
+  /// Picked videos' first frames by path, while the app runs.
+  final _byPath = <String, Future<ChatVideoFrame?>>{};
+
+  /// The most picked videos whose frames are remembered.
+  static const keptPicked = 64;
+
+  /// Owner 27.11 (WhatsApp / Telegram: a picked video shows its own picture
+  /// at once): the first frame of a video on this phone that has no file id
+  /// yet — the media preview, its strip and the sending bubble ask for the
+  /// same path and share one making. Kept in memory only; once the video is
+  /// sent its frame goes under its file id (`adoptSentChatMedia`).
+  Future<ChatVideoFrame?> ofFile(String path) {
+    if (!_supported || path.isEmpty) return Future.value();
+    final known = _byPath[path];
+    if (known != null) return known;
+    while (_byPath.length >= keptPicked) {
+      _byPath.remove(_byPath.keys.first);
+    }
+    final made = _frame(path);
+    _byPath[path] = made;
+    unawaited(
+      made.then((f) {
+        // Not made (an unreadable file): asked again next time.
+        if (f == null) _byPath.remove(path);
+      }),
+    );
+    return made;
   }
 
   /// Keeps [jpeg] as the frame of [fileId] (and its [length]).

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
@@ -330,6 +331,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
   /// together but are sent in the picked order (one album bubble).
   Future<void> _attach({bool camera = false}) async {
     final t = ref.read(translatorProvider);
+    final fromDisk = ref
+        .read(featureFlagsControllerProvider)
+        .isEnabled('chat_files_from_disk');
+    // Owner 27.11 (WhatsApp / Telegram): videos open in the preview as
+    // recorded; the upload queue shrinks them after the send.
+    final deferVideo = fromDisk && !kIsWeb;
     final files = await pickChatFiles(
       context,
       t,
@@ -341,9 +348,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       prepareVideo: _prepareVideo,
       // Row 199: photos open in the preview's editor, one compression.
       keepOriginals: true,
-      fromDisk: ref
-          .read(featureFlagsControllerProvider)
-          .isEnabled('chat_files_from_disk'),
+      fromDisk: fromDisk,
+      deferVideo: deferVideo,
     );
     await _previewAndSend(files);
   }

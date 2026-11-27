@@ -1,17 +1,23 @@
 import 'dart:async';
+import 'dart:io' show File;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lawbid/core/config/client_tuning.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
+import 'package:lawbid/core/design_system/widgets/buttons/player_round_button.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/limits/text_limits.dart';
 import 'package:lawbid/core/text/byte_size.dart';
 import 'package:lawbid/features/chat/application/image_edit.dart';
+import 'package:lawbid/features/chat/application/voice_recorder.dart'
+    show voiceClock;
+import 'package:lawbid/features/chat/data/chat_video_frames.dart';
 import 'package:lawbid/features/chat/presentation/attachment_widgets.dart'
     show PickedChatFile;
 import 'package:lawbid/features/chat/presentation/image_crop_screen.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:video_player/video_player.dart';
 
 /// What the preview hands back: the files in the order shown (edited ones
 /// replaced) and the one caption.
@@ -209,7 +215,8 @@ class _MediaPreviewScreenState extends ConsumerState<MediaPreviewScreen> {
                     controller: _page,
                     itemCount: _files.length,
                     onPageChanged: (i) => setState(() => _index = i),
-                    itemBuilder: (context, i) => _Stage(file: _files[i]),
+                    itemBuilder: (context, i) =>
+                        _Stage(file: _files[i], active: i == _index),
                   ),
                   if (_busy)
                     const Center(
@@ -356,9 +363,12 @@ class _MediaPreviewScreenState extends ConsumerState<MediaPreviewScreen> {
 
 /// The big preview of one file.
 class _Stage extends StatelessWidget {
-  const _Stage({required this.file});
+  const _Stage({required this.file, required this.active});
 
   final PickedChatFile file;
+
+  /// The page on screen (a video on another page stops playing).
+  final bool active;
 
   @override
   Widget build(BuildContext context) {
@@ -370,6 +380,14 @@ class _Stage extends StatelessWidget {
       );
     }
     final video = file.mime.startsWith('video/');
+    final path = file.path;
+    if (video && path != null) {
+      return _VideoStage(
+        key: ValueKey('preview-video-$path'),
+        path: path,
+        active: active,
+      );
+    }
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -438,7 +456,9 @@ class _Thumb extends StatelessWidget {
                   fit: BoxFit.cover,
                   cacheWidth: 160,
                 )
-              : ColoredBox(
+              : file.mime.startsWith('video/') && file.path != null
+                  ? _VideoThumb(path: file.path!)
+                  : ColoredBox(
                   color: ChatColors.viewerBar,
                   child: Center(
                     child: AppIcon(
@@ -454,4 +474,171 @@ class _Thumb extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Owner 27.11 (WhatsApp / Telegram): a picked video in the preview is the
+/// video itself — its own first frame at once (the phone's frame maker,
+/// [ChatVideoFrames.ofFile]), a round play button, its length; a tap plays
+/// it right here (again: pause). Nothing is encoded before the send: the
+/// phone's hardware encoder shrinks it in the upload queue afterwards.
+class _VideoStage extends StatefulWidget {
+  const _VideoStage({required this.path, required this.active, super.key});
+
+  final String path;
+  final bool active;
+
+  @override
+  State<_VideoStage> createState() => _VideoStageState();
+}
+
+class _VideoStageState extends State<_VideoStage> {
+  ChatVideoFrame? _frame;
+  VideoPlayerController? _c;
+  bool _ready = false;
+  bool _playing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(
+      ChatVideoFrames.instance.ofFile(widget.path).then((f) {
+        if (mounted && f != null) setState(() => _frame = f);
+      }),
+    );
+  }
+
+  @override
+  void didUpdateWidget(_VideoStage old) {
+    super.didUpdateWidget(old);
+    if (!widget.active && _playing) unawaited(_c?.pause());
+  }
+
+  @override
+  void dispose() {
+    _c?.removeListener(_onTick);
+    unawaited(_c?.dispose());
+    super.dispose();
+  }
+
+  void _onTick() {
+    final c = _c;
+    if (c == null || !mounted) return;
+    final playing = c.value.isPlaying;
+    if (playing != _playing) setState(() => _playing = playing);
+  }
+
+  Future<void> _toggle() async {
+    var c = _c;
+    if (c == null) {
+      c = VideoPlayerController.file(File(widget.path));
+      _c = c;
+      c.addListener(_onTick);
+      try {
+        await c.initialize();
+      } on Object {
+        // An unreadable file: the frame stays, it still goes as picked.
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _ready = true);
+    }
+    if (!_ready) return;
+    if (c.value.isPlaying) {
+      await c.pause();
+      return;
+    }
+    if (c.value.position >= c.value.duration) await c.seekTo(Duration.zero);
+    await c.play();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
+    final c = _c;
+    final frame = _frame;
+    final length = frame != null && frame.length > Duration.zero
+        ? frame.length
+        : (_ready ? c!.value.duration : null);
+    final Widget picture;
+    if (_ready && c != null && c.value.aspectRatio > 0) {
+      picture = AspectRatio(
+        aspectRatio: c.value.aspectRatio,
+        child: VideoPlayer(c),
+      );
+    } else if (frame != null) {
+      picture = Image.memory(
+        frame.jpeg,
+        fit: BoxFit.contain,
+        gaplessPlayback: true,
+      );
+    } else {
+      picture = const SizedBox.expand();
+    }
+    return GestureDetector(
+      key: const ValueKey('preview-video'),
+      behavior: HitTestBehavior.opaque,
+      onTap: () => unawaited(_toggle()),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Center(child: picture),
+          if (!_playing)
+            const IgnorePointer(
+              child: PlayerRoundButton(icon: AppIcons.playArrowRounded),
+            ),
+          if (length != null && !_playing)
+            PositionedDirectional(
+              start: 12,
+              bottom: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: ChatColors.viewerBar,
+                  borderRadius: BorderRadius.circular(AppRadii.pill),
+                ),
+                child: Text(
+                  voiceClock(length),
+                  style: type.caption.copyWith(
+                    color: ChatColors.onViewer,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A picked video in the preview's strip: its first frame.
+class _VideoThumb extends StatelessWidget {
+  const _VideoThumb({required this.path});
+
+  final String path;
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<ChatVideoFrame?>(
+        future: ChatVideoFrames.instance.ofFile(path),
+        builder: (context, snap) => Stack(
+          fit: StackFit.expand,
+          children: [
+            const ColoredBox(color: ChatColors.viewerBar),
+            if (snap.data != null)
+              Image.memory(
+                snap.data!.jpeg,
+                fit: BoxFit.cover,
+                cacheWidth: 160,
+                gaplessPlayback: true,
+              ),
+            const Center(
+              child: AppIcon(
+                AppIcons.playArrowRounded,
+                color: ChatColors.onViewer,
+                size: 24,
+              ),
+            ),
+          ],
+        ),
+      );
 }
