@@ -457,10 +457,10 @@ class _TermsLine extends ConsumerWidget {
     // caption and a shimmering line where the money goes — the height the
     // card will have, so the blocks below it do not move when it comes.
     final money = bid == null
-        ? const Stack(
+        ? Stack(
             children: [
-              Opacity(opacity: 0, child: MoneyText('0')),
-              Positioned.fill(
+              Opacity(opacity: 0, child: MoneyText(formats.number(0))),
+              const Positioned.fill(
                 child: Align(
                   alignment: AlignmentDirectional.centerStart,
                   child: FractionallySizedBox(
