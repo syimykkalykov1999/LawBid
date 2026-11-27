@@ -543,9 +543,12 @@ class TaskProgress extends StatelessWidget {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            // Tabular: the bar keeps its length as «1/3» becomes «2/3»
+            // (owner 27.11, «скачки»).
             style: typography.caption.copyWith(
               color: colors.goldDark,
               fontWeight: FontWeight.w700,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
         ),

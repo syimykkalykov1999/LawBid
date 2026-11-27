@@ -42,6 +42,7 @@ import 'package:lawbid/features/deadlines/presentation/deadline_entry.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_tab_pages.dart';
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/team/presentation/case_tasks_section.dart';
+import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// docs/04 §11.1 — the client's case: description, status actions, the
@@ -960,10 +961,17 @@ class _BidsListState extends ConsumerState<_BidsList> {
     }
   }
 
+  /// Owner 27.11 («скачки»): a new sort is a new list to load; the cards
+  /// of the last one stay until it comes (not two skeletons in between).
+  AsyncValue<PaginatedList<CaseBid>>? _last;
+
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(caseBidsProvider(bidsKey));
+    final now = ref.watch(caseBidsProvider(bidsKey));
     final notifier = ref.read(caseBidsProvider(bidsKey).notifier);
+    final kept = _last;
+    final async = !now.hasValue && now.isLoading && kept != null ? kept : now;
+    if (now.hasValue) _last = now;
     return switch (async) {
       AsyncData(:final value) when value.items.isEmpty => Padding(
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
@@ -984,6 +992,9 @@ class _BidsListState extends ConsumerState<_BidsList> {
             for (var i = 0; i < value.items.length; i++) ...[
               if (i > 0) const SizedBox(height: AppSpacing.md),
               AppEntrance(
+                // Owner 27.11: a bid that comes in above, or a new sort,
+                // keeps each card with its own bid.
+                key: ValueKey('bid-card-${value.items[i].id}'),
                 index: i < 6 ? i + 1 : 0,
                 child: BidCard(
                   bid: value.items[i],

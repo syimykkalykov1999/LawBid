@@ -365,7 +365,11 @@ class TaskRingCard extends StatelessWidget {
                 context.reduceMotion ? Duration.zero : AppMotion.stateChange,
             opacity: muted ? 0.72 : 1,
             child: Container(
-              padding: const EdgeInsetsDirectional.fromSTEB(10, 8, 2, 8),
+              // Owner 27.11 («скачки»): border + padding is the same picked
+              // or not (a BoxDecoration border counts as padding), so a
+              // pick only repaints the card.
+              padding: const EdgeInsetsDirectional.fromSTEB(10, 8, 2, 8)
+                  .add(EdgeInsets.all(picked ? 0 : 0.6)),
               decoration: BoxDecoration(
                 color: picked ? colors.goldTint : colors.surface,
                 borderRadius: BorderRadius.circular(AppRadii.card),
@@ -504,9 +508,14 @@ class TaskRingCard extends StatelessWidget {
                                         }),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
+                                        // Tabular: «1/3» → «2/3» keeps its
+                                        // width (owner 27.11, «скачки»).
                                         style: type.caption.copyWith(
                                           color: colors.text,
                                           fontWeight: FontWeight.w600,
+                                          fontFeatures: const [
+                                            FontFeature.tabularFigures(),
+                                          ],
                                         ),
                                       ),
                                     ),
@@ -724,16 +733,18 @@ class TasksHero extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                if (sub.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                      sub,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.caption.copyWith(color: colors.textSecondary),
-                    ),
+                // Owner 27.11 («скачки»): the line keeps its room when the
+                // last overdue or next task is done, so the list below the
+                // card does not jump up.
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    sub.isEmpty ? ' ' : sub,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: type.caption.copyWith(color: colors.textSecondary),
                   ),
+                ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -854,7 +865,9 @@ class TaskCaseRing extends StatelessWidget {
         onTap: onTap,
         child: Container(
           width: 116,
-          padding: const EdgeInsets.all(6),
+          // Owner 27.11 («скачки»): the 1.5 border of the picked case
+          // takes the room of 0.5 of padding, so nothing moves on a pick.
+          padding: EdgeInsets.all(selected ? 6 : 6.5),
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(12),

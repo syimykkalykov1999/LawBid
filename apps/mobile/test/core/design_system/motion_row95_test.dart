@@ -289,6 +289,14 @@ void main() {
   });
 
   group('AppPaginatedListView.animateChanges (C3 / C4)', () {
+    // Owner 27.11: every row of an animated list keeps one shape (a still
+    // row runs on a finished animation), so «moving» is a row whose size
+    // runs on a live controller.
+    int moving(WidgetTester tester) => tester
+        .widgetList<SizeTransition>(find.byType(SizeTransition))
+        .where((s) => !identical(s.sizeFactor, kAlwaysCompleteAnimation))
+        .length;
+
     Widget list(List<String> items) => MaterialApp(
           theme: AppTheme.light(),
           home: Scaffold(
@@ -317,10 +325,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 30));
       // Its ghost is still collapsing where it was.
       expect(find.text('d'), findsNWidgets(2));
-      expect(find.byType(SizeTransition), findsNWidgets(2));
+      expect(moving(tester), 2);
       await tester.pumpAndSettle();
       expect(find.text('d'), findsOneWidget);
-      expect(find.byType(SizeTransition), findsNothing);
+      expect(moving(tester), 0);
       double y(String s) => tester.getTopLeft(find.text(s)).dy;
       expect(y('d'), lessThan(y('a')));
       expect(y('a'), lessThan(y('b')));
@@ -331,10 +339,10 @@ void main() {
       await tester.pumpWidget(list(const []));
       await tester.pumpWidget(list(['a', 'b']));
       await tester.pump();
-      expect(find.byType(SizeTransition), findsNothing);
+      expect(moving(tester), 0);
       await tester.pumpWidget(list(['a', 'b', 'c', 'd']));
       await tester.pump();
-      expect(find.byType(SizeTransition), findsNothing);
+      expect(moving(tester), 0);
     });
 
     testWidgets('a removed row collapses, then it is gone', (tester) async {

@@ -11,6 +11,7 @@ import 'package:lawbid/core/design_system/widgets/buttons/gavel_strike_button.da
 import 'package:lawbid/core/design_system/widgets/feedback/app_snackbar.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_entrance.dart';
 import 'package:lawbid/core/design_system/widgets/motion/app_tap_target.dart';
+import 'package:lawbid/core/design_system/widgets/text/stable_weight_text.dart';
 import 'package:material_ui/material_ui.dart';
 
 enum AppButtonVariant {
@@ -130,39 +131,56 @@ class _AppButtonState extends State<AppButton> {
         foreground = colors.onDanger;
     }
 
+    final label = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Owner 2026-10-13: no icon inside buttons — text only.
+        Flexible(
+          child: widget.fitLabel
+              ? FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    widget.label,
+                    style: typography.button.copyWith(color: foreground),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    softWrap: false,
+                  ),
+                )
+              : Text(
+                  widget.label,
+                  style: typography.button.copyWith(color: foreground),
+                  textAlign: TextAlign.center,
+                  softWrap: true,
+                ),
+        ),
+      ],
+    );
+    // Owner 27.11 («скачки»): the spinner keeps the label's height (two
+    // lines, large system font), so the button does not shrink on tap and
+    // nothing below it moves.
     final content = widget.isLoading
-        ? SizedBox(
-            width: 20,
-            height: 20,
-            child:
-                CircularProgressIndicator(strokeWidth: 2.2, color: foreground),
-          )
-        : Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
+        ? Stack(
+            alignment: Alignment.center,
             children: [
-              // Owner 2026-10-13: no icon inside buttons — text only.
-              Flexible(
-                child: widget.fitLabel
-                    ? FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          widget.label,
-                          style: typography.button.copyWith(color: foreground),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          softWrap: false,
-                        ),
-                      )
-                    : Text(
-                        widget.label,
-                        style: typography.button.copyWith(color: foreground),
-                        textAlign: TextAlign.center,
-                        softWrap: true,
-                      ),
+              MinTextHeight(
+                text: widget.label,
+                style: typography.button,
+                maxLines: widget.fitLabel ? 1 : null,
+                child: const SizedBox.square(dimension: 20),
+              ),
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  color: foreground,
+                ),
               ),
             ],
-          );
+          )
+        : label;
 
     return AppTapTarget(
       child: Semantics(

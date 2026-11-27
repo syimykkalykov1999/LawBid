@@ -183,16 +183,17 @@ class AvatarPickerField extends ConsumerWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              if (status.isNotEmpty) ...[
-                const SizedBox(height: AppSpacing.xs),
-                Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    status,
-                    style: typography.caption.copyWith(color: statusColor),
-                  ),
+              // Owner 27.11 («скачки»): the status line keeps its room
+              // through the upload (empty while the ring runs, «Фото
+              // готово» after), so «Change» below does not hop up and down.
+              const SizedBox(height: AppSpacing.xs),
+              Semantics(
+                liveRegion: status.isNotEmpty,
+                child: Text(
+                  status.isEmpty ? ' ' : status,
+                  style: typography.caption.copyWith(color: statusColor),
                 ),
-              ],
+              ),
               const SizedBox(height: AppSpacing.xs),
               Wrap(
                 spacing: AppSpacing.sm,

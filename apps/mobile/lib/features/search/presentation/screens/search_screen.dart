@@ -354,7 +354,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ),
                 if (_focused && _suggestQ.isNotEmpty)
                   _SuggestionRow(
-                    key: ValueKey('suggest:$_suggestQ'),
+                    key: const ValueKey('suggest-row'),
                     query: _suggestQ,
                     onPick: _useRecent,
                   ),
@@ -1201,18 +1201,30 @@ class _RecentHistory extends ConsumerWidget {
 /// Owner 2026-10-15: while typing, a slim row of what the server can finish
 /// the word with — topics (#), attorney handles (@) and practices; a tap
 /// searches for it.
-class _SuggestionRow extends ConsumerWidget {
+class _SuggestionRow extends ConsumerStatefulWidget {
   const _SuggestionRow({required this.query, required this.onPick, super.key});
 
   final String query;
   final ValueChanged<String> onPick;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SuggestionRow> createState() => _SuggestionRowState();
+}
+
+class _SuggestionRowState extends ConsumerState<_SuggestionRow> {
+  /// Owner 27.11 («скачки»): the last answer stays while the next letter's
+  /// is on its way (Telegram, Instagram), so the row does not vanish and
+  /// pull the results up on every key.
+  List<SearchSuggestion> _last = const [];
+
+  @override
+  Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColorTokens>()!;
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
-    final items = ref.watch(searchSuggestionsProvider(query)).value ??
-        const <SearchSuggestion>[];
+    final onPick = widget.onPick;
+    final now = ref.watch(searchSuggestionsProvider(widget.query));
+    if (now.hasValue) _last = now.requireValue;
+    final items = _last;
     if (items.isEmpty) return const SizedBox.shrink();
     return SizedBox(
       height: 40,

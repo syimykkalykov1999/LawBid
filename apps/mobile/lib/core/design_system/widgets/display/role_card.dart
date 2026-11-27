@@ -96,10 +96,23 @@ class RoleCard extends StatelessWidget {
                     : AppMotion.stateChange,
                 curve: AppMotion.enterCurve,
                 padding: const EdgeInsets.all(16),
+                // Owner 27.11 («скачки»): a BoxDecoration border counts as
+                // padding, so the picked card's 1.5 border made it 1 px
+                // bigger and pushed the next card. The laid-out border
+                // stays 1 wide; the picked 1.5 ring is painted over it.
                 decoration: BoxDecoration(
                   color: background,
                   borderRadius: BorderRadius.circular(AppRadii.roleCard),
-                  border: border,
+                  border: Border.all(color: border.top.color),
+                ),
+                foregroundDecoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppRadii.roleCard),
+                  border: Border.all(
+                    color: border.top.width > 1
+                        ? border.top.color
+                        : border.top.color.withValues(alpha: 0),
+                    width: 1.5,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

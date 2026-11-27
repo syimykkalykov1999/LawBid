@@ -66,13 +66,33 @@ class StoryAvatarRing extends ConsumerWidget {
               ),
       // The photo's own tap (its full-screen picture) must not win over the
       // story: the whole ring opens it.
+      // Owner 27.11 («скачки»): the ring is drawn around the photo's own
+      // box (outside it), so the name and numbers beside the photo stay
+      // where they are when a story is found a moment after the profile
+      // opens, or when one is posted or runs out.
       child: live
-          ? StoryHero(
-              tag: hero,
-              child: StoryRing(
-                state: unseen ? StoryRingState.unseen : StoryRingState.seen,
-                size: size,
-                child: body,
+          ? SizedBox.square(
+              dimension: size,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  PositionedDirectional(
+                    start: -ringExtra / 2,
+                    top: -ringExtra / 2,
+                    width: size + ringExtra,
+                    height: size + ringExtra,
+                    child: StoryHero(
+                      tag: hero,
+                      child: StoryRing(
+                        state: unseen
+                            ? StoryRingState.unseen
+                            : StoryRingState.seen,
+                        size: size,
+                        child: body,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             )
           : body,

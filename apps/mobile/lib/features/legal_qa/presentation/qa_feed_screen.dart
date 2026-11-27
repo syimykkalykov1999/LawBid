@@ -18,6 +18,7 @@ import 'package:lawbid/features/legal_qa/presentation/qa_tabs_bar.dart';
 import 'package:lawbid/features/legal_qa/presentation/qa_widgets.dart';
 import 'package:lawbid/features/legal_qa/presentation/question_detail_screen.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
+import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 — «Вопрос юристу»: all questions, unanswered, solved
@@ -311,7 +312,7 @@ class _QaFeedBodyState extends ConsumerState<QaFeedBody> {
 
 /// One tab's infinite list; tapping a question lifts the sheet with its
 /// answers (the full screen stays for deep links).
-class _QaPage extends ConsumerWidget {
+class _QaPage extends ConsumerStatefulWidget {
   const _QaPage({
     required this.query,
     required this.attorney,
@@ -324,10 +325,26 @@ class _QaPage extends ConsumerWidget {
   final bool mineTab;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_QaPage> createState() => _QaPageState();
+}
+
+class _QaPageState extends ConsumerState<_QaPage> {
+  /// Owner 27.11 («скачки»): a new search word is a new list to load; the
+  /// last one stays on screen until it comes (not skeleton cards on every
+  /// pause in typing).
+  AsyncValue<PaginatedList<Question>>? _last;
+
+  @override
+  Widget build(BuildContext context) {
+    final query = widget.query;
+    final attorney = widget.attorney;
+    final mineTab = widget.mineTab;
     final t = ref.watch(translatorProvider);
     final colors = Theme.of(context).extension<AppColorTokens>()!;
-    final async = ref.watch(questionsProvider(query));
+    final now = ref.watch(questionsProvider(query));
+    final kept = _last;
+    final async = !now.hasValue && now.isLoading && kept != null ? kept : now;
+    if (now.hasValue) _last = now;
     final notifier = ref.read(questionsProvider(query).notifier);
     return async.when(
       // Owner 2026-10-23: skeleton cards, not a spinner.

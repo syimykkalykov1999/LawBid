@@ -49,6 +49,34 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
     super.dispose();
   }
 
+  /// Owner 27.11 («скачки»): the answers keep the order the screen opened
+  /// with until a pull or a «best» pick, and a like shows at once.
+  List<String>? _order;
+  final Map<String, ({bool on, int count})> _likes = {};
+
+  Future<void> _like(Question q, QaAnswer a) async {
+    final t = ref.read(translatorProvider);
+    final on = !a.likedByMe;
+    setState(() {
+      _likes[a.id] = (on: on, count: a.likeCount + (on ? 1 : -1));
+    });
+    try {
+      await ref.read(legalQaRepositoryProvider).like(q.id, a.id, on: on);
+      if (!mounted) return;
+      _refresh();
+      try {
+        await ref.read(questionDetailProvider(widget.id).future);
+      } on Object {
+        // The screen shows the error; the like stays as sent.
+      }
+      if (mounted) setState(() => _likes.remove(a.id));
+    } on Object catch (e) {
+      if (!mounted) return;
+      setState(() => _likes.remove(a.id));
+      showAppSnackBar(context, errorText(t, e));
+    }
+  }
+
   void _refresh() {
     ref.invalidate(questionDetailProvider(widget.id));
     // Package F: the lists catch up (Mine by a delta), no reload.
@@ -77,12 +105,21 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
           .read(legalQaRepositoryProvider)
           .answer(widget.id, _reply.text.trim());
       if (!mounted) return;
+      // Owner 27.11 («скачки»): the composer gives way to «answered» in
+      // the same frame the new answer card comes in (not one round trip
+      // earlier, as an empty composer first and the hint later).
+      _refresh();
+      try {
+        await ref.read(questionDetailProvider(widget.id).future);
+      } on Object {
+        // The screen shows the error; the answer itself was sent.
+      }
+      if (!mounted) return;
       _reply.clear();
       setState(() {
         _busy = false;
         _editing = false;
       });
-      _refresh();
     } on Object catch (e) {
       if (!mounted) return;
       setState(() {
@@ -244,19 +281,31 @@ class _QuestionDetailScreenState extends ConsumerState<QuestionDetailScreen> {
                       // The provider now holds the error and the screen
                       // shows it; the pull spinner must just end.
                     }
+                    // A pull is the moment to sort again.
+                    if (mounted) setState(() => _order = null);
                   },
                   child: _Body(
                     question: q,
-                    onLike: (a) => _run(
-                      () => ref
-                          .read(legalQaRepositoryProvider)
-                          .like(q.id, a.id, on: !a.likedByMe),
-                    ),
-                    onBest: (a) => _run(
-                      () => ref
-                          .read(legalQaRepositoryProvider)
-                          .setBest(q.id, a.isBest ? null : a.id),
-                    ),
+                    order: _order ??= [
+                      for (final a in _Body._ordered(q.answers)) a.id,
+                    ],
+                    likes: _likes,
+                    onLike: (a) => _like(q, a),
+                    onBest: (a) async {
+                      await _run(
+                        () => ref
+                            .read(legalQaRepositoryProvider)
+                            .setBest(q.id, a.isBest ? null : a.id),
+                      );
+                      try {
+                        await ref
+                            .read(questionDetailProvider(widget.id).future);
+                      } on Object {
+                        // The screen shows the error.
+                      }
+                      // Picking the best answer moves it up on purpose.
+                      if (mounted) setState(() => _order = null);
+                    },
                     onEditMine: (a) => setState(() {
                       _editing = true;
                       _reply.text = a.body;
@@ -293,7 +342,15 @@ class _Body extends ConsumerWidget {
     required this.onBest,
     required this.onEditMine,
     required this.onDeleteMine,
+    this.order,
+    this.likes = const {},
   });
+
+  /// The answers' order to keep (null: best, then most liked).
+  final List<String>? order;
+
+  /// Likes put in before the server answered, by answer id.
+  final Map<String, ({bool on, int count})> likes;
 
   final Question question;
   final void Function(QaAnswer) onLike;
@@ -312,6 +369,22 @@ class _Body extends ConsumerWidget {
     final author = q.author;
     final name =
         author?.displayName ?? (q.isMine ? t.t('qa.anonMine') : t.t('qa.anon'));
+    QaAnswer patched(QaAnswer a) {
+      final like = likes[a.id];
+      if (like == null) return a;
+      return QaAnswer(
+        id: a.id,
+        questionId: a.questionId,
+        attorney: a.attorney,
+        body: a.body,
+        likeCount: like.count,
+        likedByMe: like.on,
+        isBest: a.isBest,
+        isMine: a.isMine,
+        createdAt: a.createdAt,
+      );
+    }
+
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(AppSpacing.screenSide),
@@ -346,8 +419,7 @@ class _Body extends ConsumerWidget {
                 style: type.titleMedium.copyWith(color: colors.text),
               ),
             ),
-            if (q.solved)
-              Flexible(child: QaBestBadge(label: t.t('qa.solved'))),
+            if (q.solved) Flexible(child: QaBestBadge(label: t.t('qa.solved'))),
           ],
         ),
         const SizedBox(height: AppSpacing.sm),
@@ -360,8 +432,9 @@ class _Body extends ConsumerWidget {
             ),
           )
         else
-          for (final a in _ordered(q.answers)) ...[
+          for (final a in _inOrder(q.answers, order).map(patched)) ...[
             _AnswerCard(
+              key: ValueKey('qa-answer-${a.id}'),
               answer: a,
               asker: q.isMine,
               onLike: () => onLike(a),
@@ -380,17 +453,38 @@ class _Body extends ConsumerWidget {
     );
   }
 
+  /// Owner 27.11 («скачки»): the order the screen opened with stays while
+  /// it is open (a like does not send the card to another place under the
+  /// finger, as on Reddit / Stack Overflow until a reload); answers that
+  /// came later follow in the usual order.
+  static List<QaAnswer> _inOrder(List<QaAnswer> list, List<String>? order) {
+    if (order == null) return _ordered(list);
+    final at = {for (var i = 0; i < order.length; i++) order[i]: i};
+    final known = [
+      for (final a in list)
+        if (at.containsKey(a.id)) a,
+    ]..sort((a, b) => at[a.id]!.compareTo(at[b.id]!));
+    return [
+      ...known,
+      ..._ordered([
+        for (final a in list)
+          if (!at.containsKey(a.id)) a,
+      ]),
+    ];
+  }
+
   /// The best answer first, then the most liked.
   static List<QaAnswer> _ordered(List<QaAnswer> list) =>
       [...list]..sort((a, b) {
-        if (a.isBest != b.isBest) return a.isBest ? -1 : 1;
-        return b.likeCount.compareTo(a.likeCount);
-      });
+          if (a.isBest != b.isBest) return a.isBest ? -1 : 1;
+          return b.likeCount.compareTo(a.likeCount);
+        });
 }
 
 class _AnswerCard extends ConsumerWidget {
   const _AnswerCard({
     required this.answer,
+    super.key,
     required this.asker,
     required this.onLike,
     required this.onBest,
@@ -423,42 +517,51 @@ class _AnswerCard extends ConsumerWidget {
       required VoidCallback onTap,
       Color? color,
       String? shown,
-    }) => Semantics(
-      button: true,
-      label: label,
-      excludeSemantics: true,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadii.pill),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
-          child: Padding(
-            padding: const EdgeInsetsDirectional.symmetric(
-              horizontal: AppSpacing.sm,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AppIcon(icon, size: 20, color: color ?? colors.textSecondary),
-                if (shown ?? label case final text when text.isNotEmpty) ...[
-                  const SizedBox(width: AppSpacing.xs),
-                  Flexible(
-                    child: Text(
-                      text,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: type.caption.copyWith(
-                        color: color ?? colors.textSecondary,
-                      ),
+    }) =>
+        Semantics(
+          button: true,
+          label: label,
+          excludeSemantics: true,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(AppRadii.pill),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
+              child: Padding(
+                padding: const EdgeInsetsDirectional.symmetric(
+                  horizontal: AppSpacing.sm,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AppIcon(
+                      icon,
+                      size: 20,
+                      color: color ?? colors.textSecondary,
                     ),
-                  ),
-                ],
-              ],
+                    if (shown ?? label case final text
+                        when text.isNotEmpty) ...[
+                      const SizedBox(width: AppSpacing.xs),
+                      Flexible(
+                        child: Text(
+                          text,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          // Tabular: 1 → 2 likes keeps the width, so the
+                          // actions beside it stay put (owner 27.11).
+                          style: type.caption.copyWith(
+                            color: color ?? colors.textSecondary,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
-    );
+        );
     // Owner 2026-10-23: the best answer carries a green frame; every answer
     // is an attorney's, marked with the verified tick and its caption.
     final card = AppCard(
@@ -473,8 +576,7 @@ class _AnswerCard extends ConsumerWidget {
             name: a.attorney.displayName,
             avatarUrl: a.attorney.avatarUrl,
             verified: true,
-            subtitle:
-                '${t.t('qa.verified')} · '
+            subtitle: '${t.t('qa.verified')} · '
                 '${SocialFormat.ago(t, formats, a.createdAt)}',
             onTap: username == null
                 ? null
@@ -587,13 +689,13 @@ class _Composer extends ConsumerWidget {
       final hint = q.myAnswerId != null
           ? t.t('qa.answered')
           : attorney && !q.isMine
-          // Owner 2026-10-21: say why the box is gone.
-          ? q.closed
-                ? t.t('qa.closed')
-                : q.answersEnough
-                ? t.t('qa.enough')
-                : t.t('qa.answer.only')
-          : null;
+              // Owner 2026-10-21: say why the box is gone.
+              ? q.closed
+                  ? t.t('qa.closed')
+                  : q.answersEnough
+                      ? t.t('qa.enough')
+                      : t.t('qa.answer.only')
+              : null;
       if (hint == null) return const SizedBox.shrink();
       return Container(
         width: double.infinity,

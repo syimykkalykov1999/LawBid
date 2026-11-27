@@ -73,3 +73,4 @@ export 'widgets/performance/text_warm_up.dart';
 export 'widgets/text/fit_text.dart';
 export 'widgets/text/full_text_scale.dart';
 export 'widgets/text/legal_text.dart';
+export 'widgets/text/stable_weight_text.dart';

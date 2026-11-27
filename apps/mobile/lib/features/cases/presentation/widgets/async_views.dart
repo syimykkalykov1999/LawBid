@@ -99,8 +99,12 @@ class PagedListBody<T> extends ConsumerWidget {
     this.edgeToEdge = false,
     this.prefetch,
     this.animateChanges = false,
+    this.rowLeading,
     super.key,
   });
+
+  /// See [AppPaginatedListView.rowLeading].
+  final Widget? Function(BuildContext context, T item, int index)? rowLeading;
 
   /// Owner 2026-10-15: called for the next few items while an item is
   /// built (images get downloaded and decoded before they scroll in).
@@ -175,6 +179,7 @@ class PagedListBody<T> extends ConsumerWidget {
         ),
       AsyncData(:final value) => AppPaginatedListView<T>(
           animateChanges: animateChanges,
+          rowLeading: rowLeading,
           key: const ValueKey('data'),
           items: value.items,
           // Owner 2026-10-15: the last card clears the floating nav bar
