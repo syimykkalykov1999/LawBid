@@ -6294,6 +6294,7 @@
   "tasks.scope.assistant": "Amb l’assistent",
   "tasks.scope.forClient": "Per al client",
   "tasks.scope.mine": "Teves",
+  "tasks.scope.withAttorney": "Amb l'advocat",
   "tasks.search": "Cerca tasques",
   "tasks.snooze.dayLater": "Un dia més tard",
   "tasks.snooze.evening": "Aquest vespre",

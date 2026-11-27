@@ -17,7 +17,7 @@ import 'package:material_ui/material_ui.dart';
 /// with the sub-tasks.
 
 /// The chips under the views: a slice of the board.
-enum TaskScope { all, mine, forClient, assistant }
+enum TaskScope { all, mine, forClient, joint, assistant }
 
 /// Whose task it is (the pill on a card).
 enum TaskWho { mine, forClient, joint, attorneyMove, assistant, yours }
@@ -64,6 +64,9 @@ Color taskAccent(AppColorTokens colors, TaskItem task) {
 bool taskInScope(TaskItem task, TaskScope scope) => switch (scope) {
       TaskScope.all => true,
       TaskScope.forClient => task.boardTask?.forClient ?? false,
+      // Owner 2026-11-26: the client's «С адвокатом» — the tasks both the
+      // client and the attorney can tick.
+      TaskScope.joint => task.boardTask?.joint ?? false,
       TaskScope.assistant => task.assigneeMembershipId != null,
       TaskScope.mine => task.boardTask == null || task.boardTask!.forClient,
     };

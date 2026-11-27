@@ -6294,6 +6294,7 @@
   "tasks.scope.assistant": "Assistendil",
   "tasks.scope.forClient": "Kliendile",
   "tasks.scope.mine": "Teie",
+  "tasks.scope.withAttorney": "Advokaadiga",
   "tasks.search": "Otsi ülesannetest",
   "tasks.snooze.dayLater": "Päev hiljem",
   "tasks.snooze.evening": "Täna õhtul",

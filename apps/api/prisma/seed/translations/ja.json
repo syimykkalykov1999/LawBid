@@ -6294,6 +6294,7 @@
   "tasks.scope.assistant": "アシスタント対応",
   "tasks.scope.forClient": "依頼者向け",
   "tasks.scope.mine": "あなた",
+  "tasks.scope.withAttorney": "弁護士と共同",
   "tasks.search": "タスクを検索",
   "tasks.snooze.dayLater": "1日後",
   "tasks.snooze.evening": "今夕",

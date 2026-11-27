@@ -6294,6 +6294,7 @@
   "tasks.scope.assistant": "Avustajalla",
   "tasks.scope.forClient": "Asiakkaalle",
   "tasks.scope.mine": "Sinun",
+  "tasks.scope.withAttorney": "Asianajajan kanssa",
   "tasks.search": "Hae tehtävistä",
   "tasks.snooze.dayLater": "Päivän päästä",
   "tasks.snooze.evening": "Tänä iltana",

@@ -6294,6 +6294,7 @@
   "tasks.scope.assistant": "Med assistenten",
   "tasks.scope.forClient": "Til klienten",
   "tasks.scope.mine": "Dine",
+  "tasks.scope.withAttorney": "Med advokat",
   "tasks.search": "Søk i oppgaver",
   "tasks.snooze.dayLater": "En dag senere",
   "tasks.snooze.evening": "I kveld",

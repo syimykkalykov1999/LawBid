@@ -6294,6 +6294,7 @@
   "tasks.scope.assistant": "Hjá aðstoðarmanni",
   "tasks.scope.forClient": "Fyrir skjólstæðing",
   "tasks.scope.mine": "Þín",
+  "tasks.scope.withAttorney": "Með lögmanni",
   "tasks.search": "Leita í verkefnum",
   "tasks.snooze.dayLater": "Degi síðar",
   "tasks.snooze.evening": "Í kvöld",

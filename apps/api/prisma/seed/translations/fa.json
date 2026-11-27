@@ -6294,6 +6294,7 @@
   "tasks.scope.assistant": "نزد دستیار",
   "tasks.scope.forClient": "برای موکل",
   "tasks.scope.mine": "مال شما",
+  "tasks.scope.withAttorney": "با وکیل",
   "tasks.search": "جستجو در وظایف",
   "tasks.snooze.dayLater": "یک روز بعد",
   "tasks.snooze.evening": "امشب",

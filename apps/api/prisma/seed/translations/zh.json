@@ -6294,6 +6294,7 @@
   "tasks.scope.assistant": "助手处理中",
   "tasks.scope.forClient": "给客户",
   "tasks.scope.mine": "你的",
+  "tasks.scope.withAttorney": "与律师共同",
   "tasks.search": "搜索任务",
   "tasks.snooze.dayLater": "一天后",
   "tasks.snooze.evening": "今晚",

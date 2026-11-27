@@ -11,7 +11,7 @@ import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
 import 'package:lawbid/features/team/presentation/assistant_join_screen.dart';
 import 'package:lawbid/features/team/presentation/task_board_widgets.dart'
-    show MiniChip;
+    show MiniChip, TaskScope;
 import 'package:lawbid/features/team/presentation/task_sheet.dart'
     show normalizeTaskPhone;
 import 'package:lawbid/features/team/presentation/task_widgets.dart';
@@ -312,8 +312,9 @@ void main() {
     }
 
     // Owner 2026-11-26: four chips at most, like Todoist / Microsoft To Do
-    // (All / Assigned / Completed): «Важные», «Просрочено» and «Общие» are
-    // gone (their tasks stay in «Все»); «Завершённые» is last (R-390).
+    // (All / Assigned / Completed): «Важные» and «Просрочено» are gone
+    // (their tasks stay in «Все»); the client keeps the joint tasks as
+    // «С адвокатом»; «Завершённые» is last (R-390).
     List<String> chipKeys(WidgetTester tester) => tester
         .widgetList<Widget>(
           find.byWidgetPredicate(
@@ -337,14 +338,17 @@ void main() {
       ]);
     });
 
-    testWidgets('client chips: all, yours, done', (tester) async {
+    testWidgets('client chips: all, yours, with the attorney, done',
+        (tester) async {
       repo.active = [makeTask('a')];
       await pump(tester, const TasksTab(), role: UserRole.client);
       expect(chipKeys(tester), [
         'tasks-view-all',
         'tasks-view-mine',
+        'tasks-view-withAttorney',
         'tasks-view-done',
       ]);
+      expect(find.text('With attorney'), findsOneWidget);
     });
 
     testWidgets('assistant chips: all, results, done', (tester) async {
@@ -376,8 +380,181 @@ void main() {
       expect(find.text('Task late'), findsOneWidget);
     });
 
+    // Owner 2026-11-26: «чтобы реально эти вкладки отделяли так как они
+    // задуманы». Every kind of task, split into the two lists exactly as
+    // the server does (planner: GET /tasks?view=active = open/taken and not
+    // archived, view=archive = archived or done/not done/cancelled; case
+    // board: GET /cases/board, split by status on the phone), then every
+    // chip of every role with the exact ids it shows.
+    group('every chip shows exactly its slice', () {
+      final now = DateTime.now();
+      TaskItem board(String id, String kind, {bool done = false}) => TaskItem(
+            id: id,
+            kind: TaskKind.other,
+            title: id,
+            status: done ? TaskStatus.done : TaskStatus.open,
+            createdAt: now,
+            boardTask: BoardCaseTask(
+              taskId: id,
+              kind: kind,
+              viewerIsAttorney: true,
+              createdByClient: false,
+              canTick: true,
+              closed: false,
+            ),
+          );
+      final everything = <TaskItem>[
+        makeTask('personal'),
+        board('forClient', 'for_client'),
+        board('joint', 'joint'),
+        board('attorneyMove', 'shared'),
+        makeTask('assistant', assigneeName: 'Sam'),
+        // A planner task of a case, given to the assistant: a planner row
+        // (it has an assignee) — case-board tasks never have one.
+        makeTask(
+          'caseAssistant',
+          assigneeName: 'Sam',
+          caseId: 'c1',
+          caseTitle: 'Case',
+        ),
+        makeTask('overdue', dueAt: now.subtract(const Duration(days: 2))),
+        makeTask('important', priority: TaskPriority.high),
+        makeTask('done', status: TaskStatus.done),
+        makeTask('notDone', status: TaskStatus.notDone),
+        makeTask('cancelled', status: TaskStatus.cancelled),
+        makeTask('archived', archivedAt: now),
+        board('forClientDone', 'for_client', done: true),
+        board('jointDone', 'joint', done: true),
+      ];
+      bool finished(TaskItem t) => t.boardTask != null
+          ? !t.status.active
+          : t.archivedAt != null || !t.status.active;
+      final active = [
+        for (final t in everything)
+          if (!finished(t)) t,
+      ];
+      final doneList = [
+        for (final t in everything)
+          if (finished(t)) t,
+      ];
+      const finishedIds = {
+        'done',
+        'notDone',
+        'cancelled',
+        'archived',
+        'forClientDone',
+        'jointDone',
+      };
+      const activeIds = {
+        'personal',
+        'forClient',
+        'joint',
+        'attorneyMove',
+        'assistant',
+        'caseAssistant',
+        'overdue',
+        'important',
+      };
+      // Any chip picked before the page is shown (the row keeps the last
+      // scope while «Завершённые» is open) must not change what it shows.
+      Set<String> page(List<TaskItem> list, TaskScope? scope, TaskScope was) =>
+          applyTaskFilter(
+            list,
+            taskPageFilter(TaskFilter(scope: was), scope),
+            now: now,
+          ).map((t) => t.id).toSet();
+
+      test('the server split puts every task in exactly one list', () {
+        expect(active.map((t) => t.id).toSet(), activeIds);
+        expect(doneList.map((t) => t.id).toSet(), finishedIds);
+      });
+
+      for (final was in TaskScope.values) {
+        test(
+            'attorney: Все / Для клиента / У ассистента / Завершённые '
+            '(after ${was.name})', () {
+          expect(page(active, TaskScope.all, was), activeIds);
+          expect(page(active, TaskScope.forClient, was), {'forClient'});
+          expect(
+            page(active, TaskScope.assistant, was),
+            {'assistant', 'caseAssistant'},
+          );
+          expect(page(doneList, null, was), finishedIds);
+        });
+
+        test(
+            'client: Все / Ваши / С адвокатом / Завершённые '
+            '(after ${was.name})', () {
+          // A client has no assistant: those planner rows never reach them.
+          final mine = [
+            for (final t in active)
+              if (t.assigneeMembershipId == null) t,
+          ];
+          expect(
+            page(mine, TaskScope.all, was),
+            activeIds.difference({'assistant', 'caseAssistant'}),
+          );
+          expect(
+            page(mine, TaskScope.mine, was),
+            {'personal', 'forClient', 'overdue', 'important'},
+          );
+          expect(page(mine, TaskScope.joint, was), {'joint'});
+          expect(page(doneList, null, was), finishedIds);
+        });
+
+        test('assistant: Все / Завершённые (after ${was.name})', () {
+          expect(page(active, TaskScope.all, was), activeIds);
+          expect(page(doneList, null, was), finishedIds);
+        });
+      }
+
+      test('no active chip shows a finished task', () {
+        for (final scope in [
+          TaskScope.all,
+          TaskScope.mine,
+          TaskScope.forClient,
+          TaskScope.joint,
+          TaskScope.assistant,
+        ]) {
+          expect(
+            page(active, scope, TaskScope.all).intersection(finishedIds),
+            isEmpty,
+            reason: scope.name,
+          );
+        }
+      });
+    });
+
+    testWidgets('an empty slice shows «Nothing found», not a broken layout',
+        (tester) async {
+      repo.active = [makeTask('a')];
+      await pump(tester, const TasksTab(), role: UserRole.attorney);
+      await tester.tap(find.byKey(const ValueKey('tasks-view-forClient')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Nothing found'), findsOneWidget);
+      expect(find.text('Task a'), findsNothing);
+    });
+
+    testWidgets('«Завершённые» after «Для клиента» shows every finished task',
+        (tester) async {
+      repo
+        ..active = [makeTask('a')]
+        ..done = [makeTask('old', status: TaskStatus.done)];
+      await pump(tester, const TasksTab(), role: UserRole.attorney);
+      await tester.tap(find.byKey(const ValueKey('tasks-view-forClient')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('tasks-view-done')));
+      await tester.pumpAndSettle();
+      expect(find.text('Task old'), findsOneWidget);
+    });
+
     test('the done chip reads «Завершённые» in Russian', () {
       expect(const StaticTranslatorRu().t('tasks.view.done'), 'Завершённые');
+      expect(
+        const StaticTranslatorRu().t('tasks.scope.withAttorney'),
+        'С адвокатом',
+      );
     });
 
     testWidgets('a double tap marks the task done', (tester) async {

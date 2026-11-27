@@ -3920,6 +3920,7 @@
 "tasks.later": "Позже",
 "tasks.scope.all": "Все",
 "tasks.scope.forClient": "Для клиента",
+"tasks.scope.withAttorney": "С адвокатом",
 "tasks.scope.assistant": "У ассистента",
 "tasks.scope.mine": "Ваши",
 "tasks.swipe.tomorrow": "На завтра",

@@ -6294,6 +6294,7 @@
   "tasks.scope.assistant": "Asszisztensnél",
   "tasks.scope.forClient": "Ügyfélnek",
   "tasks.scope.mine": "Öné",
+  "tasks.scope.withAttorney": "Ügyvéddel",
   "tasks.search": "Feladatok keresése",
   "tasks.snooze.dayLater": "Egy nappal később",
   "tasks.snooze.evening": "Ma este",

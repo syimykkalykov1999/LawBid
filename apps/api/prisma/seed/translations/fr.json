@@ -6294,6 +6294,7 @@
   "tasks.scope.assistant": "Chez l'assistant",
   "tasks.scope.forClient": "Pour le client",
   "tasks.scope.mine": "Les vôtres",
+  "tasks.scope.withAttorney": "Avec l'avocat",
   "tasks.search": "Rechercher des tâches",
   "tasks.snooze.dayLater": "Un jour plus tard",
   "tasks.snooze.evening": "Ce soir",

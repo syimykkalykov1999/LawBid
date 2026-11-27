@@ -94,6 +94,14 @@ class TaskFilter {
       );
 }
 
+/// The filter one page of the chips row applies: a scope chip narrows the
+/// board to its slice; «Завершённые» and «Результаты» ([scope] null) always
+/// show their whole list — a scope chip picked before must not narrow them
+/// while no scope chip is lit (owner 2026-11-26, «вкладки отделяют как
+/// задуманы»).
+TaskFilter taskPageFilter(TaskFilter filter, TaskScope? scope) =>
+    filter.copyWith(scope: scope ?? TaskScope.all);
+
 /// The tasks that pass [f], in its order.
 List<TaskItem> applyTaskFilter(
   List<TaskItem> tasks,
@@ -646,17 +654,19 @@ class _TasksTabState extends ConsumerState<TasksTab> {
     // The board's own view (all, or «today» when opened on it) for the
     // scope chips.
     final board = _view == TasksView.today ? TasksView.today : TasksView.all;
-    // Owner 2026-11-26: four chips, like Todoist / Microsoft To Do (All,
-    // Assigned, Completed). Overdue, important and joint tasks stay in
-    // «Все» (overdue is its first, red section; the card pill says
-    // «Общая»).
+    // Owner 2026-11-26: four chips at most, like Todoist / Microsoft To Do
+    // (All, Assigned, Completed). Overdue and important tasks stay in
+    // «Все» (overdue is its first, red section). The client also has
+    // «С адвокатом» (the joint tasks; the card pill still says «Общая»).
     return [
       (scope: TaskScope.all, view: board),
       if (!assistant && _attorneySide) ...[
         (scope: TaskScope.forClient, view: board),
         (scope: TaskScope.assistant, view: board),
-      ] else if (!assistant)
+      ] else if (!assistant) ...[
         (scope: TaskScope.mine, view: board),
+        (scope: TaskScope.joint, view: board),
+      ],
       if (assistant) (scope: null, view: TasksView.results),
       (scope: null, view: TasksView.archive),
     ];
@@ -691,7 +701,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
             onAll: () {
               final shown = applyTaskFilter(
                 all,
-                _filter,
+                taskPageFilter(_filter, _stop.scope),
                 now: ref.read(localNowProvider),
                 query: _search.text,
               );
@@ -819,9 +829,7 @@ class _TasksTabState extends ConsumerState<TasksTab> {
                       onChanged: _goStop,
                       pageBuilder: (_, stop) => _body(
                         stop.view,
-                        stop.scope == null
-                            ? _filter
-                            : _filter.copyWith(scope: stop.scope),
+                        taskPageFilter(_filter, stop.scope),
                         t: t,
                         formats: formats,
                         colors: colors,
@@ -1022,7 +1030,12 @@ class _TaskList extends ConsumerWidget {
             if (emptyBody)
               Padding(
                 padding: const EdgeInsets.only(top: AppSpacing.xl),
-                child: PullableState(
+                // Owner 2026-11-26: this list scrolls already — a second
+                // scroll view here (PullableState) got no height and failed
+                // to lay out when a chip's slice was empty; the 480 px it
+                // meant to give is set directly.
+                child: SizedBox(
+                  height: 480,
                   child: AppEmptyState(
                     icon: AppIcons.eventAvailableOutlined,
                     title: view == TasksView.today && filter.isEmpty
@@ -1299,8 +1312,14 @@ class _TopChips extends StatelessWidget {
         if (!assistant && attorneySide) ...[
           scope('forClient', t.t('tasks.scope.forClient'), TaskScope.forClient),
           scope('assistant', t.t('tasks.scope.assistant'), TaskScope.assistant),
-        ] else if (!assistant)
+        ] else if (!assistant) ...[
           scope('mine', t.t('tasks.scope.mine'), TaskScope.mine),
+          scope(
+            'withAttorney',
+            t.t('tasks.scope.withAttorney'),
+            TaskScope.joint,
+          ),
+        ],
       ],
       if (deadlines)
         (

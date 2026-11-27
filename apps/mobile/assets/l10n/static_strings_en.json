@@ -4226,6 +4226,7 @@
 "tasks.thisWeek": "This week",
 "tasks.later": "Later",
 "tasks.scope.all": "All",
+"tasks.scope.withAttorney": "With attorney",
 "tasks.scope.forClient": "For client",
 "tasks.scope.assistant": "With the assistant",
 "tasks.scope.mine": "Yours",

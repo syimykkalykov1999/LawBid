@@ -6294,6 +6294,7 @@
   "tasks.scope.assistant": "אצל העוזר",
   "tasks.scope.forClient": "ללקוח",
   "tasks.scope.mine": "שלכם",
+  "tasks.scope.withAttorney": "עם עורך הדין",
   "tasks.search": "חיפוש משימות",
   "tasks.snooze.dayLater": "יום אחד אחר כך",
   "tasks.snooze.evening": "הערב",
