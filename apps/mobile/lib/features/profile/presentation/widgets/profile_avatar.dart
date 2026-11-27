@@ -109,8 +109,8 @@ class ProfileAvatar extends StatelessWidget {
       children: [
         avatar,
         if (progress != null)
-          Positioned(
-            left: -ring / 2,
+          PositionedDirectional(
+            start: -ring / 2,
             top: -ring / 2,
             width: size + ring,
             height: size + ring,

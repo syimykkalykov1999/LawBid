@@ -76,8 +76,8 @@ class StoryAvatarRing extends ConsumerWidget {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  Positioned(
-                    left: -ringExtra / 2,
+                  PositionedDirectional(
+                    start: -ringExtra / 2,
                     top: -ringExtra / 2,
                     width: size + ringExtra,
                     height: size + ringExtra,
