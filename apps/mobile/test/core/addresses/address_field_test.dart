@@ -21,9 +21,30 @@ class FakeAddressRepo extends AddressSuggestionsRepository {
     String? session,
   }) async {
     calls.add((q: query, kind: kind, session: session));
-    if (!enabled) return (enabled: false, items: const <AddressSuggestion>[]);
+    if (!enabled) {
+      return (
+        enabled: false,
+        items: const <AddressSuggestion>[],
+        attribution: null,
+      );
+    }
+    if (kind == AddressKind.place) {
+      return (
+        enabled: true,
+        attribution: '© OpenStreetMap',
+        items: const [
+          AddressSuggestion(
+            label: 'Starbucks, 895 West 5th Street, Reno, NV',
+            city: 'Reno',
+            stateCode: 'NV',
+          ),
+          AddressSuggestion(label: 'Paris, Ile-de-France, France'),
+        ],
+      );
+    }
     return (
       enabled: true,
+      attribution: null,
       items: kind == AddressKind.city
           ? const [
               AddressSuggestion(
@@ -144,11 +165,49 @@ void main() {
     expect(r.c.text, '12 Main St', reason: 'typing still works');
   });
 
+  testWidgets(
+      'a place field (post location): 2 letters, venues anywhere, '
+      'the OSM credit under the list, a tap fills the full line',
+      (tester) async {
+    final repo = FakeAddressRepo();
+    final r = await _pump(tester, repo, kind: AddressKind.place);
+    await tester.enterText(find.byKey(const ValueKey('addr')), 'S');
+    await tester.pump(kAddressDebounce);
+    expect(repo.calls, isEmpty, reason: 'one letter is too short');
+
+    await tester.enterText(find.byKey(const ValueKey('addr')), 'St');
+    await tester.pump(kAddressDebounce);
+    await tester.pump();
+    expect(repo.calls.single.kind, AddressKind.place);
+    expect(find.text('Paris, Ile-de-France, France'), findsOneWidget);
+    expect(find.byKey(const ValueKey('address-attribution')), findsOneWidget);
+    expect(find.text('© OpenStreetMap'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('address-suggestion-0')));
+    await tester.pump();
+    expect(r.c.text, 'Starbucks, 895 West 5th Street, Reno, NV');
+    expect(find.byKey(const ValueKey('address-attribution')), findsNothing);
+  });
+
+  testWidgets('no credit line when the provider needs none', (tester) async {
+    final repo = FakeAddressRepo();
+    await _pump(tester, repo);
+    await tester.enterText(find.byKey(const ValueKey('addr')), '12 Main');
+    await tester.pump(kAddressDebounce);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('address-suggestions')), findsOneWidget);
+    expect(find.byKey(const ValueKey('address-attribution')), findsNothing);
+  });
+
   test('the repository never asks the server below 3 letters', () async {
     final repo = AddressSuggestionsRepository(Dio());
     final res = await repo.suggest('  a ');
     expect(res.enabled, isTrue);
     expect(res.items, isEmpty);
+    final place = await repo.suggest(' a ', kind: AddressKind.place);
+    expect(place.items, isEmpty);
+    expect(AddressKind.place.minChars, 2);
+    expect(AddressKind.address.minChars, 3);
   });
 
   test('session ids are url-safe and random', () {

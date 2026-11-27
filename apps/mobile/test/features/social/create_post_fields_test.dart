@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:lawbid/core/addresses/address_field.dart';
+import 'package:lawbid/core/addresses/address_suggestions.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
@@ -84,6 +85,13 @@ void main() {
           )
           .autofillHints;
       expect(hints ?? const <String>[], isEmpty);
+    });
+
+    testWidgets('suggests places like Instagram (venues, cities, anywhere)', (
+      tester,
+    ) async {
+      await open(tester);
+      expect(tester.widget<AddressField>(placeField).kind, AddressKind.place);
     });
 
     testWidgets('is not offered when editing a post', (tester) async {

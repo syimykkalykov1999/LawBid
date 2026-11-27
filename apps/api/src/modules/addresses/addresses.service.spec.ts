@@ -5,12 +5,15 @@ import type { RateLimitService } from '../auth/auth.public';
 import {
   type AddressProvider,
   type AddressQuery,
+  PhotonAddressProvider,
+  photonSuggestion,
   stripCountry,
 } from './address-providers';
 import {
   ADDRESS_CACHE_TTL_SEC,
   AddressesService,
   normalizeAddressQuery,
+  primaryLanguage,
 } from './addresses.service';
 
 const settingsWith = (stored: Record<string, unknown> = {}) =>
@@ -19,13 +22,13 @@ const settingsWith = (stored: Record<string, unknown> = {}) =>
   } as unknown as AppConfigService);
 
 /** A provider whose methods are plain jest.fn properties. */
-type Fake = Pick<AddressProvider, 'name' | 'cacheable'> & {
+type Fake = Pick<AddressProvider, 'name' | 'cacheable' | 'attribution'> & {
   suggest: jest.Mock;
   configured: jest.Mock;
 };
 
 function fakeProvider(
-  over: Partial<Pick<AddressProvider, 'name' | 'cacheable'>> & {
+  over: Partial<Pick<AddressProvider, 'name' | 'cacheable' | 'attribution'>> & {
     suggest?: jest.Mock;
     configured?: jest.Mock;
   } = {},
@@ -233,5 +236,204 @@ describe('AddressesService (owner 2026-10-28)', () => {
     const [a, b] = await both;
     expect(a).toEqual(b);
     expect(p.suggest).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads the app language from Accept-Language', () => {
+    expect(primaryLanguage('ru-RU,ru;q=0.9,en;q=0.8')).toBe('ru');
+    expect(primaryLanguage('EN')).toBe('en');
+    expect(primaryLanguage('*')).toBeUndefined();
+    expect(primaryLanguage(undefined)).toBeUndefined();
+  });
+
+  it('defaults (26.11): posts use photon at the public komoot instance', async () => {
+    const s = settingsWith();
+    expect(await s.string('addresses.place_provider')).toBe('photon');
+    expect(await s.string('addresses.photon_url')).toBe(
+      'https://photon.komoot.io',
+    );
+  });
+
+  it('kind=place: the place provider, 2 letters, language, OSM credit', async () => {
+    const aws = fakeProvider();
+    const photon = fakeProvider({
+      name: 'photon',
+      cacheable: true,
+      attribution: '© OpenStreetMap',
+    });
+    const { svc } = make({ providers: [aws, photon] });
+    const res = await svc.suggest('u1', 'Re', 'place', undefined, 'fr');
+    expect(res.enabled).toBe(true);
+    expect(res.attribution).toBe('© OpenStreetMap');
+    expect(aws.suggest).not.toHaveBeenCalled();
+    expect(photon.suggest).toHaveBeenCalledWith({
+      text: 're',
+      kind: 'place',
+      session: undefined,
+      lang: 'fr',
+      limit: 5,
+    });
+    // One letter is still too short.
+    photon.suggest.mockClear();
+    expect((await svc.suggest('u1', 'R', 'place')).items).toEqual([]);
+    expect(photon.suggest).not.toHaveBeenCalled();
+  });
+
+  it('a chosen provider without keys falls back to keyless photon; off stays off', async () => {
+    const aws = fakeProvider({
+      configured: jest.fn().mockResolvedValue(false),
+    });
+    const photon = fakeProvider({ name: 'photon' });
+    const { svc } = make({ providers: [aws, photon] });
+    expect((await svc.suggest('u1', '12 main')).enabled).toBe(true);
+    expect(aws.suggest).not.toHaveBeenCalled();
+    expect(photon.suggest).toHaveBeenCalledTimes(1);
+
+    const off = make({
+      stored: { 'addresses.autocomplete_enabled': 'off' },
+      providers: [aws, photon],
+    });
+    expect((await off.svc.suggest('u1', '12 main', 'place')).enabled).toBe(
+      false,
+    );
+    expect(photon.suggest).toHaveBeenCalledTimes(1);
+  });
+
+  it('the cache key includes the language', async () => {
+    const photon = fakeProvider({ name: 'photon', cacheable: true });
+    const { svc } = make({
+      stored: { 'addresses.provider': 'photon' },
+      providers: [photon],
+    });
+    await svc.suggest('u1', 'reno', 'place', undefined, 'en');
+    await svc.suggest('u1', 'reno', 'place', undefined, 'de');
+    await svc.suggest('u2', 'Reno', 'place', undefined, 'en');
+    expect(photon.suggest).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('PhotonAddressProvider (26.11)', () => {
+  const venue = {
+    properties: {
+      name: 'Starbucks',
+      housenumber: '895',
+      street: 'West 5th Street',
+      city: 'Reno',
+      state: 'Nevada',
+      country: 'United States',
+      countrycode: 'US',
+      postcode: '89503',
+      type: 'house',
+    },
+  };
+  const paris = {
+    properties: {
+      name: 'Paris',
+      state: 'Ile-de-France',
+      country: 'France',
+      countrycode: 'FR',
+      type: 'city',
+    },
+  };
+
+  it('formats venues, cities and addresses', () => {
+    expect(photonSuggestion(venue, 'place')).toEqual({
+      label: 'Starbucks, 895 West 5th Street, Reno, NV',
+      city: 'Reno',
+      stateCode: 'NV',
+    });
+    expect(photonSuggestion(venue, 'address')?.label).toBe(
+      '895 West 5th Street, Reno, NV 89503',
+    );
+    expect(photonSuggestion(paris, 'place')).toEqual({
+      label: 'Paris, Ile-de-France, France',
+      city: 'Paris',
+      stateCode: null,
+    });
+    expect(
+      photonSuggestion(
+        {
+          properties: {
+            name: 'Hays',
+            state: 'Kansas',
+            countrycode: 'US',
+            type: 'city',
+          },
+        },
+        'city',
+      ),
+    ).toEqual({ label: 'Hays, KS', city: 'Hays', stateCode: 'KS' });
+    expect(photonSuggestion({ properties: {} }, 'place')).toBeNull();
+  });
+
+  const realFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  function withFetch(features: unknown[], status = 200) {
+    const fn = jest.fn<Promise<Response>, [string, RequestInit?]>(() =>
+      Promise.resolve(new Response(JSON.stringify({ features }), { status })),
+    );
+    global.fetch = fn as unknown as typeof fetch;
+    return fn;
+  }
+
+  it('asks the configured Photon with lang, US filter and layer', async () => {
+    const f = withFetch([venue, paris]);
+    const p = new PhotonAddressProvider(settingsWith());
+    expect(await p.configured()).toBe(true);
+    const place = await p.suggest({
+      text: 'star',
+      kind: 'place',
+      limit: 5,
+      lang: 'de',
+    });
+    expect(place.map((s) => s.label)).toEqual([
+      'Starbucks, 895 West 5th Street, Reno, NV',
+      'Paris, Ile-de-France, France',
+    ]);
+    const u1 = new URL(f.mock.calls[0][0]);
+    expect(u1.origin + u1.pathname).toBe('https://photon.komoot.io/api/');
+    expect(u1.searchParams.get('q')).toBe('star');
+    expect(u1.searchParams.get('lang')).toBe('de');
+    expect(u1.searchParams.get('countrycode')).toBeNull();
+
+    // US kinds: only US results, Photon told so; unsupported language left out.
+    const city = await p.suggest({
+      text: 'par',
+      kind: 'city',
+      limit: 5,
+      lang: 'ru',
+    });
+    expect(city.map((s) => s.label)).toEqual(['Reno, NV']);
+    const u2 = new URL(f.mock.calls[1][0]);
+    expect(u2.searchParams.get('countrycode')).toBe('US');
+    expect(u2.searchParams.get('layer')).toBe('city');
+    expect(u2.searchParams.get('lang')).toBeNull();
+  });
+
+  it('own server via addresses.photon_url; off or http = not configured', async () => {
+    const f = withFetch([]);
+    const own = new PhotonAddressProvider(
+      settingsWith({ 'addresses.photon_url': 'https://geo.example.test/' }),
+    );
+    await own.suggest({ text: 'abc', kind: 'place', limit: 5 });
+    expect(f.mock.calls[0][0]).toMatch(
+      /^https:\/\/geo\.example\.test\/api\/\?/,
+    );
+    for (const url of ['off', 'http://insecure.example.test']) {
+      const p = new PhotonAddressProvider(
+        settingsWith({ 'addresses.photon_url': url }),
+      );
+      expect(await p.configured()).toBe(false);
+    }
+  });
+
+  it('an HTTP error throws (the service turns it into an empty list)', async () => {
+    withFetch([], 429);
+    const p = new PhotonAddressProvider(settingsWith());
+    await expect(
+      p.suggest({ text: 'abc', kind: 'place', limit: 5 }),
+    ).rejects.toThrow('photon HTTP 429');
   });
 });

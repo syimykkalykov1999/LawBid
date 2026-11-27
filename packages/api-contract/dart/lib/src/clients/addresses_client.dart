@@ -13,11 +13,11 @@ part 'addresses_client.g.dart';
 abstract class AddressesClient {
   factory AddressesClient(Dio dio, {String? baseUrl}) = _AddressesClient;
 
-  /// Address suggestions for what the person typed (US only). enabled=false: the field stays plain text.
+  /// Address / place suggestions for what the person typed (address and city: US only; place: anywhere, in the app language). enabled=false: the field stays plain text.
   ///
-  /// [q] - What the person typed so far. Fewer than 3 letters (after trimming) returns no suggestions without a provider call.
+  /// [q] - What the person typed so far. Fewer than 3 letters (2 for kind=place, after trimming) returns no suggestions without a provider call.
   ///
-  /// [kind] - address (default): street addresses; city: cities only.
+  /// [kind] - address (default): US street addresses; city: US cities only; place: venues, cities and addresses anywhere (post location).
   ///
   /// [session] - A random id the app makes when the field gets focus and keeps until an address is picked (Google bills one session instead of every key stroke).
   @GET('/addresses/suggest')

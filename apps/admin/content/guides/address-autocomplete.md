@@ -4,12 +4,13 @@ title: Подсказки адресов и открытие в картах
 category: system
 cost: Amazon Location $0,20 за 1 000 запросов (первые 3 месяца 10 000 в месяц бесплатно). Около $40–240 в месяц на 100 000 человек. Пока не включено, 0.
 time: 15 минут
-verified: 2026-10-28
+verified: 2026-11-26
 sources:
   - Amazon Location Service: цены | https://aws.amazon.com/location/pricing/
   - Amazon Location: корзины цен Places | https://docs.aws.amazon.com/location/latest/developerguide/places-pricing.html
   - Amazon Location: Autocomplete | https://docs.aws.amazon.com/location/latest/APIReference/API_geoplaces_Autocomplete.html
   - Google Maps Platform: цены | https://developers.google.com/maps/billing-and-pricing/pricing
+  - Photon (komoot): правила общего сервера | https://photon.komoot.io/
 ---
 
 ## Что это и зачем
@@ -17,6 +18,10 @@ sources:
 Когда человек печатает адрес (место в чате, адрес в задаче, город в деле, адрес в жалобе DMCA), под полем появляются настоящие адреса США, включая маленькие города. Нажал строку — адрес вписан. Адрес в чате, в задаче и город в деле теперь нажимаются: на Android открывается список карт телефона (Google Maps, Waze и другие), на iPhone — Apple Maps, Google Maps или Waze (что установлено) и «Скопировать адрес».
 
 Открытие в картах бесплатное и работает уже сейчас. Подсказки при вводе платные и ждут двух шагов ниже. Пока шаги не сделаны, поле адреса работает как обычное и ничего не стоит.
+
+## Бесплатно и без ключа: Photon (с 26.11)
+
+Пока у Amazon или Google нет ключей, подсказки идут через Photon — открытый поиск по картам OpenStreetMap, бесплатно и без ключа. Он же по умолчанию подсказывает место у поста и рилса, как в Instagram: заведения, города и адреса по всему миру (`addresses.place_provider` = photon, хватает 2 букв). Под подсказками видна строка «© OpenStreetMap» — этого требует лицензия данных. Ответы Photon можно хранить, поэтому одинаковые запросы 7 дней берутся из кэша. Общий сервер komoot просит не перегружать его; если подсказок станет очень много, поставьте свой Photon и впишите его адрес в `addresses.photon_url`.
 
 ## Что понадобится
 

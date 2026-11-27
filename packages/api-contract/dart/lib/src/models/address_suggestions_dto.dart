@@ -10,13 +10,20 @@ part 'address_suggestions_dto.g.dart';
 
 @JsonSerializable()
 class AddressSuggestionsDto {
-  const AddressSuggestionsDto({required this.enabled, required this.items});
+  const AddressSuggestionsDto({
+    required this.enabled,
+    required this.items,
+    this.attribution,
+  });
 
   factory AddressSuggestionsDto.fromJson(Map<String, Object?> json) =>
       _$AddressSuggestionsDtoFromJson(json);
 
   final bool enabled;
   final List<AddressSuggestionDto> items;
+
+  /// Data credit the app shows under the list, e.g. "© OpenStreetMap" (absent when the provider needs none).
+  final String? attribution;
 
   Map<String, Object?> toJson() => _$AddressSuggestionsDtoToJson(this);
 }
