@@ -22,6 +22,8 @@ import type { AddressSuggestionsDto } from './addresses.dto';
 
 /** Fewer letters than this never reach a provider (the app waits too). */
 export const ADDRESS_MIN_CHARS = 3;
+/** A place (post location, owner 26.11): 2 letters, like Instagram. */
+export const ADDRESS_PLACE_MIN_CHARS = 2;
 /** Longer input is cut (an address line is never this long). */
 export const ADDRESS_MAX_CHARS = 120;
 export const ADDRESS_RESULTS = 5;
@@ -32,6 +34,12 @@ export const ADDRESS_GLOBAL_PER_MINUTE = 1_200;
 /** Only for a provider whose terms allow keeping answers (none today). */
 export const ADDRESS_CACHE_TTL_SEC = 7 * 86_400;
 const CACHE_PREFIX = 'addr:v1:';
+
+/** "ru-RU,ru;q=0.9" → "ru"; anything odd → undefined. */
+export function primaryLanguage(header?: string | null): string | undefined {
+  const m = /^\s*([a-z]{2,3})\b/i.exec(header ?? '');
+  return m ? m[1].toLowerCase() : undefined;
+}
 
 /** Lower case, one space, no punctuation that does not change the match. */
 export function normalizeAddressQuery(raw: string): string {
@@ -69,19 +77,33 @@ export class AddressesService {
     return { enabled: false, items: [] };
   }
 
-  /** The provider to call, or null when the switch / keys say no. */
-  async activeProvider(): Promise<AddressProvider | null> {
+  /**
+   * The provider to call, or null when the switch / keys say no. kind=place
+   * uses `addresses.place_provider`, the rest `addresses.provider`. A chosen
+   * provider without keys falls back to the keyless one (Photon, owner
+   * 26.11: «можешь сделать так, чтобы подсказывало»), so a field never
+   * stays silent only because a key was not pasted.
+   */
+  async activeProvider(
+    kind: AddressKind = 'address',
+  ): Promise<AddressProvider | null> {
     const mode = await readSwitchMode(
       this.settings,
       'addresses.autocomplete_enabled',
     );
     if (mode === 'off') return null;
-    const name = await this.settings.string('addresses.provider');
-    const provider =
+    const name = await this.settings.string(
+      kind === 'place' ? 'addresses.place_provider' : 'addresses.provider',
+    );
+    const chosen =
       this.providers.find((p) => p.name === name) ?? this.providers[0];
-    if (!provider) return null;
+    if (!chosen) return null;
     // on and auto both need keys: without them a call can only fail.
-    return (await provider.configured()) ? provider : null;
+    if (await chosen.configured()) return chosen;
+    const keyless = this.providers.find(
+      (p) => p.name === 'photon' && p !== chosen,
+    );
+    return keyless && (await keyless.configured()) ? keyless : null;
   }
 
   async suggest(
@@ -89,13 +111,20 @@ export class AddressesService {
     rawQuery: string,
     kind: AddressKind = 'address',
     session?: string,
+    lang?: string,
   ): Promise<AddressSuggestionsDto> {
-    const provider = await this.activeProvider();
+    const provider = await this.activeProvider(kind);
     if (!provider) return this.off();
+    // The credit line goes out only with a provider that needs one (OSM).
+    const on = (items: AddressSuggestion[]): AddressSuggestionsDto =>
+      provider.attribution
+        ? { enabled: true, items, attribution: provider.attribution }
+        : { enabled: true, items };
 
     const text = normalizeAddressQuery(rawQuery);
-    if ([...text].length < ADDRESS_MIN_CHARS) {
-      return { enabled: true, items: [] };
+    const min = kind === 'place' ? ADDRESS_PLACE_MIN_CHARS : ADDRESS_MIN_CHARS;
+    if ([...text].length < min) {
+      return on([]);
     }
 
     const minute = await this.limiter.consumeFixedWindow(
@@ -124,28 +153,29 @@ export class AddressesService {
     const key =
       CACHE_PREFIX +
       createHash('sha256')
-        .update(`${provider.name}|${kind}|${text}`)
+        .update(`${provider.name}|${kind}|${lang ?? ''}|${text}`)
         .digest('hex');
     if (provider.cacheable) {
       const cached = await this.readCache(key);
-      if (cached) return { enabled: true, items: cached };
+      if (cached) return on(cached);
     }
 
     const pending = this.inflight.get(key);
-    if (pending) return { enabled: true, items: await pending };
+    if (pending) return on(await pending);
     const work = this.callProvider(provider, key, {
       text,
       kind,
       session,
+      lang,
     }).finally(() => this.inflight.delete(key));
     this.inflight.set(key, work);
-    return { enabled: true, items: await work };
+    return on(await work);
   }
 
   private async callProvider(
     provider: AddressProvider,
     key: string,
-    q: { text: string; kind: AddressKind; session?: string },
+    q: { text: string; kind: AddressKind; session?: string; lang?: string },
   ): Promise<AddressSuggestion[]> {
     const global = await this.limiter.consumeFixedWindow(
       ['addresses', 'global'],

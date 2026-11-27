@@ -4,7 +4,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 import { useState } from "react";
 import { BudgetLimitsCard, isBudgetKey } from "@/components/budget-limits-card";
-import { SettingsRolloutsCard, SETTINGS_ROLLOUTS_KEY } from "@/components/settings-rollouts-card";
+import {
+  SettingsRolloutsCard,
+  SETTINGS_ROLLOUTS_KEY,
+} from "@/components/settings-rollouts-card";
 import { TextLimitsCard, isTextLimitKey } from "@/components/text-limits-card";
 import { RecoQaCard } from "@/components/reco-qa-card";
 import { MotionRow } from "@/components/legacy/fade-in";
@@ -605,9 +608,13 @@ const KEY_TEXT: Record<string, string> = {
   "calls.sfu_fallback_mesh_max":
     "Работает только когда Cloudflare недоступен или не настроен: групповые звонки до стольких человек (по умолчанию 4) идут напрямую между телефонами вместе с видео; если людей больше, у всех только аудио (в том числе у тех, кто подключается к идущему звонку). Звонок никогда не отклоняется. Когда Cloudflare снова работает, новые звонки идут через него.",
   "addresses.autocomplete_enabled":
-    "Подсказки адресов, пока человек печатает адрес (дело, место в чате, задача). Выкл — поле обычное, никаких запросов. Вкл и Авто (по умолчанию) — работают, только когда у выбранного поставщика (addresses.provider) заполнены ключи или регион в «Ключи и сервисы»; без них ничего не зовётся и не стоит. Потолки: addresses.monthly_cap и addresses.per_user_per_day.",
+    "Подсказки адресов и мест, пока человек печатает (дело, место в чате, задача, место у поста и рилса). Выкл — поле обычное, никаких запросов. Вкл и Авто (по умолчанию) — работают; если у выбранного поставщика нет ключей, подсказки идут через бесплатный Photon (OpenStreetMap, без ключа). Потолки: addresses.monthly_cap и addresses.per_user_per_day.",
   "addresses.provider":
-    "Кто даёт подсказки: aws (Amazon Location, по умолчанию, $0,20 за 1 000 запросов, ключ не нужен — подписывает роль сервера) или google (Google Places, $2,83 за 1 000 после 10 000 бесплатных в месяц, нужен ключ).",
+    "Кто даёт подсказки: aws (Amazon Location, по умолчанию, $0,20 за 1 000 запросов, ключ не нужен — подписывает роль сервера) или google (Google Places, $2,83 за 1 000 после 10 000 бесплатных в месяц, нужен ключ), или photon (OpenStreetMap, бесплатно, без ключа). Без ключей у выбранного — photon.",
+  "addresses.place_provider":
+    "Кто подсказывает место у поста и рилса (заведения, города, адреса по всему миру, как в Instagram): photon (по умолчанию, OpenStreetMap, бесплатно, без ключа) или google (Google Places, нужен ключ).",
+  "addresses.photon_url":
+    "Адрес сервера Photon (https). По умолчанию бесплатный общий сервер komoot (честное использование, ответы кэшируются на 7 дней). Сюда можно поставить свой Photon. off — Photon выключен.",
   "addresses.monthly_cap":
     "Сколько запросов подсказок в календарный месяц на всех (по умолчанию 300 000 ≈ $60 у Amazon). Дошли до потолка — поля адреса остаются обычными до 1-го числа. 0 — ни одного запроса.",
   "addresses.per_user_per_day":

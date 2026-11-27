@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lawbid/core/addresses/address_field.dart';
+import 'package:lawbid/core/addresses/address_suggestions.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
@@ -1266,6 +1267,8 @@ class _CreatePostScreenState extends ConsumerState<CreatePostScreen> {
                     AddressField(
                       key: const ValueKey('post-place-field'),
                       controller: _place,
+                      // Instagram-style: venues, cities, addresses anywhere.
+                      kind: AddressKind.place,
                       hintText: t.t('post.create.placeHint'),
                       semanticLabel: t.t('post.create.placeHint'),
                       leading: const AppIcon(AppIcons.placeOutlined, size: 18),

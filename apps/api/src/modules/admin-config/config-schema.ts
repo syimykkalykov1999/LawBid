@@ -1056,8 +1056,20 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   out['addresses.provider'] = {
     ...out['addresses.provider'],
     description:
-      'aws (Amazon Location, default, $0.20 per 1 000 calls) | google (Google Places API (New), $2.83 per 1 000 after 10 000 free a month).',
-    pattern: /^(aws|google)$/,
+      'aws (Amazon Location, default, $0.20 per 1 000 calls) | google (Google Places API (New), $2.83 per 1 000 after 10 000 free a month) | photon (OpenStreetMap, free, no key). A provider without keys falls back to photon.',
+    pattern: /^(aws|google|photon)$/,
+  };
+  out['addresses.place_provider'] = {
+    ...out['addresses.place_provider'],
+    description:
+      'Post / reel location suggestions (venues, cities, addresses anywhere): photon (default, OpenStreetMap, free, no key) | google (Google Places, needs its key). A provider without keys falls back to photon.',
+    pattern: /^(photon|google)$/,
+  };
+  out['addresses.photon_url'] = {
+    ...out['addresses.photon_url'],
+    description:
+      'Photon server (https). Default: the free public komoot instance (fair use). Put our own Photon here to move off it; off = Photon off (empty = the default).',
+    pattern: /^(off|https:\/\/[^\s]+)$/,
   };
   out['addresses.monthly_cap'] = {
     ...out['addresses.monthly_cap'],

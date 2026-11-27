@@ -2738,6 +2738,8 @@ export const OWNER_SEO_PROMOTION_SETTINGS = {
 export const OWNER_ADDRESS_SETTINGS = {
   'addresses.autocomplete_enabled': 'auto',
   'addresses.provider': 'aws',
+  'addresses.place_provider': 'photon',
+  'addresses.photon_url': 'https://photon.komoot.io',
   'addresses.monthly_cap': 300000,
   'addresses.per_user_per_day': 300,
 };
