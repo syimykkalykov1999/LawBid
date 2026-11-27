@@ -24,8 +24,8 @@ import '../helpers/ux_harness.dart';
 
 /// Owner 2026-10-20: the stars screen (balance, history), the
 /// not-enough-stars sheet and the «pay with stars» block of Boost do not
-/// overflow in the longest languages (worst of all, ne, ar, de, mr), at 360 dp, RTL, a
-/// 1.1 font and every theme.
+/// overflow in the longest languages (worst of all, ne, ar, de, mr), at
+/// 360 dp, RTL, a 1.1 font and every theme.
 class _Stars extends StarsRepository {
   _Stars({this.balance = 120}) : super(Dio());
 

@@ -7,7 +7,6 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/features/groups/application/group_call_port.dart';
-import 'package:lawbid/features/groups/domain/ongoing_call.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_avatar.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_call_ui.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';

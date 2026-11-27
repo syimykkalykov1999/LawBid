@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Draws the starter gifts and sticker packs (our own art, no outside
-sources): python3 generate_art.py  ->  gifts/*.png, stickers/<pack>/*.png.
+"""Draws the starter sticker packs (our own art, no outside sources):
+python3 generate_art.py  ->  stickers/<pack>/*.png. Owner 26.11: gifts are gone.
 512x512 transparent PNG, drawn at 2x and downsampled for smooth edges."""
 import math
 import os
@@ -74,215 +74,6 @@ NAVY = (30, 52, 104, 255)
 def shine(d, x, y, r):
     circ(d, x, y, r, (255, 255, 255, 150))
 
-
-# ---- gifts ----------------------------------------------------------------
-
-def g_rose():
-    im, d = canvas()
-    d.line([(512, 560), (512, 900)], fill=GREEN_D, width=34)
-    d.polygon([(512, 760), (700, 690), (640, 820)], fill=GREEN)
-    d.polygon([(512, 820), (350, 760), (400, 880)], fill=GREEN)
-    circ(d, 512, 400, 230, RED_D)
-    circ(d, 440, 380, 150, RED)
-    circ(d, 590, 380, 150, RED)
-    circ(d, 512, 330, 140, RED)
-    circ(d, 512, 420, 110, RED_D)
-    circ(d, 512, 400, 60, RED)
-    shine(d, 430, 320, 28)
-    return im
-
-
-def g_heart():
-    im, d = canvas()
-    d.polygon(heart_pts(512, 530, 400), fill=RED_D)
-    d.polygon(heart_pts(512, 505, 380), fill=RED)
-    shine(d, 330, 360, 46)
-    return im
-
-
-def g_star():
-    im, d = canvas()
-    d.polygon(star_pts(512, 540, 400, 170), fill=GOLD_D)
-    d.polygon(star_pts(512, 520, 380, 160), fill=GOLD)
-    shine(d, 440, 400, 34)
-    return im
-
-
-def g_trophy():
-    im, d = canvas()
-    d.arc([140, 220, 400, 520], 90, 270, fill=GOLD_D, width=44)
-    d.arc([624, 220, 884, 520], 270, 90, fill=GOLD_D, width=44)
-    d.pieslice([280, 130, 744, 600], 0, 180, fill=GOLD)
-    d.rectangle([280, 130, 744, 360], fill=GOLD)
-    d.rectangle([470, 560, 554, 740], fill=GOLD_D)
-    rrect(d, 340, 740, 684, 830, 24, GOLD)
-    rrect(d, 280, 830, 744, 910, 24, BROWN)
-    d.polygon(star_pts(512, 330, 90, 38), fill=WHITE)
-    shine(d, 360, 250, 26)
-    return im
-
-
-def g_crown():
-    im, d = canvas()
-    d.polygon([(170, 760), (130, 300), (330, 520), (512, 220), (694, 520), (894, 300), (854, 760)], fill=GOLD)
-    rrect(d, 170, 740, 854, 840, 30, GOLD_D)
-    for x, c in ((130, RED), (512, BLUE), (894, GREEN)):
-        circ(d, x, 280 if x != 512 else 200, 46, c)
-    for x in (340, 512, 684):
-        circ(d, x, 790, 26, WHITE)
-    return im
-
-
-def g_diamond():
-    im, d = canvas()
-    d.polygon([(250, 330), (774, 330), (900, 470), (512, 900), (124, 470)], fill=BLUE)
-    d.polygon([(250, 330), (400, 470), (512, 330)], fill=(120, 180, 255, 255))
-    d.polygon([(774, 330), (624, 470), (512, 330)], fill=(100, 160, 250, 255))
-    d.polygon([(124, 470), (400, 470), (512, 900)], fill=BLUE_D)
-    d.polygon([(900, 470), (624, 470), (512, 900)], fill=(50, 105, 210, 255))
-    d.polygon([(400, 470), (624, 470), (512, 900)], fill=(86, 150, 244, 255))
-    d.polygon([(250, 330), (512, 330), (400, 470), (124, 470)], fill=(110, 170, 255, 255))
-    shine(d, 300, 400, 22)
-    return im
-
-
-def g_giftbox():
-    im, d = canvas()
-    rrect(d, 170, 400, 854, 880, 36, RED)
-    rrect(d, 130, 300, 894, 440, 30, RED_D)
-    d.rectangle([452, 300, 572, 880], fill=GOLD)
-    d.ellipse([260, 130, 520, 320], outline=GOLD, width=48)
-    d.ellipse([504, 130, 764, 320], outline=GOLD, width=48)
-    circ(d, 512, 300, 54, GOLD_D)
-    return im
-
-
-def g_balloon():
-    im, d = canvas()
-    d.line([(512, 700), (470, 900), (540, 940)], fill=SILVER_D, width=12)
-    d.ellipse([240, 90, 784, 720], fill=PURPLE)
-    d.polygon([(480, 700), (544, 700), (512, 750)], fill=PURPLE_D)
-    d.ellipse([320, 170, 480, 380], fill=(190, 160, 240, 255))
-    shine(d, 380, 240, 26)
-    return im
-
-
-def g_cake():
-    im, d = canvas()
-    rrect(d, 150, 520, 874, 880, 40, PINK)
-    rrect(d, 200, 340, 824, 560, 40, WHITE)
-    for x in range(210, 830, 70):
-        circ(d, x, 540, 40, WHITE)
-    for x, c in ((330, RED), (512, BLUE), (694, GREEN)):
-        rrect(d, x - 18, 220, x + 18, 340, 6, c)
-        d.polygon([(x, 130), (x - 26, 200), (x + 26, 200)], fill=ORANGE)
-    for x in range(220, 820, 110):
-        circ(d, x, 700, 18, WHITE)
-    return im
-
-
-def g_coffee():
-    im, d = canvas()
-    d.arc([660, 400, 900, 700], 270, 90, fill=BROWN, width=52)
-    d.polygon([(180, 380), (780, 380), (720, 800), (240, 800)], fill=WHITE)
-    d.polygon([(200, 440), (760, 440), (726, 800), (240, 800)], fill=BROWN)
-    rrect(d, 120, 810, 840, 880, 34, SILVER)
-    for x in (340, 480, 620):
-        d.arc([x - 40, 120, x + 40, 340], 60, 300, fill=SILVER, width=22)
-    return im
-
-
-def g_scales():
-    im, d = canvas()
-    d.rectangle([488, 220, 536, 800], fill=GOLD_D)
-    rrect(d, 330, 800, 694, 890, 26, GOLD)
-    d.rectangle([180, 240, 844, 280], fill=GOLD)
-    circ(d, 512, 220, 50, GOLD)
-    for x in (230, 794):
-        d.line([(x, 270), (x - 110, 560)], fill=GOLD_D, width=14)
-        d.line([(x, 270), (x + 110, 560)], fill=GOLD_D, width=14)
-        d.pieslice([x - 150, 460, x + 150, 700], 0, 180, fill=GOLD)
-    return im
-
-
-def g_gavel():
-    im, d = canvas()
-    gv = Image.new('RGBA', (S, S), (0, 0, 0, 0))
-    g = ImageDraw.Draw(gv)
-    rrect(g, 250, 190, 780, 400, 50, BROWN)
-    rrect(g, 220, 200, 290, 390, 24, BROWN_D)
-    rrect(g, 740, 200, 810, 390, 24, BROWN_D)
-    rrect(g, 470, 380, 560, 880, 36, BROWN_D)
-    gv = gv.rotate(35, resample=Image.BICUBIC, center=(512, 512))
-    im.alpha_composite(gv)
-    d = ImageDraw.Draw(im)
-    rrect(d, 200, 830, 660, 910, 36, BROWN_D)
-    return im
-
-
-def g_shield():
-    im, d = canvas()
-    d.polygon([(512, 110), (860, 230), (830, 560), (512, 910), (194, 560), (164, 230)], fill=NAVY)
-    d.polygon([(512, 190), (780, 280), (758, 540), (512, 810), (266, 540), (244, 280)], fill=BLUE)
-    d.polygon(star_pts(512, 490, 190, 80), fill=WHITE)
-    return im
-
-
-def g_rocket():
-    im, d = canvas()
-    d.polygon([(512, 560), (400, 900), (512, 800), (624, 900)], fill=ORANGE)
-    d.polygon([(512, 640), (450, 840), (512, 780), (574, 840)], fill=GOLD)
-    d.ellipse([360, 120, 664, 760], fill=WHITE)
-    d.pieslice([360, 120, 664, 520], 180, 360, fill=RED)
-    d.polygon([(380, 520), (230, 700), (390, 690)], fill=RED)
-    d.polygon([(644, 520), (794, 700), (634, 690)], fill=RED)
-    circ(d, 512, 420, 70, BLUE_D)
-    circ(d, 512, 420, 48, (120, 190, 255, 255))
-    return im
-
-
-def g_clover():
-    im, d = canvas()
-    d.line([(512, 560), (560, 900)], fill=GREEN_D, width=34)
-    for cx, cy in ((400, 400), (624, 400), (400, 600), (624, 600)):
-        circ(d, cx, cy, 130, GREEN)
-        circ(d, cx - 20, cy - 24, 34, (140, 214, 150, 255))
-    circ(d, 512, 500, 60, GREEN_D)
-    return im
-
-
-def g_medal():
-    im, d = canvas()
-    d.polygon([(300, 100), (440, 100), (560, 480), (440, 520)], fill=BLUE)
-    d.polygon([(724, 100), (584, 100), (464, 480), (584, 520)], fill=RED)
-    circ(d, 512, 640, 270, GOLD_D)
-    circ(d, 512, 640, 225, GOLD)
-    d.polygon(star_pts(512, 640, 150, 62), fill=WHITE)
-    return im
-
-
-def g_key():
-    im, d = canvas()
-    circ(d, 330, 330, 210, GOLD)
-    circ(d, 330, 330, 100, (0, 0, 0, 0))
-    d.ellipse([230, 230, 430, 430], fill=(0, 0, 0, 0))
-    ring = Image.new('RGBA', (S, S), (0, 0, 0, 0))
-    r = ImageDraw.Draw(ring)
-    r.ellipse([120, 120, 540, 540], fill=GOLD)
-    r.ellipse([240, 240, 420, 420], fill=(0, 0, 0, 0))
-    r.polygon([(480, 480), (900, 900), (840, 960), (420, 540)], fill=GOLD_D)
-    r.polygon([(780, 780), (860, 700), (910, 750), (830, 830)], fill=GOLD)
-    return ring
-
-
-GIFTS = [
-    ('rose', 'Rose', 25, g_rose), ('heart', 'Heart', 15, g_heart), ('star', 'Star', 30, g_star),
-    ('balloon', 'Balloon', 20, g_balloon), ('coffee', 'Coffee', 35, g_coffee), ('clover', 'Lucky clover', 40, g_clover),
-    ('giftbox', 'Gift box', 50, g_giftbox), ('cake', 'Cake', 60, g_cake), ('gavel', 'Gavel', 75, g_gavel),
-    ('scales', 'Scales of justice', 100, g_scales), ('shield', 'Shield', 120, g_shield), ('key', 'Golden key', 150, g_key),
-    ('medal', 'Medal', 200, g_medal), ('rocket', 'Rocket', 300, g_rocket), ('trophy', 'Trophy', 500, g_trophy),
-    ('diamond', 'Diamond', 800, g_diamond), ('crown', 'Crown', 1000, g_crown),
-]
 
 # ---- stickers: faces with expressions and accessories --------------------
 
@@ -415,14 +206,11 @@ PACKS = [
 ]
 
 if __name__ == '__main__':
-    for key, _t, _p, fn in GIFTS:
-        save(fn(), 'gifts', f'{key}.png')
     for slug, _t, _s, _p, items in PACKS:
         for i, (_e, body, shade, eyes, mouth, extra) in enumerate(items):
             save(face(body, shade, eyes, mouth, extra), 'stickers', slug, f'{i + 1:02d}.png')
     import json
     cat = {
-        'gifts': [{'file': f'gifts/{k}.png', 'code': k, 'title': t, 'priceStars': pr} for k, t, pr, _ in GIFTS],
         'packs': [
             {'title': t, 'shortName': sn, 'priceStars': pr,
              'stickers': [{'file': f'stickers/{slug}/{i + 1:02d}.png', 'emoji': it[0]} for i, it in enumerate(items)]}

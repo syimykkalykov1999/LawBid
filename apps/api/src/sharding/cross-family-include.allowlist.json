@@ -38,9 +38,6 @@
     "Conversation.attorney",
     "Conversation.client"
   ],
-  "modules/admin-media/admin-channels.service.ts": [
-    "Channel.owner"
-  ],
   "modules/admin-media/admin-videos.service.ts": [
     "VideoAsset.post"
   ],

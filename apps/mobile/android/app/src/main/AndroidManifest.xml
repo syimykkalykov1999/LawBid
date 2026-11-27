@@ -152,7 +152,6 @@
                 <data android:pathPrefix="/attorneys/" />
                 <data android:pathPrefix="/post/" />
                 <data android:pathPrefix="/g/" />
-                <data android:pathPrefix="/c/" />
                 <data android:pathPrefix="/r/" />
                 <data android:pathPrefix="/u/" />
                 <data android:pathPrefix="/q/" />

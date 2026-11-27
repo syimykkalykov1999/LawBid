@@ -9,14 +9,14 @@ import {
 } from './ranking.math';
 
 /**
- * "Recommended" public groups and channels (owner 2026-10-20), in the
- * spirit of Telegram's similar channels, Facebook's suggested groups and
+ * "Recommended" public groups (owner 2026-10-20; owner 26.11: channels are
+ * gone), in the spirit of Telegram's similar channels, Facebook's suggested groups and
  * Discord Discover: people the viewer already knows first, then the topic,
  * the region, a live and growing community, and size last. With no signals
  * about the viewer the region, activity and size still rank the list.
  */
 export const COMMUNITY_WEIGHTS = {
-  /** Members the viewer follows / shares a group or channel with. */
+  /** Members the viewer follows / shares a group with. */
   mutual: 0.3,
   /** The owner's practices vs the viewer's interests. */
   practice: 0.18,
@@ -36,7 +36,7 @@ export const COMMUNITY_JITTER = 0.02;
 export interface CommunityCandidate {
   id: string;
   members: number;
-  /** Last message (group) or post (channel). */
+  /** Last message of the group. */
   lastActivityAt: Date | null;
   joins7d: number;
   /** Practice category ids of the owner. */

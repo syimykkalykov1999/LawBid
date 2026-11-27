@@ -7,7 +7,6 @@ import 'package:lawbid/features/profile/application/profile_providers.dart';
 import 'package:lawbid/features/profile/domain/profile_models.dart';
 import 'package:lawbid/features/profile/presentation/screens/attorney_stats_screen.dart';
 import 'package:lawbid/features/profile/presentation/widgets/client_profile_view.dart';
-import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/social/domain/social_models.dart';
 import 'package:lawbid/features/social/presentation/widgets/comments_sheet.dart';
 import 'package:lawbid/features/social/presentation/widgets/post_text_sheet.dart';
