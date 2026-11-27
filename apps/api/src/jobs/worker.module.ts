@@ -32,7 +32,6 @@ import { BroadcastFanoutModule } from '../modules/admin-content/broadcast-fanout
 import { CaseFanoutModule } from '../modules/notifications/case-fanout/case-fanout.worker';
 import { GroupFanoutModule } from '../modules/groups/group-fanout.module';
 import { PostFanoutModule } from '../modules/notifications/post-fanout.worker';
-import { ChannelFanoutModule } from '../modules/channels/channel-fanout.module';
 import { CacheCdcModule } from '../modules/cache-cdc/cache-cdc.module';
 
 /**
@@ -110,11 +109,10 @@ import { ModerationModule } from '../modules/moderation/moderation.module';
     // Audit 2026-10-02: admin broadcast fan-out (`admin-broadcast` queue).
     BroadcastFanoutModule.register({ mode: 'worker' }),
     // Owner 2026-10-22 (server load audit, finding 7): group messages
-    // (`group-fanout-<n>`) and channel posts (`channel-fanout`).
+    // (`group-fanout-<n>`).
     GroupFanoutModule.register({ mode: 'worker' }),
     CaseFanoutModule.register({ mode: 'worker' }),
     PostFanoutModule.register({ mode: 'worker' }),
-    ChannelFanoutModule.register({ mode: 'worker' }),
     // docs/04 §12 (stage 4.7): case history PDF export queue.
     CaseHistoryModule.register({ mode: 'worker' }),
     // Deal record 2026-10-27: the `deal-record` PDF queue.

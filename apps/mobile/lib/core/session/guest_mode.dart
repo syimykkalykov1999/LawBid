@@ -80,7 +80,6 @@ bool isGuestRoute(String location) {
     '/lawyer/',
     '/u/',
     '/post/',
-    '/c/',
     '/tag/',
     '/legal/',
   ]) {

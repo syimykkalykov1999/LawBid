@@ -10,7 +10,6 @@ import 'package:lawbid/core/network/dio_client.dart';
 import 'package:lawbid/core/platform/chat_notifications_channel.dart';
 import 'package:lawbid/core/startup/app_session.dart';
 import 'package:lawbid/core/sync/synced_list_notifier.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/notifications/data/notifications_repository.dart';
@@ -308,22 +307,19 @@ final notificationsProvider = AsyncNotifierProvider.autoDispose<
     NotificationsNotifier,
     PaginatedList<AppNotification>>(NotificationsNotifier.new, retry: _noRetry);
 
-/// Detective R2 item 22 (14.11): the bell list as it is shown. With the
-/// `channels` flag off (owner 2026-11-04, R-386) the `channel_post` rows
-/// are left out here, before the day groups are made, so a group made only
-/// of them has no empty «Today» header and a list made only of them shows
-/// the empty state instead of a blank page. Paging stays on
-/// [notificationsProvider].
+/// Detective R2 item 22 (14.11): the bell list as it is shown. Old
+/// `channel_post` rows (owner 26.11: channels are gone) are left out here,
+/// before the day groups are made, so a group made only of them has no
+/// empty «Today» header and a list made only of them shows the empty state
+/// instead of a blank page. Paging stays on [notificationsProvider].
 final visibleNotificationsProvider =
     Provider.autoDispose<AsyncValue<PaginatedList<AppNotification>>>((ref) {
   final value = ref.watch(notificationsProvider);
-  final channelsOn = ref.watch(channelsEnabledProvider);
   // Owner 2026-11-16 (row 183): the same for groups with «Группы» off —
   // invitations, group messages and group calls are left out.
   final groupsOn = ref.watch(groupsEnabledProvider);
-  if (channelsOn && groupsOn) return value;
   bool shown(AppNotification n) =>
-      (channelsOn || n.type != 'channel_post') &&
+      n.type != 'channel_post' &&
       (groupsOn ||
           (n.type != 'group_invite' &&
               n.category != NotifCategory.groups &&

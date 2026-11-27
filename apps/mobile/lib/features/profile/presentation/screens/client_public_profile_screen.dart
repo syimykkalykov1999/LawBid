@@ -17,7 +17,6 @@ import 'package:lawbid/features/social/domain/social_models.dart'
     show ReportTarget;
 import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
     show showReportSheet;
-import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// `/client/:username` — a client's public mini-profile (owner decision
@@ -50,12 +49,6 @@ class ClientPublicProfileScreen extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const AppSheetHandle(),
-            GiftMenuRow(
-              userId: p.id,
-              sheet: sheet,
-              screen: context,
-              blocked: p.isBlocked || p.hasBlockedMe,
-            ),
             BlockListRow(
               userId: p.id,
               displayName:
@@ -96,9 +89,6 @@ class ClientPublicProfileScreen extends ConsumerWidget {
           onPressed: () => _leave(context),
         ),
         actions: [
-          // Owner 2026-10-21: their gifts behind an icon up here.
-          if (profile.value case final p? when !(p.isBlocked || p.hasBlockedMe))
-            GiftHeaderButton(userId: p.id, isMe: p.isSelf),
           if (profile.value case final p? when !p.isSelf)
             AppIconButton(
               icon: AppIcon(AppIcons.moreHorizRounded, color: colors.text),

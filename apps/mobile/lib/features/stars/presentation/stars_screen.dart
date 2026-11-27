@@ -2,13 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_formats.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/payments/pay_page_look.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
@@ -17,7 +15,7 @@ import 'package:lawbid/shared/domain/payment_page_launch_mode.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Owner 2026-10-20 — the stars balance: top up (the payment page is on the
-/// web, no store purchase), gifts I received, the history.
+/// web, no store purchase), the history.
 class StarsScreen extends ConsumerStatefulWidget {
   const StarsScreen({super.key});
 
@@ -195,16 +193,6 @@ class _StarsScreenState extends ConsumerState<StarsScreen>
                 key: const ValueKey('stars-topup-note'),
                 style: type.body.copyWith(color: colors.textSecondary),
               ),
-            const SizedBox(height: AppSpacing.md),
-            AppListRow(
-              key: const ValueKey('stars-my-gifts'),
-              icon: AppIcons.giftOutlined,
-              label: t.t('stars.myGifts'),
-              subtitle: t.t('stars.myGifts.hint', {
-                'percent': '${d.giftConvertPercent}',
-              }),
-              onTap: () => context.push(AppRoutes.myGifts),
-            ),
             const SizedBox(height: AppSpacing.lg),
             Text(
               t.t('stars.history'),

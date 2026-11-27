@@ -13,7 +13,6 @@ import 'package:lawbid/core/navigation/shell/desktop_input.dart';
 import 'package:lawbid/core/navigation/shell/shell_layout.dart';
 import 'package:lawbid/core/navigation/shell/web_page_frame.dart';
 import 'package:lawbid/features/blocks/application/blocks_providers.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/realtime_providers.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
@@ -141,7 +140,6 @@ List<Override> _overrides() => [
       groupRepositoryProvider.overrideWithValue(FakeGroupRepository()),
       currentUserIdProvider.overrideWithValue('me'),
       currentUserRoleProvider.overrideWithValue(UserRole.client),
-      channelsEnabledProvider.overrideWithValue(false),
       realtimeClientProvider.overrideWithValue(null),
       actsAsAttorneyProvider.overrideWithValue(false),
       blockedIdsProvider.overrideWith((ref) async => <String>{}),

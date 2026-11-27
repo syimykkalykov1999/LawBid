@@ -10,9 +10,9 @@ import { TokenService } from '../src/modules/auth/services/token.service';
 
 /**
  * Owner 2026-10-21 (Telegram / WhatsApp «Переслать»): POST /messages/forward
- * — any message (chat, group, channel post) into any chats at once, through
- * each target's own send path; disappearing messages never; a group or
- * channel that restricts saving content shares only its link.
+ * — any message (chat, group) into any chats at once, through each
+ * target's own send path; disappearing messages never; a group that
+ * restricts saving content shares only its link.
  */
 jest.setTimeout(180_000);
 
@@ -179,18 +179,6 @@ describe('Forward messages (e2e, owner 2026-10-21)', () => {
     return id;
   }
 
-  async function channel(owner: Who) {
-    const res = await api()
-      .post('/api/v1/channels')
-      .set(owner.auth)
-      .send({
-        title: 'Fwd news',
-        username: `f${randomUUID().replace(/-/g, '').slice(0, 12)}`,
-      })
-      .expect(201);
-    return res.body.data as { id: string; username: string };
-  }
-
   const say = async (conv: string, who: Who, body: object) =>
     (
       await api()
@@ -253,12 +241,11 @@ describe('Forward messages (e2e, owner 2026-10-21)', () => {
     });
   }
 
-  it('direct → group and channel, group → direct; idempotent; the file row shares the stored object', async () => {
+  it('direct → group, group → direct; idempotent; the file row shares the stored object', async () => {
     const c = await client('Vera');
     const a = await attorney('Otto');
     const conv = await conversation(c, a);
     const g = await group(c, [a]);
-    const ch = await channel(a);
     const text = await say(conv, c, { body: 'hello from the case' });
     const photo = await file(c, 'chat_attachment', 'image/png', true);
     const pic = await say(conv, c, {
@@ -274,18 +261,13 @@ describe('Forward messages (e2e, owner 2026-10-21)', () => {
         { kind: 'message', id: text.id },
         { kind: 'message', id: pic.id },
       ],
-      targets: [
-        { kind: 'group', id: g },
-        { kind: 'channel', id: ch.id },
-      ],
+      targets: [{ kind: 'group', id: g }],
     };
     const res = await forward(a, body).expect(200);
     const results = res.body.data.results as Result[];
     expect(results.map((r) => [r.target.kind, r.status])).toEqual([
       ['group', 'sent'],
       ['group', 'sent'],
-      ['channel', 'sent'],
-      ['channel', 'sent'],
     ]);
 
     // Group: «Forwarded from Vera Fwd», the file a new row over the same
@@ -301,15 +283,6 @@ describe('Forward messages (e2e, owner 2026-10-21)', () => {
     expect(row.s3_key).toBe(photo.s3_key);
     expect(row.owner_user_id).toBe(a.id);
 
-    // Channel: a text post and a photo post, both «Forwarded from».
-    const posts = await prisma.channelPost.findMany({
-      where: { channel_id: ch.id },
-      orderBy: { created_at: 'asc' },
-    });
-    expect(posts.map((p) => p.body)).toEqual(['hello from the case', '']);
-    expect(posts[1].media_file_ids).toHaveLength(1);
-    expect(posts.every((p) => p.forwarded_from_name === 'Vera Fwd')).toBe(true);
-
     // A retry of the same forward sends nothing new.
     const files = await prisma.file.count();
     const again = await forward(a, body).expect(200);
@@ -317,9 +290,6 @@ describe('Forward messages (e2e, owner 2026-10-21)', () => {
       (again.body.data.results as Result[]).map((r) => r.messageId),
     ).toEqual(results.map((r) => r.messageId));
     expect(await prisma.file.count()).toBe(files);
-    expect(
-      await prisma.channelPost.count({ where: { channel_id: ch.id } }),
-    ).toBe(2);
 
     // Group → direct: the group author's name goes along.
     const gm = await groupSay(g, c, 'from the group');
@@ -516,42 +486,5 @@ describe('Forward messages (e2e, owner 2026-10-21)', () => {
       sources: [{ kind: 'group_message', id: gm.id }],
       targets: [{ kind: 'conversation', id: conv }],
     }).expect(200);
-
-    // A channel: the same switch (no service post), the channel link.
-    const ch = await channel(member);
-    const post = await api()
-      .post(`/api/v1/channels/${ch.id}/posts`)
-      .set(member.auth)
-      .set('Idempotency-Key', randomUUID())
-      .send({ body: 'members news' })
-      .expect(201);
-    const chOn = await api()
-      .patch(`/api/v1/channels/${ch.id}`)
-      .set(member.auth)
-      .send({ protectContent: true })
-      .expect(200);
-    expect(chOn.body.data.protectContent).toBe(true);
-    const chBlocked = await forward(member, {
-      requestId: randomUUID(),
-      sources: [{ kind: 'channel_post', id: post.body.data.id }],
-      targets: [{ kind: 'conversation', id: conv }],
-    }).expect(403);
-    expect(chBlocked.body.error.code).toBe('CONTENT_PROTECTED');
-    const chLink = await forward(member, {
-      requestId: randomUUID(),
-      sources: [{ kind: 'channel_link', id: ch.id }],
-      targets: [{ kind: 'conversation', id: conv }],
-    }).expect(200);
-    const chSent = (chLink.body.data.results as Result[])[0];
-    expect(chSent.status).toBe('sent');
-    const after = await api()
-      .get(`/api/v1/conversations/${conv}/messages`)
-      .set(member.auth)
-      .expect(200);
-    expect(
-      (after.body.data as { id: string; body: string }[]).find(
-        (m) => m.id === chSent.messageId,
-      )?.body,
-    ).toContain(`/c/${ch.username}`);
   });
 });

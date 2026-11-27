@@ -4,7 +4,7 @@
     "app", "auth", "auth-hardening", "authz-matrix", "onboarding", "profiles-onboarding",
     "profiles-practices", "guest-browsing", "reviews", "security-hardening", "jobs",
     "stage-3-1", "stage-4-1", "stage-4-2", "stage-4-3", "cross-family-outbox",
-    "client-economy", "owner-direct-chats", "owner-groups", "owner-channels",
+    "client-economy", "owner-direct-chats", "owner-groups",
     "owner-chat-actions", "owner-chat-delivered", "owner-calls", "owner-case-invites",
     "owner-case-payments", "owner-case-tools", "owner-case-topics", "owner-feed-content",
     "owner-follows-search", "owner-notifications-search", "owner-economy",

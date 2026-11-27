@@ -5,7 +5,6 @@ import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/app_language.dart';
 import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -107,7 +106,6 @@ void main() {
                   ),
                   // Row 183: the switch «Группы в чатах» held on.
                   groupsEnabledProvider.overrideWithValue(true),
-                  channelsEnabledProvider.overrideWithValue(false),
                   currentUserIdProvider.overrideWithValue('me'),
                 ],
               ),

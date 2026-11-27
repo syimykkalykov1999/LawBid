@@ -71,7 +71,7 @@ class GuardSnapshot {
 /// ```text
 /// нет токена                      → /welcome
 /// нет токена, guest_browsing      → /feed, /search, /lawyer/*, /u/*,
-///                                   /post/*, /c/* open; всё остальное →
+///                                   /post/* open; всё остальное →
 ///                                   /welcome (Owner 2026-10-22, A1)
 /// токен есть, пароль не задан     → /auth/set-password (Owner 2026-10-13,
 ///                                   обязательно снова с 2026-11-04, R-384)

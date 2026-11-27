@@ -69,10 +69,6 @@ import 'package:lawbid/features/groups/application/chat_list_merge.dart'
     show caseChatsWithProvider;
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/social/application/social_providers.dart';
-import 'package:lawbid/features/stars/application/stars_providers.dart';
-import 'package:lawbid/features/stars/domain/stars_models.dart';
-import 'package:lawbid/features/stars/presentation/gift_names.dart';
-import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
 import 'package:lawbid/features/stickers/presentation/sticker_widgets.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -127,20 +123,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
     }
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _stickers = true);
-  }
-
-  /// Owner 2026-10-20: a gift from the «Подарки» tab, paid in stars.
-  Future<void> _giveGift(Gift g) async {
-    final sent = await showGiftSheet(
-      context,
-      gift: g,
-      onSend: (d) => _thread.sendGift(
-        g.id,
-        clientMessageId: d.clientMessageId,
-        note: d.note,
-      ),
-    );
-    if (sent && mounted) setState(() => _stickers = false);
   }
 
   void _insertEmoji(String e) {
@@ -871,10 +853,6 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
                                         ),
                                       ),
                                       onEmoji: _insertEmoji,
-                                      onGift: ref.watch(starsEnabledProvider) &&
-                                              !ref.watch(isAssistantProvider)
-                                          ? _giveGift
-                                          : null,
                                     ),
                                 ],
                               ),
@@ -1798,7 +1776,6 @@ class _Bubble extends ConsumerWidget {
     final framed = visual && !media;
     const inset = EdgeInsets.symmetric(horizontal: AppSpacing.md - 3);
     Widget pad(Widget w) => framed ? Padding(padding: inset, child: w) : w;
-    final giftName = m.gift == null ? '' : giftTitle(t, m.gift!.gift);
     final fileNames = [
       for (final x in group ?? [m]) x.attachment?.name ?? '',
     ].join(', ');
@@ -2026,13 +2003,6 @@ class _Bubble extends ConsumerWidget {
                         )
                       else if (m.kind == MessageKind.voice && m.voice != null)
                         _voice(ref, m)
-                      else if (m.kind == MessageKind.gift && m.gift != null)
-                        GiftMessageBody(
-                          send: m.gift!,
-                          note: m.body,
-                          color: fg,
-                          style: type.body,
-                        )
                       else if (m.kind == MessageKind.attachment &&
                           m.attachment != null)
                         _attachment(
@@ -2161,8 +2131,6 @@ class _Bubble extends ConsumerWidget {
             t.t('chat.voice.label')
           else if (m.kind == MessageKind.sticker)
             '${t.t('stickers.label')} ${m.sticker?.emoji ?? ''}'
-          else if (m.kind == MessageKind.gift)
-            '${t.t('stars.chat.label')}: $giftName'
           else if (m.kind == MessageKind.attachment)
             '${t.t('chat.attach.label')}: $fileNames'
           else if (m.kind == MessageKind.contact)

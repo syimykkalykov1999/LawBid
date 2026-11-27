@@ -280,7 +280,6 @@ class _ClientSocialProfileState extends ConsumerState<ClientSocialProfile> {
               style: type.bodySmall.copyWith(color: colors.textSecondary),
             ),
           ],
-          // Owner 2026-10-21: the gifts moved to an icon in the top bar.
           const SizedBox(height: AppSpacing.md),
           if (p.isSelf)
             Row(

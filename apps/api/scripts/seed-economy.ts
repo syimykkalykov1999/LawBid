@@ -1,4 +1,4 @@
-// Owner 2026-10-20: fills the starter catalog of gifts and sticker packs
+// Owner 2026-10-20: fills the starter catalog of sticker packs (owner 26.11: no gifts)
 // (the API does it by itself on its first start; this is for a local DB):
 //   npm run seed:economy --workspace apps/api
 // Needs DATABASE_URL, Redis and the S3/MinIO keys of apps/api/.env; one

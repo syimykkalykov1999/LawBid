@@ -2,7 +2,6 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lawbid/core/navigation/app_page_transitions.dart';
 import 'package:lawbid/core/navigation/deferred_screen.dart';
-import 'package:lawbid/features/channels/presentation/sections_archive.dart';
 import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/groups/presentation/create_group_screen.dart'
     deferred as d_create_group_screen;
@@ -14,6 +13,7 @@ import 'package:lawbid/features/groups/presentation/group_info_screen.dart'
     deferred as d_group_info_screen;
 import 'package:lawbid/features/groups/presentation/group_invite_screen.dart'
     deferred as d_group_invite_screen;
+import 'package:lawbid/features/groups/presentation/groups_archive_screen.dart';
 import 'package:lawbid/features/groups/presentation/join_group_screen.dart'
     deferred as d_join_group_screen;
 import 'package:lawbid/features/groups/presentation/widgets/groups_gate.dart';

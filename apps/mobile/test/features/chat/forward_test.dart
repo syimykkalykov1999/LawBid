@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lawbid/core/design_system/design_system.dart';
 import 'package:lawbid/core/l10n/static_translator.dart';
 import 'package:lawbid/core/network/api_error.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/data/chat_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -140,7 +139,6 @@ void main() {
     ]) {
       expect(canForward(_msg('a', k)), isTrue, reason: '$k');
     }
-    expect(canForward(_msg('g', MessageKind.gift)), isFalse);
     expect(
       canForward(
         _msg('d', MessageKind.text, expiresAt: DateTime(2030)),
@@ -185,7 +183,6 @@ void main() {
             ),
             // Row 183: the switch «Группы в чатах» held on.
             groupsEnabledProvider.overrideWithValue(true),
-            channelsEnabledProvider.overrideWithValue(false),
             currentUserIdProvider.overrideWithValue('me'),
             // Owner 2026-10-21 (inbox 25b): anyone in the app by name.
             peopleSuggestSearchProvider.overrideWithValue(

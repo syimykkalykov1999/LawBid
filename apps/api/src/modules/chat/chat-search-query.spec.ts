@@ -24,7 +24,7 @@ describe('ChatService chat search — message text match', () => {
       ChatService as unknown as new (...a: unknown[]) => ChatService
     )(
       {},
-      ...Array(10).fill(undefined),
+      ...Array(9).fill(undefined),
       cipher,
       ...Array(5).fill(undefined),
       index,

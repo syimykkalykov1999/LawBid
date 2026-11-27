@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/data/chat_extras_repository.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -8,16 +7,14 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 
 /// Owner 2026-10-21 (Instagram «Поделиться»): where the share sheet sends
 /// a post. A chat gets a post card (never masked, the server checks the
-/// post) and the note as a text after it; a group and a channel get the
-/// link as a text (their own message kinds have no post card). Owner 26.11:
-/// a group draws that link as the same post card (PostLinkCard), so a post
-/// pasted by hand looks the same as a shared one.
+/// post) and the note as a text after it; a group gets the link as a text
+/// (its own message kinds have no post card). Owner 26.11: a group draws
+/// that link as the same post card (PostLinkCard), so a post pasted by hand
+/// looks the same as a shared one.
 abstract interface class PostShareSender {
   Future<void> toChat(String conversationId, String postId, {String? note});
 
   Future<void> toGroup(api.GroupDto group, String link, {String? note});
-
-  Future<void> toChannel(String channelId, String link, {String? note});
 }
 
 /// The note above the link (or the link alone).
@@ -59,11 +56,6 @@ class _RepoPostShareSender implements PostShareSender {
               topicId: group.topicsEnabled ? group.generalTopicId : null,
             ),
           );
-
-  @override
-  Future<void> toChannel(String channelId, String link, {String? note}) => ref
-      .read(channelsRepositoryProvider)
-      .createPost(channelId, body: sharedLinkText(link, note));
 }
 
 final postShareSenderProvider = Provider<PostShareSender>(

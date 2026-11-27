@@ -13,7 +13,6 @@ import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/features/calls/application/call_sound_prefs.dart';
 import 'package:lawbid/features/cases/presentation/widgets/async_views.dart';
 import 'package:lawbid/features/cases/presentation/widgets/practice_art.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
 import 'package:lawbid/features/notifications/application/notification_sounds.dart';
 import 'package:lawbid/features/notifications/application/notifications_providers.dart';
@@ -136,7 +135,6 @@ class _NotificationSettingsScreenState
   static String _topicLabel(Translator t, String key) => switch (key) {
         'messages' ||
         'groups' ||
-        'channels' ||
         'calls' ||
         'newCases' =>
           t.t('notif.category.$key'),
@@ -162,7 +160,6 @@ class _NotificationSettingsScreenState
     final attorney = ref.watch(currentUserRoleProvider) == UserRole.attorney;
     // An assistant's own settings have no «From assistants» block.
     final team = attorney && !ref.watch(isAssistantProvider);
-    final channelsOn = ref.watch(channelsEnabledProvider);
     // Row 183: no «Groups» switch while «Группы» is off.
     final groupsOn = ref.watch(groupsEnabledProvider);
     final emailFlows = ref.watch(emailFlowsEnabledProvider);
@@ -240,9 +237,10 @@ class _NotificationSettingsScreenState
           final system = s.categories
               .where((c) => c.category == NotifCategory.system)
               .firstOrNull;
-          // Owner 2026-11-04 (R-386): no «Channels» switch with the flag off.
+          // Owner 26.11: channels are gone; an old server's «Channels»
+          // switch is never shown.
           bool shown(TopicSetting x) =>
-              (x.key != 'channels' || channelsOn) &&
+              x.key != 'channels' &&
               (x.key != 'groups' || groupsOn) &&
               (!x.attorneyOnly || (x.block == 'assistants' ? team : attorney));
           return AbsorbPointer(

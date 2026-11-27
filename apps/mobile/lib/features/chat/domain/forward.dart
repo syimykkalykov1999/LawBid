@@ -1,14 +1,12 @@
 import 'package:flutter/foundation.dart';
 
 /// Owner 2026-10-21 (Telegram / WhatsApp «Переслать»): what is forwarded —
-/// a direct / case chat message, a group message, a channel post, or (for a
-/// group / channel that restricts saving content) its link.
+/// a direct / case chat message, a group message, or (for a group that
+/// restricts saving content) its link.
 enum ForwardSourceKind {
   message,
   groupMessage,
-  channelPost,
   groupLink,
-  channelLink,
 }
 
 @immutable
@@ -29,8 +27,8 @@ class ForwardSource {
 }
 
 /// Where to: a direct / case chat, a group (a forum group: its «General»
-/// unless a topic is given) or a channel I run.
-enum ForwardTargetKind { conversation, group, channel }
+/// unless a topic is given).
+enum ForwardTargetKind { conversation, group }
 
 @immutable
 class ForwardTarget {

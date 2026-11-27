@@ -10,16 +10,15 @@ import { adminSession, adminStepUp } from './support/admin-login';
 import { PAYMENT_PROVIDER } from '../src/modules/billing/billing.constants';
 import type { FakePaymentProvider } from '../src/modules/billing/fake-payment.provider';
 import { StarsService } from '../src/modules/stars/stars.service';
-import { forEachDatabase } from '../src/sharding/for-each-database';
 
 /**
- * Owner 2026-10-20 — stars: bought on the web (checkout), gifts in a chat
- * and on a profile, a gift turned into stars, a paid sticker pack. The
+ * Owner 2026-10-20 — stars: bought on the web (checkout), a received gift
+ * turned into stars (owner 26.11: no new gifts), a paid sticker pack. The
  * balance never goes below zero and no event is applied twice.
  */
 jest.setTimeout(120_000);
 
-describe('Stars, gifts and paid stickers (e2e)', () => {
+describe('Stars, received gifts and paid stickers (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let tokens: TokenService;
@@ -224,68 +223,48 @@ describe('Stars, gifts and paid stickers (e2e)', () => {
     ).toMatchObject({ balance: 20, debt: 0 });
   });
 
-  it('a gift in a chat charges the giver, shows in the bubble, never overdraws', async () => {
+  // Owner 26.11: gifts are gone — a gift message is refused (nothing is
+  // charged); a gift received before is still listed, hidden and turned
+  // into stars (the money side settles what was given).
+  it('a gift message is refused; a gift received before still turns into stars once', async () => {
     await flag(true);
     const client = await user('client', 'Giver');
     const attorney = await user('attorney', 'Receiver');
     const convId = await chat(client.id, attorney.id);
     const g = await gift(client.id, 30);
-
-    const poor = await api()
-      .post(`/api/v1/conversations/${convId}/messages`)
-      .set(client.auth)
-      .send({ clientMessageId: randomUUID(), type: 'gift', giftId: g.id })
-      .expect(402);
-    expect(poor.body.error.code).toBe('INSUFFICIENT_STARS');
-
     await prisma.starWallet.create({
       data: { user_id: client.id, balance: 50, lifetime_bought: 50 },
     });
-    const cmid = randomUUID();
-    const sent = await api()
-      .post(`/api/v1/conversations/${convId}/messages`)
-      .set(client.auth)
-      .send({
-        clientMessageId: cmid,
-        type: 'gift',
-        giftId: g.id,
-        body: 'Thanks!',
-      })
-      .expect(201);
-    expect(sent.body.data.type).toBe('gift');
-    expect(sent.body.data.gift).toMatchObject({
-      note: 'Thanks!',
-      senderId: null,
-    });
-    expect(sent.body.data.gift.gift.priceStars).toBe(30);
 
-    // the same clientMessageId again: same message, no second charge
-    await api()
-      .post(`/api/v1/conversations/${convId}/messages`)
-      .set(client.auth)
-      .send({ clientMessageId: cmid, type: 'gift', giftId: g.id })
-      .expect(201);
-    const w = await prisma.starWallet.findUniqueOrThrow({
-      where: { user_id: client.id },
-    });
-    expect(w.balance).toBe(20);
-
-    // 20 left < 30: refused, balance untouched
     await api()
       .post(`/api/v1/conversations/${convId}/messages`)
       .set(client.auth)
       .send({ clientMessageId: randomUUID(), type: 'gift', giftId: g.id })
-      .expect(402);
+      .expect(400);
+    await api()
+      .post(`/api/v1/stars/gifts/${g.id}/send`)
+      .set(client.auth)
+      .send({ recipientId: attorney.id })
+      .expect(404);
     expect(
       (
         await prisma.starWallet.findUniqueOrThrow({
           where: { user_id: client.id },
         })
       ).balance,
-    ).toBe(20);
-    expect(
-      await prisma.giftSend.count({ where: { sender_id: client.id } }),
-    ).toBe(1);
+    ).toBe(50);
+
+    // A gift given before the removal (the row as the old send path wrote it).
+    await prisma.giftSend.create({
+      data: {
+        gift_id: g.id,
+        sender_id: client.id,
+        recipient_id: attorney.id,
+        conversation_id: convId,
+        price_stars: 30,
+        note: 'Thanks!',
+      },
+    });
 
     // the receiver: shows it, hides it, turns it into stars (70 % of 30 = 21)
     const mine = await api()
@@ -314,123 +293,6 @@ describe('Stars, gifts and paid stickers (e2e)', () => {
       .post(`/api/v1/stars/received-gifts/${sid}/convert`)
       .set(attorney.auth)
       .expect(409);
-  });
-
-  // Verifier 17.11: with two databases the gift was charged on the primary
-  // before the message was written on its own database — a failed message
-  // write kept the money and left no message. The charge is undone now.
-  it('a gift whose message is not written costs nothing', async () => {
-    await flag(true);
-    const client = await user('client', 'Unlucky');
-    const attorney = await user('attorney', 'Nobody');
-    const convId = await chat(client.id, attorney.id);
-    const g = await gift(client.id, 30, 'Tulip');
-    await prisma.starWallet.create({
-      data: { user_id: client.id, balance: 50, lifetime_bought: 50 },
-    });
-    // The message insert of this chat fails (on whichever database holds
-    // it) after the gift was charged — a real database error, not a mock.
-    const fn = `e2e_fail_msg_${convId.replace(/-/g, '')}`;
-    await forEachDatabase(prisma, async () => {
-      await prisma.$executeRawUnsafe(
-        `CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$
-         BEGIN RAISE EXCEPTION 'message write failed'; END $$`,
-      );
-      await prisma.$executeRawUnsafe(
-        `CREATE TRIGGER ${fn} BEFORE INSERT ON messages FOR EACH ROW
-         WHEN (NEW.conversation_id = '${convId}'::uuid) EXECUTE FUNCTION ${fn}()`,
-      );
-    });
-    try {
-      await api()
-        .post(`/api/v1/conversations/${convId}/messages`)
-        .set(client.auth)
-        .send({ clientMessageId: randomUUID(), type: 'gift', giftId: g.id })
-        .expect(500);
-    } finally {
-      await forEachDatabase(prisma, async () => {
-        await prisma.$executeRawUnsafe(
-          `DROP TRIGGER IF EXISTS ${fn} ON messages`,
-        );
-        await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS ${fn}()`);
-      });
-    }
-    expect(
-      (
-        await prisma.starWallet.findUniqueOrThrow({
-          where: { user_id: client.id },
-        })
-      ).balance,
-    ).toBe(50);
-    expect(
-      await prisma.giftSend.count({ where: { sender_id: client.id } }),
-    ).toBe(0);
-    expect(
-      (await prisma.gift.findUniqueOrThrow({ where: { id: g.id } })).sent_count,
-    ).toBe(0);
-  });
-
-  it('a gift to a profile notifies; yourself and a blocked user are refused', async () => {
-    await flag(true);
-    const a = await user('client', 'Alpha');
-    const b = await user('attorney', 'Beta');
-    const g = await gift(a.id, 10);
-    await prisma.starWallet.create({
-      data: { user_id: a.id, balance: 25, lifetime_bought: 25 },
-    });
-    await api()
-      .post(`/api/v1/stars/gifts/${g.id}/send`)
-      .set(a.auth)
-      .send({ recipientId: a.id })
-      .expect(400);
-    const ok = await api()
-      .post(`/api/v1/stars/gifts/${g.id}/send`)
-      .set(a.auth)
-      .send({ recipientId: b.id, anonymous: true })
-      .expect(200);
-    expect(ok.body.data.gift.priceStars).toBe(10);
-    const seen = await api()
-      .get(`/api/v1/stars/users/${b.id}/gifts`)
-      .set(b.auth)
-      .expect(200);
-    expect(seen.body.data[0].senderName).toBeNull();
-    expect(
-      await prisma.notification.count({
-        where: { user_id: b.id, type: 'gift_received' },
-      }),
-    ).toBe(1);
-    await prisma.userBlock.create({
-      data: { blocker_id: b.id, blocked_id: a.id },
-    });
-    await api()
-      .post(`/api/v1/stars/gifts/${g.id}/send`)
-      .set(a.auth)
-      .send({ recipientId: b.id })
-      .expect(403);
-  });
-
-  it('a gift to a profile is refused (403, nothing charged) when the person does not accept messages from the giver', async () => {
-    await flag(true);
-    const a = await user('client', 'Gamma');
-    const b = await user('attorney', 'Delta');
-    const g = await gift(a.id, 10);
-    await prisma.starWallet.create({
-      data: { user_id: a.id, balance: 25, lifetime_bought: 25 },
-    });
-    await api()
-      .put('/api/v1/users/me/privacy')
-      .set(b.auth)
-      .send({ messageFrom: 'nobody' })
-      .expect(200);
-    const res = await api()
-      .post(`/api/v1/stars/gifts/${g.id}/send`)
-      .set(a.auth)
-      .send({ recipientId: b.id })
-      .expect(403);
-    expect(res.body.error?.code ?? res.body.code).toBe('PRIVACY_RESTRICTED');
-    const w = await prisma.starWallet.findUnique({ where: { user_id: a.id } });
-    expect(w?.balance).toBe(25);
-    expect(await prisma.giftSend.count({ where: { sender_id: a.id } })).toBe(0);
   });
 
   it('a paid sticker pack is charged once, free to add again, sent only when added', async () => {
@@ -580,7 +442,7 @@ describe('Stars, gifts and paid stickers (e2e)', () => {
     ).toBe(1);
   });
 
-  it('admin: packs, gifts, report, grant; the others are refused', async () => {
+  it('admin: packs, report, grant; the others are refused', async () => {
     await flag(true);
     const admin = await adminSession(base, prisma, 'super_admin');
     const mod = await adminSession(base, prisma, 'moderator');

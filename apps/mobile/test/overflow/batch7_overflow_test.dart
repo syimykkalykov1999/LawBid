@@ -7,11 +7,10 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/cases/domain/case_models.dart';
 import 'package:lawbid/features/cases/presentation/screens/work_case_screen.dart';
-import 'package:lawbid/features/channels/application/channels_providers.dart';
-import 'package:lawbid/features/channels/presentation/sections_archive.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/presentation/chat_video.dart';
 import 'package:lawbid/features/groups/application/group_providers.dart';
+import 'package:lawbid/features/groups/presentation/groups_archive_screen.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_chat_tile.dart';
 import 'package:lawbid/features/stories/application/stories_providers.dart';
 import 'package:lawbid/features/stories/domain/story_models.dart';
@@ -21,7 +20,6 @@ import 'package:material_ui/material_ui.dart';
 
 import '../features/cases/cases_fakes.dart';
 import '../features/cases/cases_test.dart' show bidFixture;
-import '../features/channels/channels_fakes.dart' as ch;
 import '../features/groups/fake_group_repository.dart';
 import '../features/stories/stories_fakes.dart';
 import '../helpers/long_locale.dart';
@@ -30,7 +28,7 @@ import '../helpers/overflow_harness.dart';
 
 /// Owner 2026-11-02, batch 7: the last six screens the long-text test had
 /// not covered (docs/HANDOFF.md, "what is covered and what is left"): the
-/// story viewers sheet, the groups' and channels' Archive screens, the
+/// story viewers sheet, the groups' Archive screen, the
 /// video in a chat (bubble and full screen), the paginated list with long
 /// rows, and the attorney's work-case screen with real data.
 /// 360 dp, the longest text of every key, right-to-left, ne, de, mr, ar, ru,
@@ -191,25 +189,6 @@ void main() {
         ),
         // Row 183: the switch «Группы в чатах» held on.
         groupsEnabledProvider.overrideWithValue(true),
-      ],
-    ),
-    'channels archive': (
-      () => const ChannelsArchiveScreen(),
-      overflowShows(find.byKey(const ValueKey('channel-archived-a1'))),
-      [
-        channelsRepositoryProvider.overrideWithValue(
-          ch.FakeChannelsRepository()
-            ..archivedListed = [
-              ch.fakeChannel(
-                id: 'a1',
-                title: longTitle,
-                username: 'a_really_long_channel_username_for_the_archive',
-                subscribed: true,
-                muted: true,
-                subscribers: 99999999,
-              ),
-            ],
-        ),
       ],
     ),
     'chat video (bubble, sending)': (

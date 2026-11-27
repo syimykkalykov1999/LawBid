@@ -52,7 +52,6 @@ class MessageMenuTarget extends ConsumerWidget {
         MessageKind.system ||
         MessageKind.call ||
         MessageKind.sticker ||
-        MessageKind.gift ||
         MessageKind.post =>
           false,
       };

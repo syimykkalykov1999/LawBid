@@ -215,11 +215,7 @@ export default async function globalSetup(): Promise<void> {
       update: { value: false },
     });
   }
-  for (const key of [
-    'files_reuse_own',
-    'files_confirm_light',
-    'channel_views_buffered',
-  ]) {
+  for (const key of ['files_reuse_own', 'files_confirm_light']) {
     await seed.featureFlag.upsert({
       where: { key },
       create: {
@@ -233,11 +229,10 @@ export default async function globalSetup(): Promise<void> {
   }
   // Pack C (round 2 #23): a missing flag row now reads as its FLAG_CATALOG
   // value, no longer as each caller's own fallback. The suites were written
-  // against those fallbacks (channels and e-mail flows on, multipart
+  // against those fallbacks (e-mail flows on, multipart
   // uploads off): they start from the same state, written down here;
   // a suite about a switch still turns it itself.
   for (const [key, enabled] of [
-    ['channels', true],
     ['email_login', true],
     ['files_multipart', false],
   ] as const) {

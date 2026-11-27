@@ -737,3 +737,37 @@ PATCH /groups/{id}/messages/{messageId} added the new `mls` enum value to the `d
 PUT /groups/{id}/messages/{messageId}/reaction added the new `mls` enum value to the `data/type` response property for the response status `200`
 POST /groups/{id}/polls added the new `mls` enum value to the `data/type` response property for the response status `200`
 GET /groups/{id}/shared added the new `mls` enum value to the `data/items/type` response property for the response status `200`
+GET /admin/media/channels api path removed without deprecation
+GET /admin/media/channels/{id} api path removed without deprecation
+POST /admin/media/channels/{id}/posts/{postId}/moderate api path removed without deprecation
+POST /admin/media/channels/{id}/status api path removed without deprecation
+GET /admin/stars/gifts api path removed without deprecation
+POST /admin/stars/gifts api path removed without deprecation
+DELETE /admin/stars/gifts/{id} api path removed without deprecation
+PATCH /admin/stars/gifts/{id} api path removed without deprecation
+GET /channels api path removed without deprecation
+POST /channels api path removed without deprecation
+POST /channels/video-uploads api path removed without deprecation
+DELETE /channels/{id} api path removed without deprecation
+PATCH /channels/{id} api path removed without deprecation
+GET /channels/{id}/admins api path removed without deprecation
+POST /channels/{id}/admins api path removed without deprecation
+DELETE /channels/{id}/admins/{userId} api path removed without deprecation
+GET /channels/{id}/posts api path removed without deprecation
+POST /channels/{id}/posts api path removed without deprecation
+DELETE /channels/{id}/posts/{postId} api path removed without deprecation
+GET /channels/{id}/posts/{postId} api path removed without deprecation
+PATCH /channels/{id}/posts/{postId} api path removed without deprecation
+GET /channels/{id}/posts/{postId}/comments api path removed without deprecation
+POST /channels/{id}/posts/{postId}/comments api path removed without deprecation
+DELETE /channels/{id}/posts/{postId}/comments/{commentId} api path removed without deprecation
+DELETE /channels/{id}/posts/{postId}/reaction api path removed without deprecation
+PUT /channels/{id}/posts/{postId}/reaction api path removed without deprecation
+POST /channels/{id}/posts/{postId}/share api path removed without deprecation
+DELETE /channels/{id}/subscription api path removed without deprecation
+PATCH /channels/{id}/subscription api path removed without deprecation
+PUT /channels/{id}/subscription api path removed without deprecation
+POST /channels/{id}/views api path removed without deprecation
+GET /channels/{ref} api path removed without deprecation
+GET /stars/gifts api path removed without deprecation
+POST /stars/gifts/{giftId}/send api path removed without deprecation

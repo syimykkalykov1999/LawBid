@@ -20,7 +20,7 @@ describe('ChatService.redeliverPending', () => {
       ChatService as unknown as new (...a: unknown[]) => ChatService
     )(
       { conversation: { findUnique: jest.fn(async () => ({ id: 'conv1' })) } },
-      ...Array(15).fill(undefined),
+      ...Array(14).fill(undefined),
       redis,
     );
     const priv = svc as unknown as Record<string, jest.Mock>;

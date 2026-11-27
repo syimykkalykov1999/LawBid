@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, EyeSlash, Plus, Star, Trash } from "@phosphor-icons/react";
+import { Plus, Star, Trash } from "@phosphor-icons/react";
 import {
   useInfiniteQuery,
   useMutation,
@@ -9,28 +9,25 @@ import {
 } from "@tanstack/react-query";
 import { useState } from "react";
 import { ErrorNote, PageHeader, SectionTitle } from "@/components/page-header";
-import { GiftUploader } from "@/components/stars/gift-uploader";
 import { Button } from "@/components/ui/button";
 import { PrefetchSentinel } from "@/components/legacy/prefetch-sentinel";
-import { Badge, Card } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { EmptyState, Skeleton } from "@/components/ui/empty";
 import { Field, Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { SortTh, Table, TableEmpty, Td, Th } from "@/components/ui/table";
+import { SortTh, Table, TableEmpty, Td } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/toast";
-import { useConfirm } from "@/components/legacy/confirm";
 import { api, errorText } from "@/lib/api/client";
 import { saveFlag } from "@/lib/config-save";
 import { usd } from "@/lib/economy";
 import { sortRows, useTableSort } from "@/lib/table-sort";
 import { formatDateTime } from "@/lib/utils";
 import { useUrlState } from "@/lib/url-state";
-import { LazyImg } from '@/components/ui/lazy-img';
 
-type Tab = "report" | "packs" | "gifts" | "history";
+type Tab = "report" | "packs" | "history";
 /** Scout 13.11 (row 96): the tab lives in the address (lib/url-state.ts). */
-const TABS: readonly Tab[] = ["report", "packs", "gifts", "history"];
+const TABS: readonly Tab[] = ["report", "packs", "history"];
 
 const KIND: Record<string, string> = {
   topup: "Пополнение",
@@ -50,13 +47,6 @@ const stars = (n: number) => `${n.toLocaleString("ru-RU")} ⭐`;
 const TOP_GIFT_SORT_KEYS = ["title", "sent", "stars"] as const;
 const KIND_SORT_KEYS = ["kind", "count", "stars"] as const;
 const DEBT_SORT_KEYS = ["user", "debt", "balance"] as const;
-const GIFT_SORT_KEYS = [
-  "title",
-  "price",
-  "position",
-  "sent",
-  "status",
-] as const;
 const LEDGER_SORT_KEYS = [
   "created",
   "kind",
@@ -67,7 +57,8 @@ const LEDGER_SORT_KEYS = [
 
 /**
  * Owner 2026-10-20 «Звёзды»: the in-app balance bought only on the web.
- * Report for the money section, pack sizes and prices, the gift catalog,
+ * Report for the money section, pack sizes and prices (owner 26.11: the
+ * gift catalog is gone; past gifts stay in the report and the history),
  * the history of every balance with a hand-made grant / take-back.
  */
 export default function StarsPage() {
@@ -77,7 +68,7 @@ export default function StarsPage() {
       <PageHeader
         eyebrow="Деньги"
         title="Звёзды"
-        subtitle="Баланс звёзд покупают только на сайте — магазины приложений ничего не берут. Звёзды тратят на подарки в чатах и профилях и на платные наборы стикеров."
+        subtitle="Баланс звёзд покупают только на сайте — магазины приложений ничего не берут. Звёзды тратят на платные реакции, Boost и платные наборы стикеров."
       />
       <FlagCard />
       <div className="mb-5">
@@ -87,14 +78,12 @@ export default function StarsPage() {
           items={[
             { value: "report", label: "Отчёт" },
             { value: "packs", label: "Пакеты и настройки" },
-            { value: "gifts", label: "Подарки" },
             { value: "history", label: "История и выдача" },
           ]}
         />
       </div>
       {tab === "report" ? <ReportTab /> : null}
       {tab === "packs" ? <PacksTab /> : null}
-      {tab === "gifts" ? <GiftsTab /> : null}
       {tab === "history" ? <HistoryTab /> : null}
     </>
   );
@@ -125,7 +114,7 @@ function FlagCard() {
       <div>
         <div className="font-medium">Звёзды в приложении и на сайте</div>
         <p className="text-sm text-muted">
-          Выключено — пополнения, подарков и платных наборов нет. Купленные
+          Выключено — пополнений, платных реакций и наборов нет. Купленные
           звёзды остаются на балансах.
         </p>
       </div>
@@ -576,232 +565,6 @@ function PacksTab() {
           гасят его. Отмена Boost, оплаченного звёздами, возвращает звёзды.
         </p>
       </div>
-    </div>
-  );
-}
-
-function GiftsTab() {
-  const qc = useQueryClient();
-  const toast = useToast();
-  const { confirm, dialog: confirmDialog } = useConfirm();
-  const q = useQuery({
-    queryKey: ["admin-gifts"],
-    queryFn: async () => (await api.GET("/admin/stars/gifts")).data!.data,
-  });
-  const refresh = () =>
-    void qc.invalidateQueries({ queryKey: ["admin-gifts"] });
-  const patch = useMutation({
-    mutationFn: async (v: {
-      id: string;
-      body: {
-        title?: string;
-        priceStars?: number;
-        position?: number;
-        status?: "active" | "hidden";
-      };
-      undo?: boolean;
-    }) =>
-      (
-        await api.PATCH("/admin/stars/gifts/{id}", {
-          params: { path: { id: v.id } },
-          body: v.body,
-        })
-      ).data!.data,
-    // Scout 13.11 (row 96): hiding / showing a gift says so with «Отменить».
-    onSuccess: (_, v) => {
-      refresh();
-      const st = v.body.status;
-      if (!st || v.undo) return;
-      toast.undo(st === "hidden" ? "Подарок скрыт из каталога" : "Подарок снова в каталоге", () =>
-        patch.mutate({ id: v.id, body: { status: st === "hidden" ? "active" : "hidden" }, undo: true }),
-      );
-    },
-    onError: (e) => toast.error(e),
-  });
-  // Scout 13.11 (row 96): a delete asks first.
-  const remove = useMutation({
-    mutationFn: async (g: { id: string; title: string }) => {
-      const ok = await confirm({
-        title: `Удалить подарок «${g.title}»?`,
-        description: "Он пропадёт из каталога. Уже подаренные остаются у получателей.",
-        confirm: "Удалить",
-        danger: true,
-      });
-      if (!ok) return null;
-      await api.DELETE("/admin/stars/gifts/{id}", { params: { path: { id: g.id } } });
-      return g;
-    },
-    onSuccess: (g) => {
-      if (!g) return;
-      toast.success(
-        "Подарок убран из каталога. Уже подаренные остаются у получателей.",
-      );
-      refresh();
-    },
-    onError: (e) => toast.error(e),
-  });
-  const [edit, setEdit] = useState<Record<string, string>>({});
-  const { sort, header } = useTableSort(GIFT_SORT_KEYS, "giftSort");
-  const rows = sortRows(q.data ?? [], sort, {
-    title: (g) => g.title,
-    price: (g) => g.priceStars,
-    position: (g) => g.position,
-    sent: (g) => g.sentCount,
-    status: (g) => (g.status === "active" ? "в каталоге" : "скрыт"),
-  });
-  return (
-    <div className="space-y-5">
-      {confirmDialog}
-      <GiftUploader onAdded={refresh} />
-      <ErrorNote text={q.error ? errorText(q.error) : null} />
-      {!q.isPending && rows.length === 0 ? (
-        <EmptyState
-          icon={Star}
-          title="Подарков нет"
-          text="Добавьте первый подарок выше."
-        />
-      ) : (
-        <Table>
-          <thead>
-            <tr>
-              <SortTh {...header("title")}>Подарок</SortTh>
-              <SortTh {...header("price")}>Цена, звёзд</SortTh>
-              <SortTh {...header("position")} className="text-right">
-                Порядок
-              </SortTh>
-              <SortTh {...header("sent")} className="text-right">
-                Отправлено
-              </SortTh>
-              <SortTh {...header("status")}>Статус</SortTh>
-              <Th />
-            </tr>
-          </thead>
-          <tbody>
-            {q.isPending ? (
-              <TableEmpty colSpan={6} loading />
-            ) : (
-              rows.map((g) => (
-                <tr key={g.id}>
-                  <Td>
-                    <div className="flex items-center gap-3">
-                      {g.url ? (
-                        <LazyImg
-                          src={g.url}
-                          alt={g.title}
-                          className="h-12 w-12 rounded-lg bg-surface-2 object-contain p-1"
-                        />
-                      ) : (
-                        <span className="grid h-12 w-12 place-items-center rounded-lg bg-surface-2 text-xs text-faint">
-                          нет
-                        </span>
-                      )}
-                      <span className="font-medium text-ink">{g.title}</span>
-                    </div>
-                  </Td>
-                  <Td>
-                    <Input
-                      className="w-24"
-                      inputMode="numeric"
-                      value={edit[g.id] ?? String(g.priceStars)}
-                      onChange={(e) =>
-                        setEdit({
-                          ...edit,
-                          [g.id]: e.target.value.replace(/\D/g, ""),
-                        })
-                      }
-                      onBlur={() => {
-                        const v = Number(edit[g.id]);
-                        if (
-                          edit[g.id] !== undefined &&
-                          Number.isInteger(v) &&
-                          v >= 1 &&
-                          v !== g.priceStars
-                        )
-                          patch.mutate({ id: g.id, body: { priceStars: v } });
-                        setEdit((cur) =>
-                          Object.fromEntries(
-                            Object.entries(cur).filter(([k]) => k !== g.id),
-                          ),
-                        );
-                      }}
-                    />
-                  </Td>
-                  <Td className="text-right tabular-nums">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={g.position <= 0}
-                        onClick={() =>
-                          patch.mutate({
-                            id: g.id,
-                            body: { position: Math.max(0, g.position - 1) },
-                          })
-                        }
-                      >
-                        ↑
-                      </Button>
-                      {g.position + 1}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() =>
-                          patch.mutate({
-                            id: g.id,
-                            body: { position: g.position + 1 },
-                          })
-                        }
-                      >
-                        ↓
-                      </Button>
-                    </div>
-                  </Td>
-                  <Td className="text-right tabular-nums">{g.sentCount}</Td>
-                  <Td>
-                    <Badge
-                      tone={g.status === "active" ? "success" : "warning"}
-                      dot
-                    >
-                      {g.status === "active" ? "в каталоге" : "скрыт"}
-                    </Badge>
-                  </Td>
-                  <Td className="whitespace-nowrap text-right">
-                    <Button
-                      size="sm"
-                      variant="soft"
-                      aria-label={g.status === "active" ? "Скрыть подарок" : "Вернуть подарок в каталог"}
-                      title={g.status === "active" ? "Скрыть подарок" : "Вернуть подарок в каталог"}
-                      onClick={() =>
-                        patch.mutate({
-                          id: g.id,
-                          body: {
-                            status: g.status === "active" ? "hidden" : "active",
-                          },
-                        })
-                      }
-                    >
-                      {g.status === "active" ? (
-                        <EyeSlash size={14} />
-                      ) : (
-                        <Eye size={14} />
-                      )}
-                    </Button>{" "}
-                    <Button
-                      size="sm"
-                      variant="danger-soft"
-                      aria-label="Удалить подарок"
-                      title="Удалить подарок"
-                      onClick={() => remove.mutate({ id: g.id, title: g.title })}
-                    >
-                      <Trash size={14} />
-                    </Button>
-                  </Td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </Table>
-      )}
     </div>
   );
 }

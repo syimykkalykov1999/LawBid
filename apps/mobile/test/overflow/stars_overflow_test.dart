@@ -15,25 +15,17 @@ import 'package:lawbid/features/social/application/social_providers.dart';
 import 'package:lawbid/features/stars/application/stars_providers.dart';
 import 'package:lawbid/features/stars/data/stars_repository.dart';
 import 'package:lawbid/features/stars/domain/stars_models.dart';
-import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
 import 'package:lawbid/features/stars/presentation/low_stars_sheet.dart';
-import 'package:lawbid/features/stars/presentation/my_gifts_screen.dart';
 import 'package:lawbid/features/stars/presentation/stars_screen.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../helpers/long_locale.dart';
 import '../helpers/ux_harness.dart';
 
-/// Owner 2026-10-20: the stars screens (balance, history, gifts, showcase,
-/// exchange) and the «pay with stars» block of Boost do not overflow in the
-/// longest languages (worst of all, ne, ar, de, mr), at 360 dp, RTL, a
-/// 1.1 font and every theme.
-const _gift = Gift(
-  id: 'g1',
-  title: 'A very long gift title that wraps',
-  priceStars: 1250,
-);
-
+/// Owner 2026-10-20: the stars screen (balance, history), the
+/// not-enough-stars sheet and the «pay with stars» block of Boost do not
+/// overflow in the longest languages (worst of all, ne, ar, de, mr), at
+/// 360 dp, RTL, a 1.1 font and every theme.
 class _Stars extends StarsRepository {
   _Stars({this.balance = 120}) : super(Dio());
 
@@ -43,7 +35,6 @@ class _Stars extends StarsRepository {
   Future<StarsOverview> overview() async => StarsOverview(
         enabled: true,
         balance: balance,
-        giftConvertPercent: 70,
         packs: const [
           StarPack(id: 'p1', stars: 5000, priceCents: 9999),
           StarPack(id: 'p2', stars: 150, priceCents: 279),
@@ -63,33 +54,6 @@ class _Stars extends StarsRepository {
               balanceAfter: 123456,
               kind: k,
               createdAt: DateTime(2026, 10, 20, 9),
-            ),
-        ],
-        next: null,
-      );
-
-  @override
-  Future<List<Gift>> gifts() async => [
-        _gift,
-        const Gift(id: 'g2', title: 'Scales', priceStars: 99999),
-      ];
-
-  @override
-  Future<({List<GiftSend> items, String? next})> showcase(
-    String userId, {
-    String? cursor,
-  }) async =>
-      (
-        items: [
-          for (var i = 0; i < 4; i++)
-            GiftSend(
-              id: 's$i',
-              gift: _gift,
-              anonymous: i.isEven,
-              shown: true,
-              senderName: 'Daniel Kim-Montgomery',
-              note: 'A long congratulation note that has to wrap nicely',
-              createdAt: DateTime(2026, 10, 20),
             ),
         ],
         next: null,
@@ -183,84 +147,6 @@ Future<void> main() async {
         testWidgets('stars screen, $tag', (tester) async {
           await pump(tester, const StarsScreen());
           expect(find.byType(StarsScreen), findsOneWidget);
-          expect(tester.takeException(), isNull);
-        });
-
-        testWidgets('my gifts + exchange, $tag', (tester) async {
-          await pump(tester, const MyGiftsScreen());
-          expect(tester.takeException(), isNull);
-        });
-
-        testWidgets('gift picker, showcase and bubble, $tag', (tester) async {
-          await pump(
-            tester,
-            Scaffold(
-              body: ListView(
-                children: [
-                  SizedBox(height: 260, child: GiftPicker(onGift: (_) {})),
-                  const GiftShowcase(userId: 'u1'),
-                  GiftMessageBody(
-                    send: GiftSend(
-                      id: 's',
-                      gift: _gift,
-                      anonymous: false,
-                      shown: true,
-                      createdAt: DateTime(2026, 10, 20),
-                    ),
-                    note: 'A long congratulation note that has to wrap nicely',
-                    color: Colors.black,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ],
-              ),
-            ),
-          );
-          expect(tester.takeException(), isNull);
-        });
-
-        testWidgets('profile menu «Подарить» row, $tag', (tester) async {
-          await pump(
-            tester,
-            Builder(
-              builder: (context) => Scaffold(
-                body: Column(
-                  children: [
-                    GiftMenuRow(userId: 'u1', sheet: context, screen: context),
-                    GiftMenuRow(
-                      userId: 'u1',
-                      sheet: context,
-                      screen: context,
-                      blocked: true,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-          expect(
-            find.byKey(const ValueKey('profile-give-gift')),
-            findsOneWidget,
-          );
-          expect(tester.takeException(), isNull);
-        });
-
-        testWidgets('gift sheet, $tag', (tester) async {
-          await pump(
-            tester,
-            Builder(
-              builder: (context) => TextButton(
-                onPressed: () => showGiftSheet(
-                  context,
-                  gift: _gift,
-                  onSend: (_) async {},
-                ),
-                child: const Text('open'),
-              ),
-            ),
-          );
-          await tester.tap(find.text('open'));
-          await tester.pump(const Duration(milliseconds: 400));
-          await tester.pump(const Duration(milliseconds: 400));
           expect(tester.takeException(), isNull);
         });
 

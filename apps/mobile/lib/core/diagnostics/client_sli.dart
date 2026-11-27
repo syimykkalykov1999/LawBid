@@ -55,7 +55,6 @@ abstract final class ClientSli {
     'POST /pay/session': SliFlow.pay,
     'POST /conversations/:id/calls': SliFlow.call,
     'POST /groups/:id/calls': SliFlow.call,
-    'POST /channels/:id/calls': SliFlow.call,
     'POST /calls/:id/accept': SliFlow.call,
     'POST /calls/:id/join': SliFlow.call,
   };

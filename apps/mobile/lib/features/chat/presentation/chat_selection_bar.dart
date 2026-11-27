@@ -5,8 +5,6 @@ import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/transfers/adaptive_limiter.dart' show mapAtOnce;
 import 'package:lawbid/features/cases/presentation/widgets/detail_widgets.dart'
     show showConfirmSheet;
-import 'package:lawbid/features/channels/application/channels_providers.dart';
-import 'package:lawbid/features/channels/domain/channel_models.dart';
 import 'package:lawbid/features/chat/application/chat_providers.dart';
 import 'package:lawbid/features/chat/application/chat_selection.dart';
 import 'package:lawbid/features/chat/domain/chat_models.dart';
@@ -21,14 +19,10 @@ import 'package:material_ui/material_ui.dart';
 /// list only — the history stays with the other side and comes back with
 /// a new message). Picked groups take part in pin · mute · delete (hide);
 /// «Move» (folders) is off while a group is picked.
-/// Owner 2026-10-21 (Telegram): the same bar on the Channels screen; a picked
-/// channel takes part in «pin», «archive» and «mute» (each section has its
-/// own Archive); «read» and «delete» grey out while one is picked.
 class ChatSelectionBar extends ConsumerStatefulWidget {
   const ChatSelectionBar({
     required this.chats,
     this.groups = const [],
-    this.channels = const [],
     this.inArchive = false,
     super.key,
   });
@@ -38,9 +32,6 @@ class ChatSelectionBar extends ConsumerStatefulWidget {
 
   /// The groups of the visible list.
   final List<api.GroupDto> groups;
-
-  /// The channels of the visible list (Channels screen).
-  final List<Channel> channels;
 
   /// On the Archive screen the action is «Unarchive».
   final bool inArchive;
@@ -62,36 +53,14 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     return widget.groups.where((g) => ids.contains(g.id)).toList();
   }
 
-  List<Channel> get _pickedChannels {
-    final ids = ref.read(chatSelectionProvider) ?? const <String>{};
-    return widget.channels.where((c) => ids.contains(c.id)).toList();
-  }
-
   /// Requests of one multi-chat action in flight at once.
   static const _atOnce = 4;
 
   static void _keep() {}
 
-  /// A channel's row with my change now; what puts it back. A pin or a
-  /// mute only changes the rows held ([ChannelListHub.patch]); an archive
-  /// [moves] the row between the lists ([ChannelListHub.apply]).
-  static void Function() _showChannel(
-    ChannelListHub lists,
-    Channel before,
-    Channel next, {
-    bool moves = false,
-  }) {
-    if (moves) {
-      lists.apply(next);
-      return () => lists.apply(before);
-    }
-    lists.patch(next);
-    return () => lists.patch(before);
-  }
-
-  /// Owner 26.11 (Telegram, WhatsApp): every picked chat, group and channel
-  /// changes in its list at once ([showChat] / [showGroup] /
-  /// [showChannel] give the change and what puts it back); the requests go
+  /// Owner 26.11 (Telegram, WhatsApp): every picked chat and group changes
+  /// in its list at once ([showChat] / [showGroup] give the change and what
+  /// puts it back); the requests go
   /// [_atOnce] at a time; only the rows the server refused come back, and
   /// the message says how many.
   Future<void> _each(
@@ -100,15 +69,12 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     void Function() Function(Conversation c)? showChat,
     Future<void> Function(api.GroupDto g)? groupCall,
     void Function() Function(api.GroupDto g)? showGroup,
-    Future<void> Function(Channel c)? channelCall,
-    void Function() Function(Channel c)? showChannel,
     bool? undoArchived,
   }) async {
     final t = ref.read(translatorProvider);
     final picked = _picked;
     final groups = groupCall == null ? const <api.GroupDto>[] : _pickedGroups;
-    final channels = channelCall == null ? const <Channel>[] : _pickedChannels;
-    if ((picked.isEmpty && groups.isEmpty && channels.isEmpty) || _busy) {
+    if ((picked.isEmpty && groups.isEmpty) || _busy) {
       return;
     }
     setState(() => _busy = true);
@@ -117,8 +83,6 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
         (undo: showChat?.call(c) ?? _keep, send: () => call(c)),
       for (final g in groups)
         (undo: showGroup?.call(g) ?? _keep, send: () => groupCall!(g)),
-      for (final c in channels)
-        (undo: showChannel?.call(c) ?? _keep, send: () => channelCall!(c)),
     ];
     final errors = await mapAtOnce<
         ({void Function() undo, Future<void> Function() send}),
@@ -138,10 +102,6 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     // «something went wrong» for a chat that did move.
     try {
       refreshChatFolders(ref);
-      if (channels.isNotEmpty) {
-        // Pin / archive / mute / leave: one small `updatedSince` per list.
-        ref.read(channelListHubProvider).catchUp();
-      }
       if (failure == null) ref.read(chatSelectionProvider.notifier).stop();
     } on Object {
       // Disposed with the selection: nothing left to refresh.
@@ -149,8 +109,8 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     if (mounted) {
       setState(() => _busy = false);
       // Row 109 (Telegram / Gmail): a delete or an archive of chats and
-      // groups offers «Undo» (channels have their own Archive screen).
-      if (failure == null && undoArchived != null && channels.isEmpty) {
+      // groups offers «Undo».
+      if (failure == null && undoArchived != null) {
         showChatMoveUndo(
           context,
           message: t.t(done),
@@ -178,20 +138,14 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
   Future<void> _pin() {
     final picked = _picked;
     // All pinned → unpin them; otherwise pin them all.
-    final pin = picked.any((c) => !c.pinned) ||
-        _pickedGroups.any((g) => !g.pinned) ||
-        _pickedChannels.any((c) => !c.isPinned);
+    final pin =
+        picked.any((c) => !c.pinned) || _pickedGroups.any((g) => !g.pinned);
     final lists = ref.read(chatListsHubProvider);
-    final channelLists = ref.read(channelListHubProvider);
     return _each(
       (c) => ref.read(chatRepositoryProvider).organize(c.id, pinned: pin),
       showChat: (c) => lists.show(c.id, change: (x) => x.withMine(pinned: pin)),
       groupCall: (g) => updateMyGroup(ref, g.id, pinned: pin, shown: true),
       showGroup: (g) => showMyGroupChange(ref, g.id, pinned: pin),
-      channelCall: (c) =>
-          ref.read(channelsRepositoryProvider).organize(c, pinned: pin),
-      showChannel: (c) =>
-          _showChannel(channelLists, c, c.copyWith(isPinned: pin)),
       done: pin ? 'chat.organize.pinned' : 'chat.organize.unpinned',
     );
   }
@@ -199,9 +153,8 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
   /// Owner 2026-10-21 (inbox 27, Telegram): muting asks for how long
   /// (1 hour · 8 hours · 2 days · forever); all muted → unmute at once.
   Future<void> _mute() async {
-    final unmute = _picked.every((c) => c.muted) &&
-        _pickedGroups.every(isGroupMuted) &&
-        _pickedChannels.every((c) => c.isMuted);
+    final unmute =
+        _picked.every((c) => c.muted) && _pickedGroups.every(isGroupMuted);
     Duration? span;
     if (!unmute) {
       final pick = await pickMute(
@@ -212,10 +165,8 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
       if (pick == null || !mounted) return;
       span = muteDuration(pick);
     }
-    final forever = span == kMuteForever;
     final until = span == null ? null : DateTime.now().add(span);
     final lists = ref.read(chatListsHubProvider);
-    final channelLists = ref.read(channelListHubProvider);
     await _each(
       (c) => ref.read(chatRepositoryProvider).mute(c.id, until),
       showChat: (c) => lists.show(
@@ -232,19 +183,6 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
             ? myGroupMutedUntil(muted: false)
             : myGroupMutedUntil(mutedFor: span),
       ),
-      showChannel: (c) => _showChannel(
-        channelLists,
-        c,
-        unmute
-            ? c.copyWith(isMuted: false, clearMutedUntil: true)
-            : c.copyWith(isMuted: true, mutedUntil: until),
-      ),
-      channelCall: (c) => ref.read(channelsRepositoryProvider).organize(
-            c,
-            muted: unmute || forever ? !unmute : null,
-            mutedUntil:
-                unmute || forever ? null : DateTime.now().toUtc().add(span!),
-          ),
       done: unmute ? 'chat.select.unmuted' : 'chat.select.muted',
     );
   }
@@ -264,15 +202,6 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
         ),
         showGroup: (g) =>
             showMyGroupChange(ref, g.id, archived: !widget.inArchive),
-        channelCall: (c) => ref
-            .read(channelsRepositoryProvider)
-            .organize(c, archived: !widget.inArchive),
-        showChannel: (c) => _showChannel(
-          ref.read(channelListHubProvider),
-          c,
-          c.copyWith(isArchived: !widget.inArchive),
-          moves: true,
-        ),
         done: widget.inArchive ? 'chat.unarchive' : 'chat.archived',
         undoArchived: widget.inArchive ? null : true,
       );
@@ -332,15 +261,11 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
     final type = Theme.of(context).extension<AppTypographyTokens>()!;
     final ids = ref.watch(chatSelectionProvider) ?? const <String>{};
     final active = ids.isNotEmpty && !_busy;
-    // «Read» and «delete» are not for a channel.
-    final noChannel = _pickedChannels.isEmpty;
-    final muteAll = _picked.every((c) => c.muted) &&
-        _pickedGroups.every(isGroupMuted) &&
-        _pickedChannels.every((c) => c.isMuted);
+    final muteAll =
+        _picked.every((c) => c.muted) && _pickedGroups.every(isGroupMuted);
     final pinAll = ids.isNotEmpty &&
         _picked.every((c) => c.pinned) &&
-        _pickedGroups.every((g) => g.pinned) &&
-        _pickedChannels.every((c) => c.isPinned);
+        _pickedGroups.every((g) => g.pinned);
 
     final specs = <_BarAction>[
       _BarAction(
@@ -368,7 +293,6 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
         AppIcons.doneAllRounded,
         t.t('chat.seen'),
         _readAll,
-        enabled: noChannel,
       ),
       _BarAction(
         'select-delete',
@@ -376,7 +300,6 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
         t.t('chat.select.delete'),
         _delete,
         danger: true,
-        enabled: noChannel,
       ),
     ];
 
@@ -411,9 +334,9 @@ class _ChatSelectionBarState extends ConsumerState<ChatSelectionBar> {
                   Expanded(
                     child: _BarCell(
                       spec: a,
-                      enabled: active && a.enabled,
+                      enabled: active,
                       captions: captions,
-                      color: !(active && a.enabled)
+                      color: !active
                           ? colors.textSecondary.withValues(alpha: 0.5)
                           : a.danger
                               ? colors.dangerText
@@ -437,7 +360,6 @@ class _BarAction {
     this.label,
     this.onTap, {
     this.danger = false,
-    this.enabled = true,
   });
 
   final String keyName;
@@ -445,7 +367,6 @@ class _BarAction {
   final String label;
   final VoidCallback onTap;
   final bool danger;
-  final bool enabled;
 }
 
 class _BarCell extends StatelessWidget {

@@ -41,7 +41,6 @@ import 'package:lawbid/features/social/presentation/widgets/post_sheets.dart'
     show showReportSheet;
 import 'package:lawbid/features/social/presentation/widgets/social_format.dart';
 import 'package:lawbid/features/social/social_routes.dart';
-import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
 import 'package:lawbid/features/stories/presentation/story_avatar_ring.dart';
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/domain/team_models.dart';
@@ -119,12 +118,6 @@ Future<void> showAttorneyMoreSheet(
         mainAxisSize: MainAxisSize.min,
         children: [
           const AppSheetHandle(),
-          GiftMenuRow(
-            userId: p.id,
-            sheet: sheet,
-            screen: context,
-            blocked: p.isBlocked || p.hasBlockedMe,
-          ),
           BlockListRow(
             userId: p.id,
             displayName: p.fullName.isEmpty ? atHandle(p.username) : p.fullName,
@@ -374,7 +367,6 @@ class _AttorneyProfileViewState extends ConsumerState<AttorneyProfileView> {
           _AboutSection(profile: p),
           const SizedBox(height: AppSpacing.md),
           _ChipRows(profile: p),
-          // Owner 2026-10-21: the gifts moved to an icon in the top bar.
           const SizedBox(height: AppSpacing.sm),
           // Row 112 (LinkedIn «Profile strength», Upwork % complete): the
           // attorney's own profile shows what is still missing.

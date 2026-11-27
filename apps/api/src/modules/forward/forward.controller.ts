@@ -28,7 +28,7 @@ export class ForwardController {
   @HttpCode(200)
   @ApiOperation({
     summary:
-      'Forward messages / posts into chats, groups and channels (idempotent on requestId)',
+      'Forward messages / posts into chats and groups (idempotent on requestId)',
   })
   @ApiEnvelopeResponse(ForwardResponseDto)
   @ApiErrors({

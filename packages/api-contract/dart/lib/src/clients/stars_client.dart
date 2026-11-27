@@ -6,10 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
 import '../models/convert_gift_result_envelope.dart';
-import '../models/gift_list_envelope.dart';
-import '../models/gift_send_envelope.dart';
 import '../models/gift_send_list_envelope.dart';
-import '../models/send_profile_gift_dto.dart';
 import '../models/set_gift_shown_dto.dart';
 import '../models/star_ledger_item_list_envelope.dart';
 import '../models/stars_buy_envelope.dart';
@@ -46,18 +43,6 @@ abstract class StarsClient {
   @GET('/stars/purchases/{id}')
   Future<StarsPurchaseEnvelope> getStarsPurchase({
     @Path('id') required String id,
-    @Extras() Map<String, dynamic>? extras,
-  });
-
-  /// The gift catalog
-  @GET('/stars/gifts')
-  Future<GiftListEnvelope> listGifts({@Extras() Map<String, dynamic>? extras});
-
-  /// Give a gift to a profile (paid in stars)
-  @POST('/stars/gifts/{giftId}/send')
-  Future<GiftSendEnvelope> sendGiftToProfile({
-    @Path('giftId') required String giftId,
-    @Body() required SendProfileGiftDto body,
     @Extras() Map<String, dynamic>? extras,
   });
 

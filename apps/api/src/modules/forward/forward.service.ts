@@ -8,7 +8,6 @@ import { createHash } from 'node:crypto';
 import { ErrorCode } from '../../common/errors/error-code.enum';
 import type { ForwardContent } from '../../common/forward/forward-content';
 import type { RequestUser } from '../auth/decorators/current-user.decorator';
-import { ChannelsService } from '../channels/channels.service';
 import { ChatService } from '../chat/chat.service';
 import { GroupsService } from '../groups/groups.service';
 import {
@@ -22,12 +21,12 @@ import {
 
 /**
  * Owner 2026-10-21 (Telegram / WhatsApp «Переслать»): any message — a
- * chat's, a group's, a channel post — into any chats at once (direct,
- * case, group, channel), several messages in their order, «Forwarded
+ * chat's or a group's — into any chats at once (direct, case, group),
+ * several messages in their order, «Forwarded
  * from …» kept. Every source is read-checked first (404 / 403 for the
  * whole request); then each message × chat pair goes through that chat's
  * own send path, so delivery, sockets, pushes and the target's rules
- * (membership, closed chat, blocks, «who can post», channel admins) are
+ * (membership, closed chat, blocks, «who can post») are
  * exactly those of a normal message. A pair that the target refuses is
  * reported as failed with its error code; the rest still go.
  */
@@ -38,7 +37,6 @@ export class ForwardService {
   constructor(
     private readonly chat: ChatService,
     private readonly groups: GroupsService,
-    private readonly channels: ChannelsService,
   ) {}
 
   async forward(
@@ -106,12 +104,8 @@ export class ForwardService {
         return this.chat.forwardSource(user, source.id);
       case 'group_message':
         return this.groups.forwardSource(user, source.id);
-      case 'channel_post':
-        return this.channels.forwardSource(user, source.id);
       case 'group_link':
         return this.groups.linkSource(user, source.id);
-      case 'channel_link':
-        return this.channels.linkSource(user, source.id);
     }
   }
 
@@ -133,12 +127,6 @@ export class ForwardService {
         return (
           await this.groups.sendForwarded(user, target.id, key, content, {
             topicId: target.topicId,
-            silent,
-          })
-        ).id;
-      case 'channel':
-        return (
-          await this.channels.sendForwarded(user, target.id, key, content, {
             silent,
           })
         ).id;

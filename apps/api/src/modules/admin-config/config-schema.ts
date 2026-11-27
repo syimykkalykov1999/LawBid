@@ -571,7 +571,7 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     // admin config stays free of feature modules).
     max: 11,
   };
-  // Owner 2026-10-22 (audit #4 §6): group / channel / post caps.
+  // Owner 2026-10-22 (audit #4 §6): group / post caps.
   out['groups.max_members'] = {
     ...out['groups.max_members'],
     description: 'Most members in one group (2–5000).',
@@ -583,12 +583,6 @@ export function configSchema(): Record<string, ConfigKeySchema> {
     description:
       'Groups whose new messages are delivered at the same moment across all servers (default 64, was a fixed 8). Each is one queue: a group keeps its order inside it; every worker runs one consumer per queue. A larger number takes effect within a minute.',
     min: 1,
-  };
-  out['channels.max_owned'] = {
-    ...out['channels.max_owned'],
-    description: 'Most channels one person may own (0 = no cap).',
-    min: 0,
-    max: 10_000,
   };
   // Owner 2026-10-05: case urgency thresholds (days left) and reminders.
   for (const level of ['very_urgent', 'urgent', 'soon', 'within_month']) {
@@ -1753,10 +1747,6 @@ export function configSchema(): Record<string, ConfigKeySchema> {
   queueConcurrency(
     'ops.queue_concurrency_case_history_export',
     'Jobs the queue of case history PDF exports runs at once in one server task. Default 2. Applied to the running workers within 30 s.',
-  );
-  queueConcurrency(
-    'ops.queue_concurrency_channel_fanout',
-    'Jobs the queue of channel post deliveries runs at once in one server task. Default 4. Applied to the running workers within 30 s.',
   );
   queueConcurrency(
     'ops.queue_concurrency_data_export',

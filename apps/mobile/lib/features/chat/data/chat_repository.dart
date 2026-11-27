@@ -11,7 +11,6 @@ import 'package:lawbid/features/chat/domain/chat_models.dart';
 import 'package:lawbid/features/chat/domain/forward.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_payload.dart';
 import 'package:lawbid/features/chat/e2ee/e2ee_service.dart';
-import 'package:lawbid/features/stars/domain/stars_mappers.dart';
 import 'package:lawbid/features/stickers/data/stickers_repository.dart';
 import 'package:lawbid/shared/domain/cursor_page.dart';
 import 'package:lawbid_api/lawbid_api.dart' as api;
@@ -133,8 +132,8 @@ abstract interface class ChatRepository {
   );
 
   /// Owner 2026-10-21 (Telegram «Переслать»): [sources] (oldest first) into
-  /// every chat of [targets] in one request — direct / case chats, groups,
-  /// channels. A retry with the same [requestId] sends nothing twice; a
+  /// every chat of [targets] in one request — direct / case chats and
+  /// groups. A retry with the same [requestId] sends nothing twice; a
   /// chat that refuses a message reports it in its result.
   Future<List<ForwardResult>> forwardBatch(
     String requestId,
@@ -381,12 +380,8 @@ class ApiChatRepository implements ChatRepository {
                   ForwardSourceKind.message => api.ForwardSourceKind.message,
                   ForwardSourceKind.groupMessage =>
                     api.ForwardSourceKind.groupMessage,
-                  ForwardSourceKind.channelPost =>
-                    api.ForwardSourceKind.channelPost,
                   ForwardSourceKind.groupLink =>
                     api.ForwardSourceKind.groupLink,
-                  ForwardSourceKind.channelLink =>
-                    api.ForwardSourceKind.channelLink,
                 },
                 id: s.id,
               ),
@@ -398,7 +393,6 @@ class ApiChatRepository implements ChatRepository {
                   ForwardTargetKind.conversation =>
                     api.ForwardTargetKind.conversation,
                   ForwardTargetKind.group => api.ForwardTargetKind.group,
-                  ForwardTargetKind.channel => api.ForwardTargetKind.channel,
                 },
                 id: t.id,
                 topicId: t.topicId,
@@ -413,7 +407,6 @@ class ApiChatRepository implements ChatRepository {
           target: ForwardTarget(
             switch (r.target.kind) {
               api.ForwardTargetKind.group => ForwardTargetKind.group,
-              api.ForwardTargetKind.channel => ForwardTargetKind.channel,
               _ => ForwardTargetKind.conversation,
             },
             r.target.id,
@@ -975,7 +968,6 @@ abstract final class ChatMappers {
           api.MessageDtoType.call => MessageKind.call,
           api.MessageDtoType.attachment => MessageKind.attachment,
           api.MessageDtoType.sticker => MessageKind.sticker,
-          api.MessageDtoType.gift => MessageKind.gift,
           api.MessageDtoType.contact => MessageKind.contact,
           api.MessageDtoType.place => MessageKind.place,
           api.MessageDtoType.post => MessageKind.post,
@@ -996,7 +988,6 @@ abstract final class ChatMappers {
               ),
         sticker:
             d.sticker == null ? null : StickersRepository.sticker(d.sticker!),
-        gift: d.gift == null ? null : StarsMappers.send(d.gift!),
         // Owner 2026-10-22: a sealed body never reaches a bubble or the
         // inbox preview (a caption-less photo showed `enc:v2.m1.…`).
         body: isSealedChatBody(d.body) ? '' : d.body,

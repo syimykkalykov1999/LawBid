@@ -11,8 +11,6 @@ import 'package:lawbid/features/profile/presentation/widgets/attorney_profile_vi
 import 'package:lawbid/features/profile/presentation/widgets/client_profile_view.dart';
 import 'package:lawbid/features/profile/presentation/widgets/desktop_profile.dart';
 import 'package:lawbid/features/profile/presentation/widgets/profile_handle_bar.dart';
-import 'package:lawbid/features/stars/presentation/gift_widgets.dart'
-    show GiftHeaderButton;
 import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:lawbid/features/team/presentation/team_widgets.dart';
 import 'package:lawbid/shared/presentation/guest_gate.dart';
@@ -90,8 +88,8 @@ class ProfileScreen extends ConsumerWidget {
       // left, the handle centered, settings on the right.
       appBar: ProfileHandleBar(
         handle: username ?? user?.clientProfile?.username,
-        // Owner 2026-10-21: the gift second from the left, next to the
-        // scales; all four icons of the bar the size of the QR and the gear.
+        // Owner 2026-10-21: all icons of the bar the size of the QR and the
+        // gear.
         leading: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -109,8 +107,6 @@ class ProfileScreen extends ConsumerWidget {
                 ),
               ),
             ),
-            if (user != null && assistant == null)
-              GiftHeaderButton(userId: user.id, isMe: true),
           ],
         ),
         actions: [

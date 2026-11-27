@@ -29,8 +29,6 @@ describe('Guest browsing (e2e)', () => {
   let attorneyId = '';
   let username = '';
   let postId = '';
-  let channelId = '';
-  let channelName = '';
 
   beforeAll(async () => {
     process.env.NODE_ENV = 'test';
@@ -71,14 +69,6 @@ describe('Guest browsing (e2e)', () => {
       data: { author_id: u.id, body: `Guest readable #gv${tag}` },
     });
     postId = p.id;
-    channelName = `gvch${tag}`.slice(0, 20);
-    const ch = await prisma.channel.create({
-      data: { owner_id: u.id, title: 'Guest channel', username: channelName },
-    });
-    channelId = ch.id;
-    await prisma.channelPost.create({
-      data: { channel_id: ch.id, author_id: u.id, body: 'hello guests' },
-    });
   });
 
   afterAll(async () => {
@@ -130,35 +120,16 @@ describe('Guest browsing (e2e)', () => {
     await g.get('/search/trending-tags').expect(200);
     await g.get(`/tags/gv${tag}/posts`).expect(200);
 
-    const ch = await g.get(`/channels/${channelName}`).expect(200);
-    expect(ch.body.data.id).toBe(channelId);
-    const posts = await g.get(`/channels/${channelId}/posts`).expect(200);
-    expect(posts.body.data).toHaveLength(1);
-
     const reels = await g.get('/reels');
     expect(reels.status).not.toBe(401);
-  });
-
-  it('a hidden channel is not readable without an account', async () => {
-    const hidden = await prisma.channel.create({
-      data: {
-        owner_id: attorneyId,
-        title: 'Hidden',
-        username: `hd${tag}`.slice(0, 20),
-        status: 'hidden',
-      },
-    });
-    await guest().get(`/channels/${hidden.id}`).expect(404);
   });
 
   it('everything else stays authenticated: writes and personal reads are 401', async () => {
     const g = guest();
     await g.post('/posts').expect(401);
     await g.post(`/posts/${postId}/like`).expect(401);
-    await g.post(`/channels/${channelId}/views`).expect(401);
     await g.get('/feed/preferences').expect(401);
     await g.get('/search/people').query({ q: 'abc' }).expect(401);
-    await g.get('/channels').expect(401);
     await g.get('/me/archived-posts').expect(401);
     await g.get(`/posts/${postId}/likes`).expect(401);
   });

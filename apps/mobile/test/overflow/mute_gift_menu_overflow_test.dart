@@ -6,17 +6,14 @@ import 'package:lawbid/core/l10n/l10n_translator.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_section.dart';
 import 'package:lawbid/features/groups/presentation/widgets/group_info_sheets.dart';
-import 'package:lawbid/features/stars/application/stars_providers.dart';
-import 'package:lawbid/features/stars/presentation/gift_widgets.dart';
-import 'package:lawbid/features/team/application/team_providers.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../helpers/long_locale.dart';
 import '../helpers/ux_harness.dart';
 
-/// Owner 2026-10-21: «Mute» with a choice of time, «Mute calls», and «Give»
-/// in the profile's ⋯ menu, on a 360 dp phone at text x1 and x1.1 in the
-/// longest translation, ne, ru, ar (RTL), de, mr, in all four themes.
+/// Owner 2026-10-21: «Mute» with a choice of time and «Mute calls», on a
+/// 360 dp phone at text x1 and x1.1 in the longest translation, ne, ru, ar
+/// (RTL), de, mr, in all four themes.
 void main() {
   final locales = <String, (Translator, TextDirection)>{
     'longest': (LongestTranslator(), TextDirection.ltr),
@@ -33,14 +30,11 @@ void main() {
   for (final id in AppThemeId.values) {
     for (final scale in [1.0, 1.1, 1.3]) {
       for (final e in locales.entries) {
-        testWidgets('mute and gift rows: ${id.name} ${e.key} x$scale',
-            (t) async {
+        testWidgets('mute rows: ${id.name} ${e.key} x$scale', (t) async {
           useNarrowPhone(t);
           final (tr, dir) = e.value;
           final overrides = <Override>[
             ...uxOverrides(translator: tr),
-            starsEnabledProvider.overrideWithValue(true),
-            isAssistantProvider.overrideWithValue(false),
           ];
           await t.pumpWidget(
             uxApp(
@@ -64,11 +58,6 @@ void main() {
                           subtitle: tr.t('mute.callsNote'),
                           value: true,
                           onChanged: (_) {},
-                        ),
-                        GiftMenuRow(
-                          userId: 'u1',
-                          sheet: context,
-                          screen: context,
                         ),
                         TextButton(
                           onPressed: () => showGroupChoiceSheet<int>(
@@ -113,7 +102,6 @@ void main() {
           );
           await t.pump(const Duration(milliseconds: 300));
           expect(t.takeException(), isNull);
-          expect(find.byKey(const ValueKey('profile-give-gift')), findsOne);
           await t.tap(find.text('open'));
           await t.pumpAndSettle();
           expect(t.takeException(), isNull);

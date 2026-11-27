@@ -620,7 +620,6 @@ void main() {
     const _Case('attorney profile opens', '/lawyer/anna', guest, null),
     const _Case('profile QR link opens', '/u/anna', guest, null),
     const _Case('post opens', '/post/abc-1', guest, null),
-    const _Case('channel opens', '/c/tax_news', guest, null),
     const _Case('legal stays', '/legal/privacy', guest, null),
     const _Case('welcome stays', '/welcome', guest, null),
     const _Case('mine → welcome', '/mine', guest, '/welcome'),

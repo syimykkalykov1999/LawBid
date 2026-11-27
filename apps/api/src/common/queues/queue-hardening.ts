@@ -79,7 +79,6 @@ const TUNING: Record<string, Partial<Omit<WorkerTuning, 'metrics'>>> = {
     stalledInterval: 60_000,
     maxStalledCount: 2,
   },
-  'channel-fanout': { lockDuration: 90_000, stalledInterval: 60_000 },
   'post-fanout': { lockDuration: 90_000, stalledInterval: 60_000 },
   'case-fanout': { lockDuration: 90_000, stalledInterval: 60_000 },
   // THIRD_PASS_A Q3 (26.11): the `group-fanout-<n>` partitions (one tuning

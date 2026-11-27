@@ -1,5 +1,4 @@
 import { StickerDto } from '../stickers/stickers.dto';
-import { GiftSendDto } from '../stars/stars.dto';
 import { SharedPostCardDto } from '../posts/shared-post-cards.service';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
@@ -286,7 +285,6 @@ export class SendMessageDto {
       'voice',
       'attachment',
       'sticker',
-      'gift',
       'contact',
       'place',
       'post',
@@ -301,7 +299,6 @@ export class SendMessageDto {
     'voice',
     'attachment',
     'sticker',
-    'gift',
     'contact',
     'place',
     'post',
@@ -312,7 +309,6 @@ export class SendMessageDto {
     | 'voice'
     | 'attachment'
     | 'sticker'
-    | 'gift'
     | 'contact'
     | 'place'
     | 'post'
@@ -357,13 +353,6 @@ export class SendMessageDto {
   @ValidateNested({ each: true })
   @Type(() => SealedPushPreviewDto)
   pushPreviews?: SealedPushPreviewDto[];
-
-  /** Owner 2026-10-20: a gift message (type=gift) paid in stars; `body` is
-   * the optional note (≤200). */
-  @ApiPropertyOptional({ format: 'uuid' })
-  @IsOptional()
-  @IsUUID('all')
-  giftId?: string;
 
   /** Owner 2026-10-20: the attorney whose card is shared (type=contact). */
   @ApiPropertyOptional({ format: 'uuid' })
@@ -803,10 +792,6 @@ export class MessageDto {
       'Item 25 (type=mls, message franking): base64 HMAC-SHA256(k, P) the sender stored; the receiver checks it against the plaintext it decrypted.',
   })
   frankingTag!: string | null;
-
-  /** Owner 2026-10-20: the gift of a gift message. */
-  @ApiPropertyOptional({ type: () => GiftSendDto, nullable: true })
-  gift!: GiftSendDto | null;
 
   /** Owner 2026-10-20: the attorney card of a `contact` message. */
   @ApiPropertyOptional({ type: () => ContactCardDto, nullable: true })

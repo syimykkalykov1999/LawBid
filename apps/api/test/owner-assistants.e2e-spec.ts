@@ -1026,12 +1026,10 @@ describe('Assistants (e2e, OQ-048)', () => {
     });
     expect(row.revoked_at).toBeNull();
 
-    // No duty: the attorney's groups and channels stay closed, and the
-    // attorney-only referral / partner routes refuse the assistant.
-    for (const path of ['/api/v1/groups', '/api/v1/channels']) {
-      const r = await api().get(path).set(asst.auth).expect(403);
-      expect(r.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
-    }
+    // No duty: the attorney's groups stay closed, and the attorney-only
+    // referral / partner routes refuse the assistant.
+    const groups = await api().get('/api/v1/groups').set(asst.auth).expect(403);
+    expect(groups.body.error.code).toBe('ASSISTANT_NOT_ALLOWED');
     const ref = await api()
       .post('/api/v1/referrals/apply')
       .set(asst.auth)
@@ -1049,7 +1047,6 @@ describe('Assistants (e2e, OQ-048)', () => {
     // Finding 3: the attorney's stars and promotion credits.
     for (const path of [
       `/api/v1/stars/received-gifts/${randomUUID()}/convert`,
-      `/api/v1/stars/gifts/${randomUUID()}/send`,
       `/api/v1/promotions/${randomUUID()}/stop`,
     ]) {
       const r = await api()

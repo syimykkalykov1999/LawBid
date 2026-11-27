@@ -11,8 +11,8 @@ import 'package:lawbid/core/navigation/app_routes.dart';
 import 'package:lawbid/core/navigation/safe_back.dart';
 import 'package:lawbid/core/persistence/persistence_providers.dart';
 import 'package:lawbid/core/session/session_providers.dart';
-import 'package:lawbid/features/channels/channels_routes.dart';
 import 'package:lawbid/features/chat/chat_routes.dart';
+import 'package:lawbid/features/groups/group_routes.dart';
 import 'package:lawbid/features/onboarding/application/current_user_controller.dart';
 import 'package:lawbid/features/plans/presentation/bid_packs_screen.dart';
 import 'package:lawbid/features/profile/presentation/screens/client_profile_edit_screen.dart';
@@ -164,41 +164,10 @@ const _rows = <_Row>[
     AppRoutes.profile,
   ),
   _Row(
-    'channel',
-    'features/channels/presentation/channel_screen.dart',
-    '/c/lawbid',
-    ChannelsRoutes.list,
-    explicit: true,
-  ),
-  _Row(
-    'channels',
-    'features/channels/presentation/channels_screen.dart',
-    ChannelsRoutes.list,
+    'groups archive',
+    'features/groups/presentation/groups_archive_screen.dart',
+    GroupRoutes.archive,
     AppRoutes.feed,
-  ),
-  _Row(
-    'channels archive',
-    'features/channels/presentation/sections_archive.dart',
-    ChannelsRoutes.archive,
-    ChannelsRoutes.list,
-  ),
-  _Row(
-    'channel admins (channels gate)',
-    'features/channels/presentation/channel_widgets.dart',
-    '/channels/ch1/admins',
-    '/channels/ch1',
-  ),
-  _Row(
-    'channel composer',
-    'features/channels/presentation/channel_composer_screen.dart',
-    '/channels/ch1/compose',
-    '/channels/ch1',
-  ),
-  _Row(
-    'channel form',
-    'features/channels/presentation/channel_form_screen.dart',
-    '/channels/ch1/edit',
-    '/channels/ch1',
   ),
   _Row(
     'create group',
@@ -224,12 +193,6 @@ const _rows = <_Row>[
     'features/stars/presentation/stars_screen.dart',
     AppRoutes.stars,
     AppRoutes.profileSettings,
-  ),
-  _Row(
-    'my gifts',
-    'features/stars/presentation/my_gifts_screen.dart',
-    AppRoutes.myGifts,
-    AppRoutes.stars,
   ),
   _Row(
     'post insights',

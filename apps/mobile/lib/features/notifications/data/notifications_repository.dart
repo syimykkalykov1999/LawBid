@@ -10,7 +10,6 @@ import 'package:lawbid_api/lawbid_api.dart' as api;
 enum NotifCategory {
   messages,
   groups,
-  channels,
   calls,
   bids,
   cases,

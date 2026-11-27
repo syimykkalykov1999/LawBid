@@ -49,7 +49,6 @@ import { UsernamesModule } from './modules/usernames/usernames.module';
 import { HttpStatsMiddleware } from './common/ops/http-stats.service';
 import { LinkPreviewModule } from './modules/link-preview/link-preview.module';
 import { AddressesModule } from './modules/addresses/addresses.module';
-import { ChannelsModule } from './modules/channels/channels.module';
 import { FeedModule } from './modules/feed/feed.module';
 import { CommentsModule } from './modules/comments/comments.module';
 import { CaseCommentsModule } from './modules/case-comments/case-comments.module';
@@ -383,7 +382,6 @@ const isDev =
     PostsModule,
     StickersModule,
     StoriesModule,
-    ChannelsModule,
     UsernamesModule,
     LinkPreviewModule,
     AddressesModule,

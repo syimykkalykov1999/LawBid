@@ -9,8 +9,8 @@ import {
 } from '../src/modules/stars/starter-catalog.service';
 
 /**
- * Owner 2026-10-20: the first start fills the gift catalog and the starter
- * sticker packs once (images drawn by us), never again, never over an
+ * Owner 2026-10-20: the first start fills the starter sticker packs once
+ * (owner 26.11: no gifts any more) (images drawn by us), never again, never over an
  * admin's own catalog.
  */
 jest.setTimeout(120_000);
@@ -50,7 +50,6 @@ describe('Starter catalog (e2e)', () => {
   afterAll(async () => {
     await prisma.appConfig.deleteMany({ where: { key: STARTER_CATALOG_KEY } });
     const files = { s3_key: { in: stored } };
-    await prisma.gift.deleteMany({ where: { file: files } });
     await prisma.sticker.deleteMany({ where: { file: files } });
     await prisma.stickerPack.deleteMany({
       where: { short_name: { startsWith: 'lawbid_' }, is_official: true },
@@ -62,9 +61,9 @@ describe('Starter catalog (e2e)', () => {
     await app.close();
   });
 
-  it('makes the gifts and three packs once; a second run does nothing', async () => {
+  it('makes the three packs once, no gifts; a second run does nothing', async () => {
     await prisma.appConfig.deleteMany({ where: { key: STARTER_CATALOG_KEY } });
-    const noGiftsYet = (await prisma.gift.count()) === 0;
+    const giftsBefore = await prisma.gift.count();
     const svc = new StarterCatalogService(
       prisma,
       storage as never,
@@ -73,8 +72,8 @@ describe('Starter catalog (e2e)', () => {
     );
     const first = await svc.run();
     expect(first.packs).toBe(3);
-    expect(first.gifts).toBe(noGiftsYet ? 17 : 0);
-    expect(stored.length).toBe(24 + first.gifts);
+    expect(stored.length).toBe(24);
+    expect(await prisma.gift.count()).toBe(giftsBefore);
 
     const packs = await prisma.stickerPack.findMany({
       where: { short_name: { startsWith: 'lawbid_' }, is_official: true },
@@ -101,6 +100,6 @@ describe('Starter catalog (e2e)', () => {
     });
 
     expect(await svc.run()).toMatchObject({ skipped: 'already done' });
-    expect(stored.length).toBe(24 + first.gifts);
+    expect(stored.length).toBe(24);
   });
 });

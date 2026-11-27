@@ -159,11 +159,8 @@ export type RealtimeEvent =
   // of mine changed — the lists fix the row instead of reloading.
   | 'case:update'
   | 'consultation:update'
-  // Owner 2026-10-22 (package F): a channel I read posted (to the open
-  // channel's room) and a subscribed channel's counters moved (to me);
-  // a comment under a post I have open (room post:{id}).
-  | 'channel:post'
-  | 'channel:update'
+  // Owner 2026-10-22 (package F): a comment under a post I have open (room
+  // post:{id}).
   | 'comment:new'
   // Pack B (25.11): a comment under that post was deleted.
   | 'comment:deleted'
