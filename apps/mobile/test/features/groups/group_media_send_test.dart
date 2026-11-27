@@ -244,7 +244,7 @@ void main() {
       );
       await t.pump();
       await t.pump();
-      expect(find.byType(PostCardBody), findsOneWidget);
+      expect(find.byType(FixedPostCard), findsOneWidget);
       expect(find.byKey(const ValueKey('chat-post-p1')), findsOneWidget);
       expect(
         find.textContaining('Goodman', findRichText: true),

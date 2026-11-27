@@ -113,10 +113,16 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('nothing without data, nothing while switched off',
-        (tester) async {
+    testWidgets(
+        'owner 27.11: without data the same card (the address), nothing '
+        'while switched off', (tester) async {
       await pump(tester, preview: null);
-      expect(find.byType(Container), findsNothing);
+      // The card keeps its room from the first frame (no jump later).
+      expect(
+        find.byKey(const ValueKey('link-preview-https://example.test/a')),
+        findsOneWidget,
+      );
+      expect(find.text('example.test'), findsOneWidget);
       await pump(
         tester,
         preview: const LinkPreview(url: 'https://example.test/a', title: 'T'),

@@ -387,8 +387,8 @@ export class GroupPresenter {
           isImage: mime ? isImageMime(mime) : false,
           url: f?.url ?? (u && u.ownerId === viewerId ? u.ownerUrl : null),
           previewUrl: f?.previewUrl ?? null,
-          width: f?.width ?? null,
-          height: f?.height ?? null,
+          width: f?.width ?? u?.width ?? null,
+          height: f?.height ?? u?.height ?? null,
           blurhash: f?.blurhash ?? null,
           state: u?.state ?? 'ready',
         };

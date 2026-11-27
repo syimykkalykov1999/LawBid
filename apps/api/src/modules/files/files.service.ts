@@ -1,4 +1,5 @@
 import { imageFormatContext } from './processing/image-format-context';
+import { shownShape } from './processing/shown-shape';
 import { avifSince } from './processing/image-processor';
 import {
   BLOCKING_STATUSES,
@@ -174,6 +175,9 @@ export interface UnscannedChatFile {
   sizeBytes: number | null;
   ownerId: string | null;
   ownerUrl: string | null;
+  /** Owner 27.11: the shown size read at confirm (null when unknown). */
+  width: number | null;
+  height: number | null;
 }
 
 /** Links of one post photo; `blurhash` is the loading placeholder. */
@@ -726,6 +730,9 @@ export class FilesService {
     let size: number;
     let checked: { sha256: string | null; detected: string };
     let directData: Buffer | null = null;
+    // Owner 27.11: the bytes the checks read (the file or its start), for
+    // the photo's / video's shown size below.
+    let shapeSource: Buffer | null = null;
     if (direct) {
       // Security audit 2026-11-08 (L6): a whole-file read holds its bytes
       // until the checks are done; the read budget caps how many megabytes
@@ -750,6 +757,7 @@ export class FilesService {
       if (!read) return this.notUploaded(userId, fileId);
       size = read.got.length;
       directData = read.got;
+      shapeSource = read.got;
       checked = { sha256: read.sha256, detected: read.detected };
     } else {
       const head = await this.storage.head(intent.bucket, intent.key);
@@ -805,11 +813,15 @@ export class FilesService {
         if (prefix) {
           lap('read');
           checked = await checkData(prefix, true);
+          shapeSource = prefix;
         } else {
           checked = await this.readBudget.run(head.size, async () => {
             const whole = await this.storage.read(intent.bucket, key);
             lap('read');
-            return checkData(whole, false);
+            const result = await checkData(whole, false);
+            // Only the header is read for the size; the start is enough.
+            shapeSource = whole.subarray(0, CONFIRM_PREFIX_BYTES);
+            return result;
           });
         }
       } catch (error) {
@@ -818,6 +830,10 @@ export class FilesService {
       }
     }
     const { sha256, detected } = checked;
+    const shape =
+      shapeSource && !E2EE_PURPOSES.has(intent.purpose)
+        ? await shownShape(shapeSource, detected)
+        : null;
     if (directData) {
       // The checked bytes, and only they, go to the key no link can write
       // (put sets the bucket's Cache-Control).
@@ -841,6 +857,9 @@ export class FilesService {
           // hash must never point this row at someone else's object.
           sha256: sha256 ?? intent.sha256,
           source_sha256: sha256,
+          // Owner 27.11: the shown size from the header, before the check
+          // (which writes the stored copy's own size when it ends).
+          ...(shape ? { width: shape.width, height: shape.height } : {}),
           // Item 25: a file the phone encrypted cannot be scanned here (the
           // server holds no key) — as WhatsApp, it is checked when someone
           // reports it (E2eeService.report), so it is never held back.
@@ -1399,6 +1418,8 @@ export class FilesService {
         owner_user_id: true,
         s3_bucket: true,
         s3_key: true,
+        width: true,
+        height: true,
       },
     });
     const byId = new Map(rows.map((r) => [r.id, r]));
@@ -1419,6 +1440,10 @@ export class FilesService {
           processing && this.storage.configured
             ? await this.storage.signedGetUrl(f.s3_bucket, f.s3_key, ttl)
             : null,
+        // Owner 27.11: every bubble has the photo's shape while it is
+        // checked (the size says nothing about the content).
+        width: processing ? f.width : null,
+        height: processing ? f.height : null,
       });
     }
     return out;
