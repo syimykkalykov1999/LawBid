@@ -49,6 +49,7 @@ import type {
   CaseSearchParams,
   PersonRole,
   PersonTier,
+  RankedHit,
   SearchProvider,
 } from './search.provider';
 
@@ -678,7 +679,7 @@ export class PostgresSearchProvider implements SearchProvider {
     q: string,
     max: number,
     f: PostSearchFilters = {},
-  ): Promise<string[]> {
+  ): Promise<RankedHit[]> {
     const w = await this.weights();
     const run = this.postRunner(q, max, f, w);
     return this.searchPostsWith(q, run);
@@ -691,16 +692,15 @@ export class PostgresSearchProvider implements SearchProvider {
     max: number,
     f: PostSearchFilters,
     ids: string[],
-  ): Promise<string[]> {
+  ): Promise<RankedHit[]> {
     if (ids.length === 0) return [];
     const w = await this.weights();
-    const rows = await this.postRunner(
+    return this.postRunner(
       q,
       max,
       f,
       w,
     )(Prisma.sql`p.id = ANY(${ids}::UUID[])`);
-    return rows.map((r) => r.id);
   }
 
   private postRunner(
@@ -708,7 +708,7 @@ export class PostgresSearchProvider implements SearchProvider {
     max: number,
     f: PostSearchFilters,
     w: Awaited<ReturnType<PostgresSearchProvider['weights']>>,
-  ): (match: Prisma.Sql) => Promise<{ id: string }[]> {
+  ): (match: Prisma.Sql) => Promise<RankedHit[]> {
     const where = Prisma.sql`
       ${
         // Audit 2026-10-01: a qualification matches posts of it (and its
@@ -734,7 +734,12 @@ export class PostgresSearchProvider implements SearchProvider {
           ? Prisma.sql`p.like_count + p.comment_count DESC, m.created_at DESC, m.id DESC`
           : Prisma.sql`${ftsRank('m', q, w.text)} DESC, m.created_at DESC, m.id DESC`;
     if (readsAreSplit(this.db)) return this.postRunnerSplit(q, max, f, w);
-    return (match: Prisma.Sql) => this.db.$queryRaw<{ id: string }[]>`
+    // Owner 26.11: the score the list is ordered by goes up with each id
+    // (personal ranking only reorders equal scores); 0 for newest/popular.
+    const relevance = relevanceSorted(f)
+      ? ftsRank('m', q, w.text)
+      : Prisma.sql`0`;
+    return (match: Prisma.Sql) => this.db.$queryRaw<RankedHit[]>`
       WITH m AS (
         SELECT p.id, p.created_at, p.search_tsv, p.search_tsv_simple FROM posts p
         WHERE ${match}
@@ -743,7 +748,7 @@ export class PostgresSearchProvider implements SearchProvider {
         ORDER BY p.created_at DESC
         LIMIT ${POST_CANDIDATES}
       )
-      SELECT m.id::TEXT AS id FROM m
+      SELECT m.id::TEXT AS id, (${relevance})::FLOAT8 AS rank FROM m
       JOIN posts p ON p.id = m.id
       JOIN users u ON u.id = p.author_id AND u.status = 'active'
         -- OQ-038: clients post too; suspended attorneys never show.
@@ -755,8 +760,8 @@ export class PostgresSearchProvider implements SearchProvider {
 
   private async searchPostsWith(
     q: string,
-    run: (match: Prisma.Sql) => Promise<{ id: string }[]>,
-  ): Promise<string[]> {
+    run: (match: Prisma.Sql) => Promise<RankedHit[]>,
+  ): Promise<RankedHit[]> {
     // Whole words first (the planner estimates them well), then the last
     // word as a prefix ("immigr"), then typos; each within a time budget.
     const practiceIds = await this.practiceIdsFor(q);
@@ -764,14 +769,14 @@ export class PostgresSearchProvider implements SearchProvider {
       run(ftsMatch('p', q, false, practiceIds)),
     );
     const parsed = parseSearchQuery(q);
-    if (exact.length >= MIN_EXACT || !parsed.plain) {
-      return exact.map((r) => r.id);
-    }
+    if (exact.length >= MIN_EXACT || !parsed.plain) return exact;
     const prefix = await this.budget(SEARCH_BUDGET_MS, () =>
       run(ftsMatch('p', q, true, practiceIds)),
     );
-    const merged = [...new Map([...exact, ...prefix].map((r) => [r.id, r]))];
-    if (merged.length > 0) return merged.map(([id]) => id);
+    const merged = [
+      ...new Map([...exact, ...prefix].map((r) => [r.id, r])).values(),
+    ];
+    if (merged.length > 0) return merged;
     // Audit 2026-11-01: CJK has no spaces — "移民" is inside the sentence.
     if (hasCjk(q)) {
       const like = `%${escapeLike(parsed.plain)}%`;
@@ -786,7 +791,7 @@ export class PostgresSearchProvider implements SearchProvider {
       const inside = await this.budget(SEARCH_BUDGET_MS, () =>
         run(Prisma.sql`${Prisma.raw(POST_TEXT_SQL)} ILIKE ${like} ${recent}`),
       );
-      if (inside.length > 0) return inside.map((r) => r.id);
+      if (inside.length > 0) return inside;
     }
     // Audit 2026-11-01 ("immigration visa"): every word may name the text or
     // the topic — each must match one of them, like the cases search.
@@ -800,7 +805,7 @@ export class PostgresSearchProvider implements SearchProvider {
       const mixed = await this.budget(SEARCH_BUDGET_MS, () =>
         run(Prisma.sql`(${Prisma.join(perWord, ' AND ')})`),
       );
-      if (mixed.length > 0) return mixed.map((r) => r.id);
+      if (mixed.length > 0) return mixed;
     }
     // Owner 2026-10-15: nothing matched, maybe a typo ("gren card"): the
     // trigram index on the titles finds the close ones.
@@ -809,7 +814,7 @@ export class PostgresSearchProvider implements SearchProvider {
       () => run(typoMatch('p.title', q)),
       true,
     );
-    return typo.map((r) => r.id);
+    return typo;
   }
 
   /**
@@ -835,7 +840,7 @@ export class PostgresSearchProvider implements SearchProvider {
     max: number,
     f: PostSearchFilters,
     w: Awaited<ReturnType<PostgresSearchProvider['weights']>>,
-  ): (match: Prisma.Sql) => Promise<{ id: string }[]> {
+  ): (match: Prisma.Sql) => Promise<RankedHit[]> {
     return async (match: Prisma.Sql) => {
       const g = await shardContext.runOnPrimary(async () => {
         const c = f.practice?.trim().toLowerCase();
@@ -945,7 +950,10 @@ export class PostgresSearchProvider implements SearchProvider {
         .filter((r) => ok.has(r.author))
         .sort(by)
         .slice(0, max)
-        .map((r) => ({ id: r.id }));
+        .map((r) => ({
+          id: r.id,
+          rank: relevanceSorted(f) ? Number(r.rank) : 0,
+        }));
     };
   }
 
@@ -1179,7 +1187,7 @@ export class PostgresSearchProvider implements SearchProvider {
     p: Omit<CaseSearchParams, 'cursor' | 'limit'>,
     max: number,
     ids: string[],
-  ): Promise<string[]> {
+  ): Promise<RankedHit[]> {
     if (ids.length === 0) return [];
     const w = await this.weights();
     const rows = await this.searchCases('', {
@@ -1189,19 +1197,14 @@ export class PostgresSearchProvider implements SearchProvider {
     });
     const found = rows.map((r) => r.id);
     if (found.length === 0) return [];
-    const ranked = await this.db.$queryRaw<{ id: string }[]>`
-        SELECT c.id::TEXT AS id FROM cases c
-        WHERE c.id = ANY(${found}::UUID[])
-        ORDER BY ${ftsRank('c', q, w.text)} DESC, c.created_at DESC, c.id DESC
-        LIMIT ${max}`;
-    return ranked.map((r) => r.id);
+    return this.rankCases(q, found, max, w);
   }
 
   async searchCasesRanked(
     q: string,
     p: Omit<CaseSearchParams, 'cursor' | 'limit'>,
     max: number,
-  ): Promise<string[]> {
+  ): Promise<RankedHit[]> {
     const w = await this.weights();
     const textPractices = await this.practiceIdsFor(q);
     p = { ...p, textPractices };
@@ -1250,14 +1253,7 @@ export class PostgresSearchProvider implements SearchProvider {
       rows = [...new Map([...rows, ...mixed].map((r) => [r.id, r])).values()];
     }
     const ids = rows.map((r) => r.id);
-    if (ids.length > 0) {
-      const ranked = await this.db.$queryRaw<{ id: string }[]>`
-        SELECT c.id::TEXT AS id FROM cases c
-        WHERE c.id = ANY(${ids}::UUID[])
-        ORDER BY ${ftsRank('c', q, w.text)} DESC, c.created_at DESC, c.id DESC
-        LIMIT ${max}`;
-      return ranked.map((r) => r.id);
-    }
+    if (ids.length > 0) return this.rankCases(q, ids, max, w);
     const typo = await this.budget(
       SEARCH_BUDGET_MS,
       () =>
@@ -1268,7 +1264,25 @@ export class PostgresSearchProvider implements SearchProvider {
         }),
       true,
     );
-    return typo.map((r) => r.id);
+    // Typo matches carry no full-text score: one group, newest first.
+    return typo.map((r) => ({ id: r.id, rank: 0 }));
+  }
+
+  /** [ids] by text relevance (title word > text word), then newest, with
+   * the score each was ordered by (owner 26.11: personal ranking reorders
+   * only equal scores). */
+  private async rankCases(
+    q: string,
+    ids: string[],
+    max: number,
+    w: Awaited<ReturnType<PostgresSearchProvider['weights']>>,
+  ): Promise<RankedHit[]> {
+    const rank = ftsRank('c', q, w.text);
+    return this.db.$queryRaw<RankedHit[]>`
+        SELECT c.id::TEXT AS id, (${rank})::FLOAT8 AS rank FROM cases c
+        WHERE c.id = ANY(${ids}::UUID[])
+        ORDER BY ${rank} DESC, c.created_at DESC, c.id DESC
+        LIMIT ${max}`;
   }
 
   /**
@@ -1433,4 +1447,10 @@ export function questionsFallbackSql(text: string, like: string): Prisma.Sql {
     ) t
     ORDER BY t.created_at DESC
     LIMIT 500`;
+}
+
+/** Owner 26.11: the post list is in text-relevance order (not the
+ * viewer's explicit "newest" / "popular"). */
+function relevanceSorted(f: PostSearchFilters): boolean {
+  return !f.sort || f.sort === 'relevance';
 }

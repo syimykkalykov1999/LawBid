@@ -3,8 +3,10 @@ import { SearchService } from './search.service';
 /**
  * Owner 26.11 («поиск умный как ленты?»): posts-by-text and the attorney's
  * cases search keep the text-relevance order first and, like People,
- * re-order only close neighbours (chunks of 5, never across a page) by the
- * viewer's own feed ranking. Which results match never changes.
+ * re-order only close neighbours of an EQUAL text score (chunks of 5,
+ * never across a page) by the viewer's own feed ranking. A better text
+ * match (title over text) is never passed; which results match never
+ * changes.
  */
 describe('Search: personal order inside the relevance order', () => {
   // 25 results in relevance order: r00 … r24.
@@ -16,7 +18,10 @@ describe('Search: personal order inside the relevance order', () => {
   const scoreA = new Map(shared.map((id, i) => [id, i]));
   const scoreB = new Map(shared.map((id, i) => [id, -i]));
 
-  function make() {
+  // Every result the same text score: one tier.
+  const sameScore = shared.map((id) => ({ id, rank: 0.2 }));
+
+  function make(hits: { id: string; rank: number }[] = sameScore) {
     const store = new Map<string, string>();
     const cache = {
       get: jest.fn((k: string) => Promise.resolve(store.get(k) ?? null)),
@@ -26,8 +31,8 @@ describe('Search: personal order inside the relevance order', () => {
       }),
     };
     const provider = {
-      searchPosts: jest.fn().mockResolvedValue(shared),
-      searchCasesRanked: jest.fn().mockResolvedValue(shared),
+      searchPosts: jest.fn().mockResolvedValue(hits),
+      searchCasesRanked: jest.fn().mockResolvedValue(hits),
     };
     const byViewer = (id: string) => (id === 'A' ? scoreA : scoreB);
     const recommendations = {
@@ -168,6 +173,45 @@ describe('Search: personal order inside the relevance order', () => {
     );
     expect(ids(page)).toEqual(shared.slice(0, 20));
     expect(recommendations.postsAffinity).not.toHaveBeenCalled();
+  });
+
+  it('a better text score is never passed: title matches stay above text matches', async () => {
+    // e2e search-text-audit: an older title match above a newer text match.
+    const hits = [
+      { id: 'title-old', rank: 0.6079 },
+      { id: 'title-new', rank: 0.6079 },
+      { id: 'text-1', rank: 0.2432 },
+      { id: 'text-2', rank: 0.2432 },
+      { id: 'text-3', rank: 0.2432 },
+      { id: 'typo', rank: 0 },
+    ];
+    const { svc, recommendations } = make(hits);
+    // The viewer loves the weakest text matches most.
+    const love = new Map(hits.map((h, i) => [h.id, i]));
+    recommendations.postsAffinity.mockResolvedValue(love);
+    recommendations.casesAffinity.mockResolvedValue(love);
+    const expected = [
+      'title-new',
+      'title-old',
+      'text-3',
+      'text-2',
+      'text-1',
+      'typo',
+    ];
+    expect((await allPosts(svc, 'A')).flat()).toEqual(expected);
+    expect((await allCases(svc, 'A')).flat()).toEqual(expected);
+    // Float noise below 1e-4 is still one tier.
+    const noisy = make([
+      { id: 'a', rank: 0.24320001 },
+      { id: 'b', rank: 0.2432 },
+    ]);
+    noisy.recommendations.postsAffinity.mockResolvedValue(
+      new Map([
+        ['a', 0],
+        ['b', 1],
+      ]),
+    );
+    expect((await allPosts(noisy.svc, 'A')).flat()).toEqual(['b', 'a']);
   });
 
   it('scoring failure: the text order (ranking is a bonus)', async () => {

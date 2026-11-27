@@ -11,6 +11,7 @@ import type {
   PersonRole,
   PersonTier,
   PostSearchFilters,
+  RankedHit,
   SearchProvider,
 } from '../search.provider';
 import { EngineError, OpenSearchClient } from './opensearch.client';
@@ -155,7 +156,7 @@ export class OpenSearchProvider implements SearchProvider {
     q: string,
     params: Omit<CaseSearchParams, 'cursor' | 'limit'>,
     max: number,
-  ): Promise<string[]> {
+  ): Promise<RankedHit[]> {
     const parsed = parseSearchQuery(q);
     if (!parsed.plain) return [];
     const [w, textPractices] = await Promise.all([
@@ -189,7 +190,7 @@ export class OpenSearchProvider implements SearchProvider {
     q: string,
     max: number,
     f: PostSearchFilters = {},
-  ): Promise<string[]> {
+  ): Promise<RankedHit[]> {
     if (!parseSearchQuery(q).plain) return [];
     const [w, practiceIds] = await Promise.all([
       this.weights(),
