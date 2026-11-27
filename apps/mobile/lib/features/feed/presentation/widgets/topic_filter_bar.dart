@@ -328,9 +328,13 @@ class TopicFilterBar extends ConsumerWidget {
                     // A slim tab row: the text grows only up to 1.2x.
                     child: MediaQuery.withClampedTextScaling(
                       maxScaleFactor: 1.2,
-                      child: Text(
+                      // Owner 27.11 («скачки»): the tab keeps the bold
+                      // label's width, so picking it does not push the
+                      // tabs to its right.
+                      child: BoldWidthText(
                         label,
-                        maxLines: 1,
+                        bold: selected,
+                        regularWeight: FontWeight.w500,
                         overflow: TextOverflow.ellipsis,
                         style: type.bodySmall.copyWith(
                           color: onDark
@@ -338,8 +342,6 @@ class TopicFilterBar extends ConsumerWidget {
                                   ? Colors.white
                                   : Colors.white.withValues(alpha: 0.7))
                               : (selected ? colors.text : colors.textSecondary),
-                          fontWeight:
-                              selected ? FontWeight.w700 : FontWeight.w500,
                         ),
                       ),
                     ),

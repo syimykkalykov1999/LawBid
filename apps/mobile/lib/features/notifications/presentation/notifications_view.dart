@@ -632,19 +632,20 @@ class _NotificationsViewState extends ConsumerState<NotificationsView> {
       // Row 95 (catalog C4): a new notification grows in, a removed one
       // collapses.
       animateChanges: true,
-      itemBuilder: (context, x, i) {
+      // Owner 27.11 («скачки»): the group title sits outside the row's
+      // grow-in, so a new notification at the top takes «Today» over
+      // without the list jumping by the title's height; a collapsing
+      // (removed) row has no title of its own.
+      rowLeading: (context, x, i) {
         final items = value.value?.items ?? const <AppNotification>[];
         final group = NotificationsView._group(x.createdAt);
-        final first =
-            i == 0 || NotificationsView._group(items[i - 1].createdAt) != group;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (first) _GroupHeader(label: t.t('notif.group.$group')),
-            _NotificationRow(n: x, onInboxTab: widget.onInboxTab),
-          ],
-        );
+        final first = i == 0 ||
+            i > items.length ||
+            NotificationsView._group(items[i - 1].createdAt) != group;
+        return first ? _GroupHeader(label: t.t('notif.group.$group')) : null;
       },
+      itemBuilder: (context, x, i) =>
+          _NotificationRow(n: x, onInboxTab: widget.onInboxTab),
       empty: ref.watch(notificationQueryProvider).isNotEmpty
           ? AppEmptyState(
               icon: AppIcons.searchRounded,
@@ -782,13 +783,16 @@ class _NotificationRow extends ConsumerWidget {
                       // phone's font size in full (past the shell's 1.3x).
                       Expanded(
                         child: FullTextScale(
-                          child: Text(
+                          // Owner 27.11 («скачки»): the row keeps the height
+                          // of the bold (unread) text, so reading it — or
+                          // «read all» — does not rewrap the text and move
+                          // every row below.
+                          child: BoldHeightText(
                             text,
+                            bold: n.unread,
                             style: type.bodySmall.copyWith(
                               color: colors.text,
                               height: 1.35,
-                              fontWeight:
-                                  n.unread ? FontWeight.w600 : FontWeight.w400,
                             ),
                           ),
                         ),

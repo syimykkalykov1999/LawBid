@@ -218,7 +218,14 @@ class _HotlineStatusScreenState extends ConsumerState<HotlineStatusScreen>
     return Scaffold(
       backgroundColor: colors.bg,
       appBar: AppTopBar(
-        title: Text(title),
+        // Tabular: the queue clock in the centred title ticks without the
+        // title wobbling (owner 27.11, «скачки»).
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontFeatures: [FontFeature.tabularFigures()],
+          ),
+        ),
         leading: AppBackButton(
           semanticLabel: t.t('common.back'),
           onPressed: () => context.safeBack(),

@@ -73,6 +73,7 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
   // group of a chosen topic starts open.
   final Set<String> _open = {};
   bool _seeded = false;
+  Map<String, String?>? _lastRanked;
 
   /// Owner 2026-10-15: up to this many topics (admin: `case.max_practices`).
   int get _max => ref
@@ -190,7 +191,12 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
         };
         final matches = <(PracticeCategory, PracticeLeaf)>[];
         final seen = <String>{};
-        for (final code in ranked?.value?.keys ?? const <String>[]) {
+        // Owner 27.11 («скачки»): the last letter's matches stay while
+        // the next one is ranked (the list no longer empties for a frame
+        // on every key).
+        if (ranked != null && ranked.hasValue) _lastRanked = ranked.value;
+        final shownRanked = q.isEmpty ? null : (ranked?.value ?? _lastRanked);
+        for (final code in shownRanked?.keys ?? const <String>[]) {
           final leaf = leafByCode[code];
           if (leaf != null) {
             if (seen.add(leaf.$2.id)) matches.add(leaf);
@@ -201,7 +207,8 @@ class _PracticeStepState extends ConsumerState<PracticeStep> {
             if (seen.add(l.id)) matches.add((c!, l));
           }
         }
-        final searching = ranked != null && !ranked.hasValue;
+        final searching =
+            ranked != null && !ranked.hasValue && _lastRanked == null;
         return ListView(
           padding: const EdgeInsets.fromLTRB(
             AppSpacing.screenSide,

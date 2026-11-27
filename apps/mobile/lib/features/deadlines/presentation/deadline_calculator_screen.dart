@@ -55,6 +55,12 @@ class _DeadlineCalculatorScreenState
   late DateTime _date = _today();
   bool _busy = false;
 
+  /// Owner 27.11 («скачки»): the last answer stays (dimmed, not tappable)
+  /// while the next rule or date is counted, instead of a spinner a fifth
+  /// of its height that makes everything below jump up and back.
+  DeadlineResult? _lastResult;
+  List<DeadlineRule> _lastRules = const [];
+
   /// App audit 2026-10-26 A18: the deadlines already put in the planner from
   /// this screen (rule + last day) — one deadline is added once, a repeat
   /// tap only says it is there.
@@ -235,6 +241,7 @@ class _DeadlineCalculatorScreenState
     final rules = ref.watch(deadlineRulesProvider(_state));
     final visible =
         rules.value == null ? <DeadlineRule>[] : _visible(rules.value!);
+    if (rules.hasValue) _lastRules = visible;
     final chosen = visible.where((r) => r.code == _ruleCode).firstOrNull ??
         (visible.length == 1 ? visible.first : null);
     final query = chosen == null
@@ -328,9 +335,35 @@ class _DeadlineCalculatorScreenState
             DetailSection(
               title: t.t('deadline.rule'),
               child: rules.when(
-                loading: () => Center(
-                  child: CircularProgressIndicator(color: colors.gold),
-                ),
+                // Owner 27.11 («скачки»): another state's rules are on
+                // their way — the last list stays (dimmed, not tappable)
+                // instead of a spinner a fraction of its height.
+                loading: () => _lastRules.isEmpty
+                    ? Center(
+                        child: CircularProgressIndicator(color: colors.gold),
+                      )
+                    : IgnorePointer(
+                        child: Opacity(
+                          opacity: 0.5,
+                          child: AppCard(
+                            padding: EdgeInsets.zero,
+                            child: Column(
+                              children: [
+                                for (final r in _lastRules)
+                                  AppListRow(
+                                    label: r.label(f.locale),
+                                    subtitle: r.citation,
+                                    showChevron: false,
+                                    trailingText: r.jurisdiction == 'US'
+                                        ? null
+                                        : r.jurisdiction,
+                                    onTap: () {},
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                 error: (e, _) => AppErrorState(
                   message: errorText(t, e),
                   retryLabel: t.t('error.retry'),
@@ -376,12 +409,29 @@ class _DeadlineCalculatorScreenState
             ),
             if (query != null)
               ref.watch(deadlineResultProvider(query)).when(
-                    loading: () => Padding(
-                      padding: const EdgeInsets.only(top: AppSpacing.xl),
-                      child: Center(
-                        child: CircularProgressIndicator(color: colors.gold),
-                      ),
-                    ),
+                    loading: () {
+                      final last = _lastResult;
+                      if (last != null) {
+                        return IgnorePointer(
+                          child: Opacity(
+                            opacity: 0.5,
+                            child: _ResultCard(
+                              result: last,
+                              basis: _basis(t, f, last),
+                              busy: true,
+                              onAdd: () {},
+                              onExport: (_) {},
+                            ),
+                          ),
+                        );
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(top: AppSpacing.xl),
+                        child: Center(
+                          child: CircularProgressIndicator(color: colors.gold),
+                        ),
+                      );
+                    },
                     error: (e, _) => Padding(
                       padding: const EdgeInsets.only(top: AppSpacing.xl),
                       child: AppErrorState(
@@ -392,7 +442,7 @@ class _DeadlineCalculatorScreenState
                       ),
                     ),
                     data: (r) => _ResultCard(
-                      result: r,
+                      result: _lastResult = r,
                       basis: _basis(t, f, r),
                       busy: _busy,
                       onAdd: () => unawaited(_addToPlanner(r)),

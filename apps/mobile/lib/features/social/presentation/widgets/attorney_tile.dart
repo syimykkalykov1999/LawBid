@@ -817,9 +817,12 @@ class FollowButton extends ConsumerWidget {
                 Flexible(
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
-                    child: Text(
+                    // Owner 27.11 («скачки»): as wide as the wider label, so
+                    // the pill keeps its width when it flips and the name
+                    // beside it does not reflow.
+                    child: WidestOfText(
                       t.t(following ? 'follow.following' : 'follow.follow'),
-                      maxLines: 1,
+                      all: [t.t('follow.following'), t.t('follow.follow')],
                       style: type.button.copyWith(
                         // Owner 2026-10-16: the small pills (feed, player,
                         // lists) are 13sp like the player's; the profile

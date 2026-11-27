@@ -1054,14 +1054,15 @@ class _AllChip extends ConsumerWidget {
           ),
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: scaler.scale(56)),
-            child: Text(
+            // Owner 27.11 («скачки»): «All» keeps its bold width, so the
+            // five star chips beside it do not shrink when it is picked.
+            child: BoldWidthText(
               t.t('reviews.filter.all'),
-              maxLines: 1,
+              bold: selected,
               overflow: TextOverflow.ellipsis,
               textScaler: scaler,
               style: typography.caption.copyWith(
                 color: selected ? colors.text : colors.textSecondary,
-                fontWeight: selected ? FontWeight.w700 : null,
               ),
             ),
           ),
