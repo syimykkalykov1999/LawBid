@@ -12,6 +12,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../helpers/ux_harness.dart';
+import '../social/social_fakes.dart';
 import 'stories_fakes.dart';
 
 /// Overrides every story test shares: English strings, the fake repository,
@@ -19,6 +20,7 @@ import 'stories_fakes.dart';
 Future<List<Override>> storyOverrides({
   FakeStoriesRepository? repo,
   FakeReplyChat? chat,
+  FakeSocialRepository? social,
   bool enabled = true,
   Translator translator = const StaticTranslatorEn(),
   List<Override> extra = const [],
@@ -26,7 +28,11 @@ Future<List<Override>> storyOverrides({
   SharedPreferences.setMockInitialValues({});
   final prefs = await SharedPreferences.getInstance();
   return [
-    ...uxOverrides(translator: translator, storiesTray: false),
+    ...uxOverrides(
+      translator: translator,
+      storiesTray: false,
+      social: social,
+    ),
     sharedPreferencesProvider.overrideWithValue(prefs),
     storiesRepositoryProvider
         .overrideWithValue(repo ?? FakeStoriesRepository()),

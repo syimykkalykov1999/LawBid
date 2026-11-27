@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart' show XFile;
+import 'package:lawbid/core/diagnostics/perf_marks.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/media/data_saver.dart';
 import 'package:lawbid/core/media/video_compression.dart';
@@ -392,8 +393,15 @@ class ReelPublishJob extends Notifier<ReelPublishState> {
         saved == null ||
         shown.phase == ReelPublishPhase.failed) {
       discardDraft(id);
+      PerfMarks.publishTap('reel', mediaReady: false);
       return start(r);
     }
+    // Owner 26.11 (timing, debug only): was the video already up?
+    PerfMarks.publishTap(
+      'reel',
+      mediaReady: shown.phase == ReelPublishPhase.processing ||
+          shown.phase == ReelPublishPhase.posting,
+    );
     _draftId = null;
     _draftSaved = null;
     _draftState = const ReelPublishState();

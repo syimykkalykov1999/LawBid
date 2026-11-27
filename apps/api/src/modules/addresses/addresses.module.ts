@@ -4,6 +4,7 @@ import {
   ADDRESS_PROVIDERS,
   AwsLocationAddressProvider,
   GooglePlacesAddressProvider,
+  PhotonAddressProvider,
 } from './address-providers';
 import { AddressesController } from './addresses.controller';
 import { AddressesService } from './addresses.service';
@@ -16,13 +17,19 @@ import { AddressesService } from './addresses.service';
     RateLimitService,
     AwsLocationAddressProvider,
     GooglePlacesAddressProvider,
+    PhotonAddressProvider,
     {
       provide: ADDRESS_PROVIDERS,
       useFactory: (
         aws: AwsLocationAddressProvider,
         google: GooglePlacesAddressProvider,
-      ) => [aws, google],
-      inject: [AwsLocationAddressProvider, GooglePlacesAddressProvider],
+        photon: PhotonAddressProvider,
+      ) => [aws, google, photon],
+      inject: [
+        AwsLocationAddressProvider,
+        GooglePlacesAddressProvider,
+        PhotonAddressProvider,
+      ],
     },
   ],
 })

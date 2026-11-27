@@ -693,7 +693,8 @@ export class RecommendationsService implements HomeFeedRanker {
    * minutes while the viewer scrolls (the fresh-reels mix), so the scroll
    * jumped to another ranking mid-way. Now a scroll keeps paging the copy
    * its own first page served; a new first page starts a new copy.
-   * [opts.includeOwn]: the viewer's own posts stay in the list (reels).
+   * [opts.includeOwn]: the viewer's unwatched own posts lead the list
+   * (reels); without it they are ranked like any other post (Search grid).
    * [opts.feed] 'reel' (owner 25.11): the reels feed — its own learned
    * ranker, features and impressions surface; the posts formula still
    * picks the candidates.
@@ -776,7 +777,7 @@ export class RecommendationsService implements HomeFeedRanker {
     // starts a fresh list at once instead of after LISTING_TTL_SEC.
     const ver = await feedVersion(this.redis, viewerId);
     return this.cached(
-      `reco:posts:${viewerId}:${hashOf(filterKey)}${includeOwn ? ':own' : ''}${feed === 'reel' ? ':reel' : ''}:${ver}${variantSuffix(variant)}`,
+      `reco:posts:${viewerId}:${hashOf(filterKey)}${includeOwn ? ':own' : ':ownrank'}${feed === 'reel' ? ':reel' : ''}:${ver}${variantSuffix(variant)}`,
       LISTING_TTL_SEC,
       async () => {
         const rows = await this.prisma.post.findMany({
@@ -850,9 +851,14 @@ export class RecommendationsService implements HomeFeedRanker {
           [...rankerRows.entries()],
           LISTING_TTL_SEC,
         );
-        // Own posts are not "discovery" (Search). 18.11: the reels keep
-        // them (Instagram: your reel is in your Reels) — unwatched own
-        // reels lead, newest first; watched ones rank like any other.
+        // 26.11 (owner: «в поисковике в постах не все посты показываются»):
+        // the Search grid dropped the viewer's own posts, so «Для вас» had
+        // fewer posts than «Новые» / «Популярные» and the home feeds (on
+        // prod 3 of 5 for the author of 2 reels). Own posts now stay in the
+        // grid, ranked like any other (Instagram Explore lists every public
+        // post, the newest and popular sorts always kept them). 18.11: the
+        // reels (includeOwn) put unwatched own reels first, newest first;
+        // watched ones rank like any other.
         const leaders = includeOwn
           ? candidates
               .filter((c) => c.authorId === viewerId && !seen.has(c.id))
@@ -860,9 +866,7 @@ export class RecommendationsService implements HomeFeedRanker {
           : [];
         const led = new Set(leaders.map((c) => c.id));
         const formulaScored: Scored<PostCandidate>[] = candidates
-          .filter((c) =>
-            includeOwn ? !led.has(c.id) : c.authorId !== viewerId,
-          )
+          .filter((c) => !led.has(c.id))
           .map((c) => ({
             item: c,
             score: postScore(

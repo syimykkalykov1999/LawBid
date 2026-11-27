@@ -62,6 +62,7 @@ class _AddressFieldState extends ConsumerState<AddressField> {
   int _seq = 0;
   bool _serverOff = false;
   List<AddressSuggestion> _items = const [];
+  String? _attribution;
   String? _picked;
   String? _session;
 
@@ -75,7 +76,7 @@ class _AddressFieldState extends ConsumerState<AddressField> {
     widget.onChanged?.call(text);
     _timer?.cancel();
     final q = text.trim();
-    if (_serverOff || q.length < kAddressMinChars || q == _picked) {
+    if (_serverOff || q.length < widget.kind.minChars || q == _picked) {
       _seq++;
       if (_items.isNotEmpty) setState(() => _items = const []);
       return;
@@ -93,6 +94,7 @@ class _AddressFieldState extends ConsumerState<AddressField> {
     if (!mounted || seq != _seq) return;
     setState(() {
       _serverOff = !res.enabled;
+      _attribution = res.attribution;
       _items = [
         for (final s in res.items)
           if (s.fill(widget.kind) != q) s,
@@ -117,6 +119,8 @@ class _AddressFieldState extends ConsumerState<AddressField> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<AppColorTokens>()!;
+    final type = Theme.of(context).extension<AppTypographyTokens>()!;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -156,6 +160,23 @@ class _AddressFieldState extends ConsumerState<AddressField> {
                       showChevron: false,
                       dense: true,
                       onTap: () => _pick(s),
+                    ),
+                  // The data licence credit (OpenStreetMap, ODbL) under the
+                  // lines, in the small hint style the forms already use.
+                  if (_attribution case final credit?)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.xs,
+                      ),
+                      child: Text(
+                        credit,
+                        key: const ValueKey('address-attribution'),
+                        textAlign: TextAlign.end,
+                        style: type.caption.copyWith(
+                          color: colors.textSecondary,
+                        ),
+                      ),
                     ),
                 ],
               ),

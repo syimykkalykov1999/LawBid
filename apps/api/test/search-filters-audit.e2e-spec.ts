@@ -207,6 +207,35 @@ describe('Posts / people filters: category -> leaf matching (e2e)', () => {
     );
   });
 
+  // Owner 26.11 (prod, Samsung): Search → «Посты» showed 3 tiles while the
+  // feeds had 5 — «Для вас» (the grid's default sort) dropped the viewer's
+  // own posts, «Новые» / «Популярные» kept them. Every sort lists them.
+  it('explore grid: the viewer’s own posts are in every sort, «Для вас» included', async () => {
+    const a = await author();
+    const mine = await prisma.post.create({
+      data: {
+        author_id: a.id,
+        body: 'Own post in the explore grid',
+        practice_area_id: leafId,
+        content_class: 'legal',
+      },
+    });
+    const me = auth(a.id, 'attorney');
+    for (const sort of ['for_you', 'newest', 'popular']) {
+      const res = await api()
+        .get(
+          `/api/v1/search/latest-posts?practice=e2e_pf_cat.leaf&sort=${sort}`,
+        )
+        .set(me);
+      expect(res.status).toBe(200);
+      const got = (res.body.data as { id: string }[]).map((x) => x.id);
+      expect({ sort, has: got.includes(mine.id) }).toEqual({
+        sort,
+        has: true,
+      });
+    }
+  });
+
   it('explore / feed topic filters: news, general, my topics, cursor, reels', async () => {
     const a = await author();
     const mk = (data: Record<string, unknown>) =>

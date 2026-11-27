@@ -186,16 +186,28 @@ class FakeStoriesRepository extends StoriesRepository {
     required int durationSec,
     int? trimStartMs,
     int? trimEndMs,
-  }) async =>
-      const StoryUpload(
-        videoAssetId: 'asset-1',
-        tusEndpoint: 'https://tus.test/upload',
-        libraryId: 'lib',
-        videoId: 'vid',
-        signature: 'sig',
-        expire: 1,
-        maxDurationSec: 15,
-      );
+  }) async {
+    uploadTrims.add(trimStartMs);
+    return const StoryUpload(
+      videoAssetId: 'asset-1',
+      tusEndpoint: 'https://tus.test/upload',
+      libraryId: 'lib',
+      videoId: 'vid',
+      signature: 'sig',
+      expire: 1,
+      maxDurationSec: 15,
+    );
+  }
+
+  /// The trim each Bunny upload slot was made with.
+  final uploadTrims = <int?>[];
+
+  /// Video uploads deleted (a dropped or replaced pick, a failure).
+  final cancelledVideos = <String>[];
+
+  @override
+  Future<void> cancelVideo(String videoAssetId) async =>
+      cancelledVideos.add(videoAssetId);
 
   int uploads = 0;
 

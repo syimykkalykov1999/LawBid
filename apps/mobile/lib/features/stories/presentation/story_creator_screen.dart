@@ -15,7 +15,6 @@ import 'package:lawbid/core/design_system/haptics/app_haptics.dart';
 import 'package:lawbid/core/design_system/widgets/display/app_network_image.dart';
 import 'package:lawbid/core/feature_flags/feature_flags_providers.dart';
 import 'package:lawbid/core/files/file_types.dart';
-import 'package:lawbid/core/l10n/api_error_text.dart';
 import 'package:lawbid/core/l10n/l10n_providers.dart';
 import 'package:lawbid/core/l10n/translator.dart';
 import 'package:lawbid/core/media/photo_jpeg.dart';
@@ -114,6 +113,7 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
   @override
   void initState() {
     super.initState();
+    _job = ref.read(storyPublishJobProvider.notifier);
     if (widget.postId != null) {
       _mode = _Mode.post;
       _stickers.add(
@@ -126,9 +126,15 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
     }
   }
 
+  /// The publish job, kept for [dispose] (no `ref` there).
+  late final StoryPublishJob _job;
+
   @override
   void dispose() {
     _left = true;
+    // Closed without «Share»: the pick's early upload stops (after «Share»
+    // the job has taken it over and this does nothing).
+    _job.discardPrepared();
     _player?.removeListener(_loop);
     unawaited(_player?.dispose());
     _text.dispose();
@@ -197,6 +203,8 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
         _photoName = x.name;
         _mode = _Mode.photo;
       });
+      // Owner 26.11 (Instagram): it uploads while the story is edited.
+      _job.preparePhoto(bytes, name: x.name);
     } on Object {
       if (mounted) showAppSnackBar(context, t.t('story.create.pickFailed'));
     }
@@ -279,6 +287,13 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
         _photo = null;
         _mode = _Mode.video;
       });
+      // Owner 26.11 (Instagram): it compresses and uploads while the story
+      // is edited; a moved trim is sent again at «Share» (Bunny cuts by it).
+      _job.prepareVideo(
+        x,
+        durationMs: info.totalMs,
+        size: _videoSize,
+      );
       unawaited(_openPlayer(x));
       unawaited(_loadStill(x));
     } on Object {
@@ -536,7 +551,10 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
     );
     _textFocus.unfocus();
     FocusManager.instance.primaryFocus?.unfocus();
-    ref.read(storyPublishJobProvider.notifier).start(draft).ignore();
+    _job.start(draft).ignore();
+    // Owner 26.11 (Instagram): «Share» closes the creator at once; the
+    // tray's ring shows the progress, a failure keeps «Try again» there.
+    _leave();
   }
 
   /// Closes the screen for good (the discard question was answered).
@@ -604,13 +622,11 @@ class _StoryCreatorScreenState extends ConsumerState<StoryCreatorScreen> {
     }
     ref
       ..watch(storySettingsProvider)
-      ..listen(storyPublishJobProvider, (prev, next) {
+      ..listen(storyPublishJobProvider, (_, next) {
+        // A failure is told by StoryPublishWatcher (the feed), which keeps
+        // it for «Try again» in the tray.
         if (next.phase == StoryPublishPhase.done && context.isCurrentRoute) {
           _leave();
-        } else if (next.phase == StoryPublishPhase.failed &&
-            prev?.phase != StoryPublishPhase.failed) {
-          showAppSnackBar(context, errorText(t, next.error ?? Object()));
-          ref.read(storyPublishJobProvider.notifier).dismiss();
         }
       });
     final colors = Theme.of(context).extension<AppColorTokens>()!;

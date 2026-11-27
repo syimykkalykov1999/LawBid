@@ -13,6 +13,7 @@ AddressSuggestionsDto _$AddressSuggestionsDtoFromJson(
   items: (json['items'] as List<dynamic>)
       .map((e) => AddressSuggestionDto.fromJson(e as Map<String, dynamic>))
       .toList(),
+  attribution: json['attribution'] as String?,
 );
 
 Map<String, dynamic> _$AddressSuggestionsDtoToJson(
@@ -20,4 +21,5 @@ Map<String, dynamic> _$AddressSuggestionsDtoToJson(
 ) => <String, dynamic>{
   'enabled': instance.enabled,
   'items': instance.items.map((e) => e.toJson()).toList(),
+  'attribution': ?instance.attribution,
 };

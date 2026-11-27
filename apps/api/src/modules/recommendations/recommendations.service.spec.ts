@@ -269,7 +269,7 @@ describe('RecommendationsService.postsFor', () => {
     ...over,
   });
 
-  it('drops the viewer’s own posts and spreads one author out', async () => {
+  it('26.11 Search grid: keeps the viewer’s own posts, ranked like any other, and spreads one author out', async () => {
     const prisma = makePrisma({
       posts: [
         post('mine', 'viewer', { like_count: 999 }),
@@ -281,11 +281,31 @@ describe('RecommendationsService.postsFor', () => {
       ],
     });
     const ids = await svc(prisma).postsFor('viewer', {}, { f: 1 });
-    expect(ids).not.toContain('mine');
-    expect(ids).toHaveLength(5);
-    // The three posts of A are not the first three.
-    expect(ids.slice(0, 3)).not.toEqual(['a1', 'a2', 'a3']);
-    expect(ids[0]).toBe('a1');
+    // Owner 26.11: the grid showed 3 of 5 posts — his own were dropped.
+    expect(ids).toContain('mine');
+    expect(ids).toHaveLength(6);
+    // Ranked by the formula (999 likes leads), not put first for being own.
+    expect(ids[0]).toBe('mine');
+    // The three posts of A are not three in a row.
+    expect(ids.slice(1, 4)).not.toEqual(['a1', 'a2', 'a3']);
+  });
+
+  it('26.11 Search grid: an own unwatched post is ranked, never led (only the reels lead with own)', async () => {
+    const prisma = makePrisma({
+      posts: [
+        post('hot', 'A', { like_count: 900 }),
+        post('mine', 'viewer', { like_count: 0 }),
+      ],
+    });
+    expect(await svc(prisma).postsFor('viewer', {}, 'g')).toEqual([
+      'hot',
+      'mine',
+    ]);
+    expect(
+      await svc(prisma).postsFor('viewer', {}, 'g', null, {
+        includeOwn: true,
+      }),
+    ).toEqual(['mine', 'hot']);
   });
 
   it('seen posts go lower', async () => {
@@ -341,7 +361,10 @@ describe('RecommendationsService.postsFor', () => {
         post('r2', 'viewer', { video_asset_id: 'v2' }),
       ],
     });
-    expect(await svc(prisma).postsFor('viewer', {}, 'r')).toEqual([]);
+    // 26.11: the Search grid keeps them too (ranked, not led).
+    expect(await svc(prisma).postsFor('viewer', {}, 'r')).toEqual(
+      expect.arrayContaining(['r1', 'r2']),
+    );
     expect(
       await svc(prisma).postsFor('viewer', {}, 'r', null, {
         includeOwn: true,
