@@ -70,6 +70,9 @@ import { coverUrlOf, type TopicCoversSnapshot } from './topic-covers.job';
 import { GUEST_USER_ID } from '../../common/viewer/guest';
 
 const PAGE = 20;
+/** Personal order moves a result at most this many − 1 places and never
+ * across a page (People's reorderWithinTiers chunk; PAGE is a multiple). */
+const RERANK_CHUNK = 5;
 /** Ranked results kept per query: 10 pages. */
 const RANKED_MAX = 200;
 /** Ranked id lists are shared by everyone asking the same thing. Batch C
@@ -319,6 +322,44 @@ export class SearchService {
     }
   }
 
+  /**
+   * Owner 26.11 (search «умный как ленты», like Instagram / LinkedIn
+   * search): the shared relevance-ranked [shared] ids re-ordered for the
+   * viewer by the feed formula's [affinity], the People way — only inside
+   * runs of [RERANK_CHUNK] neighbours (reorderWithinTiers), kept per viewer
+   * as long as the shared list. Exactly the same ids, and each page holds
+   * the same ids as the shared page (PAGE is a whole number of chunks), so
+   * a cursor stays valid even if the personal copy is rebuilt mid-paging.
+   * Guests have no signals: the shared order.
+   */
+  private async personalIds(
+    user: RequestUser,
+    kind: string,
+    shared: string[],
+    params: Record<string, unknown>,
+    affinity: (
+      ids: string[],
+      reco: RecommendationsService,
+    ) => Promise<Map<string, number>>,
+  ): Promise<string[]> {
+    const reco = this.recommendations;
+    if (!reco || user.guest || shared.length < 2) return shared;
+    return this.ranked(kind, { ...params, viewer: user.sub }, async () => {
+      try {
+        const score = await affinity(shared, reco);
+        return reorderWithinTiers(
+          shared,
+          () => 0,
+          (id) => score.get(id) ?? 0,
+          RERANK_CHUNK,
+        );
+      } catch {
+        // Ranking is a bonus: text order is always a valid answer.
+        return shared;
+      }
+    });
+  }
+
   async attorneys(
     user: RequestUser,
     dto: SearchAttorneysQueryDto,
@@ -393,7 +434,23 @@ export class SearchService {
       },
       () => this.provider.searchCasesRanked(q, params, RANKED_MAX),
     );
-    const { slice, next } = this.pageOf(ids, dto.cursor);
+    // Owner 26.11 («умный как ленты»): inside the relevance order, the
+    // attorney's own cases-feed ranking (practices, licensed states,
+    // freshness, urgency) orders close neighbours.
+    const mine = await this.personalIds(
+      user,
+      'cs-me',
+      ids,
+      {
+        q,
+        ...params,
+        since: dto.period ?? 'all',
+        urgencyThresholds: undefined,
+        thresholds: params.urgencyThresholds,
+      },
+      (shared, reco) => reco.casesAffinity(user.sub, shared),
+    );
+    const { slice, next } = this.pageOf(mine, dto.cursor);
     // §7.6: the provider's rows still pass the single access check.
     const visible = await this.access.visibleCaseIds(
       user.sub,
@@ -481,7 +538,20 @@ export class SearchService {
       { q, ...filters, since: dto?.period ?? 'all' },
       () => this.provider.searchPosts(q, RANKED_MAX, filters),
     );
-    const { slice, next } = this.pageOf(ids, cursor);
+    // Owner 26.11 («умный как ленты»): by relevance, close neighbours in
+    // the viewer's «Для вас» order. "Newest" / "popular" are the viewer's
+    // own explicit order and stay as asked.
+    const mine =
+      !filters.sort || filters.sort === 'relevance'
+        ? await this.personalIds(
+            user,
+            'p-me',
+            ids,
+            { q, ...filters, since: dto?.period ?? 'all' },
+            (shared, reco) => reco.postsAffinity(user.sub, shared),
+          )
+        : ids;
+    const { slice, next } = this.pageOf(mine, cursor);
     if (!cursor && !user.guest)
       this.queryLog?.logQuery(user.sub, 'posts', q, slice.length);
     return {
