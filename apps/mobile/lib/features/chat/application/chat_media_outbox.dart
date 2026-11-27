@@ -191,7 +191,15 @@ class ChatMediaHandler extends UploadJobHandler {
           _sentIds[job.id] = sent.id;
         case ChatMediaKind.attachment:
           final caption = p['caption'] as String?;
-          sent = await _repo.sendAttachment(
+          // Owner 27.11: the server's answer (and its realtime echo, which
+          // may come first) has no width / height while it still checks
+          // the file; the picked shape stands in for it.
+          SentMediaShapes.note(
+            job.fileId!,
+            (p['width'] as num?)?.toInt(),
+            (p['height'] as num?)?.toInt(),
+          );
+          final got = await _repo.sendAttachment(
             job.target,
             job.id,
             fileId: job.fileId!,
@@ -199,8 +207,11 @@ class ChatMediaHandler extends UploadJobHandler {
             caption: caption == null || caption.isEmpty ? null : caption,
             replyToId: p['replyToId'] as String?,
           );
-          final media = sent.attachment;
+          final media = got.attachment;
           if (media != null) _sentMedia[job.id] = media;
+          sent = media == null
+              ? got
+              : got.copyWith(attachment: media.withSentShape());
           unawaited(_ref.read(appSoundsProvider).messageOut());
         default:
           sent = await _repo.sendSticker(

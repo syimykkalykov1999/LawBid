@@ -457,7 +457,7 @@ List<Widget> commentThreadSlivers(
             final c = value.items[i];
             // Row 95 (catalog C4): a comment just posted grows in.
             return AppInsertMotion(
-              key: ValueKey(c.id),
+              key: ValueKey(commentRowKeys.keyOf(c.id)),
               animate: AppInsertMotion.fresh(c.createdAt),
               child: CommentTile(
                 comment: c,

@@ -821,6 +821,7 @@ mixin CommentRows on PagedNotifier<Comment> {
   void settle(String pendingId, Comment live) {
     final current = state.value;
     if (current == null) return;
+    commentRowKeys.settled(pendingId, live.id);
     final alreadyThere = current.items.any((x) => x.id == live.id);
     state = AsyncData(
       PaginatedList(
@@ -1571,4 +1572,25 @@ bool showViewCount(WidgetRef ref, Post post) {
     return true;
   }
   return !post.viewsHidden;
+}
+
+/// Owner 27.11 («отправка коммента тоже прыгает на пару мс»; Instagram /
+/// Telegram keep the row of a sent comment in place): the row of a comment
+/// keeps the key of its pending copy once the server's copy takes its
+/// place, so the list keeps that row (no second grow-in, nothing above or
+/// below moves).
+final commentRowKeys = CommentRowKeys();
+
+/// See [commentRowKeys].
+class CommentRowKeys {
+  final Map<String, String> _pendingOf = {};
+
+  /// The server's [liveId] replaced the pending row [pendingId].
+  void settled(String pendingId, String liveId) {
+    if (_pendingOf.length > 200) _pendingOf.remove(_pendingOf.keys.first);
+    _pendingOf[liveId] = pendingId;
+  }
+
+  /// The list key of comment [id].
+  String keyOf(String id) => _pendingOf[id] ?? id;
 }

@@ -689,7 +689,7 @@ class _Replies extends ConsumerWidget {
         children: [
           for (final r in page.items)
             AppInsertMotion(
-              key: ValueKey(r.id),
+              key: ValueKey(commentRowKeys.keyOf(r.id)),
               animate: AppInsertMotion.fresh(r.createdAt),
               child: CommentTile(
                 comment: r,

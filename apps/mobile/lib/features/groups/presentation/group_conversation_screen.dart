@@ -1523,9 +1523,22 @@ class _MessageList extends ConsumerWidget {
             itemBuilder: (context, i) {
               if (i < pending.length) {
                 final p = pending[pending.length - 1 - i];
+                // Owner 27.11: the oldest one starts my run unless my own
+                // message of today is right above it (the gap the delivered
+                // bubble will have, so nothing moves when it is confirmed).
+                final above = messages.firstOrNull;
+                final startsRun = i == pending.length - 1 &&
+                    (above == null ||
+                        above.isSystem ||
+                        !above.mine ||
+                        !DateUtils.isSameDay(
+                          above.createdAt.toLocal(),
+                          DateTime.now(),
+                        ));
                 return GroupPendingBubble(
                   pending: p,
                   groupId: detail.id,
+                  startsRun: startsRun,
                   onRetry: () => onRetry(p.clientMessageId),
                   onDiscard: () => onDiscard(p.clientMessageId),
                 );
