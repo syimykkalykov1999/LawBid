@@ -207071,6 +207071,10 @@
             "type": "string",
             "nullable": true,
             "description": "type=mls with an encrypted file: a short link to the file's ciphertext (its key is inside the message)."
+          },
+          "control": {
+            "type": "boolean",
+            "description": "type=mls: a control message (reaction, vote, edit, poll close inside MLS): the app applies it to the message it names and shows no row."
           }
         },
         "required": [
@@ -208389,6 +208393,10 @@
             "maxLength": 64,
             "format": "base64",
             "description": "type=mls (message franking): base64 of HMAC-SHA256(k, P), k inside the plaintext P."
+          },
+          "control": {
+            "type": "boolean",
+            "description": "type=mls: true for a control message (reaction, vote, edit, poll close inside MLS). It is delivered like any message but never counted as unread, never pushed and never the group’s last message."
           }
         },
         "required": [

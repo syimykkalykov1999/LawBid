@@ -46,6 +46,7 @@ class GroupMessageDto {
     this.senderDeviceId,
     this.frankingTag,
     this.blobUrl,
+    this.control,
   });
 
   factory GroupMessageDto.fromJson(Map<String, Object?> json) =>
@@ -112,6 +113,9 @@ class GroupMessageDto {
 
   /// type=mls with an encrypted file: a short link to the file's ciphertext (its key is inside the message).
   final String? blobUrl;
+
+  /// type=mls: a control message (reaction, vote, edit, poll close inside MLS): the app applies it to the message it names and shows no row.
+  final bool? control;
 
   Map<String, Object?> toJson() => _$GroupMessageDtoToJson(this);
 }

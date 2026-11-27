@@ -587,6 +587,16 @@ export class SendGroupMessageDto {
   @IsBase64()
   @MaxLength(64)
   frankingTag?: string;
+
+  // Group E2EE G2b (design §4.5): a reaction, vote, edit or poll close
+  // inside MLS changes another message; the server only knows that much.
+  @ApiPropertyOptional({
+    description:
+      'type=mls: true for a control message (reaction, vote, edit, poll close inside MLS). It is delivered like any message but never counted as unread, never pushed and never the group’s last message.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  control?: boolean;
 }
 
 export class EditGroupMessageDto {
@@ -978,6 +988,12 @@ export class GroupMessageDto {
       "type=mls with an encrypted file: a short link to the file's ciphertext (its key is inside the message).",
   })
   blobUrl?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'type=mls: a control message (reaction, vote, edit, poll close inside MLS): the app applies it to the message it names and shows no row.',
+  })
+  control?: boolean;
 }
 
 export class GroupDto {

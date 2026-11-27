@@ -244,6 +244,38 @@ describe('End-to-end encrypted group chats on MLS (e2e, group E2EE G1)', () => {
       sender_device_id: a.deviceId,
       mention_ids: [bob.id],
     });
+    // G2b: a control message (a reaction inside MLS) is delivered and
+    // kept, but it is not unread, not the group's last message.
+    const before = await api()
+      .get(`/api/v1/groups/${gid}`)
+      .set(auth(bob.id))
+      .expect(200);
+    const ctl = await a.gsend(gid, 'react 👍', { control: true });
+    expect(ctl.status).toBe(201);
+    expect((ctl.body.data as { control?: boolean }).control).toBe(true);
+    const after = await api()
+      .get(`/api/v1/groups/${gid}`)
+      .set(auth(bob.id))
+      .expect(200);
+    expect(after.body.data.unreadCount).toBe(before.body.data.unreadCount);
+    expect(after.body.data.lastMessage?.id).toBe(
+      before.body.data.lastMessage?.id,
+    );
+    const ctlRow = (await messages(gid, bob.id)).find(
+      (m) => m.id === (ctl.body.data as { id: string }).id,
+    );
+    expect(ctlRow).toMatchObject({ type: 'mls', control: true });
+    // Only an MLS message can be one.
+    const plainControl = await api()
+      .post(`/api/v1/groups/${gid}/messages`)
+      .set(auth(bob.id))
+      .send({
+        clientMessageId: randomUUID(),
+        type: 'text',
+        body: 'x',
+        control: true,
+      });
+    expect(plainControl.status).toBe(400);
     // After the switch no plain words go in (design §5), nor a poll.
     const refused = await plain(gid, bob.id);
     expect(refused.status).toBe(409);

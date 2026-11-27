@@ -1908,6 +1908,13 @@ export class GroupsService implements FileScanListener {
     ) {
       throw forbidden('Media is not allowed in this group.');
     }
+    if (dto.control && !mls) {
+      throw new BadRequestException({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Only an MLS message can be a control message.',
+        details: { field: 'control' },
+      });
+    }
     if (mls) {
       if (!dto.ciphertext || dto.mlsEpoch === undefined || !dto.mlsDeviceId) {
         throw new BadRequestException({
@@ -2071,6 +2078,8 @@ export class GroupsService implements FileScanListener {
                   mls_epoch: dto.mlsEpoch,
                   sender_device_id: dto.mlsDeviceId,
                   franking_tag: frankingTag,
+                  // G2b: a reaction / vote / edit / close inside MLS.
+                  mls_control: dto.control === true,
                 }
               : {}),
             // Owner 2026-10-21 (Telegram): «Forwarded from <name>».
@@ -2082,6 +2091,9 @@ export class GroupsService implements FileScanListener {
               : {}),
           },
         });
+        // G2b: a control message changes another one; it is never the
+        // group's (or the topic's) last message.
+        if (created.mls_control) return created;
         await tx.chatGroup.update({
           where: { id },
           data: {
@@ -3041,6 +3053,9 @@ export class GroupsService implements FileScanListener {
     row: ChatGroupMessage,
     push: boolean,
   ): Promise<void> {
+    // G2b: a control message (reaction, vote, edit inside MLS) only reaches
+    // the members' screens: no unhiding, no unread count, no push.
+    if (row.mls_control) return this.deliverBroadcast(groupId, row);
     await this.prisma.chatGroupMember.updateMany({
       where: { group_id: groupId, hidden_at: { not: null }, left_at: null },
       data: { hidden_at: null },

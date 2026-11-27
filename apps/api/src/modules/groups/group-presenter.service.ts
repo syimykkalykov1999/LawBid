@@ -463,6 +463,8 @@ export class GroupPresenter {
           m.type === 'mls' && m.file_id && !deleted
             ? (blobs.get(m.file_id)?.url ?? null)
             : null,
+        // Group E2EE G2b: a control message (reaction, vote, edit, close).
+        ...(m.type === 'mls' && m.mls_control ? { control: true } : {}),
       };
     });
   }
@@ -680,6 +682,7 @@ export class GroupPresenter {
                 WHERE m.group_id = t.group_id
                   AND (m.topic_id = t.id OR (t.is_general AND m.topic_id IS NULL))
                   AND m.deleted_at IS NULL AND m.type <> 'system'
+                  AND NOT m.mls_control
                   AND (m.sender_id IS NULL OR m.sender_id <> ${viewerId}::UUID)
                   AND m.created_at >= gm.joined_at
                   AND (lr.id IS NULL OR (m.created_at, m.id) > (lr.created_at, lr.id))

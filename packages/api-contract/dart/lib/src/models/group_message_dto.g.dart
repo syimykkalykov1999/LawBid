@@ -58,6 +58,7 @@ GroupMessageDto _$GroupMessageDtoFromJson(
   senderDeviceId: json['senderDeviceId'] as String?,
   frankingTag: json['frankingTag'] as String?,
   blobUrl: json['blobUrl'] as String?,
+  control: json['control'] as bool?,
 );
 
 Map<String, dynamic> _$GroupMessageDtoToJson(GroupMessageDto instance) =>
@@ -91,4 +92,5 @@ Map<String, dynamic> _$GroupMessageDtoToJson(GroupMessageDto instance) =>
       'senderDeviceId': ?instance.senderDeviceId,
       'frankingTag': ?instance.frankingTag,
       'blobUrl': ?instance.blobUrl,
+      'control': ?instance.control,
     };

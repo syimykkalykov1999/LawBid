@@ -3772,6 +3772,9 @@ model ChatGroupMessage {
   mls_epoch           Int?
   sender_device_id    String?                    @db.Uuid
   franking_tag        Bytes?
+  /// Group E2EE G2b: an MLS control message (reaction, vote, edit, poll
+  /// close): no unread count, no push, never the group's last message.
+  mls_control         Boolean                    @default(false)
   poll                ChatGroupPoll?
   reactions           ChatGroupMessageReaction[]
 

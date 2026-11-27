@@ -23,6 +23,7 @@ export function unreadMessagesSql(viewer: string): Prisma.Sql {
     WHERE m.group_id = g.id
       AND m.deleted_at IS NULL
       AND m.type <> 'system'
+      AND NOT m.mls_control
       AND (m.sender_id IS NULL OR m.sender_id <> ${viewer}::UUID)
       AND m.created_at >= gm.joined_at
       AND (lr.id IS NULL OR (m.created_at, m.id) > (lr.created_at, lr.id))`;
