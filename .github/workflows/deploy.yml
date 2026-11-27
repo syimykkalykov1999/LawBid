@@ -576,18 +576,22 @@ jobs:
       # Deploy speed 25.11: the translations task (2m13) runs when anything it
       # reads differs from the running release (git object ids = content hash of
       # the seed, the importer, the schema, the migrations); byte-identical =
-      # nothing new to add (it only adds missing texts). Repository variable
+      # nothing new to add or update. Repository variable
       # I18N_SEED_ALWAYS=true runs it every time as before.
       - name: Translations changed since the running release?
         id: i18n
         env:
           I18N_SEED_ALWAYS: ${{ vars.I18N_SEED_ALWAYS }}
         run: scripts/deploy/i18n-needed.sh "$LAST_GOOD_TAG" "$IMAGE_TAG" | tee -a "$GITHUB_STEP_SUMMARY"
+      # KNOWN_ERRORS 271: I18N_OLD_TAG = the running release, whose seed texts
+      # the importer compares with: a cell still equal to its old seed text
+      # takes the new one (texts the seed changed), an edited cell stays.
       - name: Translations (all 85 languages from prisma/seed/translations)
         if: ${{ steps.i18n.outputs.needed != 'false' }}
         env:
           CLUSTER: lawbid-prod
           SECRET_PREFIX: lawbid-prod
+          I18N_OLD_TAG: ${{ env.LAST_GOOD_TAG }}
         run: scripts/deploy/prod-admin-ecs.sh "$IMAGE_TAG" i18n
       # ECS rolls back on the circuit breaker or on the 5xx / p95 / unhealthy
       # alarms. The script waits for rolloutState COMPLETED of OUR revision
