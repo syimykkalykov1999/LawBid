@@ -21,6 +21,25 @@ export interface I18nChangedEntry {
   lang: string;
 }
 
+/**
+ * Earlier built-in (seed) texts per language and key: what an earlier
+ * release's seed said, so a database row still holding one of them was never
+ * edited by anyone and may take the new seed text (three-way update).
+ * lang → key → earlier seed values.
+ */
+export type PreviousSeedValues = Map<string, Map<string, Set<string>>>;
+
+/** `missingOnly` release import, in numbers (cells). */
+export interface I18nSeedUpdateCounts {
+  /** Empty or missing cells filled (new keys, new languages). */
+  added: number;
+  /** Untouched cells (still an earlier seed text) moved to the new seed text. */
+  updated: number;
+  /** Cells whose text differs from the seed and is not an earlier seed text
+   * (edited in the admin, by an upload or by hand): left as they are. */
+  keptEdited: number;
+}
+
 export interface I18nImportReport {
   mode: I18nImportMode;
   valid: boolean;
@@ -30,6 +49,8 @@ export interface I18nImportReport {
   changedKeys: I18nChangedEntry[];
   unchangedCount: number;
   errors: ImportValidationError[];
+  /** Only for a `missingOnly` (release) import. */
+  seedUpdate?: I18nSeedUpdateCounts;
 }
 
 /**
@@ -62,11 +83,18 @@ export class I18nImportService {
    * the database — including files the owner uploaded in Admin →
    * Localization — are never overwritten. Only changed languages get a new
    * bundle version, so phones re-download nothing else.
+   *
+   * 27.11 (KNOWN_ERRORS 271): `previousSeed` — texts the seed itself changed
+   * reach the database too, the Crowdin / Lokalise / Phrase way ("update only
+   * untouched"): a cell that still holds an EARLIER seed text (the running
+   * release's seed, or a known earlier one) was never edited, so it takes the
+   * new seed text. A cell with any other text, or marked `admin_edited`, is
+   * the owner's and stays. Keys no longer in the seed are not touched.
    */
   async run(
     source: Buffer | string[][],
     mode: I18nImportMode,
-    options: { missingOnly?: boolean } = {},
+    options: { missingOnly?: boolean; previousSeed?: PreviousSeedValues } = {},
   ): Promise<I18nImportReport> {
     const grid = Array.isArray(source)
       ? { grid: source }
@@ -98,6 +126,11 @@ export class I18nImportService {
     const changedKeys: I18nChangedEntry[] = [];
     const affectedLangs = new Set<string>();
     let unchangedCount = 0;
+    const counts: I18nSeedUpdateCounts = {
+      added: 0,
+      updated: 0,
+      keptEdited: 0,
+    };
 
     // KNOWN_ERRORS #48: the existing rows are read a slice at a time and only
     // (lang, value) — loading every key with all its translations at once
@@ -124,6 +157,7 @@ export class I18nImportService {
           for (const lang of Object.keys(row.values)) {
             changedKeys.push({ key: row.key, lang });
             affectedLangs.add(lang);
+            counts.added += 1;
           }
           continue;
         }
@@ -149,16 +183,28 @@ export class I18nImportService {
             norm(current) === norm(existingValues.get('en')) &&
             norm(value) !== '' &&
             norm(value) !== norm(current);
+          // KNOWN_ERRORS 271: still an earlier seed text = never edited.
+          const untouchedOldSeed =
+            !edited.has(lang) &&
+            current !== undefined &&
+            current !== value &&
+            norm(value) !== '' &&
+            (options.previousSeed?.get(lang)?.get(row.key)?.has(current) ??
+              false);
           if (
             options.missingOnly &&
             !staleEnglishCopy &&
+            !untouchedOldSeed &&
             current !== undefined &&
             current !== ''
           ) {
             unchangedCount += 1;
+            if (current !== value) counts.keptEdited += 1;
           } else if (current !== value) {
             changedKeys.push({ key: row.key, lang });
             affectedLangs.add(lang);
+            if (current === undefined || current === '') counts.added += 1;
+            else counts.updated += 1;
           } else {
             unchangedCount += 1;
           }
@@ -175,6 +221,7 @@ export class I18nImportService {
       changedKeys,
       unchangedCount,
       errors: [],
+      ...(options.missingOnly ? { seedUpdate: counts } : {}),
     };
 
     if (mode === 'dry-run') return report;

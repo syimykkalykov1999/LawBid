@@ -1,5 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
-import { I18nImportService } from './i18n-import.service';
+import {
+  I18nImportService,
+  type PreviousSeedValues,
+} from './i18n-import.service';
 import type { I18nBundleService } from './i18n-bundle.service';
 
 interface FakeKeyRow {
@@ -367,6 +370,136 @@ describe('I18nImportService.run — missingOnly (every release)', () => {
     expect(report.changedKeys).toEqual([
       { key: 'settings.archive', lang: 'ky' },
     ]);
+  });
+});
+
+describe('I18nImportService.run — seed changed a text (KNOWN_ERRORS 271)', () => {
+  const earlier = (
+    entries: [lang: string, key: string, values: string[]][],
+  ): PreviousSeedValues => {
+    const map: PreviousSeedValues = new Map();
+    for (const [lang, key, values] of entries) {
+      if (!map.has(lang)) map.set(lang, new Map());
+      map.get(lang)!.set(key, new Set(values));
+    }
+    return map;
+  };
+
+  function setup() {
+    const prisma = buildFakePrisma();
+    const bundle = buildFakeBundle();
+    const service = new I18nImportService(
+      prisma as never,
+      bundle as unknown as I18nBundleService,
+      { del: jest.fn() } as never,
+    );
+    // The database after earlier releases: ru «Архив» is the old seed text,
+    // en «Archived» was changed by the owner in an upload, and
+    // tasks.old is a key the new seed no longer has.
+    prisma.keysByKey.set('tasks.view.done', {
+      id: 'key-done',
+      key: 'tasks.view.done',
+      translations: [
+        { lang: 'en', value: 'Archived (owner)' },
+        { lang: 'ru', value: 'Архив' },
+      ],
+    });
+    prisma.keysByKey.set('tasks.view.mine', {
+      id: 'key-mine',
+      key: 'tasks.view.mine',
+      translations: [
+        { lang: 'en', value: 'Mine' },
+        { lang: 'ru', value: 'Моё', admin_edited: true },
+      ],
+    });
+    prisma.keysByKey.set('tasks.old', {
+      id: 'key-old',
+      key: 'tasks.old',
+      translations: [{ lang: 'ru', value: 'Старое' }],
+    });
+    return { prisma, bundle, service };
+  }
+
+  const file = csv(
+    'key,en,ru\n' +
+      'tasks.view.done,Completed,Завершённые\n' +
+      'tasks.view.mine,My tasks,Мои\n' +
+      'tasks.view.new,New,Новые\n',
+  );
+  const previousSeed = earlier([
+    ['en', 'tasks.view.done', ['Archive']],
+    ['ru', 'tasks.view.done', ['Архив']],
+    ['en', 'tasks.view.mine', ['Mine']],
+    ['ru', 'tasks.view.mine', ['Моё']],
+    ['ru', 'tasks.old', ['Старое']],
+  ]);
+
+  it('updates an untouched cell, keeps edited ones, adds new keys, leaves removed keys', async () => {
+    const { prisma, bundle, service } = setup();
+
+    const report = await service.run(file, 'apply', {
+      missingOnly: true,
+      previousSeed,
+    });
+
+    expect(report.changedKeys).toEqual([
+      { key: 'tasks.view.done', lang: 'ru' },
+      { key: 'tasks.view.mine', lang: 'en' },
+      { key: 'tasks.view.new', lang: 'en' },
+      { key: 'tasks.view.new', lang: 'ru' },
+    ]);
+    expect(report.seedUpdate).toEqual({ added: 2, updated: 2, keptEdited: 2 });
+
+    const done = prisma.keysByKey.get('tasks.view.done')!.translations;
+    // Untouched (still the old seed text): takes the new seed text.
+    expect(done).toContainEqual({ lang: 'ru', value: 'Завершённые' });
+    // Edited (not any earlier seed text): stays.
+    expect(done).toContainEqual({ lang: 'en', value: 'Archived (owner)' });
+    const mine = prisma.keysByKey.get('tasks.view.mine')!.translations;
+    expect(mine).toContainEqual({ lang: 'en', value: 'My tasks' });
+    // admin_edited stays even when it equals an earlier seed text.
+    expect(mine).toContainEqual({
+      lang: 'ru',
+      value: 'Моё',
+      admin_edited: true,
+    });
+    // New key added.
+    expect(prisma.keysByKey.get('tasks.view.new')!.translations).toContainEqual(
+      { lang: 'ru', value: 'Новые' },
+    );
+    // A key no longer in the seed is left alone.
+    expect(prisma.keysByKey.get('tasks.old')!.translations).toEqual([
+      { lang: 'ru', value: 'Старое' },
+    ]);
+    // Phones re-download the changed languages.
+    expect(bundle.cacheVersion).toHaveBeenCalledWith('ru', 1);
+  });
+
+  it('without earlier seed texts keeps every existing text, as before', async () => {
+    const { prisma, service } = setup();
+
+    const report = await service.run(file, 'apply', { missingOnly: true });
+
+    expect(report.changedKeys).toEqual([
+      { key: 'tasks.view.new', lang: 'en' },
+      { key: 'tasks.view.new', lang: 'ru' },
+    ]);
+    expect(report.seedUpdate).toEqual({ added: 2, updated: 0, keptEdited: 4 });
+    expect(
+      prisma.keysByKey.get('tasks.view.done')!.translations,
+    ).toContainEqual({ lang: 'ru', value: 'Архив' });
+  });
+
+  it('dry run counts the same and writes nothing', async () => {
+    const { prisma, service } = setup();
+
+    const report = await service.run(file, 'dry-run', {
+      missingOnly: true,
+      previousSeed,
+    });
+
+    expect(report.seedUpdate).toEqual({ added: 2, updated: 2, keptEdited: 2 });
+    expect(prisma.i18nTranslation.upsert).not.toHaveBeenCalled();
   });
 });
 
